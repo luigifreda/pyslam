@@ -21,11 +21,12 @@ alt="SLAM" height="300" border="1" /> </center>
 --- 
 ## Requirements
 
+
 * Python 3  (tested under Python 3.5)
 * Numpy
 * OpenCV (see below for a suggested python installation)
 
-You may need to install some python3 packages. These packages can be automatically installed by running:   
+The framework has been developed and tested under Ubuntu 16.04. You may need to install some required python3 packages. These packages can be easily and automatically installed by running:   
 
 `$ ./install_pip3_packages.sh`   
 
