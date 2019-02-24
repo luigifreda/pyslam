@@ -1,0 +1,188 @@
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+# Viewer.on: 1 is ON, 0 is OFF
+Viewer.on: 1
+
+Viewer.KeyFrameSize: 0.6
+Viewer.KeyFrameLineWidth: 2
+Viewer.GraphLineWidth: 1
+Viewer.PointSize: 2
+Viewer.CameraSize: 0.7
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -100
+Viewer.ViewpointZ: -0.1
+Viewer.ViewpointF: 2000
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+
+# Camera calibration and distortion parameters (OpenCV) 
+Camera.fx: 707.0912
+Camera.fy: 707.0912
+Camera.cx: 601.8873
+Camera.cy: 183.1104
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+Camera.width: 1226
+Camera.height: 370
+
+# Camera frames per second 
+Camera.fps: 10.0
+
+# stereo baseline times fx
+Camera.bf: 379.8145
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40
+
+
+#--------------------------------------------------------------------------------------------
+# Features Parameters
+#--------------------------------------------------------------------------------------------
+
+# if true ORBextractor.nFeatures will be decreased by Line.nfeatures
+Features.balanceTotalNumFeatures: 0
+
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+# originally 2000 points 
+ORBextractor.nFeatures: 1000  
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 12
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Line Segments Tracking
+#--------------------------------------------------------------------------------------------
+
+# Line.on: 1 is ON, 0 is OFF
+Line.on: 1
+
+# set to 0 if keeping all lines   
+Line.nfeatures: 100
+# number of levels in the scale pyramid	
+Line.nLevels: 3
+# scale factor between levels in the scale pyramid 
+Line.scaleFactor: 1.2
+# noise standard deviation on line extraction (in pixel)
+Line.sigma: 2
+# min. line length (relative to img size)
+Line.minLineLength: 0.02
+# weighting of lines w.r.t. points in success/failure tracking conditions 
+Line.lineTrackWeigth: 2
+# min. line length 3D (meters)
+Line.minLineLength3D: 0.01
+
+# max distance for stereo lines 
+Line.Stereo.maxDist: 20
+
+# mu weight for endpoint-endpoint dist in line 3D dist
+Line.muWeightForLine3dDist: 0.5
+
+# for using LSD extractor (much slower) instead of EDLine lines extractor
+Line.LSD.on: 0
+
+#--------------------------------------------------------------------------------------------
+# KeyFrame Generation 
+#--------------------------------------------------------------------------------------------
+
+# on: 1 is ON, 0 is OFF
+KeyFrame.fovCentersBasedGeneration.on: 0
+KeyFrame.maxFovCentersDistance: 0.5
+
+#--------------------------------------------------------------------------------------------
+# Sparse Mapping
+#--------------------------------------------------------------------------------------------
+
+SparseMapping.filename: "sparse_map.map"
+# use saved map on start 
+SparseMapping.reuseMap: 0  
+# save map on shutdown
+SparseMapping.saveMap: 0 
+
+#--------------------------------------------------------------------------------------------
+# Stereo Dense
+#--------------------------------------------------------------------------------------------
+
+# StereoDense.type: libelas, libsgm, opencv, opencvcuda(this needs tuning and improvements) 
+# (library used in combination with volumetric mapping to compute depth from stereo images)
+StereoDense.type: "libelas"
+
+#--------------------------------------------------------------------------------------------
+# PointCloud Mapping
+#--------------------------------------------------------------------------------------------
+
+# PointCloudMapping.on: 1 is ON, 0 is OFF
+PointCloudMapping.on: 1
+
+#PointCloudMapping.type: voxelgrid, octomap, octree_point, chisel, fastfusion, voxblox
+# NOTE: chisel and fastfusion require rectified images if you do not use pointcloud generation 
+PointCloudMapping.type: "octree_point"
+
+PointCloudMapping.resolution: 0.05
+PointCloudMapping.numKeyframesToQueueBeforeProcessing: 1
+PointCloudMapping.downSampleStep: 2
+PointCloudMapping.minDepth: 0.2
+PointCloudMapping.maxDepth: 10
+PointCloudMapping.removeUnstablePoints: 1
+PointCloudMapping.resetOnSparseMapChange: 1
+PointCloudMapping.cloudDeformationOnSparseMapChange: 0
+
+# [octree_point] specific params
+PointCloudMapping.pointCounterThreshold: 2
+
+# [octree_point, chisel, voxblox] specific params 
+# PointCloudMapping.useCarving: 1 is ON, 0 is OFF
+PointCloudMapping.useCarving: 0
+
+# depth filtering 
+PointCloudMapping.filterDepth.on: 0
+PointCloudMapping.filterDepth.diameter: 7
+PointCloudMapping.filterDepth.sigmaDepth: 0.02
+PointCloudMapping.filterDepth.sigmaSpace: 5
+
+#--------------------------------------------------------------------------------------------
+# Segmentation
+#--------------------------------------------------------------------------------------------
+
+# Segmentation.on: 1 is ON, 0 is OFF
+# working only with [octree_point] 
+Segmentation.on: 0
+
+Segmentation.maxDepth: 2
+
+# the following params work well with PointCloudMapping.downSampleStep: 2
+Segmentation.erosionDilationOn: 1
+Segmentation.minFi: 0.92
+Segmentation.maxDelta: 0.01
+Segmentation.singleDepth.minComponentArea: 80
+Segmentation.lineDrawThinckness: 2
+Segmentation.maxAngleForNormalAssociation: 20
+Segmentation.labelsMatchingMinOverlapPerc: 0.2
+Segmentation.labelsMatchingMinOverlapPoints: 0
+Segmentation.globalLabelsMatchingMinOverlapPerc: 0.2
+

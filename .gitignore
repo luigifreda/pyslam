@@ -1,0 +1,13 @@
+.*.swp
+.*.swo
+__pycache__
+tmp
+build
+debug.txt
+kitti
+map.json
+config.pyc 
+lib/g2opy
+lib/pangolin 
+matches.txt 
+map.png
