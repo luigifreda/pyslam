@@ -36,7 +36,7 @@ If you want to run `main_slam.py` you have to install the libs:
 * [pangolin](https://github.com/stevenlovegrove/Pangolin) 
 * [g2opy](https://github.com/uoip/g2opy)
 
-These libs can be easily done by running the script:    
+These libs can be easily installed by running the script:    
 
 `$ ./install_thirdparty.sh`   
 
