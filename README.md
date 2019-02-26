@@ -2,7 +2,7 @@
 
 Author: [Luigi Freda](https://www.luigifreda.com)
 
-**pySLAM** is a *'toy'* implementation of a *Visual Odometry (VO)* pipeline in Python. I released it for **educational purposes**, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free-time. I took inspiration from some python repos available on the web. 
+**pySLAM** is a *'toy'* implementation of a *Visual Odometry (VO)* pipeline in Python. I released it for **educational purposes**, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free time. I took inspiration from some python repos available on the web. 
 
 Main Scripts:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic computation, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a meaningful trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
