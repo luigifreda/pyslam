@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys
@@ -157,7 +157,7 @@ class TumGroundTruth(GroundTruth):
             if self.associations is None:
                 sys.exit('ERROR while reading associations file!')    
         self.association_matches = self.associate(self.associations,self.data)  
-        out_file=open('matches.txt','w')               
+        out_file=open('tum_association_matches.txt','w')               
         out_file.write(str(self.association_matches))
         out_file.close()
 

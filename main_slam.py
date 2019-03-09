@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -29,6 +29,7 @@ from pinhole_camera import PinholeCamera
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory
 from mplot3d import Mplot3d
+from mplot2d import Mplot2d
 from display2D import Display2D
 from viewer3D import Viewer3D
 from helpers import getchar
@@ -53,7 +54,9 @@ if __name__ == "__main__":
 
     num_features=3000
     # N.B.: here you can use just ORB descriptors!
-    feature_detector = feature_detector_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB)
+    feature_detector = feature_detector_factory(min_num_features=num_features, num_levels=8, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB)    
+    #feature_detector = feature_detector_factory(min_num_features=num_features, num_levels=2, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB)
+    #feature_detector = feature_detector_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB)
     #feature_detector = feature_detector_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB)
 
     slam = SLAM(cam, feature_detector, grountruth)
@@ -61,7 +64,10 @@ if __name__ == "__main__":
     viewer3D = Viewer3D()
     display2d = Display2D(cam.width, cam.height) 
 
-    img_id = 0 
+    is_draw_matched_points = False  
+    matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')    
+
+    img_id = 0 #200   # you can start from a given frame id if needed 
     while dataset.isOk():
             
         print('..................................')
@@ -80,6 +86,15 @@ if __name__ == "__main__":
             if display2d is not None:
                 img_draw = slam.map.annotate(img)
                 display2d.draw(img_draw)
+
+            if is_draw_matched_points and slam.num_matched_kps is not None: 
+                matched_kps_signal = [img_id, slam.num_matched_kps]
+                inliers_signal = [img_id, slam.num_inliers]      
+                valid_matched_map_points_signal = [img_id, slam.num_vo_map_points]   # valid matched map points (in current pose optimization)           
+                matched_points_plt.draw(matched_kps_signal,'# matches',color='r')
+                matched_points_plt.draw(inliers_signal,'# inliers',color='g')
+                matched_points_plt.draw(valid_matched_map_points_signal,'# VO map pts', color='b')                                           
+                matched_points_plt.refresh()                   
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

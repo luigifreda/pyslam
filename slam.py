@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -32,16 +32,19 @@ from geom_helpers import triangulate, add_ones, poseRt
 from pinhole_camera import Camera, PinholeCamera
 from initializer import Initializer
 
+from helpers import ColorPrinter
+
 import constants 
 
 kVerbose=True     
 kMinNumFeature = 2000
 kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
-kUseEssentialMatrixEstimation = True # more robust RANSAC given the five point algorithm 
 kRansacProb = 0.999
+kNumMinInliersEssentialMat = 10
 kUseGroundTruthScale = False 
 kLocalWindow = 10
 kUseMotionModel = False 
+kUseBA = False
 
 class SlamStage(Enum):
     NO_IMAGES_YET=0,
@@ -57,6 +60,7 @@ class SLAM(object):
 
         Frame.detector = detector # set the static field of the class 
 
+        # camera info 
         self.W, self.H = camera.width, camera.height 
         self.K = camera.K
         self.Kinv = camera.Kinv
@@ -68,6 +72,10 @@ class SLAM(object):
 
         self.cur_R = None # current rotation w.r.t. world frame 
         self.cur_t = None # current translation w.r.t. world frame 
+
+        self.num_matched_kps = None      # current number of matched keypoints 
+        self.num_inliers = None          # current number of matched inliers 
+        self.num_vo_map_points = None    # current number of valid VO map points (matched and found valid in current pose optimization)          
 
         self.trueX, self.trueY, self.trueZ = None, None, None
         self.grountruth = grountruth
@@ -83,6 +91,13 @@ class SLAM(object):
         self.traj3d_est = []  # history of estimated translations centered w.r.t. first one
         self.traj3d_gt = []   # history of estimated ground truth translations centered w.r.t. first one                  
 
+    # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
+    # out: [Rrc, trc]   (with respect to 'ref' frame) 
+    # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
+    # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
+    # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
+    # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
+    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well even in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
     def estimatePose(self, kpn_ref, kpn_cur):	     
         E, self.mask_match = cv2.findEssentialMat(kpn_cur, kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)                         
         _, R, t, mask = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0., 0.))   
@@ -97,29 +112,32 @@ class SLAM(object):
         f_cur = Frame(self.map, img, self.K, self.Kinv, self.D, des=verts) 
 
         if self.stage == SlamStage.NO_IMAGES_YET: 
-            self.map.add_frame(f_cur) # add first frame in map 
+            self.intializer.init(f_cur) # add first frame in the inizializer 
             self.stage = SlamStage.NOT_INITIALIZED
             return # EXIT (jump to second frame)
-
-        #if self.stage == SlamStage.NOT_INITIALIZED:
-        #    f_ref = self.map.frames[0]  # first frame in map (to be used for initialization)
-        #else:            
-        f_ref = self.map.frames[-1] # last frame in map
+        
+        if self.stage == SlamStage.NOT_INITIALIZED:
+            initializer_output, is_ok = self.intializer.initialize(f_cur, img)
+            if is_ok:
+                f_ref = self.intializer.f_ref
+                # add the two initialized frames in the map 
+                self.map.add_frame(f_ref) # add first frame in map and update its id
+                self.map.add_frame(f_cur) # add second frame in map and update its id
+                # add points in map 
+                new_pts_count,_ = self.map.add_points(initializer_output.points4d, None, f_cur, f_ref, initializer_output.idx_cur, initializer_output.idx_ref, img)
+                ColorPrinter.printGreen("map: initialized %d new points" % (new_pts_count))                   
+                self.stage = SlamStage.OK               
+            return # EXIT (jump to next frame)
+        
+        f_ref = self.map.frames[-1] # get last frame in map            
+        self.map.add_frame(f_cur)   # add f_cur to map 
         
         # find image point matches
         idx_cur, idx_ref = match_frames(f_cur, f_ref)
-        
-        if self.stage == SlamStage.NOT_INITIALIZED:
-            initializer_output, is_ok = self.intializer.init(f_cur, f_ref, idx_cur, idx_ref, img)
-            if is_ok:
-                self.map.add_frame(f_cur) # first add the frame and update its id then add points 
-                new_pts_count,_ = self.map.add_points(initializer_output.points4d, None, f_cur, f_ref, initializer_output.idx_cur, initializer_output.idx_ref, img)
-                print("map: initialized %d new points" % (new_pts_count))                   
-                self.stage = SlamStage.OK               
-            return # EXIT (jump to next frame)
-        else:
-            self.map.add_frame(f_cur)  # simply add f_cur to map 
-        
+        self.num_matched_kps = idx_cur.shape[0] 
+
+        print('# keypoint matches: ', self.num_matched_kps)
+
         # estimate inter frame camera motion 
         Mrc = self.estimatePose(f_ref.kpsn[idx_ref], f_cur.kpsn[idx_cur])
         Mcr = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))
@@ -127,10 +145,14 @@ class SLAM(object):
 
         # remove outliers from matches by using the mask computed with inter frame pose estimation 
         mask_index = [ i for i,v in enumerate(self.mask_match) if v > 0] 
-        num_inliers = len(mask_index)
-        print('num inliers: ', num_inliers)
+        self.num_inliers = len(mask_index)
+        print('# inliers: ', self.num_inliers )
         idx_ref = idx_ref[mask_index]
         idx_cur = idx_cur[mask_index]
+
+        if self.num_inliers < kNumMinInliersEssentialMat:
+            f_cur.pose = f_ref.pose.copy()
+            ColorPrinter.printRed('Essential mat: not enough inliers!') 
 
         # kinematic model 
         self.velocity = np.dot(f_ref.pose, np.linalg.inv(self.map.frames[-2].pose))
@@ -143,47 +165,51 @@ class SLAM(object):
         else:
             f_cur.pose[:,3] = f_ref.pose[:,3].copy() # keep the estimated rotation and override translation             
 
-        # let's populate the map points of the current frame: use the point image matches with previous frame and add map point observations in current frame
+        # update current frame with observed map points: 
+        # these corresponds to curr frame keypoints which have matches with {prev frame keypoints having a corresponding map point} 
+        # update the observations of these observed map points 
         num_found_map_pts_inter_frame = 0
         for i, idx in enumerate(idx_ref):
             if f_ref.points[idx] is not None: 
                 f_ref.points[idx].add_observation(f_cur, idx_cur[i])
                 num_found_map_pts_inter_frame += 1
         
-        print("matched %d map points" % num_found_map_pts_inter_frame)   
+        print("# matched map points: %d " % num_found_map_pts_inter_frame)   
 
         # pose optimization 
-        pose_opt_error, pose_is_ok = optimizer_g2o.poseOptimization(f_cur, verbose=False)
-        print("pose opt err: %f,  ok: %d" % (pose_opt_error, int(pose_is_ok)) )        
+        pose_opt_error, pose_is_ok, self.num_vo_map_points = optimizer_g2o.poseOptimization(f_cur, verbose=False)
+        print("pose opt err: %f,  ok: %d" % (pose_opt_error, int(pose_is_ok)) ) 
 
-        # discard outliers detected in pose optimization 
+        print("# valid matched map points: %d " % self.num_vo_map_points)           
+               
+        # discard outliers detected in pose optimization (in current frame)
         f_cur.reset_outlier_map_points()
 
+        # find map points whose descriptors match with a {keypoint in curr frame which was not matched with any prev frame keypoint)
         # TODO: implement a proper local mapping  
         #num_found_map_pts = self.searchMapByProjection(f_cur)
         num_found_map_pts = self.searchLocalFramesByProjection(f_cur, local_window = kLocalWindow)        
         
-        # TODO: this triangulation should be done from keyframes!
         # triangulate the points we don't have matches for
+        # TODO: this triangulation should be done from keyframes!
         good_pts4d = np.array([f_cur.points[i] is None for i in idx_cur])
 
         # do triangulation in global frame
         pts4d = triangulate(f_cur.pose, f_ref.pose, f_cur.kpsn[idx_cur], f_ref.kpsn[idx_ref])
         good_pts4d &= np.abs(pts4d[:, 3]) != 0
-        good_pts4d &= f_ref.outliers[idx_ref] == False 
-        pts4d /= pts4d[:, 3:]       # homogeneous 3-D coords
+        #good_pts4d &= f_ref.outliers[idx_ref] == False 
+        pts4d /= pts4d[:, 3:]       # get homogeneous 3-D coords
 
         new_pts_count,_ = self.map.add_points(pts4d, good_pts4d, f_cur, f_ref, idx_cur, idx_ref, img, check_parallax=True)
-        print("map: added %d new points (%d searched by projection)" % (new_pts_count, num_found_map_pts))
+        print("# added map points: %d, # found by projection: %d" % (new_pts_count, num_found_map_pts))
             
         err = self.map.localOptimize(local_window=kLocalWindow)
-        print("local optimization:   %f units of error" % err)
+        print("local optimization error:   %f" % err)
 
-        # optimize the map
-        useBA = False
-        if f_cur.id >= 4 and f_cur.id % 5 == 0 and useBA:
+        # global optimization of the map
+        if f_cur.id >= constants.kNumFramesBA and f_cur.id % constants.kNumFramesBA == 0 and kUseBA:
             err = self.map.optimize()  # verbose=True)
-            print("optimize:   %f units of error" % err)
+            ColorPrinter.printGreen("global optimization error:   %f" % err)
 
         print("map: %d points, %d frames" % (len(self.map.points), len(self.map.frames)))
         print("time: %.2f ms" % ((time.time()-start_time)*1000.0))
@@ -197,7 +223,8 @@ class SLAM(object):
         point_id_set = set()
         frames = self.map.frames[-local_window:]
         for f in frames:
-            f_points = [p for p,outlier in zip(f.points,f.outliers) if (p is not None) and (outlier is not True)] 
+            #f_points = [p for p,outlier in zip(f.points,f.outliers) if (p is not None) and (outlier is not True)] 
+            f_points = [p for p in f.points if (p is not None)]
             for p in f_points: 
                 if p.id not in point_id_set:
                     points.append(p)
@@ -223,7 +250,7 @@ class SLAM(object):
 
             for i, p in enumerate(points):
                 if not visible_pts[i] or p.is_bad is True:
-                    # point not visible in frame
+                    # point not visible in frame or is bad 
                     continue
                 if f_cur in p.frames:
                     # we already matched this map point to this frame

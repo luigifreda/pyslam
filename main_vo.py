@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -56,12 +56,16 @@ if __name__ == "__main__":
                         config.DistCoef)
 
 
-    num_features=3000  # how many features do you want to detect and track?
+    num_features=2000  # how many features do you want to detect and track?
     """
     select your feature tracker 
     """
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 3, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
     feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)    
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = TrackerTypes.DES_BF)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = TrackerTypes.DES_BF)    
     #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = TrackerTypes.DES_FLANN)
     #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = TrackerTypes.DES_FLANN)
 
@@ -77,10 +81,13 @@ if __name__ == "__main__":
     if use_pangolin:
         display = Viewer3D()
     else:
-        plt3d = Mplot3d()
+        plt3d = Mplot3d(title='3D trajectory')
 
     is_draw_err = True 
-    err_plt = Mplot2d(xlabel='img id', ylabel='m')
+    err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
+
+    is_draw_matched_points = True 
+    matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
 
     img_id = 0
     while dataset.isOk():
@@ -112,7 +119,7 @@ if __name__ == "__main__":
                     if use_pangolin:
                         display.drawVo(vo)   
                     else:
-                        plt3d.drawTraj(vo.traj3d_gt,'truth',color='r',marker='.')
+                        plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
                         plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
                         plt3d.refresh()
 
@@ -123,11 +130,20 @@ if __name__ == "__main__":
                     err_plt.draw(errx,'err_x',color='g')
                     err_plt.draw(erry,'err_y',color='b')
                     err_plt.draw(errz,'err_z',color='r')
-                    err_plt.refresh()                    
+                    err_plt.refresh()    
+
+                if is_draw_matched_points:
+                    matched_kps_signal = [img_id, vo.num_matched_kps]
+                    inliers_signal = [img_id, vo.num_inliers]                    
+                    matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
+                    matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
+                    matched_points_plt.refresh()                    
+
 
             # draw camera image 
             cv2.imshow('Camera', vo.draw_img)				
 
+        # press 'q' to exit!
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
         img_id += 1

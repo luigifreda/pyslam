@@ -14,12 +14,13 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import time
 import numpy as np
 import json
+import math 
 
 from geom_helpers import poseRt, hamming_distance, add_ones
 import constants
@@ -28,10 +29,6 @@ from map_point import MapPoint
 
 import optimizer_g2o 
 # from optimize_crappy import optimize
-
-
-LOCAL_WINDOW = 20
-# LOCAL_WINDOW = None
 
 
 class Map(object):
@@ -54,15 +51,15 @@ class Map(object):
                 'kpus': f.kpus.tolist(), 'des': f.des.tolist(),
                 'pts': [p.id if p is not None else -1 for p in f.pts]
                 })
-        ret['max_frame'] = self.max_frame_id
-        ret['max_point'] = self.max_point_id
+        ret['max_frame_id'] = self.max_frame_id
+        ret['max_point_id'] = self.max_point_id
         return json.dumps(ret)
 
     # FIXME: according to new changes
     def deserialize(self, s):
         ret = json.loads(s)
-        self.max_frame_id = ret['max_frame']
-        self.max_point_id = ret['max_point']
+        self.max_frame_id = ret['max_frame_id']
+        self.max_point_id = ret['max_point_id']
         self.points = []
         self.frames = []
 
@@ -107,7 +104,7 @@ class Map(object):
         return img
 
     # add new points to the map from pairwise matches
-    def add_points(self, points4d, mask_pts4d, f1, f2, idx1, idx2, img1, check_parallax=False):
+    def add_points(self, points4d, mask_pts4d, f1, f2, idx1, idx2, img1, check_parallax=True):
         assert(points4d.shape[0] == len(idx1))
         new_pts_count = 0
         out_mask_pts4d = np.full(points4d.shape[0], False, dtype=bool)
@@ -120,8 +117,8 @@ class Map(object):
 
             # check parallax is large enough (this is going to create problem when the motion is almost zero)
             if check_parallax is True:
-                Rwc1 = np.linalg.inv(f1.pose[:3, :3])
-                Rwc2 = np.linalg.inv(f2.pose[:3, :3])
+                Rwc1 = f1.pose[:3, :3].T
+                Rwc2 = f2.pose[:3, :3].T
                 r1 = np.dot(Rwc1, add_ones(f1.kpsn[idx1[i]]))
                 r2 = np.dot(Rwc2, add_ones(f2.kpsn[idx2[i]]))
                 cos_parallax = r1.dot(r2) / (np.linalg.norm(r1) * np.linalg.norm(r2))
@@ -144,11 +141,11 @@ class Map(object):
 
             # check reprojection error
             err1 = (uv1[0:2] / uv1[2]) - f1.kpsu[idx1[i]]
-            err1 = np.sum(err1**2)            
+            err1 = np.linalg.norm(err1)            
             err2 = (uv2[0:2] / uv2[2]) - f2.kpsu[idx2[i]]
-            err2 = np.sum(err2**2)
+            err2 = np.linalg.norm(err2)
             # TODO: put a parameter here and check by using covariance and chi-square error
-            if err1 > 2 or err2 > 2:
+            if err1 > constants.kAddPointsCheckReprojectionErr or err2 > constants.kAddPointsCheckReprojectionErr:
                 #print('p[%d] big reproj err1 %f, err2 %f' % (i,err1,err2))
                 continue
 
@@ -174,9 +171,7 @@ class Map(object):
         for f in frames:
             f_points = [p for p in f.points if (p is not None)] 
             for p in f_points: 
-                if p.id not in point_id_set and not p.is_bad:
-                    #if p.id == 6:
-                    #    print('point ', p.id, 'in frames ', [f.id for f in p.frames])
+                if p.id not in point_id_set and not p.is_bad:  # discard already considered points or bad points 
                     points.append(p)
                     point_id_set.add(p.id)        
                     point_frames = [p_frame for p_frame in p.frames if p_frame.id not in frame_id_set] 
@@ -198,7 +193,7 @@ class Map(object):
             for f, idx in zip(p.frames, p.idxs):
                 uv = f.kpsu[idx]
                 proj = f.project_map_point(p)
-                invSigma2 = Frame.detector.vInvLevelSigma2[f.octaves[idx]]
+                invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[idx]]
                 errs.append(np.linalg.norm(proj-uv)*invSigma2)
             # cull
             chi2Mono = 5.991 # chi-square 2 DOFs  (Hartley Zisserman pg 119)
@@ -210,14 +205,14 @@ class Map(object):
                 self.remove_point(p)
         print("culled: %d points" % (culled_pt_count))        
 
-    def optimize(self, local_window=LOCAL_WINDOW, fix_points=False, verbose=False, rounds=50):
+    def optimize(self, local_window=constants.kGlobalWindow, verbose=False, rounds=10):
         #err = optimizer_g2o.optimizeNormalized(self.frames, self.points, local_window, fix_points, verbose, rounds)
-        err = optimizer_g2o.optimization(self.frames, self.points, local_window, fix_points, verbose, rounds)        
+        err = optimizer_g2o.optimization(frames = self.frames, points = self.points, local_window = local_window, verbose = verbose, rounds = rounds)        
         self.cullMapPoints(self.points)
 
         return err
 
-    def localOptimize(self, local_window=LOCAL_WINDOW, verbose = False, rounds=10):
+    def localOptimize(self, local_window=constants.kGlobalWindow, verbose = False, rounds=10):
         frames, points, frames_ref = self.getLocalWindowMap(local_window)
         print('local optimization window: ', [f.id for f in frames])        
         print('                     refs: ', [f.id for f in frames_ref])

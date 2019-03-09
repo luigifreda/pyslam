@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np 
@@ -64,11 +64,14 @@ class VisualOdometry(object):
         self.draw_img = None 
 
         self.init_history = True 
-        self.poses = []       # history of poses
-        self.t0_est = None    # history of estimated translations      
-        self.t0_gt = None     # history of ground truth translations (if available)
-        self.traj3d_est = []  # history of estimated translations centered w.r.t. first one
-        self.traj3d_gt = []   # history of estimated ground truth translations centered w.r.t. first one     
+        self.poses = []              # history of poses
+        self.t0_est = None           # history of estimated translations      
+        self.t0_gt = None            # history of ground truth translations (if available)
+        self.traj3d_est = []         # history of estimated translations centered w.r.t. first one
+        self.traj3d_gt = []          # history of estimated ground truth translations centered w.r.t. first one     
+
+        self.num_matched_kps = None    # current number of matched keypoints  
+        self.num_inliers = None        # current number of inliers 
 
         self.timer_verbose = False # set this to True if you want to print timings 
         self.timer_main = TimerFps('VO', is_verbose = self.timer_verbose)
@@ -112,10 +115,10 @@ class VisualOdometry(object):
     # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
     # out: [Rrc, trc]   (with respect to 'ref' frame) 
     # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
-    # N.B.2: this function have problems in the following cases: [see Hartley/Zisserman Book]
+    # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
     # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
-    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well even in the degenerate planar case
+    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well even in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
     def estimatePose(self, kp_ref, kp_cur):	
         kp_ref_u = self.cam.undistortPoints(kp_ref)	
         kp_cur_u = self.cam.undistortPoints(kp_cur)	        
@@ -151,15 +154,17 @@ class VisualOdometry(object):
         # update keypoints history  
         self.kp_ref = self.track_result.kp_ref
         self.kp_cur = self.track_result.kp_cur
-        self.des_cur = self.track_result.des_cur                   
+        self.des_cur = self.track_result.des_cur 
+        self.num_matched_kps = self.kpn_ref.shape[0] 
+        self.num_inliers =  np.sum(self.mask_match)
         if kVerbose:        
-            print('# matched points: ', self.kpn_ref.shape[0])      
+            print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers)      
         # t is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
         absolute_scale = self.getAbsoluteScale(frame_id)
         if(absolute_scale > kAbsoluteScaleThreshold):
             # compose absolute motion [Rwa,twa] with estimated relative motion [Rab,s*tab] (s is the scale extracted from the ground truth)
             # [Rwb,twb] = [Rwa,twa]*[Rab,tab] = [Rwa*Rab|twa + Rwa*tab]
-            print('estimated t with norm |t|: ', np.linalg.norm(t))
+            print('estimated t with norm |t|: ', np.linalg.norm(t), ' (just for sake of clarity)')
             self.cur_t = self.cur_t + absolute_scale*self.cur_R.dot(t) 
             self.cur_R = self.cur_R.dot(R)       
         # draw image         
@@ -169,7 +174,7 @@ class VisualOdometry(object):
             self.kp_cur, self.des_cur = self.feature_tracker.detect(self.cur_image)           
             self.kp_cur = np.array([x.pt for x in self.kp_cur], dtype=np.float32) # convert from list of keypoints to an array of points   
             if kVerbose:     
-                print('# detected points: ', self.kp_cur.shape[0])                  
+                print('# new detected points: ', self.kp_cur.shape[0])                  
         self.kp_ref = self.kp_cur
         self.des_ref = self.des_cur
         self.updateHistory()           
@@ -227,5 +232,6 @@ class VisualOdometry(object):
         if (self.t0_est is not None) and (self.t0_gt is not None):             
             p = [self.cur_t[0]-self.t0_est[0], self.cur_t[1]-self.t0_est[1], self.cur_t[2]-self.t0_est[2]]   # the estimated traj starts at 0
             self.traj3d_est.append(p)
-            self.traj3d_gt.append([self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]])        
+            pg = [self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]]  # the groudtruth traj starts at 0  
+            self.traj3d_gt.append(pg)     
             self.poses.append(poseRt(self.cur_R, p))   

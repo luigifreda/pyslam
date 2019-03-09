@@ -19,6 +19,7 @@ for b, i, j in block_generator:
     print('block: (',i,',',j,') with color:', color)
     
 cv2.imshow('image gray',img)
+#sys.exit()
 
 k= cv2.waitKey(0)
 

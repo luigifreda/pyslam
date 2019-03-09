@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np 
@@ -33,14 +33,15 @@ class TrackerTypes(Enum):
 kMinNumFeatureDefault = 2000
 
 
-def feature_tracker_factory( min_num_features=kMinNumFeatureDefault, 
+def feature_tracker_factory(min_num_features=kMinNumFeatureDefault, 
+                            num_levels = 1, 
                             detector_type = FeatureDetectorTypes.FAST, 
                             descriptor_type = FeatureDescriptorTypes.ORB, 
                             tracker_type = TrackerTypes.LK):
     if tracker_type == TrackerTypes.LK:
-        return LkFeatureTracker(min_num_features, detector_type)
+        return LkFeatureTracker(min_num_features=min_num_features, num_levels = num_levels, detector_type=detector_type)
     else: 
-        return DescriptorFeatureTracker(min_num_features = min_num_features, detector_type = detector_type, descriptor_type = descriptor_type, tracker_type = tracker_type)
+        return DescriptorFeatureTracker(min_num_features=min_num_features, num_levels = num_levels, detector_type = detector_type, descriptor_type = descriptor_type, tracker_type = tracker_type)
     return None 
 
 
@@ -56,10 +57,12 @@ class TrackResult(object):
 # base class 
 class FeatureTracker(object): 
     def __init__(self, min_num_features=kMinNumFeatureDefault, 
+                       num_levels = 1,
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.ORB, 
                        tracker_type = TrackerTypes.LK):
         self.min_num_features = min_num_features
+        self.num_levels = num_levels 
         self.detector_type = detector_type
         self.descriptor_type = descriptor_type
         self.tracker_type = tracker_type
@@ -76,14 +79,15 @@ class FeatureTracker(object):
 # use patch as "descriptor" and track/"match" by using LK pyr optic flow 
 class LkFeatureTracker(FeatureTracker): 
     def __init__(self, min_num_features=kMinNumFeatureDefault, 
+                       num_levels = 3,
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.NONE, 
                        tracker_type = TrackerTypes.LK):    
-        super().__init__(min_num_features, detector_type, descriptor_type, tracker_type)
+        super().__init__(min_num_features, num_levels, detector_type, descriptor_type, tracker_type)
         self.detector = feature_detector_factory(min_num_features, detector_type, descriptor_type)   
         # we use LK pyr optic flow for matching     
         self.lk_params = dict(winSize  = (21, 21), 
-                              maxLevel = 3,
+                              maxLevel = self.num_levels,
                               criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))        
 
     # out: keypoints and empty descriptors
@@ -108,13 +112,18 @@ class LkFeatureTracker(FeatureTracker):
 
 class DescriptorFeatureTracker(FeatureTracker): 
     def __init__(self, min_num_features=kMinNumFeatureDefault, 
+                       num_levels = 1,
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.ORB, 
                        tracker_type = TrackerTypes.DES_FLANN):
-        super().__init__(min_num_features, detector_type, descriptor_type, tracker_type)
-        self.detector = feature_detector_factory(min_num_features, detector_type, descriptor_type)
+        super().__init__(min_num_features, num_levels, detector_type, descriptor_type, tracker_type)
+        self.detector = feature_detector_factory(min_num_features=min_num_features, num_levels=num_levels, detector_type=detector_type, descriptor_type=descriptor_type)
         if descriptor_type == FeatureDescriptorTypes.ORB:
             self.norm_type = cv2.NORM_HAMMING
+        elif descriptor_type == FeatureDescriptorTypes.BRISK:
+            self.norm_type = cv2.NORM_HAMMING   
+        elif descriptor_type == FeatureDescriptorTypes.AKAZE:
+            self.norm_type = cv2.NORM_HAMMING                                 
         elif descriptor_type == FeatureDescriptorTypes.SURF:
             self.norm_type = cv2.NORM_L2            
         elif descriptor_type == FeatureDescriptorTypes.SIFT: 

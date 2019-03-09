@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import cv2
@@ -112,6 +112,16 @@ class Frame(object):
         self.points[idx] = None 
         self.outliers[idx] = False         
 
+    def remove_point(self, p):
+        p_idx = None 
+        try: 
+            p_idx = self.points.index(p)
+        except:
+            pass 
+        if p_idx is not None: 
+            self.points[p_idx] = None 
+            self.outliers[p_idx] = False  
+
     def reset_points(self):
         self.points = [None]*len(self.kpsu) 
         self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)                 
@@ -190,5 +200,4 @@ def match_frames(f1, f2):
     #good_point_matches = np.array(good_point_matches)
     idx1 = np.array(idx1)
     idx2 = np.array(idx2)
-    print('matches: ', len(idx1))
     return idx1, idx2

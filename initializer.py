@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -29,11 +29,14 @@ from map_point import MapPoint
 from map import Map
 from geom_helpers import triangulate, add_ones, poseRt
 from pinhole_camera import Camera, PinholeCamera
+from helpers import ColorPrinter
 
 kVerbose=True     
 kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
-kNumMinTriangulatedPoints = 50
+kNumMinFeatures = 100
+kNumMinTriangulatedPoints = 100
+kMaxIdDistBetweenFrames = 10
 
 class InitializerOutput(object):
     def __init__(self):    
@@ -47,6 +50,8 @@ class Initializer(object):
     def __init__(self):
         self.mask_match = None
         self.mask_recover = None 
+        self.frames = []     
+        self.id_ref = 0   
 
     def estimatePose(self, kpn_ref, kpn_cur):	     
         E, self.mask_match = cv2.findEssentialMat(kpn_cur, kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)                         
@@ -70,9 +75,36 @@ class Initializer(object):
             print('reproj err: ', err)     
 
         #pts_3d = point_4d[:3, :].T
-        return point_4d.T       
+        return point_4d.T  
 
-    def init(self, f_cur, f_ref, idx_cur, idx_ref, img_cur):
+    # push the first image
+    def init(self, f_cur):
+        self.frames.append(f_cur)              
+
+    # actually initialize having two available images 
+    def initialize(self, f_cur, img_cur):
+
+        # prepare the output 
+        out = InitializerOutput()
+        is_ok = False 
+
+        # if too many frames have passed, move the current id_ref forward 
+        if (len(self.frames)-1) - self.id_ref >= kMaxIdDistBetweenFrames: 
+            self.id_ref = len(self.frames)-1  # take last frame in the array 
+        self.f_ref = self.frames[self.id_ref] 
+        f_ref = self.f_ref 
+
+        # append current frame 
+        self.frames.append(f_cur)
+
+        # if the current frames do no have enough features exit 
+        if len(f_ref.kps) < kNumMinFeatures or len(f_cur.kps) < kNumMinFeatures:
+            ColorPrinter.printRed('Inializer: not enough features!') 
+            return out, is_ok
+
+        # find image point matches
+        idx_cur, idx_ref = match_frames(f_cur, f_ref)
+    
         print('├────────')        
         print('initializing frames ', f_cur.id, ', ', f_ref.id)
         Mrc = self.estimatePose(f_ref.kpsn[idx_ref], f_cur.kpsn[idx_cur])
@@ -95,7 +127,7 @@ class Initializer(object):
         new_pts_count, mask_points = map.add_points(points4d, None, f_cur, f_ref, idx_cur_inliers, idx_ref_inliers, img_cur, check_parallax=True)
         print("triangulated:      %d new points, %d matches" % (new_pts_count, len(idx_cur)))    
         err = map.optimize(verbose=False)
-        print("pose opt err:   %f units of error" % err)         
+        print("pose opt err:   %f" % err)         
 
         #reset points in frames 
         f_cur.reset_points()
@@ -103,12 +135,12 @@ class Initializer(object):
 
         is_ok = new_pts_count > kNumMinTriangulatedPoints
 
-        out = InitializerOutput()
         out.points4d = points4d[mask_points]
         out.f_cur = f_cur
         out.idx_cur = idx_cur_inliers[mask_points]        
         out.f_ref = f_ref 
         out.idx_ref = idx_ref_inliers[mask_points]
 
-        print('├────────')        
+        print('├────────')    
+        ColorPrinter.printGreen('Inializer: ok!')             
         return out, is_ok

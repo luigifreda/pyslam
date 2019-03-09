@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import math 
@@ -30,7 +30,7 @@ from helpers import ColorPrinter
 # ------------------------------------------------------------------------------------------
 
 # optimize by using pixel image points 
-def optimization(frames, points, local_window, fixed_points, verbose=False, rounds=40):
+def optimization(frames, points, local_window, fixed_points=False, verbose=False, rounds=40):
     if local_window is None:
         local_frames = frames
     else:
@@ -48,7 +48,7 @@ def optimization(frames, points, local_window, fixed_points, verbose=False, roun
 
     # add frame vertices to graph
     for f in (local_frames if fixed_points else frames):    # if points are fixed then consider just the local frames, otherwise we need all frames or at least two frames for each point
-        print('adding vertex frame ', f.id, ' to graph')
+        #print('adding vertex frame ', f.id, ' to graph')
         pose = f.pose
         se3 = g2o.SE3Quat(pose[0:3, 0:3], pose[0:3, 3])
         v_se3 = g2o.VertexSE3Expmap()
@@ -71,13 +71,13 @@ def optimization(frames, points, local_window, fixed_points, verbose=False, roun
         if not any([f in local_frames for f in p.frames]):  
             continue
         #print('adding vertex point ', p.id,' to graph')
-        pt = g2o.VertexSBAPointXYZ()    
-        pt.set_id(p.id * 2 + 1)  # odd ids
-        pt.set_estimate(p.pt[0:3])
-        pt.set_marginalized(True)
-        pt.set_fixed(fixed_points)
-        opt.add_vertex(pt)
-        graph_points[p] = pt
+        v_pt = g2o.VertexSBAPointXYZ()    
+        v_pt.set_id(p.id * 2 + 1)  # odd ids
+        v_pt.set_estimate(p.pt[0:3])
+        v_pt.set_marginalized(True)
+        v_pt.set_fixed(fixed_points)
+        opt.add_vertex(v_pt)
+        graph_points[p] = v_pt
 
         # add edges
         for f, idx in zip(p.frames, p.idxs):
@@ -85,10 +85,10 @@ def optimization(frames, points, local_window, fixed_points, verbose=False, roun
                 continue
             #print('adding edge between point ', p.id,' and frame ', f.id)
             edge = g2o.EdgeSE3ProjectXYZ()
-            edge.set_vertex(0, pt)
+            edge.set_vertex(0, v_pt)
             edge.set_vertex(1, graph_frames[f])
             edge.set_measurement(f.kpsu[idx])
-            invSigma2 = Frame.detector.vInvLevelSigma2[f.octaves[idx]]
+            invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[idx]]
             edge.set_information(np.eye(2)*invSigma2)
             edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
@@ -158,7 +158,7 @@ def poseOptimization(frame, verbose=False, rounds=10):
 
         edge.set_vertex(0, opt.vertex(0))
         edge.set_measurement(frame.kpsu[idx])
-        invSigma2 = Frame.detector.vInvLevelSigma2[frame.octaves[idx]]
+        invSigma2 = Frame.detector.inv_level_sigmas2[frame.octaves[idx]]
         edge.set_information(np.eye(2)*invSigma2)
         edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
@@ -176,7 +176,7 @@ def poseOptimization(frame, verbose=False, rounds=10):
     if num_point_edges < 3:
         ColorPrinter.printRed('poseOptimization: not enough correspondences!') 
         is_ok = False 
-        return 0, is_ok
+        return 0, is_ok, 0
 
     if verbose:
         opt.set_verbose(True)
@@ -218,13 +218,16 @@ def poseOptimization(frame, verbose=False, rounds=10):
         ColorPrinter.printRed('poseOptimization: all the initial correspondences are bad!')           
         is_ok = False      
 
-    # put frames back
-    est = v_se3.estimate()
-    R = est.rotation().matrix()
-    t = est.translation()
-    frame.pose = poseRt(R, t)
+    # update pose estimation
+    if is_ok is True: 
+        est = v_se3.estimate()
+        R = est.rotation().matrix()
+        t = est.translation()
+        frame.pose = poseRt(R, t)
 
-    return opt.active_chi2(), is_ok
+    num_valid_points = num_point_edges - num_bad_points
+
+    return opt.active_chi2(), is_ok, num_valid_points
 
 
 # ------------------------------------------------------------------------------------------
@@ -275,13 +278,13 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
         if not any([f in frames for f in p.frames]):  
             continue
         #print('adding vertex point ', p.id,' to graph')
-        pt = g2o.VertexSBAPointXYZ()    
-        pt.set_id(p.id * 2 + 1)  # odd ids
-        pt.set_estimate(p.pt[0:3])
-        pt.set_marginalized(True)
-        pt.set_fixed(fixed_points)
-        opt.add_vertex(pt)
-        graph_points[p] = pt
+        v_pt = g2o.VertexSBAPointXYZ()    
+        v_pt.set_id(p.id * 2 + 1)  # odd ids
+        v_pt.set_estimate(p.pt[0:3])
+        v_pt.set_marginalized(True)
+        v_pt.set_fixed(fixed_points)
+        opt.add_vertex(v_pt)
+        graph_points[p] = v_pt
 
         # add edges
         for f, p_idx in zip(p.frames, p.idxs):
@@ -290,10 +293,10 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
                 continue
             #print('adding edge between point ', p.id,' and frame ', f.id)
             edge = g2o.EdgeSE3ProjectXYZ()
-            edge.set_vertex(0, pt)
+            edge.set_vertex(0, v_pt)
             edge.set_vertex(1, graph_frames[f])
             edge.set_measurement(f.kpsu[p_idx])
-            invSigma2 = Frame.detector.vInvLevelSigma2[f.octaves[p_idx]]
+            invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[p_idx]]
             edge.set_information(np.eye(2)*invSigma2)
             edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
@@ -345,9 +348,9 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
 
     for d in outliers_data:
         (p,f,p_idx) = d
-        #FIXME: this bring troubles 
-        #p.remove_observation(f,p_idx)
-        #f.remove_point_observation(p_idx)           
+        assert(f.points[p_idx] == p)
+        p.remove_observation(f,p_idx)
+        f.remove_point(p)           
 
     # put frames back
     for f in graph_frames:

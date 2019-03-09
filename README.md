@@ -40,6 +40,28 @@ These libs can be easily installed by running the script:
 
 `$ ./install_thirdparty.sh`   
 
+
+#### How to install non-free OpenCV modules under Ubuntu 
+
+In order to use non-free OpenCV modules ([link](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf)) under Ubuntu, you can run    
+`$ pip3 install opencv-contrib-python==3.4.0.12`
+
+For a more advanced OpenCV installation procedure, you can take a look [here](https://www.pyimagesearch.com/2016/10/24/ubuntu-16-04-how-to-install-opencv/). 
+
+
+#### Problems with ROS and OpenCV?
+
+If you have tried to run the scripts and got the following error (having installed ROS in your system):
+```
+ImportError: /opt/ros/kinetic/lib/python2.7/dist-packages/cv2.so:  
+undefined symbol: PyCObject_Type
+```
+you can run the following command in your shell: 
+```
+$ export PYTHONPATH=""
+```
+this will remove the ROS OpenCV python modules from your python path and solve the issue. 
+
 --- 
 ## Usage
 
@@ -137,13 +159,6 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * proper local map generation and management 
 * loop closure
 
----
-## How to install OpenCV under Ubuntu 
-
-In order to use non-free module ([link](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf)) under Ubuntu 16.04, you can run    
-`$ pip install opencv-contrib-python==3.4.0.12`
-
-For a more advanced installation procedure, take a look [here](https://www.pyimagesearch.com/2016/10/24/ubuntu-16-04-how-to-install-opencv/). 
 
 ---
 ## Credits 

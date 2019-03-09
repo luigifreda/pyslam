@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
@@ -22,10 +22,14 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
 # use mplotlib figure to draw in 3D trajectories 
+
+kPlotSleep = 0.0001 
 class Mplot3d:
-    def __init__(self):
+    def __init__(self, title=''):
         self.fig = plt.figure()
         self.ax = self.fig.gca(projection='3d') 
+        if title is not '':
+            self.ax.set_title(title)     
         self.ax.set_xlabel('X axis')
         self.ax.set_ylabel('Y axis')
         self.ax.set_zlabel('Z axis')		   		
@@ -91,4 +95,4 @@ class Mplot3d:
 
     def refresh(self):
         self.setAxis()
-        plt.pause(.001)
+        plt.pause(kPlotSleep)

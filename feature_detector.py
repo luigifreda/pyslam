@@ -14,18 +14,24 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
-
+import sys 
 import numpy as np 
 import cv2
 from enum import Enum
 from geom_helpers import imgBlocks
 
 kVerbose = True   
+
 kMinNumFeatureDefault = 2000
+
 kAdaptorNumRowDivs = 4
 kAdaptorNumColDivs = 4
+
+kNumLevels = 1
+kScaleFactor = 1.2 
+
 kDrawOriginalExtractedFeatures = False  # for debugging 
 
 
@@ -35,17 +41,24 @@ class FeatureDetectorTypes(Enum):
     SIFT = 3
     SURF = 4
     ORB  = 5 
+    BRISK = 6
+    AKAZE = 7
 
 
 class FeatureDescriptorTypes(Enum):
     NONE = 0  # used for LK tracker
     SIFT = 1
     SURF = 2
-    ORB  = 3     
+    ORB  = 3  
+    BRISK = 4       
+    AKAZE = 5
 
 
-def feature_detector_factory(min_num_features=kMinNumFeatureDefault, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB):
-    return FeatureDetector(min_num_features, detector_type, descriptor_type)
+def feature_detector_factory(min_num_features=kMinNumFeatureDefault, 
+                             num_levels = kNumLevels, 
+                             detector_type = FeatureDetectorTypes.FAST, 
+                             descriptor_type = FeatureDescriptorTypes.ORB):
+    return FeatureDetector(min_num_features, num_levels, detector_type, descriptor_type)
 
 
 class BlockAdaptor(object): 
@@ -57,10 +70,14 @@ class BlockAdaptor(object):
     def detect(self, frame, mask=None):
         if self.row_divs == 1 and self.col_divs == 1: 
             return self.detector.detect(frame, mask)
-        else:    
+        else:   
+            if kVerbose:             
+                print('BlockAdaptor')
             block_generator = imgBlocks(frame, self.row_divs, self.col_divs)
             kps_global = []
             for b, i, j in block_generator:
+                if kVerbose and False:                  
+                    print('BlockAdaptor  in block (',i,',',j,')')                 
                 kps = self.detector.detect(b)
                 #print('adaptor: detected #features: ', len(kps), ' in block (',i,',',j,')')  
                 for kp in kps:
@@ -69,6 +86,61 @@ class BlockAdaptor(object):
                     #print('kp.pt after: ', kp.pt)                                                                     
                     kps_global.append(kp)
             return kps_global
+
+
+class PyramidAdaptor(object): 
+    def __init__(self, detector, num_levels = 4, scale_factor = 1.2):    
+        self.detector = detector 
+        self.num_levels = num_levels
+        self.scale_factor = scale_factor 
+        self.cur_pyr = [] 
+        self.scale_factors = None
+        self.inv_scale_factors = None 
+        self.initSigmaLevels()
+
+    def initSigmaLevels(self): 
+        self.scale_factors = np.zeros(self.num_levels)
+        self.inv_scale_factors = np.zeros(self.num_levels)
+        self.scale_factors[0]=1.0
+        for i in range(1,self.num_levels):
+            self.scale_factors[i]=self.scale_factors[i-1]*self.scale_factor
+        #print('self.scale_factors: ', self.scale_factors)
+        for i in range(self.num_levels):
+            self.inv_scale_factors[i]=1.0/self.scale_factors[i]
+        #print('self.inv_scale_factors: ', self.inv_scale_factors)       
+
+    def detect(self, frame, mask=None):      
+        if self.num_levels == 1: 
+            return self.detector.detect(frame, mask)
+        else:    
+            if kVerbose:              
+                print('PyramidAdaptor')
+            self.computerPyramid(frame)
+            kps_global = []
+            for i in range(0,self.num_levels):              
+                scale = self.scale_factors[i]
+                pyr_cur  = self.cur_pyr[i]            
+                kps = self.detector.detect(pyr_cur)
+                if kVerbose and False:                
+                    print("PyramidAdaptor - level", i, ", shape: ", pyr_cur.shape)                     
+                for kp in kps:
+                    #print('kp.pt before: ', kp.pt)
+                    kp.pt = (kp.pt[0]*scale, kp.pt[1]*scale) 
+                    kp.size = kp.size*scale   
+                    kp.octave = i      
+                    #print('kp.pt after: ', kp.pt)                                                                     
+                    kps_global.append(kp)
+            return kps_global  
+
+    def computerPyramid(self, frame): 
+        self.cur_pyr = []
+        self.cur_pyr.append(frame) 
+        inv_scale = 1./self.scale_factor
+        for i in range(1,self.num_levels):
+            pyr_cur  = self.cur_pyr[-1]
+            pyr_down = cv2.resize(pyr_cur,(0,0),fx=inv_scale,fy=inv_scale)
+            self.cur_pyr.append(pyr_down)                         
+
 
 
 class ShiTomasiDetector(object): 
@@ -90,34 +162,45 @@ class ShiTomasiDetector(object):
 
 
 class FeatureDetector(object):
-    def __init__(self, min_num_features=kMinNumFeatureDefault, detector_type = FeatureDetectorTypes.SHI_TOMASI,  descriptor_type = FeatureDescriptorTypes.ORB):
+    def __init__(self, min_num_features=kMinNumFeatureDefault, 
+                       num_levels = kNumLevels, 
+                       detector_type = FeatureDetectorTypes.SHI_TOMASI,  
+                       descriptor_type = FeatureDescriptorTypes.ORB):
         self.detector_type = detector_type 
         self.descriptor_type = descriptor_type
 
-        self.num_levels = 8  
-        self.scaleFactor=1.2  
+        self.num_levels = num_levels  
+        self.scale_factor = kScaleFactor  
         self.initSigmaLevels()
 
         self.min_num_features = min_num_features
+        # at present time block adaptor has the priority (adaptor cannot be combined!)
         self.use_bock_adaptor = False 
         self.block_adaptor = None
+        self.use_pyramid_adaptor = False 
+        self.pyramid_adaptor = None 
 
         if cv2.__version__.split('.')[0] == '3':
-            from cv2.xfeatures2d import SIFT_create, SURF_create
-            from cv2 import ORB_create
+            from cv2.xfeatures2d import SIFT_create, SURF_create 
+            from cv2 import ORB_create, BRISK_create, AKAZE_create
         else:
             SIFT_create = cv2.SIFT
             SURF_create = cv2.SURF
             ORB_create = cv2.ORB 
+            BRISK_create = cv2.BRISK
+            AKAZE_create = cv2.AKAZE            
         self.SIFT_create = SIFT_create
         self.SURF_create = SURF_create
-        self.ORB_create = ORB_create     
+        self.ORB_create = ORB_create 
+        self.BRISK_create = BRISK_create            
+        self.AKAZE_create = AKAZE_create        
 
         self.orb_params = dict(nfeatures=min_num_features,
-                               scaleFactor=1.2,
+                               scaleFactor=self.scale_factor,
                                nlevels=self.num_levels,
-                               patchSize=21,
-                               edgeThreshold = 21, 
+                               patchSize=31,
+                               edgeThreshold = 19, 
+                               fastThreshold = 20,
                                scoreType=cv2.ORB_HARRIS_SCORE)  #scoreType=cv2.ORB_HARRIS_SCORE, scoreType=cv2.ORB_FAST_SCORE 
         
         self.detector_name = ''
@@ -133,19 +216,33 @@ class FeatureDetector(object):
         elif self.detector_type == FeatureDetectorTypes.ORB:
             self._feature_detector = ORB_create(**self.orb_params) 
             self.detector_name = 'ORB'                
-            self.use_bock_adaptor = True 
+            self.use_bock_adaptor = True    
+        elif self.detector_type == FeatureDetectorTypes.BRISK:
+            self._feature_detector = BRISK_create(octaves=self.num_levels) 
+            self.detector_name = 'BRISK'  
+            self.scale_factor = 1.3   # from the BRISK opencv code this seems to be the used scale factor between intra-octave frames 
+            self.initSigmaLevels()                 
+        elif self.detector_type == FeatureDetectorTypes.AKAZE:
+            self._feature_detector = AKAZE_create(nOctaves=self.num_levels) 
+            self.detector_name = 'AKAZE'                                                  
         elif self.detector_type == FeatureDetectorTypes.FAST:
             self._feature_detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)  
-            self.detector_name = 'FAST'                    
+            self.detector_name = 'FAST'        
+            self.use_bock_adaptor = False             
+            self.use_pyramid_adaptor = self.num_levels > 1               
         elif self.detector_type == FeatureDetectorTypes.SHI_TOMASI:
             self._feature_detector = ShiTomasiDetector(self.min_num_features)  
             self.detector_name = 'Shi-Tomasi'
-            #qself.use_bock_adaptor = True                                             
+            self.use_bock_adaptor = False 
+            self.use_pyramid_adaptor = self.num_levels > 1 
         else:
             raise ValueError("Unknown feature extractor %s" % self.detector_type)
 
         if self.use_bock_adaptor is True:
             self.block_adaptor = BlockAdaptor(self._feature_detector, row_divs = kAdaptorNumRowDivs, col_divs = kAdaptorNumColDivs)
+
+        if self.use_pyramid_adaptor is True:            
+            self.pyramid_adaptor = PyramidAdaptor(self._feature_detector, self.num_levels, self.scale_factor)
 
         # init descriptor  
         if self.descriptor_type == FeatureDescriptorTypes.SIFT: 
@@ -156,7 +253,13 @@ class FeatureDetector(object):
             self.decriptor_name = 'SURF'                  
         elif self.descriptor_type == FeatureDescriptorTypes.ORB:
             self._feature_descriptor = ORB_create(**self.orb_params) 
-            self.decriptor_name = 'ORB'                              
+            self.decriptor_name = 'ORB' 
+        elif self.descriptor_type == FeatureDescriptorTypes.BRISK:
+            self._feature_descriptor = BRISK_create() 
+            self.decriptor_name = 'BRISK'         
+        elif self.descriptor_type == FeatureDescriptorTypes.AKAZE:
+            self._feature_descriptor = AKAZE_create() 
+            self.decriptor_name = 'AKAZE'                                                
         elif self.descriptor_type == FeatureDescriptorTypes.NONE:
             self._feature_descriptor = None              
             self.decriptor_name = 'None'                                     
@@ -164,33 +267,37 @@ class FeatureDetector(object):
             raise ValueError("Unknown feature extractor %s" % self.detector_type)            
 
     def initSigmaLevels(self): 
-        self.vScaleFactor = np.zeros(self.num_levels)
-        self.vLevelSigma2 = np.zeros(self.num_levels)
-        self.vInvScaleFactor = np.zeros(self.num_levels)
-        self.vInvLevelSigma2 = np.zeros(self.num_levels)
+        self.scale_factors = np.zeros(self.num_levels)
+        self.level_sigmas2 = np.zeros(self.num_levels)
+        self.inv_scale_factors = np.zeros(self.num_levels)
+        self.inv_level_sigmas2 = np.zeros(self.num_levels)
 
-        self.vScaleFactor[0]=1.0
-        self.vLevelSigma2[0]=1.0
+        self.scale_factors[0]=1.0
+        self.level_sigmas2[0]=1.0
         for i in range(1,self.num_levels):
-            self.vScaleFactor[i]=self.vScaleFactor[i-1]*self.scaleFactor
-            self.vLevelSigma2[i]=self.vScaleFactor[i]*self.vScaleFactor[i]
-        #print('self.vScaleFactor: ', self.vScaleFactor)
+            self.scale_factors[i]=self.scale_factors[i-1]*self.scale_factor
+            self.level_sigmas2[i]=self.scale_factors[i]*self.scale_factors[i]
+        #print('self.scale_factors: ', self.scale_factors)
         for i in range(self.num_levels):
-            self.vInvScaleFactor[i]=1.0/self.vScaleFactor[i]
-            self.vInvLevelSigma2[i]=1.0/self.vLevelSigma2[i]
-        #print('self.vInvScaleFactor: ', self.vInvScaleFactor)            
+            self.inv_scale_factors[i]=1.0/self.scale_factors[i]
+            self.inv_level_sigmas2[i]=1.0/self.level_sigmas2[i]
+        #print('self.inv_scale_factors: ', self.inv_scale_factors)            
 
     # detect keypoints without computing their descriptors
     # out: kps 
-    def detect(self, frame, mask=None):  
+    def detect(self, frame, mask=None): 
+        if frame.ndim>2:
+            frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)             
         if self.use_bock_adaptor:
             kps = self.block_adaptor.detect(frame, mask)
+        elif self.use_pyramid_adaptor:
+            kps = self.pyramid_adaptor.detect(frame, mask)            
         else:       
             kps = self._feature_detector.detect(frame, mask)         
         kps = self.satNumberOfFeatures(kps) 
         if kDrawOriginalExtractedFeatures: # draw the original features
             imgDraw = cv2.drawKeypoints(frame, kps, None, color=(0,255,0), flags=0)
-            cv2.imshow('kps',imgDraw)            
+            cv2.imshow('detected keypoints',imgDraw)            
         if kVerbose:
             print('detector: ', self.detector_name, ', #features: ', len(kps))    
         return kps        
@@ -198,6 +305,8 @@ class FeatureDetector(object):
     # detect keypoints and their descriptors
     # out: kps, des 
     def detectAndCompute(self, frame, mask=None):
+        if frame.ndim>2:
+            frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)             
         kps = self.detect(frame, mask)   
         kps, des = self._feature_descriptor.compute(frame, kps)  
         if kVerbose:
@@ -211,5 +320,9 @@ class FeatureDetector(object):
             print('detector: ', self.detector_name, ', #features: ', len(kps),', ref: ', self.min_num_features)          
         if len(kps) > self.min_num_features:
             # keep the features with the best response 
-            kps = sorted(kps, key=lambda x:x.response, reverse=True)[:self.min_num_features]                
+            kps = sorted(kps, key=lambda x:x.response, reverse=True)[:self.min_num_features]         
+            if False: 
+                for k in kps:
+                    print("response: ", k.response) 
+                    print("scale: ", k.octave)     
         return kps 

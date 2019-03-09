@@ -14,12 +14,16 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-kCosMinParallax=0.9999  # 0.9998
+kCosMinParallax=0.99998  # 0.9998
+kAddPointsCheckReprojectionErr = 2 # pixels
 
 kMaxReprojectionDistance=15   # pixels 
 kMaxOrbDistanceMatch=50
 kMaxOrbDistanceSearchByReproj=50
 kMatchRatioTest=0.75
+
+kNumFramesBA=10
+kGlobalWindow=30

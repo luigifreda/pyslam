@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import config
@@ -25,24 +25,8 @@ import OpenGL.GL as gl
 import numpy as np
 
 
-uiWidth = 180
-
-def drawPlane(ndivs=200, ndivsize=1):
-    # Plane parallel to x-z at origin with normal -y
-    minx = -ndivs*ndivsize
-    minz = -ndivs*ndivsize
-    maxx = ndivs*ndivsize
-    maxz = ndivs*ndivsize
-    #gl.glLineWidth(2)
-    gl.glColor3f(0.7,0.7,1.0)
-    gl.glBegin(gl.GL_LINES)
-    for n in range(2*ndivs):
-        gl.glVertex3f(minx+ndivsize*n,0,minz)
-        gl.glVertex3f(minx+ndivsize*n,0,maxz)
-        gl.glVertex3f(minx,0,minz+ndivsize*n)
-        gl.glVertex3f(maxx,0,minz+ndivsize*n)
-    gl.glEnd()
-
+kUiWidth = 180
+kDefaultPointSize = 3
 
 
 class Viewer3D(object):
@@ -76,7 +60,7 @@ class Viewer3D(object):
 
         # Create Interactive View in window
         self.dcam = pangolin.CreateDisplay()
-        self.dcam.SetBounds(0.0, 1.0, uiWidth/w, 1.0, -w/h)
+        self.dcam.SetBounds(0.0, 1.0, kUiWidth/w, 1.0, -w/h)
         self.dcam.SetHandler(pangolin.Handler3D(self.scam))
 
         # hack to avoid small Pangolin, no idea why it's *2
@@ -84,20 +68,18 @@ class Viewer3D(object):
         # self.dcam.Activate()
 
         self.panel = pangolin.CreatePanel('ui')
-        self.panel.SetBounds(0.0, 1.0, 0.0, uiWidth/w)
+        self.panel.SetBounds(0.0, 1.0, 0.0, kUiWidth/w)
 
-        self.follow = True
-        self.drawCameras = True
+        self.do_follow = True
+        self.draw_cameras = True
 
         #self.button = pangolin.VarBool('ui.Button', value=False, toggle=False)
-        self.checkboxFollow = pangolin.VarBool(
-            'ui.Follow', value=True, toggle=True)
-        self.checkboxCams = pangolin.VarBool(
-            'ui.Draw Cameras', value=True, toggle=True)
+        self.checkboxFollow = pangolin.VarBool('ui.Follow', value=True, toggle=True)
+        self.checkboxCams = pangolin.VarBool('ui.Draw Cameras', value=True, toggle=True)
+        self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)              
         #self.float_slider = pangolin.VarFloat('ui.Float', value=3, min=0, max=5)
         #self.float_log_slider = pangolin.VarFloat('ui.Log_scale var', value=3, min=1, max=1e4, logscale=True)
-        self.int_slider = pangolin.VarInt(
-            'ui.Point Size', value=2, min=1, max=10)
+        self.int_slider = pangolin.VarInt('ui.Point Size', value=kDefaultPointSize, min=1, max=10)  
 
         self.pointSize = self.int_slider.Get()
 
@@ -120,22 +102,24 @@ class Viewer3D(object):
         # if pangolin.Pushed(self.button):
         #    print('You Pushed a button!')
 
-        self.follow = self.checkboxFollow.Get()
-        self.drawCameras = self.checkboxCams.Get()
+        self.do_follow = self.checkboxFollow.Get()
+        self.is_grid = self.checkboxGrid.Get()        
+        self.draw_cameras = self.checkboxCams.Get()
         # self.int_slider.SetVal(int(self.float_slider))
         self.pointSize = self.int_slider.Get()
 
         self.dcam.Activate(self.scam)
-        if self.follow:
+        if self.do_follow:
             self.scam.Follow(self.Twc, True)
 
-        drawPlane()
+        if self.is_grid:
+            Viewer3D.drawPlane()
 
         # draw map 
         if self.state_map is not None:
             if self.state_map[0].shape[0] >= 2:
                 # draw poses in green
-                if self.drawCameras:
+                if self.draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
                     pangolin.DrawCameras(self.state_map[0][:-1])
 
@@ -156,7 +140,7 @@ class Viewer3D(object):
         if self.state_vo is not None:
             if self.state_vo[0].shape[0] >= 2:
                 # draw poses in green
-                if self.drawCameras:
+                if self.draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
                     pangolin.DrawCameras(self.state_vo[0][:-1])
 
@@ -208,3 +192,22 @@ class Viewer3D(object):
 
     def updateTwc(self, pose):
         self.Twc.m = pose[0]
+
+    @staticmethod
+    def drawPlane(ndivs=200, ndivsize=1):
+        # Plane parallel to x-z at origin with normal -y
+        minx = -ndivs*ndivsize
+        minz = -ndivs*ndivsize
+        maxx = ndivs*ndivsize
+        maxz = ndivs*ndivsize
+        #gl.glLineWidth(2)
+        gl.glColor3f(0.7,0.7,1.0)
+        gl.glBegin(gl.GL_LINES)
+        for n in range(2*ndivs):
+            gl.glVertex3f(minx+ndivsize*n,0,minz)
+            gl.glVertex3f(minx+ndivsize*n,0,maxz)
+            gl.glVertex3f(minx,0,minz+ndivsize*n)
+            gl.glVertex3f(maxx,0,minz+ndivsize*n)
+        gl.glEnd()
+
+

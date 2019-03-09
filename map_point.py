@@ -14,7 +14,7 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 from geom_helpers import poseRt, hamming_distance, add_ones
@@ -51,28 +51,31 @@ class MapPoint(object):
     def delete(self):
         for f, idx in zip(self.frames, self.idxs):  # f.points[idx] = this point
             f.remove_point_observation(idx)  
+        self.frames = []
+        self.idxs = [] 
         self.is_bad = True            
-        #del self
+        del self
 
     def add_observation(self, frame, idx):
-        assert frame.points[idx] is None
-        assert frame not in self.frames
+        assert(frame.points[idx] is None)
+        assert(frame not in self.frames)
         frame.points[idx] = self
         self.frames.append(frame)
         self.idxs.append(idx)
         self.num_observations += 1
-        if self.num_observations >= 2:
-            self.is_bad = False          
+        self.is_bad = (self.num_observations < 2)
 
-    def remove_observation(self, frame, idx):       
-        frame.remove_point_observation(idx)
-        #self.frames = [ff for ff in self.frames if not ff.id == frame.id]      
-        if frame in self.frames:
-            self.frames.remove(frame)
-        #self.idxs = [ii for ii in self.idxs if not ii == idx]
-        if idx in self.idxs:
-            self.idxs.remove(idx)        
-        self.num_observations = max(0, self.num_observations - 1)
-        if self.num_observations < 2:
-            self.is_bad = True 
+    def remove_observation(self, frame, idx):  
+        assert(self == frame.points[idx])     
+        frame.remove_point(self)
+        frame_idx = None 
+        try:
+            frame_idx = self.frames.index(frame)
+        except:
+            pass
+        if frame_idx is not None: 
+            del(self.frames[frame_idx])    
+            del(self.idxs[frame_idx])
+            self.num_observations = max(0, self.num_observations - 1)
+        self.is_bad = (self.num_observations < 2)
 

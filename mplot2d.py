@@ -14,18 +14,23 @@
 * GNU General Public License for more details.
 *
 * You should have received a copy of the GNU General Public License
-* along with PYVO. If not, see <http://www.gnu.org/licenses/>.
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 # use mplotlib figure to draw in 2d dynamic data
+
+kPlotSleep = 0.0001 
+
 class Mplot2d:
-    def __init__(self, xlabel='', ylabel=''):
+    def __init__(self, xlabel='', ylabel='', title=''):
         self.fig = plt.figure()
         #self.ax = self.fig.gca(projection='3d')
-        self.ax = self.fig.gca() 
+        self.ax = self.fig.gca()
+        if title is not '':
+            self.ax.set_title(title) 
         self.ax.set_xlabel(xlabel)
         self.ax.set_ylabel(ylabel)	   
         self.ax.grid()		
@@ -88,4 +93,4 @@ class Mplot2d:
     def refresh(self):
         self.setAxis()
         #plt.show()
-        plt.pause(.001)
+        plt.pause(kPlotSleep)
