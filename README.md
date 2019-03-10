@@ -60,7 +60,7 @@ you can run the following command in your shell:
 ```
 $ export PYTHONPATH=""
 ```
-this will remove the ROS OpenCV python modules from your python path and solve the issue. 
+this will remove the ROS OpenCV python modules from your python path and will solve the issue. 
 
 --- 
 ## Usage
@@ -83,6 +83,8 @@ If you want to test the script `main_slam.py`, you can run:
 $ python3 -O main_slam.py
 ```
 
+**WARNING**: the available **KITTI videos** (due to information loss in video compression) make pySLAM tracking peform worse than with the original KITTI *image sequences*. The available videos are intended to be used for quick first test. Please, download and use the original KITTI image sequences as explained below. For instance, on the original KITTI sequence 06, pySLAM successfully completes the round; at present time, this does not happen with the compressed video.
+
 --- 
 ## Datasets
 
@@ -97,7 +99,7 @@ folder of images  | `type=FOLDER_DATASET`
 
 ### KITTI Datasets
 
-The code expects the following structure in the specified path folder (section `[KITTI_DATASET]` of `config.ini`). : 
+pySLAM code expects the following structure in the specified KITTI path folder (specified in the section `[KITTI_DATASET]` of the file `config.ini`). : 
 ```
 ├── sequences
     ├── 00
@@ -109,24 +111,24 @@ The code expects the following structure in the specified path folder (section `
     ├── 10.txt
 
 ```
-1. Download the dataset (grayscale images) from http://www.cvlibs.net/datasets/kitti/eval_odometry.php and prepare the folder as specified above
+1. Download the dataset (grayscale images) from http://www.cvlibs.net/datasets/kitti/eval_odometry.php and prepare the KITTI folder as specified above
 
-2. Select the corresponding calibration settings file (parameter `[KITTI_DATASET][cam_settings]` in `config.ini`)
+2. Select the corresponding calibration settings file (parameter `[KITTI_DATASET][cam_settings]` in the file `config.ini`)
 
 
 
 ### TUM Datasets 
 
-The code expects a file `associations.txt` correctly generated in each TUM dataset folder (specified in the section `[TUM_DATASET]` of `config.ini`). 
+pySLAM code expects a file `associations.txt` in each TUM dataset folder (specified in the section `[TUM_DATASET]` of the file `config.ini`). 
 
 1. Download a sequence from http://vision.in.tum.de/data/datasets/rgbd-dataset/download and uncompress it.
 
-2. Associate RGB images and depth images using the python script [associate.py](http://vision.in.tum.de/data/datasets/rgbd-dataset/tools). You can generate your own associations file executing:
+2. Associate RGB images and depth images using the python script [associate.py](http://vision.in.tum.de/data/datasets/rgbd-dataset/tools). You can generate your `associations.txt` file by executing:
 
 ```
 $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt
 ```
-3. Select the corresponding calibration settings file (parameter `[TUM_DATASET][cam_settings]` in `config.ini`)
+3. Select the corresponding calibration settings file (parameter `[TUM_DATASET][cam_settings]` in the file `config.ini`)
 
 
 --- 
