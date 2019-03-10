@@ -29,7 +29,8 @@ kMinNumFeatureDefault = 2000
 kAdaptorNumRowDivs = 4
 kAdaptorNumColDivs = 4
 
-kNumLevels = 1
+kNumLevels = 4
+kNumLevelsInitSigma = 12
 kScaleFactor = 1.2 
 
 kDrawOriginalExtractedFeatures = False  # for debugging 
@@ -60,7 +61,7 @@ def feature_detector_factory(min_num_features=kMinNumFeatureDefault,
                              descriptor_type = FeatureDescriptorTypes.ORB):
     return FeatureDetector(min_num_features, num_levels, detector_type, descriptor_type)
 
-
+# BlockAdaptor divides the image in row_divs x col_divs cells and extracts features in each of these cells
 class BlockAdaptor(object): 
     def __init__(self, detector, row_divs = kAdaptorNumRowDivs, col_divs = kAdaptorNumColDivs):    
         self.detector = detector 
@@ -87,25 +88,31 @@ class BlockAdaptor(object):
                     kps_global.append(kp)
             return kps_global
 
-
+# PyramidAdaptor generate a pyramid of num_levels images and extracts features in each of these images
+# TODO: check if a point on one level 'overlaps' with a point on other levels
 class PyramidAdaptor(object): 
-    def __init__(self, detector, num_levels = 4, scale_factor = 1.2):    
+    def __init__(self, detector, num_levels = 4, scale_factor = 1.2, use_block_adaptor = False):    
         self.detector = detector 
         self.num_levels = num_levels
         self.scale_factor = scale_factor 
         self.cur_pyr = [] 
         self.scale_factors = None
         self.inv_scale_factors = None 
+        self.use_block_adaptor = use_block_adaptor
+        self.block_adaptor = None 
+        if self.use_block_adaptor:
+            self.block_adaptor = BlockAdaptor(self.detector, row_divs = kAdaptorNumRowDivs, col_divs = kAdaptorNumColDivs)            
         self.initSigmaLevels()
 
     def initSigmaLevels(self): 
-        self.scale_factors = np.zeros(self.num_levels)
-        self.inv_scale_factors = np.zeros(self.num_levels)
+        num_levels = max(kNumLevelsInitSigma, self.num_levels)
+        self.scale_factors = np.zeros(num_levels)
+        self.inv_scale_factors = np.zeros(num_levels)
         self.scale_factors[0]=1.0
-        for i in range(1,self.num_levels):
+        for i in range(1,num_levels):
             self.scale_factors[i]=self.scale_factors[i-1]*self.scale_factor
         #print('self.scale_factors: ', self.scale_factors)
-        for i in range(self.num_levels):
+        for i in range(num_levels):
             self.inv_scale_factors[i]=1.0/self.scale_factors[i]
         #print('self.inv_scale_factors: ', self.inv_scale_factors)       
 
@@ -119,8 +126,12 @@ class PyramidAdaptor(object):
             kps_global = []
             for i in range(0,self.num_levels):              
                 scale = self.scale_factors[i]
-                pyr_cur  = self.cur_pyr[i]            
-                kps = self.detector.detect(pyr_cur)
+                pyr_cur  = self.cur_pyr[i]     
+                kps = None 
+                if self.block_adaptor is None:        
+                    kps = self.detector.detect(pyr_cur)
+                else:
+                    kps = self.block_adaptor.detect(pyr_cur)
                 if kVerbose and False:                
                     print("PyramidAdaptor - level", i, ", shape: ", pyr_cur.shape)                     
                 for kp in kps:
@@ -128,7 +139,7 @@ class PyramidAdaptor(object):
                     kp.pt = (kp.pt[0]*scale, kp.pt[1]*scale) 
                     kp.size = kp.size*scale   
                     kp.octave = i      
-                    #print('kp.pt after: ', kp.pt)                                                                     
+                    #print('kp: ', kp.pt, kp.octave)                                                                     
                     kps_global.append(kp)
             return kps_global  
 
@@ -174,7 +185,7 @@ class FeatureDetector(object):
         self.initSigmaLevels()
 
         self.min_num_features = min_num_features
-        # at present time block adaptor has the priority (adaptor cannot be combined!)
+        # at present time pyramid adaptor has the priority and can combine a block adaptor withint itself 
         self.use_bock_adaptor = False 
         self.block_adaptor = None
         self.use_pyramid_adaptor = False 
@@ -228,12 +239,12 @@ class FeatureDetector(object):
         elif self.detector_type == FeatureDetectorTypes.FAST:
             self._feature_detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)  
             self.detector_name = 'FAST'        
-            self.use_bock_adaptor = False             
+            self.use_bock_adaptor = True             
             self.use_pyramid_adaptor = self.num_levels > 1               
         elif self.detector_type == FeatureDetectorTypes.SHI_TOMASI:
             self._feature_detector = ShiTomasiDetector(self.min_num_features)  
             self.detector_name = 'Shi-Tomasi'
-            self.use_bock_adaptor = False 
+            self.use_bock_adaptor = False  
             self.use_pyramid_adaptor = self.num_levels > 1 
         else:
             raise ValueError("Unknown feature extractor %s" % self.detector_type)
@@ -242,7 +253,7 @@ class FeatureDetector(object):
             self.block_adaptor = BlockAdaptor(self._feature_detector, row_divs = kAdaptorNumRowDivs, col_divs = kAdaptorNumColDivs)
 
         if self.use_pyramid_adaptor is True:            
-            self.pyramid_adaptor = PyramidAdaptor(self._feature_detector, self.num_levels, self.scale_factor)
+            self.pyramid_adaptor = PyramidAdaptor(self._feature_detector, self.num_levels, self.scale_factor, use_block_adaptor=self.use_bock_adaptor)
 
         # init descriptor  
         if self.descriptor_type == FeatureDescriptorTypes.SIFT: 
@@ -267,18 +278,19 @@ class FeatureDetector(object):
             raise ValueError("Unknown feature extractor %s" % self.detector_type)            
 
     def initSigmaLevels(self): 
-        self.scale_factors = np.zeros(self.num_levels)
-        self.level_sigmas2 = np.zeros(self.num_levels)
-        self.inv_scale_factors = np.zeros(self.num_levels)
-        self.inv_level_sigmas2 = np.zeros(self.num_levels)
+        num_levels = max(kNumLevelsInitSigma, self.num_levels)        
+        self.scale_factors = np.zeros(num_levels)
+        self.level_sigmas2 = np.zeros(num_levels)
+        self.inv_scale_factors = np.zeros(num_levels)
+        self.inv_level_sigmas2 = np.zeros(num_levels)
 
         self.scale_factors[0]=1.0
         self.level_sigmas2[0]=1.0
-        for i in range(1,self.num_levels):
+        for i in range(1,num_levels):
             self.scale_factors[i]=self.scale_factors[i-1]*self.scale_factor
             self.level_sigmas2[i]=self.scale_factors[i]*self.scale_factors[i]
         #print('self.scale_factors: ', self.scale_factors)
-        for i in range(self.num_levels):
+        for i in range(num_levels):
             self.inv_scale_factors[i]=1.0/self.scale_factors[i]
             self.inv_level_sigmas2[i]=1.0/self.level_sigmas2[i]
         #print('self.inv_scale_factors: ', self.inv_scale_factors)            
@@ -288,13 +300,13 @@ class FeatureDetector(object):
     def detect(self, frame, mask=None): 
         if frame.ndim>2:
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)             
-        if self.use_bock_adaptor:
-            kps = self.block_adaptor.detect(frame, mask)
-        elif self.use_pyramid_adaptor:
+        if self.use_pyramid_adaptor:
             kps = self.pyramid_adaptor.detect(frame, mask)            
+        elif self.use_bock_adaptor:
+            kps = self.block_adaptor.detect(frame, mask)            
         else:       
-            kps = self._feature_detector.detect(frame, mask)         
-        kps = self.satNumberOfFeatures(kps) 
+            kps = self._feature_detector.detect(frame, mask)                  
+        kps = self.satNumberOfFeatures(kps)            
         if kDrawOriginalExtractedFeatures: # draw the original features
             imgDraw = cv2.drawKeypoints(frame, kps, None, color=(0,255,0), flags=0)
             cv2.imshow('detected keypoints',imgDraw)            
@@ -307,7 +319,7 @@ class FeatureDetector(object):
     def detectAndCompute(self, frame, mask=None):
         if frame.ndim>2:
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)             
-        kps = self.detect(frame, mask)   
+        kps = self.detect(frame, mask)    
         kps, des = self._feature_descriptor.compute(frame, kps)  
         if kVerbose:
             #print('detector: ', self.detector_name, ', #features: ', len(kps))           
@@ -324,5 +336,6 @@ class FeatureDetector(object):
             if False: 
                 for k in kps:
                     print("response: ", k.response) 
-                    print("scale: ", k.octave)     
+                    print("size: ", k.size)  
+                    print("octave: ", k.octave)   
         return kps 

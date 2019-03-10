@@ -18,12 +18,21 @@
 """
 
 kCosMinParallax=0.99998  # 0.9998
-kAddPointsCheckReprojectionErr = 2 # pixels
 
-kMaxReprojectionDistance=15   # pixels 
+kMaxReprojectionDistance=15 # pixels 
 kMaxOrbDistanceMatch=50
 kMaxOrbDistanceSearchByReproj=50
 kMatchRatioTest=0.75
 
-kNumFramesBA=10
-kGlobalWindow=30
+kNumFeatures=2000
+
+kLocalWindow=10   
+kUseLargeWindowBA = True          # True: use BA over a large window 
+                                  # False: do not use large window BA   
+kEveryNumFramesLargeWindowBA=10   # num of frames between two large window BA  
+kLargeWindow=20
+
+kChi2Mono = 5.991 # chi-square 2 DOFs  (Hartley Zisserman pg 119)
+
+kUseMotionModel = True  # True: use motion model for computing a first guess pose (to be optimized by current pose optimization)
+                        # False: pose is first estimated by using the essential mat (5 points algorithm), WARNING: this approach comes with some limitations (please, read the comments of the method slam.estimate_pose_ess_mat())

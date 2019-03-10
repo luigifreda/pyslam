@@ -5,6 +5,7 @@ sys.path.append("../")
 
 from ground_truth import groundtruth_factory
 
+# convert kitti ground truth in a simple format which can be used with video datasets
 groundtruth_settings = {}
 groundtruth_settings['type']='kitti'
 groundtruth_settings['base_path'] ='/home/luigi/Work/rgbd_datasets/kitti/dataset'

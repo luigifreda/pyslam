@@ -24,13 +24,13 @@ import g2o
 
 from geom_helpers import poseRt
 from frame import Frame
-from helpers import ColorPrinter
+from helpers import Printer
 
 
 # ------------------------------------------------------------------------------------------
 
 # optimize by using pixel image points 
-def optimization(frames, points, local_window, fixed_points=False, verbose=False, rounds=40):
+def optimization(frames, points, local_window, fixed_points=False, verbose=False, rounds=40, use_robust_kernel=False):
     if local_window is None:
         local_frames = frames
     else:
@@ -71,13 +71,13 @@ def optimization(frames, points, local_window, fixed_points=False, verbose=False
         if not any([f in local_frames for f in p.frames]):  
             continue
         #print('adding vertex point ', p.id,' to graph')
-        v_pt = g2o.VertexSBAPointXYZ()    
-        v_pt.set_id(p.id * 2 + 1)  # odd ids
-        v_pt.set_estimate(p.pt[0:3])
-        v_pt.set_marginalized(True)
-        v_pt.set_fixed(fixed_points)
-        opt.add_vertex(v_pt)
-        graph_points[p] = v_pt
+        v_p = g2o.VertexSBAPointXYZ()    
+        v_p.set_id(p.id * 2 + 1)  # odd ids
+        v_p.set_estimate(p.pt[0:3])
+        v_p.set_marginalized(True)
+        v_p.set_fixed(fixed_points)
+        opt.add_vertex(v_p)
+        graph_points[p] = v_p
 
         # add edges
         for f, idx in zip(p.frames, p.idxs):
@@ -85,12 +85,13 @@ def optimization(frames, points, local_window, fixed_points=False, verbose=False
                 continue
             #print('adding edge between point ', p.id,' and frame ', f.id)
             edge = g2o.EdgeSE3ProjectXYZ()
-            edge.set_vertex(0, v_pt)
+            edge.set_vertex(0, v_p)
             edge.set_vertex(1, graph_frames[f])
             edge.set_measurement(f.kpsu[idx])
             invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[idx]]
             edge.set_information(np.eye(2)*invSigma2)
-            edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
+            if use_robust_kernel:
+                edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
             edge.fx = f.fx 
             edge.fy = f.fy
@@ -174,7 +175,7 @@ def poseOptimization(frame, verbose=False, rounds=10):
         num_point_edges += 1
 
     if num_point_edges < 3:
-        ColorPrinter.printRed('poseOptimization: not enough correspondences!') 
+        Printer.red('poseOptimization: not enough correspondences!') 
         is_ok = False 
         return 0, is_ok, 0
 
@@ -209,13 +210,13 @@ def poseOptimization(frame, verbose=False, rounds=10):
                 edge_pair[0].set_robust_kernel(None)
 
         if len(opt.edges()) < 10:
-            ColorPrinter.printRed('poseOptimization: stopped - not enough edges!')   
+            Printer.red('poseOptimization: stopped - not enough edges!')   
             is_ok = False           
             break                 
     
     print('pose optimization: initial ', num_point_edges, ' points, found ', num_bad_points, ' bad points')     
     if num_point_edges == num_bad_points:
-        ColorPrinter.printRed('poseOptimization: all the initial correspondences are bad!')           
+        Printer.red('poseOptimization: all the initial correspondences are bad!')           
         is_ok = False      
 
     # update pose estimation
@@ -233,9 +234,9 @@ def poseOptimization(frame, verbose=False, rounds=10):
 # ------------------------------------------------------------------------------------------
 
 # locally optimize by using pixel image points 
-# frames_ref are fixed 
 # frames, points are optimized
-def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, rounds=10):
+# frames_ref are fixed 
+def localOptimization(frames, points, frames_ref=[], fixed_points=False, verbose=False, rounds=10):
 
     # create g2o optimizer
     opt = g2o.SparseOptimizer()
@@ -260,31 +261,30 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
         v_se3.set_id(f.id * 2)  # even ids
         v_se3.set_fixed(f.id < 1 or f in frames_ref)
         opt.add_vertex(v_se3)
-
+        graph_frames[f] = v_se3        
         # confirm pose correctness
         #est = v_se3.estimate()
         #assert np.allclose(pose[0:3, 0:3], est.rotation().matrix())
         #assert np.allclose(pose[0:3, 3], est.translation())
 
-        graph_frames[f] = v_se3
-
-    edges_map = {}
+    graph_edges = {}
     num_point_edges = 0
 
     # add point vertices to graph 
     for p in points:
-        if p.is_bad and not fixed_points:
+        assert(p is not None)
+        if p.is_bad and not fixed_points:  # do not consider bad points unless they are fixed 
             continue
-        if not any([f in frames for f in p.frames]):  
+        if not any([f in frames for f in p.frames]):  # this is redundant now 
             continue
         #print('adding vertex point ', p.id,' to graph')
-        v_pt = g2o.VertexSBAPointXYZ()    
-        v_pt.set_id(p.id * 2 + 1)  # odd ids
-        v_pt.set_estimate(p.pt[0:3])
-        v_pt.set_marginalized(True)
-        v_pt.set_fixed(fixed_points)
-        opt.add_vertex(v_pt)
-        graph_points[p] = v_pt
+        v_p = g2o.VertexSBAPointXYZ()    
+        v_p.set_id(p.id * 2 + 1)  # odd ids
+        v_p.set_estimate(p.pt[0:3])
+        v_p.set_marginalized(True)
+        v_p.set_fixed(fixed_points)
+        opt.add_vertex(v_p)
+        graph_points[p] = v_p
 
         # add edges
         for f, p_idx in zip(p.frames, p.idxs):
@@ -293,7 +293,7 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
                 continue
             #print('adding edge between point ', p.id,' and frame ', f.id)
             edge = g2o.EdgeSE3ProjectXYZ()
-            edge.set_vertex(0, v_pt)
+            edge.set_vertex(0, v_p)
             edge.set_vertex(1, graph_frames[f])
             edge.set_measurement(f.kpsu[p_idx])
             invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[p_idx]]
@@ -307,8 +307,7 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
 
             opt.add_edge(edge)
 
-            edges_map[edge] = (p,f,p_idx) # f.points[p_idx] == p
-            assert(p is not None)
+            graph_edges[edge] = (p,f,p_idx) # f.points[p_idx] == p
             num_point_edges += 1            
 
     if verbose:
@@ -319,10 +318,9 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
     opt.optimize(5)
 
     chi2Mono = 5.991 # chi-square 2 DOFs
-    num_bad_points = 0    
 
     # check inliers observation 
-    for edge, edge_data in edges_map.items(): 
+    for edge, edge_data in graph_edges.items(): 
         p = edge_data[0]
         if p.is_bad is True:
             continue 
@@ -335,22 +333,22 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
     opt.optimize(rounds)
 
     # clean map observations 
-    num_outliers = 0 
+    num_bad_observations = 0 
     outliers_data = []
-    for edge, edge_data in edges_map.items(): 
+    for edge, edge_data in graph_edges.items(): 
         p, f, p_idx = edge_data
         if p.is_bad is True:
             continue         
         assert(f.points[p_idx] == p) 
         if edge.chi2() > chi2Mono or not edge.is_depth_positive():         
-            num_outliers += 1
+            num_bad_observations += 1
             outliers_data.append( (p,f,p_idx) )       
 
     for d in outliers_data:
         (p,f,p_idx) = d
         assert(f.points[p_idx] == p)
         p.remove_observation(f,p_idx)
-        f.remove_point(p)           
+        f.remove_point(p)      
 
     # put frames back
     for f in graph_frames:
@@ -364,4 +362,4 @@ def localOptimization(frames_ref, frames, points, fixed_points, verbose=False, r
         for p in graph_points:
             p.pt = np.array(graph_points[p].estimate())
 
-    return opt.active_chi2()
+    return opt.active_chi2(), num_bad_observations/num_point_edges

@@ -19,24 +19,50 @@
 
 import cv2
 from moving_average import MovingAverage
+from helpers import Printer
+
+kPrintGreen=False
 
 class Timer: 
     def __init__(self, name = '', is_verbose = False):
         self._name = name 
         self._is_verbose = is_verbose
-        self._start = None 
-        self._now = None
-        self._elapsed = None         
+        self._is_paused = False 
+        self._start_time = None 
+        self._accumulated = 0 
+        self._elapsed = 0         
         self.start()
 
     def start(self):
-        self._start = cv2.getTickCount()
+        self._accumulated = 0         
+        self._start_time = cv2.getTickCount()
 
-    def elapsed(self, do_print = False):
-        self._now = cv2.getTickCount()
-        self._elapsed = (self._now - self._start)/cv2.getTickFrequency()        
-        if do_print is True:            
-            print('Timer ', self._name, ' - elapsed: ', self._elapsed)        
+    def pause(self): 
+        now_time = cv2.getTickCount()
+        self._accumulated = (now_time - self._start_time)/cv2.getTickFrequency() 
+        self._is_paused = True   
+
+    # considered only if paused 
+    def resume(self): 
+        if self._is_paused:
+            self._start_time = cv2.getTickCount()
+            self._is_paused = False                      
+
+    def elapsed(self):
+        if self._is_paused:
+            self._elapsed = self._accumulated
+        else:
+            now = cv2.getTickCount()
+            self._elapsed = self._accumulated + (now - self._start_time)/cv2.getTickFrequency()        
+        if self._is_verbose is True:      
+            name =  self._name
+            if self._is_paused:
+                name += ' [paused]'
+            message = 'Timer::' + name + ' - elapsed: ' + str(self._elapsed) 
+            if kPrintGreen is True:
+                Printer.green(message)        
+            else:
+                print(message)
 
 
 class TimerFps(Timer):
@@ -47,8 +73,15 @@ class TimerFps(Timer):
     def refresh(self): 
         self.elapsed()
         self.moving_average.getAverage(self._elapsed)
-        self._start = self._now
+        self.start()
         if self._is_verbose is True:
             dT = self.moving_average.getAverage()
-            print('Timer ', self._name, ' - fps: ', 1./dT, ', dT: ', dT)
+            name =  self._name
+            if self._is_paused:
+                name += ' [paused]'            
+            message = 'Timer::' + name + ' - fps: ' + str(1./dT) + ', T: ' + str(dT)
+            if kPrintGreen is True:
+                Printer.green(message)        
+            else:
+                print(message)
         

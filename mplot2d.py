@@ -92,5 +92,4 @@ class Mplot2d:
 
     def refresh(self):
         self.setAxis()
-        #plt.show()
         plt.pause(kPlotSleep)

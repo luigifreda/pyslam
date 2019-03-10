@@ -29,7 +29,7 @@ from map_point import MapPoint
 from map import Map
 from geom_helpers import triangulate, add_ones, poseRt
 from pinhole_camera import Camera, PinholeCamera
-from helpers import ColorPrinter
+from helpers import Printer
 
 kVerbose=True     
 kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
@@ -99,7 +99,7 @@ class Initializer(object):
 
         # if the current frames do no have enough features exit 
         if len(f_ref.kps) < kNumMinFeatures or len(f_cur.kps) < kNumMinFeatures:
-            ColorPrinter.printRed('Inializer: not enough features!') 
+            Printer.red('Inializer: not enough features!') 
             return out, is_ok
 
         # find image point matches
@@ -133,7 +133,9 @@ class Initializer(object):
         f_cur.reset_points()
         f_ref.reset_points()
 
-        is_ok = new_pts_count > kNumMinTriangulatedPoints
+        num_map_points = len(map.points)
+        #print("# map points:   %d" % num_map_points)   
+        is_ok = num_map_points > kNumMinTriangulatedPoints
 
         out.points4d = points4d[mask_points]
         out.f_cur = f_cur
@@ -142,5 +144,5 @@ class Initializer(object):
         out.idx_ref = idx_ref_inliers[mask_points]
 
         print('├────────')    
-        ColorPrinter.printGreen('Inializer: ok!')             
+        Printer.green('Inializer: ok!')             
         return out, is_ok

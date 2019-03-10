@@ -26,16 +26,28 @@ from geom_helpers import add_ones, poseRt, normalize
 from helpers import myjet
 
 from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
+from feature_tracker import feature_tracker_factory, TrackerTypes 
 
 import constants 
 
+kDrawFeatureRadius = [r*3 for r in range(1,20)]
 
 class Frame(object):
-    kMinNumFeatureDefault = 2000
-    detector = feature_detector_factory(min_num_features=kMinNumFeatureDefault,
-                                        detector_type=FeatureDetectorTypes.FAST,
-                                        descriptor_type=FeatureDescriptorTypes.ORB)
+    # shared tracker 
+    tracker = feature_tracker_factory(min_num_features=2000, num_levels = 1, 
+                                      detector_type = FeatureDetectorTypes.FAST, 
+                                      descriptor_type = FeatureDescriptorTypes.ORB, 
+                                      tracker_type = TrackerTypes.DES_BF)        
+    # shared detector                                       
+    detector = tracker.detector             
+    matcher = tracker.matcher                                                         
     next_id = 0
+
+    @staticmethod
+    def set_tracker(tracker):
+        Frame.tracker = tracker 
+        Frame.detector = tracker.detector 
+
     def __init__(self, mapp, img, K, Kinv, DistCoef, pose=np.eye(4), tid=None, des=None):
         self.H, self.W = img.shape[0:2]
         self.K = np.array(K)  
@@ -56,6 +68,7 @@ class Frame(object):
         # self.kpsn      [n]ormalized keypoints
         # self.octaves   keypoint octaves 
         # self.des       keypoint descriptors
+
         # self.points    map points
         # self.outliers  outliers flags for map points 
 
@@ -65,9 +78,9 @@ class Frame(object):
                 # convert to gray image 
                 if img.ndim>2:
                     img = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)       
-                self.kps, self.des = Frame.detector.detectAndCompute(img)
+                self.kps, self.des = Frame.tracker.detect(img)
                 # convert from a list of keypoints to an array of points and octaves  
-                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave] for x in self.kps], dtype=np.float32)
+                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave] for x in self.kps], dtype=np.float32)         
                 self.octaves = np.uint32(kps_data[:,2].copy())
                 #print('octaves: ', self.octaves)               
                 self.kps = kps_data[:,:2].copy()                   
@@ -77,6 +90,7 @@ class Frame(object):
             else:
                 assert len(des) < 256
                 self.kpsu, self.des = des, np.array(list(range(len(des)))*32, np.uint8).reshape(32, len(des)).T
+                self.octaves = np.full(self.kpsu.shape[0], 1, dtype=np.uint8)
             self.kpsn = normalize(self.Kinv, self.kpsu)
             self.points = [None]*len(self.kpsu)  # init points
             self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)
@@ -104,7 +118,8 @@ class Frame(object):
 
     def reset_outlier_map_points(self):
         for i,p in enumerate(self.points):
-            if p is not None and self.outliers[i] is True:          
+            if p is not None and self.outliers[i] is True: 
+                self.points[i].remove_observation(self)         
                 self.points[i] = None 
                 self.outliers[i] = False 
 
@@ -136,16 +151,17 @@ class Frame(object):
     def delete(self):
         del self
 
+    # draw annotations on the image
     def draw_feature_trails(self, img):
-        # draw annotations on the image
         for i1 in range(len(self.kps)):
             u1, v1 = int(round(self.kps[i1][0])), int(round(self.kps[i1][1]))
+            radius = kDrawFeatureRadius[self.octaves[i1]]
             if self.points[i1] is not None:
                 # there's a corresponding 3D point
                 if len(self.points[i1].frames) >= 5:
-                    cv2.circle(img, (u1, v1), color=(0, 255, 0), radius=3)
+                    cv2.circle(img, (u1, v1), color=(0, 255, 0), radius=radius)
                 else:
-                    cv2.circle(img, (u1, v1), color=(0, 128, 0), radius=3)
+                    cv2.circle(img, (u1, v1), color=(0, 128, 0), radius=radius)
                 # draw the trail (for each keypoint, its 9 corresponding points in previous frames)
                 pts = []
                 lfid = None  # last frame id
@@ -158,46 +174,16 @@ class Frame(object):
                     cv2.polylines(img, np.array([pts], dtype=np.int32), False, myjet[len(pts)]*255, thickness=1, lineType=16)
             else:
                 # no corresponding 3D point
-                cv2.circle(img, (u1, v1), color=(0, 0, 0), radius=3)
+                cv2.circle(img, (u1, v1), color=(0, 0, 0), radius=radius)
         return img        
+
 
 # match frames f1 and f2
 # out: a vector of match pairs [ ... [match1i, match2i] ... ]
-def match_frames(f1, f2):
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING)
+def match_frames(f1, f2):     
+    idx1, idx2 = Frame.matcher.match(f1.des, f2.des)
+    idx1 = np.asarray(idx1)
+    idx2 = np.asarray(idx2)   
+    return idx1, idx2         
 
-    matches = bf.knnMatch(f1.des, f2.des, k=2) # knnMatch(queryDescriptors, trainDescriptors)
 
-    #good_point_matches = []
-    idx1, idx2 = [], []
-    flag_match = np.full(len(f2.des), False, dtype=bool)
-    dist_match = np.zeros(len(f2.des))
-    index_match = np.full(len(f2.des), 0, dtype=int)
-
-    for m, n in matches:
-        # apply Lowe's ratio test
-        if m.distance < constants.kMatchRatioTest * n.distance:
-            #p1 = f1.kpsn[m.queryIdx]
-            #p2 = f2.kpsn[m.trainIdx]
-            if m.distance < constants.kMaxOrbDistanceMatch:  # remove absolute distance threshold!
-                if not flag_match[m.trainIdx]:
-                    flag_match[m.trainIdx] = True
-                    dist_match[m.trainIdx] = m.distance
-                    idx1.append(m.queryIdx)
-                    idx2.append(m.trainIdx)
-                    #good_point_matches.append((p1, p2))
-                    index_match[m.trainIdx] = len(idx1)-1
-                else:
-                    # stored match is worse => replace it
-                    if dist_match[m.trainIdx] > m.distance:
-                        index = index_match[m.trainIdx]
-                        assert(idx2[index] == m.trainIdx)                        
-                        idx1[index] = m.queryIdx
-                        idx2[index] = m.trainIdx
-                        #good_point_matches[index] = (p1, p2)
-
-    assert len(idx1) >= 8
-    #good_point_matches = np.array(good_point_matches)
-    idx1 = np.array(idx1)
-    idx2 = np.array(idx2)
-    return idx1, idx2

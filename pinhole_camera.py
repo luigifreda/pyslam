@@ -31,7 +31,7 @@ class Camera:
         self.cx = cx
         self.cy = cy
         self.is_distorted = (abs(D[0]) > 0)
-        self.D = D # np.array([k1, k2, p1, p2, k3])
+        self.D = D # np.array([k1, k2, p1, p2, k3])  distortion coefficients 
 
 
 class PinholeCamera(Camera):

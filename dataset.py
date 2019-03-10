@@ -97,9 +97,15 @@ class VideoDataset(Dataset):
             self.num_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
             self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))   
-            print('num frames: ', self.num_frames)    
+            print('num frames: ', self.num_frames)  
+        self.is_init = False   
             
     def getImage(self, frame_id):
+        # retrieve the first image if its id is > 0 
+        if self.is_init is False and frame_id > 0:
+            self.is_init = True 
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
+        self.is_init = True
         ret, image = self.cap.read()
         if ret is False:
             print('ERROR in reading from file: ', self.filename)

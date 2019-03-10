@@ -27,8 +27,10 @@ from visual_odometry import VisualOdometry
 from pinhole_camera import PinholeCamera
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory
-from mplot3d import Mplot3d
-from mplot2d import Mplot2d
+
+#from mplot3d import Mplot3d
+#from mplot2d import Mplot2d
+from mplot_thread import Mplot2d, Mplot3d
 
 from feature_tracker import feature_tracker_factory, TrackerTypes 
 from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
@@ -59,10 +61,14 @@ if __name__ == "__main__":
     num_features=2000  # how many features do you want to detect and track?
     """
     select your feature tracker 
+    N.B: ORB detector (not descriptor) does not work as expected!    
     """
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 3, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
-    feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)    
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)    
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_FLANN)      
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_FLANN)
+    feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)    
     #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)
     #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = TrackerTypes.DES_BF)
     #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = TrackerTypes.DES_BF)    

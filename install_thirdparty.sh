@@ -105,7 +105,7 @@ if [ $ISTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
         ln -s pypangolin.*-linux-gnu.so  pangolin.linux-gnu.so
     fi
 else
-    # N.B.: pay attention this will generate a module pypangolin 
+    # N.B.: pay attention this will generate a module pangolin 
     if [ ! -d pangolin ]; then
         sudo apt-get install -y libglew-dev
         git clone https://github.com/uoip/pangolin.git
@@ -134,7 +134,7 @@ if [ ! -d g2opy ]; then
     G2OPY_REVISION=5587024
     git checkout $G2OPY_REVISION
     cd ..
-    # copy changes 
+    # copy local changes 
     cp ./g2opy_changes/types_six_dof_expmap.h ./g2opy/python/types/sba/types_six_dof_expmap.h
 fi
 cd g2opy

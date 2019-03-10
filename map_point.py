@@ -65,8 +65,9 @@ class MapPoint(object):
         self.num_observations += 1
         self.is_bad = (self.num_observations < 2)
 
-    def remove_observation(self, frame, idx):  
-        assert(self == frame.points[idx])     
+    def remove_observation(self, frame, idx = None):  
+        if idx is not None:
+            assert(self == frame.points[idx])     
         frame.remove_point(self)
         frame_idx = None 
         try:

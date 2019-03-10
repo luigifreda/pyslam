@@ -9,13 +9,13 @@ Main Scripts:
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation and bundle adjustment in order to estimate the camera trajectory up-to-scale and a build a local map. It's still a basic VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
-You can use this *'toy'* framework as a baseline to play with VO techniques or create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's intended as a simple *'toy'* framework. Check the terminal warnings if something weird happens.  
+You can use this *'toy'* framework as a baseline to play with VO techniques or create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's intended as a simple *'toy'* framework, without any pretence of being considered peformant. Check the terminal warnings if something weird happens.  
 
 **Enjoy it!**
 
 <center> <img src="images/main-vo.png"
 alt="VO" height="300" border="1" /> 
-<img src="images/main-slam.png"
+<img src="images/main-slam-kitti-map.png"
 alt="SLAM" height="300" border="1" /> </center>
 
 --- 
@@ -155,9 +155,14 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 ---
 ## TODO
 
+Tons of things still to be done: 
+
 * keyframe generation and management 
+* tracking w.r.t. previous keyframe 
 * proper local map generation and management 
 * loop closure
+* general relocalization 
+* tracking by using all kind of features (not only ORB)
 
 
 ---
@@ -165,3 +170,5 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 
 * [twitchslam](https://github.com/geohot/twitchslam)
 * [monoVO](https://github.com/uoip/monoVO-python)
+* [pangolin](https://github.com/stevenlovegrove/Pangolin) 
+* [g2opy](https://github.com/uoip/g2opy)

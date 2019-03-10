@@ -21,7 +21,7 @@ import cv2
 from enum import Enum
 
 kRatioTest = 0.7 
-
+kVerbose = True 
 
 class FeatureMatcherTypes(Enum):
     NONE = 0
@@ -47,12 +47,15 @@ class FeatureMatcher(object):
     def match(self, des1, des2):
         return None 
 
+    # des1 = queryDescriptors, des2= trainDescriptors
     def goodMatches(self, matches, des1, des2):
+        len_des2 = len(des2)
+        idx1, idx2 = [], []        
         if matches is not None:         
-            good_matches = []
-            flag_match = np.full(len(des2), False, dtype=bool)
-            dist_match = np.zeros(len(des2))
-            index_match = np.full(len(des2), 0, dtype=int)
+            #good_matches = []
+            flag_match = np.full(len_des2, False, dtype=bool)
+            dist_match = np.zeros(len_des2)
+            index_match = np.full(len_des2, 0, dtype=int)
             m = None # match to insert 
             for lm in matches:
                 if len(lm)==0:
@@ -67,34 +70,49 @@ class FeatureMatcher(object):
                 if not flag_match[m.trainIdx]:
                     flag_match[m.trainIdx] = True
                     dist_match[m.trainIdx] = m.distance
-                    good_matches.append(m)
-                    index_match[m.trainIdx] = len(good_matches)-1
+                    #good_matches.append(m)
+                    idx1.append(m.queryIdx)
+                    idx2.append(m.trainIdx)
+                    index_match[m.trainIdx] = len(idx2)-1
                 else:
                     # store match is worse => replace it
                     if dist_match[m.trainIdx] > m.distance:
                         index = index_match[m.trainIdx]
-                        good_matches[index] = m 
-            return good_matches
+                        assert(idx2[index] == m.trainIdx) 
+                        #good_matches[index] = m 
+                        idx1[index]=m.queryIdx
+                        idx2[index]=m.trainIdx                        
+            #return good_matches, idx1, idx2
+            return idx1, idx2
         else:
-            return matches                             
+            #return matches, idx1, idx2                             
+            return idx1, idx2
 
+    # des1 = queryDescriptors, des2= trainDescriptors
     def goodMatchesSimple(self, matches, des1, des2):
+        idx1, idx2 = [], []           
         if matches is not None: 
             # Apply ratio test
-            good_matches = []
+            #good_matches = []
             for m in matches:
                 if len(m)==0:
                     continue    
                 elif len(m)==1:
-                    good_matches.append(m[0]) 
+                    #good_matches.append(m[0]) 
+                    idx1.append(m[0].queryIdx)
+                    idx2.append(m[0].trainIdx)                    
                 else:
                     m1 = m[0]
                     m2 = m[1]
                     if m1.distance < kRatioTest*m2.distance:
-                        good_matches.append(m1) 
-            return good_matches
+                        #good_matches.append(m1) 
+                        idx1.append(m1.queryIdx)
+                        idx2.append(m1.trainIdx)                            
+            #return good_matches, idx1, idx2
+            return idx1, idx2
         else:
-            return matches       
+            #return matches, idx1, idx2                             
+            return idx1, idx2 
 
 
 class BfFeatureMatcher(FeatureMatcher): 
@@ -103,6 +121,8 @@ class BfFeatureMatcher(FeatureMatcher):
         self.bf = cv2.BFMatcher(norm_type, cross_check)        
 
     def match(self, des1, des2):
+        if kVerbose:
+            print('BfFeatureMatcher')        
         matches = self.bf.knnMatch(des1, des2, k=2)   #knnMatch(queryDescriptors,trainDescriptors)
         return self.goodMatches(matches, des1, des2)
 
@@ -125,5 +145,7 @@ class FlannFeatureMatcher(FeatureMatcher):
         self.flann = cv2.FlannBasedMatcher(self.index_params, self.search_params)                                         
 
     def match(self, des1, des2):
+        if kVerbose:
+            print('FlannFeatureMatcher')
         matches = self.flann.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
         return self.goodMatches(matches, des1, des2)             

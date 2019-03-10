@@ -31,20 +31,21 @@ from map import Map
 from geom_helpers import triangulate, add_ones, poseRt
 from pinhole_camera import Camera, PinholeCamera
 from initializer import Initializer
+from timer import TimerFps
 
-from helpers import ColorPrinter
+from helpers import Printer
 
 import constants 
 
 kVerbose=True     
-kMinNumFeature = 2000
-kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
+kRansacThresholdNormalized = 0.0003  # 0.0003 # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
-kNumMinInliersEssentialMat = 10
+kNumMinInliersEssentialMat = 8
 kUseGroundTruthScale = False 
-kLocalWindow = 10
-kUseMotionModel = False 
-kUseBA = False
+kLocalWindow = constants.kLocalWindow
+kUseMotionModel = constants.kUseMotionModel
+kUseLargeWindowBA = constants.kUseLargeWindowBA
+kTimerVerbose = False 
 
 class SlamStage(Enum):
     NO_IMAGES_YET=0,
@@ -53,12 +54,12 @@ class SlamStage(Enum):
     LOST=3
 
 class SLAM(object):
-    def __init__(self, camera, detector, grountruth = None):
+    def __init__(self, camera, tracker, grountruth = None):
         self.cam = camera 
 
         self.map = Map()
 
-        Frame.detector = detector # set the static field of the class 
+        Frame.set_tracker(tracker) # set the static field of the class 
 
         # camera info 
         self.W, self.H = camera.width, camera.height 
@@ -89,7 +90,18 @@ class SLAM(object):
         self.t0_est = None    # history of estimated translations      
         self.t0_gt = None     # history of ground truth translations (if available)
         self.traj3d_est = []  # history of estimated translations centered w.r.t. first one
-        self.traj3d_gt = []   # history of estimated ground truth translations centered w.r.t. first one                  
+        self.traj3d_gt = []   # history of estimated ground truth translations centered w.r.t. first one   
+
+        self.timer_verbose = kTimerVerbose  # set this to True if you want to print timings 
+        self.timer_main_track = TimerFps('Track', is_verbose = self.timer_verbose)
+        self.timer_pose_opt = TimerFps('Pose optimization', is_verbose = self.timer_verbose)
+        self.timer_match = TimerFps('Match', is_verbose = self.timer_verbose)        
+        self.timer_pose_est = TimerFps('Pose estimation', is_verbose = self.timer_verbose)
+        self.timer_frame = TimerFps('Frame', is_verbose = self.timer_verbose)
+        self.timer_seach_map = TimerFps('Search Map', is_verbose = self.timer_verbose)     
+        self.timer_triangulation = TimerFps('Triangulation', is_verbose = self.timer_verbose)     
+        self.time_local_opt = TimerFps('Local optimization', is_verbose = self.timer_verbose)         
+
 
     # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
     # out: [Rrc, trc]   (with respect to 'ref' frame) 
@@ -97,8 +109,8 @@ class SLAM(object):
     # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
     # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
-    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well even in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
-    def estimatePose(self, kpn_ref, kpn_cur):	     
+    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
+    def estimate_pose_ess_mat(self, kpn_ref, kpn_cur):	     
         E, self.mask_match = cv2.findEssentialMat(kpn_cur, kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)                         
         _, R, t, mask = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0., 0.))   
         return poseRt(R,t.T)  # Rrc,trc (cur with respect to 'ref' frame)         
@@ -107,9 +119,11 @@ class SLAM(object):
 
         assert img.shape[0:2] == (self.H, self.W)        
         
-        start_time = time.time()
+        self.timer_main_track.start()
 
+        self.timer_frame.start()        
         f_cur = Frame(self.map, img, self.K, self.Kinv, self.D, des=verts) 
+        self.timer_frame.refresh()            
 
         if self.stage == SlamStage.NO_IMAGES_YET: 
             self.intializer.init(f_cur) # add first frame in the inizializer 
@@ -125,46 +139,52 @@ class SLAM(object):
                 self.map.add_frame(f_cur) # add second frame in map and update its id
                 # add points in map 
                 new_pts_count,_ = self.map.add_points(initializer_output.points4d, None, f_cur, f_ref, initializer_output.idx_cur, initializer_output.idx_ref, img)
-                ColorPrinter.printGreen("map: initialized %d new points" % (new_pts_count))                   
+                Printer.green("map: initialized %d new points" % (new_pts_count))                   
                 self.stage = SlamStage.OK               
             return # EXIT (jump to next frame)
         
         f_ref = self.map.frames[-1] # get last frame in map            
         self.map.add_frame(f_cur)   # add f_cur to map 
         
+        self.timer_match.start()
         # find image point matches
         idx_cur, idx_ref = match_frames(f_cur, f_ref)
-        self.num_matched_kps = idx_cur.shape[0] 
-
+        self.num_matched_kps = idx_cur.shape[0]     
         print('# keypoint matches: ', self.num_matched_kps)
+        self.timer_match.refresh()        
 
-        # estimate inter frame camera motion 
-        Mrc = self.estimatePose(f_ref.kpsn[idx_ref], f_cur.kpsn[idx_cur])
-        Mcr = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))
-        f_cur.pose = np.dot(Mcr, f_ref.pose)
 
-        # remove outliers from matches by using the mask computed with inter frame pose estimation 
-        mask_index = [ i for i,v in enumerate(self.mask_match) if v > 0] 
-        self.num_inliers = len(mask_index)
-        print('# inliers: ', self.num_inliers )
-        idx_ref = idx_ref[mask_index]
-        idx_cur = idx_cur[mask_index]
+        if kUseMotionModel is not True:
+            print('estimating pose by fitting essential mat')   
+            # N.B.: please, in order to understand the limitations of fitting an essential mat, read the comments of the method self.estimate_pose_ess_mat() 
+            self.timer_pose_est.start()
+            # estimate inter frame camera motion 
+            Mrc = self.estimate_pose_ess_mat(f_ref.kpsn[idx_ref], f_cur.kpsn[idx_cur])
+            Mcr = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))
+            f_cur.pose = np.dot(Mcr, f_ref.pose)
+            self.timer_pose_est.refresh()      
 
-        if self.num_inliers < kNumMinInliersEssentialMat:
-            f_cur.pose = f_ref.pose.copy()
-            ColorPrinter.printRed('Essential mat: not enough inliers!') 
+            # remove outliers from matches by using the mask computed with inter frame pose estimation 
+            mask_index = [ i for i,v in enumerate(self.mask_match) if v > 0] 
+            self.num_inliers = len(mask_index)
+            print('# inliers: ', self.num_inliers )
+            idx_ref = idx_ref[mask_index]
+            idx_cur = idx_cur[mask_index]
 
-        # kinematic model 
-        self.velocity = np.dot(f_ref.pose, np.linalg.inv(self.map.frames[-2].pose))
-        predicted_pose = np.dot(self.velocity, f_ref.pose)
-                
-        # set intial guess for pose optimization 
-        #f_cur.pose = f_ref.pose.copy()  # get the last pose as an initial guess for optimization
-        if kUseMotionModel is True:
-            f_cur.pose[:,3] = predicted_pose[:,3].copy() # keep the estimated rotation and override translation 
+            if self.num_inliers < kNumMinInliersEssentialMat:
+                f_cur.pose = f_ref.pose.copy()  # reset pose estimation to previous frame 
+                Printer.red('Essential mat: not enough inliers!')  
+
+            f_cur.pose[:,3] = f_ref.pose[:,3].copy() # keep the estimated rotation and override translation with ref frame translation                      
+
         else:
-            f_cur.pose[:,3] = f_ref.pose[:,3].copy() # keep the estimated rotation and override translation             
-
+            print('using motion model')          
+            self.velocity = np.dot(f_ref.pose, np.linalg.inv(self.map.frames[-2].pose))
+            predicted_pose = np.dot(self.velocity, f_ref.pose)
+            # set intial guess for pose optimization             
+            f_cur.pose = predicted_pose.copy()
+            #f_cur.pose = f_ref.pose.copy()  # get the last pose as an initial guess for optimization
+         
         # update current frame with observed map points: 
         # these corresponds to curr frame keypoints which have matches with {prev frame keypoints having a corresponding map point} 
         # update the observations of these observed map points 
@@ -173,47 +193,80 @@ class SLAM(object):
             if f_ref.points[idx] is not None: 
                 f_ref.points[idx].add_observation(f_cur, idx_cur[i])
                 num_found_map_pts_inter_frame += 1
-        
-        print("# matched map points: %d " % num_found_map_pts_inter_frame)   
+        print("# matched map points in prev frame: %d " % num_found_map_pts_inter_frame)   
 
-        # pose optimization 
+
+        # current pose optimization 1   
+        self.timer_pose_opt.start()          
         pose_opt_error, pose_is_ok, self.num_vo_map_points = optimizer_g2o.poseOptimization(f_cur, verbose=False)
-        print("pose opt err: %f,  ok: %d" % (pose_opt_error, int(pose_is_ok)) ) 
-
-        print("# valid matched map points: %d " % self.num_vo_map_points)           
-               
+        print("pose opt err1: %f,  ok: %d" % (pose_opt_error, int(pose_is_ok)) ) 
         # discard outliers detected in pose optimization (in current frame)
-        f_cur.reset_outlier_map_points()
+        #f_cur.reset_outlier_map_points()       
 
-        # find map points whose descriptors match with a {keypoint in curr frame which was not matched with any prev frame keypoint)
-        # TODO: implement a proper local mapping  
-        #num_found_map_pts = self.searchMapByProjection(f_cur)
-        num_found_map_pts = self.searchLocalFramesByProjection(f_cur, local_window = kLocalWindow)        
-        
-        # triangulate the points we don't have matches for
-        # TODO: this triangulation should be done from keyframes!
-        good_pts4d = np.array([f_cur.points[i] is None for i in idx_cur])
+        if pose_is_ok is True: 
+            # discard outliers detected in pose optimization (in current frame)
+            f_cur.reset_outlier_map_points()  
+        else:            
+            # if current pose optimization failed, reset current pose             
+            f_cur.pose = f_ref.pose.copy()                 
 
-        # do triangulation in global frame
-        pts4d = triangulate(f_cur.pose, f_ref.pose, f_cur.kpsn[idx_cur], f_ref.kpsn[idx_ref])
-        good_pts4d &= np.abs(pts4d[:, 3]) != 0
-        #good_pts4d &= f_ref.outliers[idx_ref] == False 
-        pts4d /= pts4d[:, 3:]       # get homogeneous 3-D coords
+        self.timer_pose_opt.pause()                                         
+                       
 
-        new_pts_count,_ = self.map.add_points(pts4d, good_pts4d, f_cur, f_ref, idx_cur, idx_ref, img, check_parallax=True)
-        print("# added map points: %d, # found by projection: %d" % (new_pts_count, num_found_map_pts))
-            
-        err = self.map.localOptimize(local_window=kLocalWindow)
+        # TODO: add recover in case of current pose optimization failure 
+
+
+        # find local map points whose descriptors match with a {keypoint in curr frame that was not matched with any prev frame keypoint)
+        if pose_is_ok is True and not self.map.local_map.is_empty():
+            self.timer_seach_map.start()
+            #num_found_map_pts = self.searchLocalFramesByProjection(f_cur, local_window = kLocalWindow)    
+            num_found_map_pts = self.searchByProjection(self.map.local_map.points, f_cur) 
+            print("# new matched map points: %d " % num_found_map_pts)               
+            self.timer_seach_map.refresh()
+
+            # current pose optimization 2 with all the found map points 
+            self.timer_pose_opt.resume()        
+            pose_opt_error, pose_is_ok, self.num_vo_map_points = optimizer_g2o.poseOptimization(f_cur, verbose=False)
+            print("pose opt err2: %f,  ok: %d" % (pose_opt_error, int(pose_is_ok)) ) 
+            print("# valid matched map points: %d " % self.num_vo_map_points)      
+            # discard outliers detected in pose optimization (in current frame)
+            if pose_is_ok is True:
+                f_cur.reset_outlier_map_points()        
+            self.timer_pose_opt.refresh()     
+
+
+        # if pose is ok, then we can try to triangulate the matched keypoints without a corresponding map point 
+        if pose_is_ok is True:                 
+            self.timer_triangulation.start()
+
+            # TODO: this triangulation should be done from keyframes!
+            good_pts4d = np.array([f_cur.points[i] is None for i in idx_cur]) # matched keypoints without a corresponding map point 
+
+            # do triangulation in global frame
+            pts4d = triangulate(f_cur.pose, f_ref.pose, f_cur.kpsn[idx_cur], f_ref.kpsn[idx_ref])
+            good_pts4d &= np.abs(pts4d[:, 3]) != 0
+            #good_pts4d &= f_ref.outliers[idx_ref] == False 
+            pts4d /= pts4d[:, 3:]       # get homogeneous 3-D coords
+
+            new_pts_count,_ = self.map.add_points(pts4d, good_pts4d, f_cur, f_ref, idx_cur, idx_ref, img, check_parallax=True)
+            print("# added map points: %d " % (new_pts_count))
+            self.timer_triangulation.refresh()
+
+        self.time_local_opt.start()
+        err = self.map.locally_optimize(local_window=kLocalWindow)
         print("local optimization error:   %f" % err)
+        self.time_local_opt.refresh()
 
-        # global optimization of the map
-        if f_cur.id >= constants.kNumFramesBA and f_cur.id % constants.kNumFramesBA == 0 and kUseBA:
-            err = self.map.optimize()  # verbose=True)
-            ColorPrinter.printGreen("global optimization error:   %f" % err)
+        # large window optimization of the map
+        # TODO: move this in a seperate thread with local mapping 
+        if f_cur.id >= constants.kEveryNumFramesLargeWindowBA and f_cur.id % constants.kEveryNumFramesLargeWindowBA == 0 and kUseLargeWindowBA:
+            err = self.map.optimize(local_window=constants.kLargeWindow)  # verbose=True)
+            Printer.green("large window optimization error:   %f" % err)
 
         print("map: %d points, %d frames" % (len(self.map.points), len(self.map.frames)))
-        print("time: %.2f ms" % ((time.time()-start_time)*1000.0))
         #self.updateHistory()
+
+        self.timer_main_track.refresh()
 
     # search by projection the map points of local frames on frame f_cur
     def searchLocalFramesByProjection(self, f_cur, local_window = kLocalWindow):
@@ -256,9 +309,8 @@ class SLAM(object):
                     # we already matched this map point to this frame
                     continue
                 for m_idx in f_cur.kd.query_ball_point(projs[i], constants.kMaxReprojectionDistance):
-                    #print('checking : ', m_idx)
-                    # if no point associated and not outlier 
-                    if f_cur.points[m_idx] is None: # or f_cur.outliers[m_idx] is False:
+                    # if no point associated 
+                    if f_cur.points[m_idx] is None: 
                         orb_dist = p.orb_distance(f_cur.des[m_idx])
                         #print('b_dist : ', orb_dist)
                         if orb_dist < constants.kMaxOrbDistanceSearchByReproj:

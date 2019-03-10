@@ -27,6 +27,8 @@ import constants
 from frame import Frame
 from map_point import MapPoint
 
+from helpers import Printer
+
 import optimizer_g2o 
 # from optimize_crappy import optimize
 
@@ -34,51 +36,13 @@ import optimizer_g2o
 class Map(object):
     def __init__(self):
         self.frames = []
-        self.keyframe = []
+        self.keyframes = []
         self.points = []
         self.max_frame_id = 0  # 0 is the first frame id
         self.max_point_id = 0  # 0 is the first point id
 
-    # FIXME: according to new changes
-    def serialize(self):
-        ret = {}
-        ret['points'] = [{'id': p.id, 'pt': p.pt.tolist(
-        ), 'color': p.color.tolist()} for p in self.points]
-        ret['frames'] = []
-        for f in self.frames:
-            ret['frames'].append({
-                'id': f.id, 'K': f.K.tolist(), 'pose': f.pose.tolist(), 'h': f.h, 'w': f.w,
-                'kpus': f.kpus.tolist(), 'des': f.des.tolist(),
-                'pts': [p.id if p is not None else -1 for p in f.pts]
-                })
-        ret['max_frame_id'] = self.max_frame_id
-        ret['max_point_id'] = self.max_point_id
-        return json.dumps(ret)
-
-    # FIXME: according to new changes
-    def deserialize(self, s):
-        ret = json.loads(s)
-        self.max_frame_id = ret['max_frame_id']
-        self.max_point_id = ret['max_point_id']
-        self.points = []
-        self.frames = []
-
-        pids = {}
-        for p in ret['points']:
-            pp = MapPoint(self, p['pt'], p['color'], p['id'])
-            self.points.append(pp)
-            pids[p['id']] = pp
-
-        for f in ret['frames']:
-            ff = Frame(self, None, f['K'], f['pose'], f['id'])
-            ff.w, ff.h = f['w'], f['h']
-            ff.kpsu = np.array(f['kpus'])
-            ff.des = np.array(f['des'])
-            ff.points = [None] * len(ff.kpsu)
-            for i, p in enumerate(f['pts']):
-                if p != -1:
-                    ff.points[i] = pids[p]
-            self.frames.append(ff)
+        # local map 
+        self.local_map = LocalMap()
 
     def add_point(self, point):
         ret = self.max_point_id
@@ -138,14 +102,15 @@ class Map(object):
             # project on camera pixels
             uv1 = np.dot(f1.K, x1[:3])
             uv2 = np.dot(f2.K, x2[:3])
-
+                
             # check reprojection error
-            err1 = (uv1[0:2] / uv1[2]) - f1.kpsu[idx1[i]]
-            err1 = np.linalg.norm(err1)            
-            err2 = (uv2[0:2] / uv2[2]) - f2.kpsu[idx2[i]]
-            err2 = np.linalg.norm(err2)
-            # TODO: put a parameter here and check by using covariance and chi-square error
-            if err1 > constants.kAddPointsCheckReprojectionErr or err2 > constants.kAddPointsCheckReprojectionErr:
+            invSigma21 = Frame.detector.inv_level_sigmas2[f1.octaves[idx1[i]]]                
+            err1 = (uv1[0:2] / uv1[2]) - f1.kpsu[idx1[i]]        
+            err1 = np.linalg.norm(err1)*invSigma21        
+            invSigma22 = Frame.detector.inv_level_sigmas2[f2.octaves[idx2[i]]]                 
+            err2 = (uv2[0:2] / uv2[2]) - f2.kpsu[idx2[i]]         
+            err2 = np.linalg.norm(err2)*invSigma22
+            if err1 > constants.kChi2Mono or err2 > constants.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
                 #print('p[%d] big reproj err1 %f, err2 %f' % (i,err1,err2))
                 continue
 
@@ -162,12 +127,12 @@ class Map(object):
         return new_pts_count, out_mask_pts4d
 
     # get the points of the last N frames and all the frames that see these points 
-    def getLocalWindowMap(self, local_window):
+    def update_local_window_map(self, local_window):
         frames = self.frames[-local_window:]  # get the last N frames  
         frame_id_set = set([f.id for f in frames])                 
         points = []
         point_id_set = set()           
-        frames_ref = []   # reference frames, i.e. those frames not in frames that see points in frames            
+        ref_frames = []   # reference frames, i.e. those frames not in frames that see points in frames            
         for f in frames:
             f_points = [p for p in f.points if (p is not None)] 
             for p in f_points: 
@@ -177,13 +142,17 @@ class Map(object):
                     point_frames = [p_frame for p_frame in p.frames if p_frame.id not in frame_id_set] 
                     for p_frame in point_frames: 
                         #if p_frame.id not in frame_id_set:                        
-                        frames_ref.append(p_frame)
+                        ref_frames.append(p_frame)
                         frame_id_set.add(p_frame.id)             
-        frames_ref = sorted(frames_ref, key=lambda x:x.id)                                                                  
-        return frames, points, frames_ref
+        #ref_frames = sorted(ref_frames, key=lambda x:x.id)  
+        self.local_map.frames = frames
+        self.local_map.points = points 
+        self.local_map.ref_frames = ref_frames
+        self.local_map.f_cur = self.frames[-1]                                                                
+        return frames, points, ref_frames
 
     # remove points which have a big reprojection error 
-    def cullMapPoints(self, points): 
+    def cull_map_points(self, points): 
         #print('map points: ', sorted([p.id for p in self.points]))
         #print('points: ', sorted([p.id for p in points]))           
         culled_pt_count = 0
@@ -196,8 +165,7 @@ class Map(object):
                 invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[idx]]
                 errs.append(np.linalg.norm(proj-uv)*invSigma2)
             # cull
-            chi2Mono = 5.991 # chi-square 2 DOFs  (Hartley Zisserman pg 119)
-            if np.mean(errs) > chi2Mono:
+            if np.mean(errs) > constants.kChi2Mono:  # chi-square 2 DOFs  (Hartley Zisserman pg 119)
                 culled_pt_count += 1
                 #print('removing point: ',p.id, 'from frames: ', [f.id for f in p.frames])
                 #self.points.remove(p)
@@ -205,19 +173,72 @@ class Map(object):
                 self.remove_point(p)
         print("culled: %d points" % (culled_pt_count))        
 
-    def optimize(self, local_window=constants.kGlobalWindow, verbose=False, rounds=10):
-        #err = optimizer_g2o.optimizeNormalized(self.frames, self.points, local_window, fix_points, verbose, rounds)
+    def optimize(self, local_window=constants.kLargeWindow, verbose=False, rounds=10):
         err = optimizer_g2o.optimization(frames = self.frames, points = self.points, local_window = local_window, verbose = verbose, rounds = rounds)        
-        self.cullMapPoints(self.points)
+        self.cull_map_points(self.points)
 
         return err
 
-    def localOptimize(self, local_window=constants.kGlobalWindow, verbose = False, rounds=10):
-        frames, points, frames_ref = self.getLocalWindowMap(local_window)
+    def locally_optimize(self, local_window=constants.kLocalWindow, verbose = False, rounds=10):
+        frames, points, frames_ref = self.update_local_window_map(local_window)
         print('local optimization window: ', [f.id for f in frames])        
         print('                     refs: ', [f.id for f in frames_ref])
         #print('                   points: ', sorted([p.id for p in points]))        
         #err = optimizer_g2o.optimize(frames, points, None, False, verbose, rounds)  
-        err = optimizer_g2o.localOptimization(frames_ref, frames, points, False, verbose, rounds)
-        self.cullMapPoints(points)                
+        err, ratio_bad_observations = optimizer_g2o.localOptimization(frames, points, frames_ref, False, verbose, rounds)
+        Printer.green('local optimization - %% bad observations: %.2f ' % (ratio_bad_observations*100) )              
+        #self.cull_map_points(points)  # already performed in optimizer_g2o.localOptimization()            
         return err 
+
+    # FIXME: according to new changes
+    def serialize(self):
+        ret = {}
+        ret['points'] = [{'id': p.id, 'pt': p.pt.tolist(
+        ), 'color': p.color.tolist()} for p in self.points]
+        ret['frames'] = []
+        for f in self.frames:
+            ret['frames'].append({
+                'id': f.id, 'K': f.K.tolist(), 'pose': f.pose.tolist(), 'h': f.h, 'w': f.w,
+                'kpus': f.kpus.tolist(), 'des': f.des.tolist(),
+                'pts': [p.id if p is not None else -1 for p in f.pts]
+                })
+        ret['max_frame_id'] = self.max_frame_id
+        ret['max_point_id'] = self.max_point_id
+        return json.dumps(ret)
+
+    # FIXME: according to new changes
+    def deserialize(self, s):
+        ret = json.loads(s)
+        self.max_frame_id = ret['max_frame_id']
+        self.max_point_id = ret['max_point_id']
+        self.points = []
+        self.frames = []
+
+        pids = {}
+        for p in ret['points']:
+            pp = MapPoint(self, p['pt'], p['color'], p['id'])
+            self.points.append(pp)
+            pids[p['id']] = pp
+
+        for f in ret['frames']:
+            ff = Frame(self, None, f['K'], f['pose'], f['id'])
+            ff.w, ff.h = f['w'], f['h']
+            ff.kpsu = np.array(f['kpus'])
+            ff.des = np.array(f['des'])
+            ff.points = [None] * len(ff.kpsu)
+            for i, p in enumerate(f['pts']):
+                if p != -1:
+                    ff.points[i] = pids[p]
+            self.frames.append(ff)
+
+# TODO: implement a proper local mapping 
+# a simple implementation of a local map 
+class LocalMap(object):
+    def __init__(self, f_cur = None):
+        self.f_cur = f_cur   # 'reference' frame, around which the local map is computed 
+        self.frames = []     # collection of frames 
+        self.points = []     # points visible in 'frames'  
+        self.ref_frames = [] # collection of frames not in 'frames' that see at least one point in 'points'
+
+    def is_empty(self):
+        return len(self.frames)==0 

@@ -118,7 +118,7 @@ class VisualOdometry(object):
     # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
     # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
-    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well even in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
+    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
     def estimatePose(self, kp_ref, kp_cur):	
         kp_ref_u = self.cam.undistortPoints(kp_ref)	
         kp_cur_u = self.cam.undistortPoints(kp_cur)	        
