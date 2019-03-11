@@ -9,7 +9,7 @@ Main Scripts:
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation and bundle adjustment in order to estimate the camera trajectory up-to-scale and a build a local map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
-You can use this *'toy'* framework as a baseline to play with VO techniques or create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's intended as a simple *'toy'* framework, without any pretence of being considered peformant. Check the terminal warnings if you seesomething weird happening.  
+You can use this *'toy'* framework as a baseline to play with VO techniques or create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's intended as a simple *'toy'* framework, without any pretence of being considered peformant. Check the terminal warnings if you see something weird happening.  
 
 **Enjoy it!**
 
@@ -83,7 +83,7 @@ If you want to test the script `main_slam.py`, you can run:
 $ python3 -O main_slam.py
 ```
 
-**WARNING**: the available **KITTI videos** (due to information loss in video compression) make pySLAM tracking peform worse than with the original KITTI *image sequences*. The available videos are intended to be used for quick first test. Please, download and use the original KITTI image sequences as explained below. For instance, on the original KITTI sequence 06, pySLAM successfully completes the round; at present time, this does not happen with the compressed video.
+**WARNING**: the available **KITTI videos** (due to information loss in video compression) make main_slam tracking peform worse than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained below. For instance, on the original KITTI sequence 06, main_slam successfully completes the round; at present time, this does not happen with the compressed video.
 
 --- 
 ## Datasets
