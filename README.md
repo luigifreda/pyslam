@@ -157,7 +157,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 ---
 ## TODO
 
-Tons of things still to be done: 
+Tons of things are still missing to attain a real SLAM pipeline: 
 
 * keyframe generation and management 
 * tracking w.r.t. previous keyframe 
