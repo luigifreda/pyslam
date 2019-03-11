@@ -164,7 +164,7 @@ Tons of things are still missing to attain a real SLAM pipeline:
 * proper local map generation and management 
 * loop closure
 * general relocalization 
-* tracking by using all kind of features (not only ORB)
+* in main_slam, tracking by using all kind of features (not only ORB)
 
 
 ---
