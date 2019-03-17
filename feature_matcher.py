@@ -63,11 +63,15 @@ class FeatureMatcher(object):
                 elif len(lm)==1:
                     m = lm[0]
                 else:
+                    # we have two mathes for queryIdx 
                     if lm[0].distance < kRatioTest * lm[1].distance:
                         m = lm[0]
+                        #print("match1: %d, %d" % (lm[0].queryIdx,lm[0].trainIdx))
+                        #print("match2: %d, %d" % (lm[1].queryIdx,lm[1].trainIdx))                        
                     else:
                         continue     
-                if not flag_match[m.trainIdx]:
+                if not flag_match[m.trainIdx]: 
+                    # trainIdx has not been matched yet
                     flag_match[m.trainIdx] = True
                     dist_match[m.trainIdx] = m.distance
                     #good_matches.append(m)
@@ -75,8 +79,10 @@ class FeatureMatcher(object):
                     idx2.append(m.trainIdx)
                     index_match[m.trainIdx] = len(idx2)-1
                 else:
-                    # store match is worse => replace it
+                    # we have already a match for trainIdx 
+                    # if stored match is worse => replace it
                     if dist_match[m.trainIdx] > m.distance:
+                        #print("double match on trainIdx: ", m.trainIdx)
                         index = index_match[m.trainIdx]
                         assert(idx2[index] == m.trainIdx) 
                         #good_matches[index] = m 

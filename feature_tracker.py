@@ -22,6 +22,7 @@ import cv2
 from enum import Enum
 from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
+from helpers import Printer
 
 
 class TrackerTypes(Enum):
@@ -85,7 +86,10 @@ class LkFeatureTracker(FeatureTracker):
                        num_levels = 3,
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.NONE, 
-                       tracker_type = TrackerTypes.LK):    
+                       tracker_type = TrackerTypes.LK):   
+        if num_levels < 3:
+            Printer.green('LkFeatureTracker: forcing at least 3 levels') 
+            num_levels = 3                        
         super().__init__(min_num_features, num_levels, detector_type, descriptor_type, tracker_type)
         self.detector = feature_detector_factory(min_num_features, num_levels, detector_type, descriptor_type)   
         # we use LK pyr optic flow for matching     

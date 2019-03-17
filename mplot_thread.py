@@ -26,7 +26,7 @@ from mpl_toolkits import mplot3d
 import multiprocessing as mp 
 from multiprocessing import Process, Queue, Lock
 
-kPlotSleep = 0.01 
+kPlotSleep = 0.03 
 kVerbose = False 
 KSetDaemon = False 
 
@@ -41,6 +41,7 @@ class Mplot2d:
         self.title = title 
 
         self.data = None 
+        self.got_data = False 
 
         self.axis_computed = False 
         self.xlim = [float("inf"),float("-inf")]
@@ -59,7 +60,8 @@ class Mplot2d:
             self.drawer_refresh(queue, lock)        
 
     def drawer_refresh(self, queue, lock):            
-        while not queue.empty():                
+        while not queue.empty():      
+            self.got_data = True           
             self.data = queue.get()          
             xy_signal, name, color, marker = self.data 
             #print(mp.current_process().name,"refreshing : signal ", name)            
@@ -69,8 +71,10 @@ class Mplot2d:
                 handle.set_ydata(np.append(handle.get_ydata(), xy_signal[1]))                
             else: 
                 handle, = self.ax.plot(xy_signal[0], xy_signal[1], c=color, marker=marker, label=name)    
-                self.handle_map[name] = handle         
-        self.plot_refresh(lock)
+                self.handle_map[name] = handle  
+        #print(mp.current_process().name,"got data: ", self.got_data) 
+        if self.got_data is True:                   
+            self.plot_refresh(lock)
 
     def init(self, lock):    
         lock.acquire()      
@@ -146,7 +150,8 @@ class Mplot3d:
     def __init__(self, title=''):
         self.title = title 
 
-        self.data = None         
+        self.data = None  
+        self.got_data = False 
 
         self.axis_computed = False 
         self.xlim = [float("inf"),float("-inf")]
@@ -166,7 +171,8 @@ class Mplot3d:
             self.drawer_refresh(queue, lock)        
 
     def drawer_refresh(self, queue, lock):            
-        while not queue.empty():                
+        while not queue.empty():    
+            self.got_data = True  
             self.data = queue.get()  
             traj, name, color, marker = self.data         
             np_traj = np.asarray(traj)        
@@ -176,8 +182,9 @@ class Mplot3d:
             self.updateMinMax(np_traj)
             handle = self.ax.scatter3D(np_traj[:, 0], np_traj[:, 1], np_traj[:, 2], c=color, marker=marker)
             handle.set_label(name)
-            self.handle_map[name] = handle       
-        self.plot_refresh(lock)          
+            self.handle_map[name] = handle     
+        if self.got_data is True:               
+            self.plot_refresh(lock)          
 
     def init(self, lock):
         lock.acquire()      

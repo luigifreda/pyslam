@@ -39,12 +39,11 @@ class Timer:
 
     def pause(self): 
         now_time = cv2.getTickCount()
-        self._accumulated = (now_time - self._start_time)/cv2.getTickFrequency() 
+        self._accumulated += (now_time - self._start_time)/cv2.getTickFrequency() 
         self._is_paused = True   
 
-    # considered only if paused 
     def resume(self): 
-        if self._is_paused:
+        if self._is_paused: # considered only if paused 
             self._start_time = cv2.getTickCount()
             self._is_paused = False                      
 
@@ -63,6 +62,7 @@ class Timer:
                 Printer.green(message)        
             else:
                 print(message)
+        return self._elapsed                
 
 
 class TimerFps(Timer):
@@ -71,8 +71,8 @@ class TimerFps(Timer):
         self.moving_average = MovingAverage(average_width)
 
     def refresh(self): 
-        self.elapsed()
-        self.moving_average.getAverage(self._elapsed)
+        elapsed = self.elapsed()
+        self.moving_average.getAverage(elapsed)
         self.start()
         if self._is_verbose is True:
             dT = self.moving_average.getAverage()

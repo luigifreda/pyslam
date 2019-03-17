@@ -27,9 +27,10 @@ from frame import Frame, match_frames
 import g2o
 from map_point import MapPoint
 from map import Map
-from geom_helpers import triangulate, add_ones, poseRt
+from geom_helpers import triangulate_points, add_ones, poseRt
 from pinhole_camera import Camera, PinholeCamera
 from helpers import Printer
+import parameters  
 
 kVerbose=True     
 kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
@@ -53,6 +54,14 @@ class Initializer(object):
         self.frames = []     
         self.id_ref = 0   
 
+    # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
+    # out: [Rrc, trc]   (with respect to 'ref' frame) 
+    # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with previous estimated poses)
+    # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
+    # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
+    # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
+    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
+    # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation     
     def estimatePose(self, kpn_ref, kpn_cur):	     
         E, self.mask_match = cv2.findEssentialMat(kpn_cur, kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)                         
         _, R, t, self.mask_recover = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0., 0.))   
@@ -142,6 +151,15 @@ class Initializer(object):
         out.idx_cur = idx_cur_inliers[mask_points]        
         out.f_ref = f_ref 
         out.idx_ref = idx_ref_inliers[mask_points]
+
+        # set median depth to 'desired_median_depth'
+        desired_median_depth = parameters.kInitializerDesiredMedianDepth
+        median_depth = f_cur.compute_points_median_depth(out.points4d)        
+        depth_scale = desired_median_depth/median_depth 
+        print('median depth: ', median_depth)
+
+        out.points4d = out.points4d * depth_scale  # scale points 
+        f_cur.pose[:3,3] = f_cur.pose[:3,3] * depth_scale # scale initial baseline 
 
         print('├────────')    
         Printer.green('Inializer: ok!')             

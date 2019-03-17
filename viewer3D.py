@@ -27,6 +27,9 @@ import numpy as np
 
 kUiWidth = 180
 kDefaultPointSize = 3
+kViewportWidth = 1024
+#kViewportHeight = 768
+kViewportHeight = 600
 
 
 class Viewer3D(object):
@@ -42,7 +45,7 @@ class Viewer3D(object):
 
 
     def viewer_thread(self, qmap, qvo):
-        self.viewer_init(1024, 768)
+        self.viewer_init(kViewportWidth, kViewportHeight)
         while not pangolin.ShouldQuit():
             self.viewer_refresh(qmap, qvo)
 
@@ -194,20 +197,20 @@ class Viewer3D(object):
         self.Twc.m = pose[0]
 
     @staticmethod
-    def drawPlane(ndivs=200, ndivsize=1):
+    def drawPlane(num_divs=200, div_size=1):
         # Plane parallel to x-z at origin with normal -y
-        minx = -ndivs*ndivsize
-        minz = -ndivs*ndivsize
-        maxx = ndivs*ndivsize
-        maxz = ndivs*ndivsize
+        minx = -num_divs*div_size
+        minz = -num_divs*div_size
+        maxx = num_divs*div_size
+        maxz = num_divs*div_size
         #gl.glLineWidth(2)
         gl.glColor3f(0.7,0.7,1.0)
         gl.glBegin(gl.GL_LINES)
-        for n in range(2*ndivs):
-            gl.glVertex3f(minx+ndivsize*n,0,minz)
-            gl.glVertex3f(minx+ndivsize*n,0,maxz)
-            gl.glVertex3f(minx,0,minz+ndivsize*n)
-            gl.glVertex3f(maxx,0,minz+ndivsize*n)
+        for n in range(2*num_divs):
+            gl.glVertex3f(minx+div_size*n,0,minz)
+            gl.glVertex3f(minx+div_size*n,0,maxz)
+            gl.glVertex3f(minx,0,minz+div_size*n)
+            gl.glVertex3f(maxx,0,minz+div_size*n)
         gl.glEnd()
 
 

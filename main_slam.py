@@ -24,7 +24,6 @@ import math
 from config import Config
 
 from slam import SLAM
-from visual_odometry import VisualOdometry
 from pinhole_camera import PinholeCamera
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory
@@ -41,7 +40,7 @@ from feature_tracker import feature_tracker_factory, TrackerTypes
 from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
-import constants 
+import parameters  
 
 if __name__ == "__main__":
 
@@ -57,7 +56,7 @@ if __name__ == "__main__":
                         config.DistCoef)
 
 
-    num_features=constants.kNumFeatures 
+    num_features=parameters.kNumFeatures 
     """
     select your feature tracker 
     N.B.1: here you can use just ORB descriptors! ... at present time
@@ -99,12 +98,13 @@ if __name__ == "__main__":
                 display2d.draw(img_draw)
 
             if is_draw_matched_points and slam.num_matched_kps is not None: 
-                matched_kps_signal = [img_id, slam.num_matched_kps]  
-                valid_matched_map_points_signal = [img_id, slam.num_vo_map_points]   # valid matched map points (in current pose optimization)           
+                if slam.num_matched_kps is not None: 
+                    matched_kps_signal = [img_id, slam.num_matched_kps]     
+                    matched_points_plt.draw(matched_kps_signal,'# keypoint matches',color='r')                         
                 if slam.num_inliers is not None: 
                     inliers_signal = [img_id, slam.num_inliers]                    
                     matched_points_plt.draw(inliers_signal,'# inliers',color='g')
-                matched_points_plt.draw(matched_kps_signal,'# keypoint matches',color='r')                
+                valid_matched_map_points_signal = [img_id, slam.num_vo_map_points]   # valid matched map points (in current pose optimization)                                       
                 matched_points_plt.draw(valid_matched_map_points_signal,'# matched map pts', color='b')                                           
                 matched_points_plt.refresh()                   
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
             break
         img_id += 1
 
-        step = False 
+        step = False    
         if step and img_id > 1:
             getchar()  # stop at each frame
 

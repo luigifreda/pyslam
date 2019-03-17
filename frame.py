@@ -28,7 +28,7 @@ from helpers import myjet
 from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_tracker import feature_tracker_factory, TrackerTypes 
 
-import constants 
+import parameters  
 
 kDrawFeatureRadius = [r*3 for r in range(1,20)]
 
@@ -62,6 +62,8 @@ class Frame(object):
         self.D = np.array(DistCoef)
 
         self.pose = np.array(pose)  # Tcw
+        self.Ow = np.zeros((3,1))
+        self.Rwc = np.eye(3)
 
         # self.kps       keypoints
         # self.kpsu      [u]ndistorted keypoints
@@ -88,7 +90,7 @@ class Frame(object):
                 self.kpsu = self.kpsu.ravel().reshape(self.kps.shape[0], 2)
                 #print('kpsu diff: ', self.kpsu-self.kps)
             else:
-                assert len(des) < 256
+                #assert len(des) < 256
                 self.kpsu, self.des = des, np.array(list(range(len(des)))*32, np.uint8).reshape(32, len(des)).T
                 self.octaves = np.full(self.kpsu.shape[0], 1, dtype=np.uint8)
             self.kpsn = normalize(self.Kinv, self.kpsu)
@@ -101,21 +103,39 @@ class Frame(object):
         self.id = Frame.next_id #tid if tid is not None else mapp.add_frame(self)
         Frame.next_id+=1
 
+    def update_camera_pose(self):
+        self.Rcw = self.pose[:3,:3]
+        self.tcw = self.pose[:3,3].reshape(3,1)
+        self.Ow = -(self.Rcw.T @ self.tcw)
+
+    # project a list of N points4d on this frame: points is [Nx4]
+    # out: 2xN image points
+    def project_points(self, points4d):   
+        projs = np.dot(np.dot(self.K, self.pose[:3,:]), points4d.T).T
+        projs = projs[:, 0:2] / projs[:, 2:]    
+        return projs   
+
     # project a list of N map points on this frame
     # out: 2xN image points 
     def project_map_points(self, points):
         points4d = np.array([p.homogeneous() for p in points])
-        projs = np.dot(np.dot(self.K, self.pose[:3,:]), points4d.T).T
-        projs = projs[:, 0:2] / projs[:, 2:]    
-        return projs
+        return self.project_points(points4d)
 
     # project a single map point on this frame
     # out: 2x1 image points 
     def project_map_point(self, p):   
-        proj = np.dot(np.dot(self.K, self.pose[:3,:]), p.homogeneous().T).T
+        proj = np.dot(np.dot(self.K, self.pose[:3,:]), p.homogeneous().T).T   # K * [R , t] * p
         proj = proj[0:2]/ proj[2]    
         return proj    
 
+    # project a single world 3d point on this frame
+    def project_point(self, pw):   
+        pc = (self.Rcw @ pw) + self.tcw # p w.r.t. camera 
+        invz = 1./pc[2]
+        proju = self.fx*pc[0]*invz + self.cx  
+        projv = self.fy*pc[1]*invz + self.cy 
+        return np.array([proju, projv])     
+          
     def reset_outlier_map_points(self):
         for i,p in enumerate(self.points):
             if p is not None and self.outliers[i] is True: 
@@ -140,6 +160,14 @@ class Frame(object):
     def reset_points(self):
         self.points = [None]*len(self.kpsu) 
         self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)                 
+
+    def compute_points_median_depth(self, points4d):
+        Rcw2 = self.pose[2,:3]  # just 2-nd row 
+        tcw2 = self.pose[2,3]   # just 2-nd row       
+        z = np.dot(Rcw2, points4d[:,:3].T) + tcw2 
+        z = sorted(z) 
+        return z[ ( len(z)-1)//2 ]
+
 
     # KD tree of unnormalized keypoints
     @property

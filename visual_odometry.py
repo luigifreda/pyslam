@@ -114,11 +114,12 @@ class VisualOdometry(object):
 
     # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
     # out: [Rrc, trc]   (with respect to 'ref' frame) 
-    # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
+    # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with previous estimated poses)
     # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
     # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
     # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
+    # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation 
     def estimatePose(self, kp_ref, kp_cur):	
         kp_ref_u = self.cam.undistortPoints(kp_ref)	
         kp_cur_u = self.cam.undistortPoints(kp_cur)	        
@@ -128,7 +129,7 @@ class VisualOdometry(object):
             # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister
             E, self.mask_match = cv2.findEssentialMat(self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)
         else:
-            # just for the hell of testing it
+            # just for the hell of testing fundamental matrix fitting ;-) 
             F, self.mask_match = self.computeFundamentalMatrix(kp_cur_u, kp_ref_u)
             E = self.cam.K.T @ F @ self.cam.K    # E = K.T * F * K 
         #self.removeOutliersFromMask(self.mask)  # do not remove outliers, the last features can be matched and recognized as inliers in subsequent frames                          

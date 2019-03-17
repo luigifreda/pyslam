@@ -24,6 +24,8 @@ import cv2
 import os
 import glob
 
+from multiprocessing import Process, Queue
+
 
 class DatasetType(Enum):
     NONE = 1
@@ -154,6 +156,88 @@ class FolderDataset(Dataset):
         self.i = self.i + 1
         return img
 
+class FolderDatasetParallelStatus:
+    def __init__(self, i, maxlen, listing, skip):
+        self.i = i
+        self.maxlen = maxlen
+        self.listing = listing 
+        self.skip = skip  
+
+class FolderDatasetParallel(Dataset): 
+    def __init__(self, path, name, associations=None, type=DatasetType.VIDEO): 
+        super().__init__(path, name, associations, type)    
+        self.skip=1
+        self.listing = []    
+        self.maxlen = 1000000    
+        print('Processing Image Directory Input')
+        self.listing = glob.glob(path + '/' + self.name)
+        self.listing.sort()
+        self.listing = self.listing[::self.skip]
+        #print('list of files: ', self.listing)
+        self.maxlen = len(self.listing)
+        self.i = 0        
+        if self.maxlen == 0:
+          raise IOError('No images were found in folder: ', path)     
+
+        folder_status = FolderDatasetParallelStatus(i,maxlen,listing,skip)
+
+        self.q = Queue(maxsize=2)        
+        self.vp = Process(target=self._update_image, args=(self.q,folder_status,))
+        self.vp.daemon = True                 
+            
+    def _update_image(self, q, status):
+        while(True):
+            self.ret, self.current_frame = self.cap.read()
+            if self.ret is True: 
+                #self.current_frame= self.cap.read()[1]
+                #if q.full():
+                #    old_frame = self.q.get()
+                self.q.put(self.current_frame)
+                print('q.size: ', self.q.qsize())
+        time.sleep(0.005)
+
+    def getImage(self, frame_id):
+        if self.i == self.maxlen:
+            return (None, False)
+        image_file = self.listing[self.i]
+        img = cv2.imread(image_file, 0)
+        if img is None: 
+            raise IOError('error reading file: ', image_file)               
+        # Increment internal counter.
+        self.i = self.i + 1
+        return img 
+
+class Webcam(object):
+    def __init__(self, camera_num=0):
+        self.cap = cv2.VideoCapture(camera_num)
+        self.current_frame = None 
+        self.ret = None 
+        self.q = Queue(maxsize=2)        
+        self.vp = Process(target=self._update_frame, args=(self.q,))
+        self.vp.daemon = True
+
+    # create thread for capturing images
+    def start(self):
+        self.vp.start()        
+        
+    # process function     
+    def _update_frame(self, q):
+        while(True):
+            self.ret, self.current_frame = self.cap.read()
+            if self.ret is True: 
+                #self.current_frame= self.cap.read()[1]
+                #if q.full():
+                #    old_frame = self.q.get()
+                self.q.put(self.current_frame)
+                print('q.size: ', self.q.qsize())
+        time.sleep(0.005)
+                  
+    # get the current frame
+    def get_current_frame(self):
+        img = None 
+        while not self.q.empty():  # get the last one 
+            img = self.q.get()         
+        return img
 
 class KittiDataset(Dataset):
     def __init__(self, path, name, associations=None, type=DatasetType.KITTI): 

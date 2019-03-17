@@ -29,7 +29,7 @@ from helpers import Printer
 
 # ------------------------------------------------------------------------------------------
 
-# optimize by using pixel image points 
+# optimize pixel reprojection error, bundle adjustment
 def optimization(frames, points, local_window, fixed_points=False, verbose=False, rounds=40, use_robust_kernel=False):
     if local_window is None:
         local_frames = frames
@@ -122,7 +122,9 @@ def optimization(frames, points, local_window, fixed_points=False, verbose=False
 
 # ------------------------------------------------------------------------------------------
 
-# optimize by using pixel image points 
+# optimize pixel reprojection error:
+# frame pose is optimized 
+# 3D points observed in frame are fixed
 def poseOptimization(frame, verbose=False, rounds=10):
 
     is_ok = True 
@@ -233,7 +235,7 @@ def poseOptimization(frame, verbose=False, rounds=10):
 
 # ------------------------------------------------------------------------------------------
 
-# locally optimize by using pixel image points 
+# locally optimize pixel reprojection error, bundle adjustment
 # frames, points are optimized
 # frames_ref are fixed 
 def localOptimization(frames, points, frames_ref=[], fixed_points=False, verbose=False, rounds=10):

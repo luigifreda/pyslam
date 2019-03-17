@@ -24,6 +24,7 @@ import time
 sys.path.append("../../")
 
 from mplot_thread import Mplot2d, Mplot3d
+from helpers import getchar
 
 if __name__ == "__main__":
 
@@ -40,6 +41,8 @@ if __name__ == "__main__":
 
     traj3d_gt = []
     traj3d_est = []
+
+    #getchar()
 
     img_id = 0
     while True:

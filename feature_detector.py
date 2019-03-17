@@ -266,10 +266,10 @@ class FeatureDetector(object):
             self._feature_descriptor = ORB_create(**self.orb_params) 
             self.decriptor_name = 'ORB' 
         elif self.descriptor_type == FeatureDescriptorTypes.BRISK:
-            self._feature_descriptor = BRISK_create() 
+            self._feature_descriptor = BRISK_create(octaves=self.num_levels) 
             self.decriptor_name = 'BRISK'         
         elif self.descriptor_type == FeatureDescriptorTypes.AKAZE:
-            self._feature_descriptor = AKAZE_create() 
+            self._feature_descriptor = AKAZE_create(nOctaves=self.num_levels) 
             self.decriptor_name = 'AKAZE'                                                
         elif self.descriptor_type == FeatureDescriptorTypes.NONE:
             self._feature_descriptor = None              
@@ -329,7 +329,7 @@ class FeatureDetector(object):
     # keep the first 'self.min_num_features' best features
     def satNumberOfFeatures(self, kps):
         if kVerbose:
-            print('detector: ', self.detector_name, ', #features: ', len(kps),', ref: ', self.min_num_features)          
+            print('sat: ', self.detector_name, ', #features: ', len(kps),', #max: ', self.min_num_features)          
         if len(kps) > self.min_num_features:
             # keep the features with the best response 
             kps = sorted(kps, key=lambda x:x.response, reverse=True)[:self.min_num_features]         

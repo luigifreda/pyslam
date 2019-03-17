@@ -27,8 +27,8 @@ class MapPoint(object):
     # A Point is a 3-D point in the world
     # Each Point is observed in multiple Frames
 
-    def __init__(self, mapp, loc, color, tid=None):
-        self.pt = np.array(loc)
+    def __init__(self, mapp, position, color, tid=None):
+        self.pt = np.array(position)
 
         self.frames = []   # list of frames `f` in which this point has been observed
         self.idxs = []     # list of observation indexes `idx` to be used with self.frames, such that 
@@ -65,9 +65,11 @@ class MapPoint(object):
         self.num_observations += 1
         self.is_bad = (self.num_observations < 2)
 
+    # remove frame observation 
     def remove_observation(self, frame, idx = None):  
-        if idx is not None:
-            assert(self == frame.points[idx])     
+        if __debug__: 
+            if idx is not None:
+                assert(self == frame.points[idx])     
         frame.remove_point(self)
         frame_idx = None 
         try:

@@ -97,6 +97,11 @@ class Printer(object):
         print(Colors.reset, end="")
 
     @staticmethod
+    def blue(*args, **kwargs):
+        print(Colors.fg.blue, *args, **kwargs)
+        print(Colors.reset, end="")        
+
+    @staticmethod
     def error(*args, **kwargs):
         print(Colors.fg.red, *args, **kwargs, file=sys.stderr)
         print(Colors.reset, end="")        
@@ -111,3 +116,9 @@ class Printer_old(object):
     @staticmethod
     def green(input):
         print(colored(input,'green'))           
+
+
+# return a random RGB color tuple 
+def random_color():
+    color = tuple(np.random.randint(0,255,3).tolist())    
+    return color 

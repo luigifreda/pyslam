@@ -23,7 +23,7 @@ import json
 import math 
 
 from geom_helpers import poseRt, hamming_distance, add_ones
-import constants
+import parameters 
 from frame import Frame
 from map_point import MapPoint
 
@@ -68,6 +68,7 @@ class Map(object):
         return img
 
     # add new points to the map from pairwise matches
+    # points4d is [Nx4]
     def add_points(self, points4d, mask_pts4d, f1, f2, idx1, idx2, img1, check_parallax=True):
         assert(points4d.shape[0] == len(idx1))
         new_pts_count = 0
@@ -79,14 +80,14 @@ class Map(object):
                 #print('p[%d] not good' % i)
                 continue
 
-            # check parallax is large enough (this is going to create problem when the motion is almost zero)
+            # check parallax is large enough (this is going to filter out all points when the inter-frame motion is almost zero)
             if check_parallax is True:
                 Rwc1 = f1.pose[:3, :3].T
                 Rwc2 = f2.pose[:3, :3].T
                 r1 = np.dot(Rwc1, add_ones(f1.kpsn[idx1[i]]))
                 r2 = np.dot(Rwc2, add_ones(f2.kpsn[idx2[i]]))
                 cos_parallax = r1.dot(r2) / (np.linalg.norm(r1) * np.linalg.norm(r2))
-                if cos_parallax > constants.kCosMinParallax:
+                if cos_parallax > parameters.kCosMinParallax:
                     # print('p[',i,']: ',p,' not enough parallax: ', cos_parallax)
                     continue
 
@@ -110,7 +111,7 @@ class Map(object):
             invSigma22 = Frame.detector.inv_level_sigmas2[f2.octaves[idx2[i]]]                 
             err2 = (uv2[0:2] / uv2[2]) - f2.kpsu[idx2[i]]         
             err2 = np.linalg.norm(err2)*invSigma22
-            if err1 > constants.kChi2Mono or err2 > constants.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
+            if err1 > parameters.kChi2Mono or err2 > parameters.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
                 #print('p[%d] big reproj err1 %f, err2 %f' % (i,err1,err2))
                 continue
 
@@ -128,28 +129,29 @@ class Map(object):
 
     # get the points of the last N frames and all the frames that see these points 
     def update_local_window_map(self, local_window):
-        frames = self.frames[-local_window:]  # get the last N frames  
-        frame_id_set = set([f.id for f in frames])                 
+        local_frames = self.frames[-local_window:]  # get the last N frames  
+        local_frame_id_set = set([f.id for f in local_frames])                 
         points = []
         point_id_set = set()           
-        ref_frames = []   # reference frames, i.e. those frames not in frames that see points in frames            
-        for f in frames:
-            f_points = [p for p in f.points if (p is not None)] 
-            for p in f_points: 
-                if p.id not in point_id_set and not p.is_bad:  # discard already considered points or bad points 
-                    points.append(p)
-                    point_id_set.add(p.id)        
-                    point_frames = [p_frame for p_frame in p.frames if p_frame.id not in frame_id_set] 
-                    for p_frame in point_frames: 
-                        #if p_frame.id not in frame_id_set:                        
-                        ref_frames.append(p_frame)
-                        frame_id_set.add(p_frame.id)             
+        ref_frames = []   # reference frames, i.e. frames not in "local frames" that see points observed in local frames      
+
+        f_points = [p for f in local_frames for p in f.points if (p is not None) ] 
+        for p in f_points: 
+            if p.id not in point_id_set and not p.is_bad:  # discard already considered points or bad points 
+                points.append(p)
+                point_id_set.add(p.id)        
+                point_frames = [p_frame for p_frame in p.frames if p_frame.id not in local_frame_id_set] 
+                for p_frame in point_frames: 
+                    #if p_frame.id not in frame_id_set:                        
+                    ref_frames.append(p_frame)
+                    local_frame_id_set.add(p_frame.id)                             
+
         #ref_frames = sorted(ref_frames, key=lambda x:x.id)  
-        self.local_map.frames = frames
+        self.local_map.frames = local_frames
         self.local_map.points = points 
         self.local_map.ref_frames = ref_frames
         self.local_map.f_cur = self.frames[-1]                                                                
-        return frames, points, ref_frames
+        return local_frames, points, ref_frames
 
     # remove points which have a big reprojection error 
     def cull_map_points(self, points): 
@@ -165,7 +167,7 @@ class Map(object):
                 invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[idx]]
                 errs.append(np.linalg.norm(proj-uv)*invSigma2)
             # cull
-            if np.mean(errs) > constants.kChi2Mono:  # chi-square 2 DOFs  (Hartley Zisserman pg 119)
+            if np.mean(errs) > parameters.kChi2Mono:  # chi-square 2 DOFs  (Hartley Zisserman pg 119)
                 culled_pt_count += 1
                 #print('removing point: ',p.id, 'from frames: ', [f.id for f in p.frames])
                 #self.points.remove(p)
@@ -173,13 +175,13 @@ class Map(object):
                 self.remove_point(p)
         print("culled: %d points" % (culled_pt_count))        
 
-    def optimize(self, local_window=constants.kLargeWindow, verbose=False, rounds=10):
+    def optimize(self, local_window=parameters.kLargeWindow, verbose=False, rounds=10):
         err = optimizer_g2o.optimization(frames = self.frames, points = self.points, local_window = local_window, verbose = verbose, rounds = rounds)        
         self.cull_map_points(self.points)
 
         return err
 
-    def locally_optimize(self, local_window=constants.kLocalWindow, verbose = False, rounds=10):
+    def locally_optimize(self, local_window=parameters.kLocalWindow, verbose = False, rounds=10):
         frames, points, frames_ref = self.update_local_window_map(local_window)
         print('local optimization window: ', [f.id for f in frames])        
         print('                     refs: ', [f.id for f in frames_ref])
