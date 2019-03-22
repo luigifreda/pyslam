@@ -71,7 +71,7 @@ $ python3 -O main_vo.py
 ```
 This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the video folder). 
 
-**N.B.**: remind, the simple script `main_vo.py` **strictly requires a ground truth**, since the relative motion between two adjacent camera frames can be only estimated up to scale with a monocular camera (i.e. the inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$).  
+**N.B.**: remind, the simple script `main_vo.py` **strictly requires a ground truth**, since - with the used approach - the relative motion between two adjacent camera frames can be only estimated up to scale with a monocular camera (i.e. the implemented inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$).  
 
 In order to process a different dataset, you need to set the file `config.ini`:
 * select your dataset `type` in the section `[DATASET]` (see the section *Datasets* below for further details) 
