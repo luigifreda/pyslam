@@ -5,7 +5,7 @@ Author: [Luigi Freda](https://www.luigifreda.com)
 **pySLAM** is a *'toy'* implementation of a monocular *Visual Odometry (VO)* pipeline in Python. I released it for **educational purposes**, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free time. I took inspiration from some python repos available on the web. 
 
 Main Scripts:
-* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic computation, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a meaningful trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
+* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation and bundle adjustment in order to estimate the camera trajectory up-to-scale and a build a local map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
@@ -71,9 +71,9 @@ $ python3 -O main_vo.py
 ```
 This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the video folder). 
 
-**N.B.**: remind, the simple script `main_vo.py` **strictly requires a ground truth**, since - with the used approach - the relative motion between two adjacent camera frames can be only estimated up to scale with a monocular camera (i.e. the implemented inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$).  
+**N.B.**: as explained above, the script `main_vo.py` **strictly requires a ground truth**.  
 
-In order to process a different dataset, you need to set the file `config.ini`:
+In order to process a different **dataset**, you need to set the file `config.ini`:
 * select your dataset `type` in the section `[DATASET]` (see the section *Datasets* below for further details) 
 * the camera settings file accordingly (see the section *Camera Settings* below)
 * the groudtruth file accordingly (see the section *Camera Settings* below)
@@ -82,6 +82,8 @@ If you want to test the script `main_slam.py`, you can run:
 ```
 $ python3 -O main_slam.py
 ```
+
+You can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE* (see below for further information). 
 
 **WARNING**: the available **KITTI videos** (due to information loss in video compression) make main_slam tracking peform worse than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained below. For instance, on the original KITTI sequence 06, main_slam successfully completes the round; at present time, this does not happen with the compressed video.
 
@@ -140,6 +142,29 @@ In order to calibrate your camera, you can use the scripts in the folder `calibr
 1. use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size there)
 2. use the script `calibrate.py` to process the collected images and compute the calibration parameters (set the chessboard size there)
 
+---
+## Detectors/Descriptors
+
+At present time, the following feature **detectors** are supported: 
+* *FAST*
+* *Good features to track* [[ShiTo94]](https://ieeexplore.ieee.org/document/323794)
+* *ORB*  
+* *SIFT*
+* *SURF*
+* *AKAZE*
+* *BRISK*
+
+You can take a look at the file `feature_detector.py`. 
+
+The following feature **descriptors** are supported: 
+* *ORB*  
+* *SIFT*
+* *SURF*
+* *AKAZE*
+* *BRISK*
+
+In both the scripts `main_vo.py` and `main_slam.py`, you can set which detector/descritor to use by means of the function *feature_tracker_factory()*. This function be found in the file `feature_tracker.py`.
+
 --- 
 ## References
 
@@ -161,10 +186,9 @@ Tons of things are still missing to attain a real SLAM pipeline:
 
 * keyframe generation and management 
 * tracking w.r.t. previous keyframe 
-* proper local map generation and management 
+* proper local map generation and management (covisibility)
 * loop closure
 * general relocalization 
-* in main_slam, tracking by using all kind of features (not only ORB)
 
 
 ---

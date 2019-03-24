@@ -134,7 +134,7 @@ class Initializer(object):
         #pts4d = triangulate(f_cur.pose, f_ref.pose, f_cur.kpsn[idx_cur], f_ref.kpsn[idx_ref])
 
         new_pts_count, mask_points = map.add_points(points4d, None, f_cur, f_ref, idx_cur_inliers, idx_ref_inliers, img_cur, check_parallax=True)
-        print("triangulated:      %d new points, %d matches" % (new_pts_count, len(idx_cur)))    
+        print("triangulated:      %d new points from %d matches" % (new_pts_count, len(idx_cur)))    
         err = map.optimize(verbose=False)
         print("pose opt err:   %f" % err)         
 

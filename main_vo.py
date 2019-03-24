@@ -59,22 +59,27 @@ if __name__ == "__main__":
 
 
     num_features=2000  # how many features do you want to detect and track?
+
     """
     select your feature tracker 
     N.B: ORB detector (not descriptor) does not work as expected!    
     """
-    feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_FLANN)      
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_FLANN)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = TrackerTypes.DES_BF)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = TrackerTypes.DES_BF)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = TrackerTypes.DES_BF)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = TrackerTypes.DES_FLANN)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = TrackerTypes.DES_FLANN)
 
+    # LK tracker 
+    feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
+
+    #tracker_type = TrackerTypes.DES_BF
+    tracker_type = TrackerTypes.DES_FLANN         
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)    
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)    
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = tracker_type)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = tracker_type)        
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = tracker_type)
+    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = tracker_type)
+
+    # create visual odometry object 
     vo = VisualOdometry(cam, grountruth, feature_tracker)
 
     is_draw_traj_img = True

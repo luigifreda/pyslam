@@ -26,7 +26,7 @@ import parameters
 
 from frame import Frame, match_frames
 from geom_helpers import triangulate_points, add_ones, poseRt, skew
-from search_points import search_by_projection, search_frame_by_projection, search_local_frames_by_projection, search_frame_for_triangulation
+from search_points import search_map_by_projection, search_frame_by_projection, search_local_frames_by_projection, search_frame_for_triangulation
 from map_point import MapPoint
 from map import Map
 from pinhole_camera import Camera, PinholeCamera
@@ -46,7 +46,7 @@ kUseGroundTruthScale = False
 kLocalWindow = parameters.kLocalWindow
 kUseMotionModel = parameters.kUseMotionModel
 kUseLargeWindowBA = parameters.kUseLargeWindowBA
-kUseSearchFrameByEpipolarLines = parameters.kUseSearchFrameByEpipolarLines                
+kUseSearchFrameByProjection = parameters.kUseSearchFrameByProjection                
 
 
 class SLAMStage(Enum):
@@ -122,6 +122,8 @@ class SLAM(object):
 
     def track(self, img, frame_id, pose=None, verts=None):
         # check image size is coherent with camera params 
+        print("img.shape ", img.shape)
+        print("cam ", self.H," x ", self.W)
         assert img.shape[0:2] == (self.H, self.W)        
         
         self.timer_main_track.start()
@@ -164,7 +166,7 @@ class SLAM(object):
             f_cur.pose = predicted_pose.copy()
             #f_cur.pose = f_ref.pose.copy()  # get the last pose as an initial guess for optimization
 
-            if kUseSearchFrameByEpipolarLines: 
+            if kUseSearchFrameByProjection: 
                 # search frame by projection: match map points observed in f_ref with keypoints of f_cur
                 print('search frame by projection...') 
                 idx_ref, idx_cur, num_found_map_pts = search_frame_by_projection(f_ref, f_cur)
@@ -215,7 +217,7 @@ class SLAM(object):
         # populate f_cur with map points by propagating map point matches of f_ref: 
         # we use map points observed in f_ref and keypoint matches between f_ref and f_cur  
         num_found_map_pts_inter_frame = 0
-        if not kUseSearchFrameByEpipolarLines: 
+        if not kUseSearchFrameByProjection: 
             for i, idx in enumerate(idx_ref): # iterate over keypoint matches 
                 if f_ref.points[idx] is not None:  # if we have a map point P for i-th matched keypoint in f_ref
                     f_ref.points[idx].add_observation(f_cur, idx_cur[i]) # then P is automatically matched to the i-th matched keypoint in f_cur
@@ -223,7 +225,7 @@ class SLAM(object):
             print("# matched map points in prev frame: %d " % num_found_map_pts_inter_frame)   
 
 
-        # f_cur pose optimization 1  (here we use first available information coming from first guess of f_cur pose and map points matched with f_cur keypoints )
+        # f_cur pose optimization 1  (here we use first available information coming from first guess of f_cur pose and map points of f_ref matched keypoints )
         self.timer_pose_opt.start()          
         pose_opt_error, pose_is_ok, self.num_vo_map_points = optimizer_g2o.poseOptimization(f_cur, verbose=False)
         print("pose opt err1: %f,  ok: %d" % (pose_opt_error, int(pose_is_ok)) ) 
@@ -248,8 +250,8 @@ class SLAM(object):
         if pose_is_ok is True and not self.map.local_map.is_empty():
             self.timer_seach_map.start()
             #num_found_map_pts = search_local_frames_by_projection(self.map, f_cur)
-            num_found_map_pts = search_by_projection(self.map.local_map.points, f_cur) # use the built local map 
-            print("# new matched map points: %d " % num_found_map_pts)               
+            num_found_map_pts = search_map_by_projection(self.map.local_map.points, f_cur) # use the built local map 
+            print("# matched map points in local map: %d " % num_found_map_pts)               
             self.timer_seach_map.refresh()
 
             # f_cur pose optimization 2 with all the matched map points 
@@ -263,14 +265,14 @@ class SLAM(object):
             self.timer_pose_opt.refresh()    
 
 
-        if kUseSearchFrameByEpipolarLines: 
-            print("search for triangulation...")
+        if kUseSearchFrameByProjection: 
+            print("search for triangulation with epipolar lines...")
             idx_ref, idx_cur, self.num_matched_kps, _ = search_frame_for_triangulation(f_ref, f_cur, img)           
             print("# matched keypoints in prev frame: %d " % self.num_matched_kps)            
 
 
         # if pose is ok, then we try to triangulate the matched keypoints (between f_cur and f_ref) that do not have a corresponding map point 
-        if pose_is_ok is True:                 
+        if pose_is_ok is True and len(idx_ref)>0:                 
             self.timer_triangulation.start()
 
             # TODO: this triangulation should be done from keyframes!

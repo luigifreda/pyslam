@@ -39,6 +39,12 @@ kRansacProb = 0.999
 kUseGroundTruthScale = True 
 
 
+# This class is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
+# It combines the simplest VO ingredients without performing any image point triangulation or 
+# windowed bundle adjustment. At each step $k$, it estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. 
+# The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. 
+# With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a 
+# valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. 
 class VisualOdometry(object):
     def __init__(self, cam, grountruth, feature_tracker):
         self.stage = VoStage.NO_IMAGES_YET
@@ -99,7 +105,7 @@ class VisualOdometry(object):
                 F = F[0:3, 0:3]
             return np.matrix(F), mask 	
 
-    def removeOutliersFromMask(self, mask): 
+    def removeOutliersByMask(self, mask): 
         if mask is not None:    
             n = self.kpn_cur.shape[0]     
             mask_index = [ i for i,v in enumerate(mask) if v > 0]    

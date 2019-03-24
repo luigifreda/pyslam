@@ -17,7 +17,7 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-from geom_helpers import poseRt, hamming_distance, add_ones
+from geom_helpers import poseRt, add_ones
 from frame import Frame
 import time
 import numpy as np
@@ -42,11 +42,13 @@ class MapPoint(object):
     def homogeneous(self):
         return add_ones(self.pt)
 
-    def orb(self):
+    # return array of corresponding descriptors 
+    def des(self):
         return [f.des[idx] for f, idx in zip(self.frames, self.idxs)]
 
-    def orb_distance(self, des):
-        return min([hamming_distance(o, des) for o in self.orb()])
+    # minimum distance between input descriptor and map point corresponding descriptors 
+    def min_des_distance(self, descriptor):
+        return min([Frame.descriptor_distance(d, descriptor) for d in self.des()])
 
     def delete(self):
         for f, idx in zip(self.frames, self.idxs):  # f.points[idx] = this point

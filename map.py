@@ -22,7 +22,7 @@ import numpy as np
 import json
 import math 
 
-from geom_helpers import poseRt, hamming_distance, add_ones
+from geom_helpers import poseRt, add_ones
 import parameters 
 from frame import Frame
 from map_point import MapPoint
@@ -75,6 +75,7 @@ class Map(object):
         out_mask_pts4d = np.full(points4d.shape[0], False, dtype=bool)
         if mask_pts4d is None:
             mask_pts4d = np.full(points4d.shape[0], True, dtype=bool)
+        
         for i, p in enumerate(points4d):
             if not mask_pts4d[i]:
                 #print('p[%d] not good' % i)
@@ -188,7 +189,7 @@ class Map(object):
         #print('                   points: ', sorted([p.id for p in points]))        
         #err = optimizer_g2o.optimize(frames, points, None, False, verbose, rounds)  
         err, ratio_bad_observations = optimizer_g2o.localOptimization(frames, points, frames_ref, False, verbose, rounds)
-        Printer.green('local optimization - %% bad observations: %.2f ' % (ratio_bad_observations*100) )              
+        Printer.green('local optimization - perc bad observations: %.2f %%  ' % (ratio_bad_observations*100) )              
         #self.cull_map_points(points)  # already performed in optimizer_g2o.localOptimization()            
         return err 
 

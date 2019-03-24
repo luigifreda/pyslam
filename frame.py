@@ -17,6 +17,7 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import sys 
 import cv2
 import numpy as np
 from scipy.spatial import cKDTree
@@ -33,20 +34,34 @@ import parameters
 kDrawFeatureRadius = [r*3 for r in range(1,20)]
 
 class Frame(object):
-    # shared tracker 
-    tracker = feature_tracker_factory(min_num_features=2000, num_levels = 1, 
-                                      detector_type = FeatureDetectorTypes.FAST, 
-                                      descriptor_type = FeatureDescriptorTypes.ORB, 
-                                      tracker_type = TrackerTypes.DES_BF)        
-    # shared detector                                       
-    detector = tracker.detector             
-    matcher = tracker.matcher                                                         
+    # shared counter 
     next_id = 0
-
+    # shared tracker 
+    tracker = None 
+    detector = None 
+    matcher = None 
+    descriptor_distance = None                                 
+    
     @staticmethod
     def set_tracker(tracker):
         Frame.tracker = tracker 
         Frame.detector = tracker.detector 
+        Frame.matcher = tracker.matcher
+        Frame.descriptor_distance = tracker.descriptor_distance       
+        Frame.next_id = 0 
+
+        if tracker.descriptor_type == FeatureDescriptorTypes.ORB:
+            parameters.kMaxDescriptorDistanceSearchByReproj = parameters.kMaxOrbDistanceSearchByReproj  
+        if tracker.descriptor_type == FeatureDescriptorTypes.BRISK:
+            parameters.kMaxDescriptorDistanceSearchByReproj = parameters.kMaxBriskDistanceSearchByReproj            
+        if tracker.descriptor_type == FeatureDescriptorTypes.AKAZE:
+            parameters.kMaxDescriptorDistanceSearchByReproj = parameters.kMaxAkazeDistanceSearchByReproj                               
+        if tracker.descriptor_type == FeatureDescriptorTypes.SIFT:
+            parameters.kMaxDescriptorDistanceSearchByReproj = parameters.kMaxSiftDistanceSearchByReproj          
+        if tracker.descriptor_type == FeatureDescriptorTypes.SURF:
+            parameters.kMaxDescriptorDistanceSearchByReproj = parameters.kMaxSurfDistanceSearchByReproj 
+
+        parameters.kMaxDescriptorDistanceSearchEpipolar = parameters.kMaxDescriptorDistanceSearchByReproj
 
     def __init__(self, mapp, img, K, Kinv, DistCoef, pose=np.eye(4), tid=None, des=None):
         self.H, self.W = img.shape[0:2]
@@ -67,7 +82,6 @@ class Frame(object):
 
         # self.kps       keypoints
         # self.kpsu      [u]ndistorted keypoints
-        # self.kpsn      [n]ormalized keypoints
         # self.octaves   keypoint octaves 
         # self.des       keypoint descriptors
 
@@ -80,9 +94,9 @@ class Frame(object):
                 # convert to gray image 
                 if img.ndim>2:
                     img = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)       
-                self.kps, self.des = Frame.tracker.detect(img)
+                self.kps, self.des = Frame.tracker.detect(img)                                                         
                 # convert from a list of keypoints to an array of points and octaves  
-                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave] for x in self.kps], dtype=np.float32)         
+                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave] for x in self.kps], dtype=np.float32)                   
                 self.octaves = np.uint32(kps_data[:,2].copy())
                 #print('octaves: ', self.octaves)               
                 self.kps = kps_data[:,:2].copy()                   
@@ -169,7 +183,7 @@ class Frame(object):
         return z[ ( len(z)-1)//2 ]
 
 
-    # KD tree of unnormalized keypoints
+    # KD tree of undistorted keypoints
     @property
     def kd(self):
         if not hasattr(self, '_kd'):

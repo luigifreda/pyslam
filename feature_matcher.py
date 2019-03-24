@@ -128,7 +128,7 @@ class BfFeatureMatcher(FeatureMatcher):
 
     def match(self, des1, des2):
         if kVerbose:
-            print('BfFeatureMatcher')        
+            print('BfFeatureMatcher, norm ', self.norm_type)        
         matches = self.bf.knnMatch(des1, des2, k=2)   #knnMatch(queryDescriptors,trainDescriptors)
         return self.goodMatches(matches, des1, des2)
 
@@ -140,9 +140,9 @@ class FlannFeatureMatcher(FeatureMatcher):
             # FLANN parameters for binary descriptors 
             FLANN_INDEX_LSH = 6
             self.index_params= dict(algorithm = FLANN_INDEX_LSH,
-                        table_number = 12,      # 12
-                        key_size = 20,         # 20
-                        multi_probe_level = 2) # 2            
+                        table_number = 6,      # 12
+                        key_size = 12,         # 20
+                        multi_probe_level = 1) # 2            
         if norm_type == cv2.NORM_L2: 
             # FLANN parameters for float descriptors 
             FLANN_INDEX_KDTREE = 1

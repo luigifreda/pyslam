@@ -23,10 +23,11 @@ from enum import Enum
 from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 from helpers import Printer
+from geom_helpers import hamming_distance, l2_distance
 
 
 class TrackerTypes(Enum):
-    LK        = 0   # use patch as "descriptor" and match by using Lucas Kanade pyr optic flow 
+    LK        = 0   # use patch as "descriptor" and match by using Lucas Kanade pyramid optic flow 
     DES_BF    = 1   # descriptor-based, brute force matching 
     DES_FLANN = 2   # descriptor-based, FLANN-based matching (should be faster)
 
@@ -71,6 +72,7 @@ class FeatureTracker(object):
         self.tracker_type = tracker_type
 
         self.detector = None 
+        self.descriptor_distance = None  # pointer function 
 
     # out: keypoints and descriptors 
     def detect(self, frame, mask): 
@@ -79,6 +81,7 @@ class FeatureTracker(object):
     # out: kp1, kp2, des2
     def track(self, image_ref, image_cur, kp_ref, des_ref):
         return None, None, None             
+
 
 # use patch as "descriptor" and track/"match" by using Lucas Kanade pyr optic flow 
 class LkFeatureTracker(FeatureTracker): 
@@ -132,13 +135,20 @@ class DescriptorFeatureTracker(FeatureTracker):
         elif descriptor_type == FeatureDescriptorTypes.BRISK:
             self.norm_type = cv2.NORM_HAMMING   
         elif descriptor_type == FeatureDescriptorTypes.AKAZE:
-            self.norm_type = cv2.NORM_HAMMING                                 
+            self.norm_type = cv2.NORM_HAMMING       
+        elif descriptor_type == FeatureDescriptorTypes.FREAK:
+            self.norm_type = cv2.NORM_HAMMING                                           
         elif descriptor_type == FeatureDescriptorTypes.SURF:
             self.norm_type = cv2.NORM_L2            
         elif descriptor_type == FeatureDescriptorTypes.SIFT: 
             self.norm_type = cv2.NORM_L2
         else:
-            raise ValueError("Unmanaged norm type for feature tracker %s" % self.tracker_type)                                  
+            raise ValueError("Unmanaged norm type for feature tracker %s" % self.tracker_type)      
+
+        if self.norm_type == cv2.NORM_HAMMING:
+            self.descriptor_distance = hamming_distance 
+        if self.norm_type == cv2.NORM_L2:
+            self.descriptor_distance = l2_distance            
 
         if tracker_type == TrackerTypes.DES_FLANN:
             self.matching_algo = FeatureMatcherTypes.FLANN
@@ -147,7 +157,7 @@ class DescriptorFeatureTracker(FeatureTracker):
         else:
             raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)               
         
-        self.matcher = feature_matcher_factory(norm_type=self.norm_type , type=self.matching_algo)        
+        self.matcher = feature_matcher_factory(norm_type=self.norm_type, type=self.matching_algo)        
 
     # out: keypoints and descriptors 
     def detect(self, frame, mask=None):

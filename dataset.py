@@ -91,9 +91,10 @@ class VideoDataset(Dataset):
     def __init__(self, path, name, associations=None, type=DatasetType.VIDEO): 
         super().__init__(path, name, associations, type)    
         self.filename = path + '/' + name 
+        #print('video: ', self.filename)
         self.cap = cv2.VideoCapture(self.filename)
         if not self.cap.isOpened():
-            raise IOError('Cannot open movie file')
+            raise IOError('Cannot open movie file: ', self.filename)
         else: 
             print('Processing Video Input')
             self.num_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))

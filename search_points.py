@@ -23,7 +23,7 @@ import numpy as np
 import cv2 
 
 from frame import Frame 
-from geom_helpers import skew, add_ones, hamming_distance, draw_lines, draw_points
+from geom_helpers import skew, add_ones, draw_lines, draw_points
 from helpers import Printer, getchar
 import parameters  
 from timer import Timer
@@ -35,8 +35,8 @@ def search_frame_by_projection(f_ref, f_cur):
     found_pts_count = 0
     idx_ref = []
     idx_cur = [] 
-    for i, p in enumerate(f_ref.points):
-        if p is None or p.is_bad is True:
+    for i, p in enumerate(f_ref.points): # search in f_ref map points without a corresponding map point 
+        if p is None:
             continue 
         # project point on f_cur
         proj = f_cur.project_map_point(p)
@@ -45,22 +45,33 @@ def search_frame_by_projection(f_ref, f_cur):
                       (proj[1] > 0) & (proj[1] < f_cur.H)
         if is_visible is False:
             continue 
-        for idx_c in f_cur.kd.query_ball_point(proj, parameters.kMaxReprojectionDistance):
+        best_dist = math.inf 
+        #best_dist2 = math.inf
+        best_k_idx = -1   
+        best_ref_idx = -1          
+        for k_idx in f_cur.kd.query_ball_point(proj, parameters.kMaxReprojectionDistance):
             # if no point associated 
-            if f_cur.points[idx_c] is None:                 
-                orb_dist = p.orb_distance(f_cur.des[idx_c])
-                #print('b_dist : ', orb_dist)
-                if orb_dist < parameters.kMaxOrbDistanceSearchByReproj:
-                    p.add_observation(f_cur, idx_c)
-                    found_pts_count += 1
-                    idx_ref.append(i)
-                    idx_cur.append(idx_c)
-                    break      
+            if f_cur.points[k_idx] is None:                 
+                descriptor_dist = p.min_des_distance(f_cur.des[k_idx])
+                if descriptor_dist < parameters.kMaxDescriptorDistanceSearchByReproj and descriptor_dist < best_dist:
+                    #best_dist2 = best_dist
+                    best_dist = descriptor_dist
+                    best_k_idx = k_idx
+                    best_ref_idx = i                     
+        # N.B.1: given the keypoint search area is limited, here we do not use the match distance ratio test 
+        # N.B.2: if we extract keypoints on different octaves/levels, it is very frequent to observe overlapping keypoints (two distinct octave representives for a same interesting point) 
+        #        => do not use the match distance ration unless you want to exclude these points
+        if best_k_idx > -1:
+            #print('b_dist : ', best_dist)            
+            p.add_observation(f_cur, best_k_idx)
+            found_pts_count += 1
+            idx_ref.append(best_ref_idx)
+            idx_cur.append(best_k_idx)                          
     return idx_ref, idx_cur, found_pts_count     
 
 
 # search by projection matches between {input map points} and {unmatched keypoints of frame f_cur}
-def search_by_projection(points, f_cur):
+def search_map_by_projection(points, f_cur):
     found_pts_count = 0
     if len(points) > 0:
 
@@ -69,7 +80,7 @@ def search_by_projection(points, f_cur):
 
         # check if points are visible 
         visible_pts = (projs[:, 0] > 0) & (projs[:, 0] < f_cur.W) & \
-                        (projs[:, 1] > 0) & (projs[:, 1] < f_cur.H)
+                      (projs[:, 1] > 0) & (projs[:, 1] < f_cur.H)
 
         for i, p in enumerate(points):
             if not visible_pts[i] or p.is_bad is True:
@@ -78,15 +89,28 @@ def search_by_projection(points, f_cur):
             if f_cur in p.frames:
                 # we already matched this map point to this frame
                 continue
-            for m_idx in f_cur.kd.query_ball_point(projs[i], parameters.kMaxReprojectionDistance):
+            best_dist = math.inf 
+            best_dist2 = math.inf
+            best_level = -1 
+            best_level2 = -1               
+            best_k_idx = -1                 
+            for k_idx in f_cur.kd.query_ball_point(projs[i], parameters.kMaxReprojectionDistance):
                 # if no point associated 
-                if f_cur.points[m_idx] is None: 
-                    orb_dist = p.orb_distance(f_cur.des[m_idx])
-                    #print('b_dist : ', orb_dist)
-                    if orb_dist < parameters.kMaxOrbDistanceSearchByReproj:
-                        p.add_observation(f_cur, m_idx)
-                        found_pts_count += 1
-                        break      
+                if f_cur.points[k_idx] is None: 
+                    descriptor_dist = p.min_des_distance(f_cur.des[k_idx])
+                    if descriptor_dist < parameters.kMaxDescriptorDistanceSearchByReproj and descriptor_dist < best_dist:                    
+                        best_dist2 = best_dist
+                        best_level2 = best_level
+                        best_dist = descriptor_dist
+                        best_level = f_cur.octaves[k_idx]
+                        best_k_idx = k_idx                                            
+            if best_k_idx > -1:
+                # apply match distance ratio test only if the best and second are in the same scale level 
+                if (best_level2 == best_level) and (best_dist > best_dist2 * parameters.kMatchRatioTest): 
+                    continue 
+                #print('best des distance: ', best_dist, ", max dist: ", parameters.kMaxDescriptorDistanceSearchByReproj)                    
+                p.add_observation(f_cur, best_k_idx)
+                found_pts_count += 1                  
     return found_pts_count     
 
 
@@ -102,12 +126,12 @@ def search_local_frames_by_projection(map, f_cur, local_window = parameters.kLoc
             points.append(p)
             point_id_set.add(p.id)
     print('searching %d map points' % len(points))
-    return search_by_projection(points, f_cur)  
+    return search_map_by_projection(points, f_cur)  
 
 
 # search by projection matches between {all map points} and {unmatched keypoints of f_cur}
-def search_map_by_projection(map, f_cur):
-    return search_by_projection(map.points, f_cur)      
+def search_all_map_by_projection(map, f_cur):
+    return search_map_by_projection(map.points, f_cur)      
 
 # compute the fundamental mat F12 and the infinite homography H21 [Hartley Zisserman pag 339]
 def computeF12(f1, f2):
@@ -137,7 +161,7 @@ def epiline_to_end_points(line, e, xinf, cols):
 
     delta = xinf - e
     length = np.linalg.norm(delta.ravel())
-    delta /= length 
+    delta /= length # normalize delta 
     step = min(parameters.kMinDistanceFromEpipole, length)  # keep a minimum distance from epipole if possible 
     e = e + delta * step 
 
@@ -165,38 +189,61 @@ def epiline_to_end_points(line, e, xinf, cols):
         u1 = xmax[0]
         v1 = xmax[1]        
 
-    # swap in order to force the search starting from the epipole 
+    # swap in order to force the search starting from xinf 
     if swap is True:
         u0, v0, u1, v1 = u1, v1, u0, v0                
 
     return [ np.array([u0,v0]), np.array([u1,v1]) ]
 
 
-# find a match on f along line for the input descriptor 
-# e is the epipole 
-def find_matches_along_line(f, e, line, descriptor, radius = 5, overlap_ratio = 0.2):
+# find a keypoint match on 'f' along line 'line' for the input 'descriptor'
+# 'e' is the epipole 
+# the found keypoint match must not already have a point match
+# overlap_ratio must be in [0,1]
+def find_matches_along_line(f, e, line, descriptor, radius = parameters.kMaxReprojectionDistance, overlap_ratio = 0.5):
     #print('line: ', line[0], ", ", line[1])    
     step = radius*(1-overlap_ratio)
     delta = line[1].ravel() - line[0].ravel()
     length = np.linalg.norm(delta)
-    n = int(math.ceil(length/step))
+    n = max( int(math.ceil(length/step)), 1) 
     delta = delta/n  
     #print('delta: ', delta)
+
+    best_dist = math.inf 
+    best_dist2 = math.inf
+    best_k_idx = -1
+
     for i in range(n+1):
         x = line[0].ravel() + i*delta 
         for k_idx in f.kd.query_ball_point(x, radius):
             # if no point associated 
             if f.points[k_idx] is None: 
-                orb_dist = hamming_distance(f.des[k_idx], descriptor)                
-                if orb_dist < parameters.kMaxOrbDistanceSearchByReproj:  # TODO: refine! here, we just take the first match 
-                    return k_idx    
-    return -1                    
+                descriptor_dist = Frame.descriptor_distance(f.des[k_idx], descriptor)                
+                if descriptor_dist < parameters.kMaxDescriptorDistanceSearchEpipolar:  
+                    #return k_idx  # stop at the first match 
+                    if descriptor_dist < best_dist:
+                        best_dist2 = best_dist
+                        best_dist = descriptor_dist
+                        best_k_idx = k_idx     
+    # N.B.: the search "segment line" can have a large width => it is better to use the match distance ratio test                                           
+    if best_dist < best_dist2 * parameters.kMatchRatioTest: 
+       return best_k_idx, best_dist
+    else:   
+       return -1, 0   
+    #return best_k_idx                      
+            
      
 
-# search for triangulations between f1 and f2
-# find matches between unmatched keypoints 
-# we have pose estimates for both frames
+# search keypoint matches (for triangulations) between f1 and f2
+# search for matches between unmatched keypoints (without a corresponding map point)
+# in inpput we have already some pose estimates for f1 and f2
 def search_frame_for_triangulation(f1, f2, img2, img1 = None):   
+
+    idxs2_out = []
+    idxs1_out = []
+    lines_out = [] 
+    num_found_matches = 0
+    img2_epi = None     
 
     if __debug__:
         timer = Timer()
@@ -217,7 +264,7 @@ def search_frame_for_triangulation(f1, f2, img2, img1 = None):
     # if the translation is too small we cannot triangulate 
     if np.linalg.norm(O1w-O2w) < parameters.kMinTraslation:  # we assume the Inializer has been used for building the first map 
         Printer.red("search for triangulation: impossible with zero translation!")
-        return  # EXIT
+        return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT
 
     # compute the fundamental matrix between the two frames 
     F12, H21 = computeF12(f1, f2)
@@ -227,6 +274,7 @@ def search_frame_for_triangulation(f1, f2, img2, img1 = None):
         if p is None:  # we consider just unmatched keypoints 
             kp = f1.kpsu[i]
             scale_factor = Frame.detector.scale_factors[f1.octaves[i]]
+            # discard points which are too close to the epipole 
             if np.linalg.norm(kp-e1) < parameters.kMinDistanceFromEpipole * scale_factor:             
                 continue    
             idxs1.append(i)      
@@ -246,23 +294,34 @@ def search_frame_for_triangulation(f1, f2, img2, img1 = None):
         assert(len(line_edges) == len(idxs1))    
         timer.start()
 
-    idxs2_out = []
-    idxs1_out = []
-    lines_out = [] 
-    for i, idx in enumerate(idxs1): 
-        f2_idx = find_matches_along_line(f2, e2, line_edges[i], f1.des[idx])
-        if f2_idx>-1:
-            idxs2_out.append(f2_idx)
-            idxs1_out.append(idxs1[i])
-            assert(f2.points[f2_idx] is None)            
-            assert(f1.points[idxs1[i]] is None)
-            if __debug__:
-                lines_out.append(line_edges[i])
+    len_des2 = len(f2.des)
+    flag_match = np.full(len_des2, False, dtype=bool)
+    dist_match = np.zeros(len_des2)
+    index_match = np.full(len_des2, 0, dtype=int)
+    for i, idx in enumerate(idxs1):   # N.B.: a point in f1 can be matched to more than one point in f2, we avoid this by caching matches with f2 points
+        f2_idx, dist = find_matches_along_line(f2, e2, line_edges[i], f1.des[idx])
+        if f2_idx > -1:
+            if not flag_match[f2_idx]: # new match
+                flag_match[f2_idx] = True 
+                dist_match[f2_idx] = dist 
+                idxs2_out.append(f2_idx)
+                idxs1_out.append(idx)
+                index_match[f2_idx] = len(idxs2_out)-1                
+                assert(f2.points[f2_idx] is None)            
+                assert(f1.points[idx] is None)
+                if __debug__:
+                    lines_out.append(line_edges[i])
+            else: # already matched
+                if dist < dist_match[f2_idx]:  # update in case of a smaller distance 
+                    dist_match[f2_idx] = dist 
+                    index = index_match[f2_idx]  
+                    idxs1_out[index] = idx    
+                    if __debug__:
+                        lines_out[index] = line_edges[i]                              
  
     num_found_matches = len(idxs1_out)
     assert(len(idxs1_out) == len(idxs2_out)) 
 
-    img2_epi = None 
     if __debug__:   
         #print("num found matches: ", num_found_matches)
         if True: 

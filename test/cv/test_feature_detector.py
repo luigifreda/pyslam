@@ -13,9 +13,10 @@ img = cv2.imread('kitti06-12.png',cv2.IMREAD_COLOR)
 num_features=2000
 # N.B.: here you can use just ORB descriptors!
 #feature_detector = feature_detector_factory(min_num_features=num_features, num_levels=4, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB)    
-feature_detector = feature_detector_factory(min_num_features=num_features, num_levels=2, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB)
+#feature_detector = feature_detector_factory(min_num_features=num_features, num_levels=2, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB)
 #feature_detector = feature_detector_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB)
-#feature_detector = feature_detector_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB)
+feature_detector = feature_detector_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB)
+#feature_detector = feature_detector_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FREAK, descriptor_type = FeatureDescriptorTypes.FREAK)
 
 kps, des = feature_detector.detectAndCompute(img) 
 
