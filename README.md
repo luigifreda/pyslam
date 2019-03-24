@@ -163,7 +163,7 @@ The following feature **descriptors** are supported:
 * *AKAZE*
 * *BRISK*
 
-In both the scripts `main_vo.py` and `main_slam.py`, you can set which detector/descritor to use by means of the function *feature_tracker_factory()*. This function be found in the file `feature_tracker.py`.
+In both the scripts `main_vo.py` and `main_slam.py`, you can set which detector/descritor to use by means of the function *feature_tracker_factory()*. This function can be found in the file `feature_tracker.py`.
 
 --- 
 ## References
