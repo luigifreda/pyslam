@@ -71,4 +71,5 @@ echo "Configuring and installing python packages ..."
 
 install_pip_packages pygame numpy matplotlib pyopengl Pillow pybind11 scikit-image pyyaml termcolor
 install_pip_packages opencv-python opencv-contrib-python 
-install_package python3-sdl2 python3-tk
+install_package python3-sdl2 
+install_package python3-tk
