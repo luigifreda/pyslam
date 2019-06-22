@@ -7,7 +7,7 @@ Author: [Luigi Freda](https://www.luigifreda.com)
 Main Scripts:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
 
-* `main_slam.py` adds feature tracking along multiple frames, point triangulation and bundle adjustment in order to estimate the camera trajectory up-to-scale and a build a local map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
+* `main_slam.py` adds feature tracking along multiple frames, point triangulation and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a local map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
 You can use this *'toy'* framework as a baseline to play with VO techniques or create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's intended as a simple *'toy'* framework, without any pretence of being considered peformant. Check the terminal warnings if you see something weird happening.  
 
@@ -76,7 +76,7 @@ This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.
 In order to process a different **dataset**, you need to set the file `config.ini`:
 * select your dataset `type` in the section `[DATASET]` (see the section *Datasets* below for further details) 
 * the camera settings file accordingly (see the section *Camera Settings* below)
-* the groudtruth file accordingly (see the section *Camera Settings* below)
+* the groudtruth file accordingly (see the section *Datasets* below and the files `ground_truth.py` and `convert_groundtruth.py` )
 
 If you want to test the script `main_slam.py`, you can run:
 ```

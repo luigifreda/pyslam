@@ -98,6 +98,7 @@ class Initializer(object):
         is_ok = False 
 
         # if too many frames have passed, move the current id_ref forward 
+        # this is just one possible policy which can be used 
         if (len(self.frames)-1) - self.id_ref >= kMaxIdDistBetweenFrames: 
             self.id_ref = len(self.frames)-1  # take last frame in the array 
         self.f_ref = self.frames[self.id_ref] 
