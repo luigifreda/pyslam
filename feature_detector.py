@@ -198,7 +198,7 @@ class FeatureDetector(object):
 
         print("using opencv ", cv2.__version__)
         # check opencv version in order to use the right modules 
-        if cv2.__version__.split('.')[0] == '3':
+        if cv2.__version__.split('.')[0] in ['3', '4']:
             from cv2.xfeatures2d import SIFT_create, SURF_create, FREAK_create   
             from cv2 import ORB_create, BRISK_create, AKAZE_create
         else:
