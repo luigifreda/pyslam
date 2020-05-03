@@ -119,6 +119,7 @@ class LiveDataset(Dataset):
     def __init__(self, path, name, associations=None, type=DatasetType.VIDEO): 
         super().__init__(path, name, associations, type)    
         self.camera_num = name # use name for camera number
+        print('opening camera device: ', self.camera_num)
         self.cap = cv2.VideoCapture(self.camera_num) 
         if not self.cap.isOpened():
             raise IOError('Cannot open camera') 

@@ -30,6 +30,12 @@ kNumFeatures=2000
 kCosMinParallax=0.99998  # 0.9998
 
 
+# feature manager
+kFeatureMatchRatioTest = 0.7
+kUseKdtNonMaximumSuppressionForKps = True 
+kKdtNmsRadius = 3 # pixels
+kKdtNmsKmax = 9   # nearest-neighborhood size 
+
 # initializer 
 kInitializerDesiredMedianDepth = 20    # when initializing, the initial median depth is computed and forced to this value 
 kMinTraslation=0.0001*kInitializerDesiredMedianDepth
@@ -63,7 +69,7 @@ kMaxDescriptorDistanceSearchEpipolar=kMaxDescriptorDistanceSearchByReproj
 kLocalWindow=10                   #  [# frames]   
 kEveryNumFramesLargeWindowBA=10   # num of frames between two large window BA  
 kLargeWindow=20                   #  [# frames] 
-kUseLargeWindowBA = True          # True: perform BA over a large window; False: do not perform large window BA   
+kUseLargeWindowBA=True          # True: perform BA over a large window; False: do not perform large window BA   
 
 
 kChi2Mono = 5.991 # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

@@ -20,17 +20,24 @@ Viewer.ViewpointF: 500
 # Camera Parameters. Adjust them!
 #--------------------------------------------------------------------------------------------
 
-# Camera calibration and distortion parameters (OpenCV) 
-Camera.fx: 520.908620
-Camera.fy: 521.007327
-Camera.cx: 325.141442
-Camera.cy: 249.701764
+#camera matrix:
+# [[720.74677588   0.         324.72460102]
+# [  0.         720.87434544 238.97483313]
+# [  0.           0.           1.        ]]
+#distortion coefficients:  [-1.96841029e-02 -5.74293178e-01 -6.78065914e-04  8.34984375e-04 1.59969276e+00]
 
-Camera.k1: 0.231222
-Camera.k2: -0.784899
-Camera.p1: -0.003257
-Camera.p2: -0.000105
-Camera.k3: 0.917205
+
+# Camera calibration and distortion parameters (OpenCV) 
+Camera.fx: 720.74677588
+Camera.fy: 720.87434544
+Camera.cx: 324.72460102
+Camera.cy: 238.97483313
+
+Camera.k1: -1.96841029e-02
+Camera.k2: -5.74293178e-01
+Camera.p1: -6.78065914e-04
+Camera.p2: 8.34984375e-04
+Camera.k3: 1.59969276e+00
 
 Camera.width: 640
 Camera.height: 480
@@ -47,8 +54,8 @@ Camera.RGB: 0
 # Close/Far threshold. Baseline times.
 ThDepth: 40.0
 
-# Deptmap values factor 
-DepthMapFactor: 5208.0
+# Deptmap values factor
+DepthMapFactor: 5000.0
 
 #--------------------------------------------------------------------------------------------
 # ORB Parameters
@@ -69,4 +76,6 @@ ORBextractor.nLevels: 8
 # You can lower these values if your images have low contrast			
 ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
+
+
 

@@ -3,10 +3,16 @@ import cv2
 from datetime import datetime
 from webcam import Webcam
 
+import sys
+sys.path.append("../")
+
+from timer import Timer
 
 # CHESSBOARD SIZE
 chessboard_size = (11,7)
 
+# grab an image every 
+kSaveImageDeltaTime = 1  # second
 
 if __name__ == "__main__":
 
@@ -17,6 +23,9 @@ if __name__ == "__main__":
 
     webcam = Webcam(camera_num)
     webcam.start()
+    
+    timer = Timer()
+    lastSaveTime = timer.elapsed()
  
     while True:
         
@@ -30,8 +39,16 @@ if __name__ == "__main__":
             if ret == True:     
                 print('found chessboard')
                 # save image
-                filename = datetime.now().strftime('%Y%m%d_%Hh%Mm%Ss%f') + '.jpg'
-                cv2.imwrite("./calib_images/" + filename, image)
+                filename = datetime.now().strftime('%Y%m%d_%Hh%Mm%Ss%f') + '.bmp'
+                image_path="./calib_images/" + filename
+                
+                elapsedTimeSinceLastSave = timer.elapsed() - lastSaveTime
+                do_save = elapsedTimeSinceLastSave > kSaveImageDeltaTime
+                
+                if do_save:
+                    lastSaveTime = timer.elapsed()
+                    print('saving file ', image_path)
+                    cv2.imwrite(image_path, image)
 
                 # draw the corners
                 image = cv2.drawChessboardCorners(image, chessboard_size, corners, ret)                       

@@ -37,7 +37,7 @@ from viewer3D import Viewer3D
 from helpers import getchar
 
 from feature_tracker import feature_tracker_factory, TrackerTypes 
-from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
+from feature_manager import feature_manager_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
 import parameters  
@@ -57,22 +57,61 @@ if __name__ == "__main__":
 
 
     num_features=parameters.kNumFeatures 
-    """
-    select your feature tracker 
-    N.B.: ORB detector (not descriptor) does not work as expected!
-    """
-    tracker_type = TrackerTypes.DES_BF
-    #tracker_type = TrackerTypes.DES_FLANN
 
-    feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 3, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 4, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 4, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 4, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = tracker_type)     
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 4, detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = tracker_type)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, num_levels = 4, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = tracker_type)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = tracker_type)
-
+    #tracker_type = TrackerTypes.DES_BF     
+    tracker_type = TrackerTypes.DES_FLANN
+    
+    """
+    a collection of feature tracker parameters
+    """
+    
+    tracker_params_SHI_TOMASI = dict(min_num_features=num_features, 
+                                    num_levels = 4, scale_factor = 1.2,
+                                    detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
+    
+    tracker_params_FAST_ORB = dict(min_num_features=num_features, 
+                                    num_levels = 8, scale_factor = 1.2, 
+                                    detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type) # nice results even with num_levels=1
+    
+    tracker_params_ORB = dict(min_num_features=num_features, 
+                              num_levels = 4, scale_factor = 1.2, 
+                              detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
+            
+    tracker_params_BRISK = dict(min_num_features=num_features, 
+                                num_levels = 4, 
+                                detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = tracker_type)   
+      
+    tracker_params_AKAZE = dict(min_num_features=num_features, 
+                                num_levels = 4, 
+                                detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = tracker_type)  
+          
+    tracker_params_SIFT = dict(min_num_features=num_features, 
+                               detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = tracker_type)
+    
+    tracker_params_ROOT_SIFT = dict(min_num_features=num_features, 
+                                    detector_type = FeatureDetectorTypes.ROOT_SIFT, descriptor_type = FeatureDescriptorTypes.ROOT_SIFT, tracker_type = tracker_type)    
+    
+    tracker_params_SURF = dict(min_num_features=num_features, 
+                               num_levels = 4, 
+                               detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = tracker_type)
+    
+    tracker_params_FREAK = dict(min_num_features=num_features, 
+                                num_levels = 4, 
+                                detector_type = FeatureDetectorTypes.FREAK, descriptor_type = FeatureDescriptorTypes.FREAK, tracker_type = tracker_type)   
+     
+    tracker_params_SUPERPOINT = dict(min_num_features=num_features, 
+                                     num_levels = 1, scale_factor = 1.2, 
+                                     detector_type = FeatureDetectorTypes.SUPERPOINT, descriptor_type = FeatureDescriptorTypes.SUPERPOINT, tracker_type = tracker_type)
+    
+    tracker_params_FAST_TFEAT = dict(min_num_features=num_features, 
+                                     num_levels = 1, scale_factor = 1.2, 
+                                     detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.TFEAT, tracker_type = tracker_type)    
+    
+    """
+    select your feature tracker parameters 
+    """
+    feature_tracker = feature_tracker_factory(**tracker_params_FAST_ORB)
+    
     # create SLAM object 
     slam = SLAM(cam, feature_tracker, grountruth)
 
@@ -82,7 +121,7 @@ if __name__ == "__main__":
     is_draw_matched_points = True  
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')    
 
-    img_id = 0 #200   # you can start from a desired frame id if needed 
+    img_id = 180 #200   # you can start from a desired frame id if needed 
     while dataset.isOk():
             
         print('..................................')

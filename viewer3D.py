@@ -26,7 +26,7 @@ import numpy as np
 
 
 kUiWidth = 180
-kDefaultPointSize = 3
+kDefaultPointSize = 2
 kViewportWidth = 1024
 #kViewportHeight = 768
 kViewportHeight = 600
@@ -197,7 +197,7 @@ class Viewer3D(object):
         self.Twc.m = pose[0]
 
     @staticmethod
-    def drawPlane(num_divs=200, div_size=1):
+    def drawPlane(num_divs=200, div_size=10):
         # Plane parallel to x-z at origin with normal -y
         minx = -num_divs*div_size
         minz = -num_divs*div_size

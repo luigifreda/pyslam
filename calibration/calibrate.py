@@ -8,7 +8,7 @@ usage:
 default values:
     --debug:    ./output/
     --square_size: 1.0
-    <image mask> defaults to ../data/left*.jpg
+    <image mask> defaults to ../data/left*.bmp
 '''
 
 # Python 2/3 compatibility
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     args.setdefault('--square_size', 1.0)
     args.setdefault('--threads', 4)
     if not img_mask:
-        img_mask = './calib_images/*.jpg'  # default
+        img_mask = './calib_images/*.bmp'  # default
     else:
         img_mask = img_mask[0]
     print('img_mask: ', img_mask)
@@ -101,6 +101,8 @@ if __name__ == '__main__':
         img_points.append(corners)
         obj_points.append(pattern_points)
 
+    print("\ncomputing camera parameters...")
+    
     # calculate camera distortion
     rms, camera_matrix, dist_coefs, rvecs, tvecs = cv.calibrateCamera(obj_points, img_points, (w, h), None, None)
 

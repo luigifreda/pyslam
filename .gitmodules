@@ -1,0 +1,6 @@
+[submodule "thirdparty/superpoint"]
+	path = thirdparty/superpoint
+	url = https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork.git
+[submodule "thirdparty/tfeat"]
+	path = thirdparty/tfeat
+	url = https://github.com/vbalnt/tfeat.git

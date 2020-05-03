@@ -18,9 +18,10 @@
 """
 import numpy as np 
 import cv2
+import parameters  
 from enum import Enum
 
-kRatioTest = 0.7 
+kRatioTest = parameters.kFeatureMatchRatioTest
 kVerbose = True 
 
 class FeatureMatcherTypes(Enum):
@@ -43,12 +44,16 @@ class FeatureMatcher(object):
         self.type = type 
         self.norm_type = norm_type 
         self.cross_check = cross_check 
+        self.matches = []
 
+    # input: des1 = queryDescriptors, des2= trainDescriptors
+    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
     def match(self, des1, des2):
         return None 
-
-    # des1 = queryDescriptors, des2= trainDescriptors
-    def goodMatches(self, matches, des1, des2):
+    
+    # input: des1 = queryDescriptors, des2= trainDescriptors
+    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
+    def goodMatchesCheckAlreadyMatched(self, matches, des1, des2):
         len_des2 = len(des2)
         idx1, idx2 = [], []        
         if matches is not None:         
@@ -94,7 +99,8 @@ class FeatureMatcher(object):
             #return matches, idx1, idx2                             
             return idx1, idx2
 
-    # des1 = queryDescriptors, des2= trainDescriptors
+    # input: des1 = queryDescriptors, des2= trainDescriptors
+    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
     def goodMatchesSimple(self, matches, des1, des2):
         idx1, idx2 = [], []           
         if matches is not None: 
@@ -120,16 +126,25 @@ class FeatureMatcher(object):
             #return matches, idx1, idx2                             
             return idx1, idx2 
 
+    # input: des1 = queryDescriptors, des2= trainDescriptors
+    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
+    def goodMatches(self, matches, des1, des2): 
+        #return self.goodMatchesSimple(matches, des1, des2)   
+        return self.goodMatchesCheckAlreadyMatched(matches, des1, des2)
+
 
 class BfFeatureMatcher(FeatureMatcher): 
     def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, type = FeatureMatcherTypes.BF):
         super().__init__(norm_type, cross_check, type)
         self.bf = cv2.BFMatcher(norm_type, cross_check)        
 
+    # input: des1 = queryDescriptors, des2= trainDescriptors
+    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
     def match(self, des1, des2):
         if kVerbose:
             print('BfFeatureMatcher, norm ', self.norm_type)        
         matches = self.bf.knnMatch(des1, des2, k=2)   #knnMatch(queryDescriptors,trainDescriptors)
+        self.matches = matches 
         return self.goodMatches(matches, des1, des2)
 
 
@@ -150,8 +165,23 @@ class FlannFeatureMatcher(FeatureMatcher):
         self.search_params = dict(checks=50)   # or pass empty dictionary                 
         self.flann = cv2.FlannBasedMatcher(self.index_params, self.search_params)                                         
 
+    # input: des1 = queryDescriptors, des2= trainDescriptors
+    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
     def match(self, des1, des2):
         if kVerbose:
             print('FlannFeatureMatcher')
         matches = self.flann.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
+        self.matches = matches
         return self.goodMatches(matches, des1, des2)             
+    
+    
+    
+"""
+The result of matches = bf.knnMatch(des1, des2, k=2) or bf.knnMatch(des1, des2, k=2) is a list of DMatch objects. 
+A DMatch object has the following attributes:
+
+DMatch.distance - Distance between descriptors. The lower, the better it is.
+DMatch.trainIdx - Index of the descriptor in train descriptors
+DMatch.queryIdx - Index of the descriptor in query descriptors
+DMatch.imgIdx - Index of the train image.
+"""

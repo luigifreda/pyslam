@@ -26,29 +26,33 @@ from skimage.measure import ransac
 from geom_helpers import add_ones, poseRt, normalize
 from helpers import myjet
 
-from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
+from feature_manager import feature_manager_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_tracker import feature_tracker_factory, TrackerTypes 
 
 import parameters  
 
 kDrawFeatureRadius = [r*3 for r in range(1,20)]
+kDrawOctaveColor = np.linspace(0, 255, 12)
 
 class Frame(object):
     # shared counter 
     next_id = 0
     # shared tracker 
     tracker = None 
-    detector = None 
+    feature_manager = None 
     matcher = None 
     descriptor_distance = None                                 
     
     @staticmethod
     def set_tracker(tracker):
         Frame.tracker = tracker 
-        Frame.detector = tracker.detector 
+        Frame.feature_manager = tracker.feature_manager 
         Frame.matcher = tracker.matcher
         Frame.descriptor_distance = tracker.descriptor_distance       
         Frame.next_id = 0 
+
+        if tracker.tracker_type == TrackerTypes.LK:
+            raise ValueError("You cannot use Lukas-Kanade tracker in this SLAM algorithm!")
 
         if tracker.descriptor_type == FeatureDescriptorTypes.ORB:
             parameters.kMaxDescriptorDistanceSearchByReproj = parameters.kMaxOrbDistanceSearchByReproj  
@@ -94,12 +98,12 @@ class Frame(object):
                 # convert to gray image 
                 if img.ndim>2:
                     img = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)       
-                self.kps, self.des = Frame.tracker.detect(img)                                                         
+                self.kps, self.des = Frame.tracker.detectAndCompute(img)                                                         
                 # convert from a list of keypoints to an array of points and octaves  
-                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave] for x in self.kps], dtype=np.float32)                   
-                self.octaves = np.uint32(kps_data[:,2].copy())
-                #print('octaves: ', self.octaves)               
-                self.kps = kps_data[:,:2].copy()                   
+                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave, x.size] for x in self.kps], dtype=np.float32)                            
+                self.kps = kps_data[:,:2].copy()    
+                self.octaves = np.uint32(kps_data[:,2].copy()) #print('octaves: ', self.octaves)                      
+                self.sizes = kps_data[:,3].copy()                
                 self.kpsu = cv2.undistortPoints(np.expand_dims(self.kps, axis=1), self.K, self.D, None, self.K)
                 self.kpsu = self.kpsu.ravel().reshape(self.kps.shape[0], 2)
                 #print('kpsu diff: ', self.kpsu-self.kps)
@@ -197,13 +201,15 @@ class Frame(object):
     def draw_feature_trails(self, img):
         for i1 in range(len(self.kps)):
             u1, v1 = int(round(self.kps[i1][0])), int(round(self.kps[i1][1]))
-            radius = kDrawFeatureRadius[self.octaves[i1]]
+            radius = self.sizes[i1] #kDrawFeatureRadius[self.octaves[i1]]
+            #color = myjet[self.octaves[i1]]*255
             if self.points[i1] is not None:
                 # there's a corresponding 3D point
                 if len(self.points[i1].frames) >= 5:
-                    cv2.circle(img, (u1, v1), color=(0, 255, 0), radius=radius)
+                    cv2.circle(img, (u1, v1), color=(0, 255, 0), radius=radius)  # draw keypoint size as a circle 
+                    #cv2.circle(img, (u1, v1), color=color, radius=radius)
                 else:
-                    cv2.circle(img, (u1, v1), color=(0, 128, 0), radius=radius)
+                    cv2.circle(img, (u1, v1), color=(0, 128, 0), radius=radius)  # draw keypoint size as a circle 
                 # draw the trail (for each keypoint, its 9 corresponding points in previous frames)
                 pts = []
                 lfid = None  # last frame id

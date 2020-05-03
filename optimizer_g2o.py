@@ -88,7 +88,7 @@ def optimization(frames, points, local_window, fixed_points=False, verbose=False
             edge.set_vertex(0, v_p)
             edge.set_vertex(1, graph_frames[f])
             edge.set_measurement(f.kpsu[idx])
-            invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[idx]]
+            invSigma2 = Frame.feature_manager.inv_level_sigmas2[f.octaves[idx]]
             edge.set_information(np.eye(2)*invSigma2)
             if use_robust_kernel:
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
@@ -161,7 +161,7 @@ def poseOptimization(frame, verbose=False, rounds=10):
 
         edge.set_vertex(0, opt.vertex(0))
         edge.set_measurement(frame.kpsu[idx])
-        invSigma2 = Frame.detector.inv_level_sigmas2[frame.octaves[idx]]
+        invSigma2 = Frame.feature_manager.inv_level_sigmas2[frame.octaves[idx]]
         edge.set_information(np.eye(2)*invSigma2)
         edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
@@ -298,7 +298,7 @@ def localOptimization(frames, points, frames_ref=[], fixed_points=False, verbose
             edge.set_vertex(0, v_p)
             edge.set_vertex(1, graph_frames[f])
             edge.set_measurement(f.kpsu[p_idx])
-            invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[p_idx]]
+            invSigma2 = Frame.feature_manager.inv_level_sigmas2[f.octaves[p_idx]]
             edge.set_information(np.eye(2)*invSigma2)
             edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 

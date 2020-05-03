@@ -106,10 +106,10 @@ class Map(object):
             uv2 = np.dot(f2.K, x2[:3])
                 
             # check reprojection error
-            invSigma21 = Frame.detector.inv_level_sigmas2[f1.octaves[idx1[i]]]                
+            invSigma21 = Frame.feature_manager.inv_level_sigmas2[f1.octaves[idx1[i]]]                
             err1 = (uv1[0:2] / uv1[2]) - f1.kpsu[idx1[i]]        
             err1 = np.linalg.norm(err1)*invSigma21        
-            invSigma22 = Frame.detector.inv_level_sigmas2[f2.octaves[idx2[i]]]                 
+            invSigma22 = Frame.feature_manager.inv_level_sigmas2[f2.octaves[idx2[i]]]                 
             err2 = (uv2[0:2] / uv2[2]) - f2.kpsu[idx2[i]]         
             err2 = np.linalg.norm(err2)*invSigma22
             if err1 > parameters.kChi2Mono or err2 > parameters.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
@@ -165,7 +165,7 @@ class Map(object):
             for f, idx in zip(p.frames, p.idxs):
                 uv = f.kpsu[idx]
                 proj = f.project_map_point(p)
-                invSigma2 = Frame.detector.inv_level_sigmas2[f.octaves[idx]]
+                invSigma2 = Frame.feature_manager.inv_level_sigmas2[f.octaves[idx]]
                 errs.append(np.linalg.norm(proj-uv)*invSigma2)
             # cull
             if np.mean(errs) > parameters.kChi2Mono:  # chi-square 2 DOFs  (Hartley Zisserman pg 119)

@@ -68,4 +68,4 @@ if __name__ == "__main__":
             matched_points_plt.draw(inliers_signal,'# inliers',color='g')                          
     
         img_id+=1 
-        time.sleep(0.01)               
+        time.sleep(0.04)               

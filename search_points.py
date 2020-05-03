@@ -59,7 +59,7 @@ def search_frame_by_projection(f_ref, f_cur):
                     best_k_idx = k_idx
                     best_ref_idx = i                     
         # N.B.1: given the keypoint search area is limited, here we do not use the match distance ratio test 
-        # N.B.2: if we extract keypoints on different octaves/levels, it is very frequent to observe overlapping keypoints (two distinct octave representives for a same interesting point) 
+        # N.B.2: if we extract keypoints on different octaves/levels, it may happen to observe overlapping keypoints (two distinct octave representives for a same interesting point, if NMS is not applied) 
         #        => do not use the match distance ration unless you want to exclude these points
         if best_k_idx > -1:
             #print('b_dist : ', best_dist)            
@@ -273,7 +273,7 @@ def search_frame_for_triangulation(f1, f2, img2, img1 = None):
     for i, p in enumerate(f1.points): 
         if p is None:  # we consider just unmatched keypoints 
             kp = f1.kpsu[i]
-            scale_factor = Frame.detector.scale_factors[f1.octaves[i]]
+            scale_factor = Frame.feature_manager.scale_factors[f1.octaves[i]]
             # discard points which are too close to the epipole 
             if np.linalg.norm(kp-e1) < parameters.kMinDistanceFromEpipole * scale_factor:             
                 continue    

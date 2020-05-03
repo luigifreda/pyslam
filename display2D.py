@@ -17,9 +17,13 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+#import pygame
+print("importing pygame")
 import pygame
-from pygame.locals import DOUBLEBUF
+print("initialising pygame")
+pygame.init()
 
+from pygame.locals import DOUBLEBUF
 
 class Display2D(object):
     def __init__(self, W, H, is_BGR=True):

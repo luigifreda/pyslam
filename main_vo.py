@@ -33,7 +33,7 @@ from dataset import dataset_factory
 from mplot_thread import Mplot2d, Mplot3d
 
 from feature_tracker import feature_tracker_factory, TrackerTypes 
-from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
+from feature_manager import feature_manager_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
 """
@@ -61,23 +61,71 @@ if __name__ == "__main__":
     num_features=2000  # how many features do you want to detect and track?
 
     """
-    select your feature tracker 
-    N.B: ORB detector (not descriptor) does not work as expected!    
+    a collection of feature tracker parameters
     """
 
-    # LK tracker 
-    feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
+    # =====================================
+    # LK trackers 
+    tracker_params_LK_SHI_TOMASI = dict(min_num_features=num_features, 
+                                        num_levels = 3, 
+                                        detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
+    
+    tracker_params_LK_FAST = dict(min_num_features=num_features, 
+                                  num_levels = 3, 
+                                  detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
 
-    #tracker_type = TrackerTypes.DES_BF
+    # =====================================
+    # Descriptor-based trackers 
+    
+    # tracker_type = TrackerTypes.DES_BF
     tracker_type = TrackerTypes.DES_FLANN         
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)    
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = tracker_type)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = tracker_type)        
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = tracker_type)
-    #feature_tracker = feature_tracker_factory(min_num_features=num_features, detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = tracker_type)
+
+    tracker_params_SHI_TOMASI = dict(min_num_features=num_features, 
+                                    num_levels = 4, scale_factor = 1.2,
+                                    detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
+    
+    tracker_params_FAST_ORB = dict(min_num_features=num_features, 
+                                    num_levels = 4, scale_factor = 1.2, 
+                                    detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type) # nice results even with num_levels=1
+    
+    tracker_params_BRISK = dict(min_num_features=num_features, 
+                                num_levels = 4, 
+                                detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = tracker_type)   
+      
+    tracker_params_AKAZE = dict(min_num_features=num_features, 
+                                num_levels = 4, 
+                                detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = tracker_type)  
+      
+    tracker_params_ORB = dict(min_num_features=num_features, 
+                              num_levels = 4, scale_factor = 1.2, 
+                              detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
+    
+    tracker_params_SIFT = dict(min_num_features=num_features, 
+                               detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = tracker_type)
+    
+    tracker_params_ROOT_SIFT = dict(min_num_features=num_features, 
+                                    detector_type = FeatureDetectorTypes.ROOT_SIFT, descriptor_type = FeatureDescriptorTypes.ROOT_SIFT, tracker_type = tracker_type)    
+    
+    tracker_params_SURF = dict(min_num_features=num_features, 
+                               num_levels = 4, 
+                               detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = tracker_type)
+    
+    tracker_params_FREAK = dict(min_num_features=num_features, 
+                                num_levels = 4, 
+                                detector_type = FeatureDetectorTypes.FREAK, descriptor_type = FeatureDescriptorTypes.FREAK, tracker_type = tracker_type)   
+     
+    tracker_params_SUPERPOINT = dict(min_num_features=num_features, 
+                                     num_levels = 1, scale_factor = 1.2, 
+                                     detector_type = FeatureDetectorTypes.SUPERPOINT, descriptor_type = FeatureDescriptorTypes.SUPERPOINT, tracker_type = tracker_type)
+    
+    tracker_params_FAST_TFEAT = dict(min_num_features=num_features, 
+                                     num_levels = 1, scale_factor = 1.2, 
+                                     detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.TFEAT, tracker_type = tracker_type)    
+    
+    """
+    select your feature tracker parameters 
+    """
+    feature_tracker = feature_tracker_factory(**tracker_params_LK_SHI_TOMASI)
 
     # create visual odometry object 
     vo = VisualOdometry(cam, grountruth, feature_tracker)

@@ -1,5 +1,6 @@
 .*.swp
 .*.swo
+*.pyo 
 __pycache__
 tmp
 build
@@ -7,8 +8,9 @@ debug.txt
 kitti
 map.json
 config.pyc 
-lib/g2opy
-lib/pangolin 
+thirdparty/g2opy
+thirdparty/pangolin 
 matches.txt 
 map.png
 .vscode 
+videos/webcam

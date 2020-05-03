@@ -23,7 +23,7 @@ from helpers import Printer
 import optimizer_g2o
 
 from feature_tracker import feature_tracker_factory, TrackerTypes 
-from feature_detector import feature_detector_factory, FeatureDetectorTypes, FeatureDescriptorTypes
+from feature_manager import feature_manager_factory, FeatureDetectorTypes, FeatureDescriptorTypes
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
 from ground_truth import groundtruth_factory
@@ -53,8 +53,7 @@ cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Ca
 num_features=parameters.kNumFeatures 
 """
 select your feature tracker 
-N.B.1: here you can use just ORB descriptors! ... at present time
-N.B.2: ORB detector (not descriptor) does not work as expected!
+N.B.: ORB detector (not descriptor) does not work as expected!
 """
 tracker_type = TrackerTypes.DES_BF
 #tracker_type = TrackerTypes.DES_FLANN
@@ -71,9 +70,9 @@ timer = Timer()
 #------------- 
 
 # N.B.: keep this coherent with the above forced camera settings 
-img_ref = cv2.imread('kitti06-12.png',cv2.IMREAD_COLOR)
-#img_cur = cv2.imread('kitti06-12-01.png',cv2.IMREAD_COLOR)
-img_cur = cv2.imread('kitti06-13.png',cv2.IMREAD_COLOR)
+img_ref = cv2.imread('../data/kitti06-12.png',cv2.IMREAD_COLOR)
+#img_cur = cv2.imread('../data/kitti06-12-01.png',cv2.IMREAD_COLOR)
+img_cur = cv2.imread('../data/kitti06-13.png',cv2.IMREAD_COLOR)
 
 
 slam.track(img_ref, frame_id=0)

@@ -55,7 +55,7 @@ def groundtruth_factory(settings):
         return SimpleGroundTruth(path, name, associations, GroundTruthType.SIMPLE)     
     else:
         print('not using groundtruth')
-        print('not using groundtruth, your estimated trajectory will not make sense!')          
+        print('if you are using main_vo.py, your estimated trajectory will not make sense!')          
         return GroundTruth(path, name, associations=None, type=GroundTruthType.NONE)
 
 

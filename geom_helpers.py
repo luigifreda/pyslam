@@ -21,7 +21,18 @@ import os
 import numpy as np
 import cv2
 
-
+# convert matrix of pts into list of keypoints
+def convertMatPtsToKeyPoints(pts): 
+    kps = []
+    if pts is not None: 
+        if pts.ndim > 2:
+            # convert matrix [Nx1x2] of pts into list of keypoints  
+            kps = [ cv2.KeyPoint(p[0][0], p[0][1], 1) for p in pts ]
+        else: 
+            # convert matrix [Nx2] of pts into list of keypoints  
+            kps = [ cv2.KeyPoint(p[0], p[1], 1) for p in pts ]                        
+    return kps         
+            
 def poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R
@@ -104,7 +115,7 @@ def imgBlocks(img, row_divs, col_divs):
 
 ## Drawing stuff ##
 
-# draw a list of points with different random colors
+# draw a list of points with different random colors on a input image 
 def draw_points(img, pts, radius=5): 
     if img.ndim < 3:
         img = cv2.cvtColor(img,cv2.COLOR_GRAY2BGR)
@@ -113,7 +124,7 @@ def draw_points(img, pts, radius=5):
         img = cv2.circle(img,tuple(pt),radius,color,-1)
     return img    
 
-# draw corresponding points with the same random color 
+# draw corresponding points with the same random color on two separate images
 def draw_points2(img1, img2, pts1, pts2, radius=5): 
     if img1.ndim < 3:
         img1 = cv2.cvtColor(img1,cv2.COLOR_GRAY2BGR)
@@ -125,7 +136,7 @@ def draw_points2(img1, img2, pts1, pts2, radius=5):
         img2 = cv2.circle(img2,tuple(pt2),radius,color,-1)
     return img1,img2    
 
-# line_edges is assumed to be a list of 2D img points
+# draw lines on a image; line_edges is assumed to be a list of 2D img points
 def draw_lines(img, line_edges, pts=None, radius=5):
     pt = None 
     for i,l in enumerate(line_edges):
@@ -138,6 +149,18 @@ def draw_lines(img, line_edges, pts=None, radius=5):
             img = cv2.circle(img,tuple(pt),radius,color,-1)
     return img
 
+# combine two images horizontally
+def combine_images_horizontally(img1, img2): 
+    if img1.ndim<=2:
+        img1 = cv2.cvtColor(img1,cv2.COLOR_GRAY2RGB)    
+    if img2.ndim<=2:
+        img2 = cv2.cvtColor(img2,cv2.COLOR_GRAY2RGB)                     
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+    img3 = np.zeros((max(h1, h2), w1+w2,3), np.uint8)
+    img3[:h1, :w1,:3] = img1
+    img3[:h2, w1:w1+w2,:3] = img2
+    return img3 
 
 ## SIFT stuff ##
 

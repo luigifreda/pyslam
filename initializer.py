@@ -97,8 +97,10 @@ class Initializer(object):
         out = InitializerOutput()
         is_ok = False 
 
+        print('num frames: ', len(self.frames))
+        print('curr frame id: ',self.id_ref )
         # if too many frames have passed, move the current id_ref forward 
-        # this is just one possible policy which can be used 
+        # this is just one very simple policy which can be used 
         if (len(self.frames)-1) - self.id_ref >= kMaxIdDistBetweenFrames: 
             self.id_ref = len(self.frames)-1  # take last frame in the array 
         self.f_ref = self.frames[self.id_ref] 
@@ -128,6 +130,8 @@ class Initializer(object):
 
         # create a temp map for initializing 
         map = Map()
+        f_ref.reset_points()
+        f_cur.reset_points()
         map.add_frame(f_ref)        
         map.add_frame(f_cur)
 
@@ -135,33 +139,38 @@ class Initializer(object):
         #pts4d = triangulate(f_cur.pose, f_ref.pose, f_cur.kpsn[idx_cur], f_ref.kpsn[idx_ref])
 
         new_pts_count, mask_points = map.add_points(points4d, None, f_cur, f_ref, idx_cur_inliers, idx_ref_inliers, img_cur, check_parallax=True)
-        print("triangulated:      %d new points from %d matches" % (new_pts_count, len(idx_cur)))    
-        err = map.optimize(verbose=False)
-        print("pose opt err:   %f" % err)         
+        print("triangulated:      %d new points from %d matches" % (new_pts_count, len(idx_cur)))   
+        
+        if new_pts_count > kNumMinTriangulatedPoints:  
+            err = map.optimize(verbose=False)
+            print("pose opt err:   %f" % err)         
 
-        #reset points in frames 
-        f_cur.reset_points()
-        f_ref.reset_points()
+            #reset points in frames 
+            f_cur.reset_points()
+            f_ref.reset_points()
 
-        num_map_points = len(map.points)
-        #print("# map points:   %d" % num_map_points)   
-        is_ok = num_map_points > kNumMinTriangulatedPoints
+            num_map_points = len(map.points)
+            print("# map points:   %d" % num_map_points)   
+            is_ok = num_map_points > kNumMinTriangulatedPoints
 
-        out.points4d = points4d[mask_points]
-        out.f_cur = f_cur
-        out.idx_cur = idx_cur_inliers[mask_points]        
-        out.f_ref = f_ref 
-        out.idx_ref = idx_ref_inliers[mask_points]
+            out.points4d = points4d[mask_points]
+            out.f_cur = f_cur
+            out.idx_cur = idx_cur_inliers[mask_points]        
+            out.f_ref = f_ref 
+            out.idx_ref = idx_ref_inliers[mask_points]
 
-        # set median depth to 'desired_median_depth'
-        desired_median_depth = parameters.kInitializerDesiredMedianDepth
-        median_depth = f_cur.compute_points_median_depth(out.points4d)        
-        depth_scale = desired_median_depth/median_depth 
-        print('median depth: ', median_depth)
+            # set median depth to 'desired_median_depth'
+            desired_median_depth = parameters.kInitializerDesiredMedianDepth
+            median_depth = f_cur.compute_points_median_depth(out.points4d)        
+            depth_scale = desired_median_depth/median_depth 
+            print('median depth: ', median_depth)
 
-        out.points4d = out.points4d * depth_scale  # scale points 
-        f_cur.pose[:3,3] = f_cur.pose[:3,3] * depth_scale # scale initial baseline 
+            out.points4d = out.points4d * depth_scale  # scale points 
+            f_cur.pose[:3,3] = f_cur.pose[:3,3] * depth_scale # scale initial baseline 
 
         print('├────────')    
-        Printer.green('Inializer: ok!')             
+        if is_ok:
+            Printer.green('Inializer: ok!')    
+        else:
+            Printer.red('Inializer: ko!')                         
         return out, is_ok

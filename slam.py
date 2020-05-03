@@ -156,7 +156,7 @@ class SLAM(object):
         f_ref = self.map.frames[-1] # get previous frame in map            
         self.map.add_frame(f_cur)   # add f_cur to map 
         
-        # udpdate (velocity) motion model (kinematic without damping)
+        # udpdate (velocity) motion model (kinematic model without damping)
         self.velocity = np.dot(f_ref.pose, np.linalg.inv(self.map.frames[-2].pose))
         predicted_pose = np.dot(self.velocity, f_ref.pose)
 
@@ -204,13 +204,13 @@ class SLAM(object):
             idx_ref = idx_ref[mask_index]
             idx_cur = idx_cur[mask_index]
 
-            # if too many outliers reset estimated pose 
+            # if not enough inliers reset estimated pose 
             if self.num_inliers < kNumMinInliersEssentialMat:
                 f_cur.pose = f_ref.pose.copy()  # reset estimated pose to previous frame 
                 Printer.red('Essential mat: not enough inliers!')  
 
             # set intial guess for current pose optimization:
-            # keep the estimated rotation and override translation with ref frame translation (we do not have a proper scale for the translation) 
+            # keep the estimated rotation and override translation with ref frame translation (essential mat computation does not provide a scale for the translation) 
             f_cur.pose[:,3] = f_ref.pose[:,3].copy() 
             #f_cur.pose[:,3] = predicted_pose[:,3].copy()  # or use motion model for translation                   
          
@@ -236,7 +236,7 @@ class SLAM(object):
             # discard outliers detected in f_cur pose optimization (in current frame)
             f_cur.reset_outlier_map_points()  
         else:            
-            # if current pose optimization failed, reset f_cur pose to f_ref pose              
+            # if current pose optimization failed, reset f_cur pose to f_ref pose (for safety)          
             f_cur.pose = f_ref.pose.copy()                 
 
         self.timer_pose_opt.pause()                                         
@@ -247,7 +247,7 @@ class SLAM(object):
 
         # now, having a better estimate of f_cur pose, we can find more map point matches: 
         # find matches between {local map points} (points in the built local map) and {unmatched keypoints of f_cur}
-        if pose_is_ok is True and not self.map.local_map.is_empty():
+        if pose_is_ok and not self.map.local_map.is_empty():
             self.timer_seach_map.start()
             #num_found_map_pts = search_local_frames_by_projection(self.map, f_cur)
             num_found_map_pts = search_map_by_projection(self.map.local_map.points, f_cur) # use the built local map 
@@ -260,7 +260,7 @@ class SLAM(object):
             print("pose opt err2: %f,  ok: %d" % (pose_opt_error, int(pose_is_ok)) ) 
             print("# valid matched map points: %d " % self.num_vo_map_points)      
             # discard outliers detected in pose optimization (in current frame)
-            if pose_is_ok is True:
+            if pose_is_ok:
                 f_cur.reset_outlier_map_points()        
             self.timer_pose_opt.refresh()    
 

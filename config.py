@@ -25,8 +25,7 @@ import numpy as np
 
 
 # get the location of this file!
-__location__ = os.path.realpath(os.path.join(
-    os.getcwd(), os.path.dirname(__file__)))
+__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 # Class for getting libs settings (from config.ini) and camera settings from a yaml file specified via the ENV var SETTINGS
 
@@ -54,7 +53,7 @@ class Config(object):
             # print( "importing path: ", ext_path )
             sys.path.append(ext_path)
 
-    # get camera settings
+    # get dataset settings
     def get_dataset_settings(self):
         self.dataset_type = self.config_parser['DATASET']['type']
         self.dataset_settings = self.config_parser[self.dataset_type]
@@ -70,7 +69,7 @@ class Config(object):
         if(self.settings_doc is not None):
             with open(self.settings_doc, 'r') as stream:
                 try:
-                    self.cam_settings = yaml.load(stream)
+                    self.cam_settings = yaml.load(stream, Loader=yaml.FullLoader)
                 except yaml.YAMLError as exc:
                     print(exc)
 
@@ -95,9 +94,9 @@ class Config(object):
             cx = self.cam_settings['Camera.cx']
             fy = self.cam_settings['Camera.fy']
             cy = self.cam_settings['Camera.cy']
-            self._Kinv = np.array([[1/fx,    0, -cx/fx],
-                                   [0, 1/fy, -cy/fy],
-                                   [0,    0,    1]])
+            self._Kinv = np.array([[1/fx,     0, -cx/fx],
+                                   [    0, 1/fy, -cy/fy],
+                                   [    0,    0,      1]])
         return self._Kinv
 
     # distortion coefficients

@@ -18,20 +18,29 @@
 """
 
 import time 
+import sys 
 import numpy as np
 
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
 import multiprocessing as mp 
-from multiprocessing import Process, Queue, Lock
+from multiprocessing import Process, Queue, Lock, Value
+import ctypes
 
-kPlotSleep = 0.03 
+kPlotSleep = 0.03
 kVerbose = False 
-KSetDaemon = False 
+kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#threading.Thread.daemon
+                    # The entire Python program exits when no alive non-daemon threads are left.
+                    
+kUseFigCanvasDrawIdle = True 
 
 # global lock for drawing with matplotlib 
 mp_lock = Lock()
+
+if kUseFigCanvasDrawIdle:
+    plt.ion()
+    
 
 # use mplotlib figure to draw in 2d dynamic data
 class Mplot2d:
@@ -47,17 +56,28 @@ class Mplot2d:
         self.xlim = [float("inf"),float("-inf")]
         self.ylim = [float("inf"),float("-inf")]    
 
+        self.key = Value('i',0)
+        self.is_running = Value('i',1)
+
         self.handle_map = {}        
 
         self.queue = Queue()
-        self.vp = Process(target=self.drawer_thread, args=(self.queue,mp_lock,))
-        self.vp.daemon = KSetDaemon
+        self.vp = Process(target=self.drawer_thread, args=(self.queue,mp_lock,self.key,self.is_running,))
+        self.vp.daemon = kSetDaemon
         self.vp.start()
 
-    def drawer_thread(self, queue, lock):  
+    def quit(self):
+        self.is_running.value = 0
+        self.vp.join(timeout=5)
+
+    def drawer_thread(self, queue, lock, key, is_running):  
         self.init(lock) 
-        while True:
-            self.drawer_refresh(queue, lock)        
+        while is_running.value == 1:
+            self.drawer_refresh(queue, lock)                                    
+            if kUseFigCanvasDrawIdle:               
+                time.sleep(kPlotSleep) 
+        print(mp.current_process().name,'closing fig ', self.fig)  
+        plt.close(self.fig)              
 
     def drawer_refresh(self, queue, lock):            
         while not queue.empty():      
@@ -76,11 +96,26 @@ class Mplot2d:
         if self.got_data is True:                   
             self.plot_refresh(lock)
 
+    def on_key_press(self, event):
+        #print(mp.current_process().name,"key event pressed...", self._key)     
+        self.key.value = ord(event.key) # conver to int 
+        
+    def on_key_release(self, event):
+        #print(mp.current_process().name,"key event released...", self._key)             
+        self.key.value = 0  # reset to no key symbol
+        
+    def get_key(self):
+        return chr(self.key.value)            
+
     def init(self, lock):    
         lock.acquire()      
         if kVerbose:
             print(mp.current_process().name,"initializing...") 
-        self.fig = plt.figure()    
+        self.fig = plt.figure()
+        if kUseFigCanvasDrawIdle:
+            self.fig.canvas.draw_idle() 
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)       
+        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)               
         #self.ax = self.fig.gca(projection='3d')
         #self.ax = self.fig.gca()
         self.ax = self.fig.add_subplot(111)   
@@ -99,10 +134,11 @@ class Mplot2d:
         self.ax.relim()
         self.ax.autoscale_view()
         #We need to draw *and* flush
-        self.fig.canvas.draw()
+        if not kUseFigCanvasDrawIdle:
+            self.fig.canvas.draw()
         self.fig.canvas.flush_events()        
 
-    def draw(self, xy_signal, name, color='r', marker='.'): 
+    def draw(self, xy_signal, name, color='r', marker='.'):    
         if self.queue is None:
             return
         self.queue.put((xy_signal, name, color, marker))
@@ -137,7 +173,8 @@ class Mplot2d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()         
         self.setAxis()
-        plt.pause(kPlotSleep)
+        if not kUseFigCanvasDrawIdle:        
+            plt.pause(kPlotSleep)
         lock.release()
 
     # fake 
@@ -158,17 +195,28 @@ class Mplot3d:
         self.ylim = [float("inf"),float("-inf")]
         self.zlim = [float("inf"),float("-inf")]        
 
-        self.handle_map = {}      
+        self.handle_map = {}     
+        
+        self.key = Value('i',0)
+        self.is_running = Value('i',1)         
 
         self.queue = Queue()
-        self.vp = Process(target=self.drawer_thread, args=(self.queue,mp_lock,))
-        self.vp.daemon = KSetDaemon
+        self.vp = Process(target=self.drawer_thread, args=(self.queue,mp_lock, self.key, self.is_running,))
+        self.vp.daemon = kSetDaemon
         self.vp.start()
 
-    def drawer_thread(self, queue, lock):  
+    def quit(self):
+        self.is_running.value = 0
+        self.vp.join(timeout=5)     
+        
+    def drawer_thread(self, queue, lock, key, is_running):  
         self.init(lock) 
-        while True:
-            self.drawer_refresh(queue, lock)        
+        while is_running.value == 1:
+            self.drawer_refresh(queue, lock)   
+            if kUseFigCanvasDrawIdle:               
+                time.sleep(kPlotSleep)    
+        print(mp.current_process().name,'closing fig ', self.fig)     
+        plt.close(self.fig)                                 
 
     def drawer_refresh(self, queue, lock):            
         while not queue.empty():    
@@ -186,13 +234,27 @@ class Mplot3d:
         if self.got_data is True:               
             self.plot_refresh(lock)          
 
+    def on_key_press(self, event):
+        #print(mp.current_process().name,"key event pressed...", self._key)     
+        self.key.value = ord(event.key) # conver to int 
+        
+    def on_key_release(self, event):
+        #print(mp.current_process().name,"key event released...", self._key)             
+        self.key.value = 0  # reset to no key symbol
+        
+    def get_key(self):
+        return chr(self.key.value) 
+    
     def init(self, lock):
         lock.acquire()      
         if kVerbose:
             print(mp.current_process().name,"initializing...") 
-
         self.fig = plt.figure()
-        self.ax = self.fig.gca(projection='3d') 
+        if kUseFigCanvasDrawIdle:
+            self.fig.canvas.draw_idle()         
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)       
+        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)             
+        self.ax = self.fig.gca(projection='3d')
         if self.title is not '':
             self.ax.set_title(self.title)     
         self.ax.set_xlabel('X axis')
@@ -203,12 +265,16 @@ class Mplot3d:
         lock.release() 
 
     def setAxis(self):		
-        self.ax.axis('equal')        
+        #self.ax.axis('equal')   # this does not work with the new matplotlib 3    
         if self.axis_computed:	
             self.ax.set_xlim(self.xlim)
             self.ax.set_ylim(self.ylim)  
             self.ax.set_zlim(self.zlim)                             
         self.ax.legend()
+        #We need to draw *and* flush
+        if not kUseFigCanvasDrawIdle:
+            self.fig.canvas.draw()
+        self.fig.canvas.flush_events()            
 
     def drawTraj(self, traj, name, color='r', marker='.'):
         if self.queue is None:
@@ -253,7 +319,8 @@ class Mplot3d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()          
         self.setAxis()
-        plt.pause(kPlotSleep)        
+        if not kUseFigCanvasDrawIdle:        
+            plt.pause(kPlotSleep)      
         lock.release()
 
     # fake 

@@ -58,7 +58,7 @@ class VisualOdometry(object):
         self.des_cur = None # current descriptors 
 
         self.cur_R = np.eye(3,3) # current rotation 
-        self.cur_t = np.zeros((3,1))        # current translation 
+        self.cur_t = np.zeros((3,1)) # current translation 
 
         self.trueX, self.trueY, self.trueZ = None, None, None
         self.grountruth = grountruth
@@ -122,7 +122,7 @@ class VisualOdometry(object):
     # out: [Rrc, trc]   (with respect to 'ref' frame) 
     # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with previous estimated poses)
     # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
-    # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
+    # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie on a ruled quadric 
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
     # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
     # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation 
@@ -132,19 +132,19 @@ class VisualOdometry(object):
         self.kpn_ref = self.cam.unprojectPoints(kp_ref_u)
         self.kpn_cur = self.cam.unprojectPoints(kp_cur_u)
         if kUseEssentialMatrixEstimation:
-            # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister
+            # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister (see the notes and paper above )
             E, self.mask_match = cv2.findEssentialMat(self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)
         else:
             # just for the hell of testing fundamental matrix fitting ;-) 
             F, self.mask_match = self.computeFundamentalMatrix(kp_cur_u, kp_ref_u)
             E = self.cam.K.T @ F @ self.cam.K    # E = K.T * F * K 
-        #self.removeOutliersFromMask(self.mask)  # do not remove outliers, the last features can be matched and recognized as inliers in subsequent frames                          
+        #self.removeOutliersFromMask(self.mask)  # do not remove outliers, the last unmatched/outlier features can be matched and recognized as inliers in subsequent frames                          
         _, R, t, mask = cv2.recoverPose(E, self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.))   
         return R,t  # Rrc, trc (with respect to 'ref' frame) 		
 
     def processFirstFrame(self):
         # only detect on the current image 
-        self.kp_ref, self.des_ref = self.feature_tracker.detect(self.cur_image)
+        self.kp_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
         # convert from list of keypoints to an array of points 
         self.kp_ref = np.array([x.pt for x in self.kp_ref], dtype=np.float32) 
         self.draw_img = self.drawFeatureTracks(self.cur_image)
@@ -178,7 +178,7 @@ class VisualOdometry(object):
         self.draw_img = self.drawFeatureTracks(self.cur_image) 
         # check if we have enough features to track otherwise detect new ones and start tracking from them (used for LK tracker) 
         if (self.feature_tracker.tracker_type == TrackerTypes.LK) and (self.kp_ref.shape[0] < self.feature_tracker.min_num_features): 
-            self.kp_cur, self.des_cur = self.feature_tracker.detect(self.cur_image)           
+            self.kp_cur, self.des_cur = self.feature_tracker.detectAndCompute(self.cur_image)           
             self.kp_cur = np.array([x.pt for x in self.kp_cur], dtype=np.float32) # convert from list of keypoints to an array of points   
             if kVerbose:     
                 print('# new detected points: ', self.kp_cur.shape[0])                  
