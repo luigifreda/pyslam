@@ -1,0 +1,7 @@
+numpy
+h5py
+matplotlib
+tensorflow==1.15.0
+tensorflow-estimator==1.15.1
+opencv-python==3.4.2.17
+opencv-contrib-python==3.4.2.17

@@ -1,6 +1,8 @@
 # Troubleshooting 
 
-This is a small collections of errors that can be experienced along with their possible fixes. 
+This page contains a small collections of issues/errors that may be experienced along with their fixes. 
+
+**FIRST OF ALL**: did you read the main [README](./README.md) page? did you use the provided **INSTALL SCRIPTS**? If not then go back on the [README](./README.md) page, read the few lines in the install section and launch the **REQUIRED** install script. The install scripts were created in order to perform all the required install operations for you and make the install process itself as painless as possible.   
 
 ### SIFT or SURF error
 
@@ -9,7 +11,10 @@ This is already explained in the main [README](./README.md) file.
 In order to use [non-free OpenCV modules](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SIFT** and **SURF**), you need `opencv-contrib-python`. This package can be installed by running     
 
 ~~`$ pip3 install opencv-contrib-python==3.4.0.12`~~
-`$ pip3 install opencv-contrib-python==3.4.2.16`
+```
+$ pip3 uninstall opencv-contrib-python
+$ pip3 install opencv-contrib-python==3.4.2.16
+```
 
 For a more advanced OpenCV installation procedure, you can take a look [here](https://www.pyimagesearch.com/opencv-tutorials-resources-guides/). 
 
@@ -30,7 +35,7 @@ that's because you did not run the script
 ```
 $ ./install_thirdparty.sh   
 ```
-as explained in the main [README](./README.md) file. That's required in order to properly build and install the thirdparty libs. 
+as explained in the main [README](./README.md) file. That's required in order to properly build and install the required thirdparty libs. 
 
 ### Problems with ROS and OpenCV
 
@@ -91,3 +96,9 @@ $ pip3 uninstall torch torchvision
 $ pip3 install torch torchvision 
 ```
 in order to get a clean installation of the torch packages. 
+
+
+
+### Python version
+
+Installation issues may happen if multiple python versions are mixed. All the instructions reported in this repository assume you are using python3. If you really want to install things manually instead of using the install scripts, follow the same steps of the install scripts and be sure to use pip3 instead of pip, and good luck!

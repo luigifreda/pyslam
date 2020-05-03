@@ -1,0 +1,67 @@
+# Dataset name (case-sensitive). To create a new dataset, you will need to 
+data_name: '<dataset-name>'
+# A list of data splits. helpful when dataset has multiple splits, 
+# e.g., 'train', 'test', 'val' for YFCC.
+data_split: ['<data-split0>', ..., '<data-splitN>']
+data_root: '<data-root-path>'
+# The program will create a directory to dump all the intermediate results,
+# including the keypoints, regional features, local features and augmented features.
+dump_root: '<dump-root-path>'
+# By default, all dataset images will be processed ([0, null]). To perform on only several images,
+# for example, set it to [0, 10] for the first ten images.
+truncate: [0, null]
+
+# Pretrained model path for *.pb files, or checkpoint files.
+pretrained:
+  loc_model: 'pretrained/<model-name>'
+  reg_model: 'pretrained/retrieval_model'
+
+# Configuration of regional feature extraction.
+reg_feat:
+  # Whether to extract the feature.
+  infer: true
+  # Whether to overwite the feature records in dump files.
+  overwrite: false
+  # The max dimension of input images (images exceeded it will be down-sized).
+  max_dim: 1024
+
+# Configuration of local feature extraction.
+loc_feat:
+  # Whether to extract the feature.
+  infer: true
+  # Whether to overwite the feature records in dump files.
+  overwrite: false
+  # The maximum number of features/keypoints.
+  n_feature: <#features>
+  # Batch size of local features.
+  batch_size: 512
+  # Whether to extract dense local feature. Enable it for dense-contextdesc.
+  dense_desc: false
+  # Detection threshold for SIFT.
+  peak_thld: 0.04
+  # The max dimension of input images (images exceeded it will be down-sized).
+  max_dim: 1280
+  # Whether to ignore the orientation estimation of SIFT. Enable it when images are not imposed
+  # large rotation change.
+  upright: true
+  # Whether to extract image patches from image pyramid so as to improve the scale invariance.
+  # Enable it when images are imposed large scale change.
+  scale_diff: false
+
+# Configuration of augmented feature extraction.
+aug_feat:
+  # Whether to extract the feature.
+  infer: true
+  # the dimensionality of reginal feature.
+  reg_feat_dim: 2048
+  # Whether to overwite the feature records in dump files.
+  overwrite: false
+  # Whether to quantize the saved features to uint8.
+  quantz: false
+
+# Configuration of formatted file generation.
+post_format:
+  # Whether to perform the formatting.
+  enable: true
+  # The suffix of saved files.
+  suffix: '.contextdesc10k_upright'

@@ -1,15 +1,17 @@
-# pySLAM 
+# pySLAM v2 
 
 Author: [Luigi Freda](https://www.luigifreda.com)
 
-**pySLAM** is a *'toy'* implementation of a monocular *Visual Odometry (VO)* pipeline in Python. I released it for **educational purposes**, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing-12-hours/) I taught. I started developing it for fun as a python programming exercise, during my free time. I took inspiration from some python repos available on the web. 
+**pySLAM** contains a python implementation of a monocular *Visual Odometry (VO)* pipeline. It supports many classical and modern local image [features](#detectorsdescriptors), and it offers a convenient interface for them. Moreover, it collects other common and useful VO and SLAM tools.
+
+I released pySLAM for **educational purposes**, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
 
 Main Scripts:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
 
-* `main_slam.py` adds feature tracking along multiple frames, point triangulation and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
+* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
-You can use this *'toy'* framework as a baseline to play with [features](#detectorsdescriptors), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's intended as a  *'toy'* framework, without any pretence of having high localization accuracy or real-time performances. Check the terminal warnings if you see something weird happening.  
+You can use this framework as a baseline to play with local [features](#detectorsdescriptors), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's a work in progress, a development framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
 
 **Enjoy it!**
 
@@ -26,50 +28,62 @@ Clone this repo and its modules by running
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 ```
 
-#### Requirements
+The framework has been developed and tested under Ubuntu 18.04. 
 
-* Python 3  (tested under Python 3.5)
-* Numpy (1.18.1)
-* OpenCV (>= 3.4, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
-* PyTorch (>= 0.4, used by [SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork) and [Tfeat](https://github.com/vbalnt/tfeat) networks)
+#### Install pySLAM in Your Working Python Environment
 
-The framework has been developed and tested under Ubuntu (16.04 and 18.04). The required python3 packages can be automatically installed by running:   
+If you want to launch `main_vo.py`, run the script:   
 
-`$ ./install_pip3_packages.sh`   
+`$ ./install_basic.sh`   
 
-This allows you to run `main_vo.py`. If you want to run `main_slam.py`, you must install the libs [pangolin](https://github.com/stevenlovegrove/Pangolin) and [g2opy](https://github.com/uoip/g2opy) by running:    
+in order to automatically install the basic required system and python3 packages. Here, pip3 is used. 
 
-`$ ./install_thirdparty.sh`   
+If you want to run `main_slam.py`, you must additionally install the libs [pangolin](https://github.com/stevenlovegrove/Pangolin), [g2opy](https://github.com/uoip/g2opy), etc. by running:    
+
+`$ ./install_all.sh`   
+
+**Requirements**:
+
+* Python 3  (tested under Python 3.6)
+* Numpy (1.18.2)
+* OpenCV (see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
+* PyTorch (>= 1.4.0)
+* Tensorflow-gpu 1.14.0
+
+#### Install pySLAM in a Custom Python Virtual Environment 
+
+If you do not want to mess up your working python environment, you can create a new virtual environment `pyslam` by easily launching the scripts described [here](./PYTHON-VIRTUAL-ENVS.md).
+
+If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
+
+**N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#detectorsdescriptors)!
 
 #### How to install non-free OpenCV modules
 
-In order to use [non-free OpenCV modules](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SIFT** and **SURF**), you need `opencv-contrib-python`. This package can be installed by running     
-
-`$ pip3 install opencv-contrib-python==3.4.2.16`
-
-For a more advanced OpenCV installation procedure, you can take a look [here](https://www.pyimagesearch.com/opencv-tutorials-resources-guides/). 
+In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SIFT**, **SURF**, etc.), you need to install the module `opencv-contrib-python`. The script `install_pip3_packages.sh` takes care of installing the proper version. This module can be installed by running     
+```
+$ pip3 uninstall opencv-contrib-python
+$ pip3 install opencv-contrib-python==3.4.2.16
+```
 
 How to check your installed OpenCV version:
 ```
 $ python3 -c "import cv2; print(cv2.__version__)"
 ```
+For a more advanced OpenCV installation procedure, you can take a look [here](https://www.pyimagesearch.com/opencv-tutorials-resources-guides/). 
 
-#### How to test under Anaconda
-
-Please, see this [file](./CONDA.md).
-
-#### Install Problems or Errors
+#### Install Issues or Errors
 
 If you run into install problems or run-time errors, please, check the file [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
 --- 
 ## Usage
 
-Once you have run the script `install_pip3_packages.sh`, you can immediately run:
+Once you have run the script `install_basic.sh`, you can immediately run:
 ```
 $ python3 -O main_vo.py
 ```
-This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the video folder). 
+This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
 
 **N.B.**: as explained above, the basic script `main_vo.py` **strictly requires a ground truth**.  
 
@@ -78,16 +92,18 @@ In order to process a different **dataset**, you need to set the file `config.in
 * the camera settings file accordingly (see the section *[Camera Settings](#camera-settings)* below)
 * the groudtruth file accordingly (ee the section *[Datasets](#datasets)* below and check the files `ground_truth.py` and `convert_groundtruth.py` )
 
-Once you have run the script `install_thirdparty.sh` (as required [above](#requirements)), you can test  `main_slam.py` by running:
+Once you have run the script `install_all.sh` (as required [above](#requirements)), you can test  `main_slam.py` by running:
 ```
 $ python3 -O main_slam.py
 ```
 
-You can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, etc. (see the section *[Detectors/Descriptors](#detectorsdescriptors)* below for further information). 
+This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened *Figure 1* window and pressing the key 'Q'. 
 
-Some basic **test files** are available in the subfolder `test`. In particular, you can start by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.
+You can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#detectorsdescriptors)* below for further information). 
 
-**WARNING**: due to information loss in video compression, the available **KITTI videos** make `main_slam.py` tracking peform worse than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
+Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description/matching, you can start by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.
+
+**N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
 
 --- 
 ## Datasets
@@ -152,31 +168,61 @@ If you want to use your camera, you have to:
 * configure the `[VIDEO_DATASET]` section of `config.ini` in order to point to your video.
 
 ---
-## Detectors/Descriptors
+## <a name="detectorsdescriptors"></a> Supported Local Features
 
 At present time, the following feature **detectors** are supported: 
-* *FAST*  
-* *Good features to track* [[ShiTo94]](https://ieeexplore.ieee.org/document/323794)    
-* *ORB*      
-* *SIFT*   
-* *SURF*   
-* *AKAZE*   
-* *BRISK*  
+* *[FAST](https://www.edwardrosten.com/work/fast.html)*  
+* *[Good features to track](https://ieeexplore.ieee.org/document/323794)* 
+* *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
+* *[SIFT](https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf)*   
+* *[SURF](http://people.ee.ethz.ch/~surf/eccv06.pdf)*   
+* *[KAZE](https://www.doc.ic.ac.uk/~ajd/Publications/alcantarilla_etal_eccv2012.pdf)*
+* *[AKAZE](http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf)* 
+* *[BRISK](http://www.margaritachli.com/papers/ICCV2011paper.pdf)*  
+* *[AGAST](http://www.i6.in.tum.de/Main/ResearchAgast)*
+* *[MSER](http://cmp.felk.cvut.cz/~matas/papers/matas-bmvc02.pdf)*
+* *[StarDector/CenSurE](https://link.springer.com/content/pdf/10.1007%2F978-3-540-88693-8_8.pdf)*
+* *[Harris-Laplace](https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf)* 
 * *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
-
-You can take a look at the file `feature_manager.py`. 
+* [D2-Net](https://github.com/mihaidusmanu/d2-net)
+* [DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)
+* [Contextdesc](https://github.com/lzx551402/contextdesc)
+* [LFNet](https://github.com/vcg-uvic/lf-net-release)
+* [R2D2](https://github.com/naver/r2d2)
+* *[Key.Net](https://github.com/axelBarroso/Key.Net)*
 
 The following feature **descriptors** are supported: 
-* *ORB*  
-* *SIFT*   
-* *ROOT SIFT*
-* *SURF*   
-* *AKAZE*   
-* *BRISK*   
+* *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
+* *[SIFT](https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf)*
+* *[ROOT SIFT](https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf)*
+* *[SURF](http://people.ee.ethz.ch/~surf/eccv06.pdf)*    
+* *[AKAZE](http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf)* 
+* *[BRISK](http://www.margaritachli.com/papers/ICCV2011paper.pdf)*     
+* *[FREAK](https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint)* 
 * *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
-* *[Tfeat](https://github.com/vbalnt/tfeat)*
+* [Tfeat](https://github.com/vbalnt/tfeat)
+* [Hardnet](https://github.com/DagnyT/hardnet.git)
+* [GeoDesc](https://github.com/lzx551402/geodesc.git)
+* [SOSNet](https://github.com/yuruntian/SOSNet.git)
+* [L2Net](https://github.com/yuruntian/L2-Net)
+* [Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)
+* [D2-Net](https://github.com/mihaidusmanu/d2-net)
+* [DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)
+* [Contextdesc](https://github.com/lzx551402/contextdesc)
+* [LFNet](https://github.com/vcg-uvic/lf-net-release)
+* [R2D2](https://github.com/naver/r2d2)
 
-In both the scripts `main_vo.py` and `main_slam.py`, you can set which detector/descritor to use by means of the function *feature_tracker_factory()*. This function can be found in the file `feature_tracker.py`. Some examples (commented lines) are already present in both `main_vo.py` and `main_slam.py`.
+
+You can find more information in the file [feature_types.py](./feature_types.py). Some of the local feature consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.
+
+In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
+
+The function `feature_tracker_factory()` can be found in the file `feature_tracker.py`. Take a look at the file `feature_manager.py` for further details.
+
+--- 
+## Contributing to pySLAM
+
+I would be very grateful if you would contribute to the code base by reporting bugs, leaving comments and proposing new features through issues and pull requests. Please  feel free to get in touch at *luigifreda(at)gmail[dot]com*. Thank you!
 
 --- 
 ## References
@@ -185,31 +231,47 @@ Suggested books:
 * *Multiple View Geometry in Computer Vision* by Richard Hartley and Andrew Zisserman
 * *An Invitation to 3-D Vision* by Yi-Ma, Stefano Soatto, Jana Kosecka, S. Shankar Sastry 
 * *Computer Vision: Algorithms and Applications*, by Richard Szeliski 
+* *[Deep Learning](http://www.deeplearningbook.org/lecture_slides.html)*
+* *[Neural Networks and Deep Learning](http://neuralnetworksanddeeplearning.com/index.html)*
 
 Suggested material:
 * *[Vision Algorithms for Mobile Robotics](http://rpg.ifi.uzh.ch/teaching.html)* by Davide Scaramuzza 
 * *[CS 682 Computer Vision](http://cs.gmu.edu/~kosecka/cs682.html)* by Jana Kosecka   
+* *[Awesome local-global descriptors](https://github.com/shamangary/awesome-local-global-descriptor)* repository 
+* [The Role of Wide Baseline Stereo in the Deep Learning World](https://ducha-aiki.github.io/wide-baseline-stereo-blog/2020/03/27/intro.html) by Dmytro Mishkin
+* [Awesome local-global descriptor](https://github.com/shamangary/awesome-local-global-descriptor) repository
 
 Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html) or [tutorials](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_tutorials.html).  
 
 ---
-## TODOs
-
-Tons of things are still missing to attain a real SLAM pipeline: 
-
-* keyframe generation and management 
-* tracking w.r.t. previous keyframe 
-* proper local map generation and management (e.g. covisibility graph)
-* loop closure
-* general relocalization 
-
-
----
 ## Credits 
 
-* [twitchslam](https://github.com/geohot/twitchslam)
-* [monoVO](https://github.com/uoip/monoVO-python)
-* [pangolin](https://github.com/stevenlovegrove/Pangolin) 
+* [Pangolin](https://github.com/stevenlovegrove/Pangolin) 
 * [g2opy](https://github.com/uoip/g2opy)
+* [ORBSLAM2](https://github.com/raulmur/ORB_SLAM2)
 * [SuperPointPretrainedNetwork](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)
 * [Tfeat](https://github.com/vbalnt/tfeat)
+* [Image Matching Benchmark Baselines](https://github.com/vcg-uvic/image-matching-benchmark-baselines)
+* [Hardnet](https://github.com/DagnyT/hardnet.git)
+* [GeoDesc](https://github.com/lzx551402/geodesc.git)
+* [SOSNet](https://github.com/yuruntian/SOSNet.git)
+* [L2Net](https://github.com/yuruntian/L2-Net)
+* [Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)
+* [D2-Net](https://github.com/mihaidusmanu/d2-net)
+* [DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)
+* [Contextdesc](https://github.com/lzx551402/contextdesc)
+* [LFNet](https://github.com/vcg-uvic/lf-net-release)
+* [R2D2](https://github.com/naver/r2d2)
+* [Twitchslam](https://github.com/geohot/twitchslam)
+* [MonoVO](https://github.com/uoip/monoVO-python)  
+
+---
+## TODOs
+
+* loop closure
+* general relocalization 
+* map saving/loading 
+* modern DL matching algorithms
+* object detection and semantic segmentation 
+* 3D dense reconstruction 
+

@@ -1,0 +1,38 @@
+data_name: 'imw2020'
+data_split: 'val'
+data_root: '/local/data/phototourism'
+dump_root: '/local/imw2020_val_contextdesc_8k_dump'
+submission_root: '/local/imw2020_val_contextdesc_8k'
+truncate: [0, null]
+all_jpeg: true
+
+pretrained:
+  loc_model: 'pretrained/contextdesc++/model.ckpt-400000'
+  reg_model: 'pretrained/retrieval_model/model.ckpt-550000'
+
+reg_feat:
+  infer: true
+  overwrite: false
+  max_dim: 1024
+
+loc_feat:
+  infer: true
+  overwrite: false
+  n_feature: 8000
+  batch_size: 512
+  dense_desc: false
+  peak_thld: -10000
+  edge_thld: -10000
+  max_dim: 1280
+  upright: true
+  scale_diff: true 
+
+aug_feat:
+  infer: true
+  overwrite: false
+  reg_feat_dim: 2048
+  quantz: false
+
+post_format:
+  enable: true
+  suffix: ''

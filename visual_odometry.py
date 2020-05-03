@@ -21,8 +21,8 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from feature_tracker import TrackerTypes, TrackResult
-from geom_helpers import poseRt
+from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult
+from utils_geom import poseRt
 from timer import TimerFps
 
 class VoStage(Enum):
@@ -52,9 +52,9 @@ class VisualOdometry(object):
         self.cur_image = None   # current image
         self.prev_image = None  # previous/reference image
 
-        self.kp_ref = None  # reference keypoints 
+        self.kps_ref = None  # reference keypoints 
         self.des_ref = None # refeference descriptors 
-        self.kp_cur = None  # current keypoints 
+        self.kps_cur = None  # current keypoints 
         self.des_cur = None # current descriptors 
 
         self.cur_R = np.eye(3,3) # current rotation 
@@ -95,8 +95,8 @@ class VisualOdometry(object):
             self.trueZ = 0
             return 1
 
-    def computeFundamentalMatrix(self, kp_ref, kp_cur):
-            F, mask = cv2.findFundamentalMat(kp_ref, kp_cur, cv2.FM_RANSAC, param1=kRansacThresholdPixels, param2=kRansacProb)
+    def computeFundamentalMatrix(self, kps_ref, kps_cur):
+            F, mask = cv2.findFundamentalMat(kps_ref, kps_cur, cv2.FM_RANSAC, param1=kRansacThresholdPixels, param2=kRansacProb)
             if F is None or F.shape == (1, 1):
                 # no fundamental matrix found
                 raise Exception('No fundamental matrix found')
@@ -126,11 +126,11 @@ class VisualOdometry(object):
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
     # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
     # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation 
-    def estimatePose(self, kp_ref, kp_cur):	
-        kp_ref_u = self.cam.undistortPoints(kp_ref)	
-        kp_cur_u = self.cam.undistortPoints(kp_cur)	        
-        self.kpn_ref = self.cam.unprojectPoints(kp_ref_u)
-        self.kpn_cur = self.cam.unprojectPoints(kp_cur_u)
+    def estimatePose(self, kps_ref, kps_cur):	
+        kp_ref_u = self.cam.undistort_points(kps_ref)	
+        kp_cur_u = self.cam.undistort_points(kps_cur)	        
+        self.kpn_ref = self.cam.unproject_points(kp_ref_u)
+        self.kpn_cur = self.cam.unproject_points(kp_cur_u)
         if kUseEssentialMatrixEstimation:
             # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister (see the notes and paper above )
             E, self.mask_match = cv2.findEssentialMat(self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)
@@ -144,23 +144,23 @@ class VisualOdometry(object):
 
     def processFirstFrame(self):
         # only detect on the current image 
-        self.kp_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
+        self.kps_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
         # convert from list of keypoints to an array of points 
-        self.kp_ref = np.array([x.pt for x in self.kp_ref], dtype=np.float32) 
+        self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) 
         self.draw_img = self.drawFeatureTracks(self.cur_image)
 
     def processFrame(self, frame_id):
         # track features 
         self.timer_feat.start()
-        self.track_result = self.feature_tracker.track(self.prev_image, self.cur_image, self.kp_ref, self.des_ref)
+        self.track_result = self.feature_tracker.track(self.prev_image, self.cur_image, self.kps_ref, self.des_ref)
         self.timer_feat.refresh()
         # estimate pose 
         self.timer_pose_est.start()
-        R, t = self.estimatePose(self.track_result.kp_ref_matched, self.track_result.kp_cur_matched)     
+        R, t = self.estimatePose(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)     
         self.timer_pose_est.refresh()
         # update keypoints history  
-        self.kp_ref = self.track_result.kp_ref
-        self.kp_cur = self.track_result.kp_cur
+        self.kps_ref = self.track_result.kps_ref
+        self.kps_cur = self.track_result.kps_cur
         self.des_cur = self.track_result.des_cur 
         self.num_matched_kps = self.kpn_ref.shape[0] 
         self.num_inliers =  np.sum(self.mask_match)
@@ -177,12 +177,12 @@ class VisualOdometry(object):
         # draw image         
         self.draw_img = self.drawFeatureTracks(self.cur_image) 
         # check if we have enough features to track otherwise detect new ones and start tracking from them (used for LK tracker) 
-        if (self.feature_tracker.tracker_type == TrackerTypes.LK) and (self.kp_ref.shape[0] < self.feature_tracker.min_num_features): 
-            self.kp_cur, self.des_cur = self.feature_tracker.detectAndCompute(self.cur_image)           
-            self.kp_cur = np.array([x.pt for x in self.kp_cur], dtype=np.float32) # convert from list of keypoints to an array of points   
+        if (self.feature_tracker.tracker_type == FeatureTrackerTypes.LK) and (self.kps_ref.shape[0] < self.feature_tracker.num_features): 
+            self.kps_cur, self.des_cur = self.feature_tracker.detectAndCompute(self.cur_image)           
+            self.kps_cur = np.array([x.pt for x in self.kps_cur], dtype=np.float32) # convert from list of keypoints to an array of points   
             if kVerbose:     
-                print('# new detected points: ', self.kp_cur.shape[0])                  
-        self.kp_ref = self.kp_cur
+                print('# new detected points: ', self.kps_cur.shape[0])                  
+        self.kps_ref = self.kps_cur
         self.des_ref = self.des_cur
         self.updateHistory()           
         
@@ -213,11 +213,11 @@ class VisualOdometry(object):
         num_outliers = 0        
         if(self.stage == VoStage.GOT_FIRST_IMAGE):            
             if reinit:
-                for p1 in self.kp_cur:
+                for p1 in self.kps_cur:
                     a,b = p1.ravel()
                     cv2.circle(draw_img,(a,b),1, (0,255,0),-1)                    
             else:    
-                for i,pts in enumerate(zip(self.track_result.kp_ref_matched, self.track_result.kp_cur_matched)):
+                for i,pts in enumerate(zip(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)):
                     drawAll = False # set this to true if you want to draw outliers 
                     if self.mask_match[i] or drawAll:
                         p1, p2 = pts 

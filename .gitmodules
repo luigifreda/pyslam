@@ -4,3 +4,27 @@
 [submodule "thirdparty/tfeat"]
 	path = thirdparty/tfeat
 	url = https://github.com/vbalnt/tfeat.git
+[submodule "thirdparty/hardnet"]
+	path = thirdparty/hardnet
+	url = https://github.com/DagnyT/hardnet
+[submodule "thirdparty/SOSNet"]
+	path = thirdparty/SOSNet
+	url = https://github.com/yuruntian/SOSNet.git
+[submodule "thirdparty/logpolar"]
+	path = thirdparty/logpolar
+	url = https://github.com/cvlab-epfl/log-polar-descriptors.git
+[submodule "thirdparty/d2net"]
+	path = thirdparty/d2net
+	url = https://github.com/mihaidusmanu/d2-net.git
+[submodule "thirdparty/tensorflow_models"]
+	path = thirdparty/tensorflow_models
+	url = https://github.com/tensorflow/models
+[submodule "thirdparty/lfnet"]
+	path = thirdparty/lfnet
+	url = https://github.com/vcg-uvic/lf-net-release.git
+[submodule "thirdparty/r2d2"]
+	path = thirdparty/r2d2
+	url = https://github.com/naver/r2d2.git
+[submodule "thirdparty/keynet"]
+	path = thirdparty/keynet
+	url = https://github.com/axelBarroso/Key.Net.git

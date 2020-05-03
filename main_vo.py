@@ -24,7 +24,7 @@ import math
 from config import Config
 
 from visual_odometry import VisualOdometry
-from pinhole_camera import PinholeCamera
+from camera  import PinholeCamera
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory
 
@@ -32,17 +32,25 @@ from dataset import dataset_factory
 #from mplot2d import Mplot2d
 from mplot_thread import Mplot2d, Mplot3d
 
-from feature_tracker import feature_tracker_factory, TrackerTypes 
-from feature_manager import feature_manager_factory, FeatureDetectorTypes, FeatureDescriptorTypes
+from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from feature_manager import feature_manager_factory
+from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
-"""
-use or not pangolin (you need to install it by using the script install_thirdparty.sh)
-"""
-use_pangolin = False 
+from feature_tracker_configs import FeatureTrackerConfigs
 
-if use_pangolin:
+
+
+"""
+use or not pangolin (if you want to use it then you need to install it by using the script install_thirdparty.sh)
+"""
+kUsePangolin = False  
+
+if kUsePangolin:
     from viewer3D import Viewer3D
+
+
+
 
 if __name__ == "__main__":
 
@@ -55,77 +63,18 @@ if __name__ == "__main__":
     cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Camera.height'],
                         config.cam_settings['Camera.fx'], config.cam_settings['Camera.fy'],
                         config.cam_settings['Camera.cx'], config.cam_settings['Camera.cy'],
-                        config.DistCoef)
+                        config.DistCoef, config.cam_settings['Camera.fps'])
 
 
     num_features=2000  # how many features do you want to detect and track?
 
-    """
-    a collection of feature tracker parameters
-    """
-
-    # =====================================
-    # LK trackers 
-    tracker_params_LK_SHI_TOMASI = dict(min_num_features=num_features, 
-                                        num_levels = 3, 
-                                        detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
+    # select your tracker configuration (see the file feature_tracker_configs.py) 
+    # LK_SHI_TOMASI, LK_FAST
+    # SHI_TOMASI_ORB, FAST_ORB, ORB, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT
+    tracker_config = FeatureTrackerConfigs.LK_SHI_TOMASI
+    tracker_config['num_features'] = num_features
     
-    tracker_params_LK_FAST = dict(min_num_features=num_features, 
-                                  num_levels = 3, 
-                                  detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.NONE, tracker_type = TrackerTypes.LK)
-
-    # =====================================
-    # Descriptor-based trackers 
-    
-    # tracker_type = TrackerTypes.DES_BF
-    tracker_type = TrackerTypes.DES_FLANN         
-
-    tracker_params_SHI_TOMASI = dict(min_num_features=num_features, 
-                                    num_levels = 4, scale_factor = 1.2,
-                                    detector_type = FeatureDetectorTypes.SHI_TOMASI, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
-    
-    tracker_params_FAST_ORB = dict(min_num_features=num_features, 
-                                    num_levels = 4, scale_factor = 1.2, 
-                                    detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type) # nice results even with num_levels=1
-    
-    tracker_params_BRISK = dict(min_num_features=num_features, 
-                                num_levels = 4, 
-                                detector_type = FeatureDetectorTypes.BRISK, descriptor_type = FeatureDescriptorTypes.BRISK, tracker_type = tracker_type)   
-      
-    tracker_params_AKAZE = dict(min_num_features=num_features, 
-                                num_levels = 4, 
-                                detector_type = FeatureDetectorTypes.AKAZE, descriptor_type = FeatureDescriptorTypes.AKAZE, tracker_type = tracker_type)  
-      
-    tracker_params_ORB = dict(min_num_features=num_features, 
-                              num_levels = 4, scale_factor = 1.2, 
-                              detector_type = FeatureDetectorTypes.ORB, descriptor_type = FeatureDescriptorTypes.ORB, tracker_type = tracker_type)
-    
-    tracker_params_SIFT = dict(min_num_features=num_features, 
-                               detector_type = FeatureDetectorTypes.SIFT, descriptor_type = FeatureDescriptorTypes.SIFT, tracker_type = tracker_type)
-    
-    tracker_params_ROOT_SIFT = dict(min_num_features=num_features, 
-                                    detector_type = FeatureDetectorTypes.ROOT_SIFT, descriptor_type = FeatureDescriptorTypes.ROOT_SIFT, tracker_type = tracker_type)    
-    
-    tracker_params_SURF = dict(min_num_features=num_features, 
-                               num_levels = 4, 
-                               detector_type = FeatureDetectorTypes.SURF, descriptor_type = FeatureDescriptorTypes.SURF, tracker_type = tracker_type)
-    
-    tracker_params_FREAK = dict(min_num_features=num_features, 
-                                num_levels = 4, 
-                                detector_type = FeatureDetectorTypes.FREAK, descriptor_type = FeatureDescriptorTypes.FREAK, tracker_type = tracker_type)   
-     
-    tracker_params_SUPERPOINT = dict(min_num_features=num_features, 
-                                     num_levels = 1, scale_factor = 1.2, 
-                                     detector_type = FeatureDetectorTypes.SUPERPOINT, descriptor_type = FeatureDescriptorTypes.SUPERPOINT, tracker_type = tracker_type)
-    
-    tracker_params_FAST_TFEAT = dict(min_num_features=num_features, 
-                                     num_levels = 1, scale_factor = 1.2, 
-                                     detector_type = FeatureDetectorTypes.FAST, descriptor_type = FeatureDescriptorTypes.TFEAT, tracker_type = tracker_type)    
-    
-    """
-    select your feature tracker parameters 
-    """
-    feature_tracker = feature_tracker_factory(**tracker_params_LK_SHI_TOMASI)
+    feature_tracker = feature_tracker_factory(**tracker_config)
 
     # create visual odometry object 
     vo = VisualOdometry(cam, grountruth, feature_tracker)
@@ -137,8 +86,8 @@ if __name__ == "__main__":
     draw_scale = 1
 
     is_draw_3d = True
-    if use_pangolin:
-        display = Viewer3D()
+    if kUsePangolin:
+        viewer3D = Viewer3D()
     else:
         plt3d = Mplot3d(title='3D trajectory')
 
@@ -175,8 +124,8 @@ if __name__ == "__main__":
                     cv2.imshow('Trajectory', traj_img)
 
                 if is_draw_3d:           # draw 3d trajectory 
-                    if use_pangolin:
-                        display.drawVo(vo)   
+                    if kUsePangolin:
+                        viewer3D.draw_vo(vo)   
                     else:
                         plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
                         plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
@@ -207,9 +156,20 @@ if __name__ == "__main__":
             break
         img_id += 1
 
-    cv2.waitKey(0)
+    #print('press a key in order to exit...')
+    #cv2.waitKey(0)
 
     if is_draw_traj_img:
+        print('saving map.png')
         cv2.imwrite('map.png', traj_img)
-
+    if is_draw_3d:
+        if not kUsePangolin:
+            plt3d.quit()
+        else: 
+            viewer3D.quit()
+    if is_draw_err:
+        err_plt.quit()
+    if is_draw_matched_points is not None:
+        matched_points_plt.quit()
+                
     cv2.destroyAllWindows()

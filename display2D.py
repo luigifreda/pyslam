@@ -28,10 +28,14 @@ from pygame.locals import DOUBLEBUF
 class Display2D(object):
     def __init__(self, W, H, is_BGR=True):
         pygame.init()
-        pygame.display.set_caption('camera')
+        pygame.display.set_caption('Camera')
         self.screen = pygame.display.set_mode((W, H), DOUBLEBUF)
         self.surface = pygame.Surface(self.screen.get_size()).convert()
         self.is_BGR = is_BGR
+
+    def quit(self):
+        pygame.display.quit()
+        pygame.quit()
 
     def draw(self, img):
         # junk

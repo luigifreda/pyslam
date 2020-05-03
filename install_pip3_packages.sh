@@ -2,7 +2,7 @@
 
 
 # ====================================================
-# import the utils 
+# import the bash utils 
 . bash_utils.sh 
 
 # ====================================================
@@ -12,19 +12,30 @@ set -e
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
 
-# N.B.: it's required the use of python3 
+# N.B.: python3 is required!
 
-install_pip_packages pygame numpy matplotlib pyopengl Pillow pybind11 scikit-image pyyaml termcolor
-install_pip_packages opencv-python opencv-contrib-python 
-install_pip_packages torch 
-install_pip_packages torchvision
-install_package python3-sdl2 
-install_package python3-tk
+# pip3 packages 
+install_pip_packages pygame numpy matplotlib pyopengl Pillow pybind11 
+install_pip_package numpy>=1.18.3
+install_pip_package scipy==1.4.1
+install_pip_package scikit-image==0.16.2
+install_pip_packages pyyaml termcolor tqdm yacs
+install_pip_package opencv-python  
+pip3 uninstall opencv-contrib-python  # better to clean it before installing the right version 
+install_pip_package opencv-contrib-python==3.4.2.16 
+install_pip_package torch 
+install_pip_package torchvision
+install_pip_package ordered-set # from https://pypi.org/project/ordered-set/
+install_pip_package tensorflow-gpu==1.14.0  # 1.14.0 works with all the modules contained in pyslam2
 
 # it may be required if you have errors with pillow
 #pip3 uninstall pillow 
 #pip3 install pillow==6.2.2
 
-print_blue '================================================'
-print_blue "Checking and downloading git modules ..."
-set_git_modules   
+ 
+# set up git submodules  
+#./install_git_modules.sh 
+
+
+# build and install cpp stuff 
+#./install_cpp.sh 

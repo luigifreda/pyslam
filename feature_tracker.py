@@ -20,82 +20,134 @@
 import numpy as np 
 import cv2
 from enum import Enum
-from feature_manager import feature_manager_factory, FeatureDetectorTypes, FeatureDescriptorTypes
+
+from feature_manager import feature_manager_factory
+from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
-from helpers import Printer
-from geom_helpers import hamming_distance, l2_distance
 
-
-class TrackerTypes(Enum):
-    LK        = 0   # use pixel patch as "descriptor" and match by using Lucas Kanade pyramid optic flow 
-    DES_BF    = 1   # descriptor-based, brute force matching with knn 
-    DES_FLANN = 2   # descriptor-based, FLANN-based matching (in principle, faster)
+from utils import Printer, import_from
+from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
+from parameters import Parameters 
 
 
 kMinNumFeatureDefault = 2000
 kLkPyrOpticFlowNumLevelsMin = 3   # maximal pyramid level number for LK optic flow 
+kRatioTest = Parameters.kFeatureMatchRatioTest
 
-def feature_tracker_factory(min_num_features=kMinNumFeatureDefault, 
+
+class FeatureTrackerTypes(Enum):
+    LK        = 0   # Lucas Kanade pyramid optic flow (use pixel patch as "descriptor" and matching by optimization)
+    DES_BF    = 1   # descriptor-based, brute force matching with knn 
+    DES_FLANN = 2   # descriptor-based, FLANN-based matching 
+
+
+def feature_tracker_factory(num_features=kMinNumFeatureDefault, 
                             num_levels = 1,                                 # number of pyramid levels or octaves for detector and descriptor   
                             scale_factor = 1.2,                             # detection scale factor (if it can be set, otherwise it is automatically computed)
                             detector_type = FeatureDetectorTypes.FAST, 
                             descriptor_type = FeatureDescriptorTypes.ORB, 
-                            tracker_type = TrackerTypes.LK):
-    if tracker_type == TrackerTypes.LK:
-        return LkFeatureTracker(min_num_features=min_num_features, num_levels = num_levels, scale_factor = scale_factor, detector_type = detector_type, descriptor_type = descriptor_type, tracker_type = tracker_type)
+                            match_ratio_test = kRatioTest,
+                            tracker_type = FeatureTrackerTypes.LK):
+    if tracker_type == FeatureTrackerTypes.LK:
+        return LkFeatureTracker(num_features=num_features, 
+                                num_levels = num_levels, 
+                                scale_factor = scale_factor, 
+                                detector_type = detector_type, 
+                                descriptor_type = descriptor_type, 
+                                match_ratio_test = match_ratio_test,                                
+                                tracker_type = tracker_type)
     else: 
-        return DescriptorFeatureTracker(min_num_features=min_num_features, num_levels = num_levels, scale_factor = scale_factor, detector_type = detector_type, descriptor_type = descriptor_type, tracker_type = tracker_type)
+        return DescriptorFeatureTracker(num_features=num_features, 
+                                        num_levels = num_levels, 
+                                        scale_factor = scale_factor, 
+                                        detector_type = detector_type, 
+                                        descriptor_type = descriptor_type,
+                                        match_ratio_test = match_ratio_test,    
+                                        tracker_type = tracker_type)
     return None 
 
 
-class TrackResult(object): 
+class FeatureTrackingResult(object): 
     def __init__(self):
-        self.kp_ref = None          # all reference keypoints (numpy array Nx2)
-        self.kp_cur = None          # all current keypoints (numpy array Nx2)
-        self.des_cur = None         # all current descriptors (numpy array NxD)
-        self.idx_ref = None         # indexes of matches in kp_ref so that kp_ref_matched = kp_ref[idx_ref]  (numpy array of indexes)
-        self.idx_cur = None         # indexes of matches in kp_cur so that kp_cur_matched = kp_cur[idx_cur]  (numpy array of indexes)
-        self.kp_ref_matched = None  # reference matched keypoints, kp_ref_matched = kp_ref[idx_ref]
-        self.kp_cur_matched = None  # current matched keypoints, kp_cur_matched = kp_cur[idx_cur]
+        self.kps_ref = None          # all reference keypoints (numpy array Nx2)
+        self.kps_cur = None          # all current keypoints   (numpy array Nx2)
+        self.des_cur = None          # all current descriptors (numpy array NxD)
+        self.idxs_ref = None         # indexes of matches in kps_ref so that kps_ref_matched = kps_ref[idxs_ref]  (numpy array of indexes)
+        self.idxs_cur = None         # indexes of matches in kps_cur so that kps_cur_matched = kps_cur[idxs_cur]  (numpy array of indexes)
+        self.kps_ref_matched = None  # reference matched keypoints, kps_ref_matched = kps_ref[idxs_ref]
+        self.kps_cur_matched = None  # current matched keypoints, kps_cur_matched = kps_cur[idxs_cur]
 
 
-# base class 
+# Base class for a feature tracker.
+# It mainly contains a feature manager and a feature matcher. 
 class FeatureTracker(object): 
-    def __init__(self, min_num_features=kMinNumFeatureDefault, 
+    def __init__(self, num_features=kMinNumFeatureDefault, 
                        num_levels = 1,                                   # number of pyramid levels for detector and descriptor  
                        scale_factor = 1.2,                               # detection scale factor (if it can be set, otherwise it is automatically computed) 
                        detector_type = FeatureDetectorTypes.FAST, 
-                       descriptor_type = FeatureDescriptorTypes.ORB, 
-                       tracker_type = TrackerTypes.LK):
-        self.min_num_features = min_num_features
-        self.num_levels = num_levels 
-        self.scale_factor = scale_factor 
+                       descriptor_type = FeatureDescriptorTypes.ORB,
+                       match_ratio_test = kRatioTest, 
+                       tracker_type = FeatureTrackerTypes.LK):
         self.detector_type = detector_type
         self.descriptor_type = descriptor_type
         self.tracker_type = tracker_type
 
-        self.feature_manager = None 
-        self.descriptor_distance = None  # pointer function 
-
+        self.feature_manager = None      # it contains both detector and descriptor  
+        self.matcher = None              # it contain descriptors matching methods based on BF, FLANN, etc.
+                
+    @property
+    def num_features(self):
+        return self.feature_manager.num_features
+    
+    @property
+    def num_levels(self):
+        return self.feature_manager.num_levels    
+    
+    @property
+    def scale_factor(self):
+        return self.feature_manager.scale_factor    
+    
+    @property
+    def norm_type(self):
+        return self.feature_manager.norm_type       
+    
+    @property
+    def descriptor_distance(self):
+        return self.feature_manager.descriptor_distance               
+    
+    @property
+    def descriptor_distances(self):
+        return self.feature_manager.descriptor_distances               
+    
     # out: keypoints and descriptors 
     def detectAndCompute(self, frame, mask): 
         return None, None 
 
-    # out: TrackResult()
-    def track(self, image_ref, image_cur, kp_ref, des_ref):
-        return TrackResult()             
+    # out: FeatureTrackingResult()
+    def track(self, image_ref, image_cur, kps_ref, des_ref):
+        return FeatureTrackingResult()             
 
 
-# use patch as "descriptor" and track/"match" by using Lucas Kanade pyr optic flow 
+# Lucas-Kanade Tracker: it uses raw pixel patches as "descriptors" and track/"match" by using Lucas Kanade pyr optic flow 
 class LkFeatureTracker(FeatureTracker): 
-    def __init__(self, min_num_features=kMinNumFeatureDefault, 
+    def __init__(self, num_features=kMinNumFeatureDefault, 
                        num_levels = 3,                             # number of pyramid levels for detector  
                        scale_factor = 1.2,                         # detection scale factor (if it can be set, otherwise it is automatically computed) 
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.NONE, 
-                       tracker_type = TrackerTypes.LK):                         
-        super().__init__(min_num_features=min_num_features, num_levels=num_levels, scale_factor=scale_factor, detector_type=detector_type, descriptor_type=descriptor_type, tracker_type=tracker_type)
-        self.feature_manager = feature_manager_factory(min_num_features=min_num_features, num_levels=num_levels, scale_factor=scale_factor, detector_type=detector_type, descriptor_type=descriptor_type)   
+                       match_ratio_test = kRatioTest,
+                       tracker_type = FeatureTrackerTypes.LK):                         
+        super().__init__(num_features=num_features, 
+                         num_levels=num_levels, 
+                         scale_factor=scale_factor, 
+                         detector_type=detector_type, 
+                         descriptor_type=descriptor_type, 
+                         tracker_type=tracker_type)
+        self.feature_manager = feature_manager_factory(num_features=num_features, 
+                                                       num_levels=num_levels, 
+                                                       scale_factor=scale_factor, 
+                                                       detector_type=detector_type, 
+                                                       descriptor_type=descriptor_type)   
         #if num_levels < 3:
         #    Printer.green('LkFeatureTracker: forcing at least 3 levels on LK pyr optic flow') 
         #    num_levels = 3          
@@ -110,88 +162,78 @@ class LkFeatureTracker(FeatureTracker):
     def detectAndCompute(self, frame, mask=None):
         return self.feature_manager.detect(frame, mask), None  
 
-    # out: TrackResult()
-    def track(self, image_ref, image_cur, kp_ref, des_ref = None):
-        kp_cur, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, kp_ref, None, **self.lk_params)  #shape: [k,2] [k,1] [k,1]
+    # out: FeatureTrackingResult()
+    def track(self, image_ref, image_cur, kps_ref, des_ref = None):
+        kps_cur, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, kps_ref, None, **self.lk_params)  #shape: [k,2] [k,1] [k,1]
         st = st.reshape(st.shape[0])
-        res = TrackResult()    
-        #res.idx_ref = (st == 1)
-        res.idx_ref = [i for i,v in enumerate(st) if v== 1]
-        res.idx_cur = res.idx_ref.copy()       
-        res.kp_ref_matched = kp_ref[res.idx_ref] 
-        res.kp_cur_matched = kp_cur[res.idx_cur]  
-        res.kp_ref = res.kp_ref_matched  # with LK we follow feature trails hence we can forget unmatched features 
-        res.kp_cur = res.kp_cur_matched
+        res = FeatureTrackingResult()    
+        #res.idxs_ref = (st == 1)
+        res.idxs_ref = [i for i,v in enumerate(st) if v== 1]
+        res.idxs_cur = res.idxs_ref.copy()       
+        res.kps_ref_matched = kps_ref[res.idxs_ref] 
+        res.kps_cur_matched = kps_cur[res.idxs_cur]  
+        res.kps_ref = res.kps_ref_matched  # with LK we follow feature trails hence we can forget unmatched features 
+        res.kps_cur = res.kps_cur_matched
         res.des_cur = None                      
         return res         
         
 
-# extract keypoints by using desired detector and descriptor, match keypoints by using desired matcher 
+# Extract features by using desired detector and descriptor, match keypoints by using desired matcher on computed descriptors
 class DescriptorFeatureTracker(FeatureTracker): 
-    def __init__(self, min_num_features=kMinNumFeatureDefault, 
+    def __init__(self, num_features=kMinNumFeatureDefault, 
                        num_levels = 1,                                    # number of pyramid levels for detector  
                        scale_factor = 1.2,                                # detection scale factor (if it can be set, otherwise it is automatically computed)                
                        detector_type = FeatureDetectorTypes.FAST, 
-                       descriptor_type = FeatureDescriptorTypes.ORB, 
-                       tracker_type = TrackerTypes.DES_FLANN):
-        super().__init__(min_num_features=min_num_features, num_levels=num_levels, scale_factor=scale_factor, detector_type=detector_type, descriptor_type=descriptor_type, tracker_type=tracker_type)
-        self.feature_manager = feature_manager_factory(min_num_features=min_num_features, num_levels=num_levels, scale_factor=scale_factor, detector_type=detector_type, descriptor_type=descriptor_type)   
+                       descriptor_type = FeatureDescriptorTypes.ORB,
+                       match_ratio_test = kRatioTest, 
+                       tracker_type = FeatureTrackerTypes.DES_FLANN):
+        super().__init__(num_features=num_features, 
+                         num_levels=num_levels, 
+                         scale_factor=scale_factor, 
+                         detector_type=detector_type, 
+                         descriptor_type=descriptor_type, 
+                         match_ratio_test = match_ratio_test,
+                         tracker_type=tracker_type)
+        self.feature_manager = feature_manager_factory(num_features=num_features, 
+                                                       num_levels=num_levels, 
+                                                       scale_factor=scale_factor, 
+                                                       detector_type=detector_type, 
+                                                       descriptor_type=descriptor_type)                     
 
-        if descriptor_type == FeatureDescriptorTypes.ORB:
-            self.norm_type = cv2.NORM_HAMMING
-        elif descriptor_type == FeatureDescriptorTypes.BRISK:
-            self.norm_type = cv2.NORM_HAMMING   
-        elif descriptor_type == FeatureDescriptorTypes.AKAZE:
-            self.norm_type = cv2.NORM_HAMMING       
-        elif descriptor_type == FeatureDescriptorTypes.FREAK:
-            self.norm_type = cv2.NORM_HAMMING                                           
-        elif descriptor_type == FeatureDescriptorTypes.SURF:
-            self.norm_type = cv2.NORM_L2            
-        elif descriptor_type == FeatureDescriptorTypes.SIFT: 
-            self.norm_type = cv2.NORM_L2
-        elif descriptor_type == FeatureDescriptorTypes.ROOT_SIFT: 
-            self.norm_type = cv2.NORM_L2        
-        elif descriptor_type == FeatureDescriptorTypes.SUPERPOINT: 
-            self.norm_type = cv2.NORM_L2  
-        elif descriptor_type == FeatureDescriptorTypes.TFEAT: 
-            self.norm_type = cv2.NORM_L2                                     
-        else:
-            raise ValueError("Unmanaged norm type for feature tracker %s" % self.tracker_type)      
-
-        if self.norm_type == cv2.NORM_HAMMING:
-            self.descriptor_distance = hamming_distance 
-        if self.norm_type == cv2.NORM_L2:
-            self.descriptor_distance = l2_distance            
-
-        if tracker_type == TrackerTypes.DES_FLANN:
+        if tracker_type == FeatureTrackerTypes.DES_FLANN:
             self.matching_algo = FeatureMatcherTypes.FLANN
-        elif tracker_type == TrackerTypes.DES_BF:
+        elif tracker_type == FeatureTrackerTypes.DES_BF:
             self.matching_algo = FeatureMatcherTypes.BF
         else:
-            raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)               
-        
-        self.matcher = feature_matcher_factory(norm_type=self.norm_type, type=self.matching_algo)        
+            raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)                   
+                    
+        # init matcher 
+        self.matcher = feature_matcher_factory(norm_type=self.norm_type, ratio_test=match_ratio_test, type=self.matching_algo)        
+
 
     # out: keypoints and descriptors 
     def detectAndCompute(self, frame, mask=None):
         return self.feature_manager.detectAndCompute(frame, mask) 
 
-    # out: TrackResult()
-    def track(self, image_ref, image_cur, kp_ref, des_ref):
-        kp_cur, des_cur = self.detectAndCompute(image_cur)
+
+    # out: FeatureTrackingResult()
+    def track(self, image_ref, image_cur, kps_ref, des_ref):
+        kps_cur, des_cur = self.detectAndCompute(image_cur)
         # convert from list of keypoints to an array of points 
-        kp_cur = np.array([x.pt for x in kp_cur], dtype=np.float32) 
+        kps_cur = np.array([x.pt for x in kps_cur], dtype=np.float32) 
     
-        idx_ref, idx_cur = self.matcher.match(des_ref, des_cur)  #knnMatch(queryDescriptors,trainDescriptors)
+        idxs_ref, idxs_cur = self.matcher.match(des_ref, des_cur)  #knnMatch(queryDescriptors,trainDescriptors)
         #print('num matches: ', len(matches))
 
-        res = TrackResult()
-        res.kp_ref = kp_ref  # let's keep all the original ref kps  
-        res.kp_cur = kp_cur  # let's keep all the original cur kps       
-        res.kp_ref_matched = np.asarray(kp_ref[idx_ref]) # here we put the matched ones 
-        res.kp_cur_matched = np.asarray(kp_cur[idx_cur]) # here we put the matched ones 
-        res.idx_cur = np.asarray(idx_cur)
-        res.idx_ref = np.asarray(idx_ref)
-        res.des_cur = des_cur  # all current descriptors 
+        res = FeatureTrackingResult()
+        res.kps_ref = kps_ref  # all the reference keypoints  
+        res.kps_cur = kps_cur  # all the current keypoints       
+        res.des_cur = des_cur  # all the current descriptors         
+        
+        res.kps_ref_matched = np.asarray(kps_ref[idxs_ref]) # the matched ref kps  
+        res.idxs_ref = np.asarray(idxs_ref)                  
+        
+        res.kps_cur_matched = np.asarray(kps_cur[idxs_cur]) # the matched cur kps  
+        res.idxs_cur = np.asarray(idxs_cur)
         
         return res                 

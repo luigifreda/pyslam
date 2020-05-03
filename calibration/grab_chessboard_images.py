@@ -60,4 +60,6 @@ if __name__ == "__main__":
             #print('empty image')                
                             
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            break                
+            break    
+        
+    #webcam.quit()            

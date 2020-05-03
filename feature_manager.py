@@ -18,473 +18,928 @@
 """
 import sys 
 import math 
+from enum import Enum
 import numpy as np 
 import cv2
 
-from scipy.spatial import cKDTree
-import numpy as np
+from collections import Counter
 
-from enum import Enum
+from parameters import Parameters  
 
-import parameters  
+from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 
-from geom_helpers import unpackSiftOctaveKps
+from utils import Printer, import_from
+from utils_features import unpackSiftOctaveKps, UnpackOctaveMethod, sat_num_features, kdt_nms, ssc_nms, octree_nms, grid_nms
+from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
+
 from feature_manager_adaptors import BlockAdaptor, PyramidAdaptor
+from pyramid import Pyramid, PyramidType
 
-try:
-    from feature_superpoint import SuperPointFeature2D 
-except ImportError:
-    print('problems when importing TfeatFeature2D, check the file TROUBLESHOOTING.md')
+from feature_root_sift import RootSIFTFeature2D
+from feature_shitomasi import ShiTomasiDetector
     
-try:
-    from feature_tfeat import TfeatFeature2D                     
-except ImportError:
-    print('problems when importing TfeatFeature2D, check the file TROUBLESHOOTING.md')
+# import and check 
+SuperPointFeature2D = import_from('feature_superpoint', 'SuperPointFeature2D')         
+TfeatFeature2D = import_from('feature_tfeat', 'TfeatFeature2D')     
+Orbslam2Feature2D = import_from('feature_orbslam2', 'Orbslam2Feature2D')  
+HardnetFeature2D = import_from('feature_hardnet', 'HardnetFeature2D')
+GeodescFeature2D = import_from('feature_geodesc', 'GeodescFeature2D')
+SosnetFeature2D = import_from('feature_sosnet', 'SosnetFeature2D')
+if False:
+    L2NetKerasFeature2D = import_from('feature_l2net_keras', 'L2NetKerasFeature2D')  # not used at present time 
+L2NetFeature2D = import_from('feature_l2net', 'L2NetFeature2D')
+LogpolarFeature2D = import_from('feature_logpolar', 'LogpolarFeature2D')
+D2NetFeature2D = import_from('feature_d2net', 'D2NetFeature2D')
+DelfFeature2D = import_from('feature_delf', 'DelfFeature2D')
+ContextDescFeature2D = import_from('feature_contextdesc', 'ContextDescFeature2D')
+LfNetFeature2D = import_from('feature_lfnet', 'LfNetFeature2D')
+R2d2Feature2D = import_from('feature_r2d2', 'R2d2Feature2D')
+KeyNetDescFeature2D = import_from('feature_keynet', 'KeyNetDescFeature2D')
+
 
 kVerbose = True   
 
-kMinNumFeatureDefault = 2000
+kNumFeatureDefault = Parameters.kNumFeatures
 
-kNumLevels = 4
-kNumLevelsInitSigma = 12
-kScaleFactor = 1.2 
-kSigmaLevel0 = 1. 
+kNumLevelsDefault = 4
+kScaleFactorDefault = 1.2 
+
+kNumLevelsInitSigma = 40
+
+kSigmaLevel0 = Parameters.kSigmaLevel0 
 
 kDrawOriginalExtractedFeatures = False  # for debugging 
-kUseKdtNonMaximumSuppressionForKps = parameters.kUseKdtNonMaximumSuppressionForKps 
 
-class FeatureDetectorTypes(Enum):
-    SHI_TOMASI = 1
-    FAST       = 2    
-    SIFT       = 3
-    ROOT_SIFT  = 4 
-    SURF       = 5
-    ORB        = 6 
-    BRISK      = 7
-    AKAZE      = 8
-    FREAK      = 9  # DOES NOT WORK in my setup! "The function/feature is not implemented"
-    SUPERPOINT = 10
+kFASTKeyPointSizeRescaleFactor = 4        # 7 is the standard keypoint size on layer 0  => actual size = 7*kFASTKeyPointSizeRescaleFactor
+kAGASTKeyPointSizeRescaleFactor = 4       # 7 is the standard keypoint size on layer 0  => actual size = 7*kAGASTKeyPointSizeRescaleFactor
+kShiTomasiKeyPointSizeRescaleFactor = 5   # 5 is the selected keypoint size on layer 0 (see below) => actual size = 5*kShiTomasiKeyPointSizeRescaleFactor
 
 
-class FeatureDescriptorTypes(Enum):
-    NONE       = 0  # used for LK tracker
-    SIFT       = 1
-    ROOT_SIFT  = 2    
-    SURF       = 3
-    ORB        = 4  
-    BRISK      = 5       
-    AKAZE      = 6
-    FREAK      = 7  # DOES NOT WORK in my setup! "The function/feature is not implemented"
-    SUPERPOINT = 8    
-    TFEAT      = 9
+if not kVerbose:
+    def print(*args, **kwargs):
+        pass 
+    
+    
+class KeyPointFilterTypes(Enum):
+    NONE         = 0
+    SAT          = 1      # sat the number of features (keep the best N features: 'best' on the basis of the keypoint.response)
+    KDT_NMS      = 2      # Non-Maxima Suppression based on kd-tree
+    SSC_NMS      = 3      # Non-Maxima Suppression based on https://github.com/BAILOOL/ANMS-Codes
+    OCTREE_NMS   = 4      # Distribute keypoints by using a octree (as a matter of fact, a quadtree): from ORBSLAM2
+    GRID_NMS     = 5      # NMS by using a grid 
 
 
-def feature_manager_factory(min_num_features=kMinNumFeatureDefault, 
-                            num_levels = kNumLevels,                        # number of pyramid levels or octaves for detector and descriptor
-                            scale_factor = kScaleFactor,                    # detection scale factor (if it can be set, otherwise it is automatically computed)
+def feature_manager_factory(num_features=kNumFeatureDefault, 
+                            num_levels = kNumLevelsDefault,                  # number of pyramid levels or octaves for detector and descriptor
+                            scale_factor = kScaleFactorDefault,              # detection scale factor (if it can be set, otherwise it is automatically computed)
                             detector_type = FeatureDetectorTypes.FAST, 
                             descriptor_type = FeatureDescriptorTypes.ORB):
-    return FeatureManager(min_num_features, num_levels, scale_factor, detector_type, descriptor_type)
-
-
-class ShiTomasiDetector(object): 
-    def __init__(self, min_num_features=kMinNumFeatureDefault, quality_level = 0.01, min_coner_distance = 7):
-        self.min_num_features = min_num_features
-        self.quality_level = quality_level
-        self.min_coner_distance = min_coner_distance
-        self.blockSize=3
-
-    def detect(self, frame, mask=None):                
-        pts = cv2.goodFeaturesToTrack(frame, self.min_num_features, self.quality_level, self.min_coner_distance, blockSize=self.blockSize, mask=mask)
-        # convert matrix of pts into list of keypoints 
-        if pts is not None: 
-            kps = [ cv2.KeyPoint(p[0][0], p[0][1], self.blockSize) for p in pts ]
-        else:
-            kps = []
-        if kVerbose:
-            print('detector: Shi-Tomasi, #features: ', len(kps), ', #ref: ', self.min_num_features, ', frame res: ', frame.shape[0:2])      
-        return kps
-
-
-# https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf
-# adapated from https://www.pyimagesearch.com/2015/04/13/implementing-rootsift-in-python-and-opencv/
-class RootSIFTFeature2D:
-    def __init__(self, feature):
-        # initialize the SIFT feature detector
-        self.feature = feature
-
-    def detect(self, frame, mask=None):
-        return self.feature.detect(frame, mask)
- 
-    def transform_descriptors(self, des, eps=1e-7): 
-        # apply the Hellinger kernel by first L1-normalizing and 
-        # taking the square-root
-        des /= (des.sum(axis=1, keepdims=True) + eps)
-        des = np.sqrt(des)        
-        return des 
-            
-    def compute(self, frame, kps, eps=1e-7):
-        # compute SIFT descriptors
-        (kps, des) = self.feature.compute(frame, kps)
-
-        # if there are no keypoints or descriptors, return an empty tuple
-        if len(kps) == 0:
-            return ([], None)
-
-        # apply the Hellinger kernel by first L1-normalizing and 
-        # taking the square-root
-        des = self.transform_descriptors(des)
-
-        # return a tuple of the keypoints and descriptors
-        return (kps, des)
-
-    # detect keypoints and their descriptors
-    # out: kps, des 
-    def detectAndCompute(self, frame, mask=None):
-        # compute SIFT keypoints and descriptors
-        (kps, des) = self.feature.detectAndCompute(frame, mask)
-
-        # if there are no keypoints or descriptors, return an empty tuple
-        if len(kps) == 0:
-            return ([], None)
-
-        # apply the Hellinger kernel by first L1-normalizing and 
-        # taking the square-root
-        des = self.transform_descriptors(des)
-
-        # return a tuple of the keypoints and descriptors
-        return (kps, des)
+    return FeatureManager(num_features, num_levels, scale_factor, detector_type, descriptor_type)
 
 
 # Manager of both detector and descriptor 
-# This exposes methods thath similar to OpenCV::Feature2D, i.e. detect() and detectAndCompute()
+# This exposes an interface that is similar to OpenCV::Feature2D, i.e. detect(), compute() and detectAndCompute()
 class FeatureManager(object):
-    def __init__(self, min_num_features=kMinNumFeatureDefault, 
-                       num_levels = kNumLevels,                         # number of pyramid levels or octaves for detector and descriptor
-                       scale_factor = kScaleFactor,                     # detection scale factor (if it can be set, otherwise it is automatically computed)
-                       detector_type = FeatureDetectorTypes.SHI_TOMASI,  
+    def __init__(self, num_features=kNumFeatureDefault, 
+                       num_levels = kNumLevelsDefault,                         # number of pyramid levels or octaves for detector and descriptor
+                       scale_factor = kScaleFactorDefault,                     # detection scale factor (if it can be set, otherwise it is automatically computed)
+                       detector_type = FeatureDetectorTypes.FAST,  
                        descriptor_type = FeatureDescriptorTypes.ORB):
         self.detector_type = detector_type 
+        self._feature_detector   = None 
+                
         self.descriptor_type = descriptor_type
-        
-        self._feature_detector = None 
-        self.detector_name = ''
-        
         self._feature_descriptor = None 
-        self.decriptor_name = ''
-
+                
+        # main feature manager properties 
+        self.num_features = num_features
         self.num_levels = num_levels  
+        self.first_level = 0              # not always applicable = > 0: start pyramid from input image; 
+                                          #                          -1: start pyramid from up-scaled image*scale_factor (as in SIFT)
         self.scale_factor = scale_factor  # scale factor bewteen two octaves 
         self.sigma_level0 = kSigmaLevel0  # sigma on first octave 
-        self.initSigmaLevels()
-
-        self.min_num_features = min_num_features
-        # at present time pyramid adaptor has the priority and can combine a block adaptor withint itself 
+        self.layers_per_octave = 3        # for methods that uses octaves (SIFT, SURF, etc)
+        
+        # feature norm options  
+        self.norm_type = None            # descriptor norm type 
+        self.descriptor_distance = None  # pointer to a function for computing the distance between two points 
+        self.descriptor_distances = None # pointer to a function for computing the distances between two array of corresponding points    
+                
+        # block adaptor options 
         self.use_bock_adaptor = False 
         self.block_adaptor = None
+        
+        # pyramid adaptor options: at present time pyramid adaptor has the priority and can combine a block adaptor withint itself         
         self.use_pyramid_adaptor = False 
         self.pyramid_adaptor = None 
+        self.pyramid_type = PyramidType.RESIZE
+        self.pyramid_do_parallel = True
+        self.do_sat_features_per_level = False  # if pyramid adaptor is active, one can require to compute a certain number of features per level (see PyramidAdaptor)
+        self.force_multiscale_detect_and_compute = False # automatically managed below depending on features 
         
-        self.need_nms = False # need or not non-maximum suppression of keypoints 
+        self.oriented_features = True             # automatically managed below depending on selected features 
+        self.do_keypoints_size_rescaling = False  # automatically managed below depending on selected features 
+        self.need_color_image = False             # automatically managed below depending on selected features 
+                
+        self.keypoint_filter_type = KeyPointFilterTypes.SAT            # default keypoint-filter type 
+        self.need_nms = False                                          # need or not non-maximum suppression of keypoints         
+        self.keypoint_nms_filter_type = KeyPointFilterTypes.KDT_NMS    # default keypoint-filter type if NMS is needed 
 
+        # initialize sigmas for keypoint levels (used for SLAM)
+        self.init_sigma_levels()
+        
+        # --------------------------------------------- #
+        # manage different opencv versions  
+        # --------------------------------------------- #
         print("using opencv ", cv2.__version__)
         # check opencv version in order to use the right modules 
         if cv2.__version__.split('.')[0] == '3':
-            from cv2.xfeatures2d import SIFT_create, SURF_create, FREAK_create   
-            from cv2 import ORB_create, BRISK_create, AKAZE_create
+            SIFT_create  = import_from('cv2.xfeatures2d','SIFT_create') 
+            SURF_create  = import_from('cv2.xfeatures2d','SURF_create')
+            FREAK_create  = import_from('cv2.xfeatures2d','FREAK_create')          
+            ORB_create   = import_from('cv2','ORB_create')
+            BRISK_create = import_from('cv2','BRISK_create')
+            KAZE_create  = import_from('cv2','KAZE_create')
+            AKAZE_create = import_from('cv2','AKAZE_create')  
+            BoostDesc_create = import_from('cv2','xfeatures2d_BoostDesc','create')
+            MSD_create = import_from('cv2','xfeatures2d_MSDDetector')        # found but it does not work! (it does not find the .create() method)    
+            #Affine_create = import_from('cv2','xfeatures2d_AffineFeature2D') # not found     
+            DAISY_create = import_from('cv2','xfeatures2d_DAISY','create')
+            STAR_create = import_from('cv2','xfeatures2d_StarDetector','create')  
+            HL_create = import_from('cv2','xfeatures2d_HarrisLaplaceFeatureDetector','create')
+            LATCH_create = import_from('cv2','xfeatures2d_LATCH','create')
+            LUCID_create = import_from('cv2','xfeatures2d_LUCID','create')        
+            VGG_create = import_from('cv2','xfeatures2d_VGG','create')                     
         else:
-            SIFT_create = cv2.SIFT
-            SURF_create = cv2.SURF
-            ORB_create = cv2.ORB 
-            BRISK_create = cv2.BRISK
-            AKAZE_create = cv2.AKAZE 
-            FREAK_create = cv2.FREAK # TODO: to be checked 
+            SIFT_create  = import_from('cv2.xfeatures2d','SIFT_create') 
+            SURF_create  = import_from('cv2.xfeatures2d','SURF_create')
+            FREAK_create  = import_from('cv2.xfeatures2d','FREAK_create')               
+            ORB_create   = import_from('cv2','ORB')
+            BRISK_create = import_from('cv2','BRISK')
+            KAZE_create  = import_from('cv2','KAZE')            
+            AKAZE_create = import_from('cv2','AKAZE')
+            BoostDesc_create = import_from('cv2','xfeatures2d_BoostDesc','create')
+            MSD_create = import_from('cv2','xfeatures2d_MSDDetector')     
+            DAISY_create = import_from('cv2','xfeatures2d_DAISY','create') 
+            STAR_create = import_from('cv2','xfeatures2d_StarDetector','create')   
+            HL_create = import_from('cv2','xfeatures2d_HarrisLaplaceFeatureDetector','create')  
+            LATCH_create = import_from('cv2','xfeatures2d_LATCH','create')                                             
+            LUCID_create = import_from('cv2','xfeatures2d_LUCID','create')  
+            VGG_create = import_from('cv2','xfeatures2d_VGG','create')                
 
-        self.FAST_create = cv2.FastFeatureDetector_create
+        # pure detectors 
+        self.FAST_create  = import_from('cv2','FastFeatureDetector_create')
+        self.AGAST_create = import_from('cv2','AgastFeatureDetector_create')       
+        self.GFTT_create  = import_from('cv2','GFTTDetector_create')
+        self.MSER_create  = import_from('cv2','MSER_create')
+        self.MSD_create   = MSD_create
+        self.STAR_create  = STAR_create 
+        self.HL_create    = HL_create
+        # detectors and descriptors 
         self.SIFT_create = SIFT_create
         self.SURF_create = SURF_create
         self.ORB_create = ORB_create 
         self.BRISK_create = BRISK_create            
         self.AKAZE_create = AKAZE_create   
-        self.FREAK_create = FREAK_create   
+        self.KAZE_create = KAZE_create           
+        # pure descriptors
+        self.FREAK_create = FREAK_create   # only descriptor 
+        self.BoostDesc_create = BoostDesc_create
+        self.DAISY_create = DAISY_create
+        self.LATCH_create = LATCH_create 
+        self.LUCID_create = LUCID_create    
+        self.VGG_create = VGG_create     
 
-        self.orb_params = dict(nfeatures=min_num_features,
+        # --------------------------------------------- #
+        # check if we want descriptor == detector   
+        # --------------------------------------------- #
+        self.is_detector_equal_to_descriptor = (self.detector_type.name == self.descriptor_type.name)
+                            
+        # N.B.: the following descriptors assume keypoint.octave extacly represents an octave with a scale_factor=2 
+        #       and not a generic level with scale_factor < 2 
+        if self.descriptor_type in [
+                                    FeatureDescriptorTypes.SIFT,       # [NOK] SIFT seems to assume the use of octaves (https://github.com/opencv/opencv_contrib/blob/master/modules/xfeatures2d/src/sift.cpp#L1128)
+                                    FeatureDescriptorTypes.ROOT_SIFT,  # [NOK] same as SIFT 
+                                    #FeatureDescriptorTypes.SURF,      # [OK]  SURF computes the descriptor by considering the keypoint.size (https://github.com/opencv/opencv_contrib/blob/master/modules/xfeatures2d/src/surf.cpp#L600)
+                                    FeatureDescriptorTypes.AKAZE,      # [NOK] AKAZE does NOT seem to compute the right scale index for each keypoint.size (https://github.com/opencv/opencv/blob/master/modules/features2d/src/kaze/AKAZEFeatures.cpp#L1508)
+                                    FeatureDescriptorTypes.KAZE,       # [NOK] similar to KAZE                                     
+                                    #FeatureDescriptorTypes.FREAK,     # [OK]  FREAK computes the right scale index for each keypoint.size (https://github.com/opencv/opencv_contrib/blob/master/modules/xfeatures2d/src/freak.cpp#L468)
+                                    #FeatureDescriptorTypes.BRISK      # [OK]  BRISK computes the right scale index for each keypoint.size (https://github.com/opencv/opencv/blob/master/modules/features2d/src/brisk.cpp#L697)
+                                    #FeatureDescriptorTypes.BOOST_DESC # [OK]  BOOST_DESC seems to properly rectify each keypoint patch size (https://github.com/opencv/opencv_contrib/blob/master/modules/xfeatures2d/src/boostdesc.cpp#L346) 
+                                    ]:
+            self.scale_factor = 2  # the above descriptors work on octave layers with a scale_factor=2!
+            Printer.orange('forcing scale factor=2 for detector', self.descriptor_type.name)
+            
+        self.orb_params = dict(nfeatures=num_features,
                                scaleFactor=self.scale_factor,
                                nlevels=self.num_levels,
                                patchSize=31,
-                               edgeThreshold = 31, #19, 
+                               edgeThreshold = 10, #31, #19, #10,   # margin from the frame border 
                                fastThreshold = 20,
-                               firstLevel = 0,
+                               firstLevel = self.first_level,
                                WTA_K = 2,
-                               scoreType=cv2.ORB_HARRIS_SCORE)  #scoreType=cv2.ORB_HARRIS_SCORE, scoreType=cv2.ORB_FAST_SCORE 
+                               scoreType=cv2.ORB_FAST_SCORE)  #scoreType=cv2.ORB_HARRIS_SCORE, scoreType=cv2.ORB_FAST_SCORE 
         
-        # --------------- #
+        # --------------------------------------------- #
         # init detector 
-        # --------------- #
-        if self.detector_type == FeatureDetectorTypes.SIFT:
-            self.detector_name = 'SIFT'
-            self._feature_detector = self.SIFT_create(nOctaveLayers=3)  
-            # N.B.: The number of octaves is computed automatically from the image resolution, here we set the number of layers in each octave.
-            #  from https://docs.opencv.org/3.4/d5/d3c/classcv_1_1xfeatures2d_1_1SIFT.html
-            self.intra_layer_factor = 1.2599  # num layers = nOctaves*nOctaveLayers  scale=2^(1/nOctaveLayers) = 1.2599  
-            self.scale_factor = 2             # scale factor between octaves  
-            self.sigma_level0 = 1.6  # from https://docs.opencv.org/3.1.0/da/df5/tutorial_py_sift_intro.html                                                
-        elif self.detector_type == FeatureDetectorTypes.ROOT_SIFT: 
-            self.detector_name = 'ROOT_SIFT'          
-            sift_detector = self.SIFT_create(nOctaveLayers=3)  
-            # N.B.: The number of octaves is computed automatically from the image resolution, here we set the number of layers in each octave.
-            #  from https://docs.opencv.org/3.4/d5/d3c/classcv_1_1xfeatures2d_1_1SIFT.html
-            self.intra_layer_factor = 1.2599   # num layers = nOctaves*nOctaveLayers  scale=2^(1/nOctaveLayers) = 1.2599  
-            self.scale_factor = 2              # scale factor between octaves  
-            self.sigma_level0 = 1.6  # from https://docs.opencv.org/3.1.0/da/df5/tutorial_py_sift_intro.html                
-            self._feature_detector = RootSIFTFeature2D(sift_detector)  
-        elif self.detector_type == FeatureDetectorTypes.SURF:
-            self.detector_name = 'SURF'              
-            self._feature_detector = self.SURF_create(nOctaves = self.num_levels, nOctaveLayers=3)  
-            self.intra_layer_factor = 1.2599   # num layers = nOctaves*nOctaveLayers  scale=2^(1/nOctaveLayers) = 1.2599  
-            self.scale_factor = 2              # scale factor between octaves               
-        elif self.detector_type == FeatureDetectorTypes.ORB:
-            self.detector_name = 'ORB'              
+        # --------------------------------------------- #
+        if self.detector_type == FeatureDetectorTypes.SIFT or self.detector_type == FeatureDetectorTypes.ROOT_SIFT:    
+            sift = self.SIFT_create(nOctaveLayers=self.layers_per_octave)  
+            self.set_sift_parameters()
+            if self.detector_type == FeatureDetectorTypes.ROOT_SIFT:        
+                self._feature_detector = RootSIFTFeature2D(sift)  
+            else: 
+                self._feature_detector = sift
+            #
+            #
+        elif self.detector_type == FeatureDetectorTypes.SURF:          
+            self._feature_detector = self.SURF_create(nOctaves = self.num_levels, nOctaveLayers=self.layers_per_octave)  
+            #self.intra_layer_factor = 1.2599   # num layers = nOctaves*nOctaveLayers  scale=2^(1/nOctaveLayers) = 1.2599  
+            self.scale_factor = 2               # force scale factor = 2 between octaves   
+            #
+            #            
+        elif self.detector_type == FeatureDetectorTypes.ORB:          
             self._feature_detector = self.ORB_create(**self.orb_params)               
-            self.use_bock_adaptor = False   # add a block adaptor? your choice ...
-        elif self.detector_type == FeatureDetectorTypes.BRISK:
-            self.detector_name = 'BRISK'              
+            self.use_bock_adaptor = True          # add a block adaptor? 
+            self.need_nms = self.num_levels > 1   # ORB tends to generate overlapping keypoint on different levels <= KDT NMS seems to be very useful here!
+            #
+            #
+        elif self.detector_type == FeatureDetectorTypes.ORB2:  
+            orb2_num_levels = self.num_levels                              
+            self._feature_detector = Orbslam2Feature2D(self.num_features, self.scale_factor, orb2_num_levels) 
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE  # ORB2 cpp implementation already includes the algorithm OCTREE_NMS
+            #    
+            #           
+        elif self.detector_type == FeatureDetectorTypes.BRISK:          
             self._feature_detector = self.BRISK_create(octaves=self.num_levels) 
-            #self.intra_layer_factor = 1.3   # from the BRISK opencv code this seems to be the used scale factor between intra-octave frames  
-            self.intra_layer_factor = math.sqrt(2) # approx, num layers = nOctaves*nOctaveLayers, from the BRISK paper there are octave ci and intra-octave di layers, t(ci)=2^i, t(di)=2^i * 1.5    
-            self.scale_factor = 2                  # scale factor between octaves                  
-        elif self.detector_type == FeatureDetectorTypes.AKAZE:
-            self.detector_name = 'AKAZE'               
-            self._feature_detector = self.AKAZE_create(nOctaves=self.num_levels) 
-            self.scale_factor = 2                  # scale factor between octaves    
-        elif self.detector_type == FeatureDetectorTypes.FREAK: 
-            self.detector_name = 'FREAK'                
-            self._feature_detector = self.FREAK_create(nOctaves=self.num_levels)
-            self.scale_factor = 2                  # scale factor between octaves 
-        elif self.detector_type == FeatureDetectorTypes.SUPERPOINT: 
-            self.detector_name = 'SUPERPOINT'                 
+            #self.intra_layer_factor = 1.3          # from the BRISK opencv code this seems to be the used scale factor between intra-octave frames  
+            #self.intra_layer_factor = math.sqrt(2) # approx, num layers = nOctaves*nOctaveLayers, from the BRISK paper there are octave ci and intra-octave di layers, t(ci)=2^i, t(di)=2^i * 1.5    
+            self.scale_factor = 2                   # force scale factor = 2 between octaves  
+            #self.keypoint_filter_type = KeyPointFilterTypes.NONE 
+            #
+            #     
+        elif self.detector_type == FeatureDetectorTypes.KAZE:           
+            self._feature_detector = self.KAZE_create(nOctaves=self.num_levels, threshold=0.0005)  # default: threshold = 0.001f
+            self.scale_factor = 2                  # force scale factor = 2 between octaves 
+            #
+            #                          
+        elif self.detector_type == FeatureDetectorTypes.AKAZE:           
+            self._feature_detector = self.AKAZE_create(nOctaves=self.num_levels, threshold=0.0005)  # default: threshold = 0.001f
+            self.scale_factor = 2                  # force scale factor = 2 between octaves 
+            #
+            #   
+        elif self.detector_type == FeatureDetectorTypes.SUPERPOINT:         
+            self.oriented_features = False                         
             self._feature_detector = SuperPointFeature2D()   
-            self.use_pyramid_adaptor = self.num_levels > 1    
-            self.need_nms = self.num_levels > 1                                                                     
-        elif self.detector_type == FeatureDetectorTypes.FAST:
-            self.detector_name = 'FAST'                  
-            self._feature_detector = self.FAST_create(threshold=25, nonmaxSuppression=True)    
-            self.use_bock_adaptor = False  # override a block adaptor?           
-            self.use_pyramid_adaptor = self.num_levels > 1         
-            self.need_nms = self.num_levels > 1       
-        elif self.detector_type == FeatureDetectorTypes.SHI_TOMASI:
-            self.detector_name = 'SHI-TOMASI'            
-            self._feature_detector = ShiTomasiDetector(self.min_num_features)  
-            self.use_bock_adaptor = False  # override a block adaptor?
-            self.use_pyramid_adaptor = self.num_levels > 1 
-            self.need_nms = self.num_levels > 1 
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:              
+                self.use_pyramid_adaptor = self.num_levels > 1    
+                self.need_nms = self.num_levels > 1   
+                self.pyramid_type = PyramidType.GAUSS_PYRAMID    
+                self.pyramid_do_parallel = False                 # N.B.: SUPERPOINT interface class is not thread-safe!
+                self.force_multiscale_detect_and_compute = True  # force it since SUPERPOINT cannot compute descriptors separately from keypoints 
+            #  
+            #                                                                                     
+        elif self.detector_type == FeatureDetectorTypes.FAST:    
+            self.oriented_features = False             
+            self._feature_detector = self.FAST_create(threshold=20, nonmaxSuppression=True)   
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:                   
+                #self.use_bock_adaptor = True  # override a block adaptor?           
+                self.use_pyramid_adaptor = self.num_levels > 1   # override a pyramid adaptor?          
+                #self.pyramid_type = PyramidType.GAUSS_PYRAMID 
+                #self.first_level = 0        
+                #self.do_sat_features_per_level = True                 
+                self.need_nms = self.num_levels > 1   
+                self.keypoint_nms_filter_type = KeyPointFilterTypes.OCTREE_NMS     
+                self.do_keypoints_size_rescaling = True             
+            #  
+            #  
+        elif self.detector_type == FeatureDetectorTypes.SHI_TOMASI:         
+            self.oriented_features = False                       
+            self._feature_detector = ShiTomasiDetector(self.num_features)  
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:            
+                #self.use_bock_adaptor = False  # override a block adaptor?
+                self.use_pyramid_adaptor = self.num_levels > 1 
+                #self.pyramid_type = PyramidType.GAUSS_PYRAMID   
+                #self.first_level = 0  
+                self.need_nms = self.num_levels > 1   
+                self.keypoint_nms_filter_type = KeyPointFilterTypes.OCTREE_NMS          
+                self.do_keypoints_size_rescaling = True     
+            #    
+            #      
+        elif self.detector_type == FeatureDetectorTypes.AGAST:  
+            self.oriented_features = False               
+            self._feature_detector = self.AGAST_create(threshold=10, nonmaxSuppression=True)    
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:             
+                #self.use_bock_adaptor = True  # override a block adaptor?           
+                self.use_pyramid_adaptor = self.num_levels > 1   # override a pyramid adaptor?                   
+                #self.pyramid_type = PyramidType.GAUSS_PYRAMID 
+                #self.first_level = 0        
+                self.need_nms = self.num_levels > 1   
+                self.keypoint_nms_filter_type = KeyPointFilterTypes.OCTREE_NMS
+                self.do_keypoints_size_rescaling = True                 
+            # 
+            #       
+        elif self.detector_type == FeatureDetectorTypes.GFTT:    
+            self.oriented_features = False 
+            self._feature_detector = self.GFTT_create(self.num_features, qualityLevel=0.01, minDistance=3, blockSize=5, useHarrisDetector=False, k=0.04)    
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:              
+                #self.use_bock_adaptor = True  # override a block adaptor?           
+                self.use_pyramid_adaptor = self.num_levels > 1   # override a pyramid adaptor?                   
+                #self.pyramid_type = PyramidType.GAUSS_PYRAMID 
+                #self.first_level = 0        
+                self.need_nms = self.num_levels > 1   
+                self.keypoint_nms_filter_type = KeyPointFilterTypes.OCTREE_NMS      
+                self.do_keypoints_size_rescaling = True           
+            #   
+            # 
+        elif self.detector_type == FeatureDetectorTypes.MSER:    
+            self._feature_detector = self.MSER_create()    
+            #self.use_bock_adaptor = True  # override a block adaptor?           
+            self.use_pyramid_adaptor = self.num_levels > 1   # override a pyramid adaptor?  
+            self.pyramid_do_parallel = False    # parallel computations generate segmentation fault (is MSER thread-safe?)     
+            #self.pyramid_type = PyramidType.GAUSS_PYRAMID 
+            #self.first_level = 0        
+            self.need_nms = self.num_levels > 1   
+            #self.keypoint_nms_filter_type = KeyPointFilterTypes.OCTREE_NMS            
+            #     
+            # 
+        elif self.detector_type == FeatureDetectorTypes.MSD:    
+            #detector = ShiTomasiDetector(self.num_features)  
+            #self._feature_detector = self.MSD_create(detector) 
+            self._feature_detector = self.MSD_create()   
+            print('MSD detector info:',dir(self._feature_detector))
+            #self.use_bock_adaptor = True  # override a block adaptor?           
+            #self.use_pyramid_adaptor = self.num_levels > 1   # override a pyramid adaptor?     
+            #self.pyramid_type = PyramidType.GAUSS_PYRAMID 
+            #self.first_level = 0        
+            #self.need_nms = self.num_levels > 1   
+            #self.keypoint_nms_filter_type = KeyPointFilterTypes.OCTREE_NMS            
+            #      
+            #      
+        elif self.detector_type == FeatureDetectorTypes.STAR:  
+            self.oriented_features = False               
+            self._feature_detector = self.STAR_create(maxSize=45,
+                                                      responseThreshold=10, # =30
+                                                      lineThresholdProjected=10,
+                                                      lineThresholdBinarized=8,
+                                                      suppressNonmaxSize=5)  
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:              
+                #self.use_bock_adaptor = True  # override a block adaptor?           
+                self.use_pyramid_adaptor = self.num_levels > 1   # override a pyramid adaptor?     
+                #self.pyramid_type = PyramidType.GAUSS_PYRAMID 
+                #self.first_level = 0        
+                #self.need_nms = self.num_levels > 1   
+                #self.keypoint_nms_filter_type = KeyPointFilterTypes.OCTREE_NMS            
+            #   
+            #  
+        elif self.detector_type == FeatureDetectorTypes.HL:  
+            self.oriented_features = False               
+            self._feature_detector = self.HL_create(numOctaves=self.num_levels,
+                                                    corn_thresh=0.005, # = 0.01
+                                                    DOG_thresh=0.01, # = 0.01 
+                                                    maxCorners=self.num_features, 
+                                                    num_layers=4)  #
+            self.scale_factor = 2   # force scale factor = 2 between octaves 
+            #           
+            #        
+        elif self.detector_type == FeatureDetectorTypes.D2NET:  
+            self.need_color_image = True        
+            self.num_levels = 1 # force unless you have 12GB of VRAM        
+            multiscale=self.num_levels>1                      
+            self._feature_detector = D2NetFeature2D(multiscale=multiscale)
+            #self.keypoint_filter_type = KeyPointFilterTypes.NONE  
+            #    
+            #   
+        elif self.detector_type == FeatureDetectorTypes.DELF:  
+            self.need_color_image = True        
+            #self.num_levels = 1 # force              #scales are computed internally   
+            self._feature_detector = DelfFeature2D(num_features=self.num_features,score_threshold=20)
+            self.scale_factor = self._feature_detector.scale_factor 
+            #self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #    
+            #         
+        elif self.detector_type == FeatureDetectorTypes.CONTEXTDESC:  
+            self.set_sift_parameters()
+            self.need_color_image = True        
+            #self.num_levels = 1 # force              # computed internally by SIFT method     
+            self._feature_detector = ContextDescFeature2D(num_features=self.num_features)
+            #self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #    
+            #    
+        elif self.detector_type == FeatureDetectorTypes.LFNET:  
+            self.need_color_image = True        
+            #self.num_levels = 1 # force              
+            self._feature_detector = LfNetFeature2D(num_features=self.num_features)
+            #self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #    
+            #   
+        elif self.detector_type == FeatureDetectorTypes.R2D2:  
+            self.need_color_image = True        
+            #self.num_levels = - # internally recomputed               
+            self._feature_detector = R2d2Feature2D(num_features=self.num_features)
+            self.scale_factor = self._feature_detector.scale_f 
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #    
+            #     
+        elif self.detector_type == FeatureDetectorTypes.KEYNET:       
+            #self.num_levels = - # internally recomputed               
+            self._feature_detector = KeyNetDescFeature2D(num_features=self.num_features)          
+            self.num_features = self._feature_detector.num_features
+            self.num_levels = self._feature_detector.num_levels
+            self.scale_factor = self._feature_detector.scale_factor
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #    
+            #                                                                                                                                                
         else:
             raise ValueError("Unknown feature detector %s" % self.detector_type)
-
-        self.initSigmaLevels()      
-                    
-        # --------------- #
-        # init descriptor 
-        # --------------- #        
-        if self.descriptor_type == FeatureDescriptorTypes.SIFT: 
-            self.decriptor_name = 'SIFT'               
-            self._feature_descriptor = self.SIFT_create()  
-        elif self.descriptor_type == FeatureDescriptorTypes.ROOT_SIFT: 
-            self.decriptor_name = 'ROOT_SIFT'                 
-            self._feature_descriptor = RootSIFTFeature2D(self.SIFT_create)                     
-        elif self.descriptor_type == FeatureDescriptorTypes.SURF:
-            self.decriptor_name = 'SURF'                              
-            self._feature_descriptor = self.SURF_create(nOctaveLayers=self.num_levels)         
-        elif self.descriptor_type == FeatureDescriptorTypes.ORB:
-            self.decriptor_name = 'ORB'                                        
-            self._feature_descriptor = self.ORB_create(**self.orb_params) 
-        elif self.descriptor_type == FeatureDescriptorTypes.BRISK:
-            self.decriptor_name = 'BRISK'              
-            self._feature_descriptor = self.BRISK_create(octaves=self.num_levels)        
-        elif self.descriptor_type == FeatureDescriptorTypes.AKAZE:
-            self.decriptor_name = 'AKAZE'              
-            self._feature_descriptor = self.AKAZE_create(nOctaves=self.num_levels) 
-        elif self.descriptor_type == FeatureDescriptorTypes.FREAK: 
-            self.decriptor_name = 'FREAK'             
-            self._feature_descriptor = self.FREAK_create(nOctaves=self.num_levels)   
-        elif self.descriptor_type == FeatureDescriptorTypes.SUPERPOINT: 
-            self.decriptor_name = 'SUPERPOINT'               
-            if self.detector_type != FeatureDetectorTypes.SUPERPOINT: 
-                raise ValueError("At the present time, you cannot use SuperPoint descriptor without SuperPoint detector!\nPlease, select SuperPoint as both descriptor and detector!")
-            self._feature_descriptor = self._feature_detector  # reuse the same SuperPointDector object                                     
-        elif self.descriptor_type == FeatureDescriptorTypes.TFEAT: 
-            self.decriptor_name = 'TFEAT'                
-            self._feature_descriptor = TfeatFeature2D()                                                                      
-        elif self.descriptor_type == FeatureDescriptorTypes.NONE:
-            self.decriptor_name = 'NONE'                 
-            self._feature_descriptor = None                                              
-        else:
-            raise ValueError("Unknown feature descriptor %s" % self.detector_type)    
+                
+        if self.need_nms:
+            self.keypoint_filter_type = self.keypoint_nms_filter_type         
         
-        # check if detector and descriptor manager are identical (have same name)
-        self.is_detector_equal_to_descriptor = False
-        if self.detector_name == self.decriptor_name:  
-            self.is_detector_equal_to_descriptor = True  
+        if self.use_bock_adaptor: 
+              self.orb_params['edgeThreshold'] = 0
+                  
+        # --------------------------------------------- #
+        # init descriptor 
+        # --------------------------------------------- #                     
+        if self.is_detector_equal_to_descriptor:     
+            Printer.green('using same detector and descriptor object: ', self.detector_type.name)
             self._feature_descriptor = self._feature_detector
+        else:      
+            # detector and descriptors are different             
+            self.num_levels_descriptor = self.num_levels                    
+            if self.use_pyramid_adaptor:        
+                # NOT VALID ANYMORE -> if there is a pyramid adaptor, the descriptor does not need to rescale the images which are rescaled by the pyramid adaptor itself              
+                #self.orb_params['nlevels'] = 1    
+                #self.num_levels_descriptor = 1 #self.num_levels
+                pass 
+            # actual descriptor initialization 
+            if self.descriptor_type == FeatureDescriptorTypes.SIFT or self.descriptor_type == FeatureDescriptorTypes.ROOT_SIFT:                      
+                sift = self.SIFT_create(nOctaveLayers=3)   
+                if self.descriptor_type == FeatureDescriptorTypes.ROOT_SIFT:            
+                    self._feature_descriptor = RootSIFTFeature2D(sift)         
+                else: 
+                    self._feature_descriptor = sift
+                #
+                #        
+            elif self.descriptor_type == FeatureDescriptorTypes.SURF:       
+                self.oriented_features = True  # SURF computes the keypoint orientation                       
+                self._feature_descriptor = self.SURF_create(nOctaves = self.num_levels_descriptor, nOctaveLayers=3)      
+                #
+                #   
+            elif self.descriptor_type == FeatureDescriptorTypes.ORB:             
+                self._feature_descriptor = self.ORB_create(**self.orb_params) 
+                #self.oriented_features = False   # N.B: ORB descriptor does not compute orientation on its own 
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.ORB2: 
+                self._feature_descriptor = self.ORB_create(**self.orb_params)                           
+                #
+                #                      
+            elif self.descriptor_type == FeatureDescriptorTypes.BRISK:    
+                self.oriented_features = True  # BRISK computes the keypoint orientation                            
+                self._feature_descriptor = self.BRISK_create(octaves=self.num_levels_descriptor)        
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.KAZE:     
+                if not self.is_detector_equal_to_descriptor:
+                    Printer.red('WARNING: KAZE descriptors can only be used with KAZE or AKAZE keypoints.')  # https://kyamagu.github.io/mexopencv/matlab/AKAZE.html
+                self._feature_descriptor = self.KAZE_create(nOctaves=self.num_levels_descriptor) 
+                #
+                #                
+            elif self.descriptor_type == FeatureDescriptorTypes.AKAZE:     
+                if not self.is_detector_equal_to_descriptor:
+                    Printer.red('WARNING: AKAZE descriptors can only be used with KAZE or AKAZE keypoints.') # https://kyamagu.github.io/mexopencv/matlab/AKAZE.html     
+                self._feature_descriptor = self.AKAZE_create(nOctaves=self.num_levels_descriptor) 
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.FREAK: 
+                self.oriented_features = True  # FREAK computes the keypoint orientation                          
+                self._feature_descriptor = self.FREAK_create(nOctaves=self.num_levels_descriptor)   
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.SUPERPOINT:              
+                if self.detector_type != FeatureDetectorTypes.SUPERPOINT: 
+                    raise ValueError("You cannot use SUPERPOINT descriptor without SUPERPOINT detector!\nPlease, select SUPERPOINT as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse the same SuperPointDector object                                     
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.TFEAT:              
+                self._feature_descriptor = TfeatFeature2D()         
+                #
+                #            
+            elif self.descriptor_type == FeatureDescriptorTypes.BOOST_DESC:
+                self.do_keypoints_size_rescaling = False # below a proper keypoint size scale factor is set depending on the used detector 
+                boost_des_keypoint_size_scale_factor = 1.5   
+                # from https://docs.opencv.org/3.4.2/d1/dfd/classcv_1_1xfeatures2d_1_1BoostDesc.html#details
+                #scale_factor:	adjust the sampling window of detected keypoints 6.25f is default and fits for KAZE, SURF 
+                #               detected keypoints window ratio 6.75f should be the scale for SIFT 
+                #               detected keypoints window ratio 5.00f should be the scale for AKAZE, MSD, AGAST, FAST, BRISK 
+                #               keypoints window ratio 0.75f should be the scale for ORB 
+                #               keypoints ratio 1.50f was the default in original implementation                       
+                if self.detector_type in [FeatureDetectorTypes.KAZE, FeatureDetectorTypes.SURF]:
+                    boost_des_keypoint_size_scale_factor = 6.25
+                elif self.detector_type == FeatureDetectorTypes.SIFT:
+                    boost_des_keypoint_size_scale_factor = 6.75         
+                elif self.detector_type in [FeatureDetectorTypes.AKAZE, FeatureDetectorTypes.AGAST, FeatureDetectorTypes.FAST, FeatureDetectorTypes.BRISK]:
+                    boost_des_keypoint_size_scale_factor = 5.0    
+                elif self.detector_type == FeatureDetectorTypes.ORB:
+                    boost_des_keypoint_size_scale_factor = 0.75                                     
+                self._feature_descriptor = self.BoostDesc_create(scale_factor=boost_des_keypoint_size_scale_factor)         
+                #
+                #   
+            elif self.descriptor_type == FeatureDescriptorTypes.DAISY:              
+                self._feature_descriptor = self.DAISY_create()        
+                #
+                #             
+            elif self.descriptor_type == FeatureDescriptorTypes.LATCH:              
+                self._feature_descriptor = self.LATCH_create()        
+                #
+                #       
+            elif self.descriptor_type == FeatureDescriptorTypes.LUCID:              
+                self._feature_descriptor = self.LUCID_create(lucid_kernel=1,  # =1
+                                                             blur_kernel=3 )  # =2      
+                self.need_color_image = True 
+                #
+                #      
+            elif self.descriptor_type == FeatureDescriptorTypes.VGG:              
+                self._feature_descriptor = self.VGG_create()        
+                #
+                #       
+            elif self.descriptor_type == FeatureDescriptorTypes.HARDNET:              
+                self._feature_descriptor = HardnetFeature2D(do_cuda=True)        
+                #
+                #      
+            elif self.descriptor_type == FeatureDescriptorTypes.GEODESC:              
+                self._feature_descriptor = GeodescFeature2D()        
+                #
+                #  
+            elif self.descriptor_type == FeatureDescriptorTypes.SOSNET:              
+                self._feature_descriptor = SosnetFeature2D()        
+                #
+                #                  
+            elif self.descriptor_type == FeatureDescriptorTypes.L2NET:              
+                #self._feature_descriptor = L2NetKerasFeature2D()    # keras-tf version 
+                self._feature_descriptor = L2NetFeature2D()                        
+                #
+                #                   
+            elif self.descriptor_type == FeatureDescriptorTypes.LOGPOLAR:              
+                self._feature_descriptor = LogpolarFeature2D()                        
+                #
+                #          
+            elif self.descriptor_type == FeatureDescriptorTypes.D2NET:   
+                self.need_color_image = True           
+                if self.detector_type != FeatureDetectorTypes.D2NET: 
+                    raise ValueError("You cannot use D2NET descriptor without D2NET detector!\nPlease, select D2NET as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #            
+            elif self.descriptor_type == FeatureDescriptorTypes.DELF:   
+                self.need_color_image = True           
+                if self.detector_type != FeatureDetectorTypes.DELF: 
+                    raise ValueError("You cannot use DELF descriptor without DELF detector!\nPlease, select DELF as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #      
+            elif self.descriptor_type == FeatureDescriptorTypes.CONTEXTDESC:   
+                self.need_color_image = True           
+                if self.detector_type != FeatureDetectorTypes.CONTEXTDESC: 
+                    raise ValueError("You cannot use CONTEXTDESC descriptor without CONTEXTDESC detector!\nPlease, select CONTEXTDESC as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #         
+            elif self.descriptor_type == FeatureDescriptorTypes.LFNET:   
+                self.need_color_image = True           
+                if self.detector_type != FeatureDetectorTypes.LFNET: 
+                    raise ValueError("You cannot use LFNET descriptor without LFNET detector!\nPlease, select LFNET as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #    
+            elif self.descriptor_type == FeatureDescriptorTypes.R2D2:   
+                self.oriented_features = False                     
+                self.need_color_image = True           
+                if self.detector_type != FeatureDetectorTypes.R2D2: 
+                    raise ValueError("You cannot use R2D2 descriptor without R2D2 detector!\nPlease, select R2D2 as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #     
+            elif self.descriptor_type == FeatureDescriptorTypes.KEYNET:   
+                self.oriented_features = False                           
+                if self.detector_type != FeatureDetectorTypes.KEYNET: 
+                    raise ValueError("You cannot use KEYNET internal descriptor without KEYNET detector!\nPlease, select KEYNET as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #                                                                                                                                                                                                                                                                         
+            elif self.descriptor_type == FeatureDescriptorTypes.NONE:        
+                self._feature_descriptor = None                                              
+            else:
+                raise ValueError("Unknown feature descriptor %s" % self.descriptor_type)    
+            
+        # --------------------------------------------- #
+        # init from FeatureInfo   
+        # --------------------------------------------- #               
+        
+        # get and set norm type 
+        try: 
+            self.norm_type = FeatureInfo.norm_type[self.descriptor_type]
+        except:
+            Printer.red('You did not set the norm type for: ', self.descriptor_type.name)              
+            raise ValueError("Unmanaged norm type for feature descriptor %s" % self.descriptor_type.name)     
+        
+        # set descriptor distance functions  
+        if self.norm_type == cv2.NORM_HAMMING:
+            self.descriptor_distance = hamming_distance
+            self.descriptor_distances = hamming_distances            
+        if self.norm_type == cv2.NORM_L2:
+            self.descriptor_distance = l2_distance      
+            self.descriptor_distances = l2_distances         
+            
+         # get and set reference max descriptor distance      
+        try: 
+            Parameters.kMaxDescriptorDistance = FeatureInfo.max_descriptor_distance[self.descriptor_type]
+        except: 
+            Printer.red('You did not set the reference max descriptor distance for: ', self.descriptor_type.name)                                                         
+            raise ValueError("Unmanaged max descriptor distance for feature descriptor %s" % self.descriptor_type.name)                
+        Parameters.kMaxDescriptorDistanceSearchEpipolar = Parameters.kMaxDescriptorDistance                    
+                
+        # --------------------------------------------- #
+        # other required initializations  
+        # --------------------------------------------- #      
+        
+        if not self.oriented_features:
+            Printer.orange('WARNING: using NON-ORIENTED features: ', self.detector_type.name,'-',self.descriptor_type.name, ' (i.e. kp.angle=0)')     
+                        
+        if self.is_detector_equal_to_descriptor and \
+            ( self.detector_type == FeatureDetectorTypes.SIFT or 
+              self.detector_type == FeatureDetectorTypes.ROOT_SIFT or 
+              self.detector_type == FeatureDetectorTypes.CONTEXTDESC ):        
+            self.init_sigma_levels_sift()                 
+        else: 
+            self.init_sigma_levels()    
             
         if self.use_bock_adaptor:
             self.block_adaptor = BlockAdaptor(self._feature_detector, self._feature_descriptor)
 
-        if self.use_pyramid_adaptor:            
-            self.pyramid_adaptor = PyramidAdaptor(self._feature_detector, self._feature_descriptor, self.num_levels, self.scale_factor, use_block_adaptor=self.use_bock_adaptor)
-            
+        if self.use_pyramid_adaptor:   
+            self.pyramid_params = dict(detector=self._feature_detector, 
+                                       descriptor=self._feature_descriptor, 
+                                       num_features = self.num_features,
+                                       num_levels=self.num_levels, 
+                                       scale_factor=self.scale_factor, 
+                                       sigma0=self.sigma_level0, 
+                                       first_level=self.first_level, 
+                                       pyramid_type=self.pyramid_type,
+                                       use_block_adaptor=self.use_bock_adaptor,
+                                       do_parallel = self.pyramid_do_parallel,
+                                       do_sat_features_per_level = self.do_sat_features_per_level)       
+            self.pyramid_adaptor = PyramidAdaptor(**self.pyramid_params)
+         
+    
+    def set_sift_parameters(self):
+        # N.B.: The number of SIFT octaves is automatically computed from the image resolution, 
+        #       here we can set the number of layers in each octave.
+        #       from https://docs.opencv.org/3.4/d5/d3c/classcv_1_1xfeatures2d_1_1SIFT.html
+        #self.intra_layer_factor = 1.2599   # num layers = nOctaves*nOctaveLayers  scale=2^(1/nOctaveLayers) = 1.2599  
+        self.scale_factor = 2              # force scale factor = 2 between octaves  
+        self.sigma_level0 = 1.6            # https://github.com/opencv/opencv/blob/173442bb2ecd527f1884d96d7327bff293f0c65a/modules/nonfree/src/sift.cpp#L118
+                                           # from https://docs.opencv.org/3.1.0/da/df5/tutorial_py_sift_intro.html     
+        self.first_level = -1              # https://github.com/opencv/opencv/blob/173442bb2ecd527f1884d96d7327bff293f0c65a/modules/nonfree/src/sift.cpp#L731
 
-    # initialize scale factors, sigmas for each octave level (used for managing image pyramids)
-    def initSigmaLevels(self): 
-        num_levels = max(kNumLevelsInitSigma, self.num_levels)        
+
+    # initialize scale factors, sigmas for each octave level; 
+    # these are used for managing image pyramids and weighting (information matrix) reprojection error terms in the optimization
+    def init_sigma_levels(self): 
+        print('num_levels: ', self.num_levels)               
+        num_levels = max(kNumLevelsInitSigma, self.num_levels)    
+        self.inv_scale_factor = 1./self.scale_factor      
         self.scale_factors = np.zeros(num_levels)
         self.level_sigmas2 = np.zeros(num_levels)
+        self.level_sigmas = np.zeros(num_levels)                
         self.inv_scale_factors = np.zeros(num_levels)
         self.inv_level_sigmas2 = np.zeros(num_levels)
+        self.log_scale_factor = math.log(self.scale_factor)
 
-        # TODO: in the SIFT case, this sigma management could be refined. 
-        #        SIFT method has layers with intra-layer scale factor = math.sqrt(2)
-        self.scale_factors[0]=1.0
-        self.level_sigmas2[0]=self.sigma_level0*self.sigma_level0
+        self.scale_factors[0] = 1.0                   
+        self.level_sigmas2[0] = self.sigma_level0*self.sigma_level0
+        self.level_sigmas[0] = math.sqrt(self.level_sigmas2[0])
         for i in range(1,num_levels):
-            self.scale_factors[i]=self.scale_factors[i-1]*self.scale_factor
-            self.level_sigmas2[i]=self.scale_factors[i]*self.scale_factors[i]*self.level_sigmas2[i-1]
-        #print('self.scale_factors: ', self.scale_factors)
+            self.scale_factors[i] = self.scale_factors[i-1]*self.scale_factor
+            self.level_sigmas2[i] = self.scale_factors[i]*self.scale_factors[i]*self.level_sigmas2[0]  
+            self.level_sigmas[i]  = math.sqrt(self.level_sigmas2[i])        
         for i in range(num_levels):
-            self.inv_scale_factors[i]=1.0/self.scale_factors[i]
-            self.inv_level_sigmas2[i]=1.0/self.level_sigmas2[i]
-        #print('self.inv_scale_factors: ', self.inv_scale_factors)            
+            self.inv_scale_factors[i] = 1.0/self.scale_factors[i]
+            self.inv_level_sigmas2[i] = 1.0/self.level_sigmas2[i]
+        #print('self.scale_factor: ', self.scale_factor)                      
+        #print('self.scale_factors: ', self.scale_factors)
+        #print('self.level_sigmas: ', self.level_sigmas)                
+        #print('self.inv_scale_factors: ', self.inv_scale_factors)          
+        
+        
+    # initialize scale factors, sigmas for each octave level; 
+    # these are used for managing image pyramids and weighting (information matrix) reprojection error terms in the optimization;
+    # this method can be used only when the following mapping is adopted for SIFT:  
+    #   keypoint.octave = (unpacked_octave+1)*3+unpacked_layer  where S=3 is the number of levels per octave
+    def init_sigma_levels_sift(self): 
+        print('initializing SIFT sigma levels')
+        print('num_levels: ', self.num_levels)          
+        self.num_levels = 3*self.num_levels + 3   # we map: level=keypoint.octave = (unpacked_octave+1)*3+unpacked_layer  where S=3 is the number of scales per octave
+        num_levels = max(kNumLevelsInitSigma, self.num_levels) 
+        #print('num_levels: ', num_levels) 
+        # N.B: if we adopt the mapping: keypoint.octave = (unpacked_octave+1)*3+unpacked_layer 
+        # then we can consider a new virtual scale_factor = 2^(1/3) (used between two contiguous layers of the same octave)
+        print('original scale factor: ', self.scale_factor)
+        self.scale_factor = math.pow(2,1./3)    
+        self.inv_scale_factor = 1./self.scale_factor      
+        self.scale_factors = np.zeros(num_levels)
+        self.level_sigmas2 = np.zeros(num_levels)
+        self.level_sigmas = np.zeros(num_levels)                
+        self.inv_scale_factors = np.zeros(num_levels)
+        self.inv_level_sigmas2 = np.zeros(num_levels)
+        self.log_scale_factor = math.log(self.scale_factor)
+        
+        self.sigma_level0 = 1.6 # https://github.com/opencv/opencv/blob/173442bb2ecd527f1884d96d7327bff293f0c65a/modules/nonfree/src/sift.cpp#L118
+                                # from https://docs.opencv.org/3.1.0/da/df5/tutorial_py_sift_intro.html 
+        sigma_level02 = self.sigma_level0*self.sigma_level0        
+        
+        # N.B.: these are used only when recursive filtering is applied: see https://www.vlfeat.org/api/sift.html#sift-tech-ss
+        #sift_init_sigma = 0.5    
+        #sift_init_sigma2 = 0.25
+
+        # see also https://www.vlfeat.org/api/sift.html
+        self.scale_factors[0] = 1.0   
+        self.level_sigmas2[0] = sigma_level02 # -4*sift_init_sigma2  N.B.: this is an absolute sigma, 
+                                              # not a delta_sigma used for incrementally filtering contiguos layers => we must not subtract (4*sift_init_sigma2)   
+                                              # https://github.com/opencv/opencv/blob/173442bb2ecd527f1884d96d7327bff293f0c65a/modules/nonfree/src/sift.cpp#L197
+        self.level_sigmas[0] = math.sqrt(self.level_sigmas2[0])
+        for i in range(1,num_levels):
+            self.scale_factors[i] = self.scale_factors[i-1]*self.scale_factor
+            self.level_sigmas2[i] = self.scale_factors[i]*self.scale_factors[i]*sigma_level02   # https://github.com/opencv/opencv/blob/173442bb2ecd527f1884d96d7327bff293f0c65a/modules/nonfree/src/sift.cpp#L224
+            self.level_sigmas[i]  = math.sqrt(self.level_sigmas2[i])         
+        for i in range(num_levels):
+            self.inv_scale_factors[i] = 1.0/self.scale_factors[i]
+            self.inv_level_sigmas2[i] = 1.0/self.level_sigmas2[i]
+        #print('self.scale_factor: ', self.scale_factor)                      
+        #print('self.scale_factors: ', self.scale_factors)
+        #print('self.level_sigmas: ', self.level_sigmas)                
+        #print('self.inv_scale_factors: ', self.inv_scale_factors)             
+
+
+    # filter matches by using 
+    # Non-Maxima Suppression (NMS) based on kd-trees  
+    # or SSC NMS (https://github.com/BAILOOL/ANMS-Codes)
+    # or SAT (get features with best responses)
+    # or OCTREE_NMS (implemented in ORBSLAM2, distribution of features in a quad-tree)
+    def filter_keypoints(self, type, frame, kps, des=None):
+        filter_name = type.name        
+        if type == KeyPointFilterTypes.NONE:
+            pass  
+        elif type == KeyPointFilterTypes.KDT_NMS:      
+            kps, des = kdt_nms(kps, des, self.num_features)
+        elif type == KeyPointFilterTypes.SSC_NMS:    
+            kps, des = ssc_nms(kps, des, frame.shape[1], frame.shape[0], self.num_features)   
+        elif type == KeyPointFilterTypes.OCTREE_NMS:
+            if des is not None: 
+                raise ValueError('at the present time, you cannot use OCTREE_NMS with descriptors')
+            kps = octree_nms(frame, kps, self.num_features)
+        elif type == KeyPointFilterTypes.GRID_NMS:    
+            kps, des, _ = grid_nms(kps, des, frame.shape[0], frame.shape[1], self.num_features, dist_thresh=4)            
+        elif type == KeyPointFilterTypes.SAT:                                                        
+            if len(kps) > self.num_features:
+                kps, des = sat_num_features(kps, des, self.num_features)      
+        else:             
+            raise ValueError("Unknown match-filter type")     
+        return kps, des, filter_name 
+             
+
+    def rescale_keypoint_size(self, kps):
+        # if keypoints are FAST, etc. then rescale their small sizes 
+        # in order to let descriptors compute an encoded representation with a decent patch size    
+        scale = 1   
+        doit = False 
+        if self.detector_type == FeatureDetectorTypes.FAST:
+            scale = kFASTKeyPointSizeRescaleFactor
+            doit = True 
+        elif self.detector_type == FeatureDetectorTypes.AGAST:
+            scale = kAGASTKeyPointSizeRescaleFactor     
+            doit = True                    
+        elif self.detector_type == FeatureDetectorTypes.SHI_TOMASI or self.detector_type == FeatureDetectorTypes.GFTT:
+            scale = kShiTomasiKeyPointSizeRescaleFactor
+            doit = True             
+        if doit: 
+            for kp in kps:
+                kp.size *= scale     
+                             
 
     # detect keypoints without computing their descriptors
-    # out: kps 
-    def detect(self, frame, mask=None): 
-        if frame.ndim>2: # check if we have to convert to gray image 
-            frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)             
-        if self.use_pyramid_adaptor:  # detection with pyramid adaptor (priority w.r.t. simple block adaptor)
+    # out: kps (array of cv2.KeyPoint)
+    def detect(self, frame, mask=None, filter=True): 
+        if not self.need_color_image and frame.ndim>2:                                    # check if we have to convert to gray image 
+            frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)                    
+        if self.use_pyramid_adaptor:  
+            # detection with pyramid adaptor (it can optionally include a block adaptor per level)
             kps = self.pyramid_adaptor.detect(frame, mask)            
-        elif self.use_bock_adaptor:   # detection with block adaptor 
+        elif self.use_bock_adaptor:   
+            # detection with block adaptor 
             kps = self.block_adaptor.detect(frame, mask)            
-        else:                         # standard detection      
-            kps = self._feature_detector.detect(frame, mask) 
-        # keep the first 'self.min_num_features' best features or apply NMS 
-        if self.need_nms and kUseKdtNonMaximumSuppressionForKps:      
-            kps, _ = self.kdt_nms(kps)                   
-        else:
-            kps, _ = self.satNumberOfFeatures(kps)                 
+        else:                         
+            # standard detection      
+            kps = self._feature_detector.detect(frame, mask)  
+        # filter keypoints    
+        filter_name = 'NONE'   
+        if filter:   
+            kps, _, filter_name  = self.filter_keypoints(self.keypoint_filter_type, frame, kps) 
+        # if keypoints are FAST, etc. give them a decent size in order to properly compute the descriptors       
+        if self.do_keypoints_size_rescaling:
+            self.rescale_keypoint_size(kps)             
         if kDrawOriginalExtractedFeatures: # draw the original features
             imgDraw = cv2.drawKeypoints(frame, kps, None, color=(0,255,0), flags=0)
             cv2.imshow('detected keypoints',imgDraw)            
         if kVerbose:
-            print('detector: ', self.detector_name, ', #features: ', len(kps))    
+            print('detector:',self.detector_type.name,', #features:', len(kps),', [kp-filter:',filter_name,']')    
         return kps        
+    
+    
+    # compute the descriptors once given the keypoints 
+    def compute(self, frame, kps, filter = True):
+        if not self.need_color_image and frame.ndim>2:     # check if we have to convert to gray image 
+            frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)          
+        kps, des = self._feature_descriptor.compute(frame, kps)  # then, compute descriptors 
+        # filter keypoints     
+        filter_name = 'NONE'                 
+        if filter: 
+            kps, des, filter_name  = self.filter_keypoints(self.keypoint_filter_type, frame, kps, des)            
+        if kVerbose:
+            print('descriptor:',self.descriptor_type.name,', #features:', len(kps),', [kp-filter:',filter_name,']')           
+        return kps, des 
+
 
     # detect keypoints and their descriptors
     # out: kps, des 
-    def detectAndCompute(self, frame, mask=None):
-        if frame.ndim>2: # check if we have to convert to gray image 
+    def detectAndCompute(self, frame, mask=None, filter = True):
+        if not self.need_color_image and frame.ndim>2:     # check if we have to convert to gray image 
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)  
-        if self.use_pyramid_adaptor:  # detectAndCompute with pyramid adaptor (priority w.r.t. simple block adaptor)
-            kps, des = self.pyramid_adaptor.detectAndCompute(frame, mask)            
-        elif self.use_bock_adaptor:   # detectAndCompute with block adaptor 
-            kps, des = self.block_adaptor.detectAndCompute(frame, mask)            
-        else:                         # standard detectAndCompute  
-            if self.is_detector_equal_to_descriptor:                             
+        if self.use_pyramid_adaptor:  
+            # detectAndCompute with pyramid adaptor (it can optionally include a block adaptor per level)
+            if self.force_multiscale_detect_and_compute: 
+                # force detectAndCompute on each level instead of first {detect() on each level} and then {compute() on resulting detected keypoints one time}
+                kps, des = self.pyramid_adaptor.detectAndCompute(frame, mask)  
+            #
+            else: 
+                kps = self.detect(frame, mask, filter=True)        # first, detect by using adaptor on the different pyramid levels                             
+                kps, des = self.compute(frame, kps, filter=False)  # then, separately compute the descriptors on detected keypoints (one time)
+                filter = False # disable keypoint filtering since we already applied it for detection 
+        elif self.use_bock_adaptor:   
+            # detectAndCompute with block adaptor (force detect/compute on each block)
+            #
+            #kps, des = self.block_adaptor.detectAndCompute(frame, mask)    
+            #
+            kps = self.detect(frame, mask, filter=True)        # first, detect by using adaptor                           
+            kps, des = self.compute(frame, kps, filter=False)  # then, separately compute the descriptors   
+            filter = False  # disable keypoint filtering since we already applied it for detection            
+        else:                         
+            # standard detectAndCompute  
+            if self.is_detector_equal_to_descriptor:                     
+                # detector = descriptor => call them together with detectAndCompute() method    
                 kps, des = self._feature_detector.detectAndCompute(frame, mask)   
                 if kVerbose:
-                    #print('using optimized detectAndCompute()')
-                    print('detector: ', self.detector_name, ', #features: ', len(kps))           
-                    print('descriptor: ', self.decriptor_name, ', #features: ', len(kps))                      
+                    print('detector:', self.detector_type.name,', #features:',len(kps))           
+                    print('descriptor:', self.descriptor_type.name,', #features:',len(kps))                      
             else:
                 # detector and descriptor are different => call them separately 
-                # first, detect keypoint locations  
-                kps = self.detect(frame, mask)    
-                # then, compute descriptors  
+                # 1. first, detect keypoint locations  
+                kps = self.detect(frame, mask, filter=False)                  
+                # 2. then, compute descriptors           
                 kps, des = self._feature_descriptor.compute(frame, kps)  
                 if kVerbose:
-                    #print('detector: ', self.detector_name, ', #features: ', len(kps))           
-                    print('descriptor: ', self.decriptor_name, ', #features: ', len(kps))                                           
-        # keep the first 'self.min_num_features' best features or apply NMS 
-        if self.need_nms and kUseKdtNonMaximumSuppressionForKps: 
-            kps, des = self.kdt_nms(kps,des)   
-        else:
-            kps, des = self.satNumberOfFeatures(kps,des)          
-        if self.detector_type == FeatureDetectorTypes.SIFT or self.detector_type == FeatureDetectorTypes.ROOT_SIFT:
-            unpackSiftOctaveKps(kps)                                        
-        return kps, des           
-
-    # keep the first 'self.min_num_features' best features
-    # TODO: improve it by using similar computations to kdt_nms
-    def satNumberOfFeatures(self, kps, des=None):    
-        if len(kps) > self.min_num_features:
-            # keep the features with the best response 
-            if des is None: 
-                kps = sorted(kps, key=lambda x:x.response, reverse=True)[:self.min_num_features]     
-            else:            
-                # sort by score to keep highest score features 
-                print('sat with des')
-                neg_responses = [-kp.response for kp in kps]
-                order = np.argsort(neg_responses)       
-                kps = np.array(kps)[order].tolist()[:self.min_num_features]       
-                des = (np.array(des)[order])[:self.min_num_features]            
-            if kVerbose:
-                print('detector [sat]: ', self.detector_name, ', #features: ', len(kps),', #max: ', self.min_num_features)                        
-            if False: 
-                for k in kps:
-                    print("response: ", k.response) 
-                    print("size: ", k.size)  
-                    print("octave: ", k.octave)           
-        return kps, des 
-     
-    # kdtree-based non-maximum suppression of keypoints 
-    # adapted and optimized from https://stackoverflow.com/questions/9210431/well-distributed-features-using-opencv/50267891
-    def kdt_nms(self, kps, des=None, r=parameters.kKdtNmsRadius, k_max=parameters.kKdtNmsKmax):
-        """ Use kd-tree to perform local non-maximum suppression of key-points
-        kps - key points obtained by one of openCVs 2d features detectors (SIFT, SURF, AKAZE etc..)
-        r - the radius of points to query for removal
-        k_max - maximum points retreived in single query
-        """
-        
-        if kps is None:
-            return kps, des
-        
-        # sort by score to keep highest score features 
-        neg_responses = [-kp.response for kp in kps]
-        order = np.argsort(neg_responses)       
-        kps = np.array(kps)[order].tolist()
-
-        # create kd-tree for quick NN queries
-        data = np.array([list(kp.pt) for kp in kps])
-        kd_tree = cKDTree(data)
-
-        # perform NMS using kd-tree, by querying points by score order, 
-        # and removing neighbors from future queries
-        N = len(kps)
-        idx_removed = set()
-        for i in range(N):
-            if i in idx_removed:
-                continue
-
-            dist, inds = kd_tree.query(data[i,:],k=k_max,distance_upper_bound=r)
-            for j in inds: 
-                if j>i:
-                    idx_removed.add(j)
-
-        idx_remaining = [i for i in range(0,len(kps)) if i not in idx_removed]
-        kp_out = np.array(kps)[idx_remaining].tolist()
-        des_out = None
-        if des is not None:
-            des = des[order]
-            des_out = des[idx_remaining]
-        if len(kp_out) > self.min_num_features:
-            kp_out = kp_out[:self.min_num_features]
-            if des_out is not None:
-                des_out = des_out[:self.min_num_features]
+                    #print('detector: ', self.detector_type.name, ', #features: ', len(kps))           
+                    print('descriptor: ', self.descriptor_type.name, ', #features: ', len(kps))   
+        # filter keypoints   
+        filter_name = 'NONE'
+        if filter:                                                                 
+            kps, des, filter_name  = self.filter_keypoints(self.keypoint_filter_type, frame, kps, des)                                                              
+        if self.detector_type == FeatureDetectorTypes.SIFT or \
+           self.detector_type == FeatureDetectorTypes.ROOT_SIFT or \
+           self.detector_type == FeatureDetectorTypes.CONTEXTDESC :
+            unpackSiftOctaveKps(kps, method=UnpackOctaveMethod.INTRAL_LAYERS)           
         if kVerbose:
-            #print('Remaining #features: ',len(kp_filtered),' of ',N, ' kps')
-            print('detector [NMS]: ', self.detector_name, ', #features: ', len(kp_out),', #max: ', self.min_num_features)        
+            print('detector:',self.detector_type.name,', descriptor:', self.descriptor_type.name,', #features:', len(kps),' (#ref:', self.num_features, '), [kp-filter:',filter_name,']')                                         
+        self.debug_print(kps)             
+        return kps, des             
+ 
+ 
+    def debug_print(self, kps): 
         if False: 
-            for k in kp_out:
-                print("response: ", k.response) 
-                print("size: ", k.size)  
-                print("octave: ", k.octave)                       
-        return kp_out, des_out 
+            # raw print of all keypoints 
+            for k in kps:
+                print("response: ", k.response, "\t, size: ", k.size, "\t, octave: ", k.octave, "\t, angle: ", k.angle)
+        if False: 
+            # generate a rough histogram for keypoint sizes 
+            kps_sizes = [kp.size for kp in kps] 
+            kps_sizes_histogram = np.histogram(kps_sizes, bins=10)
+            print('size-histogram: \n', list(zip(kps_sizes_histogram[1],kps_sizes_histogram[0])))            
+        if False: 
+            # count points for each octave => generate an octave histogram 
+            kps_octaves = [k.octave for k in kps]
+            kps_octaves = Counter(kps_octaves)
+            print('levels-histogram: ', kps_octaves.most_common(12))    
+                    

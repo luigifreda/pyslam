@@ -3,6 +3,15 @@
 # a collection of bash utils 
 
 # ====================================================
+function get_after_last_slash(){
+    ret=$(echo $1 | sed 's:.*/::')
+    echo $ret 
+}
+function get_virtualenv_name(){
+    cmd_out=$(printenv | grep VIRTUAL_ENV)
+    virtual_env_name=$(get_after_last_slash $cmd_out)
+    echo $virtual_env_name
+}
 
 function print_blue(){
 	printf "\033[34;1m"
@@ -12,7 +21,7 @@ function print_blue(){
 
 function make_dir(){
 if [ ! -d $1 ]; then
-    mkdir $1
+    mkdir -p $1
 fi
 }
 function make_buid_dir(){
@@ -48,10 +57,24 @@ function check_pip_package(){
       echo 0
     fi
 }
+function check_pip_package2(){
+    package_name=$1    
+    if python3 -c "import "$package_name &> /dev/null; then
+      echo 0
+    else
+      #echo "$package_name is not installed"
+      echo 1
+    fi
+}
 function install_pip_package(){
     do_install=$(check_pip_package $1)
+    virtual_env=$(get_virtualenv_name)
     if [ $do_install -eq 1 ] ; then
-        pip3 install --user $1
+        if [ "" == "$virtual_env" ]; then
+            pip3 install --user $1          
+        else
+            pip3 install $1     # if you are in a virtual environment the option `--user` will install make pip3 install things outside the env 
+        fi
     fi 
 }
 function install_pip_packages(){

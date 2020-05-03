@@ -19,9 +19,10 @@
 
 import cv2
 from moving_average import MovingAverage
-from helpers import Printer
+from utils import Printer
 
-kPrintGreen=False
+#timer_print = print 
+timer_print = Printer.cyan 
 
 class Timer: 
     def __init__(self, name = '', is_verbose = False):
@@ -58,15 +59,12 @@ class Timer:
             if self._is_paused:
                 name += ' [paused]'
             message = 'Timer::' + name + ' - elapsed: ' + str(self._elapsed) 
-            if kPrintGreen is True:
-                Printer.green(message)        
-            else:
-                print(message)
+            timer_print(message)
         return self._elapsed                
 
 
 class TimerFps(Timer):
-    def __init__(self, name, average_width = 10, is_verbose = True): 
+    def __init__(self, name='', average_width = 10, is_verbose = True): 
         super().__init__(name, is_verbose)   
         self.moving_average = MovingAverage(average_width)
 
@@ -80,8 +78,5 @@ class TimerFps(Timer):
             if self._is_paused:
                 name += ' [paused]'            
             message = 'Timer::' + name + ' - fps: ' + str(1./dT) + ', T: ' + str(dT)
-            if kPrintGreen is True:
-                Printer.green(message)        
-            else:
-                print(message)
+            timer_print(message)
         

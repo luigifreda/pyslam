@@ -24,7 +24,7 @@ import time
 sys.path.append("../../")
 
 from mplot_thread import Mplot2d, Mplot3d
-from helpers import getchar
+from utils import getchar
 
 if __name__ == "__main__":
 
@@ -45,7 +45,9 @@ if __name__ == "__main__":
     #getchar()
 
     img_id = 0
-    while True:
+    
+    do_loop = True
+    while do_loop:
 
         if is_draw_3d:           # draw 3d trajectory 
             traj3d_gt.append((img_id,img_id,img_id))
@@ -67,5 +69,14 @@ if __name__ == "__main__":
             matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
             matched_points_plt.draw(inliers_signal,'# inliers',color='g')                          
     
+        key = err_plt.get_key()
+        if key != chr(0):
+            print('key: ', err_plt.get_key())
+            if key == 'q':
+                plt3d.quit()
+                err_plt.quit()
+                matched_points_plt.quit()
+                do_loop = False 
+
         img_id+=1 
         time.sleep(0.04)               

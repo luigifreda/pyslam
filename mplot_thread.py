@@ -25,10 +25,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
 import multiprocessing as mp 
-from multiprocessing import Process, Queue, Lock, Value
+from multiprocessing import Process, Queue, Lock, RLock, Value
 import ctypes
 
-kPlotSleep = 0.03
+kPlotSleep = 0.04
 kVerbose = False 
 kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#threading.Thread.daemon
                     # The entire Python program exits when no alive non-daemon threads are left.
@@ -36,7 +36,7 @@ kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#thre
 kUseFigCanvasDrawIdle = True 
 
 # global lock for drawing with matplotlib 
-mp_lock = Lock()
+mp_lock = RLock()
 
 if kUseFigCanvasDrawIdle:
     plt.ion()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# clean thirdparty install 
+# clean thirdparty install and utils 
 
 # ====================================================
 # import the utils 
@@ -11,6 +11,8 @@
 set -e
 
 print_blue "=================================================================="
-print_blue "clearning thirdparty packages ..."
+print_blue "clearning thirdparty packages and utils..."
 
-rm -Rf thirdparty/pangolin thirdparty/g2opy
+rm -Rf thirdparty/pangolin 
+rm -Rf thirdparty/g2opy
+rm -Rf cpp/utils/build 

@@ -23,154 +23,177 @@ import cv2
 from enum import Enum
 
 from frame import Frame, match_frames
+from keyframe import KeyFrame
 
-import g2o
+from collections import deque
+
 from map_point import MapPoint
 from map import Map
-from geom_helpers import triangulate_points, add_ones, poseRt
-from pinhole_camera import Camera, PinholeCamera
-from helpers import Printer
-import parameters  
+from utils_geom import triangulate_points, triangulate_normalized_points, add_ones, poseRt, inv_T
+from camera  import Camera, PinholeCamera
+from utils import Printer
+from parameters import Parameters  
+
 
 kVerbose=True     
 kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
-kNumMinFeatures = 100
-kNumMinTriangulatedPoints = 100
-kMaxIdDistBetweenFrames = 10
+
+kMaxIdDistBetweenIntializingFrames = 5   # N.B.: worse performances with values smaller than 5!
+
+kFeatureMatchRatioTestInitializer = Parameters.kFeatureMatchRatioTestInitializer
+
+kNumOfFailuresAfterWichNumMinTriangulatedPointsIsHalved = 10
+
+kMaxLenFrameDeque = 20
+
 
 class InitializerOutput(object):
     def __init__(self):    
-        self.pts = None 
-        self.f_cur = None 
-        self.f_ref = None 
-        self.idx_cur = None 
-        self.idx_ref = None 
+        self.pts = None    # 3d points [Nx3]
+        self.kf_cur = None 
+        self.kf_ref = None 
+        self.idxs_cur = None 
+        self.idxs_ref = None 
+
 
 class Initializer(object):
     def __init__(self):
         self.mask_match = None
         self.mask_recover = None 
-        self.frames = []     
-        self.id_ref = 0   
+        self.frames = deque(maxlen=kMaxLenFrameDeque)  # deque with max length, it is thread-safe      
+        self.idx_f_ref = 0   # index of the reference frame in self.frames buffer  
+        self.f_ref = None 
+        
+        self.num_min_features = Parameters.kInitializerNumMinFeatures
+        self.num_min_triangulated_points = Parameters.kInitializerNumMinTriangulatedPoints       
+        self.num_failures = 0 
+        
+    def reset(self):
+        self.frames.clear()
+        self.f_ref = None         
 
     # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
-    # out: [Rrc, trc]   (with respect to 'ref' frame) 
+    # out: Trc  homogeneous transformation matrix with respect to 'ref' frame,  pr_= Trc * pc_
     # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with previous estimated poses)
     # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
     # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
-    # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
+    # - degenerate motions such a pure rotation (a sufficient parallax is required) or anum_edges viewpoint change (where the translation is almost zero)
     # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
     # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation     
     def estimatePose(self, kpn_ref, kpn_cur):	     
         E, self.mask_match = cv2.findEssentialMat(kpn_cur, kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)                         
-        _, R, t, self.mask_recover = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0., 0.))   
-        return poseRt(R,t.T)  # Rrc,trc (with respect to 'ref' frame)         
-
-    def triangulatePoints(self, pose_1w, pose_2w, kpn_1, kpn_2):
-        # P1w = np.dot(K1,  M1w) # K1*[R1w, t1w]
-        # P2w = np.dot(K2,  M2w) # K2*[R2w, t2w]
-        # since we are working with normalized coordinates x_hat = Kinv*x, one has         
-        P1w = pose_1w[:3,:] # [R1w, t1w]
-        P2w = pose_2w[:3,:] # [R2w, t2w]
-
-        point_4d_hom = cv2.triangulatePoints(P1w, P2w, kpn_1.T, kpn_2.T)
-        point_4d = point_4d_hom / point_4d_hom[3]  
-
-        if False: 
-            point_reproj = P1w @ point_4d;
-            point_reproj = point_reproj / point_reproj[2] - add_ones(kpn_1).T
-            err = np.sum(point_reproj**2)
-            print('reproj err: ', err)     
-
-        #pts_3d = point_4d[:3, :].T
-        return point_4d.T  
+        _, R, t, mask = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0., 0.))                                                     
+        return poseRt(R,t.T)  # Trc  homogeneous transformation matrix with respect to 'ref' frame,  pr_= Trc * pc_        
 
     # push the first image
     def init(self, f_cur):
-        self.frames.append(f_cur)              
+        self.frames.append(f_cur)    
+        self.f_ref = f_cur           
 
     # actually initialize having two available images 
     def initialize(self, f_cur, img_cur):
+
+        if self.num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsHalved: 
+            self.num_min_triangulated_points = 0.5 * Parameters.kInitializerNumMinTriangulatedPoints
+            self.num_failures = 0
+            Printer.orange('Initializer: halved min num triangulated features to ', self.num_min_triangulated_points)            
 
         # prepare the output 
         out = InitializerOutput()
         is_ok = False 
 
-        print('num frames: ', len(self.frames))
-        print('curr frame id: ',self.id_ref )
-        # if too many frames have passed, move the current id_ref forward 
-        # this is just one very simple policy which can be used 
-        if (len(self.frames)-1) - self.id_ref >= kMaxIdDistBetweenFrames: 
-            self.id_ref = len(self.frames)-1  # take last frame in the array 
-        self.f_ref = self.frames[self.id_ref] 
+        #print('num frames: ', len(self.frames))
+        
+        # if too many frames have passed, move the current idx_f_ref forward 
+        # this is just one very simple policy that can be used 
+        if self.f_ref is not None: 
+            if f_cur.id - self.f_ref.id > kMaxIdDistBetweenIntializingFrames: 
+                self.f_ref = self.frames[-1]  # take last frame in the buffer
+                #self.idx_f_ref = len(self.frames)-1  # take last frame in the buffer
+                #self.idx_f_ref = self.frames.index(self.f_ref)  # since we are using a deque, the code of the previous commented line is not valid anymore 
+                #print('*** idx_f_ref:',self.idx_f_ref)
+        #self.f_ref = self.frames[self.idx_f_ref] 
         f_ref = self.f_ref 
-
+        #print('ref fid: ',self.f_ref.id,', curr fid: ', f_cur.id, ', idxs_ref: ', self.idxs_ref)
+                
         # append current frame 
         self.frames.append(f_cur)
 
         # if the current frames do no have enough features exit 
-        if len(f_ref.kps) < kNumMinFeatures or len(f_cur.kps) < kNumMinFeatures:
-            Printer.red('Inializer: not enough features!') 
+        if len(f_ref.kps) < self.num_min_features or len(f_cur.kps) < self.num_min_features:
+            Printer.red('Inializer: ko - not enough features!') 
+            self.num_failures += 1
             return out, is_ok
 
-        # find image point matches
-        idx_cur, idx_ref = match_frames(f_cur, f_ref)
+        # find keypoint matches
+        idxs_cur, idxs_ref = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)       
     
         print('├────────')        
+        #print('deque ids: ', [f.id for f in self.frames])
         print('initializing frames ', f_cur.id, ', ', f_ref.id)
-        Mrc = self.estimatePose(f_ref.kpsn[idx_ref], f_cur.kpsn[idx_cur])
-        f_cur.pose = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))  # [Rcr, tcr] w.r.t. ref frame 
+        print("# keypoint matches: ", len(idxs_cur))  
+                
+        Trc = self.estimatePose(f_ref.kpsn[idxs_ref], f_cur.kpsn[idxs_cur])
+        Tcr = inv_T(Trc)  # Tcr w.r.t. ref frame 
+        f_ref.update_pose(np.eye(4))        
+        f_cur.update_pose(Tcr)
 
-        # remove outliers      
-        mask_index = [ i for i,v in enumerate(self.mask_match) if v > 0] 
-        print('num inliers: ', len(mask_index))
-        idx_cur_inliers = idx_cur[mask_index]
-        idx_ref_inliers = idx_ref[mask_index]
+        # remove outliers from keypoint matches by using the mask computed with inter frame pose estimation        
+        mask_idxs = (self.mask_match.ravel() == 1)
+        self.num_inliers = sum(mask_idxs)
+        print('# keypoint inliers: ', self.num_inliers )
+        idx_cur_inliers = idxs_cur[mask_idxs]
+        idx_ref_inliers = idxs_ref[mask_idxs]
 
         # create a temp map for initializing 
         map = Map()
         f_ref.reset_points()
         f_cur.reset_points()
-        map.add_frame(f_ref)        
-        map.add_frame(f_cur)
-
-        points4d = self.triangulatePoints(f_cur.pose, f_ref.pose, f_cur.kpsn[idx_cur_inliers], f_ref.kpsn[idx_ref_inliers])
-        #pts4d = triangulate(f_cur.pose, f_ref.pose, f_cur.kpsn[idx_cur], f_ref.kpsn[idx_ref])
-
-        new_pts_count, mask_points = map.add_points(points4d, None, f_cur, f_ref, idx_cur_inliers, idx_ref_inliers, img_cur, check_parallax=True)
-        print("triangulated:      %d new points from %d matches" % (new_pts_count, len(idx_cur)))   
         
-        if new_pts_count > kNumMinTriangulatedPoints:  
-            err = map.optimize(verbose=False)
-            print("pose opt err:   %f" % err)         
+        #map.add_frame(f_ref)        
+        #map.add_frame(f_cur)  
+        
+        kf_ref = KeyFrame(f_ref)
+        kf_cur = KeyFrame(f_cur, img_cur)        
+        map.add_keyframe(kf_ref)        
+        map.add_keyframe(kf_cur)      
+        
+        pts3d, mask_pts3d = triangulate_normalized_points(kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idx_cur_inliers], kf_ref.kpsn[idx_ref_inliers])
 
-            #reset points in frames 
-            f_cur.reset_points()
-            f_ref.reset_points()
+        new_pts_count, mask_points, _ = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idx_cur_inliers, idx_ref_inliers, img_cur, do_check=True, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
+        print("# triangulated points: ", new_pts_count)   
+                        
+        if new_pts_count > self.num_min_triangulated_points:  
+            err = map.optimize(verbose=False, rounds=20,use_robust_kernel=True)
+            print("init optimization error^2: %f" % err)         
 
             num_map_points = len(map.points)
             print("# map points:   %d" % num_map_points)   
-            is_ok = num_map_points > kNumMinTriangulatedPoints
+            is_ok = num_map_points > self.num_min_triangulated_points
 
-            out.points4d = points4d[mask_points]
-            out.f_cur = f_cur
-            out.idx_cur = idx_cur_inliers[mask_points]        
-            out.f_ref = f_ref 
-            out.idx_ref = idx_ref_inliers[mask_points]
+            out.pts = pts3d[mask_points]
+            out.kf_cur = kf_cur
+            out.idxs_cur = idx_cur_inliers[mask_points]        
+            out.kf_ref = kf_ref 
+            out.idxs_ref = idx_ref_inliers[mask_points]
 
-            # set median depth to 'desired_median_depth'
-            desired_median_depth = parameters.kInitializerDesiredMedianDepth
-            median_depth = f_cur.compute_points_median_depth(out.points4d)        
+            # set scene median depth to equal desired_median_depth'
+            desired_median_depth = Parameters.kInitializerDesiredMedianDepth
+            median_depth = kf_cur.compute_points_median_depth(out.pts)        
             depth_scale = desired_median_depth/median_depth 
-            print('median depth: ', median_depth)
+            print('forcing current median depth ', median_depth,' to ',desired_median_depth)
 
-            out.points4d = out.points4d * depth_scale  # scale points 
-            f_cur.pose[:3,3] = f_cur.pose[:3,3] * depth_scale # scale initial baseline 
-
-        print('├────────')    
+            out.pts[:,:3] = out.pts[:,:3] * depth_scale  # scale points 
+            tcw = kf_cur.tcw * depth_scale  # scale initial baseline 
+            kf_cur.update_translation(tcw)
+            
+        map.delete()
+  
         if is_ok:
             Printer.green('Inializer: ok!')    
         else:
+            self.num_failures += 1            
             Printer.red('Inializer: ko!')                         
+        print('├────────')              
         return out, is_ok

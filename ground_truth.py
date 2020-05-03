@@ -143,7 +143,7 @@ class TumGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, type = GroundTruthType.TUM): 
         super().__init__(path, name, associations, type)
         self.scale = kScaleTum 
-        self.filename=path + '/' + name + '/' + 'groundtruth.txt' # N.B.: this may depend on how you deployed the groundtruth files 
+        self.filename=path + '/' + name + '/' + 'groundtruth.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
         self.file_associations=path + '/' + name + '/' + associations # N.B.: this may depend on how you name the associations file
         with open(self.filename) as f:
             self.data = f.readlines()[3:] # skip the first three rows, which are only comments 

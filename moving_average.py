@@ -36,21 +36,23 @@ class MovingAverage:
         self._one_over_average_width_min_one = 1./(average_width-1)
         self._ring_buffer = np.zeros(average_width)
 
-    def init(self, initVal):
-        self._ring_buffer = np.zeros(self._average_width)
+    def init(self, initVal=None):
+        if initVal is None:
+            initVal = 0. 
+        self._ring_buffer = np.full(self._average_width, initVal, dtype=np.float32)        
         self._average	= initVal;	
         self._sigma2	= 0;
         self._is_init	= True;        
 
     def getAverage(self, new_val=None):
-        if self._is_init is False: 
+        if not self._is_init: 
             self.init(new_val)
         if new_val is None:
             return self._average            
         averageOld	= self._average
         oldVal		= self._ring_buffer[self._idx_ring]
         self._average += (new_val - oldVal)/self._average_width
-        if self._is_compute_sigma is True:
+        if self._is_compute_sigma:
             self._sigma2	=  self._sigma2 + self._one_over_average_width_min_one*(self._average_width*(averageOld*averageOld - self._average*self._average) - oldVal*oldVal + newVal*newVal)
         self._ring_buffer[self._idx_ring]	= new_val
         self._idx_ring = (self._idx_ring + 1) % self._average_width
