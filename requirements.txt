@@ -128,7 +128,7 @@ Pillow==7.0.0
 plumber==1.5
 prompt-toolkit==1.0.15
 protobuf==3.11.2
-psutil==5.4.2
+psutil==5.6.6
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pybind11==2.4.3
