@@ -40,7 +40,7 @@ easydict==1.9
 empy==3.3.2
 entrypoints==0.2.3.post1
 feedparser==5.2.1
-Flask==0.12.2
+Flask==1.0
 flufl.lock==3.2
 gast==0.3.3
 gazebo-plugins==2.8.6
