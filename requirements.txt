@@ -6,7 +6,7 @@ asn1crypto==0.24.0
 astor==0.8.1
 atpublic==1.0
 beautifulsoup4==4.6.0
-bleach==2.1.2
+bleach==3.1.4
 blinker==1.4
 bondpy==1.8.3
 Brlapi==0.6.6
