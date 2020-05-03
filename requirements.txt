@@ -248,7 +248,7 @@ tensorboard==2.1.0
 tensorboardX==2.0
 tensorflow==1.14.0
 tensorflow-estimator==1.14.0
-tensorflow-gpu==1.14.0
+tensorflow-gpu==1.15.2
 termcolor==1.1.0
 terminado==0.7
 testpath==0.3.1
