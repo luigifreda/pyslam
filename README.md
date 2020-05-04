@@ -277,8 +277,10 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 ---
 ## TODOs
 
+Many improvements and additional features are currently under development: 
+
 * loop closure
-* general relocalization 
+* relocalization 
 * map saving/loading 
 * modern DL matching algorithms
 * object detection and semantic segmentation 
