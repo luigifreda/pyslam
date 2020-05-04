@@ -7,7 +7,7 @@ Author: [Luigi Freda](https://www.luigifreda.com)
 I released pySLAM for **educational purposes**, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
 
 Main Scripts:
-* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
+* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
@@ -200,17 +200,22 @@ The following feature **descriptors** are supported:
 * *[BRISK](http://www.margaritachli.com/papers/ICCV2011paper.pdf)*     
 * *[FREAK](https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint)* 
 * *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
-* [Tfeat](https://github.com/vbalnt/tfeat)
-* [Hardnet](https://github.com/DagnyT/hardnet.git)
-* [GeoDesc](https://github.com/lzx551402/geodesc.git)
-* [SOSNet](https://github.com/yuruntian/SOSNet.git)
-* [L2Net](https://github.com/yuruntian/L2-Net)
-* [Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)
-* [D2-Net](https://github.com/mihaidusmanu/d2-net)
-* [DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)
-* [Contextdesc](https://github.com/lzx551402/contextdesc)
-* [LFNet](https://github.com/vcg-uvic/lf-net-release)
-* [R2D2](https://github.com/naver/r2d2)
+* *[Tfeat](https://github.com/vbalnt/tfeat)*
+* *[BOOST_DESC](https://www.labri.fr/perso/vlepetit/pubs/trzcinski_pami15.pdf)*
+* *[DAISY](https://ieeexplore.ieee.org/document/4815264)*
+* *[LATCH](https://arxiv.org/abs/1501.03719)*
+* *[LUCID](https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf)*
+* *[VGG](https://www.robots.ox.ac.uk/~vedaldi/assets/pubs/simonyan14learning.pdf)*
+* *[Hardnet](https://github.com/DagnyT/hardnet.git)*
+* *[GeoDesc](https://github.com/lzx551402/geodesc.git)*
+* *[SOSNet](https://github.com/yuruntian/SOSNet.git)*
+* *[L2Net](https://github.com/yuruntian/L2-Net)*
+* *[Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)*
+* *[D2-Net](https://github.com/mihaidusmanu/d2-net)*
+* *[DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)*
+* *[Contextdesc](https://github.com/lzx551402/contextdesc)*
+* *[LFNet](https://github.com/vcg-uvic/lf-net-release)*
+* *[R2D2](https://github.com/naver/r2d2)*
 
 
 You can find more information in the file [feature_types.py](./feature_types.py). Some of the local feature consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.

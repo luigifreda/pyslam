@@ -4,6 +4,15 @@ This page contains a small collections of issues/errors that may be experienced 
 
 **FIRST OF ALL**: did you read the main [README](./README.md) page? did you use the provided **INSTALL SCRIPTS**? If not then go back on the [README](./README.md) page, read the few lines in the install section and launch the **REQUIRED** install script. The install scripts were created in order to perform all the required install operations for you and make the install process itself as painless as possible.   
 
+
+### Bad tracking performances
+
+If you experience bad tracking performances, go in [parameters.py](./parameters.py) and set
+```
+kTrackingWaitForLocalMappingToGetIdle=True
+```
+Due to the multi-threading system (tracking thread + local mapping thread) and the non-real-time peformances of the python implementations, bad tracking performances may occur and vary according to your maching computation capabilities. 
+
 ### SIFT or SURF error
 
 This is already explained in the main [README](./README.md) file. 
