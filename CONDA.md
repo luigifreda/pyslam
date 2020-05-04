@@ -58,12 +58,19 @@ $ conda env create -f requirements.yml
 ## Deleting an environment 
 
 To delete an environment, in your terminal window or an Anaconda Prompt, run:
-`$ conda remove --name myenv --all`
+```
+$ conda remove --name myenv --all
+```
 
 You may instead use 
-`$ conda env remove --name myenv`
+```
+$ conda env remove --name myenv
+```
+
 To verify that the environment was removed, in your terminal window or an Anaconda Prompt, run:
-`$ conda info --envs` 
+```
+$ conda info --envs
+```
 The environments list that displays should not show the removed environment.
 
 
@@ -82,11 +89,6 @@ $ conda install pytorch torchvision cudatoolkit=10.1 -c pytorch
 or (if you do not have an NVIDIA GPU)
 ```
 $ conda install -c pytorch torchvision
-```
-
-Now, you can run 
-```
-$ python3 -O main_vo.py
 ```
 
 To deactivate the `opencvenv` environment, use
