@@ -11,7 +11,7 @@ If you experience bad tracking performances, go in [parameters.py](./parameters.
 ```
 kTrackingWaitForLocalMappingToGetIdle=True
 ```
-Due to the multi-threading system (tracking thread + local mapping thread) and the non-real-time peformances of the python implementations, bad tracking performances may occur and vary according to your maching computation capabilities. 
+Due to the multi-threading system (tracking thread + local mapping thread) and the non-real-time peformances of the python implementations, bad tracking performances may occur and vary according to your machine computation capabilities. 
 
 ### SIFT or SURF error
 
