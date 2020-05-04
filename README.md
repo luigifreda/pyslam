@@ -105,6 +105,67 @@ Some basic **test/example files** are available in the subfolder `test`. In part
 
 **N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
 
+
+---
+## <a name="detectorsdescriptors"></a> Supported Local Features
+
+At present time, the following feature **detectors** are supported: 
+* *[FAST](https://www.edwardrosten.com/work/fast.html)*  
+* *[Good features to track](https://ieeexplore.ieee.org/document/323794)* 
+* *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
+* *[ORB2](https://github.com/raulmur/ORB_SLAM2)* (improvements of ORB-SLAM2 to ORB detector) 
+* *[SIFT](https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf)*   
+* *[SURF](http://people.ee.ethz.ch/~surf/eccv06.pdf)*   
+* *[KAZE](https://www.doc.ic.ac.uk/~ajd/Publications/alcantarilla_etal_eccv2012.pdf)*
+* *[AKAZE](http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf)* 
+* *[BRISK](http://www.margaritachli.com/papers/ICCV2011paper.pdf)*  
+* *[AGAST](http://www.i6.in.tum.de/Main/ResearchAgast)*
+* *[MSER](http://cmp.felk.cvut.cz/~matas/papers/matas-bmvc02.pdf)*
+* *[StarDector/CenSurE](https://link.springer.com/content/pdf/10.1007%2F978-3-540-88693-8_8.pdf)*
+* *[Harris-Laplace](https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf)* 
+* *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
+* [D2-Net](https://github.com/mihaidusmanu/d2-net)
+* [DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)
+* [Contextdesc](https://github.com/lzx551402/contextdesc)
+* [LFNet](https://github.com/vcg-uvic/lf-net-release)
+* [R2D2](https://github.com/naver/r2d2)
+* *[Key.Net](https://github.com/axelBarroso/Key.Net)*
+
+The following feature **descriptors** are supported: 
+* *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
+* *[SIFT](https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf)*
+* *[ROOT SIFT](https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf)*
+* *[SURF](http://people.ee.ethz.ch/~surf/eccv06.pdf)*    
+* *[AKAZE](http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf)* 
+* *[BRISK](http://www.margaritachli.com/papers/ICCV2011paper.pdf)*     
+* *[FREAK](https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint)* 
+* *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
+* *[Tfeat](https://github.com/vbalnt/tfeat)*
+* *[BOOST_DESC](https://www.labri.fr/perso/vlepetit/pubs/trzcinski_pami15.pdf)*
+* *[DAISY](https://ieeexplore.ieee.org/document/4815264)*
+* *[LATCH](https://arxiv.org/abs/1501.03719)*
+* *[LUCID](https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf)*
+* *[VGG](https://www.robots.ox.ac.uk/~vedaldi/assets/pubs/simonyan14learning.pdf)*
+* *[Hardnet](https://github.com/DagnyT/hardnet.git)*
+* *[GeoDesc](https://github.com/lzx551402/geodesc.git)*
+* *[SOSNet](https://github.com/yuruntian/SOSNet.git)*
+* *[L2Net](https://github.com/yuruntian/L2-Net)*
+* *[Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)*
+* *[D2-Net](https://github.com/mihaidusmanu/d2-net)*
+* *[DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)*
+* *[Contextdesc](https://github.com/lzx551402/contextdesc)*
+* *[LFNet](https://github.com/vcg-uvic/lf-net-release)*
+* *[R2D2](https://github.com/naver/r2d2)*
+
+
+You can find more information in the file [feature_types.py](./feature_types.py). Some of the local feature consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.
+
+In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
+
+The function `feature_tracker_factory()` can be found in the file `feature_tracker.py`. Take a look at the file `feature_manager.py` for further details.
+
+**N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#detectorsdescriptors)!
+
 --- 
 ## Datasets
 
@@ -166,63 +227,6 @@ If you want to use your camera, you have to:
 * calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly
 * record a video (for instance, by using `save_video.py` in the folder `calibration`)
 * configure the `[VIDEO_DATASET]` section of `config.ini` in order to point to your video.
-
----
-## <a name="detectorsdescriptors"></a> Supported Local Features
-
-At present time, the following feature **detectors** are supported: 
-* *[FAST](https://www.edwardrosten.com/work/fast.html)*  
-* *[Good features to track](https://ieeexplore.ieee.org/document/323794)* 
-* *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
-* *[SIFT](https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf)*   
-* *[SURF](http://people.ee.ethz.ch/~surf/eccv06.pdf)*   
-* *[KAZE](https://www.doc.ic.ac.uk/~ajd/Publications/alcantarilla_etal_eccv2012.pdf)*
-* *[AKAZE](http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf)* 
-* *[BRISK](http://www.margaritachli.com/papers/ICCV2011paper.pdf)*  
-* *[AGAST](http://www.i6.in.tum.de/Main/ResearchAgast)*
-* *[MSER](http://cmp.felk.cvut.cz/~matas/papers/matas-bmvc02.pdf)*
-* *[StarDector/CenSurE](https://link.springer.com/content/pdf/10.1007%2F978-3-540-88693-8_8.pdf)*
-* *[Harris-Laplace](https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf)* 
-* *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
-* [D2-Net](https://github.com/mihaidusmanu/d2-net)
-* [DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)
-* [Contextdesc](https://github.com/lzx551402/contextdesc)
-* [LFNet](https://github.com/vcg-uvic/lf-net-release)
-* [R2D2](https://github.com/naver/r2d2)
-* *[Key.Net](https://github.com/axelBarroso/Key.Net)*
-
-The following feature **descriptors** are supported: 
-* *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
-* *[SIFT](https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf)*
-* *[ROOT SIFT](https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf)*
-* *[SURF](http://people.ee.ethz.ch/~surf/eccv06.pdf)*    
-* *[AKAZE](http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf)* 
-* *[BRISK](http://www.margaritachli.com/papers/ICCV2011paper.pdf)*     
-* *[FREAK](https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint)* 
-* *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
-* *[Tfeat](https://github.com/vbalnt/tfeat)*
-* *[BOOST_DESC](https://www.labri.fr/perso/vlepetit/pubs/trzcinski_pami15.pdf)*
-* *[DAISY](https://ieeexplore.ieee.org/document/4815264)*
-* *[LATCH](https://arxiv.org/abs/1501.03719)*
-* *[LUCID](https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf)*
-* *[VGG](https://www.robots.ox.ac.uk/~vedaldi/assets/pubs/simonyan14learning.pdf)*
-* *[Hardnet](https://github.com/DagnyT/hardnet.git)*
-* *[GeoDesc](https://github.com/lzx551402/geodesc.git)*
-* *[SOSNet](https://github.com/yuruntian/SOSNet.git)*
-* *[L2Net](https://github.com/yuruntian/L2-Net)*
-* *[Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)*
-* *[D2-Net](https://github.com/mihaidusmanu/d2-net)*
-* *[DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)*
-* *[Contextdesc](https://github.com/lzx551402/contextdesc)*
-* *[LFNet](https://github.com/vcg-uvic/lf-net-release)*
-* *[R2D2](https://github.com/naver/r2d2)*
-
-
-You can find more information in the file [feature_types.py](./feature_types.py). Some of the local feature consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.
-
-In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
-
-The function `feature_tracker_factory()` can be found in the file `feature_tracker.py`. Take a look at the file `feature_manager.py` for further details.
 
 --- 
 ## Contributing to pySLAM
