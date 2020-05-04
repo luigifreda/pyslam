@@ -269,7 +269,7 @@ class KeyFrame(Frame,KeyFrameGraph):
             assert(self.parent is not None)
             parent_candidates.add(self.parent)
             
-            # each children must be connected to a new parent (the candidate parent with highest covisibility weight)
+            # each child must be connected to a new parent (the candidate parent with highest covisibility weight)
             # once a child is connected to a new parent, include the child as new parent candidate for the rest            
             while not len(self.children)==0:            
                 w_max = 0
