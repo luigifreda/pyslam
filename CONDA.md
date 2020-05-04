@@ -21,6 +21,8 @@ or
 $ conda activate pyslam 
 ```
 
+Now, you can launch pySLAM scripts. 
+
 # Deactivate `pyslam` conda environment 
 
 To deactivate the `pyslam` environment, use
