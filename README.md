@@ -16,9 +16,11 @@ You can use this framework as a baseline to play with local [features](#detector
 **Enjoy it!**
 
 <center> <img src="images/main-vo.png"
-alt="VO" height="300" border="1" /> 
+alt="VO" width="600" border="1" /> 
 <img src="images/main-slam-kitti-map.png"
-alt="SLAM" height="300" border="1" /> </center>
+alt="SLAM" width="600" border="1" />
+<img src="images/feature-matching.png"
+alt="Feature Matching" width="600" border="1" />  </center>
 
 --- 
 ## Install 
