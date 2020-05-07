@@ -40,12 +40,14 @@ A collection of ready-to-used feature tracker configurations
 """
 class FeatureTrackerConfigs(object):   
     
-    # Test/Template configuration: you can use this to quickly test your custom parameters and favourite descriptor and detector (check the file feature_types.py)
+    # Test/Template configuration: you can use this to quickly test 
+    # - your custom parameters and 
+    # - favourite descriptor and detector (check the file feature_types.py)
     TEST = dict(num_features=kNumFeatures,                   
                 num_levels = 8,                                  # N.B: some detectors/descriptors do not allow to set num_levels or they set it on their own
                 scale_factor = 1.2,                              # N.B: some detectors/descriptors do not allow to set scale_factor or they set it on their own
-                detector_type = FeatureDetectorTypes.ORB2, 
-                descriptor_type = FeatureDescriptorTypes.ORB2, 
+                detector_type = FeatureDetectorTypes.CONTEXTDESC, 
+                descriptor_type = FeatureDescriptorTypes.CONTEXTDESC, 
                 match_ratio_test = kRatioTest,
                 tracker_type = kTrackerType)
     
@@ -181,5 +183,12 @@ class FeatureTrackerConfigs(object):
                       match_ratio_test = kRatioTest,                               
                       tracker_type = kTrackerType)
 
+    CONTEXTDESC = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.CONTEXTDESC, 
+                       descriptor_type = FeatureDescriptorTypes.CONTEXTDESC, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
     
     

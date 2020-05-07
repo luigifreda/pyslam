@@ -35,20 +35,20 @@ In order to add a new DESCRIPTOR:
 
 class FeatureDetectorTypes(Enum):   
     NONE        = 0 
-    SHI_TOMASI  = 1
-    FAST        = 2    
-    SIFT        = 3
-    ROOT_SIFT   = 4 
-    SURF        = 5
-    ORB         = 6
-    ORB2        = 7   # interface for ORBSLAM2 features (ORB + spatial keypoint filtering)
-    BRISK       = 8
-    KAZE        = 9
-    AKAZE       = 10
+    SHI_TOMASI  = 1   # "Good Features To Track"
+    FAST        = 2   # "Faster and better: a machine learning approachto corner detection" 
+    SIFT        = 3   # "Object Recognition from Local Scale-Invariant Features"
+    ROOT_SIFT   = 4   # "Three things everyone should know to improve object retrieval"
+    SURF        = 5   # "SURF: Speeded Up Robust Features"
+    ORB         = 6   # "ORB: An efficient alternative to SIFT or SURF"
+    ORB2        = 7   # interface for ORB-SLAM2 features (ORB + spatial keypoint filtering)
+    BRISK       = 8   # "BRISK: Binary Robust Invariant Scalable Keypoints"
+    KAZE        = 9   # "KAZE Features"
+    AKAZE       = 10  # "Fast Explicit Diffusion for Accelerated Features in Nonlinear Scale Spaces"
     SUPERPOINT  = 11  # [end-to-end] joint detector-descriptor - "SuperPoint: Self-Supervised Interest Point Detection and Description"
-    AGAST       = 12
+    AGAST       = 12  # "AGAST Corner Detector: faster than FAST and even FAST-ER"
     GFTT        = 13  # "Good Features To Track" (it includes SHI-TOMASI and HARRIS methods)
-    MSER        = 14
+    MSER        = 14  # "Robust Wide Baseline Stereo from Maximally Stable Extremal Regions"
     MSD         = 15  # "Interest points via maximal self-dissimilarities" - Unfortunately it does not work on my setup! 
     STAR        = 16  # StarDetector - "Censure: Center surround extremas for realtime feature detection and matching"
     HL          = 17  # Harris-Laplace - "Scale & affine invariant interest point detectors"
@@ -62,17 +62,17 @@ class FeatureDetectorTypes(Enum):
 
 class FeatureDescriptorTypes(Enum):
     NONE        = 0   # used for LK tracker (in main_vo.py)
-    SIFT        = 1
-    ROOT_SIFT   = 2    
-    SURF        = 3
-    ORB         = 4   # [binary]
+    SIFT        = 1   # "Object Recognition from Local Scale-Invariant Features"
+    ROOT_SIFT   = 2   # "Three things everyone should know to improve object retrieval"
+    SURF        = 3   # "SURF: Speeded Up Robust Features"
+    ORB         = 4   # [binary] "ORB: An efficient alternative to SIFT or SURF"
     ORB2        = 5   # [binary] interface for ORBSLAM2 features     
-    BRISK       = 6   # [binary]     
-    KAZE        = 7   # only with KAZE or AKAZE detectors
-    AKAZE       = 8   # [binary] only with KAZE or AKAZE detectors 
-    FREAK       = 9   # [binary] only descriptor   
+    BRISK       = 6   # [binary] "BRISK: Binary Robust Invariant Scalable Keypoints"    
+    KAZE        = 7   # only with KAZE or AKAZE detectors - "KAZE Features"
+    AKAZE       = 8   # [binary] only with KAZE or AKAZE detectors - "Fast Explicit Diffusion for Accelerated Features in Nonlinear Scale Spaces"
+    FREAK       = 9   # [binary] only descriptor - "FREAK: Fast retina keypoint"
     SUPERPOINT  = 10  # [end-to-end] only with SUPERPOINT detector - "SuperPoint: Self-Supervised Interest Point Detection and Description"
-    TFEAT       = 11  # only descriptor 
+    TFEAT       = 11  # only descriptor - " Learning local feature descriptors with triplets and shallow convolutional neural networks"
     BOOST_DESC  = 12  # [binary] only descriptor - "Learning Image Descriptors with Boosting" 
     DAISY       = 13  # only descriptor - "Daisy: An efficient dense descriptor applied to wide baseline stereo" 
     LATCH       = 14  # [binary] only descriptor - "LATCH: Learned Arrangements of Three Patch Codes" 
