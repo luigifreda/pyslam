@@ -11,7 +11,7 @@ Main Scripts:
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
-You can use this framework as a baseline to play with [local features](#detectorsdescriptors), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, please, consider that's a work in progress, a development framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
+You can use this framework as a baseline to play with [local features](#detectorsdescriptors), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, consider that's a work in progress, a development framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
 
 **Enjoy it!**
 
