@@ -152,7 +152,7 @@ The following feature **descriptors** are supported:
 * *[GeoDesc](https://github.com/lzx551402/geodesc.git)*
 * *[SOSNet](https://github.com/yuruntian/SOSNet.git)*
 * *[L2Net](https://github.com/yuruntian/L2-Net)*
-* *[Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)*
+* *[Log-polar descriptor](https://github.com/cvlab-epfl/log-polar-descriptors)*
 * *[D2-Net](https://github.com/mihaidusmanu/d2-net)*
 * *[DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)*
 * *[Contextdesc](https://github.com/lzx551402/contextdesc)*
@@ -266,7 +266,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [GeoDesc](https://github.com/lzx551402/geodesc.git)
 * [SOSNet](https://github.com/yuruntian/SOSNet.git)
 * [L2Net](https://github.com/yuruntian/L2-Net)
-* [Log-polar descriptor](https://github.com/DagnyT/hardnet_ptn.git)
+* [Log-polar descriptor](https://github.com/cvlab-epfl/log-polar-descriptors)
 * [D2-Net](https://github.com/mihaidusmanu/d2-net)
 * [DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)
 * [Contextdesc](https://github.com/lzx551402/contextdesc)
