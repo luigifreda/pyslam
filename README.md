@@ -239,9 +239,9 @@ I would be very grateful if you would contribute to the code base by reporting b
 ## References
 
 Suggested books:
-* *Multiple View Geometry in Computer Vision* by Richard Hartley and Andrew Zisserman
-* *An Invitation to 3-D Vision* by Yi-Ma, Stefano Soatto, Jana Kosecka, S. Shankar Sastry 
-* *Computer Vision: Algorithms and Applications*, by Richard Szeliski 
+* *[Multiple View Geometry in Computer Vision](https://www.robots.ox.ac.uk/~vgg/hzbook/)* by Richard Hartley and Andrew Zisserman
+* *[An Invitation to 3-D Vision](https://link.springer.com/book/10.1007/978-0-387-21779-6)* by Yi-Ma, Stefano Soatto, Jana Kosecka, S. Shankar Sastry 
+* *[Computer Vision: Algorithms and Applications](http://szeliski.org/Book/)*, by Richard Szeliski 
 * *[Deep Learning](http://www.deeplearningbook.org/lecture_slides.html)*
 * *[Neural Networks and Deep Learning](http://neuralnetworksanddeeplearning.com/index.html)*
 
