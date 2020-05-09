@@ -74,9 +74,9 @@ $ python3 -c "import cv2; print(cv2.__version__)"
 ```
 For a more advanced OpenCV installation procedure, you can take a look [here](https://www.pyimagesearch.com/opencv-tutorials-resources-guides/). 
 
-#### Install Issues or Errors
+#### Issues and Errors
 
-If you run into install problems or run-time errors, please, check the file [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
+If you run into issues or errors during the installation process or at run-time, please, check the file [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
 --- 
 ## Usage
