@@ -5,7 +5,7 @@ Please, follow the instructions below.
 
 ## Create a `pyslam` conda environment 
 
-In order to create a custom `pyslam` conda environment, run the following command: 
+In order to create a custom `pyslam` conda environment, get in the root of this repository and run the following command: 
 ```
 $ . pyenv-conda-create.sh 
 ```
