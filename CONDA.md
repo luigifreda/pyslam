@@ -12,7 +12,7 @@ $ . pyenv-conda-create.sh
 
 ## Activate the created `pyslam` conda environment 
 
-Run the following command: 
+Run the following command (**N.B.**, do not forget the dot!): 
 ```
 $ . pyenv-conda-activate.sh 
 ```
@@ -52,6 +52,11 @@ Another approach is to use `.yml` files. In order to create a file `requirements
 ```
 $ conda env export > requirements-conda.yml
 ```
+or
+```
+$ conda env export --no-builds > requirements-conda-nobuilds.yml
+```
+for generating a requirements file without build numbers.    
 You can create an environment from it by running: 
 ```
 $ conda env create -f requirements.yml
