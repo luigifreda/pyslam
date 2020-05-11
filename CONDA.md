@@ -12,7 +12,7 @@ $ . pyenv-conda-create.sh
 
 ## Activate the created `pyslam` conda environment 
 
-Run the following command: 
+Run the following command (**N.B.**, do not forget the dot!): 
 ```
 $ . pyenv-conda-activate.sh 
 ```
