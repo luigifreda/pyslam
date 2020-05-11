@@ -127,7 +127,7 @@ At present time, the following feature **detectors** are supported:
 * *[Harris-Laplace](https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf)* 
 * *[SuperPoint](https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork)*
 * *[D2-Net](https://github.com/mihaidusmanu/d2-net)*
-* *[DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)*
+* *[DELF](https://github.com/tensorflow/models/tree/master/research/delf)*
 * *[Contextdesc](https://github.com/lzx551402/contextdesc)*
 * *[LFNet](https://github.com/vcg-uvic/lf-net-release)*
 * *[R2D2](https://github.com/naver/r2d2)*
@@ -154,7 +154,7 @@ The following feature **descriptors** are supported:
 * *[L2Net](https://github.com/yuruntian/L2-Net)*
 * *[Log-polar descriptor](https://github.com/cvlab-epfl/log-polar-descriptors)*
 * *[D2-Net](https://github.com/mihaidusmanu/d2-net)*
-* *[DELF](https://github.com/tensorflow/models/blob/master/research/delf/INSTALL_INSTRUCTIONS.md)*
+* *[DELF](https://github.com/tensorflow/models/tree/master/research/delf)*
 * *[Contextdesc](https://github.com/lzx551402/contextdesc)*
 * *[LFNet](https://github.com/vcg-uvic/lf-net-release)*
 * *[R2D2](https://github.com/naver/r2d2)*
