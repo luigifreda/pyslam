@@ -52,6 +52,11 @@ Another approach is to use `.yml` files. In order to create a file `requirements
 ```
 $ conda env export > requirements-conda.yml
 ```
+or
+```
+$ conda env export --no-builds > requirements-conda-nobuilds.yml
+```
+for generating a requirements file without build numbers.    
 You can create an environment from it by running: 
 ```
 $ conda env create -f requirements.yml
