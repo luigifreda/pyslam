@@ -264,7 +264,7 @@ class Tracking(object):
     
     # track camera motion of f_cur w.r.t. f_ref 
     def track_previous_frame(self, f_ref, f_cur):            
-        print('»» tracking previous frame ...')        
+        print('>>>> tracking previous frame ...')        
         is_search_frame_by_projection_failure = False 
         use_search_frame_by_projection = self.motion_model.is_ok and kUseSearchFrameByProjection and kUseMotionModel
         
@@ -332,7 +332,7 @@ class Tracking(object):
     # track camera motion of f_cur w.r.t. f_ref
     # estimate motion by matching keypoint descriptors                    
     def track_reference_frame(self, f_ref, f_cur, name=''):
-        print('»» tracking reference %d ...' %(f_ref.id))        
+        print('>>>> tracking reference %d ...' %(f_ref.id))        
         if f_ref is None:
             return 
         # find keypoint matches between f_cur and kf_ref   
@@ -397,7 +397,7 @@ class Tracking(object):
     def track_local_map(self, f_cur): 
         if self.map.local_map.is_empty():
             return 
-        print('»» tracking local map...')
+        print('>>>> tracking local map...')
         self.timer_seach_map.start()
                 
         self.update_local_map()        
@@ -685,11 +685,11 @@ class Tracking(object):
         if kTrackingWaitForLocalMappingToGetIdle:                        
             #while not self.local_mapping.is_idle() or self.local_mapping.queue_size()>0:       
             if not self.local_mapping.is_idle():       
-                print('»» waiting for local mapping...')                         
+                print('>>>> waiting for local mapping...')                         
                 self.local_mapping.wait_idle()
         else:
             if not self.local_mapping.is_idle() and kTrackingWaitForLocalMappingSleepTime>0:
-                print('»» sleeping for local mapping...')                    
+                print('>>>> sleeping for local mapping...')                    
                 time.sleep(kTrackingWaitForLocalMappingSleepTime)  
         # check again for debug                     
         #is_local_mapping_idle = self.local_mapping.is_idle()  

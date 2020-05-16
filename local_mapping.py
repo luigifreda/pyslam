@@ -256,7 +256,7 @@ class LocalMapping(object):
                         
         
     def cull_map_points(self):
-        print('»» culling map points...')  
+        print('>>>> culling map points...')  
         th_num_observations = 2      
         min_found_ratio = 0.25  
         current_kid = self.kf_cur.kid 
@@ -278,7 +278,7 @@ class LocalMapping(object):
            
            
     def cull_keyframes(self): 
-        print('»» culling keyframes...')    
+        print('>>>> culling keyframes...')    
         num_culled_keyframes = 0
         # check redundant keyframes in local keyframes: a keyframe is considered redundant if the 90% of the MapPoints it sees, 
         # are seen in at least other 3 keyframes (in the same or finer scale)
@@ -339,7 +339,7 @@ class LocalMapping(object):
             
     # triangulate matched keypoints (without a corresponding map point) amongst recent keyframes      
     def create_new_map_points(self):
-        print('»» creating new map points')
+        print('>>>> creating new map points')
         total_new_pts = 0
         
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur)
@@ -378,7 +378,7 @@ class LocalMapping(object):
         
     # fuse close map points of local keyframes 
     def fuse_map_points(self):
-        print('»» fusing map points')
+        print('>>>> fusing map points')
         total_fused_pts = 0
         
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur)

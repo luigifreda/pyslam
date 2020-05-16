@@ -129,7 +129,7 @@ class Initializer(object):
         # find keypoint matches
         idxs_cur, idxs_ref = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)       
     
-        print('├────────')        
+        print('|------------')        
         #print('deque ids: ', [f.id for f in self.frames])
         print('initializing frames ', f_cur.id, ', ', f_ref.id)
         print("# keypoint matches: ", len(idxs_cur))  
@@ -195,5 +195,5 @@ class Initializer(object):
         else:
             self.num_failures += 1            
             Printer.red('Inializer: ko!')                         
-        print('├────────')              
+        print('|------------')               
         return out, is_ok
