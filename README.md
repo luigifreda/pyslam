@@ -225,7 +225,7 @@ In order to calibrate your camera, you can use the scripts in the folder `calibr
 
 For further information about the calibration process, you may want to have a look [here](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html). 
 
-If you want to use your camera, you have to:
+If you want to **use your camera**, you have to:
 * calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly
 * record a video (for instance, by using `save_video.py` in the folder `calibration`)
 * configure the `[VIDEO_DATASET]` section of `config.ini` in order to point to your video.
