@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     dataset = dataset_factory(config.dataset_settings)
 
-    grountruth = groundtruth_factory(config.dataset_settings)
+    groundtruth = groundtruth_factory(config.dataset_settings)
 
     cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Camera.height'],
                         config.cam_settings['Camera.fx'], config.cam_settings['Camera.fy'],
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     feature_tracker = feature_tracker_factory(**tracker_config)
     
     # create SLAM object 
-    slam = Slam(cam, feature_tracker, grountruth)
+    slam = Slam(cam, feature_tracker, groundtruth)
     time.sleep(1) # to show initial messages 
 
     viewer3D = Viewer3D()
