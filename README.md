@@ -160,7 +160,7 @@ The following feature **descriptors** are supported:
 * *[R2D2](https://github.com/naver/r2d2)*
 
 
-You can find more information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.
+You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/test_feature_detector.py` and `test/test_feature_matching.py`.
 
 In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
 
