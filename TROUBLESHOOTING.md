@@ -7,12 +7,12 @@ This page contains a small collections of issues/errors that may be experienced 
 
 ### Bad tracking performances
 
-Due to the multi-threading system (tracking thread + local mapping thread) and the non-super-fast performances of the python implementations, bad tracking performances may occur and vary depending on your machine computation capabilities. In a few words, it may happen that the local mapping thread is not fast enough to spawn new map points in time for the tracking thread. In fact, new spawned map points are necessary to let the tracking thread find enough {keypoint}-{map point} correspondences, and hence stably grasp at the map and proceed along its estimated trajectory. Simply put, the local mapping thread continuously builds the fundamental 'carpet' of points (the map) on which the tracking thread 'walks': no 'carpet', no party!
+Due to the multi-threading system (tracking thread + local mapping thread) and the non-super-fast performances of the python implementations, bad tracking performances may occur and vary depending on your machine computation capabilities. In a few words, it may happen that the local mapping thread is not fast enough to spawn new map points in time for the tracking thread. In fact, new spawned map points are necessary to let the tracking thread find enough {keypoint}-{map point} correspondences, and hence stably grasp at the map and proceed along its estimated trajectory. Simply put, the local mapping thread continuously builds/unrolls the fundamental 'carpet' of points (the map) on which the tracking thread 'walks': no 'carpet', no party!
 
 If you experience bad tracking performances, go in [parameters.py](./parameters.py) and: 
 1) first, try to increase the parameter `kTrackingWaitForLocalMappingSleepTime`
 
-2) then, if you don't actually see any improvement with 1), set
+2) then, if you don't actually see any satisfying improvement with 1), set
 ```
 kTrackingWaitForLocalMappingToGetIdle=True
 ```
