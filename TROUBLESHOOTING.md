@@ -7,11 +7,15 @@ This page contains a small collections of issues/errors that may be experienced 
 
 ### Bad tracking performances
 
-If you experience bad tracking performances, go in [parameters.py](./parameters.py) and set
+Due to the multi-threading system (tracking thread + local mapping thread) and the non-super-fast peformances of the python implementations, bad tracking performances may occur and vary depending on your machine computation capabilities. In a few words, it may happen that the local mapping thread is not fast enough to spawn new map points with respect to the tracking thread pace. Indeed, new spawned mappoints are necessary to let the tracking thread find keypoint-mappoint correspondences and hence go ahead in a stable way.
+
+If you experience bad tracking performances, go in [parameters.py](./parameters.py) and: 
+1) first, try to increase the parameter `kTrackingWaitForLocalMappingSleepTime`
+
+2) then, if you don't actually see any improvement with 1), set
 ```
 kTrackingWaitForLocalMappingToGetIdle=True
 ```
-Due to the multi-threading system (tracking thread + local mapping thread) and the non-real-time peformances of the python implementations, bad tracking performances may occur and vary according to your machine computation capabilities. 
 
 ### SIFT or SURF error
 
