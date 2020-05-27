@@ -19,3 +19,6 @@ install_package python3-sdl2
 install_package python3-tk
 
 install_package libprotobuf-dev 
+
+install_package libeigen3-dev # pangolin installation 
+install_package libopencv-dev # orbslam2_features compilation
