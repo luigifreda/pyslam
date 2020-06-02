@@ -12,3 +12,6 @@ fi
 # or (easier)
 conda env create -f requirements-conda.yml
 
+. pyenv-conda-activate.sh 
+which pip 
+pip install -r requirements-conda-pip.txt  # this should refer to */pyslam/bin/pip
