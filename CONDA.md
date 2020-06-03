@@ -10,6 +10,7 @@ In order to run `main_vo.py` with conda, get in the root of this repository and 
 $ . pyenv-conda-create.sh 
 ```
 **N.B.**: do not forget the dot! (without '/' !)
+
 This will create a custom `pyslam` conda environment and will also activate the created `pyslam` environment. 
 
 ## Full Conda Installation 
@@ -19,6 +20,8 @@ In order to run `main_slam.py` with conda, get in the root of this repository an
 $ . install_all_conda.sh  
 ```
 **N.B.**: do not forget the dot! (without '/' !)
+
+This will compile the required thirdparty packages and will also activate the created `pyslam` environment. 
 
 
 ## Create a `pyslam` conda environment 
