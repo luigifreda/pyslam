@@ -15,7 +15,7 @@ PyOpenGL==3.1.5
 #pyparsing==2.4.6
 python-dateutil==2.8.1
 PyWavelets==1.1.1
-PyYAML==5.3.1
+#PyYAML==5.3.1
 scikit-image==0.16.2
 #six==1.14.0
 tb-nightly==1.14.0a20190603

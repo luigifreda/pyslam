@@ -6,7 +6,7 @@ In order to create a custom `pyslam` python virtual environment, get in the root
 ```
 $ . pyenv-create.sh 
 ```
-**N.B.**: do not forget the dot!
+**N.B.**: do not forget the dot! (without '/' !)
 
 This will create and activate a python virtual environment `pyslam` where to safely run pyslam scripts. 
 

@@ -1,11 +1,29 @@
 # Install under Anaconda or Miniconda
 
 I've successfully tested `pyslam` with [Anaconda](https://docs.anaconda.com/anaconda/install/linux/) (version *2019.10*, build *py37_0*) and [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *957d2f0f0701c3d1335e3b39f235d197837ad69a944fa6f5d8ad2c686b69df3b*) under Linux.   
-Please, follow the instructions below.
+Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly set your conda python environment. 
+
+## Basic Conda Installation 
+
+In order to run `main_vo.py` with conda, get in the root of this repository and run the following command:
+```
+$ . pyenv-conda-create.sh 
+```
+**N.B.**: do not forget the dot! (without '/' !)
+This will create a custom `pyslam` conda environment and will also activate the created `pyslam` environment. 
+
+## Full Conda Installation 
+
+In order to run `main_slam.py` with conda, get in the root of this repository and run the following command:
+```
+$ . install_all_conda.sh  
+```
+**N.B.**: do not forget the dot! (without '/' !)
+
 
 ## Create a `pyslam` conda environment 
 
-In order to create a custom `pyslam` conda environment, get in the root of this repository and run the following command: 
+You already see this above. In order to create a custom `pyslam` conda environment, get in the root of this repository and run the following command: 
 ```
 $ . pyenv-conda-create.sh 
 ```
@@ -23,7 +41,7 @@ $ conda activate pyslam
 
 Now, you can launch pySLAM scripts. 
 
-# Deactivate `pyslam` conda environment 
+## Deactivate `pyslam` conda environment 
 
 To deactivate the `pyslam` environment, use
 ```
