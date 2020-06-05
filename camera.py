@@ -82,7 +82,9 @@ class PinholeCamera(Camera):
     # out: uvs_undistorted array [Nx2] of undistorted coordinates  
     def undistort_points(self, uvs):
         if self.is_distorted:
-            uvs_undistorted = cv2.undistortPoints(np.expand_dims(uvs, axis=1), self.K, self.D, None, self.K)      
+            #uvs_undistorted = cv2.undistortPoints(np.expand_dims(uvs, axis=1), self.K, self.D, None, self.K)   # =>  Error: while undistorting the points error: (-215:Assertion failed) src.isContinuous() 
+            uvs_contiguous = np.ascontiguousarray(uvs[:, :2]).reshape((uvs.shape[0], 1, 2))
+            uvs_undistorted = cv2.undistortPoints(uvs_contiguous, self.K, self.D, None, self.K)            
             return uvs_undistorted.ravel().reshape(uvs_undistorted.shape[0], 2)
         else:
             return uvs 
