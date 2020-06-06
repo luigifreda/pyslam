@@ -248,6 +248,9 @@ Suggested books:
 Suggested material:
 * *[Vision Algorithms for Mobile Robotics](http://rpg.ifi.uzh.ch/teaching.html)* by Davide Scaramuzza 
 * *[CS 682 Computer Vision](http://cs.gmu.edu/~kosecka/cs682.html)* by Jana Kosecka   
+* *[ORB-SLAM: a Versatile and Accurate Monocular SLAM System](http://webdiis.unizar.es/~raulmur/MurMontielTardosTRO15.pdf)* by R. Mur-Artal, J. M. M. Montiel, and J. D. Tardos
+* *[Double Window Optimisation for Constant Time Visual SLAM](http://hauke.strasdat.net/files/strasdat2011iccv.pdf)* by H. Strasdat, A. J. Davison
+J.M.M. Montielb, K. Konolige
 * *[The Role of Wide Baseline Stereo in the Deep Learning World](https://ducha-aiki.github.io/wide-baseline-stereo-blog/2020/03/27/intro.html)* by Dmytro Mishkin
 * *[To Learn or Not to Learn: Visual Localization from Essential Matrices](https://arxiv.org/abs/1908.01293)* by Qunjie Zhou, Torsten Sattler, Marc Pollefeys, Laura Leal-Taixe
 * *[Awesome local-global descriptors](https://github.com/shamangary/awesome-local-global-descriptor)* repository 
@@ -273,6 +276,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [Contextdesc](https://github.com/lzx551402/contextdesc)
 * [LFNet](https://github.com/vcg-uvic/lf-net-release)
 * [R2D2](https://github.com/naver/r2d2)
+* [Key.Net](https://github.com/axelBarroso/Key.Net)
 * [Twitchslam](https://github.com/geohot/twitchslam)
 * [MonoVO](https://github.com/uoip/monoVO-python)  
 
