@@ -17,7 +17,7 @@ set -e
 . pyenv-conda-create.sh 
 
 # build and install thirdparty 
-./install_thirdparty.sh 
+. install_thirdparty.sh 
 
 
 # N.B.:

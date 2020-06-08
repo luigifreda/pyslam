@@ -97,6 +97,6 @@ cd $STARTING_DIR
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features
-./build.sh
+. build.sh
 cd $STARTING_DIR
 
