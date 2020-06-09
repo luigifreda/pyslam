@@ -44,7 +44,7 @@ source $ENV_PATH/bin/activate
 pip3 install -r requirements-pip3.txt
 
 # HACK to fix opencv-contrib-python version!
-pip3 uninstall opencv-contrib-python
+pip3 uninstall opencv-contrib-python                # better to clean it before installing the right version 
 install_pip_package opencv-contrib-python==3.4.2.16 
 
 # N.B.: in order to activate the virtual environment run: 

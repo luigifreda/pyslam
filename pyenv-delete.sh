@@ -8,7 +8,7 @@ if [[ -z "${ENV_NAME}" ]]; then
     ENV_NAME='pyslam'
 fi
 
-ENVS_PATH=~/.python/venvs  # path where to group virtual environments 
+ENVS_PATH=~/.python/venvs            # path where to group virtual environments 
 ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 
  
 if [ -d $ENV_PATH ]; then 

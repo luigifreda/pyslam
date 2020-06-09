@@ -7,7 +7,7 @@
 
 # ====================================================
 
-set -e
+#set -e
 
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."

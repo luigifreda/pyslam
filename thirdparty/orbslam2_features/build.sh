@@ -6,11 +6,17 @@ if [ ! -d $1 ]; then
 fi
 }
 
-STARTING_DIR=`pwd`
+# ====================================================
+# check if we have external options
+EXTERNAL_OPTION=$1
+if [[ -n "$EXTERNAL_OPTION" ]]; then
+    echo "external option: $EXTERNAL_OPTION" 
+fi
+# ====================================================
 
 make_dir build
 cd build
-cmake ..
+cmake .. $EXTERNAL_OPTION
 make -j 4
 
-cd $STARTING_DIR
+cd ..

@@ -7,7 +7,7 @@
 
 # ====================================================
 
-set -e
+#set -e
 
 
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
@@ -77,3 +77,4 @@ cd $STARTING_DIR
 
 # install delf   
 ./install_delf.sh 
+cd $STARTING_DIR

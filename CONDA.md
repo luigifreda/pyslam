@@ -46,10 +46,18 @@ Now, you can launch pySLAM scripts.
 
 ## Deactivate `pyslam` conda environment 
 
-To deactivate the `pyslam` environment, use
+To deactivate the `pyslam` environment, run
 ```
 $ conda deactivate
 ```
+
+## Delete `pyslam` conda environment 
+
+To delete the `pyslam` environment, run
+```
+$ . pyenv-conda-delete.sh 
+```
+
 
 --- 
 # General Notes About Conda

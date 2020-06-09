@@ -10,7 +10,7 @@
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 
-set -e
+#set -e
 
 # N.B.: this must be run after having run the script install_git_modules.sh  
 

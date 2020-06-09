@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+#set -e
 
 # ====================================================
 # import the utils 
@@ -11,14 +12,27 @@ print_blue '================================================'
 print_blue "Building Thirdparty"
 print_blue '================================================'
 
-set -e
-
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 # ====================================================
 # N.B.: this script requires that you have first run:
 #./install_basic.sh 
 # ====================================================
+
+# ====================================================
+# check if we have external options
+EXTERNAL_OPTION=$1
+if [[ -n "$EXTERNAL_OPTION" ]]; then
+    echo "external option: $EXTERNAL_OPTION" 
+fi
+
+# check if we want to add a python interpreter check
+if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
+    echo "WITH_PYTHON_INTERP_CHECK: $WITH_PYTHON_INTERP_CHECK " 
+    EXTERNAL_OPTION="$EXTERNAL_OPTION -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
+fi
+# ====================================================
+
 
 echo '================================================'
 print_blue "Configuring and building thirdparty/Pangolin ..."
@@ -53,13 +67,15 @@ else
         cd pangolin
         PANGOLIN_UOIP_REVISION=3ac794a
         git checkout $PANGOLIN_UOIP_REVISION
-        cd ..        
+        cd ..      
+        # copy local changes 
+        cp ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt 
     fi
     cd pangolin
     if [ ! -f pangolin.cpython-*-linux-gnu.so ]; then   
         make_dir build   
         cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF # disable realsense 
+        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF $EXTERNAL_OPTION # disable realsense 
         make -j8
         cd ..
         #python setup.py install
@@ -81,13 +97,14 @@ if [ ! -d g2opy ]; then
     cd ..
     # copy local changes 
     cp ./g2opy_changes/types_six_dof_expmap.h ./g2opy/python/types/sba/types_six_dof_expmap.h
-    cp ./g2opy_changes/sparse_optimizer.h ./g2opy/python/core/sparse_optimizer.h    
+    cp ./g2opy_changes/sparse_optimizer.h ./g2opy/python/core/sparse_optimizer.h   
+    cp ./g2opy_changes/python_CMakeLists.txt ./g2opy/python/CMakeLists.txt    
 fi
 cd g2opy
-if [ ! -f thirdparty/g2o.cpython-*-linux-gnu.so ]; then  
+if [ ! -f lib/g2o.cpython-*-linux-gnu.so ]; then  
     make_buid_dir
     cd build
-    cmake ..
+    cmake .. $EXTERNAL_OPTION
     make -j8
     cd ..
     #python3 setup.py install --user
@@ -97,6 +114,6 @@ cd $STARTING_DIR
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features
-. build.sh
+. build.sh $EXTERNAL_OPTION
 cd $STARTING_DIR
 

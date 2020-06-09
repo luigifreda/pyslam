@@ -7,6 +7,8 @@ ENDIF()
 
 set(CMAKE_CXX_STANDARD 11)
 
+set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activate when called within virtual python environment 
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -march=native -fPIC -DNDEBUG")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fPIC -DNDEBUG")
 
@@ -22,7 +24,16 @@ message(STATUS "opencv include: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "opencv lib dirs: ${OpenCV_INSTALL_PATH}")
 message(STATUS "opencv libs: ${OpenCV_LIBS}")
 
-find_package(PythonLibs)
+
+# the following 2 lines are added to correctly detect the python version 
+if(WITH_PYTHON_INTERP_CHECK)
+  message(STATUS "WITH_PYTHON_INTERP_CHECK: ${WITH_PYTHON_INTERP_CHECK}")
+  find_package(PythonInterp) 
+  find_package(PythonLibs)
+  message(STATUS "PythonInterp: ${PythonInterp}")
+  message(STATUS "PythonLibs: ${PythonLibs}")
+endif()
+
 
 include_directories(
     ${PYTHON_INCLUDE_DIRS}

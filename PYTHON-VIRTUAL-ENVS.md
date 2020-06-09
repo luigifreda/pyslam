@@ -1,8 +1,32 @@
 # pySLAM2 Virtual Environment 
 
+The following instructions allow you to create a custom `pyslam` virtual environment by using the package `python3-venv`. You will be able to run pyslam scripts within such environment. 
+
+## Basic Installation 
+
+In order to run `main_vo.py` with venv, get in the root of this repository and run the following command:
+```
+$ . pyenv-create.sh 
+```
+**N.B.**: do not forget the dot! (without '/' !)
+
+This will create a custom `pyslam` environment and will also activate it. 
+
+## Full Installation 
+
+In order to run `main_slam.py` with venv, get in the root of this repository and run the following command:
+```
+$ . install_all_venv.sh  
+```
+**N.B.**: do not forget the dot! (without '/' !)
+
+This will compile the required thirdparty packages and will also activate the created `pyslam` environment. 
+
+
+
 ## Create a `pyslam` python virtual environment 
 
-In order to create a custom `pyslam` python virtual environment, get in the root of this repository and run the following command: 
+You already see this above. In order to create a custom `pyslam` python virtual environment, get in the root of this repository and run the following command: 
 ```
 $ . pyenv-create.sh 
 ```
@@ -23,6 +47,13 @@ Now, you can launch pySLAM scripts.
 Run the command: 
 ```
 $ deactivate 
+```
+
+## Delete `pyslam` environment 
+
+To delete the `pyslam` environment, run
+```
+$ . pyenv-delete.sh 
 ```
 
 
