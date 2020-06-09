@@ -1,4 +1,4 @@
-set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activate when called within virtual python environment 
+set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
