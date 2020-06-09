@@ -10,12 +10,9 @@ This page contains a small collections of issues/errors that may be experienced 
 Due to the multi-threading system (tracking thread + local mapping thread) and the non-super-fast performances of the python implementations, bad tracking performances may occur and vary depending on your machine computation capabilities. In a few words, it may happen that the local mapping thread is not fast enough to spawn new map points in time for the tracking thread. In fact, new spawned map points are necessary to let the tracking thread find enough {keypoint}-{map point} correspondences, and hence stably grasp at the map and proceed along its estimated trajectory. Simply put, the local mapping thread continuously builds/unrolls the fundamental 'carpet' of points (the map) on which the tracking thread 'walks': no 'carpet', no party!
 
 If you experience bad tracking performances, go in [parameters.py](./parameters.py) and: 
-1) first, try to increase the parameter `kTrackingWaitForLocalMappingSleepTime`
+1) first, try to increase/adjust the parameter `kTrackingWaitForLocalMappingSleepTime`
 
-2) then, if you don't actually see any satisfying improvement with 1), set
-```
-kTrackingWaitForLocalMappingToGetIdle=True
-```
+2) then, if you don't actually see any satisfying improvement with step (1), set `kTrackingWaitForLocalMappingToGetIdle=True`
 
 ### SIFT or SURF error
 
@@ -49,6 +46,15 @@ that's because you did not run the script
 $ ./install_thirdparty.sh   
 ```
 as explained in the main [README](./README.md) file. That's required in order to properly build and install the required thirdparty libs. 
+
+### Cannot properly import g2o library or other libs 
+
+If you get an error message like 
+```
+import g2o 
+ModuleNotFoundError: No module named 'g2o' error
+```
+it's very likely you have libraries compiled in a 'mixed' way. Then, try to clean everything with the script `clean.sh`, and follow the installation procedure again. 
 
 ### Problems with ROS and OpenCV
 
