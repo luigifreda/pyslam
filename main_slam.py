@@ -54,7 +54,8 @@ if __name__ == "__main__":
 
     dataset = dataset_factory(config.dataset_settings)
 
-    groundtruth = groundtruth_factory(config.dataset_settings)
+    #groundtruth = groundtruth_factory(config.dataset_settings)
+    groundtruth = None # not actually used by Slam() class; could be used for evaluating performances 
 
     cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Camera.height'],
                         config.cam_settings['Camera.fx'], config.cam_settings['Camera.fy'],

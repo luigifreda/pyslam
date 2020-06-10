@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     dataset = dataset_factory(config.dataset_settings)
 
-    grountruth = groundtruth_factory(config.dataset_settings)
+    groundtruth = groundtruth_factory(config.dataset_settings)
 
     cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Camera.height'],
                         config.cam_settings['Camera.fx'], config.cam_settings['Camera.fy'],
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     feature_tracker = feature_tracker_factory(**tracker_config)
 
     # create visual odometry object 
-    vo = VisualOdometry(cam, grountruth, feature_tracker)
+    vo = VisualOdometry(cam, groundtruth, feature_tracker)
 
     is_draw_traj_img = True
     traj_img_size = 800

@@ -46,7 +46,7 @@ kUseGroundTruthScale = True
 # With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a 
 # valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. 
 class VisualOdometry(object):
-    def __init__(self, cam, grountruth, feature_tracker):
+    def __init__(self, cam, groundtruth, feature_tracker):
         self.stage = VoStage.NO_IMAGES_YET
         self.cam = cam
         self.cur_image = None   # current image
@@ -61,7 +61,7 @@ class VisualOdometry(object):
         self.cur_t = np.zeros((3,1)) # current translation 
 
         self.trueX, self.trueY, self.trueZ = None, None, None
-        self.grountruth = grountruth
+        self.groundtruth = groundtruth
         
         self.feature_tracker = feature_tracker
         self.track_result = None 
@@ -84,10 +84,10 @@ class VisualOdometry(object):
         self.timer_pose_est = TimerFps('PoseEst', is_verbose = self.timer_verbose)
         self.timer_feat = TimerFps('Feature', is_verbose = self.timer_verbose)
 
-    # get current translation scale from ground-truth if grountruth is not None 
+    # get current translation scale from ground-truth if groundtruth is not None 
     def getAbsoluteScale(self, frame_id):  
-        if self.grountruth is not None and kUseGroundTruthScale:
-            self.trueX, self.trueY, self.trueZ, scale = self.grountruth.getPoseAndAbsoluteScale(frame_id)
+        if self.groundtruth is not None and kUseGroundTruthScale:
+            self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getPoseAndAbsoluteScale(frame_id)
             return scale
         else:
             self.trueX = 0 

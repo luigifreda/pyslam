@@ -103,14 +103,14 @@ class TrackingHistory(object):
 
 # main slam class containing all the required modules 
 class Slam(object):
-    def __init__(self, camera, feature_tracker, grountruth = None):    
+    def __init__(self, camera, feature_tracker, groundtruth = None):    
         self.init_feature_tracker(feature_tracker)
         self.camera = camera 
         self.map = Map()
         self.local_mapping = LocalMapping(self.map)
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
-        self.grountruth = grountruth
+        self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances 
         self.tracking = Tracking(self)
 
         
@@ -203,7 +203,7 @@ class Tracking(object):
         self.cur_R = None # current rotation w.r.t. world frame  
         self.cur_t = None # current translation w.r.t. world frame 
         self.trueX, self.trueY, self.trueZ = None, None, None
-        self.grountruth = system.grountruth
+        self.groundtruth = system.groundtruth  # not actually used here; could be used for evaluating performances 
         
         if kLogKFinfoToFile:
             self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', 'kf_info.log',formatter=Logging.simple_log_formatter)
@@ -713,8 +713,8 @@ class Tracking(object):
 
     # get current translation scale from ground-truth if this is set 
     # def get_absolute_scale(self, frame_id):  
-    #     if self.grountruth is not None and kUseGroundTruthScale:
-    #         self.trueX, self.trueY, self.trueZ, scale = self.grountruth.getPoseAndAbsoluteScale(frame_id)
+    #     if self.groundtruth is not None and kUseGroundTruthScale:
+    #         self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getPoseAndAbsoluteScale(frame_id)
     #         return scale
     #     else:
     #         self.trueX = 0 
