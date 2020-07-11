@@ -25,6 +25,9 @@ function brew_install(){
 #. install_basic.sh 0 0 # the first '0' is an option for skipping pip3 packages installation (script install_pip3_packages.sh),
                        # the second '0' is for skipping the install_cpp.sh script therein (that will be called below) 
 
+# dependency of install_git_modules
+brew_install wget
+
 # set up git submodules  
 ./install_git_modules.sh 
 

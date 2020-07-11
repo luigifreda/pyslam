@@ -5,24 +5,27 @@ The following procedure has been tested under *catalina 10.15.5* and *Xcode 11.5
 
 Please, follow these install steps: 
 
-1. first you need to install homebrew (check the section below)
+1. first you need to install homebrew and Xcode CLT (check the [section below](#notes-about-macos))
 2. download this repo and move to the **experimental** `mac` branch: 
-   ```
+```
    $ git checkout mac 
-   ```
-3. launch the install script `install_all_mac_venv.sh`
+```
+3. launch the macOS install script
+```
+   $ ./install_all_mac_venv.sh
+```
 4. in order to run `main_vo.py` run 
-   ```
-   $ ./launch_main_vo.py 
-   ```
+```
+   $ ./launch_main_vo.sh 
+```
 5. in order to run `main_slam.py` run 
-   ```
-   $ ./launch_main_slam.py 
-   ```
+```
+   $ ./launch_main_slam.sh 
+```
 
 **NOTE 1**: note that the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
 ```
-$ . pyenv-create.sh 
+$ . pyenv-activate.sh 
 ```
 (do not forget the dot! without '/' ! )
 You can find further details about python virtual environments [here](./PYTHON-VIRTUAL-ENVS.md).
@@ -34,18 +37,14 @@ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py
 
 ## Notes about macOS 
 
-### Install homebrew and wget 
+### Install homebrew
 
-from https://www.cyberciti.biz/faq/howto-install-wget-om-mac-os-x-mountain-lion-mavericks-snow-leopard/ 
+from https://brew.sh/
 ```
 $ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 ```
-.. and install wget 
-```
-$ brew install wget
-```
 
-You may also need to install gcc by using XCode CLI. Run 
+You may also need to install gcc by using XCode Command Line Tools. Run 
 ```
 $ xcode-select --install
 ```
