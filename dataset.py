@@ -64,7 +64,10 @@ def dataset_factory(settings):
     if type == 'video':
         dataset = VideoDataset(path, name, associations, DatasetType.VIDEO)   
     if type == 'folder':
-        dataset = FolderDataset(path, name, associations, DatasetType.FOLDER)      
+        fps = 10 # a default value 
+        if 'fps' in settings:
+            fps = int(settings['fps'])
+        dataset = FolderDataset(path, name, fps, associations, DatasetType.FOLDER)      
     if type == 'live':
         dataset = LiveDataset(path, name, associations, DatasetType.LIVE)   
                 
@@ -180,6 +183,9 @@ class LiveDataset(Dataset):
 class FolderDataset(Dataset): 
     def __init__(self, path, name, fps=None, associations=None, type=DatasetType.VIDEO): 
         super().__init__(path, name, fps, associations, type)  
+        if fps is None: 
+            fps = 10 # default value  
+        self.fps = fps 
         print('fps: ', self.fps)  
         self.Ts = 1./self.fps 
         self.skip=1

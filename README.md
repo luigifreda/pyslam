@@ -60,6 +60,11 @@ If you prefer **conda**, run the scripts described in this other [file](./CONDA.
 
 **N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#detectorsdescriptors)!
 
+
+#### Install pySLAM on macOS 
+
+Check this file [MAC](./MAC.md).
+
 #### How to install non-free OpenCV modules
 
 In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SIFT**, **SURF**, etc.), you need to install the module `opencv-contrib-python`. The script `install_pip3_packages.sh` takes care of installing the proper version. This module can be installed by running     
