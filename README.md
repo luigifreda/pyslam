@@ -60,7 +60,6 @@ If you prefer **conda**, run the scripts described in this other [file](./CONDA.
 
 **N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#detectorsdescriptors)!
 
-
 #### Install pySLAM on macOS 
 
 Check this file [MAC](./MAC.md).

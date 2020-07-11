@@ -18,10 +18,11 @@
 """
 
 import config
+
 import math 
 import multiprocessing as mp 
 from multiprocessing import Process, Queue, Value
-import pangolin
+import pypangolin as pangolin
 import OpenGL.GL as gl
 import numpy as np
 from utils_geom import inv_T 

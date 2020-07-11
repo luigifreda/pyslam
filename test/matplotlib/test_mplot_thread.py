@@ -29,15 +29,24 @@ from utils import getchar
 if __name__ == "__main__":
 
     is_draw_3d = True
-    plt3d = Mplot3d(title='3D trajectory')
+    if is_draw_3d: 
+        plt3d = Mplot3d(title='3D trajectory')
+    else: 
+        plt3d = None 
 
-    is_draw_err = True 
-    err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
+    is_draw_err = True  
+    if is_draw_err: 
+        err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
+    else: 
+        err_plt = None        
 
     time.sleep(1)
     
     is_draw_matched_points = True 
-    matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
+    if is_draw_matched_points:   
+        matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
+    else:
+        matched_points_plt = None         
 
     traj3d_gt = []
     traj3d_est = []
@@ -69,14 +78,14 @@ if __name__ == "__main__":
             matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
             matched_points_plt.draw(inliers_signal,'# inliers',color='g')                          
     
-        key = err_plt.get_key()
-        if key != chr(0):
-            print('key: ', err_plt.get_key())
-            if key == 'q':
-                plt3d.quit()
-                err_plt.quit()
-                matched_points_plt.quit()
-                do_loop = False 
+        # key = err_plt.get_key()
+        # if key != chr(0):
+        #     print('key: ', err_plt.get_key())
+        #     if key == 'q':
+        #         plt3d.quit()
+        #         err_plt.quit()
+        #         matched_points_plt.quit()
+        #         do_loop = False 
 
         img_id+=1 
         time.sleep(0.04)               

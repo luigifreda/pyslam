@@ -21,6 +21,8 @@ import time
 import sys 
 import numpy as np
 
+import platform 
+
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
@@ -29,11 +31,15 @@ from multiprocessing import Process, Queue, Lock, RLock, Value
 import ctypes
 
 kPlotSleep = 0.04
-kVerbose = False 
+kVerbose = False  
 kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#threading.Thread.daemon
                     # The entire Python program exits when no alive non-daemon threads are left.
-                    
-kUseFigCanvasDrawIdle = True 
+
+kUseFigCanvasDrawIdle = True                
+
+kUsePlotPause = not kUseFigCanvasDrawIdle # this should be set True under macOS   
+if platform.system() == 'Darwin':
+    kUsePlotPause = True           
 
 # global lock for drawing with matplotlib 
 mp_lock = RLock()
@@ -72,7 +78,9 @@ class Mplot2d:
 
     def drawer_thread(self, queue, lock, key, is_running):  
         self.init(lock) 
+        #print('starting drawer_thread')
         while is_running.value == 1:
+            #print('drawer_refresh step')
             self.drawer_refresh(queue, lock)                                    
             if kUseFigCanvasDrawIdle:               
                 time.sleep(kPlotSleep) 
@@ -141,6 +149,8 @@ class Mplot2d:
     def draw(self, xy_signal, name, color='r', marker='.'):    
         if self.queue is None:
             return
+        if kVerbose:        
+            print(mp.current_process().name,"draw ", self.title)     
         self.queue.put((xy_signal, name, color, marker))
 
     def updateMinMax(self, np_signal):
@@ -173,7 +183,8 @@ class Mplot2d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()         
         self.setAxis()
-        if not kUseFigCanvasDrawIdle:        
+        #if not kUseFigCanvasDrawIdle:        
+        if kUsePlotPause:
             plt.pause(kPlotSleep)
         lock.release()
 
@@ -319,7 +330,8 @@ class Mplot3d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()          
         self.setAxis()
-        if not kUseFigCanvasDrawIdle:        
+        #if not kUseFigCanvasDrawIdle:        
+        if kUsePlotPause:     
             plt.pause(kPlotSleep)      
         lock.release()
 

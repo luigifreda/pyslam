@@ -21,17 +21,31 @@ cd thirdparty
 make_dir protoc
 cd protoc 
 
-if [ ! -f protoc-3.3.0-linux-x86_64.zip ]; then 
-    echo 'installing protoc'
-    wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
-    unzip protoc-3.3.0-linux-x86_64.zip
+
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    if [ ! -f protoc-3.3.0-linux-x86_64.zip ]; then 
+        echo 'installing protoc'
+        wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
+        unzip protoc-3.3.0-linux-x86_64.zip
+    fi
+    PATH_TO_PROTOC=`pwd`/bin/protoc  
 fi 
-PATH_TO_PROTOC=`pwd`
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    PROTOC_ZIP=protoc-3.7.1-osx-x86_64.zip
+    if [ ! -f $PROTOC_ZIP ]; then 
+        echo 'installing protoc'
+        curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/$PROTOC_ZIP
+        sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
+        sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
+    fi 
+    PATH_TO_PROTOC=/usr/local/bin/protoc 
+fi 
+
 
 cd $STARTING_DIR
 
 cd thirdparty/tensorflow_models/research/delf 
-${PATH_TO_PROTOC}/bin/protoc delf/protos/*.proto --python_out=.
+${PATH_TO_PROTOC} delf/protos/*.proto --python_out=.
 
 PARAMETERS_DIR=delf/python/examples/parameters/
 mkdir -p $PARAMETERS_DIR

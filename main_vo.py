@@ -44,7 +44,7 @@ from feature_tracker_configs import FeatureTrackerConfigs
 """
 use or not pangolin (if you want to use it then you need to install it by using the script install_thirdparty.sh)
 """
-kUsePangolin = False  
+kUsePangolin = False   
 
 if kUsePangolin:
     from viewer3D import Viewer3D

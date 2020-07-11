@@ -22,6 +22,8 @@ import cv2
 import math
 import time 
 
+import platform 
+
 from config import Config
 
 from slam import Slam, SlamState
@@ -33,7 +35,9 @@ from dataset import dataset_factory
 #from mplot2d import Mplot2d
 from mplot_thread import Mplot2d, Mplot3d
 
-from display2D import Display2D
+if platform.system()  == 'Linux':     
+    from display2D import Display2D  #  !NOTE: pygame generate troubles under macOS!
+
 from viewer3D import Viewer3D
 from utils import getchar, Printer 
 
@@ -45,11 +49,11 @@ from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 from feature_tracker_configs import FeatureTrackerConfigs
 
 from parameters import Parameters  
-
+import multiprocessing as mp 
 
 
 if __name__ == "__main__":
-
+    
     config = Config()
 
     dataset = dataset_factory(config.dataset_settings)
@@ -82,8 +86,10 @@ if __name__ == "__main__":
 
     viewer3D = Viewer3D()
     
-    display2d = Display2D(cam.width, cam.height)  # pygame interface 
-    #display2d = None  # enable this if you want to use opencv window
+    if platform.system()  == 'Linux':    
+        display2d = Display2D(cam.width, cam.height)  # pygame interface 
+    else: 
+        display2d = None  # enable this if you want to use opencv window
 
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')    
 

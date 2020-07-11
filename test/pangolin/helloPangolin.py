@@ -5,7 +5,7 @@ sys.path.append("../../")
 import config
 
 import OpenGL.GL as gl
-import pangolin
+import pypangolin as pangolin
 
 import numpy as np
 

@@ -44,7 +44,9 @@ cd thirdparty
 if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
     # N.B.: pay attention this will generate a module 'pypangolin' ( it does not have the methods dcam.SetBounds(...) and pangolin.DrawPoints(points, colors)  )
     if [ ! -d pangolin ]; then
-        sudo apt-get install -y libglew-dev
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            sudo apt-get install -y libglew-dev
+        fi     
         git clone https://github.com/stevenlovegrove/Pangolin.git pangolin
         cd pangolin
         git submodule init && git submodule update
@@ -62,17 +64,23 @@ if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
 else
     # N.B.: pay attention this will generate a module 'pangolin' 
     if [ ! -d pangolin ]; then
-        sudo apt-get install -y libglew-dev
-        git clone https://github.com/uoip/pangolin.git
-        cd pangolin
-        PANGOLIN_UOIP_REVISION=3ac794a
-        git checkout $PANGOLIN_UOIP_REVISION
-        cd ..      
-        # copy local changes 
-        cp ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt 
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then    
+            sudo apt-get install -y libglew-dev
+            git clone https://github.com/uoip/pangolin.git
+            cd pangolin
+            PANGOLIN_UOIP_REVISION=3ac794a
+            git checkout $PANGOLIN_UOIP_REVISION
+            cd ..      
+            # copy local changes 
+            cp ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt             
+        fi 
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin 
+        fi 
+
     fi
     cd pangolin
-    if [ ! -f pangolin.cpython-*-linux-gnu.so ]; then   
+    if [ ! -f pangolin.cpython-*.so ]; then   
         make_dir build   
         cd build
         cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF $EXTERNAL_OPTION # disable realsense 
@@ -83,13 +91,16 @@ else
 fi
 cd $STARTING_DIR
 
+#pause  
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/g2o ..."
 
 cd thirdparty
 if [ ! -d g2opy ]; then
-    sudo apt-get install -y libsuitesparse-dev libeigen3-dev
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        sudo apt-get install -y libsuitesparse-dev libeigen3-dev
+    fi     
 	git clone https://github.com/uoip/g2opy.git
     cd g2opy
     G2OPY_REVISION=5587024
@@ -99,9 +110,10 @@ if [ ! -d g2opy ]; then
     cp ./g2opy_changes/types_six_dof_expmap.h ./g2opy/python/types/sba/types_six_dof_expmap.h
     cp ./g2opy_changes/sparse_optimizer.h ./g2opy/python/core/sparse_optimizer.h   
     cp ./g2opy_changes/python_CMakeLists.txt ./g2opy/python/CMakeLists.txt    
+    cp ./g2opy_changes/eigen_types.h ./g2opy/python/core/eigen_types.h      
 fi
 cd g2opy
-if [ ! -f lib/g2o.cpython-*-linux-gnu.so ]; then  
+if [ ! -f lib/g2o.cpython-*.so ]; then  
     make_buid_dir
     cd build
     cmake .. $EXTERNAL_OPTION
