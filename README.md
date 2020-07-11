@@ -63,7 +63,7 @@ If you prefer **conda**, run the scripts described in this other [file](./CONDA.
 
 #### Install pySLAM on macOS 
 
-Check this file [MAC](./MAC.md).
+Check the instructions in this [file](./MAC.md).
 
 #### How to install non-free OpenCV modules
 
