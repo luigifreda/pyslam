@@ -22,14 +22,14 @@ Please, follow these install steps:
 
 **NOTE 1**: note that the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
 ```
-$ . pyenv-create.sh 
+$ . pyenv-activate.sh 
 ```
 (do not forget the dot! without '/' ! )
 You can find further details about python virtual environments [here](./PYTHON-VIRTUAL-ENVS.md).
 
-**NOTE 2**: the launch scripts above `launch_main_xxx.py ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary extension (explained below):
+**NOTE 2**: the launch scripts above `launch_main_xxx.py ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary environment variable setting (explained below):
 ```
-OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py
+$ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py
 ```
 
 ## Notes about macOS 
