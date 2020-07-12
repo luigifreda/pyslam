@@ -12,9 +12,9 @@ $ . pyenv-create.sh
 
 This will create a custom `pyslam` environment and will also activate it.
  
-If you are under **macOS**, you should move on the `mac` branch and use: 
+If you are under **macOS**, you should move on the `mac` branch and use instead: 
 ```
-$ . pyenv-create-mac.sh 
+$ . pyenv-mac-create.sh 
 ```
 
 ## Full Installation 
