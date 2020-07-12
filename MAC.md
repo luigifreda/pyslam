@@ -59,9 +59,9 @@ I found the following problems with python multi-processing (see https://stackov
 ```
 $ export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES  
 ```
-does not work. In another thread https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr#comments-52230415, I found something that does work with both pangolin processes and mplot processes: launch the main scripts by setting the same environment variable before 
+does not work. In another thread https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr#comments-52230415, I found something that does work with both pangolin processes and mplot processes: launch the main scripts by setting the same environment variable one the same line 
 ```
-OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 xxx.py
+$ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 xxx.py
 ```
 
 I found other issues with matplotlib due to `plt.ion()` (interactive mode) that does not work on mac. In order to make the matplotlib processes working, I add to apply some other tricks that make the matplot figures being refreshed in an inelegant way (being activated and refreshed in turn one over the other). But it works! :-)   
