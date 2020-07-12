@@ -12,14 +12,17 @@ Please, follow these install steps:
    $ cd pyslam 
    $ git checkout mac 
    ```
-3. launch the install script `install_all_mac_venv.sh`
+3. launch the install script 
+   ```
+   $ ./install_all_mac_venv.sh
+   ```
 4. in order to run `main_vo.py` run 
    ```
-   $ ./launch_main_vo.py 
+   $ ./launch_main_vo.sh 
    ```
 5. in order to run `main_slam.py` run 
    ```
-   $ ./launch_main_slam.py 
+   $ ./launch_main_slam.sh 
    ```
 
 **NOTE 1**: the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
@@ -29,7 +32,7 @@ $ . pyenv-activate.sh
 (do not forget the dot! without '/' ! )
 You can find further details about python virtual environments [here](./PYTHON-VIRTUAL-ENVS.md).
 
-**NOTE 2**: the launch scripts above `launch_main_xxx.py ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary environment variable setting (explained below):
+**NOTE 2**: the launch scripts above `launch_main_xxx.sh ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary environment variable setting (explained below):
 ```
 $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py
 ```
