@@ -1,7 +1,7 @@
 
 # Install pyslam under macOS 
 
-The following procedure has been tested under *catalina 10.15.5* and *Xcode 11.5*. In order to make things running under macOS, I had to use some tricks (for matplotlib threads in particular, further details below). Please, consider that pyslam has been designed under Linux (Ubuntu 18.04), where you can get it in its 'best shape'. 
+The following procedure has been tested under *catalina 10.15.5* and *Xcode 11.5*.
 
 Please, follow these install steps: 
 
@@ -33,6 +33,8 @@ You can find further details about python virtual environments [here](./PYTHON-V
 ```
 $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py
 ```
+
+ **NOTE 3**: In order to make things running under macOS, I had to use some tricks (for matplotlib processes in particular, further details below). Please, consider that pyslam has been designed under Linux (Ubuntu 18.04), where you can get it in its 'best shape'. 
 
 ## Notes about macOS 
 
