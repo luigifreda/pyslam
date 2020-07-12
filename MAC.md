@@ -55,17 +55,22 @@ $ xcode-select --install
 
 ### Issues found with matlplotlib 
 
-In order to avoid problems with multi-threading (see https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr), run 
+I found the following problems with python multi-processing (see https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr). The proposed solution to run this command in the open shell 
 ```
-export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES  
+$ export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES  
 ```
-Indeed, this solution does not work. You have to use the following one: 
-
-from https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr#comments-52230415
-indeed, what works for pangolin and mplot_thread is launching the main scripts with the variable set before 
+does not work. In another thread https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr#comments-52230415, I found something that does work with both pangolin processes and mplot processes: launch the main scripts by setting the same environment variable before 
 ```
 OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 xxx.py
 ```
 
-I found other issues with matplotlib due to `plt.ion()` (interactive mode) not working on mac. In order to make the matplotlib threads working, I add to apply some tricks that make the matplot lib being refreshed in an inelegant way (being activated and refreshed in turn one over the other). But it works! :-)   
+I found other issues with matplotlib due to `plt.ion()` (interactive mode) that does not work on mac. In order to make the matplotlib processes working, I add to apply some other tricks that make the matplot figures being refreshed in an inelegant way (being activated and refreshed in turn one over the other). But it works! :-)   
 At the present time, `pyslam` is still experimental on macOS! 
+
+### Issues found with OpenCV and pyenv 
+
+When you launch one of the scripts above, you get a warning: 
+```
+objc[6169]: Class CaptureDelegate is implemented in both /Users/luigi/.python/venvs/pyslam/lib/python3.7/site-packages/cv2/cv2.cpython-37m-darwin.so (0x11923d590) and /usr/local/opt/opencv/lib/libopencv_videoio.4.3.dylib (0x13021d0c8). One of the two will be used. Which one is undefined.
+```
+This is an **open issue** which needs to be solved. In a few words, this is an "interference" between the OpenCV libs of the installed virtual python environment and the OpenCV libs installed by homebrew.  
