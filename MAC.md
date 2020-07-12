@@ -8,6 +8,8 @@ Please, follow these install steps:
 1. first you need to install homebrew (check the section below)
 2. download this repo and move to the **experimental** `mac` branch: 
    ```
+   $ git clone https://github.com/luigifreda/pyslam.git 
+   $ cd pyslam 
    $ git checkout mac 
    ```
 3. launch the install script `install_all_mac_venv.sh`
@@ -20,7 +22,7 @@ Please, follow these install steps:
    $ ./launch_main_slam.py 
    ```
 
-**NOTE 1**: note that the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
+**NOTE 1**: the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
 ```
 $ . pyenv-activate.sh 
 ```
