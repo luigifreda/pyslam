@@ -42,6 +42,7 @@ brew_install opencv
 brew_install glew 
 brew_install pkg-config 
 brew_install suite-sparse 
+brew_install sdl2 
 
 # create a pyslam environment within conda and activate it 
 . pyenv-mac-create.sh 
