@@ -21,11 +21,11 @@ Please, follow these install steps:
 ```
    $ ./install_all_mac_venv.sh
 ```
-4. in order to run `main_vo.py` run 
+5. in order to run `main_vo.py` run 
 ```
    $ ./launch_main_vo.sh 
 ```
-5. in order to run `main_slam.py` run 
+6. in order to run `main_slam.py` run 
 ```
    $ ./launch_main_slam.sh 
 ```
