@@ -94,5 +94,11 @@ function set_git_modules() {
 function update_git_modules() {
     git submodule update --recursive --remote
 }
+
+function pause(){
+ read -s -n 1 -p "Press any key to continue . . ."
+ echo ""
+}
+ 
 # ====================================================
 
