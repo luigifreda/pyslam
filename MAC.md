@@ -12,7 +12,12 @@ Please, follow these install steps:
    $ cd pyslam 
    $ git checkout mac 
 ```
-3. launch the macOS install script
+3. change your default shell type to `bash`: 
+   ```
+   $ chsh -s /bin/bash 
+   ```
+   (if you want to set `zsh` back then run: `$ chsh -s /bin/zsh`)
+4. launch the macOS install script
 ```
    $ ./install_all_mac_venv.sh
 ```
