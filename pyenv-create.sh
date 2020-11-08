@@ -21,14 +21,19 @@ ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are cr
 
 # install required package to create virtual environment
 install_package python3-venv
+. install_pyenv.sh 
 
 # create folder for virutal environment and get into it 
 make_dir $ENV_PATH
 cd $ENVS_PATH
 
+export PYSLAM_PYTHON_VERSION="3.6.9"
+
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
-    echo creating virtual environment $ENV_NAME
+    echo creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION
+    pyenv install -v $PYSLAM_PYTHON_VERSION
+    pyenv local $PYSLAM_PYTHON_VERSION
     python3 -m venv $ENV_NAME
 fi 
 

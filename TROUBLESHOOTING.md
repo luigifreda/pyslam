@@ -4,6 +4,8 @@ This page contains a small collections of issues/errors that may be experienced 
 
 **FIRST OF ALL**: did you read the main [README](./README.md) page? did you use the provided **INSTALL SCRIPTS**? If not then go back on the [README](./README.md) page, read the few lines in the install section and launch the **REQUIRED** install script. The install scripts were created in order to perform all the required install operations for you and make the install process itself as painless as possible.   
 
+If you work under **Ubuntu 20.04** or **MacOS**, check the specific installation procedures reported in the main [README](./README.md) page. 
+
 
 ### Bad tracking performances
 

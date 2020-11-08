@@ -63,13 +63,14 @@ else
     # N.B.: pay attention this will generate a module 'pangolin' 
     if [ ! -d pangolin ]; then
         sudo apt-get install -y libglew-dev
-        git clone https://github.com/uoip/pangolin.git
-        cd pangolin
-        PANGOLIN_UOIP_REVISION=3ac794a
-        git checkout $PANGOLIN_UOIP_REVISION
-        cd ..      
-        # copy local changes 
-        cp ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt 
+        # git clone https://github.com/uoip/pangolin.git
+        # cd pangolin
+        # PANGOLIN_UOIP_REVISION=3ac794a
+        # git checkout $PANGOLIN_UOIP_REVISION
+        # cd ..      
+        # # copy local changes 
+        # cp ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt 
+        git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin
     fi
     cd pangolin
     if [ ! -f pangolin.cpython-*-linux-gnu.so ]; then   
@@ -99,6 +100,7 @@ if [ ! -d g2opy ]; then
     cp ./g2opy_changes/types_six_dof_expmap.h ./g2opy/python/types/sba/types_six_dof_expmap.h
     cp ./g2opy_changes/sparse_optimizer.h ./g2opy/python/core/sparse_optimizer.h   
     cp ./g2opy_changes/python_CMakeLists.txt ./g2opy/python/CMakeLists.txt    
+    cp ./g2opy_changes/eigen_types.h ./g2opy/python/core/eigen_types.h       
 fi
 cd g2opy
 if [ ! -f lib/g2o.cpython-*-linux-gnu.so ]; then  

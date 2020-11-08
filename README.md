@@ -30,7 +30,22 @@ Clone this repo and its modules by running
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 ```
 
-The framework has been developed and tested under Ubuntu 18.04. 
+The framework has been developed and tested under **Ubuntu 18.04**.  
+A specific install procedure is available for: 
+- [Ubuntu 20.04](#install-pyslam-under-ubuntu-2004)
+- [MacOs](#install-pyslam-on-macos) 
+
+I am currently working to unify the install procedures. 
+
+**Requirements**:
+
+* Python 3.6.9
+* Numpy (1.18.2)
+* OpenCV (see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
+* PyTorch (>= 1.4.0)
+* Tensorflow-gpu 1.14.0
+
+If you run into troubles or performance issues, check this [file](./TROUBLESHOOTING.md).
 
 #### Install pySLAM in Your Working Python Environment
 
@@ -44,14 +59,6 @@ If you want to run `main_slam.py`, you must additionally install the libs [pango
 
 `$ ./install_all.sh`   
 
-**Requirements**:
-
-* Python 3  (tested under Python 3.6)
-* Numpy (1.18.2)
-* OpenCV (see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
-* PyTorch (>= 1.4.0)
-* Tensorflow-gpu 1.14.0
-
 #### Install pySLAM in a Custom Python Virtual Environment 
 
 If you do not want to mess up your working python environment, you can create a new virtual environment `pyslam` by easily launching the scripts described [here](./PYTHON-VIRTUAL-ENVS.md).
@@ -59,6 +66,15 @@ If you do not want to mess up your working python environment, you can create a 
 If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
 
 **N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#detectorsdescriptors)!
+
+
+#### Install pySLAM under Ubuntu 20.04
+
+Download this repo and move into the experimental branch `ubuntu20` 
+```
+$ git checkout ubuntu20  
+```
+and then follow the instructions for creating a new virtual environment `pyslam` described [here](./PYTHON-VIRTUAL-ENVS.md). 
 
 #### Install pySLAM on macOS 
 
