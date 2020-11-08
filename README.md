@@ -70,11 +70,11 @@ If you prefer **conda**, run the scripts described in this other [file](./CONDA.
 
 #### Install pySLAM under Ubuntu 20.04
 
-Download this repo and move into the experimental branch `ubuntu20` 
+If you use **conda**, follow the instructions reported in this [file](./CONDA.md). On the other hand, if you want to use a new virtual environment, then move into the experimental branch `ubuntu20` 
 ```
 $ git checkout ubuntu20  
 ```
-and then follow the instructions for creating a new virtual environment `pyslam` described [here](./PYTHON-VIRTUAL-ENVS.md). 
+and then follow the instructions [here](./PYTHON-VIRTUAL-ENVS.md). 
 
 #### Install pySLAM on macOS 
 
