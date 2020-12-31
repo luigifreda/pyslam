@@ -60,8 +60,8 @@ class PinholeCamera(Camera):
     # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
     # out: Nx2 image points, [Nx1] array of map point depths     
     def project(self, xcs):
-        #u = self.fx * xc[0]/xc[0] + self.cx
-        #v = self.fy * xc[1]/xc[0] + self.cy  
+        #u = self.fx * xc[0]/xc[2] + self.cx
+        #v = self.fy * xc[1]/xc[2] + self.cy  
         projs = self.K @ xcs.T     
         zs = projs[-1]      
         projs = projs[:2]/ zs   
