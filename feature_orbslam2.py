@@ -21,7 +21,7 @@ import os
 import cv2
 import numpy as np
 
-from utils import Printer,getchar
+from utils_sys import Printer,getchar
 
 from orbslam2_features import ORBextractor
 

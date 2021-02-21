@@ -57,8 +57,8 @@ class FeatureDetectorTypes(Enum):
     CONTEXTDESC = 20  # [end-to-end] only with CONTEXTDESC descriptor - "ContextDesc: Local Descriptor Augmentation with Cross-Modality Context"  
     LFNET       = 21  # [end-to-end] joint detector-descriptor - "LF-Net: Learning Local Features from Images"
     R2D2        = 22  # [end-to-end] joint detector-descriptor - "R2D2: Repeatable and Reliable Detector and Descriptor"   
-    KEYNET      = 23  # "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"       
-
+    KEYNET      = 23  # "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
+    DISK        = 24  # [end-to-end] joint detector-descriptor - "DISK: Learning local features with policy gradient"
 
 class FeatureDescriptorTypes(Enum):
     NONE        = 0   # used for LK tracker (in main_vo.py)
@@ -80,7 +80,7 @@ class FeatureDescriptorTypes(Enum):
     VGG         = 16  # only descriptor - "Learning local feature descriptors using convex optimisation" 
     HARDNET     = 17  # only descriptor - "Working hard to know your neighbor’s margins: Local descriptor learning loss"
     GEODESC     = 18  # only descriptor - "GeoDesc: Learning Local Descriptors by Integrating Geometry Constraints"
-    SOSNET      = 19  # [end-to-end] joint detector-descriptor (only with SUPERPOINT detector) - "SOSNet:Second Order Similarity Regularization for Local Descriptor Learning"
+    SOSNET      = 19  # only descriptor - "SOSNet:Second Order Similarity Regularization for Local Descriptor Learning"
     L2NET       = 20  # only descriptor - "L2-Net: Deep Learning of Discriminative Patch Descriptor in Euclidean Space"
     LOGPOLAR    = 21  # only descriptor - "Beyond Cartesian Representations for Local Descriptors"
     D2NET       = 22  # [end-to-end] joint detector-descriptor (only with D2NET detector) - "D2-Net: A Trainable CNN for Joint Detection and Description of Local Features".  
@@ -88,8 +88,9 @@ class FeatureDescriptorTypes(Enum):
     CONTEXTDESC = 24  # [end-to-end] only with CONTEXTDESC detector - "ContextDesc: Local Descriptor Augmentation with Cross-Modality Context"      
     LFNET       = 25  # [end-to-end] joint detector-descriptor (only with LFNET detector) - "LF-Net: Learning Local Features from Images"
     R2D2        = 26  # [end-to-end] joint detector-descriptor (only with R2D2 detector) - "R2D2: Repeatable and Reliable Detector and Descriptor" 
-    KEYNET      = 27  # keynet descriptor is HARDNET (only with KEYNET detector) - "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"                  
-    
+    KEYNET      = 27  # keynet descriptor is HARDNET (only with KEYNET detector) - "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"   
+    BEBLID      = 28  # [binary] only descriptor - " BEBLID: Boosted Efficient Binary Local Image Descriptor"              
+    DISK        = 29  # [end-to-end] joint detector-descriptor - "DISK: Learning local features with policy gradient"    
     
 class FeatureInfo(object): 
     norm_type = dict() 
@@ -181,3 +182,9 @@ class FeatureInfo(object):
     #
     norm_type[FeatureDescriptorTypes.KEYNET] = cv2.NORM_L2   
     max_descriptor_distance[FeatureDescriptorTypes.KEYNET] = 1.6        # KEYNET      
+    #
+    norm_type[FeatureDescriptorTypes.BEBLID] = cv2.NORM_HAMMING   
+    max_descriptor_distance[FeatureDescriptorTypes.BEBLID] = 110        # BEBLID     (BEBLID_SIZE_256_BITS)
+    #
+    norm_type[FeatureDescriptorTypes.DISK] = cv2.NORM_L2   
+    max_descriptor_distance[FeatureDescriptorTypes.DISK] = 3.1          # DISK   

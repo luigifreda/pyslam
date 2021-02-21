@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 
 from utils_img import img_blocks, img_mask_blocks
 from utils_features import sat_num_features
-from utils import Printer 
+from utils_sys import Printer 
 from pyramid import Pyramid, PyramidType
 
 

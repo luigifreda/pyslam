@@ -35,7 +35,7 @@ from r2d2.tools.dataloader import norm_RGB
 from r2d2.nets.patchnet import *
 import argparse
 
-from utils import Printer 
+from utils_sys import Printer 
 
 
 kVerbose = True 

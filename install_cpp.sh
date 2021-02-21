@@ -24,9 +24,15 @@ if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
 fi
 # ====================================================
 
+if [ $USE_PYSLAM_ENV eq 1]; then
+    . pyenv-activate.sh
+fi  
 
 print_blue '================================================'
 print_blue "Building and installing cpp ..."
+
+CURRENT_USED_PYENV=$(get_virtualenv_name)
+print_blue "currently used pyenv: $CURRENT_USED_PYENV"
 
 cd cpp 
 

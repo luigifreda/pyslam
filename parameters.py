@@ -26,7 +26,7 @@ class Parameters(object):
     # SLAM threads 
     kLocalMappingOnSeparateThread=True           # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
     kTrackingWaitForLocalMappingToGetIdle=False  
-    kTrackingWaitForLocalMappingSleepTime=0.5 # 0.5  # -1 for no sleep # [s]
+    kTrackingWaitForLocalMappingSleepTime=0.6 # 0.5  # -1 for no sleep # [s]
     kLocalMappingParallelKpsMatching=True
     kLocalMappingParallelKpsMatchingNumWorkers=4
     
@@ -82,7 +82,9 @@ class Parameters(object):
     
     
     # Keyframe culling
-    kKeyframeCullingRedundantObsRatio = 0.9     
+    kKeyframeCullingRedundantObsRatio = 0.9  
+    kKeyframeMaxTimeDistanceInSecForCulling = 0.5 # [s]  # Use float('inf') for disabling it   
+    kKeyframeCullingMinNumPoints = 50 
 
 
     # Search matches by projection 

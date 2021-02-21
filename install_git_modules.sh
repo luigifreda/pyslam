@@ -54,7 +54,7 @@ print_blue '================================================'
 print_blue "Checking and downloading lfnet models ..."
 cd thirdparty
 # copy local changes 
-cp ./lfnet_changes/inference.py ./lfnet/inference.py
+rsync ./lfnet_changes/inference.py ./lfnet/inference.py
 # download pretrained model
 cd lfnet 
 touch __init__.py 
@@ -71,7 +71,7 @@ print_blue '================================================'
 print_blue "Setting keynet ..."
 cd thirdparty
 # copy local changes 
-cp ./keynet_changes/keynet_architecture.py ./keynet/keyNet/model/keynet_architecture.py
+rsync ./keynet_changes/keynet_architecture.py ./keynet/keyNet/model/keynet_architecture.py
 cd $STARTING_DIR
 
 

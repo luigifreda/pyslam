@@ -29,15 +29,24 @@ from utils import getchar
 if __name__ == "__main__":
 
     is_draw_3d = True
-    plt3d = Mplot3d(title='3D trajectory')
+    if is_draw_3d: 
+        plt3d = Mplot3d(title='3D trajectory')
+    else: 
+        plt3d = None 
 
-    is_draw_err = True 
-    err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
+    is_draw_err = True  
+    if is_draw_err: 
+        err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
+    else: 
+        err_plt = None        
 
     time.sleep(1)
     
     is_draw_matched_points = True 
-    matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
+    if is_draw_matched_points:   
+        matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
+    else:
+        matched_points_plt = None         
 
     traj3d_gt = []
     traj3d_est = []

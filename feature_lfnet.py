@@ -60,7 +60,7 @@ from lfnet.common.argparse_utils import *
     
 from utils_tf import set_tf_logging
 from utils_img import img_from_floats
-from utils import Printer, print_options
+from utils_sys import Printer, print_options
 
 
 kLfNetBasePath = config.cfg.root_folder + '/thirdparty/lfnet'
@@ -181,7 +181,7 @@ def convert_to_keypoints(kpts, scales, orientations, heatmaps):
     for kp,size,angle in zip(kpts,scales,orientations):
         x, y = np.round(kp).astype(np.int)
         response = heatmaps[y,x]
-        kps.append(cv2.KeyPoint(x, y, _size=size, _angle=angle, _response=response))
+        kps.append(cv2.KeyPoint(float(x), float(y), _size=size, _angle=angle, _response=response))
     return kps
     
 

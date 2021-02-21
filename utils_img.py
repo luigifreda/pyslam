@@ -24,7 +24,7 @@ import math
 
 from utils_geom import add_ones, homography_matrix
 from utils_draw import draw_random_img
-from utils import Printer
+from utils_sys import Printer
 
 
 # combine two images horizontally
