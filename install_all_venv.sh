@@ -2,6 +2,11 @@
 
 #N.B: this install script allows you to run main_slam.py and all the scripts 
 
+if [[ "$OSTYPE" == "darwin"* ]]; then 
+    echo "you have to use the script install_all_mac_venv.sh!"
+    exit 1 
+fi 
+
 # ====================================================
 # import the utils 
 . bash_utils.sh 
