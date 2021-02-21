@@ -23,6 +23,15 @@ alt="SLAM" width="600" border="1" />
 alt="Feature Matching" width="600" border="1" />  </center>
 
 --- 
+## Updates
+- [2021.02] 
+  + added support for *BEBLID* and *DISK* local features 
+  + added support for OpenCV 4.5.1 
+  + improved keyframe culling
+  + added support for macOS Big Sur
+  + updated install scripts 
+
+--- 
 ## Install 
 
 Clone this repo and its modules by running 
@@ -30,7 +39,22 @@ Clone this repo and its modules by running
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 ```
 
-The framework has been developed and tested under Ubuntu 18.04. 
+The framework has been developed and tested under **Ubuntu 18.04**.  
+A specific install procedure is available for: 
+- [Ubuntu 20.04](#install-pyslam-under-ubuntu-2004)
+- [MacOs](#install-pyslam-on-macos) 
+
+I am currently working to unify the install procedures. 
+
+**Requirements**:
+
+* Python 3.6.9
+* Numpy (1.18.2)
+* OpenCV (4.5.1 supported, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
+* PyTorch (>= 1.4.0)
+* Tensorflow-gpu 1.14.0
+
+If you run into troubles or performance issues, check this [file](./TROUBLESHOOTING.md).
 
 #### Install pySLAM in Your Working Python Environment
 
@@ -44,14 +68,6 @@ If you want to run `main_slam.py`, you must additionally install the libs [pango
 
 `$ ./install_all.sh`   
 
-**Requirements**:
-
-* Python 3  (tested under Python 3.6)
-* Numpy (1.18.2)
-* OpenCV (see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
-* PyTorch (>= 1.4.0)
-* Tensorflow-gpu 1.14.0
-
 #### Install pySLAM in a Custom Python Virtual Environment 
 
 If you do not want to mess up your working python environment, you can create a new virtual environment `pyslam` by easily launching the scripts described [here](./PYTHON-VIRTUAL-ENVS.md).
@@ -60,13 +76,22 @@ If you prefer **conda**, run the scripts described in this other [file](./CONDA.
 
 **N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#detectorsdescriptors)!
 
+
+#### Install pySLAM under Ubuntu 20.04
+
+Download this repo and move into the experimental branch `ubuntu20` 
+```
+$ git checkout ubuntu20  
+```
+and then follow the instructions for creating a new virtual environment `pyslam` described [here](./PYTHON-VIRTUAL-ENVS.md). 
+
 #### Install pySLAM on macOS 
 
 Check the instructions in this [file](./MAC.md).
 
 #### How to install non-free OpenCV modules
 
-In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SIFT**, **SURF**, etc.), you need to install the module `opencv-contrib-python`. The script `install_pip3_packages.sh` takes care of installing the proper version. This module can be installed by running     
+The script `install_pip3_packages.sh` takes care of installing the new available opencv version (**4.5.1** on Ubuntu 18). In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SURF**, etc.), you need to install the module `opencv-contrib-python` built with the enabled option `OPENCV_ENABLE_NONFREE`. You can find SURF availalble in `opencv-contrib-python 3.4.2.16`: this can be installed by running
 ```
 $ pip3 uninstall opencv-contrib-python
 $ pip3 install opencv-contrib-python==3.4.2.16
@@ -76,7 +101,7 @@ How to check your installed OpenCV version:
 ```
 $ python3 -c "import cv2; print(cv2.__version__)"
 ```
-For a more advanced OpenCV installation procedure, you can take a look [here](https://www.pyimagesearch.com/opencv-tutorials-resources-guides/). 
+For a more advanced OpenCV installation procedure, you can take a look [here](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubuntu.html). 
 
 #### Issues and Errors
 
@@ -136,6 +161,7 @@ At present time, the following feature **detectors** are supported:
 * *[LFNet](https://github.com/vcg-uvic/lf-net-release)*
 * *[R2D2](https://github.com/naver/r2d2)*
 * *[Key.Net](https://github.com/axelBarroso/Key.Net)*
+* *[DISK](https://arxiv.org/abs/2006.13566)*
 
 The following feature **descriptors** are supported: 
 * *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
@@ -162,7 +188,8 @@ The following feature **descriptors** are supported:
 * *[Contextdesc](https://github.com/lzx551402/contextdesc)*
 * *[LFNet](https://github.com/vcg-uvic/lf-net-release)*
 * *[R2D2](https://github.com/naver/r2d2)*
-
+* *[BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)*
+* *[DISK](https://arxiv.org/abs/2006.13566)*
 
 You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_detector.py` and `test/cv/test_feature_matching.py`.
 

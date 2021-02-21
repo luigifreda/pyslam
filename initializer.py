@@ -31,7 +31,7 @@ from map_point import MapPoint
 from map import Map
 from utils_geom import triangulate_points, triangulate_normalized_points, add_ones, poseRt, inv_T
 from camera  import Camera, PinholeCamera
-from utils import Printer
+from utils_sys import Printer
 from parameters import Parameters  
 
 

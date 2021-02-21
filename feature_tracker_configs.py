@@ -101,6 +101,14 @@ class FeatureTrackerConfigs(object):
                       descriptor_type = FeatureDescriptorTypes.FREAK,      
                       match_ratio_test = kRatioTest,                          
                       tracker_type = kTrackerType)       
+
+    BRISK = dict(num_features=kNumFeatures,                     
+                num_levels = 4, 
+                scale_factor = 1.2,
+                detector_type = FeatureDetectorTypes.BRISK, 
+                descriptor_type = FeatureDescriptorTypes.BRISK, 
+                match_ratio_test = kRatioTest,                               
+                tracker_type = kTrackerType)  
     
     BRISK_TFEAT = dict(num_features=kNumFeatures,                     
                        num_levels = 4, 
@@ -126,15 +134,6 @@ class FeatureTrackerConfigs(object):
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType)    
     
-    ORB2_FREAK = dict(num_features=kNumFeatures, 
-                      num_levels = 8, 
-                      scale_factor = 1.2,                     
-                      detector_type = FeatureDetectorTypes.ORB2, 
-                      descriptor_type = FeatureDescriptorTypes.FREAK, 
-                      match_ratio_test = kRatioTest,                        
-                      tracker_type = kTrackerType)    
-    
-
     BRISK = dict(num_features=kNumFeatures,
                  num_levels = 8,
                  detector_type = FeatureDetectorTypes.BRISK, 
@@ -168,6 +167,10 @@ class FeatureTrackerConfigs(object):
                      match_ratio_test = kRatioTest,                              
                      tracker_type = kTrackerType)    
     
+    # NOTE: SURF is a patented algorithm and not included in the new opencv versions 
+    #       If you want to test it, you can install and old version of opencv that supports it: run 
+    #       $ pip3 uninstall opencv-contrib-python
+    #       $ pip3 install opencv-contrib-python==3.4.2.16
     SURF = dict(num_features=kNumFeatures,
                 num_levels = 8,
                 detector_type = FeatureDetectorTypes.SURF, 
@@ -191,4 +194,61 @@ class FeatureTrackerConfigs(object):
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
+    KEYNET = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.KEYNET, 
+                       descriptor_type = FeatureDescriptorTypes.KEYNET, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+        
+    DISK = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.DISK, 
+                       descriptor_type = FeatureDescriptorTypes.DISK, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
     
+    # =====================================
+    # Descriptor-based 'trackers' with ORB2
+    
+    ORB2_FREAK = dict(num_features=kNumFeatures, 
+                      num_levels = 8, 
+                      scale_factor = 1.2,                     
+                      detector_type = FeatureDetectorTypes.ORB2, 
+                      descriptor_type = FeatureDescriptorTypes.FREAK, 
+                      match_ratio_test = kRatioTest,                        
+                      tracker_type = kTrackerType)    
+    
+    ORB2_BEBLID = dict(num_features=kNumFeatures, 
+                num_levels = 8, 
+                scale_factor = 1.2, 
+                detector_type = FeatureDetectorTypes.ORB2, 
+                descriptor_type = FeatureDescriptorTypes.BEBLID, 
+                match_ratio_test = kRatioTest,                        
+                tracker_type = kTrackerType)    
+    
+    ORB2_HARDNET = dict(num_features=kNumFeatures, 
+                num_levels = 8, 
+                scale_factor = 1.2, 
+                detector_type = FeatureDetectorTypes.ORB2, 
+                descriptor_type = FeatureDescriptorTypes.HARDNET, 
+                match_ratio_test = kRatioTest,                        
+                tracker_type = kTrackerType)    
+    
+    ORB2_SOSNET = dict(num_features=kNumFeatures, 
+                num_levels = 8, 
+                scale_factor = 1.2, 
+                detector_type = FeatureDetectorTypes.ORB2, 
+                descriptor_type = FeatureDescriptorTypes.SOSNET, 
+                match_ratio_test = kRatioTest,                        
+                tracker_type = kTrackerType)   
+    
+    ORB2_L2NET = dict(num_features=kNumFeatures, 
+                num_levels = 8, 
+                scale_factor = 1.2, 
+                detector_type = FeatureDetectorTypes.ORB2, 
+                descriptor_type = FeatureDescriptorTypes.L2NET, 
+                match_ratio_test = kRatioTest,                        
+                tracker_type = kTrackerType) 

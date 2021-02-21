@@ -1,7 +1,7 @@
 
 # Install pyslam under macOS 
 
-The following procedure has been tested under *catalina 10.15.5* and *Xcode 11.5*.
+The following procedure has been tested under *Big Sur 11.2* and *Xcode 12.0*.
 
 Please, follow these install steps: 
 

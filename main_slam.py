@@ -22,7 +22,15 @@ import cv2
 import math
 import time 
 
-import platform 
+# https://stackoverflow.com/questions/30669659/multiproccesing-and-error-the-process-has-forked-and-you-cannot-use-this-corefou
+# for removing the following ERROR message and get pangolin working!
+#     The process has forked and you cannot use this CoreFoundation functionality safely. 
+#     You MUST exec(). Break on __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_
+#     COREFOUNDATION_FUNCTIONALITY___YOU_MUST_EXEC__() to debug.
+import platform, multiprocessing
+if __name__ == '__main__':
+    if platform.system() == "Darwin":
+        multiprocessing.set_start_method('spawn')
 
 from config import Config
 
@@ -39,7 +47,7 @@ if platform.system()  == 'Linux':
     from display2D import Display2D  #  !NOTE: pygame generate troubles under macOS!
 
 from viewer3D import Viewer3D
-from utils import getchar, Printer 
+from utils_sys import getchar, Printer 
 
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_manager import feature_manager_factory
@@ -53,7 +61,7 @@ import multiprocessing as mp
 
 
 if __name__ == "__main__":
-    
+
     config = Config()
 
     dataset = dataset_factory(config.dataset_settings)
@@ -72,7 +80,7 @@ if __name__ == "__main__":
     #tracker_type = FeatureTrackerTypes.DES_FLANN  # descriptor-based, FLANN-based matching 
 
     # select your tracker configuration (see the file feature_tracker_configs.py) 
-    # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT
+    # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, CONTEXTDESC
     tracker_config = FeatureTrackerConfigs.TEST
     tracker_config['num_features'] = num_features
     tracker_config['tracker_type'] = tracker_type

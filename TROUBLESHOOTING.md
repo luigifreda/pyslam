@@ -4,6 +4,8 @@ This page contains a small collections of issues/errors that may be experienced 
 
 **FIRST OF ALL**: did you read the main [README](./README.md) page? did you use the provided **INSTALL SCRIPTS**? If not then go back on the [README](./README.md) page, read the few lines in the install section and launch the **REQUIRED** install script. The install scripts were created in order to perform all the required install operations for you and make the install process itself as painless as possible.   
 
+If you work under **Ubuntu 20.04** or **MacOS**, check the specific installation procedures reported in the main [README](./README.md) page. 
+
 
 ### Bad tracking performances
 
@@ -14,25 +16,20 @@ If you experience bad tracking performances, go in [parameters.py](./parameters.
 
 2) then, if you don't actually see any satisfying improvement with step (1), set `kTrackingWaitForLocalMappingToGetIdle=True`
 
-### SIFT or SURF error
+### SURF error
 
-This is already explained in the main [README](./README.md) file. 
-
-In order to use [non-free OpenCV modules](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SIFT** and **SURF**), you need `opencv-contrib-python`. This package can be installed by running     
-
-~~`$ pip3 install opencv-contrib-python==3.4.0.12`~~
+In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SURF**, etc.), you need to install the module `opencv-contrib-python` built with the enabled option `OPENCV_ENABLE_NONFREE`. You can find SURF availalble in `opencv-contrib-python 3.4.2.16`: this can be installed by running
 ```
 $ pip3 uninstall opencv-contrib-python
 $ pip3 install opencv-contrib-python==3.4.2.16
 ```
 
-For a more advanced OpenCV installation procedure, you can take a look [here](https://www.pyimagesearch.com/opencv-tutorials-resources-guides/). 
-
+For a more advanced OpenCV installation procedure, you can take a look [here](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubuntu.html). 
 How to check your installed OpenCV version:
 ```
 $ python3 -c "import cv2; print(cv2.__version__)"
-
 ```
+
 ### g2o Error
 
 If you run into the following error

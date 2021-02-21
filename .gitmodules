@@ -28,3 +28,6 @@
 [submodule "thirdparty/keynet"]
 	path = thirdparty/keynet
 	url = https://github.com/axelBarroso/Key.Net.git
+[submodule "thirdparty/disk"]
+	path = thirdparty/disk
+	url = https://github.com/cvlab-epfl/disk.git 

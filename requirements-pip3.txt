@@ -14,8 +14,8 @@ Markdown==3.2.1
 matplotlib==3.2.1
 networkx==2.4
 numpy==1.18.3
-opencv-contrib-python==3.4.2.16
-opencv-python==4.2.0.32
+opencv-contrib-python #==3.4.2.16
+opencv-python #==4.2.0.32
 ordered-set==3.1.1
 Pillow==7.0.0
 protobuf==3.11.3

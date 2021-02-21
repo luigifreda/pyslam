@@ -14,6 +14,8 @@ print_blue "Configuring and installing python packages ..."
 
 # N.B.: python3 is required!
 
+pip3 install --upgrade pip
+
 # pip3 packages 
 install_pip_packages pygame numpy matplotlib pyopengl Pillow pybind11 
 install_pip_package numpy>=1.18.3
@@ -23,7 +25,7 @@ install_pip_packages pyyaml termcolor tqdm yacs
 install_pip_package opencv-python  
 
 #pip3 uninstall opencv-contrib-python  # better to clean it before installing the right version 
-install_pip_package opencv-contrib-python==3.4.2.16 
+install_pip_package opencv-contrib-python #==3.4.2.16 
 
 install_pip_package torch 
 install_pip_package torchvision

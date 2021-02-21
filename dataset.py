@@ -26,7 +26,7 @@ import glob
 import time 
 
 from multiprocessing import Process, Queue, Value 
-from utils import Printer 
+from utils_sys import Printer 
 
 
 class DatasetType(Enum):

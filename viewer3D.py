@@ -20,16 +20,36 @@
 import config
 
 import math 
+
+# https://stackoverflow.com/questions/63475461/unable-to-import-opengl-gl-in-python-on-macos
+try:
+    import OpenGL as gl
+    try:
+        import OpenGL.GL   # this fails in <=2020 versions of Python on OS X 11.x
+    except ImportError:
+        print('Draft, patching for Big Sur')
+        from ctypes import util
+        orig_util_find_library = util.find_library
+        def new_util_find_library( name ):
+            res = orig_util_find_library( name )
+            if res: return res
+            return '/System/Library/Frameworks/'+name+'.framework/'+name
+        util.find_library = new_util_find_library
+        import OpenGL.GL as gl
+except ImportError:
+    pass
+
+import pypangolin as pangolin
+
 import multiprocessing as mp 
 from multiprocessing import Process, Queue, Value
-import pypangolin as pangolin
-import OpenGL.GL as gl
+
 import numpy as np
 from utils_geom import inv_T 
 
 
 kUiWidth = 180
-kDefaultPointSize = 2
+kDefaultPointSize = 3
 kViewportWidth = 1024
 #kViewportHeight = 768
 kViewportHeight = 550

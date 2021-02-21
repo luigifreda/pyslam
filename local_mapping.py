@@ -44,7 +44,7 @@ from map import Map
 from timer import Timer, TimerFps
 import optimizer_g2o
 
-from utils import Printer
+from utils_sys import Printer
 from utils_geom import triangulate_normalized_points
 
 
@@ -306,7 +306,9 @@ class LocalMapping(object):
                                     break 
                         if p_num_observations >= th_num_observations:
                             kf_num_redundant_observations += 1
-            if kf_num_redundant_observations > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points:
+            if (kf_num_redundant_observations > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points) and \
+               (kf_num_points > Parameters.kKeyframeCullingMinNumPoints) and \
+               (kf.timestamp - kf.parent.timestamp < Parameters.kKeyframeMaxTimeDistanceInSecForCulling):
                 print('setting keyframe ', kf.id,' bad - redundant observations: ', kf_num_redundant_observations/max(kf_num_points,1),'%')
                 kf.set_bad()
                 num_culled_keyframes += 1

@@ -116,9 +116,9 @@ def draw_feature_matches_horizontally(img1, img2, kps1, kps2, kps1_sizes=None, k
         #cv2.line(img3, (a,b),(c,d), color, 1)    # optic flow style         
         cv2.line(img3, (a,b),(c+w1,d), color, 1)  # join corrisponding points 
         cv2.circle(img3,(a,b),2, color,-1)   
-        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=size1, thickness=1)  # draw keypoint size as a circle 
+        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=int(size1), thickness=1)  # draw keypoint size as a circle 
         cv2.circle(img3,(c+w1,d),2, color,-1) 
-        cv2.circle(img3,(c+w1,d), color=(0, 255, 0), radius=size2, thickness=1)  # draw keypoint size as a circle  
+        cv2.circle(img3,(c+w1,d), color=(0, 255, 0), radius=int(size2), thickness=1)  # draw keypoint size as a circle  
     return img3    
 
 
@@ -148,9 +148,9 @@ def draw_feature_matches_vertically(img1, img2, kps1, kps2, kps1_sizes=None, kps
         #cv2.line(img3, (a,b),(c,d), color, 1)      # optic flow style   
         cv2.line(img3, (a,b),(c,d+h1), color, 1)   # join corrisponding points 
         cv2.circle(img3,(a,b),2, color,-1)   
-        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=size1, thickness=1)  # draw keypoint size as a circle 
+        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=int(size1), thickness=1)  # draw keypoint size as a circle 
         cv2.circle(img3,(c,d+h1),2, color,-1) 
-        cv2.circle(img3,(c,d+h1), color=(0, 255, 0), radius=size2, thickness=1)  # draw keypoint size as a circle  
+        cv2.circle(img3,(c,d+h1), color=(0, 255, 0), radius=int(size2), thickness=1)  # draw keypoint size as a circle  
     return img3   
 
 

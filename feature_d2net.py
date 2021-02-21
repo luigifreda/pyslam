@@ -41,7 +41,7 @@ import scipy
 import scipy.io
 import scipy.misc
 
-from utils import Printer
+from utils_sys import Printer
 
 from lib.model_test import D2Net
 from lib.utils import preprocess_image

@@ -28,7 +28,7 @@ from parameters import Parameters
 
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 
-from utils import Printer, import_from
+from utils_sys import Printer, import_from
 from utils_features import unpackSiftOctaveKps, UnpackOctaveMethod, sat_num_features, kdt_nms, ssc_nms, octree_nms, grid_nms
 from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
 
@@ -55,7 +55,7 @@ ContextDescFeature2D = import_from('feature_contextdesc', 'ContextDescFeature2D'
 LfNetFeature2D = import_from('feature_lfnet', 'LfNetFeature2D')
 R2d2Feature2D = import_from('feature_r2d2', 'R2d2Feature2D')
 KeyNetDescFeature2D = import_from('feature_keynet', 'KeyNetDescFeature2D')
-
+DiskFeature2D = import_from('feature_disk', 'DiskFeature2D')
 
 kVerbose = True   
 
@@ -153,7 +153,9 @@ class FeatureManager(object):
         # --------------------------------------------- #
         print("using opencv ", cv2.__version__)
         # check opencv version in order to use the right modules 
-        if cv2.__version__.split('.')[0] == '3':
+        opencv_major =  int(cv2.__version__.split('.')[0])
+        opencv_minor =  int(cv2.__version__.split('.')[1])
+        if opencv_major == 3:
             SIFT_create  = import_from('cv2.xfeatures2d','SIFT_create') 
             SURF_create  = import_from('cv2.xfeatures2d','SURF_create')
             FREAK_create  = import_from('cv2.xfeatures2d','FREAK_create')          
@@ -169,7 +171,25 @@ class FeatureManager(object):
             HL_create = import_from('cv2','xfeatures2d_HarrisLaplaceFeatureDetector','create')
             LATCH_create = import_from('cv2','xfeatures2d_LATCH','create')
             LUCID_create = import_from('cv2','xfeatures2d_LUCID','create')        
-            VGG_create = import_from('cv2','xfeatures2d_VGG','create')                     
+            VGG_create = import_from('cv2','xfeatures2d_VGG','create')     
+            BEBLID_create = import_from('cv2','xfeatures2d','BEBLID_create')       
+        elif opencv_major == 4 and opencv_minor >= 5: 
+            SIFT_create  = import_from('cv2','SIFT_create') 
+            SURF_create  = import_from('cv2.xfeatures2d','SURF_create')
+            FREAK_create  = import_from('cv2.xfeatures2d','FREAK_create')               
+            ORB_create   = import_from('cv2','ORB_create')
+            BRISK_create = import_from('cv2','BRISK_create')
+            KAZE_create  = import_from('cv2','KAZE_create')            
+            AKAZE_create = import_from('cv2','AKAZE_create')
+            BoostDesc_create = import_from('cv2','xfeatures2d_BoostDesc','create')
+            MSD_create = import_from('cv2','xfeatures2d_MSDDetector')     
+            DAISY_create = import_from('cv2','xfeatures2d_DAISY','create') 
+            STAR_create = import_from('cv2','xfeatures2d_StarDetector','create')   
+            HL_create = import_from('cv2','xfeatures2d_HarrisLaplaceFeatureDetector','create')  
+            LATCH_create = import_from('cv2','xfeatures2d_LATCH','create')                                             
+            LUCID_create = import_from('cv2','xfeatures2d_LUCID','create')  
+            VGG_create = import_from('cv2','xfeatures2d_VGG','create')
+            BEBLID_create = import_from('cv2','xfeatures2d','BEBLID_create')              
         else:
             SIFT_create  = import_from('cv2.xfeatures2d','SIFT_create') 
             SURF_create  = import_from('cv2.xfeatures2d','SURF_create')
@@ -185,7 +205,8 @@ class FeatureManager(object):
             HL_create = import_from('cv2','xfeatures2d_HarrisLaplaceFeatureDetector','create')  
             LATCH_create = import_from('cv2','xfeatures2d_LATCH','create')                                             
             LUCID_create = import_from('cv2','xfeatures2d_LUCID','create')  
-            VGG_create = import_from('cv2','xfeatures2d_VGG','create')                
+            VGG_create = import_from('cv2','xfeatures2d_VGG','create')
+            BEBLID_create = import_from('cv2','xfeatures2d','BEBLID_create')                     
 
         # pure detectors 
         self.FAST_create  = import_from('cv2','FastFeatureDetector_create')
@@ -209,6 +230,7 @@ class FeatureManager(object):
         self.LATCH_create = LATCH_create 
         self.LUCID_create = LUCID_create    
         self.VGG_create = VGG_create     
+        self.BEBLID_create = BEBLID_create
 
         # --------------------------------------------- #
         # check if we want descriptor == detector   
@@ -449,7 +471,13 @@ class FeatureManager(object):
             self.scale_factor = self._feature_detector.scale_factor
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #    
-            #                                                                                                                                                
+            #       
+        elif self.detector_type == FeatureDetectorTypes.DISK:       
+            self.num_levels = 1 # force 
+            self.need_color_image = True               
+            self._feature_detector = DiskFeature2D(num_features=self.num_features)          
+            #    
+            #                                                                                                                                           
         else:
             raise ValueError("Unknown feature detector %s" % self.detector_type)
                 
@@ -629,7 +657,22 @@ class FeatureManager(object):
                     raise ValueError("You cannot use KEYNET internal descriptor without KEYNET detector!\nPlease, select KEYNET as both descriptor and detector!")
                 self._feature_descriptor = self._feature_detector  # reuse detector object                                     
                 #
-                #                                                                                                                                                                                                                                                                         
+                #          
+            elif self.descriptor_type == FeatureDescriptorTypes.BEBLID:     
+                BEBLID_SIZE_256_BITS = 101  # https://docs.opencv.org/master/d7/d99/classcv_1_1xfeatures2d_1_1BEBLID.html    
+                BEBLID_scale_factor = 1.0   # it depends on the used detector https://docs.opencv.org/master/d7/d99/classcv_1_1xfeatures2d_1_1BEBLID.html#a38997aa059977abf6a2d6bf462d50de0a7b2a1e106c93d76cdfe5cef053277a04
+                # TODO: adapt BEBLID scale factor to actual used detector  
+                #       1.0 is OK for ORB2 detector 
+                self._feature_descriptor = self.BEBLID_create(BEBLID_scale_factor, BEBLID_SIZE_256_BITS)        
+                #
+                #     
+            elif self.descriptor_type == FeatureDescriptorTypes.DISK:   
+                self.oriented_features = False                           
+                if self.detector_type != FeatureDetectorTypes.DISK: 
+                    raise ValueError("You cannot use DISK internal descriptor without DISK detector!\nPlease, select DISK as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #                                                                                                                                                                                                                                                               
             elif self.descriptor_type == FeatureDescriptorTypes.NONE:        
                 self._feature_descriptor = None                                              
             else:
@@ -908,7 +951,7 @@ class FeatureManager(object):
                 # detector and descriptor are different => call them separately 
                 # 1. first, detect keypoint locations  
                 kps = self.detect(frame, mask, filter=False)                  
-                # 2. then, compute descriptors           
+                # 2. then, compute descriptors        
                 kps, des = self._feature_descriptor.compute(frame, kps)  
                 if kVerbose:
                     #print('detector: ', self.detector_type.name, ', #features: ', len(kps))           
@@ -936,7 +979,11 @@ class FeatureManager(object):
             # generate a rough histogram for keypoint sizes 
             kps_sizes = [kp.size for kp in kps] 
             kps_sizes_histogram = np.histogram(kps_sizes, bins=10)
-            print('size-histogram: \n', list(zip(kps_sizes_histogram[1],kps_sizes_histogram[0])))            
+            print('size-histogram: \n', list(zip(kps_sizes_histogram[1],kps_sizes_histogram[0])))   
+            # generate histogram at level 0
+            kps_sizes = [kp.size for kp in kps if kp.octave==1] 
+            kps_sizes_histogram = np.histogram(kps_sizes, bins=10)
+            print('size-histogram at level 0: \n', list(zip(kps_sizes_histogram[1],kps_sizes_histogram[0])))          
         if False: 
             # count points for each octave => generate an octave histogram 
             kps_octaves = [k.octave for k in kps]

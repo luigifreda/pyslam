@@ -35,7 +35,7 @@ from frame import Frame
 from keyframe import KeyFrame
 from map_point import MapPoint
 
-from utils import Printer
+from utils_sys import Printer
 
 import g2o
 import optimizer_g2o 

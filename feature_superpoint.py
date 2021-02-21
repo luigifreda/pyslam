@@ -28,7 +28,7 @@ config.cfg.set_lib('superpoint')
 from demo_superpoint import SuperPointFrontend
 from threading import RLock
 
-from utils import Printer 
+from utils_sys import Printer 
 
 
 kVerbose = True   

@@ -88,7 +88,7 @@ function set_git_modules() {
 	#print_blue "setting up git submodules"
 	git submodule init -- 
 	git submodule sync --recursive 
-	git submodule update --recursive
+        git submodule update --init --recursive
 }
 
 function update_git_modules() {

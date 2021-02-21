@@ -31,11 +31,11 @@ from multiprocessing import Process, Queue, Lock, RLock, Value
 import ctypes
 
 kPlotSleep = 0.04
-kVerbose = False  
+kVerbose = False 
 kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#threading.Thread.daemon
                     # The entire Python program exits when no alive non-daemon threads are left.
 
-kUseFigCanvasDrawIdle = True                
+kUseFigCanvasDrawIdle = True
 
 kUsePlotPause = not kUseFigCanvasDrawIdle # this should be set True under macOS   
 if platform.system() == 'Darwin':

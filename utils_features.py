@@ -27,7 +27,7 @@ from enum import Enum
 from scipy.spatial import cKDTree
 #from pykdtree.kdtree import KDTree # slower!
 
-from utils import Printer, import_from
+from utils_sys import Printer, import_from
 from utils_geom import add_ones, s1_diff_deg, s1_dist_deg, l2_distances
 
 ORBextractor = import_from('orbslam2_features', 'ORBextractor')  

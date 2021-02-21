@@ -29,7 +29,7 @@ from parameters import Parameters
 from camera_pose import CameraPose
 
 from utils_geom import add_ones, poseRt, normalize
-from utils import myjet, Printer
+from utils_sys import myjet, Printer
 
 
 kDrawFeatureRadius = [r*5 for r in range(1,100)]

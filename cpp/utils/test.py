@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 
 
 sys.path.append("./lib/")
+sys.path.append("../../thirdparty/orbslam2_features/lib/")
 from orbslam2_features import ORBextractor
 
 # read image 

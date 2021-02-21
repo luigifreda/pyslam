@@ -4,7 +4,24 @@ import sys
 sys.path.append("../../")
 import config
 
-import OpenGL.GL as gl
+# https://stackoverflow.com/questions/63475461/unable-to-import-opengl-gl-in-python-on-macos
+try:
+    import OpenGL as gl
+    try:
+        import OpenGL.GL   # this fails in <=2020 versions of Python on OS X 11.x
+    except ImportError:
+        print('Draft, patching for Big Sur')
+        from ctypes import util
+        orig_util_find_library = util.find_library
+        def new_util_find_library( name ):
+            res = orig_util_find_library( name )
+            if res: return res
+            return '/System/Library/Frameworks/'+name+'.framework/'+name
+        util.find_library = new_util_find_library
+        import OpenGL.GL as gl
+except ImportError:
+    pass
+
 import pypangolin as pangolin
 
 import numpy as np
