@@ -48,7 +48,7 @@ from motion_model import MotionModel, MotionModelDamping
 
 from feature_tracker import FeatureTrackerTypes 
 
-from utils import Printer, getchar, Logging
+from utils_sys import Printer, getchar, Logging
 from utils_draw import draw_feature_matches
 from utils_geom import triangulate_points, poseRt, normalize_vector, inv_T, triangulate_normalized_points, estimate_pose_ess_mat
 

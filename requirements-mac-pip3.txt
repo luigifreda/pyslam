@@ -4,39 +4,39 @@ cycler==0.10.0
 decorator==4.4.2
 gast==0.3.3
 google-pasta==0.2.0
-grpcio==1.27.2
-h5py==2.10.0
+grpcio #==1.27.2
+h5py #==2.10.0
 imageio==2.8.0
 Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
 kiwisolver==1.1.0
 Markdown==3.2.1
-matplotlib==3.2.1
+matplotlib #==3.2.1
 networkx==2.4
-numpy==1.18.3
+numpy #==1.18.3
 opencv-contrib-python #==3.4.2.16
 opencv-python #==4.2.0.32
 ordered-set==3.1.1
 Pillow==7.0.0
 protobuf==3.11.3
 pybind11==2.4.3
-pygame==1.9.6
+pygame #==1.9.6
 PyOpenGL==3.1.5
 pyparsing==2.4.6
 python-dateutil==2.8.1
-PyWavelets==1.1.1
-PyYAML==5.3.1
-scikit-image==0.16.2
-scipy==1.4.1
+PyWavelets #==1.1.1
+PyYAML #==5.3.1
+scikit-image #==0.16.2
+scipy #==1.4.1
 six==1.14.0
 tb-nightly==1.14.0a20190603
-tensorboard==1.14.0
-tensorflow-estimator==1.14.0
-tensorflow-gpu==1.14.0
-termcolor==1.1.0
-tf-estimator-nightly==1.14.0.dev2019060501
-torch==1.4.0
-torchvision==0.5.0
+termcolor #==1.1.0
+#tensorboard==1.14.0
+#tensorflow-estimator==1.14.0
+#tensorflow==1.14.0
+#tf-estimator-nightly==1.14.0.dev2019060501
+torch #==1.4.0
+torchvision #==0.5.0
 tqdm==4.43.0
 Werkzeug==1.0.0
 wrapt==1.12.1

@@ -41,7 +41,7 @@ import torch
 from threading import RLock
 
 from utils_tf import set_tf_logging
-from utils import Printer, print_options
+from utils_sys import Printer, print_options
 
 
 kVerbose = True   
@@ -447,6 +447,6 @@ class KeyNetDescFeature2D:
     def compute(self, frame, kps=None, mask=None): # kps is a fake input, mask is a fake input
         with self.lock:         
             if self.frame is not frame:
-                #Printer.orange('WARNING: CONTEXTDESC is recomputing both kps and des on last input frame', frame.shape)            
+                #Printer.orange('WARNING: KEYNET is recomputing both kps and des on last input frame', frame.shape)            
                 self.detectAndCompute(frame)
             return self.kps, self.des   

@@ -38,7 +38,7 @@ img1_box = None               # image 1 bounding box (initialization)
 model_fitting_type = None     # 'homography' or 'fundamental' (automatically set below, this is an initialization)
 draw_horizontal_layout=True   # draw matches with the two images in an horizontal or vertical layout (automatically set below, this is an initialization) 
 
-test_type='graph'             # select the test type (there's a template below to add your test)
+test_type='graf'             # select the test type (there's a template below to add your test)
 #  
 if test_type == 'box': 
     img1 = cv2.imread('../data/box.png')          # queryImage  
@@ -46,7 +46,7 @@ if test_type == 'box':
     model_fitting_type='homography' 
     draw_horizontal_layout = True 
 #
-if test_type == 'graph': 
+if test_type == 'graf': 
     img1 = cv2.imread('../data/graf/img1.ppm') # queryImage
     img2 = cv2.imread('../data/graf/img3.ppm') # trainImage   img2, img3, img4
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)

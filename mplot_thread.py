@@ -21,6 +21,8 @@ import time
 import sys 
 import numpy as np
 
+import platform 
+
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
@@ -32,8 +34,8 @@ kPlotSleep = 0.04
 kVerbose = False 
 kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#threading.Thread.daemon
                     # The entire Python program exits when no alive non-daemon threads are left.
-                    
-kUseFigCanvasDrawIdle = True 
+
+kUseFigCanvasDrawIdle = True  
 
 # global lock for drawing with matplotlib 
 mp_lock = RLock()
@@ -72,7 +74,9 @@ class Mplot2d:
 
     def drawer_thread(self, queue, lock, key, is_running):  
         self.init(lock) 
+        #print('starting drawer_thread')
         while is_running.value == 1:
+            #print('drawer_refresh step')
             self.drawer_refresh(queue, lock)                                    
             if kUseFigCanvasDrawIdle:               
                 time.sleep(kPlotSleep) 

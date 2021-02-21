@@ -21,7 +21,7 @@ from camera  import Camera, PinholeCamera
 from initializer import Initializer
 from timer import TimerFps
 
-from utils import Printer
+from utils_sys import Printer
 import optimizer_g2o
 
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 

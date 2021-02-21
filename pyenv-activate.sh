@@ -11,8 +11,9 @@ fi
 ENVS_PATH=~/.python/venvs  # path where to group virtual environments 
 ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 
 
+#export PYTHONPATH=$ENVS_PATH/$ENV_NAME/bin  
 export PYTHONPATH=""   # clean python path => for me, remove ROS stuff 
-source $ENV_PATH/bin/activate  
+. $ENV_PATH/bin/activate  
 
 # N.B.: in order to deactivate the virtual environment run: 
 # $ deactivate 
