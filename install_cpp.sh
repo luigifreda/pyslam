@@ -24,7 +24,10 @@ if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
 fi
 # ====================================================
 
-if [ $USE_PYSLAM_ENV eq 1]; then
+if [[ -z "${USE_PYSLAM_ENV}" ]]; then
+    USE_PYSLAM_ENV=0
+fi
+if [ $USE_PYSLAM_ENV -eq 1 ]; then
     . pyenv-activate.sh
 fi  
 
