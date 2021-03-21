@@ -19,9 +19,12 @@ STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 #./install_basic.sh 
 # ====================================================
 
-if [ $USE_PYSLAM_ENV eq 1]; then
+if [[ -z "${USE_PYSLAM_ENV}" ]]; then
+    USE_PYSLAM_ENV=0
+fi
+if [ $USE_PYSLAM_ENV -eq 1 ]; then
     . pyenv-activate.sh
-fi  
+fi   
 
 # ====================================================
 # check if we have external options
