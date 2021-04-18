@@ -55,6 +55,23 @@ First of all, check if you have a compiled `thirdparty/g2opy/lib/g2o.cpython-*-l
 
 On the other hand, if you already have a compiled `thirdparty/g2opy/lib/g2o.cpython-*-linux-gnu.so`, it's very likely you have libraries compiled in a 'mixed' way. Then, try to clean everything with the script `clean.sh`, and follow the installation procedure again (see the main [README](./README.md) file). 
 
+### OrderedSet 
+
+reference https://github.com/luigifreda/pyslam/issues/48 
+
+If you run `main_slam.py` and hit the following error
+```
+File "/home/dam/.local/lib/python3.5/site-packages/ordered_set.py", line 134, in copy
+return self.class(self)
+File "/home/dam/.local/lib/python3.5/site-packages/ordered_set.py", line 69, in init
+self |= iterable
+TypeError: unsupported operand type(s) for |=: 'OrderedSet' and 'OrderedSet'
+``` 
+You can solve such an issue by installing a lower version of OrderedSet
+```
+pip install ordered-set==3.1.1 --force-reinstall
+``` 
+
 ### Problems with ROS and OpenCV
 
 If you have ROS installed in your system and got the following error:
