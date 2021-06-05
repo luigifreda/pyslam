@@ -164,7 +164,17 @@ class LkFeatureTracker(FeatureTracker):
 
     # out: FeatureTrackingResult()
     def track(self, image_ref, image_cur, kps_ref, des_ref = None):
-        kps_cur, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, kps_ref, None, **self.lk_params)  #shape: [k,2] [k,1] [k,1]
+        # import pdb;pdb.set_trace()
+        # print(image_ref)
+        #  += 1
+        # image_ref.astype(np.float32)
+        # image_cur.astype(np.float32)
+        print('image_ref.dtype', image_ref.dtype, image_cur.dtype)
+        #  kps_ref -> None.
+        if kps_ref.shape != (0,):
+            kps_cur, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, kps_ref, None, **self.lk_params)  #shape: [k,2] [k,1] [k,1]
+        else:
+            return None
         st = st.reshape(st.shape[0])
         res = FeatureTrackingResult()    
         #res.idxs_ref = (st == 1)

@@ -58,7 +58,8 @@ if __name__ == "__main__":
 
     dataset = dataset_factory(config.dataset_settings)
 
-    groundtruth = groundtruth_factory(config.dataset_settings)
+    # groundtruth = groundtruth_factory(config.dataset_settings)
+    groundtruth = None
 
     cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Camera.height'],
                         config.cam_settings['Camera.fx'], config.cam_settings['Camera.fy'],
@@ -103,7 +104,7 @@ if __name__ == "__main__":
         img = dataset.getImage(img_id)
 
         if img is not None:
-
+            # import pdb; pdb.set_trace()
             vo.track(img, img_id)  # main VO function 
 
             if(img_id > 2):	       # start drawing from the third image (when everything is initialized and flows in a normal way)

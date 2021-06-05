@@ -508,6 +508,8 @@ class Tracking(object):
 
         # build current frame 
         self.timer_frame.start()        
+        # import pdb; pdb.set_trace()
+        # print(img, self.camera)
         f_cur = Frame(img, self.camera, timestamp=timestamp) 
         self.f_cur = f_cur 
         print("frame: ", f_cur.id)        

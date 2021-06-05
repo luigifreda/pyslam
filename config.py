@@ -91,7 +91,9 @@ class Config(object):
 
         self.dataset_path = self.dataset_settings['base_path'];
         self.dataset_settings['base_path'] = os.path.join( __location__, self.dataset_path)
-        #print('dataset_settings: ', self.dataset_settings)
+        
+        print('dataset_settings: ', self.dataset_settings)
+        print('dataset_path: ', self.dataset_path)
 
     # get camera settings
     def get_cam_settings(self):

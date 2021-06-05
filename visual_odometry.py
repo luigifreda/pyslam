@@ -62,6 +62,7 @@ class VisualOdometry(object):
 
         self.trueX, self.trueY, self.trueZ = None, None, None
         self.groundtruth = groundtruth
+        self.groundtruth = None
         
         self.feature_tracker = feature_tracker
         self.track_result = None 
@@ -143,6 +144,7 @@ class VisualOdometry(object):
         return R,t  # Rrc, trc (with respect to 'ref' frame) 		
 
     def processFirstFrame(self):
+        # import pdb; pdb.set_trace()
         # only detect on the current image 
         self.kps_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
         # convert from list of keypoints to an array of points 
@@ -152,6 +154,7 @@ class VisualOdometry(object):
     def processFrame(self, frame_id):
         # track features 
         self.timer_feat.start()
+        # import pdb;pdb.set_trace()
         self.track_result = self.feature_tracker.track(self.prev_image, self.cur_image, self.kps_ref, self.des_ref)
         self.timer_feat.refresh()
         # estimate pose 
@@ -192,6 +195,7 @@ class VisualOdometry(object):
             print('..................................')
             print('frame: ', frame_id) 
         # convert image to gray if needed    
+        # import pdb; pdb.set_trace()
         if img.ndim>2:
             img = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)             
         # check coherence of image size with camera settings 
@@ -211,24 +215,24 @@ class VisualOdometry(object):
     def drawFeatureTracks(self, img, reinit = False):
         draw_img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
         num_outliers = 0        
-        if(self.stage == VoStage.GOT_FIRST_IMAGE):            
-            if reinit:
-                for p1 in self.kps_cur:
-                    a,b = p1.ravel()
-                    cv2.circle(draw_img,(a,b),1, (0,255,0),-1)                    
-            else:    
-                for i,pts in enumerate(zip(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)):
-                    drawAll = False # set this to true if you want to draw outliers 
-                    if self.mask_match[i] or drawAll:
-                        p1, p2 = pts 
-                        a,b = p1.ravel()
-                        c,d = p2.ravel()
-                        cv2.line(draw_img, (a,b),(c,d), (0,255,0), 1)
-                        cv2.circle(draw_img,(a,b),1, (0,0,255),-1)   
-                    else:
-                        num_outliers+=1
-            if kVerbose:
-                print('# outliers: ', num_outliers)     
+        # if(self.stage == VoStage.GOT_FIRST_IMAGE):            
+        #     if reinit:
+        #         for p1 in self.kps_cur:
+        #             a,b = p1.ravel()
+        #             cv2.circle(draw_img,(a,b),1, (0,255,0),-1)                    
+        #     else:    
+        #         for i,pts in enumerate(zip(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)):
+        #             drawAll = False # set this to true if you want to draw outliers 
+        #             if self.mask_match[i] or drawAll:
+        #                 p1, p2 = pts 
+        #                 a,b = p1.ravel()
+        #                 c,d = p2.ravel()
+        #                 cv2.line(draw_img, (a,b),(c,d), (0,255,0), 1)
+        #                 cv2.circle(draw_img,(a,b),1, (0,0,255),-1)   
+        #             else:
+        #                 num_outliers+=1
+        #     if kVerbose:
+        #         print('# outliers: ', num_outliers)     
         return draw_img            
 
     def updateHistory(self):

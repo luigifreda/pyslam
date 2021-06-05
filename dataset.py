@@ -17,6 +17,7 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+from pdb import set_trace
 import sys
 import numpy as np 
 from enum import Enum
@@ -104,8 +105,12 @@ class Dataset(object):
 
     def getImageColor(self, frame_id):
         try: 
+            # import pdb; pdb.set_trace()
             img = self.getImage(frame_id)
+            print('*' * 100, img)
             if img.ndim == 2:
+                # import pdb; pdb.set_trace()
+                print('*' * 100, cv2.cvtColor(img,cv2.COLOR_GRAY2RGB))
                 return cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)     
             else:
                 return img             
@@ -128,6 +133,7 @@ class VideoDataset(Dataset):
         self.filename = path + '/' + name 
         #print('video: ', self.filename)
         self.cap = cv2.VideoCapture(self.filename)
+        print('*' * 50, self.cap)
         if not self.cap.isOpened():
             raise IOError('Cannot open movie file: ', self.filename)
         else: 
@@ -135,6 +141,7 @@ class VideoDataset(Dataset):
             self.num_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
             self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) 
+            # self.cap.set(cv2.CAP_PROP_FPS, 10)
             self.fps = float(self.cap.get(cv2.CAP_PROP_FPS))
             self.Ts = 1./self.fps 
             print('num frames: ', self.num_frames)  
@@ -142,17 +149,25 @@ class VideoDataset(Dataset):
         self.is_init = False   
             
     def getImage(self, frame_id):
+        # import pdb; pdb.set_trace()
         # retrieve the first image if its id is > 0 
         if self.is_init is False and frame_id > 0:
             self.is_init = True 
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
         self.is_init = True
         ret, image = self.cap.read()
+        # print('!' * 50, 'CHANGED the Iamge shape..', image.shape)
+        # print(image.shape)
+        # image = image[172:720 - 172, 20:1280 - 20, :]
+        # print('*' * 50, image.dtype)
+        # image = image.astype(np.uint8)
+        # image = cv2.resize(image, dsize=(370, 1226, 3))
         #self._timestamp = time.time()  # rough timestamp if nothing else is available 
         self._timestamp = float(self.cap.get(cv2.CAP_PROP_POS_MSEC)*1000)
         self._next_timestamp = self._timestamp + self.Ts 
         if ret is False:
             print('ERROR while reading from file: ', self.filename)
+        print('*' * 50, image.shape)
         return image       
 
 
@@ -163,6 +178,7 @@ class LiveDataset(Dataset):
         self.camera_num = name # use name for camera number
         print('opening camera device: ', self.camera_num)
         self.cap = cv2.VideoCapture(self.camera_num)   
+        self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
             raise IOError('Cannot open camera') 
         else:
