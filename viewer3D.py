@@ -216,7 +216,7 @@ class Viewer3D(object):
                 gl.glColor3f(1.0, 0.0, 0.0)
                 pangolin.DrawCamera(self.map_state.predicted_pose)           
                 
-            if len(self.map_state.poses) >1:
+            if len(self.map_state.poses) > 1:
                 # draw keyframe poses in green
                 if self.draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
@@ -239,15 +239,15 @@ class Viewer3D(object):
                 if self.draw_covisibility:
                     gl.glLineWidth(1)
                     gl.glColor3f(0.0, 1.0, 0.0)
-                    pangolin.DrawLines(self.map_state.covisibility_graph,3)                                             
+                    pangolin.DrawLines(self.map_state.covisibility_graph, 3)                                             
                     
             if len(self.map_state.spanning_tree)>0:
                 if self.draw_spanning_tree:
                     gl.glLineWidth(1)
                     gl.glColor3f(0.0, 0.0, 1.0)
-                    pangolin.DrawLines(self.map_state.spanning_tree,3)              
+                    pangolin.DrawLines(self.map_state.spanning_tree, 3)              
                     
-            if len(self.map_state.loops)>0:
+            if len(self.map_state.loops) > 0:
                 if self.draw_spanning_tree:
                     gl.glLineWidth(2)
                     gl.glColor3f(0.5, 0.0, 0.5)

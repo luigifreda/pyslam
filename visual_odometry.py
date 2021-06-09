@@ -215,24 +215,26 @@ class VisualOdometry(object):
     def drawFeatureTracks(self, img, reinit = False):
         draw_img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
         num_outliers = 0        
-        # if(self.stage == VoStage.GOT_FIRST_IMAGE):            
-        #     if reinit:
-        #         for p1 in self.kps_cur:
-        #             a,b = p1.ravel()
-        #             cv2.circle(draw_img,(a,b),1, (0,255,0),-1)                    
-        #     else:    
-        #         for i,pts in enumerate(zip(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)):
-        #             drawAll = False # set this to true if you want to draw outliers 
-        #             if self.mask_match[i] or drawAll:
-        #                 p1, p2 = pts 
-        #                 a,b = p1.ravel()
-        #                 c,d = p2.ravel()
-        #                 cv2.line(draw_img, (a,b),(c,d), (0,255,0), 1)
-        #                 cv2.circle(draw_img,(a,b),1, (0,0,255),-1)   
-        #             else:
-        #                 num_outliers+=1
-        #     if kVerbose:
-        #         print('# outliers: ', num_outliers)     
+        if(self.stage == VoStage.GOT_FIRST_IMAGE):            
+            if reinit:
+                for p1 in self.kps_cur:
+                    a,b = p1.ravel()
+                    cv2.circle(draw_img,(a,b),1, (0,255,0),-1)                    
+            else:    
+                for i,pts in enumerate(zip(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)):
+                    drawAll = False # set this to true if you want to draw outliers 
+                    if self.mask_match[i] or drawAll:
+                        p1, p2 = pts 
+                        a,b = p1.ravel()
+                        a, b = int(a), int(b)
+                        c,d = p2.ravel()
+                        c, d = int(c), int(d)
+                        cv2.line(draw_img, (a,b),(c,d), (0,255,0), 1)
+                        cv2.circle(draw_img,(a,b),1, (0,0,255),-1)   
+                    else:
+                        num_outliers+=1
+            if kVerbose:
+                print('# outliers: ', num_outliers)     
         return draw_img            
 
     def updateHistory(self):
