@@ -7,7 +7,7 @@ Author: [Luigi Freda](https://www.luigifreda.com)
 I released pySLAM v1 for educational purposes, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
 
 Main Scripts:
-* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
+* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one <img src="https://render.githubusercontent.com/render/math?math=C_k">. The inter-frame pose estimation returns <img src="https://render.githubusercontent.com/render/math?math=[R_{k-1,k},t_{k-1,k}]"> with <img src="https://render.githubusercontent.com/render/math?math=||t_{k-1,k}||=1">. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing <img src="https://render.githubusercontent.com/render/math?math=C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]">. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
@@ -36,7 +36,7 @@ alt="Feature Matching" width="600" border="1" />  </center>
 
 Clone this repo and its modules by running 
 ```
-$ git clone --recursive https://github.com/luigifreda/pyslam.git
+git clone --recursive https://github.com/luigifreda/pyslam.git
 ```
 
 The framework has been developed and tested under **Ubuntu 18.04**.  
