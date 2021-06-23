@@ -30,8 +30,10 @@ Camera.k2: 0.0
 Camera.p1: 0.0
 Camera.p2: 0.0
 
-Camera.width: 1226
-Camera.height: 370
+# Camera.width: 1226
+# Camera.height: 370
+Camera.width: 416
+Camera.height: 240
 
 # Camera frames per second 
 Camera.fps: 10.0

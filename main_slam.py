@@ -94,8 +94,10 @@ if __name__ == "__main__":
 
     viewer3D = Viewer3D()
     
+    # resize visualization window
+    ratio = 1
     if platform.system()  == 'Linux':    
-        display2d = Display2D(cam.width, cam.height)  # pygame interface 
+        display2d = Display2D(cam.width * ratio, cam.height * ratio)  # pygame interface 
     else: 
         display2d = None  # enable this if you want to use opencv window
 
@@ -127,7 +129,7 @@ if __name__ == "__main__":
                     viewer3D.draw_map(slam)
 
                 img_draw = slam.map.draw_feature_trails(img)
-                    
+                img_draw = cv2.resize(img_draw,(cam.width*ratio,cam.height*ratio))
                 # 2D display (image display)
                 if display2d is not None:
                     display2d.draw(img_draw)
@@ -185,6 +187,10 @@ if __name__ == "__main__":
             Printer.green('do step: ', do_step) 
                       
         if key == 'q' or (key_cv == ord('q')):
+            # import pickle
+            # with open(f"pose_pickles/poses{int(time.time())}.pkl","wb") as pkl:
+            #     pickle.dump(viewer3D.pose_dict,pkl)
+            np.save(f"pose_pickles/poses{int(time.time())}.npy",viewer3D.map_state.poses)
             if display2d is not None:
                 display2d.quit()
             if viewer3D is not None:

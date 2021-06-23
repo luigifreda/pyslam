@@ -215,6 +215,8 @@ class VisualOdometry(object):
             if reinit:
                 for p1 in self.kps_cur:
                     a,b = p1.ravel()
+                    a = int(a)
+                    b = int(b)
                     cv2.circle(draw_img,(a,b),1, (0,255,0),-1)                    
             else:    
                 for i,pts in enumerate(zip(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)):
@@ -222,7 +224,11 @@ class VisualOdometry(object):
                     if self.mask_match[i] or drawAll:
                         p1, p2 = pts 
                         a,b = p1.ravel()
+                        a = int(a)
+                        b = int(b)
                         c,d = p2.ravel()
+                        c = int(c)
+                        d = int(d)
                         cv2.line(draw_img, (a,b),(c,d), (0,255,0), 1)
                         cv2.circle(draw_img,(a,b),1, (0,0,255),-1)   
                     else:
