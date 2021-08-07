@@ -42,6 +42,7 @@ from torch_dimcheck import dimchecked
 
 from disk import DISK, Features
 
+from utils_sys import Printer, is_opencv_version_greater_equal
 
 kVerbose = True     
 
@@ -145,7 +146,10 @@ def convert_pts_to_keypoints(pts, scores, size):
     kps = []
     if pts is not None: 
         # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(p[0], p[1], _size=size, _response=s, _octave=0) for p,s in zip(pts,scores) ]                      
+        if is_opencv_version_greater_equal(4,5,3):
+            kps = [ cv2.KeyPoint(p[0], p[1], size=size, response=s, octave=0) for p,s in zip(pts,scores) ]                      
+        else: 
+            kps = [ cv2.KeyPoint(p[0], p[1], _size=size, _response=s, _octave=0) for p,s in zip(pts,scores) ]
     return kps   
 
 # convert matrix of pts into list of keypoints
@@ -154,7 +158,10 @@ def convert_pts_to_keypoints_with_translation(pts, scores, size, deltax, deltay)
     kps = []
     if pts is not None: 
         # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(p[0]+deltax, p[1]+deltay, _size=size, _response=s, _octave=0) for p,s in zip(pts,scores) ]                      
+        if is_opencv_version_greater_equal(4,5,3):
+            kps = [ cv2.KeyPoint(p[0]+deltax, p[1]+deltay, size=size, response=s, octave=0) for p,s in zip(pts,scores) ]                      
+        else:
+            kps = [ cv2.KeyPoint(p[0]+deltax, p[1]+deltay, _size=size, _response=s, _octave=0) for p,s in zip(pts,scores) ]                
     return kps          
 
 

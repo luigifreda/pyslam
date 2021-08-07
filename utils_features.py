@@ -27,7 +27,7 @@ from enum import Enum
 from scipy.spatial import cKDTree
 #from pykdtree.kdtree import KDTree # slower!
 
-from utils_sys import Printer, import_from
+from utils_sys import Printer, import_from, is_opencv_version_greater_equal
 from utils_geom import add_ones, s1_diff_deg, s1_dist_deg, l2_distances
 
 ORBextractor = import_from('orbslam2_features', 'ORBextractor')  
@@ -48,11 +48,17 @@ def convert_pts_to_keypoints(pts, size=1):
     kps = []
     if pts is not None: 
         if pts.ndim > 2:
-            # convert matrix [Nx1x2] of pts into list of keypoints  
-            kps = [ cv2.KeyPoint(p[0][0], p[0][1], _size=size) for p in pts ]          
+            # convert matrix [Nx1x2] of pts into list of keypoints
+            if is_opencv_version_greater_equal(4,5,3):  
+                kps = [ cv2.KeyPoint(p[0][0], p[0][1], size=size) for p in pts ]          
+            else:
+                kps = [ cv2.KeyPoint(p[0][0], p[0][1], _size=size) for p in pts ]
         else: 
             # convert matrix [Nx2] of pts into list of keypoints  
-            kps = [ cv2.KeyPoint(p[0], p[1], _size=size) for p in pts ]                      
+            if is_opencv_version_greater_equal(4,5,3):  
+                kps = [ cv2.KeyPoint(p[0], p[1], size=size) for p in pts ]                      
+            else:
+                kps = [ cv2.KeyPoint(p[0], p[1], _size=size) for p in pts ]     
     return kps         
 
 

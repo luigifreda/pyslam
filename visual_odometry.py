@@ -221,8 +221,8 @@ class VisualOdometry(object):
                     drawAll = False # set this to true if you want to draw outliers 
                     if self.mask_match[i] or drawAll:
                         p1, p2 = pts 
-                        a,b = p1.ravel()
-                        c,d = p2.ravel()
+                        a,b = p1.astype(int).ravel()
+                        c,d = p2.astype(int).ravel()
                         cv2.line(draw_img, (a,b),(c,d), (0,255,0), 1)
                         cv2.circle(draw_img,(a,b),1, (0,0,255),-1)   
                     else:
