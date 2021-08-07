@@ -47,7 +47,7 @@ from lib.model_test import D2Net
 from lib.utils import preprocess_image
 from lib.pyramid import process_multiscale
 
-
+from utils_sys import Printer, is_opencv_version_greater_equal
 
 kVerbose = True   
 
@@ -57,8 +57,11 @@ def convert_pts_to_keypoints(pts, scores, size=1):
     assert(len(pts)==len(scores))
     kps = []
     if pts is not None: 
-        # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(p[0], p[1], _size=size, _response=scores[i]) for i,p in enumerate(pts) ]                      
+        # convert matrix [Nx2] of pts into list of keypoints
+        if is_opencv_version_greater_equal(4,5,3):  
+            kps = [ cv2.KeyPoint(p[0], p[1], size=size, response=scores[i]) for i,p in enumerate(pts) ]                      
+        else:
+            kps = [ cv2.KeyPoint(p[0], p[1], _size=size, _response=scores[i]) for i,p in enumerate(pts) ]  
     return kps         
 
 

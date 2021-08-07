@@ -22,6 +22,7 @@ import os
 import numpy as np
 import logging 
 from termcolor import colored
+import cv2
 
 # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
 myjet = np.array([[0.        , 0.        , 0.5       ],
@@ -247,3 +248,13 @@ def print_notification(content_list, notifi_type='NOTIFICATION'):
         print(content)
     print()
     print('----------------------------------------------------')    
+    
+def get_opencv_version():
+    opencv_major =  int(cv2.__version__.split('.')[0])
+    opencv_minor =  int(cv2.__version__.split('.')[1])    
+    opencv_build = int(cv2.__version__.split('.')[2])    
+    return (opencv_major, opencv_minor, opencv_build)
+
+def is_opencv_version_greater_equal(a, b, c):
+    opencv_version = get_opencv_version()
+    return opencv_version[0]>=a and opencv_version[1]>=b and opencv_version[2]>=c

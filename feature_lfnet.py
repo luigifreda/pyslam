@@ -62,6 +62,8 @@ from utils_tf import set_tf_logging
 from utils_img import img_from_floats
 from utils_sys import Printer, print_options
 
+from utils_sys import Printer, is_opencv_version_greater_equal
+
 
 kLfNetBasePath = config.cfg.root_folder + '/thirdparty/lfnet'
 kLfNetModelPath = kLfNetBasePath + '/pretrained/lfnet-norotaug'
@@ -181,7 +183,10 @@ def convert_to_keypoints(kpts, scales, orientations, heatmaps):
     for kp,size,angle in zip(kpts,scales,orientations):
         x, y = np.round(kp).astype(np.int)
         response = heatmaps[y,x]
-        kps.append(cv2.KeyPoint(float(x), float(y), _size=size, _angle=angle, _response=response))
+        if is_opencv_version_greater_equal(4,5,3):
+            kps.append(cv2.KeyPoint(float(x), float(y), size=size, angle=angle, response=response))            
+        else: 
+            kps.append(cv2.KeyPoint(float(x), float(y), _size=size, _angle=angle, _response=response))    
     return kps
     
 
