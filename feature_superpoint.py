@@ -28,7 +28,7 @@ config.cfg.set_lib('superpoint')
 from demo_superpoint import SuperPointFrontend
 from threading import RLock
 
-from utils_sys import Printer 
+from utils_sys import Printer, is_opencv_version_greater_equal
 
 
 kVerbose = True   
@@ -54,7 +54,10 @@ def convert_superpts_to_keypoints(pts, size=1):
     kps = []
     if pts is not None: 
         # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(p[0], p[1], _size=size, _response=p[2]) for p in pts ]                      
+        if is_opencv_version_greater_equal(4,5,3):
+            kps = [ cv2.KeyPoint(p[0], p[1], size=size, response=p[2]) for p in pts ]            
+        else: 
+            kps = [ cv2.KeyPoint(p[0], p[1], _size=size, _response=p[2]) for p in pts ]                      
     return kps         
 
 
