@@ -96,8 +96,18 @@ function update_git_modules() {
 }
 
 function pause(){
- read -s -n 1 -p "Press any key to continue . . ."
- echo ""
+    read -s -n 1 -p "Press any key to continue . . ."
+    echo ""
+}
+
+function check_conda(){
+    # check that conda is activated 
+    if ! command -v conda &> /dev/null; then
+        echo "ERROR: conda could not be found! did you installed/activated conda?"
+        echo 1 
+    else
+        echo 0
+    fi 
 }
  
 # ====================================================

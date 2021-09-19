@@ -43,6 +43,7 @@ The framework has been developed and tested under **Ubuntu 18.04**.
 A specific install procedure is available for: 
 - [Ubuntu 20.04](#install-pyslam-under-ubuntu-2004)
 - [MacOs](#install-pyslam-on-macos) 
+- [Windows](https://github.com/luigifreda/pyslam/issues/51)
 
 I am currently working to unify the install procedures. 
 
