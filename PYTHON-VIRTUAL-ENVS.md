@@ -10,7 +10,11 @@ $ . pyenv-create.sh
 ```
 **N.B.**: do not forget the dot! (without '/' !)
 
-This will create a custom `pyslam` environment and will also activate it.
+This will create a custom `pyslam` environment and will also activate it. Now, from the same terminal, you can run: 
+```
+$ python3 -O main_vo.py
+```
+If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
  
 If you are under **macOS**, please check this [document](./MAC.md).
 
@@ -22,8 +26,11 @@ $ . install_all_venv.sh
 ```
 **N.B.**: do not forget the dot! (without '/' !)
 
-This will compile the required thirdparty packages and will also activate the created `pyslam` environment. 
-
+This will compile the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
+```
+$ python3 -O main_slam.py
+```
+If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
 
 
 ## Create a `pyslam` python virtual environment 

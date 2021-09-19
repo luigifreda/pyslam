@@ -11,7 +11,11 @@ $ . pyenv-conda-create.sh
 ```
 **N.B.**: do not forget the dot! (without '/' !)
 
-This will create a custom `pyslam` conda environment and will also activate the created `pyslam` environment. 
+This will create a custom `pyslam` conda environment and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
+```
+$ python3 -O main_vo.py
+```
+If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
 
 ## Full Conda Installation 
 
@@ -21,8 +25,11 @@ $ . install_all_conda.sh
 ```
 **N.B.**: do not forget the dot! (without '/' !)
 
-This will compile the required thirdparty packages and will also activate the created `pyslam` environment. 
-
+This will compile the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
+```
+$ python3 -O main_slam.py
+```
+If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
 
 ## Create a `pyslam` conda environment 
 
@@ -41,7 +48,6 @@ or
 ```
 $ conda activate pyslam 
 ```
-
 Now, you can launch pySLAM scripts. 
 
 ## Deactivate `pyslam` conda environment 
@@ -97,12 +103,12 @@ To delete an environment, in your terminal window or an Anaconda Prompt, run:
 ```
 $ conda remove --name myenv --all
 ```
+this command will also return you some conda infos.  
 
-You may instead use 
+You may instead use the simpler command:  
 ```
 $ conda env remove --name myenv
 ```
-
 To verify that the environment was removed, in your terminal window or an Anaconda Prompt, run:
 ```
 $ conda info --envs
