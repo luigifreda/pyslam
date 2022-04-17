@@ -137,6 +137,23 @@ Some basic **test/example files** are available in the subfolder `test`. In part
 
 **N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
 
+### Docker image instead of virtual environment
+
+
+Alternatively, a dockerfile is provided for contanierization of pySLAM. 
+In order to build the image in your system, use:
+```
+$ docker build -t pyslam .
+```
+In case you have available an Nvidia GPU, it will make use of it.
+To run the docker container, you need to give xhost access to it in Linux:
+```
+$ xhost +local:docker
+```
+Then you can run the container:
+```
+$ docker run -it -e "DISPLAY=$DISPLAY" -v /tmp/.X11-unix:/tmp/.X11-unix --gpus all pyslam python3 main_vo.py
+```
 
 ---
 ## <a name="detectorsdescriptors"></a> Supported Local Features
