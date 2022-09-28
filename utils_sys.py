@@ -257,4 +257,4 @@ def get_opencv_version():
 
 def is_opencv_version_greater_equal(a, b, c):
     opencv_version = get_opencv_version()
-    return opencv_version[0]>=a and opencv_version[1]>=b and opencv_version[2]>=c
+    return opencv_version[0]*1000 + opencv_version[1]*100 + opencv_version[2] >= a*1000 + b*100 + c
