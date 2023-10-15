@@ -10,6 +10,7 @@
       - [Install in a custom Python virtual environment](#install-in-a-custom-python-virtual-environment)
     - [Ubuntu 20.04](#ubuntu-2004)
     - [MacOS](#macos)
+    - [Docker](#docker)
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
     - [Issues and Errors](#issues-and-errors)
   - [Usage](#usage)
@@ -107,6 +108,10 @@ and then follow the instructions for creating a new virtual environment `pyslam`
 
 Check the instructions in this [file](./MAC.md). 
 
+### Docker
+
+If you prefer docker, you can use [rosdocker](https://github.com/luigifreda/rosdocker#pyslam) with its custom `pyslam` docker file.
+
 ### How to install non-free OpenCV modules
 
 The script `install_pip3_packages.sh` takes care of installing the new available opencv version (**4.8.1** on Ubuntu 18). In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SURF**, etc.), you need to install the module `opencv-contrib-python` built with the enabled option `OPENCV_ENABLE_NONFREE`. You can find SURF availalble in `opencv-contrib-python 3.4.2.16`: this can be installed by running
@@ -153,7 +158,6 @@ You can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AK
 Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description/matching, you can start by taking a look at [test/cv/test_feature_manager.py](https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_manager.py) and [test/cv/test_feature_matching.py](https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_matching.py).
 
 **N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
-
 
 ---
 ## Supported Local Features

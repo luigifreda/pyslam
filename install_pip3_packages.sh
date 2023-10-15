@@ -17,8 +17,8 @@ print_blue "Configuring and installing python packages ..."
 pip3 install --upgrade pip setuptools wheel
 
 # pip3 packages 
-install_pip_packages pygame numpy matplotlib pyopengl Pillow pybind11 
-install_pip_package numpy>=1.18.3
+install_pip_packages pygame matplotlib pyopengl Pillow pybind11 
+install_pip_package numpy==1.18.3
 install_pip_package scipy==1.4.1
 install_pip_package scikit-image==0.16.2
 install_pip_packages pyyaml termcolor tqdm yacs
