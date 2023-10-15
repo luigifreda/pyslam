@@ -18,7 +18,6 @@ STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 # N.B.: this script requires that you have first run:
 #./install_basic.sh 
 # ====================================================
-
 if [[ -z "${USE_PYSLAM_ENV}" ]]; then
     USE_PYSLAM_ENV=0
 fi

@@ -42,13 +42,19 @@ cd $STARTING_DIR
 export PYTHONPATH=""   # clean python path => for me, remove ROS stuff 
 source $ENV_PATH/bin/activate  
 
-pip3 install --upgrade pip
+pip3 install --upgrade pip setuptools wheel
+
+PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
+MAKEFLAGS_OPTION="-j$(nproc)"
+
+MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION
+MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION
 
 # install required packages 
 
 #source install_pip3_packages.sh 
 # or 
-pip3 install -r requirements-pip3.txt
+MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt -vvv
 
 # HACK to fix opencv-contrib-python version!
 #pip3 uninstall opencv-contrib-python                # better to clean it before installing the right version 

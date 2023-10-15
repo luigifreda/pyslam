@@ -21,7 +21,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult
+from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
 from utils_geom import poseRt
 from timer import TimerFps
 
@@ -46,7 +46,7 @@ kUseGroundTruthScale = True
 # With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a 
 # valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. 
 class VisualOdometry(object):
-    def __init__(self, cam, groundtruth, feature_tracker):
+    def __init__(self, cam, groundtruth, feature_tracker : FeatureTracker):
         self.stage = VoStage.NO_IMAGES_YET
         self.cam = cam
         self.cur_image = None   # current image
@@ -132,8 +132,13 @@ class VisualOdometry(object):
         self.kpn_ref = self.cam.unproject_points(kp_ref_u)
         self.kpn_cur = self.cam.unproject_points(kp_cur_u)
         if kUseEssentialMatrixEstimation:
+            ransac_method = None 
+            try: 
+                ransac_method = cv2.USAC_MSAC 
+            except: 
+                ransac_method = cv2.RANSAC
             # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister (see the notes and paper above )
-            E, self.mask_match = cv2.findEssentialMat(self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.), method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)
+            E, self.mask_match = cv2.findEssentialMat(self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.), method=ransac_method, prob=kRansacProb, threshold=kRansacThresholdNormalized)
         else:
             # just for the hell of testing fundamental matrix fitting ;-) 
             F, self.mask_match = self.computeFundamentalMatrix(kp_cur_u, kp_ref_u)

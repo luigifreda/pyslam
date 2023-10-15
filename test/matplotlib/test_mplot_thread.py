@@ -24,7 +24,7 @@ import time
 sys.path.append("../../")
 
 from mplot_thread import Mplot2d, Mplot3d
-from utils import getchar
+from utils_sys import getchar
 
 if __name__ == "__main__":
 

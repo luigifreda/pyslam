@@ -23,7 +23,6 @@ if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
     EXTERNAL_OPTION="$EXTERNAL_OPTION -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
 fi
 # ====================================================
-
 if [[ -z "${USE_PYSLAM_ENV}" ]]; then
     USE_PYSLAM_ENV=0
 fi
