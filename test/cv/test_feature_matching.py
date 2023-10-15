@@ -191,12 +191,17 @@ mask = None
 h1,w1 = img1.shape[:2]  
 if kps1_matched.shape[0] > 10:
     print('model fitting for',model_fitting_type)
+    ransac_method = None 
+    try: 
+        ransac_method = cv2.USAC_MSAC 
+    except: 
+        ransac_method = cv2.RANSAC 
     if model_fitting_type == 'homography': 
         # If enough matches are found, they are passed to find the perpective transformation. Once we get the 3x3 transformation matrix, 
         # we use it to transform the corners of queryImage to corresponding points in trainImage. Then we draw it on img2.  
         # N.B.: this can be properly applied only when the view change corresponds to a proper homography transformation between the two sets of keypoints 
         #       e.g.: keypoints lie on a plane, view change corresponds to a pure camera rotation  
-        H, mask = cv2.findHomography(kps1_matched, kps2_matched, cv2.RANSAC, ransacReprojThreshold=hom_reproj_threshold)   
+        H, mask = cv2.findHomography(kps1_matched, kps2_matched, ransac_method, ransacReprojThreshold=hom_reproj_threshold)   
         if img1_box is None: 
             img1_box = np.float32([ [0,0],[0,h1-1],[w1-1,h1-1],[w1-1,0] ]).reshape(-1,1,2)
         else:
@@ -208,7 +213,7 @@ if kps1_matched.shape[0] > 10:
         reprojection_error = compute_hom_reprojection_error(H, kps1_matched, kps2_matched, mask)
         print('reprojection error: ', reprojection_error)
     else:  
-        F, mask = cv2.findFundamentalMat(kps1_matched, kps2_matched, cv2.RANSAC, fmat_err_thld, confidence=0.999)
+        F, mask = cv2.findFundamentalMat(kps1_matched, kps2_matched, ransac_method, fmat_err_thld, confidence=0.999)
         n_inlier = np.count_nonzero(mask)
 else:
     mask = None 

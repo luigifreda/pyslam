@@ -23,15 +23,6 @@ alt="SLAM" width="600" border="1" />
 alt="Feature Matching" width="600" border="1" />  </center>
 
 --- 
-## Updates
-- [2021.02] 
-  + added support for *BEBLID* and *DISK* local features 
-  + added support for OpenCV 4.5.1 
-  + improved keyframe culling
-  + added support for macOS Big Sur
-  + updated install scripts 
-
---- 
 ## Install 
 
 Clone this repo and its modules by running 
@@ -88,7 +79,7 @@ and then follow the instructions for creating a new virtual environment `pyslam`
 
 #### Install pySLAM on macOS 
 
-Check the instructions in this [file](./MAC.md).
+Check the instructions in this [file](./MAC.md). Please consider that, at present, I'm not able to provide support on macOS anymore. 
 
 #### How to install non-free OpenCV modules
 
@@ -192,7 +183,7 @@ The following feature **descriptors** are supported:
 * *[BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
 
-You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_detector.py` and `test/cv/test_feature_matching.py`.
+You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `test/cv/test_feature_matching.py`.
 
 In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
 

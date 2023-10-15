@@ -215,10 +215,15 @@ class Tracking(object):
     def estimate_pose_by_fitting_ess_mat(self, f_ref, f_cur, idxs_ref, idxs_cur): 
         # N.B.: in order to understand the limitations of fitting an essential mat, read the comments of the method self.estimate_pose_ess_mat() 
         self.timer_pose_est.start()
+        ransac_method = None 
+        try: 
+            ransac_method = cv2.USAC_MSAC 
+        except: 
+            ransac_method = cv2.RANSAC 
         # estimate inter frame camera motion by using found keypoint matches 
         # output of the following function is:  Trc = [Rrc, trc] with ||trc||=1  where c=cur, r=ref  and  pr = Trc * pc 
         Mrc, self.mask_match = estimate_pose_ess_mat(f_ref.kpsn[idxs_ref], f_cur.kpsn[idxs_cur], 
-                                                     method=cv2.RANSAC, prob=kRansacProb, threshold=kRansacThresholdNormalized)   
+                                                     method=ransac_method, prob=kRansacProb, threshold=kRansacThresholdNormalized)   
         #Mcr = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))   
         Mcr = inv_T(Mrc)
         estimated_Tcw = np.dot(Mcr, f_ref.pose)

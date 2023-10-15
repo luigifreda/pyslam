@@ -48,7 +48,7 @@ function install_package(){
 
 function check_pip_package(){
     package_name=$1
-    PKG_OK=$(pip3 list --format=legacy |grep $package_name)
+    PKG_OK=$(python3 -m pip list |grep $package_name)
     #echo "checking for $package_name: $PKG_OK"
     if [ "" == "$PKG_OK" ]; then
       #echo "$package_name is not installed"
@@ -78,8 +78,7 @@ function install_pip_package(){
     fi 
 }
 function install_pip_packages(){
-    for var in "$@"
-    do
+    for var in "$@"; do
         install_pip_package "$var"
     done
 }

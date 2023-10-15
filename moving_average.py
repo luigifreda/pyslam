@@ -53,7 +53,7 @@ class MovingAverage:
         oldVal		= self._ring_buffer[self._idx_ring]
         self._average += (new_val - oldVal)/self._average_width
         if self._is_compute_sigma:
-            self._sigma2	=  self._sigma2 + self._one_over_average_width_min_one*(self._average_width*(averageOld*averageOld - self._average*self._average) - oldVal*oldVal + newVal*newVal)
+            self._sigma2	=  self._sigma2 + self._one_over_average_width_min_one*(self._average_width*(averageOld*averageOld - self._average*self._average) - oldVal*oldVal + new_val*new_val)
         self._ring_buffer[self._idx_ring]	= new_val
         self._idx_ring = (self._idx_ring + 1) % self._average_width
         return self._average

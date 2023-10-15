@@ -129,7 +129,12 @@ class FeatureMatcher(object):
             raise Exception("Keypoint type error!")
             exit(-1)
 
-        _, mask = cv2.findFundamentalMat(good_kps1, good_kps2, cv2.RANSAC, err_thld, confidence=0.999)
+        ransac_method = None 
+        try: 
+            ransac_method = cv2.USAC_MSAC 
+        except: 
+            ransac_method = cv2.RANSAC
+        _, mask = cv2.findFundamentalMat(good_kps1, good_kps2, ransac_method, err_thld, confidence=0.999)
         n_inlier = np.count_nonzero(mask)
         print(info, 'n_putative', len(good_matches), 'n_inlier', n_inlier)
         return idx1, idx2, good_matches, mask

@@ -97,7 +97,7 @@ else
     if [ ! -f pangolin.cpython-*.so ]; then   
         make_dir build   
         cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF $EXTERNAL_OPTION # disable realsense 
+        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_FFMPEG=OFF $EXTERNAL_OPTION # disable realsense 
         make -j8
         cd ..
         #python setup.py install
@@ -135,5 +135,4 @@ if [ ! -f lib/g2o.cpython-*.so ]; then
     #python3 setup.py install --user
 fi    
 cd $STARTING_DIR
-
 

@@ -17,6 +17,12 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+# -----------------------------------------------------------
+# fix from https://github.com/tum-vision/fastfusion/issues/21
+import gi
+gi.require_version('Gtk', '2.0')
+# -----------------------------------------------------------
+
 import numpy as np
 import cv2
 import math
