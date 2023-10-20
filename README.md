@@ -128,7 +128,7 @@ For a more advanced OpenCV installation procedure, you can take a look [here](ht
 
 ### Issues and Errors
 
-If you run into issues or errors during the installation process or at run-time, please, check the[TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
+If you run into issues or errors during the installation process or at run-time, please, check the [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
 
 --- 
 ## Usage
