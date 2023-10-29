@@ -18,6 +18,7 @@ install_package rsync
 # N.B.: python3 is required
 
 # system packages 
+install_package build-essential cmake
 install_package python3-sdl2 
 install_package python3-tk
 
