@@ -6,13 +6,11 @@
   - [Install](#install)
     - [Requirements](#requirements)
     - [Ubuntu 18.04](#ubuntu-1804)
-      - [Install in your working Python environment](#install-in-your-working-python-environment)
-      - [Install in a custom Python virtual environment](#install-in-a-custom-python-virtual-environment)
-    - [Ubuntu 20.04](#ubuntu-2004)
+    - [Ubuntu 20.04 and Ubuntu 22.04](#ubuntu-2004-and-ubuntu-2204)
     - [MacOS](#macos)
     - [Docker](#docker)
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Issues and Errors](#issues-and-errors)
+    - [Troubleshooting](#troubleshooting)
   - [Usage](#usage)
   - [Supported Local Features](#supported-local-features)
   - [Datasets](#datasets)
@@ -56,79 +54,84 @@ Clone this repo and its modules by running
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 ```
 
-The framework has been developed and tested under **Ubuntu 18.04**. 
-A specific install procedure is also available for: 
-- **Ubuntu 20.04** ([=>](#ubuntu-2004))
-- **MacOs** ([=>](#macos)) 
-- **Windows** ([=>](https://github.com/luigifreda/pyslam/issues/51))
-
-I am currently working to unify the install procedures. 
+The framework has been developed and tested under **Ubuntu 18.04**. Use the available specific install procedure according to your OS: 
+- **Ubuntu 18.04** [=>](#ubuntu-1804)
+- **Ubuntu 20.04** and **Ubuntu 22.04**  [=>](#ubuntu-2004)
+- **MacOs** [=>](#macos) 
+- **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
+- **Docker** [=>](#docker)
 
 ### Requirements
 
 * Python 3.6.9
 * Numpy (1.18.2)
-* OpenCV (4.5.1 supported, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
+* OpenCV (4.5.1 and newer versions supported, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
 * PyTorch (>= 1.4.0)
 * Tensorflow-gpu 1.14.0
 
 If you run into troubles or performance issues, check this [TROUBLESHOOTING](./TROUBLESHOOTING.md) file.
 
+---
 ### Ubuntu 18.04
 
-#### Install in your working Python environment
+**Install in your working Python environment**:
 
 If you want to launch `main_vo.py`, run the script:   
 
 `$ ./install_basic.sh`   
 
-in order to automatically install the basic required system and python3 packages. Here, pip3 is used. 
+in order to automatically install the basic required system and python3 packages.
 
 If you want to run `main_slam.py`, you must additionally install the libs [pangolin](https://github.com/stevenlovegrove/Pangolin), [g2opy](https://github.com/uoip/g2opy), etc. by running:    
 
 `$ ./install_all.sh`   
 
-#### Install in a custom Python virtual environment 
+**Install in a custom Python virtual environment**: 
 
 If you do not want to mess up your working (base) python environment, you can create a new virtual environment `pyslam` with **venv** by easily launching the scripts described [here](./PYTHON-VIRTUAL-ENVS.md).
 
 If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
 
-**N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#supported-local-features)!
+**N.B.**: a *single* python environment is able to support all the [supported local features](#supported-local-features)!
 
-### Ubuntu 20.04
+---
 
-Download this repo and move into the experimental branch `ubuntu20` 
+### Ubuntu 20.04 and Ubuntu 22.04
+
+This procedure is valid for both Ubuntu 20.04 and Ubuntu 22.04. Clone this repo recursively and move into the branch `ubuntu20` 
 ```
+$ git clone --recursive https://github.com/luigifreda/pyslam.git
+$ cd pyslam 
 $ git checkout ubuntu20  
 ```
 and then follow the instructions for creating a new virtual environment `pyslam` described [here](./PYTHON-VIRTUAL-ENVS.md). 
 
+--- 
 ### MacOS
 
 Check the instructions in this [file](./MAC.md). 
 
+---
 ### Docker
 
-If you prefer docker, you can use [rosdocker](https://github.com/luigifreda/rosdocker#pyslam) with its custom `pyslam` docker file.
+If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker#pyslam) with its custom `pyslam` or `pyslam_cuda` docker file.
 
+---
 ### How to install non-free OpenCV modules
 
-The script `install_pip3_packages.sh` takes care of installing the new available opencv version (**4.8.1** on Ubuntu 18). In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SURF**, etc.), you need to install the module `opencv-contrib-python` built with the enabled option `OPENCV_ENABLE_NONFREE`. You can find SURF availalble in `opencv-contrib-python 3.4.2.16`: this can be installed by running
-```
-$ pip3 uninstall opencv-contrib-python
-$ pip3 install opencv-contrib-python==3.4.2.16
-```
+The install scripts take care of installing the new available opencv version (**4.8.1** on Ubuntu 18) and its non-free modules. 
 
-How to check your installed OpenCV version:
-```
-$ python3 -c "import cv2; print(cv2.__version__)"
-```
-For a more advanced OpenCV installation procedure, you can take a look [here](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubuntu.html). 
+Check your installed OpenCV version:      
+`$ python3 -c "import cv2; print(cv2.__version__)"`
 
-### Issues and Errors
+Check if you have non-free OpenCV module support (no errors imply success):       
+`$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"` 
 
-If you run into issues or errors during the installation process or at run-time, please, check the [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
+For an advanced OpenCV installation procedure, you can take a look [here](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubuntu.html). 
+
+### Troubleshooting
+
+If you run into issues or errors during the installation process or at run-time, please, check the[TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
 
 --- 
 ## Usage

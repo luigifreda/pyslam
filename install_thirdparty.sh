@@ -136,3 +136,4 @@ if [ ! -f lib/g2o.cpython-*.so ]; then
 fi    
 cd $STARTING_DIR
 
+
