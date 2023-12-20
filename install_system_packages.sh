@@ -14,15 +14,19 @@ print_blue "Configuring and installing system packages ..."
 
 
 install_package rsync 
-
-# N.B.: python3 is required
+install_package unzip 
 
 # system packages 
 install_package build-essential cmake
 install_package python3-sdl2 
 install_package python3-tk
 
+install_package libsuitesparse-dev
+
 install_package libprotobuf-dev 
+
+install_package libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev
+install_package libglew-dev 
 
 install_package libeigen3-dev # pangolin installation 
 install_package libopencv-dev # orbslam2_features compilation

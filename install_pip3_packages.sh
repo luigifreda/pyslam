@@ -30,9 +30,10 @@ install_pip_packages pyyaml termcolor tqdm yacs
 # faster way to install opencv packages 
 PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
 MAKEFLAGS_OPTION="-j$(nproc)"
+CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
-MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION
-MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION 
+MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION
+MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION
 
 install_pip_package torch==1.4.0 
 install_pip_package torchvision==0.5.0
