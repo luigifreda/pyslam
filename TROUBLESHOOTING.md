@@ -73,6 +73,14 @@ First of all, check if you have a compiled `thirdparty/g2opy/lib/g2o.cpython-*-l
 
 On the other hand, if you already have a compiled `thirdparty/g2opy/lib/g2o.cpython-*-linux-gnu.so`, it's very likely you have libraries compiled in a 'mixed' way. Then, try to clean everything with the script `clean.sh`, and follow the installation procedure again (see the main [README](./README.md) file). 
 
+### When loading a neural network with CUDA everything gets stuck
+
+I got this issue with a new NVIDIA GPU while loading `SuperPoint` neural network. The NN loading got stuck. This error arises when CUDA code was not compiled to target your GPU architecture. Two solutions: 
+- Easy: turn off CUDA (for instance, with `SuperPointFeature2D()` set the default class option `do_cuda=False`). In this case, the computations will be moved to CPU. 
+- You need to install a pytorch version that is compatible with your CUDA version and GPU architecture. See for instance these two links: 
+https://stackoverflow.com/questions/75682385/runtimeerror-cuda-error-no-kernel-image-is-available-for-execution-on-the-devi
+https://discuss.pytorch.org/t/failed-to-load-image-python-extension-could-not-find-module/140278   
+
 ### OrderedSet 
 
 reference https://github.com/luigifreda/pyslam/issues/48 

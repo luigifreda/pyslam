@@ -22,14 +22,16 @@ import numpy as np
 
 
 class RotationHistogram(object):
-    def __init__(self,histogram_lenght=30):
+    def __init__(self,histogram_lenght=12):  # NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30 
         self.histogram_lenght=histogram_lenght
-        self.factor = 1.0/histogram_lenght
+        self.factor = float(histogram_lenght)/360. #1.0/histogram_lenght
         self.histo = [ [] for i in range(self.histogram_lenght) ] 
         
     def push(self, rot, idx): 
         if rot < 0.0:
             rot += 360.0
+        elif rot > 360.0:
+            rot -= 360.0
         bin = int(round(rot*self.factor))
         if bin == self.histogram_lenght:
             bin = 0
