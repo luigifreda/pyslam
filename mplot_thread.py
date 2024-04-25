@@ -253,23 +253,33 @@ class Mplot3d:
         return chr(self.key.value) 
     
     def init(self, lock):
-        lock.acquire()      
-        if kVerbose:
-            print(mp.current_process().name,"initializing...") 
-        self.fig = plt.figure()
-        if kUseFigCanvasDrawIdle:
-            self.fig.canvas.draw_idle()         
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)       
-        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)             
-        self.ax = self.fig.gca(projection='3d')
-        if self.title is not '':
-            self.ax.set_title(self.title)     
-        self.ax.set_xlabel('X axis')
-        self.ax.set_ylabel('Y axis')
-        self.ax.set_zlabel('Z axis')		   		
+        from mpl_toolkits.mplot3d import Axes3D  # Importing the 3D toolkit
 
-        self.setAxis()
-        lock.release() 
+        lock.acquire()
+        try:
+            if kVerbose:
+                import multiprocessing as mp
+                print(mp.current_process().name, "initializing...")
+
+            self.fig = plt.figure()
+            if kUseFigCanvasDrawIdle:
+                self.fig.canvas.draw_idle()
+
+            self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
+            self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
+
+            self.ax = self.fig.add_subplot(111, projection='3d')  # Adjusted line
+            if self.title is not '':
+                self.ax.set_title(self.title)
+            
+            self.ax.set_xlabel('X axis')
+            self.ax.set_ylabel('Y axis')
+            self.ax.set_zlabel('Z axis')
+
+            self.setAxis()
+        finally:
+            lock.release()
+
 
     def setAxis(self):		
         #self.ax.axis('equal')   # this does not work with the new matplotlib 3    
