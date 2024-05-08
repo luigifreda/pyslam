@@ -105,7 +105,7 @@ if __name__ == "__main__":
         if img is not None:
 
             vo.track(img, img_id)  # main VO function 
-
+            print(img.shape)
             if(img_id > 2):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
 
                 x, y, z = vo.traj3d_est[-1]

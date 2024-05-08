@@ -24,7 +24,7 @@ from collections import defaultdict
 
 
 kRatioTest = Parameters.kFeatureMatchRatioTest
-kVerbose = False 
+kVerbose = True
 
 class FeatureMatcherTypes(Enum):
     NONE = 0
@@ -84,60 +84,60 @@ class FeatureMatcher(object):
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
     # N.B.3: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return a correct rotation    
     # Adapted from https://github.com/lzx551402/geodesc/blob/master/utils/opencvhelper.py 
-    def matchWithCrossCheckAndModelFit(self, des1, des2, kps1, kps2, ratio_test=None, cross_check=True, err_thld=1, info=''):
-        """Compute putative and inlier matches.
-        Args:
-            feat: (n_kpts, 128) Local features.
-            cv_kpts: A list of keypoints represented as cv2.KeyPoint.
-            ratio_test: The threshold to apply ratio test.
-            cross_check: (True by default) Whether to apply cross check.
-            err_thld: Epipolar error threshold.
-            info: Info to print out.
-        Returns:
-            good_matches: Putative matches.
-            mask: The mask to distinguish inliers/outliers on putative matches.
-        """
-        idx1, idx2 = [], []          
-        if ratio_test is None: 
-            ratio_test = self.ratio_test
+    # def matchWithCrossCheckAndModelFit(self, des1, des2, kps1, kps2, ratio_test=None, cross_check=True, err_thld=1, info=''):
+    #     """Compute putative and inlier matches.
+    #     Args:
+    #         feat: (n_kpts, 128) Local features.
+    #         cv_kpts: A list of keypoints represented as cv2.KeyPoint.
+    #         ratio_test: The threshold to apply ratio test.
+    #         cross_check: (True by default) Whether to apply cross check.
+    #         err_thld: Epipolar error threshold.
+    #         info: Info to print out.
+    #     Returns:
+    #         good_matches: Putative matches.
+    #         mask: The mask to distinguish inliers/outliers on putative matches.
+    #     """
+    #     idx1, idx2 = [], []          
+    #     if ratio_test is None: 
+    #         ratio_test = self.ratio_test
             
-        init_matches1 = self.matcher.knnMatch(des1, des2, k=2)
-        init_matches2 = self.matcher.knnMatch(des2, des1, k=2)
+    #     init_matches1 = self.matcher.knnMatch(des1, des2, k=2)
+    #     init_matches2 = self.matcher.knnMatch(des2, des1, k=2)
 
-        good_matches = []
+    #     good_matches = []
 
-        for i,(m1,n1) in enumerate(init_matches1):
-            cond = True
-            if cross_check:
-                cond1 = cross_check and init_matches2[m1.trainIdx][0].trainIdx == i
-                cond *= cond1
-            if ratio_test is not None:
-                cond2 = m1.distance <= ratio_test * n1.distance
-                cond *= cond2
-            if cond:
-                good_matches.append(m1)
-                idx1.append(m1.queryIdx)
-                idx2.append(m1.trainIdx)
+    #     for i,(m1,n1) in enumerate(init_matches1):
+    #         cond = True
+    #         if cross_check:
+    #             cond1 = cross_check and init_matches2[m1.trainIdx][0].trainIdx == i
+    #             cond *= cond1
+    #         if ratio_test is not None:
+    #             cond2 = m1.distance <= ratio_test * n1.distance
+    #             cond *= cond2
+    #         if cond:
+    #             good_matches.append(m1)
+    #             idx1.append(m1.queryIdx)
+    #             idx2.append(m1.trainIdx)
 
-        if type(kps1) is list and type(kps2) is list:
-            good_kps1 = np.array([kps1[m.queryIdx].pt for m in good_matches])
-            good_kps2 = np.array([kps2[m.trainIdx].pt for m in good_matches])
-        elif type(kps1) is np.ndarray and type(kps2) is np.ndarray:
-            good_kps1 = np.array([kps1[m.queryIdx] for m in good_matches])
-            good_kps2 = np.array([kps2[m.trainIdx] for m in good_matches])
-        else:
-            raise Exception("Keypoint type error!")
-            exit(-1)
+    #     if type(kps1) is list and type(kps2) is list:
+    #         good_kps1 = np.array([kps1[m.queryIdx].pt for m in good_matches])
+    #         good_kps2 = np.array([kps2[m.trainIdx].pt for m in good_matches])
+    #     elif type(kps1) is np.ndarray and type(kps2) is np.ndarray:
+    #         good_kps1 = np.array([kps1[m.queryIdx] for m in good_matches])
+    #         good_kps2 = np.array([kps2[m.trainIdx] for m in good_matches])
+    #     else:
+    #         raise Exception("Keypoint type error!")
+    #         exit(-1)
 
-        ransac_method = None 
-        try: 
-            ransac_method = cv2.USAC_MSAC 
-        except: 
-            ransac_method = cv2.RANSAC
-        _, mask = cv2.findFundamentalMat(good_kps1, good_kps2, ransac_method, err_thld, confidence=0.999)
-        n_inlier = np.count_nonzero(mask)
-        print(info, 'n_putative', len(good_matches), 'n_inlier', n_inlier)
-        return idx1, idx2, good_matches, mask
+    #     ransac_method = None 
+    #     try: 
+    #         ransac_method = cv2.USAC_MSAC 
+    #     except: 
+    #         ransac_method = cv2.RANSAC
+    #     _, mask = cv2.findFundamentalMat(good_kps1, good_kps2, ransac_method, err_thld, confidence=0.999)
+    #     n_inlier = np.count_nonzero(mask)
+    #     print(info, 'n_putative', len(good_matches), 'n_inlier', n_inlier)
+    #     return idx1, idx2, good_matches, mask
     
             
     # input: des1 = query-descriptors, des2 = train-descriptors
@@ -177,17 +177,17 @@ class FeatureMatcher(object):
     # input: des1 = query-descriptors, des2 = train-descriptors
     # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
     # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes
-    def goodMatchesSimple(self, matches, des1, des2, ratio_test=None):
-        idx1, idx2 = [], []   
-        #good_matches = []            
-        if ratio_test is None: 
-            ratio_test = self.ratio_test            
-        if matches is not None: 
-            for m,n in matches:
-                if m.distance < ratio_test * n.distance:
-                    idx1.append(m.queryIdx)
-                    idx2.append(m.trainIdx)                                                         
-        return idx1, idx2 
+    # def goodMatchesSimple(self, matches, des1, des2, ratio_test=None):
+    #     idx1, idx2 = [], []   
+    #     #good_matches = []            
+    #     if ratio_test is None: 
+    #         ratio_test = self.ratio_test            
+    #     if matches is not None: 
+    #         for m,n in matches:
+    #             if m.distance < ratio_test * n.distance:
+    #                 idx1.append(m.queryIdx)
+    #                 idx2.append(m.trainIdx)                                                         
+    #     return idx1, idx2 
 
     # input: des1 = query-descriptors, des2 = train-descriptors
     # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)

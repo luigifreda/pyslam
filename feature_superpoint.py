@@ -67,7 +67,7 @@ def transpose_des(des):
     else: 
         return None 
 
-
+import time
 # interface for pySLAM 
 class SuperPointFeature2D: 
     def __init__(self, do_cuda=True): 
@@ -96,12 +96,16 @@ class SuperPointFeature2D:
     # compute both keypoints and descriptors       
     def detectAndCompute(self, frame, mask=None):  # mask is a fake input 
         with self.lock: 
+            time0 = time.time()
             self.frame = frame 
             self.frameFloat  = (frame.astype('float32') / 255.)
             self.pts, self.des, self.heatmap = self.fe.run(self.frameFloat)
+            #print(self.des.shape)
             # N.B.: pts are - 3xN numpy array with corners [x_i, y_i, confidence_i]^T.
             #print('pts: ', self.pts.T)
             self.kps = convert_superpts_to_keypoints(self.pts.T, size=self.keypoint_size)
+           # print(self.kps)
+            print(1/(time.time()-time0))
             if kVerbose:
                 print('detector: SUPERPOINT, #features: ', len(self.kps), ', frame res: ', frame.shape[0:2])      
             return self.kps, transpose_des(self.des)                 
