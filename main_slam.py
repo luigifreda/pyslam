@@ -37,6 +37,7 @@ from slam import Slam, SlamState
 from camera  import PinholeCamera
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory
+from trajectory_writer import TrajectoryWriter
 
 #from mplot3d import Mplot3d
 #from mplot2d import Mplot2d
@@ -65,6 +66,11 @@ if __name__ == "__main__":
 
     dataset = dataset_factory(config.dataset_settings)
 
+    if config.save_trajectory_settings['save_trajectory'] is True:
+        trajectory_writer = TrajectoryWriter(format_type=config.save_trajectory_settings['format_type'], filename=config.save_trajectory_settings['filename'])
+    else:
+        trajectory_writer = None
+    
     #groundtruth = groundtruth_factory(config.dataset_settings)
     groundtruth = None # not actually used by Slam() class; could be used for evaluating performances 
 
@@ -127,7 +133,6 @@ if __name__ == "__main__":
                     viewer3D.draw_map(slam)
 
                 img_draw = slam.map.draw_feature_trails(img)
-                    
                 # 2D display (image display)
                 if display2d is not None:
                     display2d.draw(img_draw)
@@ -156,7 +161,8 @@ if __name__ == "__main__":
                 if(frame_duration > duration):
                     print('sleeping for frame')
                     time.sleep(frame_duration-duration)        
-                    
+            if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
+                trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
             img_id += 1  
         else:
             time.sleep(1)                                 
