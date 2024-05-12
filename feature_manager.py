@@ -39,7 +39,8 @@ from feature_root_sift import RootSIFTFeature2D
 from feature_shitomasi import ShiTomasiDetector
     
 # import and check 
-SuperPointFeature2D = import_from('feature_superpoint', 'SuperPointFeature2D')         
+SuperPointFeature2D = import_from('feature_superpoint', 'SuperPointFeature2D')   
+XfeatFeature2D = import_from('feature_xfeat', 'XFeat2D')      
 TfeatFeature2D = import_from('feature_tfeat', 'TfeatFeature2D')     
 Orbslam2Feature2D = import_from('feature_orbslam2', 'Orbslam2Feature2D')  
 HardnetFeature2D = import_from('feature_hardnet', 'HardnetFeature2D')
@@ -57,7 +58,7 @@ R2d2Feature2D = import_from('feature_r2d2', 'R2d2Feature2D')
 KeyNetDescFeature2D = import_from('feature_keynet', 'KeyNetDescFeature2D')
 DiskFeature2D = import_from('feature_disk', 'DiskFeature2D')
 
-kVerbose = True   
+kVerbose = False   
 
 kNumFeatureDefault = Parameters.kNumFeatures
 
@@ -319,6 +320,17 @@ class FeatureManager(object):
                 self.pyramid_type = PyramidType.GAUSS_PYRAMID    
                 self.pyramid_do_parallel = False                 # N.B.: SUPERPOINT interface class is not thread-safe!
                 self.force_multiscale_detect_and_compute = True  # force it since SUPERPOINT cannot compute descriptors separately from keypoints 
+
+        elif self.detector_type == FeatureDetectorTypes.XFEAT:         
+            self.oriented_features = False                         
+            self._feature_detector = XfeatFeature2D()  
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:              
+                self.use_pyramid_adaptor = self.num_levels > 1    
+                self.need_nms = self.num_levels > 1   
+                self.pyramid_type = PyramidType.GAUSS_PYRAMID    
+                self.pyramid_do_parallel = False                 # N.B.: SUPERPOINT interface class is not thread-safe!
+                self.force_multiscale_detect_and_compute = True  # force it since SUPERPOINT cannot compute descriptors separately from keypoints 
+            #  
             #  
             #                                                                                     
         elif self.detector_type == FeatureDetectorTypes.FAST:    
@@ -549,7 +561,12 @@ class FeatureManager(object):
             elif self.descriptor_type == FeatureDescriptorTypes.SUPERPOINT:              
                 if self.detector_type != FeatureDetectorTypes.SUPERPOINT: 
                     raise ValueError("You cannot use SUPERPOINT descriptor without SUPERPOINT detector!\nPlease, select SUPERPOINT as both descriptor and detector!")
-                self._feature_descriptor = self._feature_detector  # reuse the same SuperPointDector object                                     
+                self._feature_descriptor = self._feature_detector  # reuse the same SuperPointDector object  
+
+            elif self.descriptor_type == FeatureDescriptorTypes.XFEAT:              
+                if self.detector_type != FeatureDetectorTypes.XFEAT: 
+                    raise ValueError("You cannot use XFEAT descriptor without XFEAT detector!\nPlease, select XFEATas both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse the same SuperPointDector object                                    
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.TFEAT:              
@@ -888,17 +905,17 @@ class FeatureManager(object):
             # standard detection      
             kps = self._feature_detector.detect(frame, mask)  
         # filter keypoints    
-        filter_name = 'NONE'   
-        if filter:   
-            kps, _, filter_name  = self.filter_keypoints(self.keypoint_filter_type, frame, kps) 
-        # if keypoints are FAST, etc. give them a decent size in order to properly compute the descriptors       
-        if self.do_keypoints_size_rescaling:
-            self.rescale_keypoint_size(kps)             
-        if kDrawOriginalExtractedFeatures: # draw the original features
-            imgDraw = cv2.drawKeypoints(frame, kps, None, color=(0,255,0), flags=0)
-            cv2.imshow('detected keypoints',imgDraw)            
-        if kVerbose:
-            print('detector:',self.detector_type.name,', #features:', len(kps),', [kp-filter:',filter_name,']')    
+        # filter_name = 'NONE'   
+        # if filter:   
+        #     kps, _, filter_name  = self.filter_keypoints(self.keypoint_filter_type, frame, kps) 
+        # # if keypoints are FAST, etc. give them a decent size in order to properly compute the descriptors       
+        # if self.do_keypoints_size_rescaling:
+        #     self.rescale_keypoint_size(kps)             
+        # if kDrawOriginalExtractedFeatures: # draw the original features
+        #     imgDraw = cv2.drawKeypoints(frame, kps, None, color=(0,255,0), flags=0)
+        #     cv2.imshow('detected keypoints',imgDraw)            
+        # if kVerbose:
+        #     print('detector:',self.detector_type.name,', #features:', len(kps),', [kp-filter:',filter_name,']')    
         return kps        
     
     
@@ -957,16 +974,16 @@ class FeatureManager(object):
                     #print('detector: ', self.detector_type.name, ', #features: ', len(kps))           
                     print('descriptor: ', self.descriptor_type.name, ', #features: ', len(kps))   
         # filter keypoints   
-        filter_name = 'NONE'
-        if filter:                                                                 
-            kps, des, filter_name  = self.filter_keypoints(self.keypoint_filter_type, frame, kps, des)                                                              
-        if self.detector_type == FeatureDetectorTypes.SIFT or \
-           self.detector_type == FeatureDetectorTypes.ROOT_SIFT or \
-           self.detector_type == FeatureDetectorTypes.CONTEXTDESC :
-            unpackSiftOctaveKps(kps, method=UnpackOctaveMethod.INTRAL_LAYERS)           
-        if kVerbose:
-            print('detector:',self.detector_type.name,', descriptor:', self.descriptor_type.name,', #features:', len(kps),' (#ref:', self.num_features, '), [kp-filter:',filter_name,']')                                         
-        self.debug_print(kps)             
+        # filter_name = 'NONE'
+        # if filter:                                                                 
+        #     kps, des, filter_name  = self.filter_keypoints(self.keypoint_filter_type, frame, kps, des)                                                              
+        # if self.detector_type == FeatureDetectorTypes.SIFT or \
+        #    self.detector_type == FeatureDetectorTypes.ROOT_SIFT or \
+        #    self.detector_type == FeatureDetectorTypes.CONTEXTDESC :
+        #     unpackSiftOctaveKps(kps, method=UnpackOctaveMethod.INTRAL_LAYERS)           
+        # if kVerbose:
+        #     print('detector:',self.detector_type.name,', descriptor:', self.descriptor_type.name,', #features:', len(kps),' (#ref:', self.num_features, '), [kp-filter:',filter_name,']')                                         
+        # self.debug_print(kps)             
         return kps, des             
  
  

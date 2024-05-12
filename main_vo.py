@@ -49,13 +49,13 @@ kUsePangolin = False
 if kUsePangolin:
     from viewer3D import Viewer3D
 
-
+import time 
 
 
 if __name__ == "__main__":
 
     config = Config()
-
+    
     dataset = dataset_factory(config.dataset_settings)
 
     groundtruth = groundtruth_factory(config.dataset_settings)
@@ -71,8 +71,10 @@ if __name__ == "__main__":
     # select your tracker configuration (see the file feature_tracker_configs.py) 
     # LK_SHI_TOMASI, LK_FAST
     # SHI_TOMASI_ORB, FAST_ORB, ORB, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT
-    tracker_config = FeatureTrackerConfigs.SUPERPOINT
+    tracker_config = FeatureTrackerConfigs.XFEAT
     tracker_config['num_features'] = num_features
+   
+
     
     feature_tracker = feature_tracker_factory(**tracker_config)
 
@@ -99,13 +101,12 @@ if __name__ == "__main__":
 
     img_id = 0
     while dataset.isOk():
-
+        time0 =  time.time()
         img = dataset.getImage(img_id)
 
         if img is not None:
 
             vo.track(img, img_id)  # main VO function 
-            print(img.shape)
             if(img_id > 2):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
 
                 x, y, z = vo.traj3d_est[-1]
@@ -147,10 +148,10 @@ if __name__ == "__main__":
                     matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
                     matched_points_plt.refresh()                    
 
-
+        
             # draw camera image 
-            cv2.imshow('Camera', vo.draw_img)				
-
+            cv2.imshow('Camera', vo.draw_img)			
+        print(1/(time.time()-time0))
         # press 'q' to exit!
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

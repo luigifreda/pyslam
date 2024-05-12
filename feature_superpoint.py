@@ -24,7 +24,7 @@ import torch
 
 import config
 config.cfg.set_lib('superpoint') 
-
+print(config)
 from demo_superpoint import SuperPointFrontend
 from threading import RLock
 
@@ -95,6 +95,7 @@ class SuperPointFeature2D:
           
     # compute both keypoints and descriptors       
     def detectAndCompute(self, frame, mask=None):  # mask is a fake input 
+        Printer.purple("DETECTANDCOMPUTEEEE")
         with self.lock: 
             time0 = time.time()
             self.frame = frame 
@@ -102,26 +103,29 @@ class SuperPointFeature2D:
             self.pts, self.des, self.heatmap = self.fe.run(self.frameFloat)
             #print(self.des.shape)
             # N.B.: pts are - 3xN numpy array with corners [x_i, y_i, confidence_i]^T.
-            #print('pts: ', self.pts.T)
+            #print('pts: ', self.pts.T.shape)
             self.kps = convert_superpts_to_keypoints(self.pts.T, size=self.keypoint_size)
            # print(self.kps)
-            print(1/(time.time()-time0))
-            if kVerbose:
-                print('detector: SUPERPOINT, #features: ', len(self.kps), ', frame res: ', frame.shape[0:2])      
-            return self.kps, transpose_des(self.des)                 
+            #print(1/(time.time()-time0))
+            #if kVerbose:
+            #print('detector: SUPERPOINT, #features: ', len(self.kps), ', frame res: ', frame.shape[0:2])  
+            #print (self.kps,self.des.T.shape)    
+            return self.kps, self.des.T                 
             
     # return keypoints if available otherwise call detectAndCompute()    
-    def detect(self, frame, mask=None):  # mask is a fake input  
-        with self.lock:         
-            #if self.frame is not frame:
-            self.detectAndCompute(frame)        
-            return self.kps
+    # def detect(self, frame, mask=None):  # mask is a fake input  
+    #     print("DETECTTTT")
+    #     with self.lock:         
+    #         #if self.frame is not frame:
+    #         self.detectAndCompute(frame)        
+    #         return self.kps
     
-    # return descriptors if available otherwise call detectAndCompute()  
-    def compute(self, frame, kps=None, mask=None): # kps is a fake input, mask is a fake input
-        with self.lock: 
-            if self.frame is not frame:
-                Printer.orange('WARNING: SUPERPOINT is recomputing both kps and des on last input frame', frame.shape)
-                self.detectAndCompute(frame)
-            return self.kps, transpose_des(self.des)
+    # # return descriptors if available otherwise call detectAndCompute()  
+    # def compute(self, frame, kps=None, mask=None): # kps is a fake input, mask is a fake input
+    #     print("COMPUTEEEE")
+    #     with self.lock: 
+    #         if self.frame is not frame:
+    #             Printer.orange('WARNING: SUPERPOINT is recomputing both kps and des on last input frame', frame.shape)
+    #             self.detectAndCompute(frame)
+    #         return self.kps, transpose_des(self.des)
            

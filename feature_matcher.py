@@ -21,15 +21,19 @@ import cv2
 from parameters import Parameters  
 from enum import Enum
 from collections import defaultdict
+import config
+config.cfg.set_lib('xfeat') 
 
+from modules.xfeat import XFeat
 
 kRatioTest = Parameters.kFeatureMatchRatioTest
-kVerbose = True
+kVerbose = False
 
 class FeatureMatcherTypes(Enum):
     NONE = 0
     BF = 1     
     FLANN = 2
+    XFEAT = 3
 
 
 def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, cross_check=False, ratio_test=kRatioTest, type=FeatureMatcherTypes.FLANN):
@@ -37,6 +41,8 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, cross_check=False, ratio
         return BfFeatureMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
     if type == FeatureMatcherTypes.FLANN:
         return FlannFeatureMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+    if type ==FeatureMatcherTypes.XFEAT:
+        return  XFeatMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
     return None 
 
 
@@ -52,6 +58,7 @@ A DMatch object has the following attributes:
 
 
 # base class 
+import torch
 class FeatureMatcher(object): 
     def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.BF):
         self.type = type 
@@ -69,80 +76,23 @@ class FeatureMatcher(object):
         if kVerbose:
             print(self.matcher_name,', norm ', self.norm_type) 
         #print('des1.shape:',des1.shape,' des2.shape:',des2.shape)    
-        #print('des1.dtype:',des1.dtype,' des2.dtype:',des2.dtype)                   
-        matches = self.matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
-        self.matches = matches
-        return self.goodMatches(matches, des1, des2, ratio_test)          
+        #print('des1.dtype:',des1.dtype,' des2.dtype:',des2.dtype)
+        #print(self.type)
+        if self.type == FeatureMatcherTypes.XFEAT:
+            d1_tensor = torch.tensor(des1, dtype=torch.float32)  # Specify dtype if needed
+            d2_tensor = torch.tensor(des2, dtype=torch.float32)  # Specify dtype if needed
+
+            # If the original tensors were on a GPU, you should move the new tensors to GPU as well
+            # d1_tensor = d1_tensor.to('cuda')  # Use 'cuda' or 'cuda:0' if your device is a GPU
+            # d2_tensor = d2_tensor.to('cuda') 
+            idx0, idx1 = self.matcher.match(d1_tensor, d2_tensor, 0.93) 
+            return idx0.cpu(), idx1.cpu()                  
+        # matches = self.matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
+        # self.matches = matches
+        # return self.goodMatches(matches, des1, des2, ratio_test)          
     
     
-    # input: des1 = query-descriptors, des2 = train-descriptors, kps1 = query-keypoints, kps2 = train-keypoints 
-    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
-    # N.B.0: cross checking can be also enabled with the BruteForce Matcher below 
-    # N.B.1: after matching there is a model fitting with fundamental matrix estimation 
-    # N.B.2: fitting a fundamental matrix has problems in the following cases: [see Hartley/Zisserman Book]
-    # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
-    # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
-    # N.B.3: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return a correct rotation    
-    # Adapted from https://github.com/lzx551402/geodesc/blob/master/utils/opencvhelper.py 
-    # def matchWithCrossCheckAndModelFit(self, des1, des2, kps1, kps2, ratio_test=None, cross_check=True, err_thld=1, info=''):
-    #     """Compute putative and inlier matches.
-    #     Args:
-    #         feat: (n_kpts, 128) Local features.
-    #         cv_kpts: A list of keypoints represented as cv2.KeyPoint.
-    #         ratio_test: The threshold to apply ratio test.
-    #         cross_check: (True by default) Whether to apply cross check.
-    #         err_thld: Epipolar error threshold.
-    #         info: Info to print out.
-    #     Returns:
-    #         good_matches: Putative matches.
-    #         mask: The mask to distinguish inliers/outliers on putative matches.
-    #     """
-    #     idx1, idx2 = [], []          
-    #     if ratio_test is None: 
-    #         ratio_test = self.ratio_test
-            
-    #     init_matches1 = self.matcher.knnMatch(des1, des2, k=2)
-    #     init_matches2 = self.matcher.knnMatch(des2, des1, k=2)
-
-    #     good_matches = []
-
-    #     for i,(m1,n1) in enumerate(init_matches1):
-    #         cond = True
-    #         if cross_check:
-    #             cond1 = cross_check and init_matches2[m1.trainIdx][0].trainIdx == i
-    #             cond *= cond1
-    #         if ratio_test is not None:
-    #             cond2 = m1.distance <= ratio_test * n1.distance
-    #             cond *= cond2
-    #         if cond:
-    #             good_matches.append(m1)
-    #             idx1.append(m1.queryIdx)
-    #             idx2.append(m1.trainIdx)
-
-    #     if type(kps1) is list and type(kps2) is list:
-    #         good_kps1 = np.array([kps1[m.queryIdx].pt for m in good_matches])
-    #         good_kps2 = np.array([kps2[m.trainIdx].pt for m in good_matches])
-    #     elif type(kps1) is np.ndarray and type(kps2) is np.ndarray:
-    #         good_kps1 = np.array([kps1[m.queryIdx] for m in good_matches])
-    #         good_kps2 = np.array([kps2[m.trainIdx] for m in good_matches])
-    #     else:
-    #         raise Exception("Keypoint type error!")
-    #         exit(-1)
-
-    #     ransac_method = None 
-    #     try: 
-    #         ransac_method = cv2.USAC_MSAC 
-    #     except: 
-    #         ransac_method = cv2.RANSAC
-    #     _, mask = cv2.findFundamentalMat(good_kps1, good_kps2, ransac_method, err_thld, confidence=0.999)
-    #     n_inlier = np.count_nonzero(mask)
-    #     print(info, 'n_putative', len(good_matches), 'n_inlier', n_inlier)
-    #     return idx1, idx2, good_matches, mask
-    
-            
-    # input: des1 = query-descriptors, des2 = train-descriptors
-    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
-    # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index    
+   
     def goodMatchesOneToOne(self, matches, des1, des2, ratio_test=None):
         len_des2 = len(des2)
         idx1, idx2 = [], []  
@@ -174,23 +124,7 @@ class FeatureMatcher(object):
         return idx1, idx2
 
 
-    # input: des1 = query-descriptors, des2 = train-descriptors
-    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
-    # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes
-    # def goodMatchesSimple(self, matches, des1, des2, ratio_test=None):
-    #     idx1, idx2 = [], []   
-    #     #good_matches = []            
-    #     if ratio_test is None: 
-    #         ratio_test = self.ratio_test            
-    #     if matches is not None: 
-    #         for m,n in matches:
-    #             if m.distance < ratio_test * n.distance:
-    #                 idx1.append(m.queryIdx)
-    #                 idx2.append(m.trainIdx)                                                         
-    #     return idx1, idx2 
 
-    # input: des1 = query-descriptors, des2 = train-descriptors
-    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
     def goodMatches(self, matches, des1, des2, ratio_test=None): 
         #return self.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
         return self.goodMatchesOneToOne(matches, des1, des2, ratio_test)
@@ -203,6 +137,12 @@ class BfFeatureMatcher(FeatureMatcher):
         self.matcher = cv2.BFMatcher(norm_type, cross_check)     
         self.matcher_name = 'BfFeatureMatcher'   
 
+
+class XFeatMatcher(FeatureMatcher):
+    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.XFEAT):
+        super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+        self.matcher = XFeat()    
+        self.matcher_name = 'XFeatFeatureMatcher'   
 
 # Flann Matcher 
 class FlannFeatureMatcher(FeatureMatcher): 

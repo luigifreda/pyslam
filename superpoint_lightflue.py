@@ -103,6 +103,7 @@ while dataset.isOk():
 
     kpts0, kpts1, matchess = feats0["keypoints"], feats1["keypoints"], matches["matches"]
     m_kpts0, m_kpts1 = kpts0[matchess[..., 0]], kpts1[matchess[..., 1]]
+    print(m_kpts0)
     kp=kpts1.cpu().numpy()
     for k in kp:
         #print(k)

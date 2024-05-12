@@ -336,7 +336,7 @@ class Webcam(object):
 class KittiDataset(Dataset):
     def __init__(self, path, name, associations=None, type=DatasetType.KITTI): 
         super().__init__(path, name, 10, associations, type)
-        self.fps = 10
+        self.fps = 20
         self.image_left_path = '/image_0/'
         self.image_right_path = '/image_1/'           
         self.timestamps = np.loadtxt(self.path + '/sequences/' + self.name + '/times.txt')
