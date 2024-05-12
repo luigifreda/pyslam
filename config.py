@@ -47,7 +47,7 @@ class Config(object):
         self.cam_settings = None
         self.dataset_settings = None
         self.dataset_type = None
-        self.save_trajectory_settings = {}
+        self.trajectory_settings = None
         #self.current_path = os.getcwd()
         #print('current path: ', self.current_path)
 
@@ -57,12 +57,8 @@ class Config(object):
         
         self.get_dataset_settings()
         self.get_cam_settings()
+        self.get_trajectory_settings()
 
-        if bool(self.config_parser['SAVE_TRAJECTORY']['save_trajectory']) is True:
-            self.save_trajectory_settings['save_trajectory'] = True
-            self.get_save_trajectory_settings()
-        else:
-            self.save_trajectory_settings['save_trajectory'] = False
 
     # read core lib paths from config.ini and set sys paths
     def set_core_lib_paths(self):
@@ -112,9 +108,9 @@ class Config(object):
                     print(exc)
 
     # get trajectory save settings
-    def get_save_trajectory_settings(self):
-        self.save_trajectory_settings['format_type'] = self.config_parser['SAVE_TRAJECTORY']['format_type']
-        self.save_trajectory_settings['filename'] = self.config_parser['SAVE_TRAJECTORY']['filename']
+    def get_trajectory_settings(self):
+        self.trajectory_settings = self.config_parser['SAVE_TRAJECTORY']
+
 
     # calibration matrix
     @property
