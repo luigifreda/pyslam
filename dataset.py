@@ -40,7 +40,8 @@ class DatasetType(Enum):
 
 def dataset_factory(settings):
     type=DatasetType.NONE
-    associations = None    
+    associations = None
+    timestamps = None    
     path = None 
     is_color = None  # used for kitti datasets
 
@@ -49,13 +50,17 @@ def dataset_factory(settings):
     
     path = settings['base_path'] 
     path = os.path.expanduser(path)
+
     
     if 'associations' in settings:
         associations = settings['associations']
+    if 'timestamps' in settings:
+        timestamps = settings['timestamps']
     if 'is_color' in settings:
         is_color = settings['is_color'].lower() == 'true'
 
     dataset = None 
+
     if type == 'kitti':
         dataset = KittiDataset(path, name, associations, DatasetType.KITTI)
         dataset.set_is_color(is_color)   
@@ -67,7 +72,7 @@ def dataset_factory(settings):
         fps = 10 # a default value 
         if 'fps' in settings:
             fps = int(settings['fps'])
-        dataset = FolderDataset(path, name, fps, associations, DatasetType.FOLDER)      
+        dataset = FolderDataset(path, name, fps, associations, timestamps, DatasetType.FOLDER)      
     if type == 'live':
         dataset = LiveDataset(path, name, associations, DatasetType.LIVE)   
                 
@@ -181,7 +186,7 @@ class LiveDataset(Dataset):
 
 
 class FolderDataset(Dataset): 
-    def __init__(self, path, name, fps=None, associations=None, type=DatasetType.VIDEO): 
+    def __init__(self, path, name, fps=None, associations=None, timestamps=None, type=DatasetType.VIDEO): 
         super().__init__(path, name, fps, associations, type)  
         if fps is None: 
             fps = 10 # default value  
@@ -200,20 +205,40 @@ class FolderDataset(Dataset):
         self.i = 0        
         if self.maxlen == 0:
           raise IOError('No images were found in folder: ', path)   
-        self._timestamp = 0.        
+        self._timestamp = 0.
+        self.timestamps = None
+        if timestamps is not None:
+            self.timestamps = self._read_timestamps(path + '/' + timestamps)
+        
+        
+    def _read_timestamps(self, timestamps_file):
+        timestamps = []
+        try:
+            with open(timestamps_file, 'r') as file:
+                for line in file:
+                    timestamp = int(float(line.strip()))
+                    timestamps.append(timestamp)
+        except FileNotFoundError:
+            print('Timestamps file not found:', timestamps_file)
+        return timestamps
             
     def getImage(self, frame_id):
         if self.i == self.maxlen:
             return (None, False)
         image_file = self.listing[self.i]
         img = cv2.imread(image_file)
-        self._timestamp += self.Ts
-        self._next_timestamp = self._timestamp + self.Ts         
+        if self.timestamps is not None:
+            self._timestamp = int(self.timestamps[self.i])
+            self._next_timestamp = self._timestamp
+        else:
+            self._timestamp += self.Ts
+            self._next_timestamp = self._timestamp + self.Ts         
         if img is None: 
             raise IOError('error reading file: ', image_file)               
         # Increment internal counter.
         self.i = self.i + 1
         return img
+
 
 class FolderDatasetParallelStatus:
     def __init__(self, i, maxlen, listing, skip):
