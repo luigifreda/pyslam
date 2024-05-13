@@ -24,7 +24,7 @@ import cv2
 import os
 import glob
 import time 
-
+import re 
 from multiprocessing import Process, Queue, Value 
 from utils_sys import Printer 
 
@@ -227,12 +227,19 @@ class FolderDataset(Dataset):
             return (None, False)
         image_file = self.listing[self.i]
         img = cv2.imread(image_file)
+        pattern = re.compile(r'\d+')
         if self.timestamps is not None:
+            # read timestamps from timestamps file
             self._timestamp = int(self.timestamps[self.i])
-            self._next_timestamp = self._timestamp
+            self._next_timestamp = int(self.timestamps[self.i + 1])
+
+        elif pattern.search(image_file.split('/')[-1].split('.')[0]):
+            # read timestamps from image filename
+            self._timestamp = int(image_file.split('/')[-1].split('.')[0])
+            self._next_timestamp = int(self.listing[self.i + 1].split('/')[-1].split('.')[0])
         else:
             self._timestamp += self.Ts
-            self._next_timestamp = self._timestamp + self.Ts         
+            self._next_timestamp = self._timestamp + self.Ts 
         if img is None: 
             raise IOError('error reading file: ', image_file)               
         # Increment internal counter.
