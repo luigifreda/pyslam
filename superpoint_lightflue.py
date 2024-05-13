@@ -88,13 +88,21 @@ while dataset.isOk():
     # ret, current_frame = cap.read()
     # if not ret:
     #     break
-    current_frame = cv2.resize(current_frame, (1226,370))
+    current_frame = cv2.resize(cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY), (1226,370))
     torch.cuda.synchronize()
     with torch.inference_mode():
     
         current_features = extractor.extract(numpy_image_to_torch(current_frame),resize=None)
-        
-        matches = matcher({"image0": previous_features, "image1": current_features})
+        kps, des = current_features['keypoints'].squeeze().cpu().numpy(), current_features['descriptors'].squeeze().cpu().numpy()
+        cur_remake={
+            'keypoints': torch.tensor(kps,device='cuda').unsqueeze(0),
+            'descriptors': torch.tensor(des,device='cuda').unsqueeze(0),
+            'image_size': torch.tensor(current_frame.shape, device='cuda').unsqueeze(0)
+        }
+
+
+        print(cur_remake['keypoints'].shape, cur_remake["image_size"].shape,cur_remake['descriptors'].shape)
+        matches = matcher({"image0": previous_features, "image1": cur_remake})
     torch.cuda.synchronize()
     #print(matches)
     feats0, feats1, matches = [
@@ -103,7 +111,7 @@ while dataset.isOk():
 
     kpts0, kpts1, matchess = feats0["keypoints"], feats1["keypoints"], matches["matches"]
     m_kpts0, m_kpts1 = kpts0[matchess[..., 0]], kpts1[matchess[..., 1]]
-    print(m_kpts0)
+    #print(m_kpts0)
     kp=kpts1.cpu().numpy()
     for k in kp:
         #print(k)

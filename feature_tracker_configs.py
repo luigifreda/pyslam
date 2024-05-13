@@ -192,7 +192,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.XFEAT, 
                       descriptor_type = FeatureDescriptorTypes.XFEAT, 
                       match_ratio_test = kRatioTest,                               
-                      tracker_type = FeatureTrackerTypes.XFEAT)
+                      tracker_type = kTrackerType)
 
     CONTEXTDESC = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  

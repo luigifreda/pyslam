@@ -26,14 +26,18 @@ config.cfg.set_lib('xfeat')
 
 from modules.xfeat import XFeat
 
+config.cfg.set_lib('lightglue')
+from lightglue import LightGlue
+LightGlue.pruning_keypoint_thresholds['cuda']
 kRatioTest = Parameters.kFeatureMatchRatioTest
-kVerbose = False
+kVerbose = True
 
 class FeatureMatcherTypes(Enum):
     NONE = 0
     BF = 1     
     FLANN = 2
     XFEAT = 3
+    LG = 4
 
 
 def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, cross_check=False, ratio_test=kRatioTest, type=FeatureMatcherTypes.FLANN):
@@ -43,6 +47,8 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, cross_check=False, ratio
         return FlannFeatureMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
     if type ==FeatureMatcherTypes.XFEAT:
         return  XFeatMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+    if type == FeatureMatcherTypes.LG:
+        return LightGlueMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
     return None 
 
 
@@ -56,7 +62,8 @@ A DMatch object has the following attributes:
     DMatch.imgIdx - Index of the train image.
 """        
 
-
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+matcher = LightGlue(features="superpoint",n_layers=2).eval().to('cuda')
 # base class 
 import torch
 class FeatureMatcher(object): 
@@ -72,24 +79,45 @@ class FeatureMatcher(object):
         
     # input: des1 = queryDescriptors, des2= trainDescriptors
     # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
-    def match(self, des1, des2, ratio_test=None):
+    def match(self,frame, des1, des2,kps1 = None,kps2 = None, ratio_test=None):
         if kVerbose:
             print(self.matcher_name,', norm ', self.norm_type) 
-        #print('des1.shape:',des1.shape,' des2.shape:',des2.shape)    
+        print('des1.shape:',des1.shape,' des2.shape:',des2.shape)    
         #print('des1.dtype:',des1.dtype,' des2.dtype:',des2.dtype)
         #print(self.type)
+        if self.type == FeatureMatcherTypes.LG:
+            d1={
+            'keypoints': torch.tensor(kps1,device='cuda').unsqueeze(0),
+            'descriptors': torch.tensor(des2,device='cuda').unsqueeze(0),
+            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
+        }
+            d2={
+            'keypoints': torch.tensor(kps2,device='cuda').unsqueeze(0),
+            'descriptors': torch.tensor(des1,device='cuda').unsqueeze(0),
+            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
+        }
+             
+            matches01 = matcher({"image0": d1, "image1": d2})
+            #print(matches01['matches'])
+            idx0 = matches01['matches'][0][:, 0].cpu().tolist()
+            idx1 = matches01['matches'][0][:, 1].cpu().tolist()
+            #print(des1.shape,len(idx0),len(idx1))
+            return idx1, idx0
+            # print(d1['keypoints'].shape, d1['descriptors'].shape, d1['image_size'].shape)
+            # print(d2['keypoints'].shape, d2['descriptors'].shape, d2['image_size'].shape)
+
         if self.type == FeatureMatcherTypes.XFEAT:
             d1_tensor = torch.tensor(des1, dtype=torch.float32)  # Specify dtype if needed
             d2_tensor = torch.tensor(des2, dtype=torch.float32)  # Specify dtype if needed
-
+            print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa")
             # If the original tensors were on a GPU, you should move the new tensors to GPU as well
             # d1_tensor = d1_tensor.to('cuda')  # Use 'cuda' or 'cuda:0' if your device is a GPU
             # d2_tensor = d2_tensor.to('cuda') 
             idx0, idx1 = self.matcher.match(d1_tensor, d2_tensor, 0.93) 
             return idx0.cpu(), idx1.cpu()                  
-        # matches = self.matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
-        # self.matches = matches
-        # return self.goodMatches(matches, des1, des2, ratio_test)          
+        matches = self.matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
+        self.matches = matches
+        return self.goodMatches(matches, des1, des2, ratio_test)          
     
     
    
@@ -120,7 +148,8 @@ class FeatureMatcher(object):
                         index = index_match[m.trainIdx]
                         assert(idx2[index] == m.trainIdx) 
                         idx1[index]=m.queryIdx
-                        idx2[index]=m.trainIdx                        
+                        idx2[index]=m.trainIdx
+                         
         return idx1, idx2
 
 
@@ -143,6 +172,13 @@ class XFeatMatcher(FeatureMatcher):
         super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
         self.matcher = XFeat()    
         self.matcher_name = 'XFeatFeatureMatcher'   
+
+class LightGlueMatcher(FeatureMatcher):
+    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.XFEAT):
+        super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.matcher = LightGlue(features="superpoint").eval().to(device) 
+        self.matcher_name = 'LightGlueFeatureMatcher'   
 
 # Flann Matcher 
 class FlannFeatureMatcher(FeatureMatcher): 

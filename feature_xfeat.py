@@ -40,7 +40,7 @@ class XFeat2D:
         
         print('====>XFeat')
         # This class runs the SuperPoint network and processes its outputs.
-        self.xfeat = XFeat(top_k=2048)
+        self.xfeat = XFeat(top_k=2000)
       
                         
         self.pts = []
@@ -59,7 +59,7 @@ class XFeat2D:
             # self.frameFloat  = (frame.astype('float32') / 255.)
             current = CVWrapper(self.xfeat).detectAndCompute(frame)
             kpts, descs =  current['keypoints'].cpu().numpy(), current['descriptors'].cpu().numpy()
-        
+            print(kpts.shape, descs.shape)
             self.pts, self.des = kpts, descs
            
             

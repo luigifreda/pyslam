@@ -40,6 +40,7 @@ class FeatureTrackerTypes(Enum):
     DES_BF    = 1   # descriptor-based, brute force matching with knn 
     DES_FLANN = 2   # descriptor-based, FLANN-based matching
     XFEAT     = 3 
+    LG        = 4
 
 
 def feature_tracker_factory(num_features=kMinNumFeatureDefault, 
@@ -152,6 +153,10 @@ class DescriptorFeatureTracker(FeatureTracker):
 
         if tracker_type == FeatureTrackerTypes.XFEAT:
             self.matching_algo = FeatureMatcherTypes.XFEAT 
+            Printer.blue("XXXXXXXXXXXXXXXXXXXXxx") 
+
+        elif tracker_type == FeatureTrackerTypes.LG:
+            self.matching_algo = FeatureMatcherTypes.LG
             Printer.blue("XXXXXXXXXXXXXXXXXXXXxx")             
 
         elif tracker_type == FeatureTrackerTypes.DES_FLANN:
@@ -176,8 +181,9 @@ class DescriptorFeatureTracker(FeatureTracker):
         # convert from list of keypoints to an array of points 
         kps_cur = np.array([x.pt for x in kps_cur], dtype=np.float32) 
         # Printer.orange(des_ref.shape)
-        idxs_ref, idxs_cur = self.matcher.match(des_ref, des_cur)  #knnMatch(queryDescriptors,trainDescriptors)
+        idxs_ref, idxs_cur = self.matcher.match(image_cur,des_ref, des_cur,  kps2=kps_ref, kps1=kps_cur)  #knnMatch(queryDescriptors,trainDescriptors)
         #print('num matches: ', len(matches))
+        
         res = FeatureTrackingResult()
         res.kps_ref = kps_ref  # all the reference keypoints  
         res.kps_cur = kps_cur  # all the current keypoints       

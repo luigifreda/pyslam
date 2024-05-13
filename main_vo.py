@@ -71,7 +71,8 @@ if __name__ == "__main__":
     # select your tracker configuration (see the file feature_tracker_configs.py) 
     # LK_SHI_TOMASI, LK_FAST
     # SHI_TOMASI_ORB, FAST_ORB, ORB, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT
-    tracker_config = FeatureTrackerConfigs.XFEAT
+    tracker_config = FeatureTrackerConfigs.SUPERPOINT
+    tracker_config['tracker_type'] = FeatureTrackerTypes.LG
     tracker_config['num_features'] = num_features
    
 
@@ -98,15 +99,24 @@ if __name__ == "__main__":
 
     is_draw_matched_points = True 
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
-
+    
+    is_draw_fps = True
+    fps_plt = Mplot2d(xlabel='img id', ylabel='FPS',title='FPS')
     img_id = 0
     while dataset.isOk():
         time0 =  time.time()
         img = dataset.getImage(img_id)
-
+        
         if img is not None:
+            start_y = 12  # Start from 12 pixels down from the top
+            end_y = start_y + 352  # End at 352 pixels down from start_y
+            start_x = 12  # Start from 12 pixels in from the left
+            end_x = start_x + 1216  # End at 1216 pixels in from start_x
 
-            vo.track(img, img_id)  # main VO function 
+            # Crop the image
+            img_crop = img[start_y:end_y, start_x:end_x]
+            print(img_crop.shape)
+            vo.track(img_crop, img_id)  # main VO function 
             if(img_id > 2):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
 
                 x, y, z = vo.traj3d_est[-1]
@@ -124,13 +134,13 @@ if __name__ == "__main__":
                     # show 		
                     cv2.imshow('Trajectory', traj_img)
 
-                if is_draw_3d:           # draw 3d trajectory 
-                    if kUsePangolin:
-                        viewer3D.draw_vo(vo)   
-                    else:
-                        plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
-                        plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
-                        plt3d.refresh()
+                # if is_draw_3d:           # draw 3d trajectory 
+                #     if kUsePangolin:
+                #         viewer3D.draw_vo(vo)   
+                #     else:
+                #         plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
+                #         plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
+                #         plt3d.refresh()
 
                 if is_draw_err:         # draw error signals 
                     errx = [img_id, math.fabs(x_true-x)]
@@ -148,10 +158,13 @@ if __name__ == "__main__":
                     matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
                     matched_points_plt.refresh()                    
 
+                if is_draw_fps:
+                    fps=[img_id, 1/(time.time()-time0)]
+                    fps_plt.draw(fps,'fps',color='m')
         
             # draw camera image 
             cv2.imshow('Camera', vo.draw_img)			
-        print(1/(time.time()-time0))
+        #print(1/(time.time()-time0))
         # press 'q' to exit!
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
