@@ -66,8 +66,8 @@ if __name__ == "__main__":
 
     dataset = dataset_factory(config.dataset_settings)
 
-    if config.save_trajectory_settings['save_trajectory'] is True:
-        trajectory_writer = TrajectoryWriter(format_type=config.save_trajectory_settings['format_type'], filename=config.save_trajectory_settings['filename'])
+    if bool(config.trajectory_settings['save_trajectory']) is True:
+        trajectory_writer = TrajectoryWriter(format_type=config.trajectory_settings['format_type'], filename=config.trajectory_settings['filename'])
     else:
         trajectory_writer = None
     
@@ -157,10 +157,10 @@ if __name__ == "__main__":
                         matched_points_plt.draw(descriptor_sigma_signal,'descriptor distance $\sigma_{th}$',color='k')                                                                 
                     matched_points_plt.refresh()    
                 
-                duration = time.time()-time_start 
-                if(frame_duration > duration):
-                    print('sleeping for frame')
-                    time.sleep(frame_duration-duration)        
+                # duration = time.time()-time_start
+                # if(frame_duration > duration):
+                #     print('sleeping for frame')
+                #     time.sleep(frame_duration-duration)        
             if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                 trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
             img_id += 1  
