@@ -673,7 +673,7 @@ class Tracking(object):
                 self.f_cur.kf_ref = self.kf_ref  
                                     
             self.update_tracking_history()    # must stay after having updated slam state (self.state)                                                                  
-                    
+            self.update_history()
             Printer.green("map: %d points, %d keyframes" % (self.map.num_points(), self.map.num_keyframes()))
             #self.update_history()
             
@@ -703,18 +703,18 @@ class Tracking(object):
         #print('is_local_mapping_idle: ', is_local_mapping_idle,', local_mapping_queue_size: ', local_mapping_queue_size)             
 
 
-    # def update_history(self):
-    #     f_cur = self.map.get_frame(-1)
-    #     self.cur_R = f_cur.pose[:3,:3].T
-    #     self.cur_t = np.dot(-self.cur_R,f_cur.pose[:3,3])
-    #     if (self.init_history is True) and (self.trueX is not None):
-    #         self.t0_est = np.array([self.cur_t[0], self.cur_t[1], self.cur_t[2]])  # starting translation 
-    #         self.t0_gt  = np.array([self.trueX, self.trueY, self.trueZ])           # starting translation 
-    #     if (self.t0_est is not None) and (self.t0_gt is not None):             
-    #         p = [self.cur_t[0]-self.t0_est[0], self.cur_t[1]-self.t0_est[1], self.cur_t[2]-self.t0_est[2]]   # the estimated traj starts at 0
-    #         self.traj3d_est.append(p)
-    #         self.traj3d_gt.append([self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]])            
-    #         self.poses.append(poseRt(self.cur_R, p))    
+    def update_history(self):
+        f_cur = self.map.get_frame(-1)
+        self.cur_R = f_cur.pose[:3,:3].T
+        self.cur_t = np.dot(-self.cur_R,f_cur.pose[:3,3])
+        if (self.init_history is True) and (self.trueX is not None):
+            self.t0_est = np.array([self.cur_t[0], self.cur_t[1], self.cur_t[2]])  # starting translation 
+            self.t0_gt  = np.array([self.trueX, self.trueY, self.trueZ])           # starting translation 
+        if (self.t0_est is not None) and (self.t0_gt is not None):             
+            p = [self.cur_t[0]-self.t0_est[0], self.cur_t[1]-self.t0_est[1], self.cur_t[2]-self.t0_est[2]]   # the estimated traj starts at 0
+            self.traj3d_est.append(p)
+            self.traj3d_gt.append([self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]])            
+            self.poses.append(poseRt(self.cur_R, p))    
 
 
     # get current translation scale from ground-truth if this is set 
