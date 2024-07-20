@@ -44,9 +44,10 @@ export PKG_CONFIG_PATH="/usr/local/opt/readline/lib/pkgconfig:/usr/local/opt/ope
 make_dir $ENV_PATH
 cd $ENVS_PATH
 
-export PYSLAM_PYTHON_VERSION="3.6.9"    # <=  it works and it has tensorflow 1.5
+#export PYSLAM_PYTHON_VERSION="3.6.9"    # <=  it works and it has tensorflow 1.5
 #export PYSLAM_PYTHON_VERSION="3.7.9"   # <=  it works and it lacks tensorflow 1!
 #export PYSLAM_PYTHON_VERSION="3.8.2"   # <=  it works and solves matplotlib open issue but it lacks tensorflow 1 !!! https://github.com/tensorflow/tensorflow/issues/39768 
+export PYSLAM_PYTHON_VERSION="3.8.10"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 

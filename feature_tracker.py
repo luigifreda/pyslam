@@ -33,14 +33,13 @@ from parameters import Parameters
 kMinNumFeatureDefault = 2000
 kLkPyrOpticFlowNumLevelsMin = 3   # maximal pyramid level number for LK optic flow 
 kRatioTest = Parameters.kFeatureMatchRatioTest
-lightglue = False
 
 class FeatureTrackerTypes(Enum):
     LK        = 0   # Lucas Kanade pyramid optic flow (use pixel patch as "descriptor" and matching by optimization)
     DES_BF    = 1   # descriptor-based, brute force matching with knn 
     DES_FLANN = 2   # descriptor-based, FLANN-based matching
-    XFEAT     = 3 
-    LG        = 4
+    XFEAT     = 3   # based on XFEAT, "XFeat: Accelerated Features for Lightweight Image Matching"
+    LIGHTGLUE = 4   # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
 
 
 def feature_tracker_factory(num_features=kMinNumFeatureDefault, 
@@ -129,6 +128,57 @@ class FeatureTracker(object):
     def track(self, image_ref, image_cur, kps_ref, des_ref):
         return FeatureTrackingResult()             
 
+
+# Lucas-Kanade Tracker: it uses raw pixel patches as "descriptors" and track/"match" by using Lucas Kanade pyr optic flow 
+class LkFeatureTracker(FeatureTracker): 
+    def __init__(self, num_features=kMinNumFeatureDefault, 
+                       num_levels = 3,                             # number of pyramid levels for detector  
+                       scale_factor = 1.2,                         # detection scale factor (if it can be set, otherwise it is automatically computed) 
+                       detector_type = FeatureDetectorTypes.FAST, 
+                       descriptor_type = FeatureDescriptorTypes.NONE, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = FeatureTrackerTypes.LK):                         
+        super().__init__(num_features=num_features, 
+                         num_levels=num_levels, 
+                         scale_factor=scale_factor, 
+                         detector_type=detector_type, 
+                         descriptor_type=descriptor_type, 
+                         tracker_type=tracker_type)
+        self.feature_manager = feature_manager_factory(num_features=num_features, 
+                                                       num_levels=num_levels, 
+                                                       scale_factor=scale_factor, 
+                                                       detector_type=detector_type, 
+                                                       descriptor_type=descriptor_type)   
+        #if num_levels < 3:
+        #    Printer.green('LkFeatureTracker: forcing at least 3 levels on LK pyr optic flow') 
+        #    num_levels = 3          
+        optic_flow_num_levels = max(kLkPyrOpticFlowNumLevelsMin,num_levels)
+        Printer.green('LkFeatureTracker: num levels on LK pyr optic flow: ', optic_flow_num_levels)
+        # we use LK pyr optic flow for matching     
+        self.lk_params = dict(winSize  = (21, 21), 
+                              maxLevel = optic_flow_num_levels,
+                              criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))        
+
+    # out: keypoints and empty descriptors
+    def detectAndCompute(self, frame, mask=None):
+        return self.feature_manager.detect(frame, mask), None  
+
+    # out: FeatureTrackingResult()
+    def track(self, image_ref, image_cur, kps_ref, des_ref = None):
+        kps_cur, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, kps_ref, None, **self.lk_params)  #shape: [k,2] [k,1] [k,1]
+        st = st.reshape(st.shape[0])
+        res = FeatureTrackingResult()    
+        #res.idxs_ref = (st == 1)
+        res.idxs_ref = [i for i,v in enumerate(st) if v== 1]
+        res.idxs_cur = res.idxs_ref.copy()       
+        res.kps_ref_matched = kps_ref[res.idxs_ref] 
+        res.kps_cur_matched = kps_cur[res.idxs_cur]  
+        res.kps_ref = res.kps_ref_matched  # with LK we follow feature trails hence we can forget unmatched features 
+        res.kps_cur = res.kps_cur_matched
+        res.des_cur = None                      
+        return res         
+        
+
 # Extract features by using desired detector and descriptor, match keypoints by using desired matcher on computed descriptors
 class DescriptorFeatureTracker(FeatureTracker): 
     def __init__(self, num_features=kMinNumFeatureDefault, 
@@ -153,11 +203,9 @@ class DescriptorFeatureTracker(FeatureTracker):
 
         if tracker_type == FeatureTrackerTypes.XFEAT:
             self.matching_algo = FeatureMatcherTypes.XFEAT 
-            Printer.blue("XXXXXXXXXXXXXXXXXXXXxx") 
 
-        elif tracker_type == FeatureTrackerTypes.LG:
-            self.matching_algo = FeatureMatcherTypes.LG
-            Printer.blue("XXXXXXXXXXXXXXXXXXXXxx")             
+        elif tracker_type == FeatureTrackerTypes.LIGHTGLUE:
+            self.matching_algo = FeatureMatcherTypes.LIGHTGLUE         
 
         elif tracker_type == FeatureTrackerTypes.DES_FLANN:
             self.matching_algo = FeatureMatcherTypes.FLANN
@@ -181,7 +229,7 @@ class DescriptorFeatureTracker(FeatureTracker):
         # convert from list of keypoints to an array of points 
         kps_cur = np.array([x.pt for x in kps_cur], dtype=np.float32) 
         # Printer.orange(des_ref.shape)
-        idxs_ref, idxs_cur = self.matcher.match(image_cur,des_ref, des_cur,  kps2=kps_ref, kps1=kps_cur)  #knnMatch(queryDescriptors,trainDescriptors)
+        idxs_ref, idxs_cur = self.matcher.match(image_cur, des_ref, des_cur,  kps2=kps_ref, kps1=kps_cur)  #knnMatch(queryDescriptors,trainDescriptors)
         #print('num matches: ', len(matches))
         
         res = FeatureTrackingResult()

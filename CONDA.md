@@ -1,5 +1,21 @@
 # Install under Anaconda or Miniconda
 
+<!-- TOC -->
+
+- [Install under Anaconda or Miniconda](#install-under-anaconda-or-miniconda)
+    - [1. Basic Conda Installation](#1-basic-conda-installation)
+    - [2. Full Conda Installation](#2-full-conda-installation)
+    - [3. Create a pyslam conda environment](#3-create-a-pyslam-conda-environment)
+    - [4. Activate the created pyslam conda environment](#4-activate-the-created-pyslam-conda-environment)
+    - [5. Deactivate pyslam conda environment](#5-deactivate-pyslam-conda-environment)
+    - [6. Delete pyslam conda environment](#6-delete-pyslam-conda-environment)
+- [General Notes About Conda](#general-notes-about-conda)
+    - [1. Install packages/env from file](#1-install-packagesenv-from-file)
+    - [2. Deleting an environment](#2-deleting-an-environment)
+    - [3. Creating an environment](#3-creating-an-environment)
+
+<!-- /TOC -->
+
 I've successfully tested `pyslam` with [Anaconda](https://docs.anaconda.com/anaconda/install/linux/) (version *2019.10*, build *py37_0*) and [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *957d2f0f0701c3d1335e3b39f235d197837ad69a944fa6f5d8ad2c686b69df3b*) under Linux.   
 Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly set your conda python environment. 
 
@@ -115,7 +131,7 @@ $ conda info --envs
 ```
 The environments list that displays should not show the removed environment.
 
-
+## Creating an environment 
 In order to create a new conda environment `opencvenv`, activate it  and install OpenCV in it, run the following commands:  
 ```
 $ conda create -yn opencvenv python=3.6.9

@@ -134,7 +134,7 @@ class FeatureInfo(object):
     max_descriptor_distance[FeatureDescriptorTypes.SUPERPOINT] = 1.30   # SUPERPOINT  
     #
     norm_type[FeatureDescriptorTypes.XFEAT] = cv2.NORM_L2               # XFEAT   
-    max_descriptor_distance[FeatureDescriptorTypes.XFEAT] = 1.3   
+    max_descriptor_distance[FeatureDescriptorTypes.XFEAT] = 1.9877 
     #
     norm_type[FeatureDescriptorTypes.TFEAT] = cv2.NORM_L2    
     max_descriptor_distance[FeatureDescriptorTypes.TFEAT] = 11          # TFEAT          

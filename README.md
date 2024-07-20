@@ -1,26 +1,26 @@
-# pySLAM v2 
+# pySLAM v2.1
 
 <!-- TOC -->
 
-- [pySLAM v2](#pyslam-v2)
-  - [Install](#install)
-    - [Requirements](#requirements)
-    - [Ubuntu 18.04](#ubuntu-1804)
-    - [Ubuntu 20.04 and Ubuntu 22.04](#ubuntu-2004-and-ubuntu-2204)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting](#troubleshooting)
-  - [Usage](#usage)
-  - [Supported Local Features](#supported-local-features)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-  - [Camera Settings](#camera-settings)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+- [pySLAM v2.1](#pyslam-v21)
+    - [1. Install](#1-install)
+        - [1.1. Requirements](#11-requirements)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting](#16-troubleshooting)
+    - [2. Usage](#2-usage)
+    - [3. Supported Local Features](#3-supported-local-features)
+    - [4. Supported Matchers](#4-supported-matchers)
+    - [5. Datasets](#5-datasets)
+        - [5.1. KITTI Datasets](#51-kitti-datasets)
+        - [5.2. TUM Datasets](#52-tum-datasets)
+    - [6. Camera Settings](#6-camera-settings)
+    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
+    - [8. References](#8-references)
+    - [9. Credits](#9-credits)
+    - [10. TODOs](#10-todos)
 
 <!-- /TOC -->
 
@@ -54,57 +54,39 @@ Clone this repo and its modules by running
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 ```
 
-The framework has been developed and tested under **Ubuntu 18.04**. Use the available specific install procedure according to your OS: 
-- **Ubuntu 18.04** [=>](#ubuntu-1804)
-- **Ubuntu 20.04** and **Ubuntu 22.04**  [=>](#ubuntu-2004)
+The framework has been developed and tested under **Ubuntu** (under Python 3.8.10). Use the available specific install procedure according to your OS: 
+- **Ubuntu**  [=>](#ubuntu)
 - **MacOs** [=>](#macos) 
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
 - **Docker** [=>](#docker)
 
 ### Requirements
 
-* Python 3.6.9
-* Numpy (1.18.2)
-* OpenCV (4.5.1 and newer versions supported, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
-* PyTorch (>= 1.4.0)
-* Tensorflow-gpu 1.14.0
+* Python 3.8.10
+* OpenCV 4.5.1 (and newer versions supported, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
+* PyTorch 2.3.1
+* Tensorflow 2.13.1
+* Kornia 0.7.3
 
 If you run into troubles or performance issues, check this [TROUBLESHOOTING](./TROUBLESHOOTING.md) file.
 
 ---
-### Ubuntu 18.04
 
-**Install in your working Python environment**:
+### Ubuntu 
 
-If you want to launch `main_vo.py`, run the script:   
-
-`$ ./install_basic.sh`   
-
-in order to automatically install the basic required system and python3 packages.
-
-If you want to run `main_slam.py`, you must additionally install the libs [pangolin](https://github.com/stevenlovegrove/Pangolin), [g2opy](https://github.com/uoip/g2opy), etc. by running:    
-
-`$ ./install_all.sh`   
-
-**Install in a custom Python virtual environment**: 
-
-If you do not want to mess up your working (base) python environment, you can create a new virtual environment `pyslam` with **venv** by easily launching the scripts described [here](./PYTHON-VIRTUAL-ENVS.md).
-
-If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
-
-**N.B.**: a *single* python environment is able to support all the [supported local features](#supported-local-features)!
-
----
-
-### Ubuntu 20.04 and Ubuntu 22.04
-
-This procedure is valid for both Ubuntu 20.04 and Ubuntu 22.04. Clone this repo recursively and move into the branch `ubuntu20` 
+The following procedure has been tested on Ubuntu 18.04, Ubuntu 20.04 and Ubuntu 22.04. First, clone this repo recursively and move into the branch `ubuntu20` by running the following commands:
 ```
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 $ cd pyslam 
 $ git checkout ubuntu20  
 ```
-and then follow the instructions for creating a new virtual environment `pyslam` described [here](./PYTHON-VIRTUAL-ENVS.md). 
+
+Next, follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**. The available scripts described [here](./PYTHON-VIRTUAL-ENVS.md) will do that for you.   
+
+If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
+
+**N.B.**: a *single* python environment is able to support all the [supported local features](#supported-local-features)!
+
 
 --- 
 ### MacOS
@@ -114,12 +96,12 @@ Check the instructions in this [file](./MAC.md).
 ---
 ### Docker
 
-If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker#pyslam) with its custom `pyslam` or `pyslam_cuda` docker file.
+If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker) with its custom `pyslam` / `pyslam_cuda` docker files. Follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam).
 
 ---
 ### How to install non-free OpenCV modules
 
-The install scripts take care of installing the new available opencv version (**4.8.1** on Ubuntu 18) and its non-free modules. 
+The install scripts take care of installing a recent opencv version (>=**4.8.1** on Ubuntu) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv, or the [install_opencv_python.sh](./install_opencv_python.sh)).
 
 Check your installed OpenCV version:      
 `$ python3 -c "import cv2; print(cv2.__version__)"`
@@ -187,6 +169,7 @@ At present time, the following feature **detectors** are supported:
 * *[R2D2](https://github.com/naver/r2d2)*
 * *[Key.Net](https://github.com/axelBarroso/Key.Net)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
+* *[Xfeat](https://arxiv.org/abs/2404.19174)*
 
 The following feature **descriptors** are supported: 
 * *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
@@ -215,6 +198,7 @@ The following feature **descriptors** are supported:
 * *[R2D2](https://github.com/naver/r2d2)*
 * *[BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
+* *[Xfeat](https://arxiv.org/abs/2404.19174)*
 
 You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `test/cv/test_feature_matching.py`.
 
@@ -223,6 +207,14 @@ In both the scripts `main_vo.py` and `main_slam.py`, you can create your favouri
 The function `feature_tracker_factory()` can be found in the file `feature_tracker.py`. Take a look at the file `feature_manager.py` for further details.
 
 **N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#supported-local-features)!
+
+---
+## Supported Matchers 
+
+  * *BF*: Brute force matcher on descriptors (with KNN)
+  * *[FLANN](https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350)* 
+  * *[XFeat](https://arxiv.org/abs/2404.19174)*      
+  * *[LightGlue](https://arxiv.org/abs/2306.13643)*
 
 --- 
 ## Datasets
@@ -332,6 +324,10 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [Contextdesc](https://github.com/lzx551402/contextdesc)
 * [LFNet](https://github.com/vcg-uvic/lf-net-release)
 * [R2D2](https://github.com/naver/r2d2)
+* [BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)
+* [DISK](https://arxiv.org/abs/2006.13566)
+* [Xfeat](https://arxiv.org/abs/2404.19174)
+* [LightGlue](https://arxiv.org/abs/2306.13643)
 * [Key.Net](https://github.com/axelBarroso/Key.Net)
 * [Twitchslam](https://github.com/geohot/twitchslam)
 * [MonoVO](https://github.com/uoip/monoVO-python)  

@@ -126,7 +126,7 @@ def build_keynet_config(keynet_base_path):
 
     # remove verbose bits from tf
     # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-    # tf.logging.set_verbosity(tf.logging.ERROR)
+    # tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
     # Set CUDA GPU environment
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_visible_devices
@@ -229,7 +229,7 @@ class KeyNetDescFeature2D:
         #with tf.Session(config=config) as sess:        
         self.session = tf.Session(config=tf_config)         
 
-        tf.set_random_seed(self.keynet_config.random_seed)
+        tf.random.set_seed(self.keynet_config.random_seed)
 
         with tf.name_scope('inputs'):
 

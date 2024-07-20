@@ -522,7 +522,7 @@ class Frame(FrameBase):
 # match frames f1 and f2
 # out: a vector of match index pairs [idx1[i],idx2[i]] such that the keypoint f1.kps[idx1[i]] is matched with f2.kps[idx2[i]]
 def match_frames(f1, f2, ratio_test=None):     
-    idx1, idx2 = Frame.feature_matcher.match(f1.des, f2.des, ratio_test)
+    idx1, idx2 = Frame.feature_matcher.match(f1, f1.des, f2.des, ratio_test)
     idx1 = np.asarray(idx1)
     idx2 = np.asarray(idx2)   
     return idx1, idx2         

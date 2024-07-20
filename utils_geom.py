@@ -62,7 +62,6 @@ def s1_dist_rad(angle1,angle2):
 def poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R
-    #ret[:3, 3] = np.array([t[0][0], t[1][0], t[2][0]])
     ret[:3, 3] = t
     return ret   
 

@@ -19,26 +19,29 @@
 import numpy as np 
 import cv2
 import torch
+from utils_sys import Printer, import_from
 from parameters import Parameters  
 from enum import Enum
 from collections import defaultdict
+
+from frame import Frame
 import config
 config.cfg.set_lib('xfeat') 
-
-from modules.xfeat import XFeat
-
 config.cfg.set_lib('lightglue')
-from lightglue import LightGlue
-LightGlue.pruning_keypoint_thresholds['cuda']
+
+XFeat = import_from('modules.xfeat', 'XFeat')
+LightGlue = import_from('lightglue', 'LightGlue')
+
+
 kRatioTest = Parameters.kFeatureMatchRatioTest
-kVerbose = True
+kVerbose = False
 
 class FeatureMatcherTypes(Enum):
-    NONE = 0
-    BF = 1     
-    FLANN = 2
-    XFEAT = 3
-    LG = 4
+    NONE      = 0
+    BF        = 1      # Brute force
+    FLANN     = 2      # FLANN-based 
+    XFEAT     = 3      # "XFeat: Accelerated Features for Lightweight Image Matching"
+    LIGHTGLUE = 4      # "LightGlue: Local Feature Matching at Light Speed"
 
 
 def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, cross_check=False, ratio_test=kRatioTest, type=FeatureMatcherTypes.FLANN):
@@ -48,91 +51,20 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, cross_check=False, ratio
         return FlannFeatureMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
     if type ==FeatureMatcherTypes.XFEAT:
         return  XFeatMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
-    if type == FeatureMatcherTypes.LG:
+    if type == FeatureMatcherTypes.LIGHTGLUE:
         return LightGlueMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
     return None 
 
 
-"""
-N.B.: 
-The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects. 
-A DMatch object has the following attributes:
-    DMatch.distance - Distance between descriptors. The lower, the better it is.
-    DMatch.trainIdx - Index of the descriptor in train descriptors
-    DMatch.queryIdx - Index of the descriptor in query descriptors
-    DMatch.imgIdx - Index of the train image.
-"""        
 
-
-# base class 
-class FeatureMatcher(object): 
-    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.BF):
-        self.type = type 
-        self.norm_type = norm_type 
-        self.cross_check = cross_check   # apply cross check 
-        self.matches = []
-        self.ratio_test = ratio_test 
-        self.matcher = None 
-        self.matcher_name = ''
-        self.matcherLG = None
-        self.deviceLG = None
-        if self.type == FeatureMatcherTypes.LG:
-            if self.matcherLG is None:
-                self.matcherLG = LightGlue(features="superpoint",n_layers=2).eval().to('cuda')
-            if self.deviceLG is None: 
-                self.deviceLG = torch.device("cuda" if torch.cuda.is_available() else "cpu")        
-        
-        
-    # input: des1 = queryDescriptors, des2= trainDescriptors
-    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
-    def match(self, frame, des1, des2, kps1 = None,kps2 = None, ratio_test=None):
-        if kVerbose:
-            print(self.matcher_name,', norm ', self.norm_type) 
-        #print('des1.shape:',des1.shape,' des2.shape:',des2.shape)    
-        #print('des1.dtype:',des1.dtype,' des2.dtype:',des2.dtype)
-        #print(self.type)
-        if self.type == FeatureMatcherTypes.LG:
-            d1={
-            'keypoints': torch.tensor(kps1,device='cuda').unsqueeze(0),
-            'descriptors': torch.tensor(des2,device='cuda').unsqueeze(0),
-            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
-            }
-            d2={
-            'keypoints': torch.tensor(kps2,device='cuda').unsqueeze(0),
-            'descriptors': torch.tensor(des1,device='cuda').unsqueeze(0),
-            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
-            }
-             
-            matches01 = self.matcherLG({"image0": d1, "image1": d2})
-            #print(matches01['matches'])
-            idx0 = matches01['matches'][0][:, 0].cpu().tolist()
-            idx1 = matches01['matches'][0][:, 1].cpu().tolist()
-            #print(des1.shape,len(idx0),len(idx1))
-            return idx1, idx0
-            # print(d1['keypoints'].shape, d1['descriptors'].shape, d1['image_size'].shape)
-            # print(d2['keypoints'].shape, d2['descriptors'].shape, d2['image_size'].shape)
-        elif self.type == FeatureMatcherTypes.XFEAT:
-            d1_tensor = torch.tensor(des1, dtype=torch.float32)  # Specify dtype if needed
-            d2_tensor = torch.tensor(des2, dtype=torch.float32)  # Specify dtype if needed
-            # If the original tensors were on a GPU, you should move the new tensors to GPU as well
-            # d1_tensor = d1_tensor.to('cuda')  # Use 'cuda' or 'cuda:0' if your device is a GPU
-            # d2_tensor = d2_tensor.to('cuda') 
-            idx0, idx1 = self.matcher.match(d1_tensor, d2_tensor, 0.93) 
-            return idx0.cpu(), idx1.cpu()                  
-        else: 
-            matches = self.matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
-            self.matches = matches
-            return self.goodMatches(matches, des1, des2, ratio_test)          
-            
+class MatcherUtils: 
     # input: des1 = query-descriptors, des2 = train-descriptors
     # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
-    # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index    
-    def goodMatchesOneToOne(self, matches, des1, des2, ratio_test=None):
+    # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index
+    @staticmethod    
+    def goodMatchesOneToOne(matches, des1, des2, ratio_test=0.7):
         len_des2 = len(des2)
-        idx1, idx2 = [], []  
-        # good_matches = []           
-        if ratio_test is None: 
-            ratio_test = self.ratio_test
+        idx1, idx2 = [], []           
         if matches is not None:         
             float_inf = float('inf')
             dist_match = defaultdict(lambda: float_inf)   
@@ -157,9 +89,19 @@ class FeatureMatcher(object):
                         idx2[index]=m.trainIdx
         return idx1, idx2
 
-    def goodMatches(self, matches, des1, des2, ratio_test=None): 
-        #return self.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
-        return self.goodMatchesOneToOne(matches, des1, des2, ratio_test)
+    # input: des1 = query-descriptors, des2 = train-descriptors
+    # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
+    # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes
+    @staticmethod    
+    def goodMatchesSimple(matches, des1, des2, ratio_test=0.7):
+        idx1, idx2 = [], []                  
+        if matches is not None: 
+            for m,n in matches:
+                if m.distance < ratio_test * n.distance:
+                    idx1.append(m.queryIdx)
+                    idx2.append(m.trainIdx)                                                         
+        return idx1, idx2 
+
 
     # input: des1 = query-descriptors, des2 = train-descriptors, kps1 = query-keypoints, kps2 = train-keypoints 
     # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
@@ -170,7 +112,8 @@ class FeatureMatcher(object):
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
     # N.B.3: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return a correct rotation    
     # Adapted from https://github.com/lzx551402/geodesc/blob/master/utils/opencvhelper.py 
-    def matchWithCrossCheckAndModelFit(self, des1, des2, kps1, kps2, ratio_test=None, cross_check=True, err_thld=1, info=''):
+    @staticmethod    
+    def matchWithCrossCheckAndModelFit(matcher, des1, des2, kps1, kps2, ratio_test=0.7, cross_check=True, err_thld=1, info=''):
         """Compute putative and inlier matches.
         Args:
             feat: (n_kpts, 128) Local features.
@@ -184,11 +127,9 @@ class FeatureMatcher(object):
             mask: The mask to distinguish inliers/outliers on putative matches.
         """
         idx1, idx2 = [], []          
-        if ratio_test is None: 
-            ratio_test = self.ratio_test
             
-        init_matches1 = self.matcher.knnMatch(des1, des2, k=2)
-        init_matches2 = self.matcher.knnMatch(des2, des1, k=2)
+        init_matches1 = matcher.knnMatch(des1, des2, k=2)
+        init_matches2 = matcher.knnMatch(des2, des1, k=2)
 
         good_matches = []
 
@@ -224,24 +165,88 @@ class FeatureMatcher(object):
         n_inlier = np.count_nonzero(mask)
         print(info, 'n_putative', len(good_matches), 'n_inlier', n_inlier)
         return idx1, idx2, good_matches, mask
+    
+    
+"""
+N.B.: 
+The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects. 
+A DMatch object has the following attributes:
+    DMatch.distance - Distance between descriptors. The lower, the better it is.
+    DMatch.trainIdx - Index of the descriptor in train descriptors
+    DMatch.queryIdx - Index of the descriptor in query descriptors
+    DMatch.imgIdx - Index of the train image.
+"""        
+# base class 
+class FeatureMatcher(object): 
+    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.BF):
+        self.type = type 
+        self.norm_type = norm_type 
+        self.cross_check = cross_check   # apply cross check 
+        self.matches = []
+        self.ratio_test = ratio_test 
+        self.matcher = None 
+        self.matcher_name = ''
+        self.matcherLG = None
+        self.deviceLG = None
+        if self.type == FeatureMatcherTypes.LIGHTGLUE:
+            if self.matcherLG is None:
+                LightGlue.pruning_keypoint_thresholds['cuda']
+                self.matcherLG = LightGlue(features="superpoint",n_layers=2).eval().to('cuda')
+            if self.deviceLG is None: 
+                self.deviceLG = torch.device("cuda" if torch.cuda.is_available() else "cpu")        
         
-    # input: des1 = query-descriptors, des2 = train-descriptors
+        
+    # input: des1 = queryDescriptors, des2= trainDescriptors
     # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
-    # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes
-    def goodMatchesSimple(self, matches, des1, des2, ratio_test=None):
-        idx1, idx2 = [], []   
-        #good_matches = []            
-        if ratio_test is None: 
-            ratio_test = self.ratio_test            
-        if matches is not None: 
-            for m,n in matches:
-                if m.distance < ratio_test * n.distance:
-                    idx1.append(m.queryIdx)
-                    idx2.append(m.trainIdx)                                                         
-        return idx1, idx2 
+    def match(self, frame : Frame, des1, des2, kps1 = None, kps2 = None, ratio_test=None):
+        #print('des1.shape:',des1.shape,' des2.shape:',des2.shape)    
+        #print('des1.dtype:',des1.dtype,' des2.dtype:',des2.dtype)
+        #print(self.type)               
+        print('matcher: ', self.type.name)         
+        if ratio_test is None:
+            ratio_test = self.ratio_test        
+        if kVerbose:
+            print(self.matcher_name,', norm ', self.norm_type) 
+        if self.type == FeatureMatcherTypes.LIGHTGLUE:
+            d1={
+            'keypoints': torch.tensor(kps1,device='cuda').unsqueeze(0),
+            'descriptors': torch.tensor(des2,device='cuda').unsqueeze(0),
+            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
+            }
+            d2={
+            'keypoints': torch.tensor(kps2,device='cuda').unsqueeze(0),
+            'descriptors': torch.tensor(des1,device='cuda').unsqueeze(0),
+            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
+            }
+             
+            matches01 = self.matcherLG({"image0": d1, "image1": d2})
+            #print(matches01['matches'])
+            idx0 = matches01['matches'][0][:, 0].cpu().tolist()
+            idx1 = matches01['matches'][0][:, 1].cpu().tolist()
+            #print(des1.shape,len(idx0),len(idx1))
+            return idx1, idx0
+            # print(d1['keypoints'].shape, d1['descriptors'].shape, d1['image_size'].shape)
+            # print(d2['keypoints'].shape, d2['descriptors'].shape, d2['image_size'].shape)
+        elif self.type == FeatureMatcherTypes.XFEAT:
+            d1_tensor = torch.tensor(des1, dtype=torch.float32)  # Specify dtype if needed
+            d2_tensor = torch.tensor(des2, dtype=torch.float32)  # Specify dtype if needed
+            # If the original tensors were on a GPU, you should move the new tensors to GPU as well
+            # d1_tensor = d1_tensor.to('cuda')  # Use 'cuda' or 'cuda:0' if your device is a GPU
+            # d2_tensor = d2_tensor.to('cuda') 
+            idx0, idx1 = self.matcher.match(d1_tensor, d2_tensor, 0.93) 
+            return idx0.cpu(), idx1.cpu()                  
+        else: 
+            matches = self.matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
+            self.matches = matches
+            return self.goodMatches(matches, des1, des2, ratio_test)          
+            
+    def goodMatches(self, matches, des1, des2, ratio_test=None): 
+        if ratio_test is None:
+            ratio_test = self.ratio_test
+        #return goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
+        return MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)
 
-
-
+    
 # Brute-Force Matcher 
 class BfFeatureMatcher(FeatureMatcher): 
     def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.BF):
@@ -257,7 +262,7 @@ class XFeatMatcher(FeatureMatcher):
         self.matcher_name = 'XFeatFeatureMatcher'   
 
 class LightGlueMatcher(FeatureMatcher):
-    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.XFEAT):
+    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.LIGHTGLUE):
         super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.matcher = LightGlue(features="superpoint").eval().to(device) 

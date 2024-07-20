@@ -22,6 +22,7 @@ from keyNet.model.hardnet_pytorch import *
 from keyNet.datasets.dataset_utils import read_bw_image
 import torch
 
+import tf_slim as slim 
 
 keynet_base_path='../../thirdparty/keynet/'
 
@@ -121,7 +122,7 @@ def extract_multiscale_features():
 
     # remove verbose bits from tf
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-    tf.logging.set_verbosity(tf.logging.ERROR)
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
     # Set CUDA GPU environment
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_visible_devices
@@ -240,7 +241,7 @@ def extract_multiscale_features():
 
     with tf.Graph().as_default():
 
-        tf.set_random_seed(args.random_seed)
+        tfv2.random.set_seed(args.random_seed)
 
         with tf.name_scope('inputs'):
 
@@ -274,7 +275,7 @@ def extract_multiscale_features():
         detect_var = [v for v in tf.trainable_variables(scope='model_deep_detector')]
 
         if os.listdir(args.checkpoint_det_dir):
-            init_assign_op_det, init_feed_dict_det = tf_contrib.framework.assign_from_checkpoint(
+            init_assign_op_det, init_feed_dict_det = slim.assign_from_checkpoint(
                 tf.train.latest_checkpoint(args.checkpoint_det_dir), detect_var)
 
         point_level = []

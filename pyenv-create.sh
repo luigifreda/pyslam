@@ -46,7 +46,8 @@ install_package python3-venv
 make_dir $ENV_PATH
 cd $ENVS_PATH
 
-export PYSLAM_PYTHON_VERSION="3.6.9"
+#export PYSLAM_PYTHON_VERSION="3.6.9"
+export PYSLAM_PYTHON_VERSION="3.8.10"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
@@ -75,17 +76,11 @@ CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION
 MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION
 
-# install required packages 
+# install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
+MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
 
-#source install_pip3_packages.sh 
-# or 
-MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt -vvv
 
-# HACK to fix opencv-contrib-python version!
-#pip3 uninstall opencv-contrib-python                # better to clean it before installing the right version 
-#install_pip_package opencv-contrib-python #==3.4.2.16 
-
-# N.B.: in order to activate the virtual environment run: 
-# $ source pyenv-activate.sh 
-# to deactivate 
-# $ deactivate 
+# To activate the virtual environment run: 
+#   $ source pyenv-activate.sh 
+# To deactivate run:
+#   $ deactivate 

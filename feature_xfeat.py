@@ -37,12 +37,10 @@ class XFeat2D:
     def __init__(self): 
         self.lock = RLock()
                 
-        
         print('====>XFeat')
         # This class runs the SuperPoint network and processes its outputs.
         self.xfeat = XFeat(top_k=2000)
-      
-                        
+              
         self.pts = []
         self.kps = []        
         self.des = []

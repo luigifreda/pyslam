@@ -108,6 +108,35 @@ function check_conda(){
         echo 0
     fi 
 }
+
+function gdrive_download () {
+  #CONFIRM=$(wget --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate "https://docs.google.com/uc?export=download&id=$1" -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')
+  #wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$CONFIRM&id=$1" -O $2
+  #rm -rf /tmp/cookies.txt
+  gdown https://drive.google.com/uc?id=$1
+}
  
+function extract_version(){
+    #version=$(echo $1 | sed 's/[^0-9]*//g')
+    #version=$(echo $1 | sed 's/[[:alpha:]|(|[:space:]]//g')
+    version=$(echo $1 | sed 's/[[:alpha:]|(|[:space:]]//g' | sed s/://g)
+    echo $version
+}
+
+
+function get_usable_cuda_version(){
+    version="$1"
+    if [[ "$version" != *"cuda"* ]]; then
+        version="cuda-${version}"      
+    fi 
+    # check if we have two dots in the version, check if the folder exists otherwise remove last dot
+    if [[ $version =~ ^[a-zA-Z0-9-]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [ ! -d /usr/local/$version ]; then 
+            version="${version%.*}"  # remove last dot        
+        fi     
+    fi    
+    echo $version
+}
+
 # ====================================================
 

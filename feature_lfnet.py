@@ -181,7 +181,7 @@ def build_lfnet_config():
 def convert_to_keypoints(kpts, scales, orientations, heatmaps):
     kps = []
     for kp,size,angle in zip(kpts,scales,orientations):
-        x, y = np.round(kp).astype(np.int)
+        x, y = np.round(kp).astype(np.int32)
         response = heatmaps[y,x]
         if is_opencv_version_greater_equal(4,5,3):
             kps.append(cv2.KeyPoint(float(x), float(y), size=size, angle=angle, response=response))            

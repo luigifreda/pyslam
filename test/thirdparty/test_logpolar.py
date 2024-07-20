@@ -32,6 +32,7 @@ config.cfg.set_lib('logpolar')
 from configs.defaults import _C as cfg
 from modules.hardnet.models import HardNet
 
+from feature_logpolar import LogpolarFeature2D
 
 logpolar_base_path='../../thirdparty/logpolar/'
 

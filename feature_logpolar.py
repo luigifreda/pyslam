@@ -28,7 +28,7 @@ import sys
 
 import torch
 import torch.nn as nn
-from modules.ptn.pytorch.models import Transformer
+#from modules.ptn.pytorch.models import Transformer
 
 import cv2
 import numpy as np

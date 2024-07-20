@@ -26,7 +26,7 @@ $ . install_all_venv.sh
 ```
 **N.B.**: do not forget the dot! (without '/' !)
 
-This will compile the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
+This will compile all the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
 ```
 $ python3 -O main_slam.py
 ```

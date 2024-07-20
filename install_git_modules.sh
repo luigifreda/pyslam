@@ -39,25 +39,31 @@ touch __init__.py
 make_dir pretrained 
 cd pretrained
 if [ ! -d retrieval_model ]; then 
-    wget https://research.altizure.com/data/contextdesc_models/contextdesc_pp.tar 
-    tar -xvf contextdesc_pp.tar
-    rm contextdesc_pp.tar    
-    wget https://research.altizure.com/data/contextdesc_models/retrieval_model.tar
-    tar -xvf retrieval_model.tar    
-    rm retrieval_model.tar 
+    # NOTE: the original altizure links are now broken, so we download from my drive instead.
+    #wget https://research.altizure.com/data/contextdesc_models/contextdesc_pp.tar
+    #https://drive.google.com/file/d/1TQIjijkyd3fNvEivPPpnxHKaSqFxu5TE/view?usp=sharing
+    gdrive_download "1TQIjijkyd3fNvEivPPpnxHKaSqFxu5TE" "contextdesc++.tar.gz"
+    tar -xvf contextdesc++.tar.xz
+    rm contextdesc++.tar.xz   
+    #wget https://research.altizure.com/data/contextdesc_models/retrieval_model.tar
+    # https://drive.google.com/file/d/1_J_aDSdKcUUk0ZXhn9bTqV6zuyzUixLD/view?usp=sharing
+    gdrive_download "1_J_aDSdKcUUk0ZXhn9bTqV6zuyzUixLD" "retrieval_model.tar.xz"
+    tar -xvf retrieval_model.tar.xz    
+    rm retrieval_model.tar.xz 
 fi 
 cd $STARTING_DIR
 
 
 # download lfnet models 
 print_blue '================================================'
-print_blue "Checking and downloading lfnet models ..."
+print_blue "Updating lfnet and downloading lfnet models ..."
 cd thirdparty
 # copy local changes 
-rsync ./lfnet_changes/inference.py ./lfnet/inference.py
+#rsync ./lfnet_changes/inference.py ./lfnet/inference.py
 # download pretrained model
 cd lfnet 
-touch __init__.py 
+git apply ../lfnet.patch 
+touch __init__.py
 make_dir pretrained 
 if [ ! -d pretrained/lfnet-norotaug ]; then 
     # link update ref: https://github.com/luigifreda/pyslam/issues/49 
@@ -70,10 +76,12 @@ cd $STARTING_DIR
 
 # setting keynet  
 print_blue '================================================'
-print_blue "Setting keynet ..."
+print_blue "Updating keynet ..."
 cd thirdparty
 # copy local changes 
-rsync ./keynet_changes/keynet_architecture.py ./keynet/keyNet/model/keynet_architecture.py
+#rsync ./keynet_changes/keynet_architecture.py ./keynet/keyNet/model/keynet_architecture.py
+cd keynet
+git apply ../keynet.patch 
 cd $STARTING_DIR
 
 

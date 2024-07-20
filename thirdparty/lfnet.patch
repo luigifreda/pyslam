@@ -1,0 +1,26 @@
+diff --git a/eval_tools.py b/eval_tools.py
+index 3542920..f9a7e47 100755
+--- a/eval_tools.py
++++ b/eval_tools.py
+@@ -155,7 +155,7 @@ def draw_keypoints(img, kpts, valid_mask=None, color_t=(0,0xFF,0), color_f=(0,0,
+ 
+     canvas = img.copy()
+     for kp, valid in zip(kpts, valid_mask):
+-        x, y = np.round(kp).astype(np.int)
++        x, y = np.round(kp).astype(np.int32)
+         if valid:
+             color = color_t
+         else:
+diff --git a/inference.py b/inference.py
+index 826b6c0..9b46c10 100755
+--- a/inference.py
++++ b/inference.py
+@@ -1,7 +1,7 @@
+ import tensorflow as tf
+ from det_tools import *
+ from spatial_transformer import transformer_crop
+-from utils import embed_breakpoint
++from .utils import embed_breakpoint
+ 
+ 
+ def build_deep_detector(config, detector, photos, reuse=False, name='DeepDet'):

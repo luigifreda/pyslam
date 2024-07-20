@@ -126,7 +126,7 @@ class Mplot2d:
         #self.ax = self.fig.gca(projection='3d')
         #self.ax = self.fig.gca()
         self.ax = self.fig.add_subplot(111)   
-        if self.title is not '':
+        if self.title != '':
             self.ax.set_title(self.title) 
         self.ax.set_xlabel(self.xlabel)
         self.ax.set_ylabel(self.ylabel)	   
@@ -208,7 +208,7 @@ class Mplot3d:
         self.is_running = Value('i',1)         
 
         self.queue = Queue()
-        self.vp = Process(target=self.drawer_thread, args=(self.queue,mp_lock, self.key, self.is_running,))
+        self.vp = Process(target=self.drawer_thread, args=(self.queue, mp_lock, self.key, self.is_running,))
         self.vp.daemon = kSetDaemon
         self.vp.start()
 
@@ -230,14 +230,16 @@ class Mplot3d:
             self.got_data = True  
             self.data = queue.get()  
             traj, name, color, marker = self.data         
-            np_traj = np.asarray(traj)        
+            np_traj = np.asarray(traj)      
+            does_label_exist = False   
             if name in self.handle_map:
                 handle = self.handle_map[name]
-                self.ax.collections.remove(handle)
+                does_label_exist = True
             self.updateMinMax(np_traj)
             handle = self.ax.scatter3D(np_traj[:, 0], np_traj[:, 1], np_traj[:, 2], c=color, marker=marker)
-            handle.set_label(name)
-            self.handle_map[name] = handle     
+            if not does_label_exist:
+                handle.set_label(name)
+                self.handle_map[name] = handle     
         if self.got_data is True:               
             self.plot_refresh(lock)          
 
@@ -253,34 +255,24 @@ class Mplot3d:
         return chr(self.key.value) 
     
     def init(self, lock):
-        from mpl_toolkits.mplot3d import Axes3D  # Importing the 3D toolkit
-
         lock.acquire()
-        try:
-            if kVerbose:
-                import multiprocessing as mp
-                print(mp.current_process().name, "initializing...")
-
-            self.fig = plt.figure()
-            if kUseFigCanvasDrawIdle:
-                self.fig.canvas.draw_idle()
-
-            self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
-            self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
-
-            self.ax = self.fig.add_subplot(111, projection='3d')  # Adjusted line
-            if self.title is not '':
-                self.ax.set_title(self.title)
-            
-            self.ax.set_xlabel('X axis')
-            self.ax.set_ylabel('Y axis')
-            self.ax.set_zlabel('Z axis')
-
-            self.setAxis()
-        finally:
-            lock.release()
-
-
+        if kVerbose:
+            print(mp.current_process().name, "initializing...")
+        self.fig = plt.figure()
+        if kUseFigCanvasDrawIdle:
+            self.fig.canvas.draw_idle()
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
+        self.ax = self.fig.add_subplot(111, projection='3d')  # Adjusted line
+        #self.ax = self.fig.gca(projection='3d')
+        if self.title != '':
+            self.ax.set_title(self.title)
+        self.ax.set_xlabel('X axis')
+        self.ax.set_ylabel('Y axis')
+        self.ax.set_zlabel('Z axis')
+        self.setAxis()
+        lock.release()
+        
     def setAxis(self):		
         #self.ax.axis('equal')   # this does not work with the new matplotlib 3    
         if self.axis_computed:	
