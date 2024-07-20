@@ -31,7 +31,6 @@ class ShiTomasiDetector(object):
         self.quality_level = quality_level
         self.min_coner_distance = min_coner_distance
         self.blockSize=5    # 3 is the default block size 
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 
     def detect(self, frame, mask=None):                
         pts = cv2.goodFeaturesToTrack(frame, self.num_features, self.quality_level, self.min_coner_distance, blockSize=self.blockSize, mask=mask)

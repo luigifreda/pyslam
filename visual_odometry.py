@@ -96,7 +96,7 @@ class VisualOdometry(object):
             return 1
 
     def computeFundamentalMatrix(self, kps_ref, kps_cur):
-            F, mask = cv2.findFundamentalMat(kps_ref, kps_cur, cv2.FM_RANSAC, param1=kRansacThresholdPixels, param2=kRansacProb)
+            F, mask = cv2.findFundamentalMat(kps_ref, kps_cur, cv2.FM_RANSAC, kRansacThresholdPixels, kRansacProb)
             if F is None or F.shape == (1, 1):
                 # no fundamental matrix found
                 raise Exception('No fundamental matrix found')
@@ -182,11 +182,11 @@ class VisualOdometry(object):
         # draw image         
         self.draw_img = self.drawFeatureTracks(self.cur_image) 
         # check if we have enough features to track otherwise detect new ones and start tracking from them (used for LK tracker) 
-        # if (self.feature_tracker.tracker_type == FeatureTrackerTypes.LK) and (self.kps_ref.shape[0] < self.feature_tracker.num_features): 
-        #     self.kps_cur, self.des_cur = self.feature_tracker.detectAndCompute(self.cur_image)           
-        #     self.kps_cur = np.array([x.pt for x in self.kps_cur], dtype=np.float32) # convert from list of keypoints to an array of points   
-        #     if kVerbose:     
-        #         print('# new detected points: ', self.kps_cur.shape[0])                  
+        if (self.feature_tracker.tracker_type == FeatureTrackerTypes.LK) and (self.kps_ref.shape[0] < self.feature_tracker.num_features): 
+            self.kps_cur, self.des_cur = self.feature_tracker.detectAndCompute(self.cur_image)           
+            self.kps_cur = np.array([x.pt for x in self.kps_cur], dtype=np.float32) # convert from list of keypoints to an array of points   
+            if kVerbose:     
+                print('# new detected points: ', self.kps_cur.shape[0])                  
         self.kps_ref = self.kps_cur
         self.des_ref = self.des_cur
         self.updateHistory()           
@@ -200,7 +200,7 @@ class VisualOdometry(object):
         if img.ndim>2:
             img = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)             
         # check coherence of image size with camera settings 
-        #assert(img.ndim==2 and img.shape[0]==self.cam.height and img.shape[1]==self.cam.width), "Frame: provided image has not the same size as the camera model or image is not grayscale"
+        assert(img.ndim==2 and img.shape[0]==self.cam.height and img.shape[1]==self.cam.width), "Frame: provided image has not the same size as the camera model or image is not grayscale"
         self.cur_image = img
         # manage and check stage 
         if(self.stage == VoStage.GOT_FIRST_IMAGE):

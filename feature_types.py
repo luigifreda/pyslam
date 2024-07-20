@@ -59,7 +59,7 @@ class FeatureDetectorTypes(Enum):
     R2D2        = 22  # [end-to-end] joint detector-descriptor - "R2D2: Repeatable and Reliable Detector and Descriptor"   
     KEYNET      = 23  # "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
     DISK        = 24  # [end-to-end] joint detector-descriptor - "DISK: Learning local features with policy gradient"
-    XFEAT       = 25
+    XFEAT       = 25  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
 
 class FeatureDescriptorTypes(Enum):
     NONE        = 0   # used for LK tracker (in main_vo.py)
@@ -92,7 +92,7 @@ class FeatureDescriptorTypes(Enum):
     KEYNET      = 27  # keynet descriptor is HARDNET (only with KEYNET detector) - "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"   
     BEBLID      = 28  # [binary] only descriptor - " BEBLID: Boosted Efficient Binary Local Image Descriptor"              
     DISK        = 29  # [end-to-end] joint detector-descriptor - "DISK: Learning local features with policy gradient"    
-    XFEAT       = 30
+    XFEAT       = 30  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
 class FeatureInfo(object): 
     norm_type = dict() 
     max_descriptor_distance = dict()   # initial reference max descriptor distances used by SLAM for locally searching matches around frame keypoints; 
@@ -133,7 +133,7 @@ class FeatureInfo(object):
     norm_type[FeatureDescriptorTypes.SUPERPOINT] = cv2.NORM_L2  
     max_descriptor_distance[FeatureDescriptorTypes.SUPERPOINT] = 1.30   # SUPERPOINT  
     #
-    norm_type[FeatureDescriptorTypes.XFEAT] = cv2.NORM_L2  
+    norm_type[FeatureDescriptorTypes.XFEAT] = cv2.NORM_L2               # XFEAT   
     max_descriptor_distance[FeatureDescriptorTypes.XFEAT] = 1.3   
     #
     norm_type[FeatureDescriptorTypes.TFEAT] = cv2.NORM_L2    
