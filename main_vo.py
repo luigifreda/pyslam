@@ -41,6 +41,8 @@ from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
+from rerun_interface import Rerun
+
 
 
 """
@@ -95,12 +97,16 @@ if __name__ == "__main__":
     else:
         plt3d = Mplot3d(title='3D trajectory')
 
-    is_draw_err = True 
+    is_draw_err = False 
     err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
-
-    is_draw_matched_points = True 
+    
+    is_draw_matched_points = False 
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
 
+    is_draw_with_rerun = True
+    if is_draw_with_rerun:
+        Rerun.init()
+    
     img_id = 0
     while dataset.isOk():
 
@@ -125,7 +131,11 @@ if __name__ == "__main__":
                     text = "Coordinates: x=%2fm y=%2fm z=%2fm" % (x, y, z)
                     cv2.putText(traj_img, text, (20, 40), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1, 8)
                     # show 		
-                    cv2.imshow('Trajectory', traj_img)
+
+                    if is_draw_with_rerun:
+                        Rerun.log_img_seq('trajectory_img/2d', img_id, traj_img)
+                    else:
+                        cv2.imshow('Trajectory', traj_img)
 
                 if is_draw_3d:           # draw 3d trajectory 
                     if kUsePangolin:
@@ -151,9 +161,19 @@ if __name__ == "__main__":
                     matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
                     matched_points_plt.refresh()                    
 
-
+                if is_draw_with_rerun:                                        
+                    Rerun.log_2dplot_seq_scalar_data('trajectory_2d/errors/err_x', img_id, math.fabs(x_true-x))
+                    Rerun.log_2dplot_seq_scalar_data('trajectory_2d/errors/err_y', img_id, math.fabs(y_true-y))
+                    Rerun.log_2dplot_seq_scalar_data('trajectory_2d/errors/err_z', img_id, math.fabs(z_true-z))
+                    
+                    Rerun.log_2dplot_seq_scalar_data('trajectory_stats/num_matches', img_id, vo.num_matched_kps)
+                    Rerun.log_2dplot_seq_scalar_data('trajectory_stats/num_inliers', img_id, vo.num_inliers)
+                    
             # draw camera image 
-            cv2.imshow('Camera', vo.draw_img)				
+            if is_draw_with_rerun:
+                Rerun.log_img_seq('Camera', img_id, vo.draw_img)
+            else:
+                cv2.imshow('Camera', vo.draw_img)				
 
         # press 'q' to exit!
         if cv2.waitKey(1) & 0xFF == ord('q'):
