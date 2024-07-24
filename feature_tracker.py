@@ -229,7 +229,7 @@ class DescriptorFeatureTracker(FeatureTracker):
         # convert from list of keypoints to an array of points 
         kps_cur = np.array([x.pt for x in kps_cur], dtype=np.float32) 
         # Printer.orange(des_ref.shape)
-        idxs_ref, idxs_cur = self.matcher.match(image_cur, des_ref, des_cur,  kps2=kps_ref, kps1=kps_cur)  #knnMatch(queryDescriptors,trainDescriptors)
+        idxs_ref, idxs_cur = self.matcher.match(image_cur, des1=des_ref, des2=des_cur, kps1=kps_ref, kps2=kps_cur)  #knnMatch(queryDescriptors,trainDescriptors)
         #print('num matches: ', len(matches))
         
         res = FeatureTrackingResult()

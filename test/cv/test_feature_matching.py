@@ -116,15 +116,20 @@ if False:
 
 num_features=2000 
 
-tracker_type = FeatureTrackerTypes.DES_BF      # descriptor-based, brute force matching with knn 
+tracker_type = None 
+# Force a tracker type if you prefer (check if that's possible though):
+#tracker_type = FeatureTrackerTypes.DES_BF      # descriptor-based, brute force matching with knn 
 #tracker_type = FeatureTrackerTypes.DES_FLANN  # descriptor-based, FLANN-based matching 
+#tracker_type = FeatureTrackerTypes.XFEAT        # based on XFEAT, "XFeat: Accelerated Features for Lightweight Image Matching"
+#tracker_type = FeatureTrackerTypes.LIGHTGLUE    # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
 
 # select your tracker configuration (see the file feature_tracker_configs.py) 
-tracker_config = FeatureTrackerConfigs.XFEAT
+tracker_config = FeatureTrackerConfigs.LIGHTGLUE
 tracker_config['num_features'] = num_features
 tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default in feature_tracker_configs.py
-tracker_config['tracker_type'] = tracker_type
-print('feature_manager_config: ',tracker_config)
+if tracker_type is not None:
+    tracker_config['tracker_type'] = tracker_type
+print('feature_manager_config: ', tracker_config)
 
 feature_tracker = feature_tracker_factory(**tracker_config)
 
@@ -143,7 +148,7 @@ for i in range(N):
     # Find the keypoints and descriptors in img2    
     kps2, des2 = feature_tracker.detectAndCompute(img2)
     # Find matches    
-    idx1, idx2 = feature_tracker.matcher.match(img1, des1, des2)
+    idx1, idx2 = feature_tracker.matcher.match(img1, des1, des2, kps1, kps2)
     timer.refresh()
 
 

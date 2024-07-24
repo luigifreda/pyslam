@@ -18,6 +18,7 @@
 """
 import numpy as np 
 import cv2
+import platform
 import torch
 from utils_sys import Printer, import_from
 from parameters import Parameters  
@@ -189,42 +190,62 @@ class FeatureMatcher(object):
         self.matcherLG = None
         self.deviceLG = None
         if self.type == FeatureMatcherTypes.LIGHTGLUE:
-            if self.matcherLG is None:
-                LightGlue.pruning_keypoint_thresholds['cuda']
-                self.matcherLG = LightGlue(features="superpoint",n_layers=2).eval().to('cuda')
             if self.deviceLG is None: 
-                self.deviceLG = torch.device("cuda" if torch.cuda.is_available() else "cpu")        
+                self.deviceLG = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
+                print('Lightglue device: ', self.deviceLG)             
+            if self.matcherLG is None:
+                if self.deviceLG == 'cuda':
+                    LightGlue.pruning_keypoint_thresholds['cuda']
+                self.matcherLG = LightGlue(features="superpoint",n_layers=2).eval().to(self.deviceLG)     
         
         
     # input: des1 = queryDescriptors, des2= trainDescriptors
     # output: idx1, idx2  (vectors of corresponding indexes in des1 and des2, respectively)
     def match(self, frame : Frame, des1, des2, kps1 = None, kps2 = None, ratio_test=None):
-        #print('des1.shape:',des1.shape,' des2.shape:',des2.shape)    
-        #print('des1.dtype:',des1.dtype,' des2.dtype:',des2.dtype)
-        #print(self.type)               
-        print('matcher: ', self.type.name)         
+        if kVerbose:
+            print('matcher: ', self.type.name)  
+            if frame is not None: 
+                print(f'frame.shape: {frame.shape}')
+            print('des1.shape:',des1.shape,' des1.dtype:',des1.dtype) 
+            print('des2.shape:',des2.shape,' des2.dtype:',des2.dtype)    
+            if kps1 is not None and isinstance(kps1, np.ndarray):         
+                print('kps1.shape:',kps1.shape,' kps1.dtype:',kps1.dtype)    
+            if kps2 is not None and isinstance(kps2, np.ndarray):
+                print('kps2.shape:',kps2.shape,' kps2.dtype:',kps2.dtype)                           
         if ratio_test is None:
             ratio_test = self.ratio_test        
         if kVerbose:
             print(self.matcher_name,', norm ', self.norm_type) 
-        if self.type == FeatureMatcherTypes.LIGHTGLUE:
+        if self.type == FeatureMatcherTypes.LIGHTGLUE:            
+            if kps1 is None and kps2 is None:
+                return [], []
+            else: 
+                # convert from list of keypoints to an array of points if needed
+                if not isinstance(kps1, np.ndarray):
+                    kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
+                    if kVerbose:
+                        print('kps1.shape:',kps1.shape,' kps1.dtype:',kps1.dtype)
+                if not isinstance(kps2, np.ndarray):
+                    kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
+                    if kVerbose: 
+                        print('kps2.shape:',kps2.shape,' kps2.dtype:',kps2.dtype)
+            frame_shape = frame.shape[0:2]
+            d0={
+            'keypoints': torch.tensor(kps1, device=self.deviceLG).unsqueeze(0),
+            'descriptors': torch.tensor(des1, device=self.deviceLG).unsqueeze(0),
+            'image_size': torch.tensor(frame_shape, device=self.deviceLG).unsqueeze(0)
+            }
             d1={
-            'keypoints': torch.tensor(kps1,device='cuda').unsqueeze(0),
-            'descriptors': torch.tensor(des2,device='cuda').unsqueeze(0),
-            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
-            }
-            d2={
-            'keypoints': torch.tensor(kps2,device='cuda').unsqueeze(0),
-            'descriptors': torch.tensor(des1,device='cuda').unsqueeze(0),
-            'image_size': torch.tensor(frame.shape, device='cuda').unsqueeze(0)
-            }
-             
-            matches01 = self.matcherLG({"image0": d1, "image1": d2})
+            'keypoints': torch.tensor(kps2, device=self.deviceLG).unsqueeze(0),
+            'descriptors': torch.tensor(des2, device=self.deviceLG).unsqueeze(0),
+            'image_size': torch.tensor(frame_shape, device=self.deviceLG).unsqueeze(0)
+            }             
+            matches01 = self.matcherLG({"image0": d0, "image1": d1})
             #print(matches01['matches'])
             idx0 = matches01['matches'][0][:, 0].cpu().tolist()
             idx1 = matches01['matches'][0][:, 1].cpu().tolist()
             #print(des1.shape,len(idx0),len(idx1))
-            return idx1, idx0
+            return idx0, idx1
             # print(d1['keypoints'].shape, d1['descriptors'].shape, d1['image_size'].shape)
             # print(d2['keypoints'].shape, d2['descriptors'].shape, d2['image_size'].shape)
         elif self.type == FeatureMatcherTypes.XFEAT:

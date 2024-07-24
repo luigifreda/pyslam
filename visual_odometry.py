@@ -19,6 +19,7 @@
 
 import numpy as np 
 import cv2
+import platform 
 from enum import Enum
 
 from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
@@ -246,4 +247,7 @@ class VisualOdometry(object):
             self.traj3d_est.append(p)
             pg = [self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]]  # the groudtruth traj starts at 0  
             self.traj3d_gt.append(pg)     
-            self.poses.append(poseRt(self.cur_R, p[0]))   
+            if platform.system() == 'Darwin':
+                self.poses.append(poseRt(self.cur_R, p))   # under mac 
+            else: 
+                self.poses.append(poseRt(self.cur_R, p[0])) # under linux

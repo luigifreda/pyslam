@@ -24,43 +24,26 @@ fi
 . bash_utils.sh 
 
 # ====================================================
-# from https://github.com/pyenv/pyenv/issues/1740
-export PATH="$HOME/.pyenv/bin:$PATH"
-export PATH="/usr/local/bin:$PATH"
 
-export LDFLAGS+="-L/usr/local/opt/zlib/lib -L/usr/local/opt/bzip2/lib"
-export CPPFLAGS+="-I/usr/local/opt/zlib/include -I/usr/local/opt/bzip2/include"
+# export LDFLAGS+="-L/opt/homebrew/lib"
+# export CPPFLAGS+="-I/opt/homebrew/include"
+# export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig/"
 
-# from Install python 3.8.0 via pyenv on BigSur
-# from https://dev.to/kojikanao/install-python-3-8-0-via-pyenv-on-bigsur-4oee
-export LDFLAGS+="-L/usr/local/opt/readline/lib -L/usr/local/opt/openssl@1.1/lib"
-export CPPFLAGS+="-I/usr/local/opt/readline/include -I/usr/local/opt/openssl@1.1/include"
-export PKG_CONFIG_PATH="/usr/local/opt/readline/lib/pkgconfig:/usr/local/opt/openssl@1.1/lib/pkgconfig:/usr/local/opt/zlib/lib/pkgconfig"
-
-# CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix bzip2)/include -I$(brew --prefix readline)/include -I$(xcrun --show-sdk-path)/usr/include" LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix readline)/lib -L$(brew --prefix zlib)/lib -L$(brew --prefix bzip2)/lib" pyenv install --patch 3.6.9 < <(curl -sSL https://github.com/python/cpython/commit/8ea6353.patch\?full_index\=1)
 
 # ====================================================
 # create folder for virtual environment and get into it 
 make_dir $ENV_PATH
 cd $ENVS_PATH
 
-#export PYSLAM_PYTHON_VERSION="3.6.9"    # <=  it works and it has tensorflow 1.5
-#export PYSLAM_PYTHON_VERSION="3.7.9"   # <=  it works and it lacks tensorflow 1!
-#export PYSLAM_PYTHON_VERSION="3.8.2"   # <=  it works and solves matplotlib open issue but it lacks tensorflow 1 !!! https://github.com/tensorflow/tensorflow/issues/39768 
 export PYSLAM_PYTHON_VERSION="3.8.10"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
     echo creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION
     export PATH=~/.pyenv/shims:$PATH
+    
+    PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s -v  $PYSLAM_PYTHON_VERSION
 
-    #PYTHON_CONFIGURE_OPTS="--enable-framework --with-openssl" pyenv install -v $PYSLAM_PYTHON_VERSION   # this does not work!
-    
-    # from Install python 3.8.0 via pyenv on BigSur
-    # from https://dev.to/kojikanao/install-python-3-8-0-via-pyenv-on-bigsur-4oee
-    PYTHON_CONFIGURE_OPTS="--enable-framework --with-openssl" CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix bzip2)/include -I$(brew --prefix readline)/include -I$(xcrun --show-sdk-path)/usr/include" LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix readline)/lib -L$(brew --prefix zlib)/lib -L$(brew --prefix bzip2)/lib" pyenv install --patch $PYSLAM_PYTHON_VERSION < <(curl -sSL https://github.com/python/cpython/commit/8ea6353.patch\?full_index\=1)
-    #PYTHON_CONFIGURE_OPTS="--enable-framework --with-openssl" CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix bzip2)/include -I$(brew --prefix readline)/include -I$(xcrun --show-sdk-path)/usr/include" LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix readline)/lib -L$(brew --prefix zlib)/lib -L$(brew --prefix bzip2)/lib" pyenv install -v $PYSLAM_PYTHON_VERSION
-    
     pyenv local $PYSLAM_PYTHON_VERSION
     python3 -m venv $ENV_NAME
 fi 
@@ -74,21 +57,27 @@ export PYTHONPATH=""   # clean python path => for me, remove ROS stuff
 
 pip3 install --upgrade pip
 
-#source install_pip3_packages.sh 
-# or 
-pip3 install -r requirements-mac-pip3.txt
+print_blue "installing opencv"
 
-pip3 install "tensorflow>=1.14,<2.0"      
-pip3 install "tensorflow-estimator>=1.14,<2.0"  
-pip3 install "tensorboard>=1.14,<2.0" 
-pip3 install "tensorflow-estimator>=1.14,<2.0" 
-#pip3 install "tf-estimator-nightly>=1.14,<2.0" 
+# PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
+# MAKEFLAGS_OPTION="-j$(nproc)" 
+# CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
-# HACK to fix opencv-contrib-python version!
-#pip3 uninstall opencv-contrib-python                # better to clean it before installing the right version 
-#pip3 install opencv-contrib-python==3.4.2.16 
+# # PIP_MAC_OPTIONS=""
+# # if [[ "$OSTYPE" == "darwin"* ]]; then
+# #     PIP_MAC_OPTIONS=" --no-binary :all: "
+# # fi
 
-# N.B.: in order to activate the virtual environment run: 
-# $ source pyenv-activate.sh 
-# to deactivate 
-# $ deactivate 
+# MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
+# MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
+
+# install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
+MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
+
+# install opencv python from source with non-free modules enabled (installation order does matter here!)
+. install_opencv_python.sh
+
+# To activate the virtual environment run: 
+#   $ source pyenv-activate.sh 
+# To deactivate run:
+#   $ deactivate 

@@ -5,13 +5,14 @@ The following instructions allow you to create a custom `pyslam` virtual environ
 ## Basic Installation 
 
 In order to run `main_vo.py` with venv, get in the root of this repository and run the following command:
-```
+```bash
 $ . pyenv-create.sh 
 ```
 **N.B.**: do not forget the dot! (without '/' !)
 
 This will create a custom `pyslam` environment and will also activate it. Now, from the same terminal, you can run: 
-```
+```bash
+$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
 $ python3 -O main_vo.py
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
@@ -21,13 +22,14 @@ If you are under **macOS**, please check this [document](./MAC.md).
 ## Full Installation 
 
 In order to run `main_slam.py` with venv, get in the root of this repository and run the following command:
-```
+```bash
 $ . install_all_venv.sh  
 ```
 **N.B.**: do not forget the dot! (without '/' !)
 
 This will compile all the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
-```
+```bash
+$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
 $ python3 -O main_slam.py
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
@@ -36,7 +38,7 @@ If you want to use a new terminal, you need to activate the `pyslam` environment
 ## Create a `pyslam` python virtual environment 
 
 You already see this above. In order to create a custom `pyslam` python virtual environment, get in the root of this repository and run the following command: 
-```
+```bash
 $ . pyenv-create.sh 
 ```
 **N.B.**: do not forget the dot! (without '/' !)
@@ -46,7 +48,7 @@ This will create and activate a python virtual environment `pyslam` where to saf
 ## Activate the created `pyslam` environment 
 
 Run the following command: 
-```
+```bash
 $ . pyenv-activate.sh 
 ```
 Now, you can launch pySLAM scripts. 
@@ -54,14 +56,14 @@ Now, you can launch pySLAM scripts.
 ## Deactivate `pyslam` environment 
 
 Run the command: 
-```
+```bash
 $ deactivate 
 ```
 
 ## Delete `pyslam` environment 
 
 To delete the `pyslam` environment, run
-```
+```bash
 $ . pyenv-delete.sh 
 ```
 
@@ -73,19 +75,19 @@ Below, you can find some useful details. The scripts mentioned above make the wo
 
 ## Install virtualenv package 
 
-```
+```bash
 sudo apt install python3-venv
 ```
 
 ## Where to create a new virtual environment 
 
 You can create a new directory where to deploy the new environment with name `venv-name`
-```
+```bash
 $ mkdir -p ~/.python/venvs/<venv-name> 
 $ cd ~/.python/venvs/<venv-name>
 ```
 Create a new virtual environment inside the directory:
-```
+```bash
 $ python3 -m venv <venv-name>
 ```
 
@@ -93,11 +95,11 @@ $ python3 -m venv <venv-name>
 
 In order to use this environment’s packages/resources in isolation, you need to “activate” it. To do this, just run the following:
 
-```
+```bash
 $ source ~/.python/venvs/<venv-name>/bin/activate
 ```
 This will return in your shell a prefixed prompt with the name of your environment
-```
+```bash
 (env) $
 ```
 This is the indicator that env is currently active, which means the python executable will only use this environment’s packages and settings.
@@ -106,7 +108,7 @@ This is the indicator that env is currently active, which means the python execu
 ## Deactivate the environment 
 
 Run the following command 
-```
+```bash
 (env) $ deactivate
 ```
 This will removed the prefixed prompt. 
@@ -114,11 +116,11 @@ This will removed the prefixed prompt.
 ## Install packages from requirements.txt 
 
 You can generate a `requirements.txt` file by running: 
-```
+```bash
 $ pip3 freeze > requirements-pip3.txt 
 ``` 
 You can install from such a file by runnning: 
-```
+```bash
 $ pip3 install -r requirements-pip3.txt
 ```
 
@@ -129,7 +131,7 @@ $ pip3 install -r requirements-pip3.txt
 From shell check the shell prefix, as explained above 
 
 From a script, you can use the following code:
-```
+```bash
 function get_after_last_slash(){
     ret=$(echo $1 | sed 's:.*/::')
     echo $ret 

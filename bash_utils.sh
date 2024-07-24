@@ -138,5 +138,16 @@ function get_usable_cuda_version(){
     echo $version
 }
 
+
+function brew_install(){
+    if brew ls --versions $1 > /dev/null; then
+        # The package is installed
+        echo $1 is already installed!
+    else
+    # The package is not installed
+        brew install $1
+    fi
+}
+
 # ====================================================
 

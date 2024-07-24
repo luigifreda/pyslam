@@ -1,0 +1,149 @@
+diff --git a/cmake_modules/FindCSparse.cmake b/cmake_modules/FindCSparse.cmake
+index f31df8d..ce99857 100644
+--- a/cmake_modules/FindCSparse.cmake
++++ b/cmake_modules/FindCSparse.cmake
+@@ -3,6 +3,7 @@ FIND_PATH(CSPARSE_INCLUDE_DIR NAMES cs.h
+   PATHS
+   /usr/include/suitesparse
+   /usr/include
++  /opt/homebrew/include/suitesparse
+   /opt/local/include
+   /usr/local/include
+   /sw/include
+@@ -18,6 +19,7 @@ FIND_LIBRARY(CSPARSE_LIBRARY NAMES cxsparse
+   /usr/local/lib
+   /opt/local/lib
+   /sw/lib
++  /opt/homebrew/lib
+   )
+ 
+ include(FindPackageHandleStandardArgs)
+diff --git a/python/CMakeLists.txt b/python/CMakeLists.txt
+index c44a30b..09cefc1 100644
+--- a/python/CMakeLists.txt
++++ b/python/CMakeLists.txt
+@@ -1,9 +1,19 @@
++set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
++
+ include_directories(${PROJECT_SOURCE_DIR})
+ 
+ include_directories(${EIGEN3_INCLUDE_DIR})
+ include_directories(${CHOLMOD_INCLUDE_DIR})
+ include_directories(${CSPARSE_INCLUDE_DIR})
+ 
++# the following 2 lines are added to correctly detect the python version 
++if(WITH_PYTHON_INTERP_CHECK)
++  message(STATUS "WITH_PYTHON_INTERP_CHECK: ${WITH_PYTHON_INTERP_CHECK}")
++  find_package(PythonInterp) 
++  find_package(PythonLibs)
++  message(STATUS "PythonInterp: ${PythonInterp}")
++  message(STATUS "PythonLibs: ${PythonLibs}")
++endif()
+ 
+ # pybind11 (version 2.2.1)
+ LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/EXTERNAL/pybind11/tools)
+@@ -31,4 +41,4 @@ target_link_libraries(g2o PRIVATE
+     types_slam3d
+     types_slam3d_addons
+     contrib
+-)
+\ No newline at end of file
++)
+diff --git a/python/core/eigen_types.h b/python/core/eigen_types.h
+index b58d529..24a53f2 100644
+--- a/python/core/eigen_types.h
++++ b/python/core/eigen_types.h
+@@ -182,10 +182,17 @@ void declareEigenTypes(py::module & m) {
+                 return Eigen::Quaterniond::FromTwoVectors(a, b);
+             })
+ 
++#if EIGEN_VERSION_AT_LEAST(3, 3, 7)
++        .def("x", (const double&   (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::x)
++        .def("y", (const double&   (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::y)
++        .def("z", (const double&   (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::z)
++        .def("w", (const double&   (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::w)
++#else
+         .def("x", (double (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::x)
+         .def("y", (double (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::y)
+         .def("z", (double (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::z)
+         .def("w", (double (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::w)
++#endif 
+ 
+         .def("vec", (const Eigen::VectorBlock<const Eigen::Quaterniond::Coefficients,3> (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::vec)
+ 
+diff --git a/python/core/sparse_optimizer.h b/python/core/sparse_optimizer.h
+index 32314ba..1d55c49 100644
+--- a/python/core/sparse_optimizer.h
++++ b/python/core/sparse_optimizer.h
+@@ -16,12 +16,24 @@
+ namespace py = pybind11;
+ using namespace pybind11::literals;
+ 
+-
+ namespace g2o {
+ 
++class Flag
++{
++public:
++	Flag(bool init=false):value(init){}
++	bool value;
++};
++
+ void declareSparseOptimizer(py::module & m) {
+     using CLS = SparseOptimizer;
+ 
++    py::class_<Flag>(m, "Flag")
++        .def(py::init<>())
++        .def(py::init<bool>(),"init"_a)
++        .def_readwrite("value", &Flag::value);
++
++
+     py::class_<CLS, OptimizableGraph>(m, "SparseOptimizer")
+         // ATTENTION: _solver & _statistics is own by SparseOptimizer and will be
+         // deleted in its destructor.
+@@ -84,8 +96,10 @@ void declareSparseOptimizer(py::module & m) {
+         .def("set_verbose", &CLS::setVerbose,
+                 "verbose"_a)                                                                                  // -> void
+ 
+-        .def("set_force_stop_flag", &CLS::setForceStopFlag,
++        .def("set_force_stop_flag_old", &CLS::setForceStopFlag,
+                 "flag"_a)                                                                                   // -> void
++	.def("set_force_stop_flag", [](CLS& optimizer, Flag* flag){ optimizer.setForceStopFlag(&(flag->value)); }, 
++				      py::keep_alive<1, 2>())
+         .def("force_stop_flag", &CLS::forceStopFlag)                                                             // -> bool*
+         .def("terminate", &CLS::terminate)                                                                                   // -> bool
+ 
+@@ -154,4 +168,4 @@ void declareSparseOptimizer(py::module & m) {
+ 
+ }
+ 
+-}  // end namespace g2o
+\ No newline at end of file
++}  // end namespace g2o
+diff --git a/python/types/sba/types_six_dof_expmap.h b/python/types/sba/types_six_dof_expmap.h
+index cf0ae75..e7ca67d 100644
+--- a/python/types/sba/types_six_dof_expmap.h
++++ b/python/types/sba/types_six_dof_expmap.h
+@@ -84,6 +84,10 @@ void declareTypesSixDofExpmap(py::module & m) {
+         .def("is_depth_positive", &EdgeSE3ProjectXYZ::isDepthPositive)
+         .def("linearize_oplus", &EdgeSE3ProjectXYZ::linearizeOplus)
+         .def("cam_project", &EdgeSE3ProjectXYZ::cam_project)
++        .def_readwrite("fx", &EdgeSE3ProjectXYZ::fx)
++        .def_readwrite("fy", &EdgeSE3ProjectXYZ::fy)
++        .def_readwrite("cx", &EdgeSE3ProjectXYZ::cx)
++        .def_readwrite("cy", &EdgeSE3ProjectXYZ::cy)
+     ;
+ 
+ 
+@@ -95,6 +99,11 @@ void declareTypesSixDofExpmap(py::module & m) {
+         .def("is_depth_positive", &EdgeSE3ProjectXYZOnlyPose::isDepthPositive)
+         .def("linearize_oplus", &EdgeSE3ProjectXYZOnlyPose::linearizeOplus)
+         .def("cam_project", &EdgeSE3ProjectXYZOnlyPose::cam_project)
++        .def_readwrite("fx", &EdgeSE3ProjectXYZOnlyPose::fx)
++        .def_readwrite("fy", &EdgeSE3ProjectXYZOnlyPose::fy)
++        .def_readwrite("cx", &EdgeSE3ProjectXYZOnlyPose::cx)
++        .def_readwrite("cy", &EdgeSE3ProjectXYZOnlyPose::cy)
++        .def_readwrite("Xw", &EdgeSE3ProjectXYZOnlyPose::Xw)
+     ;
+ 
+ 

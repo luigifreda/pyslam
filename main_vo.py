@@ -21,6 +21,7 @@ import numpy as np
 import cv2
 import math
 import time 
+import platform 
 
 from config import Config
 
@@ -46,7 +47,9 @@ from feature_tracker_configs import FeatureTrackerConfigs
 use or not pangolin (if you want to use it then you need to install it by using the script install_thirdparty.sh)
 """
 kUsePangolin = False  
-
+if platform.system() == 'Darwin':
+    kUsePangolin = True # Under mac force pangolin to be used since Mplot3d() has some reliability issues
+                
 if kUsePangolin:
     from viewer3D import Viewer3D
 
@@ -72,7 +75,7 @@ if __name__ == "__main__":
     # select your tracker configuration (see the file feature_tracker_configs.py) 
     # LK_SHI_TOMASI, LK_FAST
     # SHI_TOMASI_ORB, FAST_ORB, ORB, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, LIGHTGLUE, XFEAT
-    tracker_config = FeatureTrackerConfigs.LIGHTGLUE
+    tracker_config = FeatureTrackerConfigs.LK_SHI_TOMASI
     tracker_config['num_features'] = num_features
    
     feature_tracker = feature_tracker_factory(**tracker_config)

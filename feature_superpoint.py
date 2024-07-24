@@ -22,6 +22,7 @@ import os
 import cv2 
 import torch
 import time
+import platform 
 
 import config
 config.cfg.set_lib('superpoint') 
@@ -39,11 +40,12 @@ class SuperPointOptions:
     def __init__(self, do_cuda=True): 
         # default options from demo_superpoints
         self.weights_path=config.cfg.root_folder + '/thirdparty/superpoint/superpoint_v1.pth'
+        print(f'SuperPoint weights: {self.weights_path}')
         self.nms_dist=4
         self.conf_thresh=0.015
         self.nn_thresh=0.7
         
-        use_cuda = torch.cuda.is_available() & do_cuda
+        use_cuda = torch.cuda.is_available() and do_cuda
         device = torch.device('cuda' if use_cuda else 'cpu')
         print('SuperPoint using ', device)        
         self.cuda=use_cuda   
@@ -72,6 +74,8 @@ def transpose_des(des):
 # interface for pySLAM 
 class SuperPointFeature2D: 
     def __init__(self, do_cuda=True): 
+        if platform.system() == 'Darwin':        
+            do_cuda=False
         self.lock = RLock()
         self.opts = SuperPointOptions(do_cuda)
         print(self.opts)        

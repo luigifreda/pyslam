@@ -5,7 +5,8 @@ decorator==4.4.2
 gast==0.3.3
 google-pasta==0.2.0
 grpcio==1.56.2
-h5py==2.10.0
+#h5py==2.10.0
+h5py==3.11
 imageio==2.34.2
 importlib_metadata==8.0.0
 kornia==0.7.3
@@ -29,11 +30,13 @@ pyparsing==2.4.6
 python-dateutil==2.8.2
 pyyaml==6.0.1
 scipy==1.10.1
-scikit-image==0.16.2
+#scikit-image==0.16.2  # ubuntu 
+scikit-image==0.21.0
 seaborn==0.13.2
 six==1.14.0
 sklearn-pandas==1.8.0
-tensorflow==2.13.1
+#tensorflow==2.13.1
+tensorflow==2.13
 termcolor==2.4.0
 tf-slim==1.1.0
 #torch==2.1.*         

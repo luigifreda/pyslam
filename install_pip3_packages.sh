@@ -16,6 +16,13 @@ print_blue "Configuring and installing python packages ..."
 
 pip3 install --upgrade pip setuptools wheel
 
+
+# PIP_MAC_OPTIONS=""
+# if [[ "$OSTYPE" == "darwin"* ]]; then
+#     PIP_MAC_OPTIONS=" --no-binary :all: "
+# fi
+
+
 # pip3 packages 
 install_pip_package pygame==2.6.0 
 install_pip_package matplotlib==3.7.5 
@@ -34,22 +41,31 @@ PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the
 MAKEFLAGS_OPTION="-j$(nproc)"
 CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
-MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION
-MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION
+MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
+MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
 
 install_pip_package tqdm==4.66.4 
 install_pip_package scipy==1.10.1
-install_pip_package scikit-image==0.16.2
+#install_pip_package scikit-image==0.16.2 # ubuntu 
+install_pip_package scikit-image==0.21.0 # mac
 install_pip_package seaborn==0.13.2
 
-install_pip_package tensorflow==2.13.1
+install_pip_package tensorflow==2.13
 install_pip_package tf_slim==1.1.0
 
-install_pip_package torch==2.2.0           
-install_pip_package torchvision==0.17 
 install_pip_package kornia==0.7.3
 install_pip_package kornia_moons==0.2.9
 install_pip_package importlib_metadata==8.0.0
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    install_pip_package torch==2.1           # torch==2.2.0 causes some segmentation faults on mac
+    install_pip_package torchvision==0.16         
+else 
+    install_pip_package torch==2.2.0
+    install_pip_package torchvision==0.17               
+fi 
+
+install_pip_package rerun-sdk
 
 pip install protobuf==3.20.*    # for delf NN
 

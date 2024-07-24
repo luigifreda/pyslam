@@ -15,8 +15,8 @@ print_blue '================================================'
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 #pip install --upgrade pip
-pip uninstall opencv-python
-pip uninstall opencv-contrib-python
+pip uninstall -y opencv-python
+pip uninstall -y opencv-contrib-python
 
 cd thirdparty
 if [ ! -d opencv-python ]; then
@@ -28,21 +28,25 @@ fi
 cd opencv-python
 MY_OPENCV_PYTHON_PATH=`pwd`
 
+export MAKEFLAGS="-j$(nproc)"
+export CPPFLAGS+="-I$HOME/.python/venvs/pyslam//lib/python3.8/site-packages/numpy/core/include/"
+
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \
 -DBUILD_SHARED_LIBS=OFF \
 -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF \
+-DCMAKE_CXX_FLAGS=$CPPFLAGS
 $MY_OPENCV_PYTHON_PATH"
 
-export MAKEFLAGS="-j$(nproc)"
-
-# build and install opencv_python 
+# build opencv_python 
 pip wheel . --verbose
-pip install *.whl
+# install built packages
+pip install opencv*.whl --force-reinstall
 
-# build and install opencv_contrib_python
+# build opencv_contrib_python
 export ENABLE_CONTRIB=1
 pip wheel . --verbose
-pip install *.whl
+# install built packages
+pip install opencv*.whl --force-reinstall
 
 cd $STARTING_DIR

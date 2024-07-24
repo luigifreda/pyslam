@@ -3,24 +3,24 @@
 <!-- TOC -->
 
 - [pySLAM v2.1](#pyslam-v21)
-    - [1. Install](#1-install)
-        - [1.1. Requirements](#11-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting](#16-troubleshooting)
-    - [2. Usage](#2-usage)
-    - [3. Supported Local Features](#3-supported-local-features)
-    - [4. Supported Matchers](#4-supported-matchers)
-    - [5. Datasets](#5-datasets)
-        - [5.1. KITTI Datasets](#51-kitti-datasets)
-        - [5.2. TUM Datasets](#52-tum-datasets)
-    - [6. Camera Settings](#6-camera-settings)
-    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
-    - [8. References](#8-references)
-    - [9. Credits](#9-credits)
-    - [10. TODOs](#10-todos)
+  - [Install](#install)
+    - [Requirements](#requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting](#troubleshooting)
+  - [Usage](#usage)
+  - [Supported Local Features](#supported-local-features)
+  - [Supported Matchers](#supported-matchers)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+  - [Camera Settings](#camera-settings)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
 
@@ -118,8 +118,9 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_basic.sh`, you can immediately run:
-```
+Once you have run the script `install_all*.sh`, you can open a new terminal and run:
+```bash
+$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
 $ python3 -O main_vo.py
 ```
 This will process a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
@@ -131,8 +132,9 @@ In order to process a different **dataset**, you need to set the file `config.in
 * the camera settings file accordingly (see the section *[Camera Settings](#camera-settings)* below)
 * the groudtruth file accordingly (ee the section *[Datasets](#datasets)* below and check the files `ground_truth.py` and `convert_groundtruth.py` )
 
-Once you have run the script `install_all.sh` (or your specific OS install script as detailed [above](#install)), you can test  `main_slam.py` by running:
-```
+Similarly, you can test `main_slam.py` by running:
+```bash
+$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
 $ python3 -O main_slam.py
 ```
 
@@ -302,6 +304,7 @@ J.M.M. Montielb, K. Konolige
 * *[The Role of Wide Baseline Stereo in the Deep Learning World](https://ducha-aiki.github.io/wide-baseline-stereo-blog/2020/03/27/intro.html)* by Dmytro Mishkin
 * *[To Learn or Not to Learn: Visual Localization from Essential Matrices](https://arxiv.org/abs/1908.01293)* by Qunjie Zhou, Torsten Sattler, Marc Pollefeys, Laura Leal-Taixe
 * *[Awesome local-global descriptors](https://github.com/shamangary/awesome-local-global-descriptor)* repository 
+* *[Introduction to Feature Matching Using Neural Networks](https://learnopencv.com/feature-matching/)*
 
 Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html) or [tutorials](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_tutorials.html).  
 

@@ -40,10 +40,14 @@ kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#thre
 
 kUseFigCanvasDrawIdle = True  
 
+kUsePlotPause = not kUseFigCanvasDrawIdle # this should be set True under macOS   
+if platform.system() == 'Darwin':
+    kUsePlotPause = True       
+
 # global lock for drawing with matplotlib 
 mp_lock = RLock()
 
-if kUseFigCanvasDrawIdle:
+if kUseFigCanvasDrawIdle and platform.system() != 'Darwin':
     plt.ion()
     
 
@@ -148,6 +152,8 @@ class Mplot2d:
     def draw(self, xy_signal, name, color='r', marker='.'):    
         if self.queue is None:
             return
+        if kVerbose:        
+            print(mp.current_process().name,"draw ", self.title)     
         self.queue.put((xy_signal, name, color, marker))
 
     def updateMinMax(self, np_signal):
@@ -180,7 +186,8 @@ class Mplot2d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()         
         self.setAxis()
-        if not kUseFigCanvasDrawIdle:        
+        #if not kUseFigCanvasDrawIdle:        
+        if kUsePlotPause:
             plt.pause(kPlotSleep)
         lock.release()
 
@@ -328,7 +335,8 @@ class Mplot3d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()          
         self.setAxis()
-        if not kUseFigCanvasDrawIdle:        
+        #if not kUseFigCanvasDrawIdle:        
+        if kUsePlotPause:     
             plt.pause(kPlotSleep)      
         lock.release()
 

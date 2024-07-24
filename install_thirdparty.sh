@@ -98,7 +98,7 @@ else
     if [ ! -f pangolin.cpython-*.so ]; then   
         make_dir build   
         cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF $EXTERNAL_OPTION # disable realsense 
+        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_FFMPEG=OFF $EXTERNAL_OPTION # disable realsense 
         make -j8
         cd ..
         #python setup.py install
@@ -119,12 +119,8 @@ if [ ! -d g2opy ]; then
     cd g2opy
     G2OPY_REVISION=5587024
     git checkout $G2OPY_REVISION
-    cd ..
-    # copy local changes 
-    rsync ./g2opy_changes/types_six_dof_expmap.h ./g2opy/python/types/sba/types_six_dof_expmap.h
-    rsync ./g2opy_changes/sparse_optimizer.h ./g2opy/python/core/sparse_optimizer.h   
-    rsync ./g2opy_changes/python_CMakeLists.txt ./g2opy/python/CMakeLists.txt    
-    rsync ./g2opy_changes/eigen_types.h ./g2opy/python/core/eigen_types.h      
+    git apply ../g2opy.patch
+    cd ..     
 fi
 cd g2opy
 if [ ! -f lib/g2o.cpython-*.so ]; then  
