@@ -65,7 +65,7 @@ else
     install_pip_package torchvision==0.17               
 fi 
 
-install_pip_package rerun-sdk
+install_pip_package rerun-sdk #==0.17.0
 
 pip install protobuf==3.20.*    # for delf NN
 

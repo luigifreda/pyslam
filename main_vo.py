@@ -45,6 +45,8 @@ from rerun_interface import Rerun
 
 
 
+kUseRerun = True
+
 """
 use or not pangolin (if you want to use it then you need to install it by using the script install_thirdparty.sh)
 """
@@ -54,8 +56,6 @@ if platform.system() == 'Darwin':
                 
 if kUsePangolin:
     from viewer3D import Viewer3D
-
-
 
 
 if __name__ == "__main__":
@@ -92,10 +92,15 @@ if __name__ == "__main__":
     draw_scale = 1
 
     is_draw_3d = True
-    if kUsePangolin:
-        viewer3D = Viewer3D()
-    else:
-        plt3d = Mplot3d(title='3D trajectory')
+    
+    is_draw_with_rerun = kUseRerun
+    if is_draw_with_rerun:
+        Rerun.init_vo()
+    else: 
+        if kUsePangolin:
+            viewer3D = Viewer3D()
+        else:
+            plt3d = Mplot3d(title='3D trajectory')
 
     is_draw_err = False 
     err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
@@ -103,9 +108,6 @@ if __name__ == "__main__":
     is_draw_matched_points = False 
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
 
-    is_draw_with_rerun = True
-    if is_draw_with_rerun:
-        Rerun.init()
     
     img_id = 0
     while dataset.isOk():
@@ -137,42 +139,45 @@ if __name__ == "__main__":
                     else:
                         cv2.imshow('Trajectory', traj_img)
 
-                if is_draw_3d:           # draw 3d trajectory 
-                    if kUsePangolin:
-                        viewer3D.draw_vo(vo)   
-                    else:
-                        plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
-                        plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
-                        plt3d.refresh()
-
-                if is_draw_err:         # draw error signals 
-                    errx = [img_id, math.fabs(x_true-x)]
-                    erry = [img_id, math.fabs(y_true-y)]
-                    errz = [img_id, math.fabs(z_true-z)] 
-                    err_plt.draw(errx,'err_x',color='g')
-                    err_plt.draw(erry,'err_y',color='b')
-                    err_plt.draw(errz,'err_z',color='r')
-                    err_plt.refresh()    
-
-                if is_draw_matched_points:
-                    matched_kps_signal = [img_id, vo.num_matched_kps]
-                    inliers_signal = [img_id, vo.num_inliers]                    
-                    matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
-                    matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
-                    matched_points_plt.refresh()                    
 
                 if is_draw_with_rerun:                                        
-                    Rerun.log_2dplot_seq_scalar_data('trajectory_2d/errors/err_x', img_id, math.fabs(x_true-x))
-                    Rerun.log_2dplot_seq_scalar_data('trajectory_2d/errors/err_y', img_id, math.fabs(y_true-y))
-                    Rerun.log_2dplot_seq_scalar_data('trajectory_2d/errors/err_z', img_id, math.fabs(z_true-z))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_x', img_id, math.fabs(x_true-x))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_y', img_id, math.fabs(y_true-y))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_z', img_id, math.fabs(z_true-z))
                     
-                    Rerun.log_2dplot_seq_scalar_data('trajectory_stats/num_matches', img_id, vo.num_matched_kps)
-                    Rerun.log_2dplot_seq_scalar_data('trajectory_stats/num_inliers', img_id, vo.num_inliers)
+                    Rerun.log_2d_seq_scalar('trajectory_stats/num_matches', img_id, vo.num_matched_kps)
+                    Rerun.log_2d_seq_scalar('trajectory_stats/num_inliers', img_id, vo.num_inliers)
+                    
+                    Rerun.log_3d_camera_img_seq(img_id, vo.draw_img, cam, vo.poses[-1])
+                    Rerun.log_3d_trajectory(img_id, vo.traj3d_est, 'estimated', color=[0,0,255])
+                    Rerun.log_3d_trajectory(img_id, vo.traj3d_gt, 'ground_truth', color=[255,0,0])     
+                else:
+                    if is_draw_3d:           # draw 3d trajectory 
+                        if kUsePangolin:
+                            viewer3D.draw_vo(vo)   
+                        else:
+                            plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
+                            plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
+                            plt3d.refresh()
+
+                    if is_draw_err:         # draw error signals 
+                        errx = [img_id, math.fabs(x_true-x)]
+                        erry = [img_id, math.fabs(y_true-y)]
+                        errz = [img_id, math.fabs(z_true-z)] 
+                        err_plt.draw(errx,'err_x',color='g')
+                        err_plt.draw(erry,'err_y',color='b')
+                        err_plt.draw(errz,'err_z',color='r')
+                        err_plt.refresh()    
+
+                    if is_draw_matched_points:
+                        matched_kps_signal = [img_id, vo.num_matched_kps]
+                        inliers_signal = [img_id, vo.num_inliers]                    
+                        matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
+                        matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
+                        matched_points_plt.refresh()                                   
                     
             # draw camera image 
-            if is_draw_with_rerun:
-                Rerun.log_img_seq('Camera', img_id, vo.draw_img)
-            else:
+            if not is_draw_with_rerun:
                 cv2.imshow('Camera', vo.draw_img)				
 
         # press 'q' to exit!
