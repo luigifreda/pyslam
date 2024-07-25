@@ -16,6 +16,8 @@ print_blue '================================================'
 print_blue "Checking and downloading git modules ..."
 set_git_modules   
 
+install_pip_package gdown  # to download from google drive
+
 
 # download d2net models 
 print_blue '================================================'

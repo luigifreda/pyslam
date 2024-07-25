@@ -59,15 +59,16 @@ pip3 install --upgrade pip
 
 print_blue "installing opencv"
 
+MAKEFLAGS_OPTION="-j$(nproc)" 
 # PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
-# MAKEFLAGS_OPTION="-j$(nproc)" 
 # CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
-# # PIP_MAC_OPTIONS=""
-# # if [[ "$OSTYPE" == "darwin"* ]]; then
-# #     PIP_MAC_OPTIONS=" --no-binary :all: "
-# # fi
+# PIP_MAC_OPTIONS=""
+# if [[ "$OSTYPE" == "darwin"* ]]; then
+#     PIP_MAC_OPTIONS=" --no-binary :all: "
+# fi
 
+# This does not reall work on mac
 # MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
 # MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
 

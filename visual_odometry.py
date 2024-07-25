@@ -32,7 +32,7 @@ class VoStage(Enum):
     
 kVerbose=True     
 kMinNumFeature = 2000
-kRansacThresholdNormalized = 0.0005 # metric threshold used for normalized image coordinates 
+kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
 kRansacThresholdPixels = 0.1         # pixel threshold used for image coordinates 
 kAbsoluteScaleThreshold = 0.1        # absolute translation scale; it is also the minimum translation norm for an accepted motion 
 kUseEssentialMatrixEstimation = True # using the essential matrix fitting algorithm is more robust RANSAC given five-point algorithm solver 
@@ -247,7 +247,5 @@ class VisualOdometry(object):
             self.traj3d_est.append(p)
             pg = [self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]]  # the groudtruth traj starts at 0  
             self.traj3d_gt.append(pg)     
-            if platform.system() == 'Darwin':
-                self.poses.append(poseRt(self.cur_R, p))   # under mac 
-            else: 
-                self.poses.append(poseRt(self.cur_R, p[0])) # under linux
+            self.poses.append(poseRt(self.cur_R, p))  
+            #self.poses.append(poseRt(self.cur_R, p[0])) 

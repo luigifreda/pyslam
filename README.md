@@ -49,12 +49,13 @@ alt="Feature Matching" width="600" border="1" />  </center>
 --- 
 ## Install 
 
-Clone this repo and its modules by running 
-```
+First, clone this repo and its modules by running 
+```bash
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
+$ cd pyslam 
 ```
 
-The framework has been developed and tested under **Ubuntu** (under Python 3.8.10). Use the available specific install procedure according to your OS: 
+Then, use the available specific install procedure according to your OS: 
 - **Ubuntu**  [=>](#ubuntu)
 - **MacOs** [=>](#macos) 
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
@@ -63,7 +64,7 @@ The framework has been developed and tested under **Ubuntu** (under Python 3.8.1
 ### Requirements
 
 * Python 3.8.10
-* OpenCV 4.5.1 (and newer versions supported, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
+* OpenCV >=4.8.1 (see [below](#how-to-install-non-free-opencv-modules))
 * PyTorch 2.3.1
 * Tensorflow 2.13.1
 * Kornia 0.7.3
@@ -74,24 +75,17 @@ If you run into troubles or performance issues, check this [TROUBLESHOOTING](./T
 
 ### Ubuntu 
 
-The following procedure has been tested on Ubuntu 18.04, Ubuntu 20.04 and Ubuntu 22.04. First, clone this repo recursively and move into the branch `ubuntu20` by running the following commands:
-```
-$ git clone --recursive https://github.com/luigifreda/pyslam.git
-$ cd pyslam 
-$ git checkout ubuntu20  
-```
-
-Next, follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**. The available scripts described [here](./PYTHON-VIRTUAL-ENVS.md) will do that for you.   
+Follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *Ubuntu 20.04* and *Ubuntu 22.04*. 
 
 If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
 
-**N.B.**: a *single* python environment is able to support all the [supported local features](#supported-local-features)!
+**NOTE.**: The scripts will create a *single* python environment that is able to support all the [supported local features](#supported-local-features)!
 
 
 --- 
 ### MacOS
 
-Check the instructions in this [file](./MAC.md). 
+Follow the instructions in this [file](./MAC.md). The reported procedure was tested under *Sonoma 14.5* and *Xcode 15.4*.
 
 ---
 ### Docker
@@ -101,7 +95,7 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 ---
 ### How to install non-free OpenCV modules
 
-The install scripts take care of installing a recent opencv version (>=**4.8.1** on Ubuntu) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv, or the [install_opencv_python.sh](./install_opencv_python.sh)).
+The provided install scripts take care of installing a recent opencv version (>=**4.8.1**) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
 
 Check your installed OpenCV version:      
 `$ python3 -c "import cv2; print(cv2.__version__)"`
@@ -109,7 +103,6 @@ Check your installed OpenCV version:
 Check if you have non-free OpenCV module support (no errors imply success):       
 `$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"` 
 
-For an advanced OpenCV installation procedure, you can take a look [here](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubuntu.html). 
 
 ### Troubleshooting
 
@@ -118,7 +111,7 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all*.sh`, you can open a new terminal and run:
+Once you have run the script `install_all_venv.sh`, you can open a new terminal and run:
 ```bash
 $ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
 $ python3 -O main_vo.py
