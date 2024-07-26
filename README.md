@@ -4,7 +4,7 @@
 
 - [pySLAM v2.1](#pyslam-v21)
   - [Install](#install)
-    - [Requirements](#requirements)
+    - [Requiremenprovided ts](#requiremenprovided-ts)
     - [Ubuntu](#ubuntu)
     - [MacOS](#macos)
     - [Docker](#docker)
@@ -28,7 +28,7 @@ Author: [Luigi Freda](https://www.luigifreda.com)
 
 **pySLAM** contains a python implementation of a monocular *Visual Odometry (VO)* pipeline. It supports many classical and modern **[local features](#supported-local-features)**, and it offers a convenient interface for them. Moreover, it collects other common and useful VO and SLAM tools.
 
-I released pySLAM v1 for educational purposes, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
+I released pySLAM v1 for educational purposes, for a computer vision class I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
 
 Main Scripts:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
@@ -61,13 +61,16 @@ Then, use the available specific install procedure according to your OS:
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
 - **Docker** [=>](#docker)
 
-### Requirements
+The provided scripts will create a **single python environment** that is able to support all the [supported local features](#supported-local-features)!
 
-* Python 3.8.10
+### Requiremenprovided ts
+
+* P thon 3.8.10
 * OpenCV >=4.8.1 (see [below](#how-to-install-non-free-opencv-modules))
 * PyTorch 2.3.1
 * Tensorflow 2.13.1
 * Kornia 0.7.3
+* Rerun
 
 If you run into troubles or performance issues, check this [TROUBLESHOOTING](./TROUBLESHOOTING.md) file.
 
@@ -78,9 +81,6 @@ If you run into troubles or performance issues, check this [TROUBLESHOOTING](./T
 Follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *Ubuntu 20.04* and *Ubuntu 22.04*. 
 
 If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
-
-**NOTE.**: The scripts will create a *single* python environment that is able to support all the [supported local features](#supported-local-features)!
-
 
 --- 
 ### MacOS
@@ -111,7 +111,7 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all_venv.sh`, you can open a new terminal and run:
+Once you have run the script `install_all_venv.sh` (follow the instructions according to your OS), you can open a new terminal and run:
 ```bash
 $ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
 $ python3 -O main_vo.py

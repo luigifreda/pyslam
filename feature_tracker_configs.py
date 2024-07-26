@@ -209,7 +209,23 @@ class FeatureTrackerConfigs(object):
                       descriptor_type = FeatureDescriptorTypes.XFEAT, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = kTrackerType)
-
+    
+    DELF = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.DELF, 
+                       descriptor_type = FeatureDescriptorTypes.DELF, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    
+    LFNET = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.LFNET, 
+                       descriptor_type = FeatureDescriptorTypes.LFNET, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    
     CONTEXTDESC = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              

@@ -51,8 +51,9 @@ export PYSLAM_PYTHON_VERSION="3.8.10"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
+    export PATH="/home/$USER/.pyenv/bin:$PATH"  # this seems to be needed under docker (even if it seems redundant)
     print_blue creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION
-    eval "$CUSTOM_CC_OPTIONS pyenv install -v $PYSLAM_PYTHON_VERSION"
+    $CUSTOM_CC_OPTIONS pyenv install -v $PYSLAM_PYTHON_VERSION
     pyenv local $PYSLAM_PYTHON_VERSION
     python3 -m venv $ENV_NAME
 fi 

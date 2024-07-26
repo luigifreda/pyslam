@@ -8,12 +8,13 @@ from camera import Camera
 
 
 class Rerun:
+    # static parameters
     blueprint = None
     img_compress = False # set to true if you want to compress the data
-    img_compress_jpeg_quality = 90
+    img_compress_jpeg_quality = 85
     camera_img_resize_factors = None #[0.1, 0.1]
     current_camera_view_scale = 0.3
-    past_camera_view_size = 1.0
+    camera_poses_view_size = 0.5
     
     def __init__(self) -> None:
         self.init()
@@ -36,7 +37,6 @@ class Rerun:
     def init3d(img_compress=False) -> None:
         Rerun.init(img_compress)    
         rr.log("world", rr.ViewCoordinates.RDF, static=True) # X=Right, Y=Down, Z=Forward        
-      
         Rerun.log_3d_grid_plane()
     
     @staticmethod
@@ -97,7 +97,7 @@ class Rerun:
         else: 
             rr.log("world/camera/image", rr.Image(rgb))
 
-        Rerun.log_3d_camera_pose(frame_id, camera, camera_pose, color=[0,255,0], size=Rerun.past_camera_view_size)
+        Rerun.log_3d_camera_pose(frame_id, camera, camera_pose, color=[0,255,0], size=Rerun.camera_poses_view_size)
         
             
     @staticmethod
@@ -128,14 +128,15 @@ class Rerun:
             
     @staticmethod
     def log_3d_camera_pose(frame_id: int, camera: Camera, pose, color = [0,255,0], size=1.0):
+        topic_name = "world/camara_poses/camera_" + str(frame_id)
         R = pose[:3, :3]
         t = pose[:3, 3]        
-        rr.log("world/trajectory3d/camera_" + str(frame_id), rr.Transform3D(translation=t, mat3x3=R, from_parent=False))      
+        rr.log(topic_name, rr.Transform3D(translation=t, mat3x3=R, from_parent=False))      
                        
         a = camera.width/camera.height
         w = a*size 
         h = size
-        z = size
+        z = size * 0.5*(camera.fx+camera.fy)/camera.height 
         
         lines = []
         lines.append([[0,0,0], [ w, h, z]])
@@ -146,7 +147,7 @@ class Rerun:
         lines.append([[-w, h,z], [-w,-h, z]])
         lines.append([[-w, h,z], [ w, h, z]])
         lines.append([[-w,-h,z], [ w,-h, z]])
-        rr.log("world/trajectory3d/camera_" + str(frame_id), rr.LineStrips3D(lines,
+        rr.log(topic_name, rr.LineStrips3D(lines,
             # rr.Radius.ui_points produces radii that the viewer interprets as given in ui points.
             radii=0.01,
             colors=color))

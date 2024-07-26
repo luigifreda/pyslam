@@ -1,3 +1,4 @@
+#!/usr/bin/env -S python3 -O
 """
 * This file is part of PYSLAM 
 *

@@ -39,8 +39,8 @@ if False:
     import tensorflow as tf
 else: 
     # from https://stackoverflow.com/questions/56820327/the-name-tf-session-is-deprecated-please-use-tf-compat-v1-session-instead
-    import tensorflow.compat.v1 as tf
-
+    import tensorflow as tf
+    import tensorflow as tfv2
 
 
 import importlib
@@ -211,24 +211,25 @@ class LfNetFeature2D:
         
         print('==> Loading pre-trained network.')
         # Build Networks
-        tf.reset_default_graph()
+        #tf.reset_default_graph()
 
-        self.photo_ph = tf.placeholder(tf.float32, [1, None, None, 1]) # input grayscale image, normalized by 0~1
+        tf.compat.v1.disable_eager_execution()
+        self.photo_ph = tf.compat.v1.placeholder(tf.float32, [1, None, None, 1]) # input grayscale image, normalized by 0~1
         is_training = tf.constant(False) # Always False in testing
 
         self.ops = build_networks(self.lfnet_config, self.photo_ph, is_training)
 
-        tf_config = tf.ConfigProto()
+        tf_config = tf.compat.v1.ConfigProto()
         tf_config.gpu_options.allow_growth = True 
-        self.session = tf.Session(config=tf_config)
-        self.session.run(tf.global_variables_initializer())
+        self.session = tf.compat.v1.Session(config=tf_config)
+        self.session.run(tf.compat.v1.global_variables_initializer())
 
         # load model
-        saver = tf.train.Saver()
+        saver = tf.compat.v1.train.Saver()
         print('Load trained models...')
 
         if os.path.isdir(self.lfnet_config.model):
-            checkpoint = tf.train.latest_checkpoint(self.lfnet_config.model)
+            checkpoint = tf.compat.v1.train.latest_checkpoint(self.lfnet_config.model)
             model_dir = self.lfnet_config.model
         else:
             checkpoint = self.lfnet_config.model

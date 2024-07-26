@@ -1,5 +1,5 @@
 diff --git a/keyNet/model/keynet_architecture.py b/keyNet/model/keynet_architecture.py
-index c181a01..1674364 100644
+index c181a01..549887e 100644
 --- a/keyNet/model/keynet_architecture.py
 +++ b/keyNet/model/keynet_architecture.py
 @@ -1,6 +1,13 @@

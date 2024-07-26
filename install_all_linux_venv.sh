@@ -15,7 +15,10 @@
                        # the second '0' is for skipping the install_cpp.sh script therein (that will be called below) 
 
 # create a pyslam environment within venv 
-. pyenv-create.sh 
+./pyenv-create.sh 
+
+# activate the created python virtual environment 
+. pyenv-activate.sh   
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 

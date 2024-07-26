@@ -1,3 +1,4 @@
+#!/usr/bin/env -S python3 -O
 import sys 
 import numpy as np
 import cv2

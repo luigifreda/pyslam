@@ -1,3 +1,250 @@
+diff --git a/common/tf_layer_utils.py b/common/tf_layer_utils.py
+index 5452e78..0202854 100755
+--- a/common/tf_layer_utils.py
++++ b/common/tf_layer_utils.py
+@@ -2,6 +2,7 @@
+ 
+ import numpy as np
+ import tensorflow as tf
++import tf_slim as slim
+ 
+ # data_format = 'channels_first', 'NCHW' or 'channels_last', 'NHWC'
+ _DATA_FORMAT = 'channels_last'
+@@ -35,7 +36,7 @@ def _get_variable(name, shape, initializer, dtype=tf.float32):
+     if shape is None:
+         return None
+     else:
+-        var = tf.get_variable(name, shape, initializer=initializer, dtype=dtype)
++        var = tf.compat.v1.get_variable(name, shape, initializer=initializer, dtype=dtype)
+         return var
+ 
+ def _get_W_b(wshape, bshape, use_xavier=True, dtype=tf.float32):
+@@ -56,7 +57,7 @@ def _get_W_b(wshape, bshape, use_xavier=True, dtype=tf.float32):
+     """
+ 
+     if use_xavier:
+-        initializer = tf.contrib.layers.xavier_initializer()
++        initializer = slim.initializers.xavier_initializer()
+     else:
+         initializer = tf.variance_scaling_initializer(mode='fan_in')
+ 
+@@ -87,7 +88,7 @@ def batch_norm_template(inputs, is_training, scope, moments_dims, bn_decay=None,
+     Return:
+       normed:        batch-normalized maps
+     """
+-    with tf.variable_scope(scope) as sc:
++    with tf.compat.v1.variable_scope(scope) as sc:
+         if len(moments_dims) == 1:
+             num_channels = inputs.get_shape()[-1].value
+         elif len(moments_dims) == 3:
+@@ -189,7 +190,7 @@ def tf_batch_norm_act(inputs, activation_fn=tf.nn.relu,
+         else:
+             axis = 1
+ 
+-        inputs = tf.layers.batch_normalization(
++        inputs = tf.compat.v1.layers.batch_normalization(
+                     inputs, axis=axis, 
+                     momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON, center=True,
+                     scale=bn_affine, training=is_training, trainable=trainable, fused=True, name=bnname
+@@ -219,7 +220,7 @@ def dropout(inputs,
+     Returns:
+         tensor variable
+     """
+-    with tf.variable_scope(scope) as sc:
++    with tf.compat.v1.variable_scope(scope) as sc:
+         outputs = tf.cond(is_training,
+                         lambda: tf.nn.dropout(inputs, keep_prob, noise_shape),
+                         lambda: inputs)
+@@ -256,14 +257,14 @@ def conv2d(inputs,
+     if data_format is None:
+         data_format = _DATA_FORMAT    
+         
+-    with tf.variable_scope(scope) as sc:
++    with tf.compat.v1.variable_scope(scope) as sc:
+ 
+         if is_NHWC(data_format):
+-            num_in_channels = inputs.get_shape()[-1].value
++            num_in_channels = inputs.get_shape()[-1]
+             strides = [1, stride, stride, 1]
+             data_format = 'NHWC'
+         else:
+-            num_in_channels = inputs.get_shape()[1].value
++            num_in_channels = inputs.get_shape()[1]
+             strides = [1, 1, stride, stride]
+             data_format = 'NCHW'
+ 
+@@ -367,7 +368,7 @@ def conv2d_custom(inputs,
+     if data_format is None:
+         data_format = _DATA_FORMAT    
+         
+-    with tf.variable_scope(scope) as sc:
++    with tf.compat.v1.variable_scope(scope) as sc:
+ 
+         if is_NHWC(data_format):
+             num_in_channels = inputs.get_shape()[-1].value
+@@ -418,8 +419,8 @@ def fully_connected(inputs,
+     """
+ 
+ 
+-    with tf.variable_scope(scope) as sc:
+-        num_input_units = inputs.get_shape()[-1].value
++    with tf.compat.v1.variable_scope(scope) as sc:
++        num_input_units = inputs.get_shape()[-1]
+ 
+         wshape = [num_input_units, num_outputs]
+         bshape = num_outputs if use_bias else None
+@@ -449,8 +450,8 @@ def fully_connected_custom(inputs,
+         Variable tensor of size B x num_outputs.
+     """
+ 
+-    with tf.variable_scope(scope) as sc:
+-        num_input_units = inputs.get_shape()[-1].value
++    with tf.compat.v1.variable_scope(scope) as sc:
++        num_input_units = inputs.get_shape()[-1]
+ 
+         if hasattr(W_initializer, 'shape'):
+             wshape = None # you don't have to specify shape if initializer already has it
+diff --git a/det_tools.py b/det_tools.py
+index 9df56c7..d983506 100755
+--- a/det_tools.py
++++ b/det_tools.py
+@@ -817,7 +817,7 @@ def instance_normalization(inputs):
+     else:
+         raise ValueError('instance_normalization suppose input dim is 4: inputs_dim={}\n'.format(inputs_dim))
+ 
+-    mean, variance = tf.nn.moments(inputs, axes=moments_dims, keep_dims=True)
++    mean, variance = tf.nn.moments(inputs, axes=moments_dims, keepdims=True)
+     outputs = tf.nn.batch_normalization(inputs, mean, variance, None, None, var_eps) # non-parametric normalization
+     return outputs
+ 
+@@ -875,7 +875,7 @@ def make_top_k_sparse_tensor(heatmaps, k=256, get_kpts=False):
+     boffset = tf.expand_dims(tf.range(batch_size) * imsize, axis=1)
+     indices = xy_indices + boffset
+     indices = tf.reshape(indices, [-1])
+-    top_k_maps = tf.sparse_to_dense(indices, [batch_size*imsize], 1, 0, validate_indices=False)
++    top_k_maps = tf.compat.v1.sparse_to_dense(indices, [batch_size*imsize], 1, 0, validate_indices=False)
+     top_k_maps = tf.reshape(top_k_maps, [batch_size, height, width, 1])
+     top_k_maps = tf.cast(top_k_maps, tf.float32)
+     if get_kpts:
+@@ -898,17 +898,17 @@ def d_softargmax(d_heatmaps, block_size, com_strength=10):
+     pos_array_y = tf.cast(tf.reshape(pos_array_y, [-1]), tf.float32)    
+     
+     max_out = tf.reduce_max(
+-        d_heatmaps, axis=-1, keep_dims=True)
++        d_heatmaps, axis=-1, keepdims=True)
+     o = tf.exp(com_strength * (d_heatmaps - max_out))  # + eps
+     sum_o = tf.reduce_sum(
+-        o, axis=-1, keep_dims=True) 
++        o, axis=-1, keepdims=True) 
+     x = tf.reduce_sum(
+         o * tf.reshape(pos_array_x, [1, 1, 1, -1]),
+-        axis=-1, keep_dims=True
++        axis=-1, keepdims=True
+     ) / sum_o
+     y = tf.reduce_sum(
+         o * tf.reshape(pos_array_y, [1, 1, 1, -1]),
+-        axis=-1, keep_dims=True
++        axis=-1, keepdims=True
+     ) / sum_o
+     
+     # x,y shape = [B,H,W,1]
+@@ -928,17 +928,17 @@ def softargmax(score_map, com_strength=10):
+     pos_array_y = tf.cast(tf.range(height), dtype=tf.float32)
+     
+     max_out = tf.reduce_max(
+-        score_map, axis=list(range(1, md)), keep_dims=True)
++        score_map, axis=list(range(1, md)), keepdims=True)
+     o = tf.exp(com_strength * (score_map - max_out))  # + eps
+     sum_o = tf.reduce_sum(
+-        o, axis=list(range(1, md)), keep_dims=True)
++        o, axis=list(range(1, md)), keepdims=True)
+     x = tf.reduce_sum(
+         o * tf.reshape(pos_array_x, [1, 1, -1, 1]),
+-        axis=list(range(1, md)), keep_dims=True
++        axis=list(range(1, md)), keepdims=True
+     ) / sum_o
+     y = tf.reduce_sum(
+         o * tf.reshape(pos_array_y, [1, -1, 1, 1]),
+-        axis=list(range(1, md)), keep_dims=True
++        axis=list(range(1, md)), keepdims=True
+     ) / sum_o
+ 
+     # Remove the unecessary dimensions (i.e. flatten them)
+@@ -1462,7 +1462,7 @@ def heatmaps_to_reprojected_heatmaps(d_heatmaps1, depths1, depths2, c2Tc1s, intr
+             idx2, _ = tf.unique(idx2) # remove duplicate indices to apply sparce_to_dense
+ 
+             # ignore sorted order (https://stackoverflow.com/questions/35508894/sparse-to-dense-requires-indices-to-be-lexicographically-sorted-in-0-7)                
+-            heatmaps2 = tf.sparse_to_dense(idx2, [batch*height2*width2], 1, 0, validate_indices=False) 
++            heatmaps2 = tf.compat.v1.sparse_to_dense(idx2, [batch*height2*width2], 1, 0, validate_indices=False) 
+ 
+             heatmaps2 = tf.reshape(heatmaps2, (batch, height2, width2))
+             heatmaps2 = tf.slice(heatmaps2, [0,1,1], [-1,height,width])
+@@ -1623,11 +1623,11 @@ def compute_multi_gradients(photos, pad, name='SMOOTHNESS'):
+ 
+     return Dx, Dy, Da
+ 
+-def compute_fg_mask_from_gradients(gradients, block_size, grad_thresh, reduce_op=tf.reduce_mean, name='FGMASK', keep_dims=False):
++def compute_fg_mask_from_gradients(gradients, block_size, grad_thresh, reduce_op=tf.reduce_mean, name='FGMASK', keepdims=False):
+ 
+     with tf.name_scope(name):
+         d_grads = tf.space_to_depth(gradients, block_size)
+-        d_grads = reduce_op(d_grads, axis=3, keep_dims=keep_dims)
++        d_grads = reduce_op(d_grads, axis=3, keepdims=keepdims)
+         d_fgmask = tf.cast(tf.greater(d_grads, grad_thresh), tf.float32)
+ 
+         # restore fgmask to original resolution
+@@ -1696,7 +1696,7 @@ def compute_repeatable_loss(pred_d_heatmaps, trans_heatmaps, block_size, name='R
+     '''
+     with tf.name_scope(name):
+         trans_d_heatmaps = tf.space_to_depth(trans_heatmaps, block_size)
+-        kp_bg_map = tf.reduce_sum(trans_d_heatmaps, axis=-1, keep_dims=True)
++        kp_bg_map = tf.reduce_sum(trans_d_heatmaps, axis=-1, keepdims=True)
+         kp_bg_map = tf.cast(tf.less(kp_bg_map, 1.0), tf.float32)
+         kp_fg_map = 1.0 - tf.squeeze(kp_bg_map, axis=-1)
+ 
+@@ -1723,23 +1723,23 @@ def get_R_loss(pred_d_heatmaps, trans_heatmaps, d_fgmask, weight_bg, block_size)
+ 
+     return loss
+ 
+-def soft_max_and_argmax_1d(inputs, axis=-1, inputs_index=None, keep_dims=False, com_strength1=250.0, com_strength2=250.0):
++def soft_max_and_argmax_1d(inputs, axis=-1, inputs_index=None, keepdims=False, com_strength1=250.0, com_strength2=250.0):
+ 
+     # Safe softmax
+-    inputs_exp1 = tf.exp(com_strength1*(inputs - tf.reduce_max(inputs, axis=axis, keep_dims=True)))
+-    inputs_softmax1 = inputs_exp1 / (tf.reduce_sum(inputs_exp1, axis=axis, keep_dims=True) + 1e-8)
++    inputs_exp1 = tf.exp(com_strength1*(inputs - tf.reduce_max(inputs, axis=axis, keepdims=True)))
++    inputs_softmax1 = inputs_exp1 / (tf.reduce_sum(inputs_exp1, axis=axis, keepdims=True) + 1e-8)
+ 
+-    inputs_exp2 = tf.exp(com_strength2*(inputs - tf.reduce_max(inputs, axis=axis, keep_dims=True)))
+-    inputs_softmax2 = inputs_exp2 / (tf.reduce_sum(inputs_exp2, axis=axis, keep_dims=True) + 1e-8)
++    inputs_exp2 = tf.exp(com_strength2*(inputs - tf.reduce_max(inputs, axis=axis, keepdims=True)))
++    inputs_softmax2 = inputs_exp2 / (tf.reduce_sum(inputs_exp2, axis=axis, keepdims=True) + 1e-8)
+ 
+-    inputs_max = tf.reduce_sum(inputs * inputs_softmax1, axis=axis, keep_dims=keep_dims)
++    inputs_max = tf.reduce_sum(inputs * inputs_softmax1, axis=axis, keepdims=keepdims)
+ 
+     inputs_index_shp = [1,]*len(inputs.get_shape())
+     inputs_index_shp[axis] = -1
+     if inputs_index is None:
+         inputs_index = tf.range(inputs.get_shape().as_list()[axis], dtype=inputs.dtype) # use 0,1,2,..,inputs.shape[axis]-1
+     inputs_index = tf.reshape(inputs_index, inputs_index_shp)
+-    inputs_amax = tf.reduce_sum(inputs_index * inputs_softmax2, axis=axis, keep_dims=keep_dims)
++    inputs_amax = tf.reduce_sum(inputs_index * inputs_softmax2, axis=axis, keepdims=keepdims)
+ 
+     return inputs_max, inputs_amax
+ 
+@@ -1760,9 +1760,9 @@ def soft_argmax_2d(patches_bhwc, patch_size, do_softmax=True, com_strength=10):
+     if do_softmax:
+         exps_bhwc = tf.exp(
+                         com_strength*(patches_bhwc - tf.reduce_max(
+-                            patches_bhwc, axis=(1, 2), keep_dims=True)))
++                            patches_bhwc, axis=(1, 2), keepdims=True)))
+         maxes_bhwc = exps_bhwc / (
+-            tf.reduce_sum(exps_bhwc, axis=(1, 2), keep_dims=True) + 1e-8)
++            tf.reduce_sum(exps_bhwc, axis=(1, 2), keepdims=True) + 1e-8)
+     
+     dxdy = tf.reduce_sum(xy_grid * maxes_bhwc, axis=(1,2))
+ 
 diff --git a/eval_tools.py b/eval_tools.py
 index 3542920..f9a7e47 100755
 --- a/eval_tools.py
@@ -12,7 +259,7 @@ index 3542920..f9a7e47 100755
              color = color_t
          else:
 diff --git a/inference.py b/inference.py
-index 826b6c0..9b46c10 100755
+index 826b6c0..750b410 100755
 --- a/inference.py
 +++ b/inference.py
 @@ -1,7 +1,7 @@
@@ -24,3 +271,144 @@ index 826b6c0..9b46c10 100755
  
  
  def build_deep_detector(config, detector, photos, reuse=False, name='DeepDet'):
+@@ -83,23 +83,23 @@ def build_multi_scale_deep_detector(config, detector, photos, reuse=False, name=
+         for i in range(num_scale):
+             logits = instance_normalization(score_maps_list[i])
+             _heatmaps = spatial_softmax(logits, config.sm_ksize, config.com_strength)
+-            _heatmaps = tf.image.resize_images(_heatmaps, (height, width)) # back to original resolution
++            _heatmaps = tf.compat.v1.image.resize_images(_heatmaps, (height, width)) # back to original resolution
+             multi_scale_heatmaps[i] = _heatmaps
+         multi_scale_heatmaps = tf.concat(multi_scale_heatmaps, axis=-1,) # [B,H,W,num_scales]
+ 
+         if config.soft_scale:
+-            # max_heatmaps = tf.reduce_max(multi_scale_heatmaps, axis=-1, keep_dims=True) # [B,H,W,1]
++            # max_heatmaps = tf.reduce_max(multi_scale_heatmaps, axis=-1, keepdims=True) # [B,H,W,1]
+             # Maybe softmax have effect of scale-space-NMS
+-            # softmax_heatmaps = tf.reduce_max(tf.nn.softmax(multi_scale_heatmaps), axis=-1, keep_dims=True)
++            # softmax_heatmaps = tf.reduce_max(tf.nn.softmax(multi_scale_heatmaps), axis=-1, keepdims=True)
+             # tf.summary.image('softmax_heatmaps', tf.cast(softmax_heatmaps*255, tf.uint8), max_outputs=5)
+             max_heatmaps, max_scales = soft_max_and_argmax_1d(multi_scale_heatmaps, axis=-1, 
+-                                                inputs_index=scale_factors_tensor, keep_dims=False,
++                                                inputs_index=scale_factors_tensor, keepdims=False,
+                                                 com_strength1=config.score_com_strength,
+                                                 com_strength2=config.scale_com_strength) # both output = [B,H,W]
+             max_heatmaps = max_heatmaps[..., None] # make max_heatmaps the correct shape
+             tf.summary.histogram('max_scales', max_scales)
+         else:
+-            max_heatmaps = tf.reduce_max(multi_scale_heatmaps, axis=-1, keep_dims=True) # [B,H,W,1]
++            max_heatmaps = tf.reduce_max(multi_scale_heatmaps, axis=-1, keepdims=True) # [B,H,W,1]
+             max_scale_inds = tf.argmax(multi_scale_heatmaps, axis=-1, output_type=tf.int32) # [B,H,W]
+             max_scales = tf.gather(scale_factors_tensor, max_scale_inds) # [B,H,W]
+ 
+@@ -132,7 +132,7 @@ def build_multi_scale_deep_detector(config, detector, photos, reuse=False, name=
+             dxdy = soft_argmax_2d(kp_local_max_scores, config.kp_loc_size, do_softmax=config.do_softmax_kp_refine, com_strength=config.kp_com_strength) # [N,2]
+             tf.summary.histogram('dxdy', dxdy)
+             # Now add this to the current kpts, so that we can be happy!
+-            kpts = tf.to_float(kpts) + dxdy * kpts_scale[:, None] * config.kp_loc_size / 2
++            kpts = tf.compat.v1.to_float(kpts) + dxdy * kpts_scale[:, None] * config.kp_loc_size / 2
+ 
+         det_endpoints['score_maps_list'] = score_maps_list
+         det_endpoints['top_ks'] = top_ks
+@@ -148,7 +148,7 @@ def build_multi_scale_deep_detector(config, detector, photos, reuse=False, name=
+         # det_endpoints['db_max_scales_inds'] = max_scales_inds
+         det_endpoints['db_scale_factors_tensor'] = scale_factors_tensor
+         # det_endpoints['db_max_heatmaps2'] = max_heatmaps2
+-        det_endpoints['db_max_heatmaps_org'] = tf.reduce_max(multi_scale_heatmaps, axis=-1, keep_dims=True) 
++        det_endpoints['db_max_heatmaps_org'] = tf.reduce_max(multi_scale_heatmaps, axis=-1, keepdims=True) 
+         max_scale_inds = tf.argmax(multi_scale_heatmaps, axis=-1, output_type=tf.int32)
+         det_endpoints['db_max_scale_inds'] = max_scale_inds
+         det_endpoints['db_max_scales2'] = tf.gather(scale_factors_tensor, max_scale_inds)
+@@ -183,18 +183,18 @@ def build_multi_scale_deep_detector_3DNMS(config, detector, photos, reuse=False,
+         scale_heatmaps = soft_nms_3d(scale_logits, ksize=config.sm_ksize, com_strength=config.com_strength)
+ 
+         if config.soft_scale:
+-            # max_heatmaps = tf.reduce_max(multi_scale_heatmaps, axis=-1, keep_dims=True) # [B,H,W,1]
++            # max_heatmaps = tf.reduce_max(multi_scale_heatmaps, axis=-1, keepdims=True) # [B,H,W,1]
+             # Maybe softmax have effect of scale-space-NMS
+-            # softmax_heatmaps = tf.reduce_max(tf.nn.softmax(multi_scale_heatmaps), axis=-1, keep_dims=True)
++            # softmax_heatmaps = tf.reduce_max(tf.nn.softmax(multi_scale_heatmaps), axis=-1, keepdims=True)
+             # tf.summary.image('softmax_heatmaps', tf.cast(softmax_heatmaps*255, tf.uint8), max_outputs=5)
+             max_heatmaps, max_scales = soft_max_and_argmax_1d(scale_heatmaps, axis=-1, 
+-                                                inputs_index=scale_factors_tensor, keep_dims=False,
++                                                inputs_index=scale_factors_tensor, keepdims=False,
+                                                 com_strength1=config.score_com_strength,
+                                                 com_strength2=config.scale_com_strength) # both output = [B,H,W]
+             max_heatmaps = max_heatmaps[..., None] # make max_heatmaps the correct shape
+             tf.summary.histogram('max_scales', max_scales)
+         else:
+-            max_heatmaps = tf.reduce_max(scale_heatmaps, axis=-1, keep_dims=True) # [B,H,W,1]
++            max_heatmaps = tf.reduce_max(scale_heatmaps, axis=-1, keepdims=True) # [B,H,W,1]
+             max_scale_inds = tf.argmax(scale_heatmaps, axis=-1, output_type=tf.int32) # [B,H,W]
+             max_scales = tf.gather(scale_factors_tensor, max_scale_inds) # [B,H,W]
+ 
+@@ -227,7 +227,7 @@ def build_multi_scale_deep_detector_3DNMS(config, detector, photos, reuse=False,
+             dxdy = soft_argmax_2d(kp_local_max_scores, config.kp_loc_size, do_softmax=config.do_softmax_kp_refine, com_strength=config.kp_com_strength) # [N,2]
+             tf.summary.histogram('dxdy', dxdy)
+             # Now add this to the current kpts, so that we can be happy!
+-            kpts = tf.to_float(kpts) + dxdy * kpts_scale[:, None] * config.kp_loc_size / 2
++            kpts = tf.compat.v1.to_float(kpts) + dxdy * kpts_scale[:, None] * config.kp_loc_size / 2
+ 
+         det_endpoints['score_maps_list'] = score_maps_list
+         det_endpoints['top_ks'] = top_ks
+diff --git a/models/resnet_detector.py b/models/resnet_detector.py
+index 823c80f..9523d30 100644
+--- a/models/resnet_detector.py
++++ b/models/resnet_detector.py
+@@ -21,7 +21,7 @@ def building_block(inputs, out_channels,
+                  use_bias=True,
+                 ):
+     
+-    with tf.variable_scope(scope):
++    with tf.compat.v1.variable_scope(scope):
+         curr_in = inputs
+         shortcut = curr_in # activate_before_residual=False
+         curr_in = batch_norm_act(curr_in, activation_fn=activation_fn,
+@@ -72,7 +72,7 @@ def get_model(inputs, is_training,
+               reuse=False, name='ConvOnlyResNet'):
+     num_conv = 0
+ 
+-    with tf.variable_scope(name, reuse=reuse) as net_sc:
++    with tf.compat.v1.variable_scope(name, reuse=reuse) as net_sc:
+         curr_in = tf.identity(inputs)
+ 
+         # init-conv
+@@ -109,7 +109,7 @@ def get_model(inputs, is_training,
+         init_sin = tf.zeros([batch_size, height, width, 1])
+         ori_maps = tf.concat([init_cos, init_sin], axis=-1)
+ 
+-        var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, net_sc.name)
++        var_list = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, net_sc.name)
+         mso_var_list = []
+ 
+         endpoints = {}
+diff --git a/models/simple_desc.py b/models/simple_desc.py
+index 4fa1351..be1c1cd 100755
+--- a/models/simple_desc.py
++++ b/models/simple_desc.py
+@@ -22,7 +22,7 @@ def get_model(inputs, is_training,
+     channels_list = [init_num_channels * 2**i for i in range(num_conv_layers)]
+     print('===== {} (reuse={}) ====='.format(name, reuse))
+ 
+-    with tf.variable_scope(name, reuse=reuse) as net_sc:
++    with tf.compat.v1.variable_scope(name, reuse=reuse) as net_sc:
+         curr_in = inputs
+ 
+         for i, num_channels in enumerate(channels_list):
+@@ -39,7 +39,7 @@ def get_model(inputs, is_training,
+                                     )
+             print('#{} conv-bn-act {}'.format(i+1, curr_in.shape))
+         #----- FC
+-        curr_in = tf.layers.flatten(curr_in)
++        curr_in = tf.compat.v1.layers.flatten(curr_in)
+         print('FLAT {}'.format(curr_in.shape))
+         curr_in = fully_connected(curr_in, 512, scope='fc1', 
+                                   use_xavier=use_xavier, use_bias=use_bias)
+@@ -82,7 +82,7 @@ def get_model(inputs, is_training,
+           raise ValueError('Unknown feat_norm: {}'.format(feat_norm))
+         print('FEAT {}'.format(norm_feats.shape))
+ 
+-        var_list = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, net_sc.name)
++        var_list = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, net_sc.name)
+ 
+         endpoints = {}
+         endpoints['raw_feats'] = raw_feats
