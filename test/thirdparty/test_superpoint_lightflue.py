@@ -1,4 +1,5 @@
 # If we are on colab: this clones the repo and installs the dependencies
+sys.path.append("../../")
 from pathlib import Path
 import time
 import numpy as np
@@ -8,16 +9,18 @@ from LightGlue.lightglue.utils import load_image, rbd
 from LightGlue.lightglue import viz2d
 import torch
 
-
 from config import Config
 from dataset import dataset_factory
 config = Config()
+
+
+lightglue_base_path='../../thirdparty/LightGlue'
 
 dataset = dataset_factory(config.dataset_settings)
 # torch.set_float32_matmul_precision('high')
 LightGlue.pruning_keypoint_thresholds['cuda']
 # torch.set_grad_enabled(False)
-images = Path("/home/aniel/pyslam/LightGlue/assets")
+images = Path(lightglue_base_path + "/assets")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
 print(device)
 extractor = SuperPoint(max_num_keypoints=512,nms_radius=5).eval().to(device)  # load the extractor
@@ -73,7 +76,7 @@ def numpy_image_to_torch(image: np.ndarray) -> torch.Tensor:
 import cv2
 
 # Set up the video capture
-video_path = '/home/aniel/pyslam/thirdparty/superpoint/assets/nicu3.mp4'
+video_path = '../../videos/kitti00/video.mp4'
 cap = cv2.VideoCapture(video_path)
 ret, previous_frame = cap.read()
 previous_frame = cv2.resize(previous_frame, (1226,370))

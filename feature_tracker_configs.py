@@ -250,6 +250,14 @@ class FeatureTrackerConfigs(object):
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
+    KEYNETAFFNETHARDNET = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.KEYNETAFFNETHARDNET, 
+                      descriptor_type = FeatureDescriptorTypes.KEYNETAFFNETHARDNET, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = kTrackerType) #FeatureTrackerTypes.LIGHTGLUE)
+    
     # =====================================
     # Descriptor-based 'trackers' with ORB2
     

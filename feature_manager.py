@@ -57,6 +57,7 @@ LfNetFeature2D = import_from('feature_lfnet', 'LfNetFeature2D')
 R2d2Feature2D = import_from('feature_r2d2', 'R2d2Feature2D')
 KeyNetDescFeature2D = import_from('feature_keynet', 'KeyNetDescFeature2D')
 DiskFeature2D = import_from('feature_disk', 'DiskFeature2D')
+KeyNetAffNetHardNetFeature2D = import_from('feature_keynet_affnet_hardnet', 'KeyNetAffNetHardNetFeature2D')
 
 kVerbose = True   
 
@@ -489,7 +490,13 @@ class FeatureManager(object):
             self.need_color_image = True               
             self._feature_detector = DiskFeature2D(num_features=self.num_features)          
             #    
-            #                                                                                                                                           
+            #      
+        elif self.detector_type == FeatureDetectorTypes.KEYNETAFFNETHARDNET:       
+            #self.num_levels = - # internally recomputed               
+            self._feature_detector = KeyNetAffNetHardNetFeature2D(num_features=self.num_features)          
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #    
+            #                                                                                                                                                    
         else:
             raise ValueError("Unknown feature detector %s" % self.detector_type)
                 
@@ -690,7 +697,13 @@ class FeatureManager(object):
                     raise ValueError("You cannot use DISK internal descriptor without DISK detector!\nPlease, select DISK as both descriptor and detector!")
                 self._feature_descriptor = self._feature_detector  # reuse detector object                                     
                 #
-                #                                                                                                                                                                                                                                                               
+                #     
+            elif self.descriptor_type == FeatureDescriptorTypes.KEYNETAFFNETHARDNET:              
+                if self.detector_type != FeatureDetectorTypes.KEYNETAFFNETHARDNET: 
+                    raise ValueError("You cannot use KEYNETAFFNETHARDNET descriptor without KEYNETAFFNETHARDNET detector!\nPlease, select KEYNETAFFNETHARDNET as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse the same detector object  
+                #
+                #                                                                                                                                                                                                                                                                          
             elif self.descriptor_type == FeatureDescriptorTypes.NONE:        
                 self._feature_descriptor = None                                              
             else:

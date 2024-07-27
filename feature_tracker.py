@@ -72,11 +72,12 @@ class FeatureTrackingResult(object):
     def __init__(self):
         self.kps_ref = None          # all reference keypoints (numpy array Nx2)
         self.kps_cur = None          # all current keypoints   (numpy array Nx2)
+        self.des_ref = None          # all reference descriptors (numpy array NxD)
         self.des_cur = None          # all current descriptors (numpy array NxD)
-        self.idxs_ref = None         # indexes of matches in kps_ref so that kps_ref_matched = kps_ref[idxs_ref]  (numpy array of indexes)
-        self.idxs_cur = None         # indexes of matches in kps_cur so that kps_cur_matched = kps_cur[idxs_cur]  (numpy array of indexes)
-        self.kps_ref_matched = None  # reference matched keypoints, kps_ref_matched = kps_ref[idxs_ref]
-        self.kps_cur_matched = None  # current matched keypoints, kps_cur_matched = kps_cur[idxs_cur]
+        self.idxs_ref = None         # indices of matches in kps_ref so that kps_ref_matched = kps_ref[idxs_ref]  (numpy array of indexes)
+        self.idxs_cur = None         # indices of matches in kps_cur so that kps_cur_matched = kps_cur[idxs_cur]  (numpy array of indexes)
+        self.kps_ref_matched = None  # matched reference keypoints, kps_ref_matched = kps_ref[idxs_ref]
+        self.kps_cur_matched = None  # matched current keypoints, kps_cur_matched = kps_cur[idxs_cur]
 
 
 # Base class for a feature tracker.
@@ -175,6 +176,7 @@ class LkFeatureTracker(FeatureTracker):
         res.kps_cur_matched = kps_cur[res.idxs_cur]  
         res.kps_ref = res.kps_ref_matched  # with LK we follow feature trails hence we can forget unmatched features 
         res.kps_cur = res.kps_cur_matched
+        res.des_ref = None
         res.des_cur = None                      
         return res         
         
@@ -229,12 +231,14 @@ class DescriptorFeatureTracker(FeatureTracker):
         # convert from list of keypoints to an array of points 
         kps_cur = np.array([x.pt for x in kps_cur], dtype=np.float32) 
         # Printer.orange(des_ref.shape)
-        idxs_ref, idxs_cur = self.matcher.match(image_cur, des1=des_ref, des2=des_cur, kps1=kps_ref, kps2=kps_cur)  #knnMatch(queryDescriptors,trainDescriptors)
+        matching_result = self.matcher.match(image_ref, image_cur, des1=des_ref, des2=des_cur, kps1=kps_ref, kps2=kps_cur)  #knnMatch(queryDescriptors,trainDescriptors)
+        idxs_ref, idxs_cur = matching_result.idxs1, matching_result.idxs2
         #print('num matches: ', len(matches))
         
         res = FeatureTrackingResult()
         res.kps_ref = kps_ref  # all the reference keypoints  
-        res.kps_cur = kps_cur  # all the current keypoints       
+        res.kps_cur = kps_cur  # all the current keypoints    
+        res.des_ref = des_ref  # all the reference descriptors   
         res.des_cur = des_cur  # all the current descriptors         
         
         res.kps_ref_matched = np.asarray(kps_ref[idxs_ref]) # the matched ref kps  

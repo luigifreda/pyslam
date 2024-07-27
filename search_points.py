@@ -23,6 +23,7 @@ import numpy as np
 import cv2 
 
 from frame import Frame 
+from keyframe import KeyFrame
 from map_point import predict_detection_levels
 
 from utils_geom import skew, add_ones, normalize_vector, computeF12, check_dist_epipolar_line
@@ -343,8 +344,9 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
 
     if idxs1 is None or idxs2 is None:
         timerMatch = Timer()
-        timerMatch.start()        
-        idxs1, idxs2 = Frame.feature_matcher.match(kf1.img, kf1.des, kf2.des)        
+        timerMatch.start()
+        matching_result = Frame.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des)  
+        idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2      
         print('search_frame_for_triangulation - matching - timer: ', timerMatch.elapsed())        
     
     rot_histo = RotationHistogram()

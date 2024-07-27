@@ -228,7 +228,7 @@ class LocalMapping(object):
         self.time_local_opt.refresh()
         print("local optimization error^2:   %f" % err)       
         num_kf_ref_tracked_points = self.kf_cur.num_tracked_points(kNumMinObsForKeyFrameDefault) # number of tracked points in k_ref
-        Printer.purple('KF(%d) #points: %d ' %(self.kf_cur.id, num_kf_ref_tracked_points))           
+        Printer.green('KF(%d) #points: %d ' %(self.kf_cur.id, num_kf_ref_tracked_points))           
               
           
     def large_window_BA(self):
@@ -322,13 +322,15 @@ class LocalMapping(object):
             for kf in local_keyframes:
                 if kf is self.kf_cur or kf.is_bad:
                     continue   
-                idxs1, idxs2 = Frame.feature_matcher.match(self.kf_cur.img, self.kf_cur.des, kf.des)             
+                matching_result = Frame.feature_matcher.match(self.kf_cur.img, kf.img, self.kf_cur.des, kf.des)        
+                idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2    
                 match_idxs[(self.kf_cur,kf)]=(idxs1,idxs2)  
         else: 
             # do parallell computation 
             def thread_match_function(kf_pair):
-                kf1,kf2 = kf_pair        
-                idxs1, idxs2 = Frame.feature_matcher.match(kf1.img, kf1.des, kf2.des)             
+                kf1,kf2 = kf_pair
+                matching_result = Frame.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des)
+                idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2             
                 match_idxs[(kf1, kf2)]=(idxs1,idxs2)                   
             for kf in local_keyframes:
                 if kf is self.kf_cur or kf.is_bad:

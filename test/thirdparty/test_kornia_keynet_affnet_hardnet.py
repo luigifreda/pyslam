@@ -15,16 +15,22 @@ class ImageMatcher:
         self.feature = KF.KeyNetAffNetHardNet(5000, True).eval().to(self.device)
 
     def load_torch_image(self, fname):
-        img = K.image_to_tensor(cv2.imread(fname), False).float() / 255.
-        img = K.color.bgr_to_rgb(img)
+        # img = K.image_to_tensor(cv2.imread(fname), False).float() / 255.
+        # img = K.color.bgr_to_rgb(img)
+        img = cv2.imread(fname)
+        if img.ndim>2:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        img = K.image_to_tensor(img, False).to(self.device).float() / 255. 
         return img
 
     def match_images(self, fname1, fname2):
                 
-        img1 = K.io.load_image(fname1, K.io.ImageLoadType.GRAY32, device=self.device)[None, ...]
-        img2 = K.io.load_image(fname2, K.io.ImageLoadType.GRAY32, device=self.device)[None, ...]
-        #img1 = self.load_torch_image(fname1)
-        #img2 = self.load_torch_image(fname2)
+        if False: 
+            img1 = K.io.load_image(fname1, K.io.ImageLoadType.GRAY32, device=self.device)[None, ...]
+            img2 = K.io.load_image(fname2, K.io.ImageLoadType.GRAY32, device=self.device)[None, ...]
+        else:
+            img1 = self.load_torch_image(fname1)
+            img2 = self.load_torch_image(fname2)
         
         # input_dict = {"image0": K.color.rgb_to_grayscale(img1),
         #               "image1": K.color.rgb_to_grayscale(img2)}

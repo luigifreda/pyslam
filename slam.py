@@ -457,7 +457,7 @@ class Tracking(object):
             nMinObs = 2  # if just two keyframes then we can have just two observations 
         num_kf_ref_tracked_points = self.kf_ref.num_tracked_points(nMinObs)  # number of tracked points in k_ref
         num_f_cur_tracked_points = f_cur.num_matched_inlier_map_points()     # number of inliers in f_cur 
-        Printer.purple('F(%d) #points: %d, KF(%d) #points: %d ' %(f_cur.id, num_f_cur_tracked_points, self.kf_ref.id, num_kf_ref_tracked_points))
+        Printer.green('F(%d) #points: %d, KF(%d) #points: %d ' %(f_cur.id, num_f_cur_tracked_points, self.kf_ref.id, num_kf_ref_tracked_points))
         
         if kLogKFinfoToFile:
             self.kf_info_logger.info('F(%d) #points: %d, KF(%d) #points: %d ' %(f_cur.id, num_f_cur_tracked_points, self.kf_ref.id, num_kf_ref_tracked_points))

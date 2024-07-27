@@ -165,6 +165,7 @@ At present time, the following feature **detectors** are supported:
 * *[Key.Net](https://github.com/axelBarroso/Key.Net)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
+* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
 
 The following feature **descriptors** are supported: 
 * *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
@@ -194,7 +195,8 @@ The following feature **descriptors** are supported:
 * *[BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
-
+* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
+  
 You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `test/cv/test_feature_matching.py`.
 
 In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
@@ -210,7 +212,8 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
   * *[FLANN](https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350)* 
   * *[XFeat](https://arxiv.org/abs/2404.19174)*      
   * *[LightGlue](https://arxiv.org/abs/2306.13643)*
-
+  * *[LoFTR](https://arxiv.org/abs/2104.00680)*
+  
 --- 
 ## Datasets
 

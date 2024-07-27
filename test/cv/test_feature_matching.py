@@ -125,7 +125,7 @@ tracker_type = None
 #tracker_type = FeatureTrackerTypes.LIGHTGLUE    # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
 
 # select your tracker configuration (see the file feature_tracker_configs.py) 
-tracker_config = FeatureTrackerConfigs.LIGHTGLUE
+tracker_config = FeatureTrackerConfigs.KEYNETAFFNETHARDNET
 tracker_config['num_features'] = num_features
 tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default in feature_tracker_configs.py
 if tracker_type is not None:
@@ -141,15 +141,14 @@ feature_tracker = feature_tracker_factory(**tracker_config)
 # loop for measuring time performance 
 N=1
 for i in range(N):
-    
+    timer.start()
     # Find the keypoints and descriptors in img1
     kps1, des1 = feature_tracker.detectAndCompute(img1)
-    
-    timer.start()
     # Find the keypoints and descriptors in img2    
     kps2, des2 = feature_tracker.detectAndCompute(img2)
     # Find matches    
-    idx1, idx2 = feature_tracker.matcher.match(img1, des1, des2, kps1, kps2)
+    matching_result = feature_tracker.matcher.match(img1, img2, des1, des2, kps1, kps2)
+    idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
     timer.refresh()
 
 
@@ -160,7 +159,7 @@ print('#kps2: ', len(kps2))
 if des2 is not None: 
     print('des2 shape: ', des2.shape)    
 
-print('number of matches: ', len(idx1))
+print('number of matches: ', len(idxs1))
 
 # Convert from list of keypoints to an array of points 
 kpts1 = np.array([x.pt for x in kps1], dtype=np.float32) 
@@ -171,13 +170,13 @@ kps1_size = np.array([x.size for x in kps1], dtype=np.float32)
 kps2_size = np.array([x.size for x in kps2], dtype=np.float32) 
 
 # Build arrays of matched keypoints, descriptors, sizes 
-kps1_matched = kpts1[idx1]
-des1_matched = des1[idx1][:]
-kps1_size = kps1_size[idx1]
+kps1_matched = kpts1[idxs1]
+des1_matched = des1[idxs1][:]
+kps1_size = kps1_size[idxs1]
 
-kps2_matched = kpts2[idx2]
-des2_matched = des2[idx2][:]
-kps2_size = kps2_size[idx2]
+kps2_matched = kpts2[idxs2]
+des2_matched = des2[idxs2][:]
+kps2_size = kps2_size[idxs2]
 
 # compute sigma mad of descriptor distances
 sigma_mad, dists = descriptor_sigma_mad(des1_matched,des2_matched,descriptor_distances=feature_tracker.descriptor_distances)

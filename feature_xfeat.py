@@ -18,8 +18,7 @@ def convert_superpts_to_keypoints(pts, scores, size=1):
     kps = []
     if pts is not None: 
         # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=size, response=1) for p in pts ]            
-                            
+        kps = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=size, response=1) for p in pts ]                        
     return kps  
 
 def transpose_des(des):
@@ -57,7 +56,7 @@ class XFeat2D:
             # self.frameFloat  = (frame.astype('float32') / 255.)
             current = CVWrapper(self.xfeat).detectAndCompute(frame)
             kpts, descs =  current['keypoints'].cpu().numpy(), current['descriptors'].cpu().numpy()
-            print(kpts.shape, descs.shape)
+            #print(kpts.shape, descs.shape)
             self.pts, self.des = kpts, descs
            
             
