@@ -16,6 +16,7 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+import os                
 import numpy as np 
 import cv2
 import platform
@@ -25,10 +26,11 @@ from parameters import Parameters
 from enum import Enum
 from collections import defaultdict
 
+from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
+
 import kornia as K
 import kornia.feature as KF
 import numpy as np
-import torch
 
 from frame import Frame
 import config
@@ -51,17 +53,47 @@ class FeatureMatcherTypes(Enum):
     LOFTR     = 5      # [kornia-based] "LoFTR: Efficient Local Feature Matching with Transformers"
 
 
-def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, cross_check=False, ratio_test=kRatioTest, type=FeatureMatcherTypes.FLANN):
-    if type == FeatureMatcherTypes.BF:
-        return BfFeatureMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
-    if type == FeatureMatcherTypes.FLANN:
-        return FlannFeatureMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
-    if type ==FeatureMatcherTypes.XFEAT:
-        return  XFeatMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
-    if type == FeatureMatcherTypes.LIGHTGLUE:
-        return LightGlueMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
-    if type == FeatureMatcherTypes.LOFTR:
-        return LightGlueMatcher(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)    
+def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, 
+                            cross_check=False, 
+                            ratio_test=kRatioTest, 
+                            matcher_type=FeatureMatcherTypes.FLANN,
+                            detector_type=FeatureDetectorTypes.NONE,
+                            descriptor_type=FeatureDescriptorTypes.NONE):
+    if matcher_type == FeatureMatcherTypes.BF:
+        return BfFeatureMatcher(norm_type=norm_type, 
+                                cross_check=cross_check, 
+                                ratio_test=ratio_test, 
+                                matcher_type=matcher_type,
+                                detector_type=detector_type,
+                                descriptor_type=descriptor_type)
+    elif matcher_type == FeatureMatcherTypes.FLANN:
+        return FlannFeatureMatcher(norm_type=norm_type, 
+                                   cross_check=cross_check, 
+                                   ratio_test=ratio_test, 
+                                   matcher_type=matcher_type,
+                                   detector_type=detector_type,
+                                   descriptor_type=descriptor_type)
+    elif matcher_type ==FeatureMatcherTypes.XFEAT:
+        return  XFeatMatcher(norm_type=norm_type, 
+                             cross_check=cross_check, 
+                             ratio_test=ratio_test, 
+                             matcher_type=matcher_type,
+                             detector_type=detector_type,
+                             descriptor_type=descriptor_type)
+    elif matcher_type == FeatureMatcherTypes.LIGHTGLUE:
+        return LightGlueMatcher(norm_type=norm_type, 
+                                cross_check=cross_check, 
+                                ratio_test=ratio_test, 
+                                matcher_type=matcher_type,
+                                detector_type=detector_type,
+                                descriptor_type=descriptor_type)
+    elif matcher_type == FeatureMatcherTypes.LOFTR:
+        return LoFTRMatcher(norm_type=norm_type, 
+                                cross_check=cross_check, 
+                                ratio_test=ratio_test, 
+                                matcher_type=matcher_type,
+                                detector_type=detector_type,
+                                descriptor_type=descriptor_type)    
     return None 
 
 
@@ -180,8 +212,10 @@ class FeatureMatchingResult(object):
     def __init__(self):
         self.kps1 = None          # all reference keypoints (numpy array Nx2)
         self.kps2 = None          # all current keypoints   (numpy array Nx2)
-        self.lafs1 = None         # all reference LAFS (Local Affine Features) if available (numpy array Nx2x2)
-        self.lafs2 = None         # all current LAFS (Local Affine Features) if available (numpy array Nx2x2)
+        self.lafs1 = None         # all reference LAFS (Local Affine Features), if available (numpy array Nx2x2)
+        self.lafs2 = None         # all current LAFS (Local Affine Features), if available (numpy array Nx2x2)
+        self.resps1 = None        # all reference responses, if available (numpy array Nx1)
+        self.resps2 = None        # all current responses, if available (numpy array Nx1)
         self.des1 = None          # all reference descriptors (numpy array NxD)
         self.des2 = None          # all current descriptors (numpy array NxD)
         self.idxs1 = None         # indices of matches in kps_ref so that kps_ref_matched = kps_ref[idxs_ref]  (numpy array of indexes)
@@ -190,34 +224,34 @@ class FeatureMatchingResult(object):
 
 # base class 
 class FeatureMatcher(object): 
-    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.BF):
-        self.type = type 
+    def __init__(self,
+                 norm_type=cv2.NORM_HAMMING,
+                 cross_check = False,
+                 ratio_test=kRatioTest,
+                 matcher_type = FeatureMatcherTypes.BF,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        self.matcher_type = matcher_type 
+        self.detector_type = detector_type
+        self.descriptor_type = descriptor_type
         self.norm_type = norm_type 
         self.cross_check = cross_check   # apply cross check 
         self.matches = []
         self.ratio_test = ratio_test 
         self.matcher = None 
         self.matcher_name = ''
-        self.matcher_lightglue = None
-        self.matcher_loftr = None
-        self.torch_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
-        print('Torch device: ', self.torch_device)           
-        if self.type == FeatureMatcherTypes.LIGHTGLUE:          
-            if self.matcher_lightglue is None:
-                if self.torch_device == 'cuda':
-                    LightGlue.pruning_keypoint_thresholds['cuda']
-                self.matcher_lightglue = LightGlue(features="superpoint",n_layers=2).eval().to(self.torch_device)    
-        elif self.type == FeatureMatcherTypes.LOFTR:
-            if self.matcher_loftr is None: 
-                self.matcher_loftr = KF.LoFTR('outdoor').eval().to(self.torch_device)
-
         
     # input: des1 = queryDescriptors, des2= trainDescriptors
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
     def match(self, img1, img2, des1, des2, kps1 = None, kps2 = None, ratio_test=None):
         result = FeatureMatchingResult()
+        result.des1 = des1
+        result.des2 = des2
+        result.kps1 = kps1
+        result.kps2 = kps2
         if kVerbose:
-            print('matcher: ', self.type.name)  
+            print(self.matcher_name,', norm ', self.norm_type)             
+            print('matcher: ', self.matcher_type.name)  
             if img1 is not None: 
                 print(f'img1.shape: {img1.shape}')
             print('des1.shape:',des1.shape,' des1.dtype:',des1.dtype) 
@@ -227,10 +261,12 @@ class FeatureMatcher(object):
             if kps2 is not None and isinstance(kps2, np.ndarray):
                 print('kps2.shape:',kps2.shape,' kps2.dtype:',kps2.dtype)                           
         if ratio_test is None:
-            ratio_test = self.ratio_test        
-        if kVerbose:
-            print(self.matcher_name,', norm ', self.norm_type) 
-        if self.type == FeatureMatcherTypes.LIGHTGLUE:            
+            ratio_test = self.ratio_test 
+        # TODO: Use inheritance here instead of using if-else   
+        # NOTE: Not using inheritance for now since the interface is not yet optimal
+        # and it may change
+        # ===========================================================   
+        if self.matcher_type == FeatureMatcherTypes.LIGHTGLUE:            
             if kps1 is None and kps2 is None:
                 return [], []
             else: 
@@ -254,35 +290,47 @@ class FeatureMatcher(object):
             'descriptors': torch.tensor(des2, device=self.torch_device).unsqueeze(0),
             'image_size': torch.tensor(img1_shape, device=self.torch_device).unsqueeze(0)
             }             
-            matches01 = self.matcher_lightglue({"image0": d0, "image1": d1})
+            matches01 = self.matcher({"image0": d0, "image1": d1})
             #print(matches01['matches'])
             idx0 = matches01['matches'][0][:, 0].cpu().tolist()
             idxs1 = matches01['matches'][0][:, 1].cpu().tolist()
             #print(des1.shape,len(idx0),len(idxs1))
-            #return idx0, idxs1
             result.idxs1 = idx0
             result.idxs2 = idxs1
             return result
-            # print(d1['keypoints'].shape, d1['descriptors'].shape, d1['image_size'].shape)
-            # print(d2['keypoints'].shape, d2['descriptors'].shape, d2['image_size'].shape)
-        elif self.type == FeatureMatcherTypes.XFEAT:
+        # ===========================================================
+        elif self.matcher_type == FeatureMatcherTypes.XFEAT:
             d1_tensor = torch.tensor(des1, dtype=torch.float32)  # Specify dtype if needed
             d2_tensor = torch.tensor(des2, dtype=torch.float32)  # Specify dtype if needed
             # If the original tensors were on a GPU, you should move the new tensors to GPU as well
             # d1_tensor = d1_tensor.to('cuda')  # Use 'cuda' or 'cuda:0' if your device is a GPU
             # d2_tensor = d2_tensor.to('cuda') 
-            idx0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, 0.93) 
-            #return idx0.cpu(), idxs1.cpu()     
+            idx0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, 0.93)     
             result.idxs1 = idx0.cpu()
             result.idxs2 = idxs1.cpu()
             return result
-        elif self.type == FeatureMatcherTypes.LOFTR:
-            input = {"image0": img1, "image1": img2}
-            out_matching = self.matcher_loftr(input)
-            kps1 = out_matching['keypoints0']
-            kps2 = out_matching['keypoints1']
-            idxs = out_matching['batch_indexes']
-            raise ValueError('Not implemented yet')                 
+        # ===========================================================
+        elif self.matcher_type == FeatureMatcherTypes.LOFTR:
+            if img1.ndim>2:
+                img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
+            if img2.ndim>2:
+                img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY)                
+            img1 = K.image_to_tensor(img1, False).to(self.torch_device).float() / 255.          
+            img2 = K.image_to_tensor(img2, False).to(self.torch_device).float() / 255.                
+            matching_input = {"image0": img1, "image1": img2}
+            out_matching = self.matcher(matching_input)
+            kps1 = out_matching['keypoints0'].cpu().numpy()
+            kps1 = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1 ] 
+            kps2 = out_matching['keypoints1'].cpu().numpy()
+            kps2 = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2 ]
+            #idxs = out_matching['batch_indexes'].cpu().numpy()
+            #print(f'idxs.shape: {idxs.shape}, idxs.dtype: {idxs.dtype}')
+            result.kps1 = kps1
+            result.kps2 = kps2
+            result.idxs1 = range(len(kps1))
+            result.idxs2 = range(len(kps2))
+            return result         
+        # ===========================================================      
         else: 
             """
             The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects. 
@@ -303,37 +351,115 @@ class FeatureMatcher(object):
     
 # Brute-Force Matcher 
 class BfFeatureMatcher(FeatureMatcher): 
-    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.BF):
-        super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+    def __init__(self, 
+                 norm_type=cv2.NORM_HAMMING, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.BF,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
         self.matcher = cv2.BFMatcher(norm_type, cross_check)     
         self.matcher_name = 'BfFeatureMatcher'   
+        Printer.green(f'matcher: {self.matcher_name} - norm_type: {norm_type}, cross_check: {cross_check}, ratio_test: {ratio_test}')
 
 
 class XFeatMatcher(FeatureMatcher):
-    def __init__(self, norm_type=cv2.NORM_L2, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.XFEAT):
-        super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+    def __init__(self, 
+                 norm_type=cv2.NORM_L2, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.XFEAT,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
         self.matcher = XFeat()    
         self.matcher_name = 'XFeatFeatureMatcher'   
+        Printer.green(f'matcher: {self.matcher_name}')
+        
 
 class LightGlueMatcher(FeatureMatcher):
-    def __init__(self, norm_type=cv2.NORM_L2, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.LIGHTGLUE):
-        super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+    def __init__(self, 
+                 norm_type=cv2.NORM_L2, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.LIGHTGLUE,
+                 detector_type=FeatureDetectorTypes.SUPERPOINT,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.matcher = LightGlue(features="superpoint").eval().to(device) 
+        self.torch_device = device
+        if self.torch_device == 'cuda':
+            LightGlue.pruning_keypoint_thresholds['cuda']      
+        features_string = None 
+        if detector_type == FeatureDetectorTypes.SUPERPOINT:
+            features_string = 'superpoint'
+        elif detector_type == FeatureDetectorTypes.DISK:
+            features_string = 'disk'  
+        else:
+            raise ValueError(f'LightGlue: Unmanaged detector type: {detector_type.name}')
+        self.matcher = LightGlue(features=features_string,n_layers=2).eval().to(device) 
         self.matcher_name = 'LightGlueFeatureMatcher'   
+        print('device: ', self.torch_device)  
+        Printer.green(f'matcher: {self.matcher_name}')
+        
 
 class LoFTRMatcher(FeatureMatcher):
-    def __init__(self, norm_type=cv2.NORM_L2, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.LOFTR):
-        super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+    def __init__(self, 
+                 norm_type=cv2.NORM_L2, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.LOFTR,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #device = 'cpu' # force cpu mode
+        self.torch_device = device
+        if self.torch_device == 'cuda':
+            torch.cuda.empty_cache()
         # https://kornia.readthedocs.io/en/latest/feature.html#kornia.feature.LoFTR
-        self.matcher = KF.LoFTR().eval().to(device) 
+        self.matcher = KF.LoFTR('outdoor').eval().to(device)  
         self.matcher_name = 'LoFTRMatcher' 
+        print('device: ', self.torch_device)    
+        Printer.green(f'matcher: {self.matcher_name}')
+        
         
 # Flann Matcher 
 class FlannFeatureMatcher(FeatureMatcher): 
-    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check = False, ratio_test=kRatioTest, type = FeatureMatcherTypes.FLANN):
-        super().__init__(norm_type=norm_type, cross_check=cross_check, ratio_test=ratio_test, type=type)
+    def __init__(self, 
+                 norm_type=cv2.NORM_HAMMING, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.FLANN,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
         if norm_type == cv2.NORM_HAMMING:
             # FLANN parameters for binary descriptors 
             FLANN_INDEX_LSH = 6
@@ -347,5 +473,6 @@ class FlannFeatureMatcher(FeatureMatcher):
             self.index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 4)  
         self.search_params = dict(checks=32)   # or pass empty dictionary                 
         self.matcher = cv2.FlannBasedMatcher(self.index_params, self.search_params)  
-        self.matcher_name = 'FlannFeatureMatcher'                                                
+        self.matcher_name = 'FlannFeatureMatcher'                                        
+        Printer.green(f'matcher: {self.matcher_name} - norm_type: {norm_type}, cross_check: {cross_check}, ratio_test: {ratio_test}')
 

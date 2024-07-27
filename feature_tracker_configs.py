@@ -20,7 +20,7 @@
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
+from feature_matcher import FeatureMatcherTypes
 
 from parameters import Parameters  
 
@@ -256,7 +256,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.KEYNETAFFNETHARDNET, 
                       descriptor_type = FeatureDescriptorTypes.KEYNETAFFNETHARDNET, 
                       match_ratio_test = kRatioTest,                               
-                      tracker_type = kTrackerType) #FeatureTrackerTypes.LIGHTGLUE)
+                      tracker_type = kTrackerType) 
     
     # =====================================
     # Descriptor-based 'trackers' with ORB2
@@ -300,3 +300,16 @@ class FeatureTrackerConfigs(object):
                 descriptor_type = FeatureDescriptorTypes.L2NET, 
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType) 
+
+    # =====================================
+    # Matcher-based 'trackers'
+    # Note: matchers do not extract keypoints and descriptors on single images. 
+    #       They work directly on both images img1 and img2 and produces as results kps1,kps2,idxs1,idxs2
+    
+    LOFTR = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                num_levels = 1, 
+                scale_factor = 1.2,
+                detector_type = FeatureDetectorTypes.NONE, 
+                descriptor_type = FeatureDescriptorTypes.NONE, 
+                match_ratio_test = kRatioTest,                               
+                tracker_type = FeatureTrackerTypes.LOFTR)       

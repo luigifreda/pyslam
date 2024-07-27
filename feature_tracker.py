@@ -40,6 +40,7 @@ class FeatureTrackerTypes(Enum):
     DES_FLANN = 2   # descriptor-based, FLANN-based matching
     XFEAT     = 3   # based on XFEAT, "XFeat: Accelerated Features for Lightweight Image Matching"
     LIGHTGLUE = 4   # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
+    LOFTR     = 5   # [kornia-based] "LoFTR: Efficient Local Feature Matching with Transformers"
 
 
 def feature_tracker_factory(num_features=kMinNumFeatureDefault, 
@@ -57,6 +58,14 @@ def feature_tracker_factory(num_features=kMinNumFeatureDefault,
                                 descriptor_type = descriptor_type, 
                                 match_ratio_test = match_ratio_test,                                
                                 tracker_type = tracker_type)
+    elif tracker_type == FeatureTrackerTypes.LOFTR:
+        return LoftrFeatureTracker(num_features=num_features, 
+                                        num_levels = num_levels, 
+                                        scale_factor = scale_factor, 
+                                        detector_type = detector_type, 
+                                        descriptor_type = descriptor_type,
+                                        match_ratio_test = match_ratio_test,    
+                                        tracker_type = tracker_type)
     else: 
         return DescriptorFeatureTracker(num_features=num_features, 
                                         num_levels = num_levels, 
@@ -130,6 +139,9 @@ class FeatureTracker(object):
         return FeatureTrackingResult()             
 
 
+# =======================================================
+
+
 # Lucas-Kanade Tracker: it uses raw pixel patches as "descriptors" and track/"match" by using Lucas Kanade pyr optic flow 
 class LkFeatureTracker(FeatureTracker): 
     def __init__(self, num_features=kMinNumFeatureDefault, 
@@ -180,6 +192,9 @@ class LkFeatureTracker(FeatureTracker):
         res.des_cur = None                      
         return res         
         
+        
+# =======================================================
+
 
 # Extract features by using desired detector and descriptor, match keypoints by using desired matcher on computed descriptors
 class DescriptorFeatureTracker(FeatureTracker): 
@@ -204,20 +219,22 @@ class DescriptorFeatureTracker(FeatureTracker):
                                                        descriptor_type=descriptor_type)    
 
         if tracker_type == FeatureTrackerTypes.XFEAT:
-            self.matching_algo = FeatureMatcherTypes.XFEAT 
-
+            self.matcher_type = FeatureMatcherTypes.XFEAT 
         elif tracker_type == FeatureTrackerTypes.LIGHTGLUE:
-            self.matching_algo = FeatureMatcherTypes.LIGHTGLUE         
-
+            self.matcher_type = FeatureMatcherTypes.LIGHTGLUE         
         elif tracker_type == FeatureTrackerTypes.DES_FLANN:
-            self.matching_algo = FeatureMatcherTypes.FLANN
+            self.matcher_type = FeatureMatcherTypes.FLANN
         elif tracker_type == FeatureTrackerTypes.DES_BF:
-            self.matching_algo = FeatureMatcherTypes.BF
+            self.matcher_type = FeatureMatcherTypes.BF
         else:
             raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)                   
                     
         # init matcher 
-        self.matcher = feature_matcher_factory(norm_type=self.norm_type, ratio_test=match_ratio_test, type=self.matching_algo)        
+        self.matcher = feature_matcher_factory(norm_type=self.norm_type, 
+                                               ratio_test=match_ratio_test, 
+                                               matcher_type=self.matcher_type,
+                                               detector_type=detector_type,
+                                               descriptor_type=detector_type)        
 
 
     # out: keypoints and descriptors 
@@ -247,5 +264,68 @@ class DescriptorFeatureTracker(FeatureTracker):
         res.kps_cur_matched = np.asarray(kps_cur[idxs_cur]) # the matched cur kps  
         res.idxs_cur = np.asarray(idxs_cur)
         
-        
         return res                 
+
+
+# =======================================================
+
+
+class LoftrFeatureTracker(FeatureTracker): 
+    def __init__(self, num_features=kMinNumFeatureDefault, 
+                       num_levels = 1,                                    # number of pyramid levels for detector  
+                       scale_factor = 1.2,                                # detection scale factor (if it can be set, otherwise it is automatically computed)                
+                       detector_type = FeatureDetectorTypes.NONE, 
+                       descriptor_type = FeatureDescriptorTypes.NONE,
+                       match_ratio_test = kRatioTest, 
+                       tracker_type = FeatureTrackerTypes.LOFTR):
+        super().__init__(num_features=num_features, 
+                         num_levels=num_levels, 
+                         scale_factor=scale_factor, 
+                         detector_type=detector_type, 
+                         descriptor_type=descriptor_type, 
+                         match_ratio_test = match_ratio_test,
+                         tracker_type=tracker_type)
+        self.feature_manager = feature_manager_factory(num_features=num_features, 
+                                                       num_levels=num_levels, 
+                                                       scale_factor=scale_factor, 
+                                                       detector_type=detector_type, 
+                                                       descriptor_type=descriptor_type)    
+
+        if tracker_type == FeatureTrackerTypes.LOFTR:
+            self.matcher_type = FeatureMatcherTypes.LOFTR
+        else:
+            raise ValueError("Unmanaged matching algo for feature tracker %s" % self.tracker_type)                   
+                    
+        # init matcher 
+        self.matcher = feature_matcher_factory(norm_type=self.norm_type, 
+                                               ratio_test=match_ratio_test, 
+                                               matcher_type=self.matcher_type,
+                                               detector_type=detector_type,
+                                               descriptor_type=detector_type)        
+
+
+    # out: keypoints and descriptors (LOFTR does not compute kps,des on single images)
+    def detectAndCompute(self, frame, mask=None):
+        return None, None 
+
+
+    # out: FeatureTrackingResult()
+    def track(self, image_ref, image_cur, kps_ref=None, des_ref=None):
+        # Printer.orange(des_ref.shape)
+        matching_result = self.matcher.match(image_ref, image_cur, des1=None, des2=None, kps1=None, kps2=None)  
+        idxs_ref, idxs_cur = matching_result.idxs1, matching_result.idxs2
+        #print('num matches: ', len(matches))
+        
+        res = FeatureTrackingResult()
+        res.kps_ref = matching_result.kps1  # all the reference keypoints  
+        res.kps_cur = matching_result.kps2  # all the current keypoints    
+        res.des_ref = matching_result.des1  # all the reference descriptors   
+        res.des_cur = matching_result.des2  # all the current descriptors         
+        
+        res.kps_ref_matched = np.asarray(res.kps_ref[idxs_ref]) # the matched ref kps  
+        res.idxs_ref = np.asarray(idxs_ref)                  
+        
+        res.kps_cur_matched = np.asarray(res.kps_cur[idxs_cur]) # the matched cur kps  
+        res.idxs_cur = np.asarray(idxs_cur)
+        
+        return res        

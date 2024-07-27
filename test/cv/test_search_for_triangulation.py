@@ -27,7 +27,7 @@ import optimizer_g2o
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
+from feature_matcher import FeatureMatcherTypes
 
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory

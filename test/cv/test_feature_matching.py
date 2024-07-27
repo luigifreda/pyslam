@@ -11,7 +11,7 @@ from mplot_figure import MPlotFigure
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
+from feature_matcher import FeatureMatcherTypes
 from utils_img import combine_images_horizontally, rotate_img, transform_img, add_background
 from utils_geom import add_ones
 from utils_features import descriptor_sigma_mad, compute_hom_reprojection_error
@@ -69,7 +69,7 @@ if test_type == 'churchill':
     draw_horizontal_layout = True     
 #
 if test_type == 'mars': 
-    # Very hard. This works with ROOT_SIFT, SUPERPOINT, CONTEXTDESC, LFNET, KEYNET ...     
+    # Very hard. This works with ROOT_SIFT, SUPERPOINT, CONTEXTDESC, LFNET, KEYNET, LOFTR ...     
     img1 = cv2.imread('../data/mars1.png') # queryImage
     img2 = cv2.imread('../data/mars2.png') # trainImage
     model_fitting_type='homography' 
@@ -118,14 +118,14 @@ if False:
 num_features=2000 
 
 tracker_type = None 
-# Force a tracker type if you prefer (check if that's possible though):
+# Force a tracker type if you prefer. First, you need to check if that's possible though.
 #tracker_type = FeatureTrackerTypes.DES_BF      # descriptor-based, brute force matching with knn 
 #tracker_type = FeatureTrackerTypes.DES_FLANN  # descriptor-based, FLANN-based matching 
 #tracker_type = FeatureTrackerTypes.XFEAT        # based on XFEAT, "XFeat: Accelerated Features for Lightweight Image Matching"
 #tracker_type = FeatureTrackerTypes.LIGHTGLUE    # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
 
 # select your tracker configuration (see the file feature_tracker_configs.py) 
-tracker_config = FeatureTrackerConfigs.KEYNETAFFNETHARDNET
+tracker_config = FeatureTrackerConfigs.LOFTR
 tracker_config['num_features'] = num_features
 tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default in feature_tracker_configs.py
 if tracker_type is not None:
@@ -138,20 +138,25 @@ feature_tracker = feature_tracker_factory(**tracker_config)
 # Compute keypoints and descriptors  
 #============================================  
     
-# loop for measuring time performance 
+# Loop for measuring time performance 
 N=1
 for i in range(N):
     timer.start()
+    
     # Find the keypoints and descriptors in img1
-    kps1, des1 = feature_tracker.detectAndCompute(img1)
+    kps1, des1 = feature_tracker.detectAndCompute(img1)   # with DL matchers this a null operation 
     # Find the keypoints and descriptors in img2    
-    kps2, des2 = feature_tracker.detectAndCompute(img2)
+    kps2, des2 = feature_tracker.detectAndCompute(img2)   # with DL matchers this a null operation
     # Find matches    
     matching_result = feature_tracker.matcher.match(img1, img2, des1, des2, kps1, kps2)
-    idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
+        
     timer.refresh()
 
-
+# Get/update the info from the maching result
+idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
+kps1, kps2   = matching_result.kps1, matching_result.kps2 # useful with DL matchers that do not compute kps,des on single images
+des1, des2   = matching_result.des1, matching_result.des2 # useful with DL matchers that do not compute kps,des on single images
+    
 print('#kps1: ', len(kps1))
 if des1 is not None: 
     print('des1 shape: ', des1.shape)
@@ -171,16 +176,17 @@ kps2_size = np.array([x.size for x in kps2], dtype=np.float32)
 
 # Build arrays of matched keypoints, descriptors, sizes 
 kps1_matched = kpts1[idxs1]
-des1_matched = des1[idxs1][:]
+des1_matched = des1[idxs1][:] if des1 is not None else None
 kps1_size = kps1_size[idxs1]
 
 kps2_matched = kpts2[idxs2]
-des2_matched = des2[idxs2][:]
+des2_matched = des2[idxs2][:] if des2 is not None else None
 kps2_size = kps2_size[idxs2]
 
 # compute sigma mad of descriptor distances
-sigma_mad, dists = descriptor_sigma_mad(des1_matched,des2_matched,descriptor_distances=feature_tracker.descriptor_distances)
-print('3 x sigma-MAD of descriptor distances (all): ', 3 * sigma_mad)
+if des1_matched is not None and des2_matched is not None:
+    sigma_mad, dists = descriptor_sigma_mad(des1_matched,des2_matched,descriptor_distances=feature_tracker.descriptor_distances)
+    print('3 x sigma-MAD of descriptor distances (all): ', 3 * sigma_mad)
 
 
 #============================================
@@ -236,15 +242,16 @@ if mask is not None:
     
     kps1_matched_inliers = kps1_matched[mask_idxs]
     kps1_size_inliers = kps1_size[mask_idxs]
-    des1_matched_inliers  = des1_matched[mask_idxs][:]    
+    des1_matched_inliers  = des1_matched[mask_idxs][:] if des1_matched is not None else None
     kps2_matched_inliers = kps2_matched[mask_idxs]   
     kps2_size_inliers = kps2_size[mask_idxs]    
-    des2_matched_inliers  = des2_matched[mask_idxs][:]        
+    des2_matched_inliers  = des2_matched[mask_idxs][:] if des2_matched is not None else None       
     print('num inliers: ', len(kps1_matched_inliers))
     print('inliers percentage: ', len(kps1_matched_inliers)/max(len(kps1_matched),1.)*100,'%')
         
-    sigma_mad_inliers, dists = descriptor_sigma_mad(des1_matched_inliers,des2_matched_inliers,descriptor_distances=feature_tracker.descriptor_distances)
-    print('3 x sigma-MAD of descriptor distances (inliers): ', 3 * sigma_mad)  
+    if des1_matched_inliers is not None and des2_matched_inliers is not None: 
+        sigma_mad_inliers, dists = descriptor_sigma_mad(des1_matched_inliers,des2_matched_inliers,descriptor_distances=feature_tracker.descriptor_distances)
+        print('3 x sigma-MAD of descriptor distances (inliers): ', 3 * sigma_mad)  
     #print('distances: ', dists)  
     img_matched_inliers = draw_feature_matches(img1, img2, kps1_matched_inliers, kps2_matched_inliers, kps1_size_inliers, kps2_size_inliers,draw_horizontal_layout)    
                           

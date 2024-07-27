@@ -341,7 +341,7 @@ class Tracking(object):
         if f_ref is None:
             return 
         # find keypoint matches between f_cur and kf_ref   
-        print('matching keypoints with ', Frame.feature_matcher.type.name)              
+        print('matching keypoints with ', Frame.feature_matcher.matcher_type.name)              
         self.timer_match.start()
         idxs_cur, idxs_ref = match_frames(f_cur, f_ref) 
         self.timer_match.refresh()          

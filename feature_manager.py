@@ -496,7 +496,10 @@ class FeatureManager(object):
             self._feature_detector = KeyNetAffNetHardNetFeature2D(num_features=self.num_features)          
             self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #    
-            #                                                                                                                                                    
+            #    
+        elif self.detector_type == FeatureDetectorTypes.NONE:    
+            self._feature_detector = None
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                                                                                                                                                                        
         else:
             raise ValueError("Unknown feature detector %s" % self.detector_type)
                 

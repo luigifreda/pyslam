@@ -83,10 +83,25 @@ class KeyNetAffNetHardNetFeature2D:
             if img.ndim>2:
                 img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             img = K.image_to_tensor(img, False).to(self.device).float() / 255. 
-            lafs, resps, descs = self.feature(img)
+            lafs, resps, des = self.feature(img)
             kps = self.convert_to_keypoints(lafs)
-            des = descs.cpu().numpy()
+            des = des.cpu().numpy()
             des =  np.squeeze(des, axis=0)
             #print(f'des shape: {des.shape}, des type: {des.dtype}')
         return kps, des             
 
+    # compute both keypoints and descriptors       
+    def detectAndComputeWithTensors(self, img, mask=None): #mask is fake: it is not considered by the c++ implementation 
+        # detect and compute 
+        kps = None
+        # a starting 't' means the variable is a tensor
+        tdes = None
+        tresps = None
+        lafs  = None
+        with torch.inference_mode():
+            if img.ndim>2:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            timg = K.image_to_tensor(img, False).to(self.device).float() / 255. 
+            lafs, tresps, tdes = self.feature(timg)
+            kps = self.convert_to_keypoints(lafs)
+        return kps, lafs, tresps, tdes       
