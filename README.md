@@ -3,24 +3,24 @@
 <!-- TOC -->
 
 - [pySLAM v2.1](#pyslam-v21)
-  - [Install](#install)
-    - [Requiremenprovided ts](#requiremenprovided-ts)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting](#troubleshooting)
-  - [Usage](#usage)
-  - [Supported Local Features](#supported-local-features)
-  - [Supported Matchers](#supported-matchers)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-  - [Camera Settings](#camera-settings)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+    - [1. Install](#1-install)
+        - [1.1. Requiremenprovided ts](#11-requiremenprovided-ts)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting](#16-troubleshooting)
+    - [2. Usage](#2-usage)
+    - [3. Supported Local Features](#3-supported-local-features)
+    - [4. Supported Matchers](#4-supported-matchers)
+    - [5. Datasets](#5-datasets)
+        - [5.1. KITTI Datasets](#51-kitti-datasets)
+        - [5.2. TUM Datasets](#52-tum-datasets)
+    - [6. Camera Settings](#6-camera-settings)
+    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
+    - [8. References](#8-references)
+    - [9. Credits](#9-credits)
+    - [10. TODOs](#10-todos)
 
 <!-- /TOC -->
 
@@ -65,7 +65,7 @@ The provided scripts will create a **single python environment** that is able to
 
 ### Requiremenprovided ts
 
-* P thon 3.8.10
+* Python 3.8.10
 * OpenCV >=4.8.1 (see [below](#how-to-install-non-free-opencv-modules))
 * PyTorch 2.3.1
 * Tensorflow 2.13.1
