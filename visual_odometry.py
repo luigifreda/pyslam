@@ -171,7 +171,7 @@ class VisualOdometry(object):
         self.num_matched_kps = self.kpn_ref.shape[0] 
         self.num_inliers =  np.sum(self.mask_match)
         if kVerbose:        
-            print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers)      
+            print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers, ', matcher type: ', self.feature_tracker.matcher.matcher_type.name)      
         # t is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
         absolute_scale = self.getAbsoluteScale(frame_id)
         if(absolute_scale > kAbsoluteScaleThreshold):

@@ -201,6 +201,14 @@ class FeatureTrackerConfigs(object):
                       descriptor_type = FeatureDescriptorTypes.SUPERPOINT, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)
+    
+    LIGHTGLUE_DISK = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.DISK, 
+                      descriptor_type = FeatureDescriptorTypes.DISK, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.LIGHTGLUE)    
 
     XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
                       num_levels = 1, 

@@ -101,7 +101,7 @@ class FeatureInfo(object):
     norm_type = dict() 
     max_descriptor_distance = dict()   # initial reference max descriptor distances used by SLAM for locally searching matches around frame keypoints; 
                                        # these are initialized and then updated by using standard deviation robust estimation (MAD) and exponential smoothing 
-                                       # N.B.: these intial reference distances can be easily estimated by using test_feature_matching.py 
+                                       # N.B.: these intial reference distances can be easily estimated by using main_feature_matching.py 
                                        #       where (3 x sigma_mad) is computed 
     # 
     norm_type[FeatureDescriptorTypes.NONE] = cv2.NORM_L2

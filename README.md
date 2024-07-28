@@ -3,24 +3,24 @@
 <!-- TOC -->
 
 - [pySLAM v2.1](#pyslam-v21)
-    - [1. Install](#1-install)
-        - [1.1. Requiremenprovided ts](#11-requiremenprovided-ts)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting](#16-troubleshooting)
-    - [2. Usage](#2-usage)
-    - [3. Supported Local Features](#3-supported-local-features)
-    - [4. Supported Matchers](#4-supported-matchers)
-    - [5. Datasets](#5-datasets)
-        - [5.1. KITTI Datasets](#51-kitti-datasets)
-        - [5.2. TUM Datasets](#52-tum-datasets)
-    - [6. Camera Settings](#6-camera-settings)
-    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
-    - [8. References](#8-references)
-    - [9. Credits](#9-credits)
-    - [10. TODOs](#10-todos)
+  - [Install](#install)
+    - [Requirements](#requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting](#troubleshooting)
+  - [Usage](#usage)
+  - [Supported Local Features](#supported-local-features)
+  - [Supported Matchers](#supported-matchers)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+  - [Camera Settings](#camera-settings)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
 
@@ -34,6 +34,8 @@ Main Scripts:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
+
+* `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features.
 
 You can use this framework as a baseline to play with [local features](#supported-local-features), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, consider that's a work in progress, a development framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
 
@@ -63,7 +65,7 @@ Then, use the available specific install procedure according to your OS:
 
 The provided scripts will create a **single python environment** that is able to support all the [supported local features](#supported-local-features)!
 
-### Requiremenprovided ts
+### Requirements
 
 * Python 3.8.10
 * OpenCV >=4.8.1 (see [below](#how-to-install-non-free-opencv-modules))
@@ -106,7 +108,7 @@ Check if you have non-free OpenCV module support (no errors imply success):
 
 ### Troubleshooting
 
-If you run into issues or errors during the installation process or at run-time, please, check the[TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
+If you run into issues or errors during the installation process or at run-time, please, check the [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
 
 --- 
 ## Usage
@@ -135,7 +137,7 @@ This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.
 
 You can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
-Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description/matching, you can start by taking a look at [test/cv/test_feature_manager.py](https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_manager.py) and [test/cv/test_feature_matching.py](https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_matching.py).
+Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description/matching, you can start by taking a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) and [main_feature_matching.py](./main_feature_matching.py).
 
 **N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
 
@@ -197,7 +199,7 @@ The following feature **descriptors** are supported:
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
   
-You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `test/cv/test_feature_matching.py`.
+You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
 
 In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
 

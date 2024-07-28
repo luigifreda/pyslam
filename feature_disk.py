@@ -236,7 +236,11 @@ class DiskFeature2D:
             extract = partial(model.features, kind='rng')
             
         self.use_crop = False
-        height, width, channels = image.shape
+        print(f'image shape: {image.shape}, image.ndim: {image.ndim}')
+        if image.ndim == 2:
+            height, width = image.shape
+        else:
+            height, width, channels = image.shape
         cropx = width % 16
         cropy = height % 16
         if cropx != 0 or cropy !=0:
@@ -247,7 +251,10 @@ class DiskFeature2D:
             rest_cropy = cropy %2  
             self.cropx =  [half_cropx, width-(half_cropx+rest_cropx)]
             self.cropy =  [half_cropy, height-(half_cropy+rest_cropy)]
-            cropped_image = image[self.cropy[0]:self.cropy[1],self.cropx[0]:self.cropx[1],:]
+            if image.ndim==3:
+                cropped_image = image[self.cropy[0]:self.cropy[1],self.cropx[0]:self.cropx[1],:]
+            elif image.ndim==2:
+                cropped_image = image[self.cropy[0]:self.cropy[1],self.cropx[0]:self.cropx[1]]
             image_adapter = ImageAdapter(cropped_image)
         else:
             image_adapter = ImageAdapter(image)
