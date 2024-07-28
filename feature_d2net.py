@@ -96,7 +96,7 @@ class D2NetFeature2D:
         
         self.do_cuda = do_cuda & torch.cuda.is_available()
         print('cuda:',self.do_cuda)        
-        self.device = torch.device("cuda:0" if self.do_cuda else "cpu")        
+        self.device = torch.device("cuda" if self.do_cuda else "cpu")        
         
         torch.set_grad_enabled(False)
                 

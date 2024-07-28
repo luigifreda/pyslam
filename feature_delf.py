@@ -393,7 +393,10 @@ class DelfFeature2D:
                     
 
     def __del__(self): 
-        self.close()
+        try: 
+            self.close()
+        except:
+            pass
       
       
     def load_model(self):

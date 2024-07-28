@@ -208,7 +208,10 @@ class KeyNetDescFeature2D:
 
 
     def __del__(self): 
-        self.close()
+        try: 
+            self.close()
+        except:
+            pass
         
         
     def close(self):

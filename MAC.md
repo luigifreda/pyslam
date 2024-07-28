@@ -18,7 +18,7 @@ Please, follow these install steps:
    (if you want to set `zsh` back then run: `$ chsh -s /bin/zsh`)
 4. launch the macOS install script
    ```bash
-   $ ./install_all_mac_venv.sh
+   $ ./install_all_venv.sh
    ```
 5. in order to run `main_vo.py` run 
    ```bash

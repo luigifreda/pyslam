@@ -223,20 +223,19 @@ class FeatureTrackerConfigs(object):
                       descriptor_type = FeatureDescriptorTypes.LIGHTGLUESIFT, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)         
-
-    XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
-                      num_levels = 1, 
-                      scale_factor = 1.2,
-                      detector_type = FeatureDetectorTypes.XFEAT, 
-                      descriptor_type = FeatureDescriptorTypes.XFEAT, 
-                      match_ratio_test = kRatioTest,                               
-                      tracker_type = kTrackerType)
     
     DELF = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.DELF, 
                        descriptor_type = FeatureDescriptorTypes.DELF, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    D2NET = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.D2NET, 
+                       descriptor_type = FeatureDescriptorTypes.D2NET, 
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
