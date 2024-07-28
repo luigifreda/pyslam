@@ -59,8 +59,10 @@ class FeatureDetectorTypes(Enum):
     R2D2                = 22  # [end-to-end] joint detector-descriptor - "R2D2: Repeatable and Reliable Detector and Descriptor"   
     KEYNET              = 23  # "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
     DISK                = 24  # [end-to-end] joint detector-descriptor - "DISK: Learning local features with policy gradient"
-    XFEAT               = 25  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
-    KEYNETAFFNETHARDNET = 26  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
+    ALIKED              = 25  # [end-to-end] joint detector-descriptor - "ALIKED: A Lighter Keypoint and Descriptor Extraction Network via Deformable Transformation"
+    LIGHTGLUESIFT       = 26  # To be used with LightGlue
+    XFEAT               = 27  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
+    KEYNETAFFNETHARDNET = 28  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
 
 class FeatureDescriptorTypes(Enum):
     NONE                = 0   # Used for LK tracker (in main_vo.py)
@@ -93,8 +95,10 @@ class FeatureDescriptorTypes(Enum):
     KEYNET              = 27  # keynet descriptor is HARDNET (only with KEYNET detector) - "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"   
     BEBLID              = 28  # [binary] only descriptor - " BEBLID: Boosted Efficient Binary Local Image Descriptor"              
     DISK                = 29  # [end-to-end] joint detector-descriptor - "DISK: Learning local features with policy gradient"    
-    XFEAT               = 30  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
-    KEYNETAFFNETHARDNET = 31  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
+    ALIKED              = 30  # [end-to-end] joint detector-descriptor - "ALIKED: A Lighter Keypoint and Descriptor Extraction Network via Deformable Transformation"
+    LIGHTGLUESIFT       = 31  # To be used with LightGlue
+    XFEAT               = 32  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
+    KEYNETAFFNETHARDNET = 33  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
 
 
 class FeatureInfo(object): 
@@ -195,7 +199,13 @@ class FeatureInfo(object):
     max_descriptor_distance[FeatureDescriptorTypes.BEBLID] = 110                # BEBLID     (BEBLID_SIZE_256_BITS)
     #       
     norm_type[FeatureDescriptorTypes.DISK] = cv2.NORM_L2        
-    max_descriptor_distance[FeatureDescriptorTypes.DISK] = 3.1                  # DISK   
+    max_descriptor_distance[FeatureDescriptorTypes.DISK] = 3.22                 # DISK   
+    #       
+    norm_type[FeatureDescriptorTypes.ALIKED] = cv2.NORM_L2        
+    max_descriptor_distance[FeatureDescriptorTypes.ALIKED] = 3.19               # ALIKED    
+    #       
+    norm_type[FeatureDescriptorTypes.LIGHTGLUESIFT] = cv2.NORM_L2        
+    max_descriptor_distance[FeatureDescriptorTypes.LIGHTGLUESIFT] = 1.0         # LIGHTGLUESIFT        
     #       
     norm_type[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = cv2.NORM_L2           
     max_descriptor_distance[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = 2.40   # KEYNETAFFNETHARDNET      

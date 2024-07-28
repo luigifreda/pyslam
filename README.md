@@ -166,6 +166,7 @@ At present time, the following feature **detectors** are supported:
 * *[R2D2](https://github.com/naver/r2d2)*
 * *[Key.Net](https://github.com/axelBarroso/Key.Net)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
+* *[ALIKED](https://arxiv.org/abs/2304.03608)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
 
@@ -196,6 +197,7 @@ The following feature **descriptors** are supported:
 * *[R2D2](https://github.com/naver/r2d2)*
 * *[BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
+* *[ALIKED](https://arxiv.org/abs/2304.03608)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
   

@@ -28,9 +28,7 @@ from parameters import Parameters
 # some default parameters 
 
 kNumFeatures=Parameters.kNumFeatures    
-
 kRatioTest=Parameters.kFeatureMatchRatioTest
-
 kTrackerType = FeatureTrackerTypes.DES_BF      # default descriptor-based, brute force matching with knn 
 #kTrackerType = FeatureTrackerTypes.DES_FLANN  # default descriptor-based, FLANN-based matching 
         
@@ -209,6 +207,22 @@ class FeatureTrackerConfigs(object):
                       descriptor_type = FeatureDescriptorTypes.DISK, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)    
+    
+    LIGHTGLUE_ALIKED = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.ALIKED, 
+                      descriptor_type = FeatureDescriptorTypes.ALIKED, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.LIGHTGLUE)      
+    
+    LIGHTGLUESIFT = dict(num_features=kNumFeatures,                            
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.LIGHTGLUESIFT, 
+                      descriptor_type = FeatureDescriptorTypes.LIGHTGLUESIFT, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.LIGHTGLUE)         
 
     XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
                       num_levels = 1, 
@@ -223,6 +237,14 @@ class FeatureTrackerConfigs(object):
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.DELF, 
                        descriptor_type = FeatureDescriptorTypes.DELF, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    
+    R2D2 = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.R2D2, 
+                       descriptor_type = FeatureDescriptorTypes.R2D2, 
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
@@ -257,6 +279,13 @@ class FeatureTrackerConfigs(object):
                        descriptor_type = FeatureDescriptorTypes.DISK, 
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
+    ALIKED = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.ALIKED, 
+                       descriptor_type = FeatureDescriptorTypes.ALIKED, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)    
     
     KEYNETAFFNETHARDNET = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
                       num_levels = 1, 

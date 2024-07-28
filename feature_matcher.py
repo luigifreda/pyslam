@@ -97,6 +97,7 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING,
     return None 
 
 
+# ==============================================================================
 
 class MatcherUtils: 
     # input: des1 = query-descriptors, des2 = train-descriptors
@@ -208,6 +209,8 @@ class MatcherUtils:
         return idxs1, idxs2, good_matches, mask
     
     
+# ==============================================================================
+
 class FeatureMatchingResult(object): 
     def __init__(self):
         self.kps1 = None          # all reference keypoints (numpy array Nx2)
@@ -267,15 +270,25 @@ class FeatureMatcher(object):
         # and it may change
         # ===========================================================   
         if self.matcher_type == FeatureMatcherTypes.LIGHTGLUE:            
+            scales1 = None
+            scales2 = None
+            oris1 = None 
+            oris2 = None
             if kps1 is None and kps2 is None:
                 return [], []
             else: 
                 # convert from list of keypoints to an array of points if needed
-                if not isinstance(kps1, np.ndarray):
+                if not isinstance(kps1, np.ndarray) or kps1.dtype != np.float32:
+                    if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
+                        scales1 = np.array([x.size for x in kps1], dtype=np.float32)
+                        oris1 = np.array([x.angle for x in kps1], dtype=np.float32)
                     kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
                     if kVerbose:
                         print('kps1.shape:',kps1.shape,' kps1.dtype:',kps1.dtype)
-                if not isinstance(kps2, np.ndarray):
+                if not isinstance(kps2, np.ndarray) or kps2.dtype != np.float32:
+                    if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:                    
+                        scales2 = np.array([x.size for x in kps2], dtype=np.float32)
+                        oris2 = np.array([x.angle for x in kps2], dtype=np.float32)                    
                     kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
                     if kVerbose: 
                         print('kps2.shape:',kps2.shape,' kps2.dtype:',kps2.dtype)
@@ -284,12 +297,18 @@ class FeatureMatcher(object):
             'keypoints': torch.tensor(kps1, device=self.torch_device).unsqueeze(0),
             'descriptors': torch.tensor(des1, device=self.torch_device).unsqueeze(0),
             'image_size': torch.tensor(img1_shape, device=self.torch_device).unsqueeze(0)
-            }
+            }            
+            if scales1 is not None and oris1 is not None:
+                d0['scales'] = torch.tensor(scales1, device=self.torch_device).unsqueeze(0)
+                d0['oris'] = torch.tensor(oris1, device=self.torch_device).unsqueeze(0)
             d1={
             'keypoints': torch.tensor(kps2, device=self.torch_device).unsqueeze(0),
             'descriptors': torch.tensor(des2, device=self.torch_device).unsqueeze(0),
             'image_size': torch.tensor(img1_shape, device=self.torch_device).unsqueeze(0)
-            }             
+            }
+            if scales2 is not None and oris2 is not None:
+                d1['scales'] = torch.tensor(scales2, device=self.torch_device).unsqueeze(0)
+                d1['oris'] = torch.tensor(oris2, device=self.torch_device).unsqueeze(0)             
             matches01 = self.matcher({"image0": d0, "image1": d1})
             #print(matches01['matches'])
             idx0 = matches01['matches'][0][:, 0].cpu().tolist()
@@ -349,6 +368,7 @@ class FeatureMatcher(object):
             return result      
 
     
+# ==============================================================================
 # Brute-Force Matcher 
 class BfFeatureMatcher(FeatureMatcher): 
     def __init__(self, 
@@ -369,82 +389,7 @@ class BfFeatureMatcher(FeatureMatcher):
         Printer.green(f'matcher: {self.matcher_name} - norm_type: {norm_type}, cross_check: {cross_check}, ratio_test: {ratio_test}')
 
 
-class XFeatMatcher(FeatureMatcher):
-    def __init__(self, 
-                 norm_type=cv2.NORM_L2, 
-                 cross_check = False, 
-                 ratio_test=kRatioTest, 
-                 matcher_type = FeatureMatcherTypes.XFEAT,
-                 detector_type=FeatureDetectorTypes.NONE,
-                 descriptor_type=FeatureDescriptorTypes.NONE):
-        super().__init__(norm_type=norm_type, 
-                         cross_check=cross_check, 
-                         ratio_test=ratio_test, 
-                         matcher_type=matcher_type,
-                         detector_type=detector_type,
-                         descriptor_type=descriptor_type)
-        self.matcher = XFeat()    
-        self.matcher_name = 'XFeatFeatureMatcher'   
-        Printer.green(f'matcher: {self.matcher_name}')
-        
-
-class LightGlueMatcher(FeatureMatcher):
-    def __init__(self, 
-                 norm_type=cv2.NORM_L2, 
-                 cross_check = False, 
-                 ratio_test=kRatioTest, 
-                 matcher_type = FeatureMatcherTypes.LIGHTGLUE,
-                 detector_type=FeatureDetectorTypes.SUPERPOINT,
-                 descriptor_type=FeatureDescriptorTypes.NONE):
-        super().__init__(norm_type=norm_type, 
-                         cross_check=cross_check, 
-                         ratio_test=ratio_test, 
-                         matcher_type=matcher_type,
-                         detector_type=detector_type,
-                         descriptor_type=descriptor_type)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.torch_device = device
-        if self.torch_device == 'cuda':
-            LightGlue.pruning_keypoint_thresholds['cuda']      
-        features_string = None 
-        if detector_type == FeatureDetectorTypes.SUPERPOINT:
-            features_string = 'superpoint'
-        elif detector_type == FeatureDetectorTypes.DISK:
-            features_string = 'disk'  
-        else:
-            raise ValueError(f'LightGlue: Unmanaged detector type: {detector_type.name}')
-        self.matcher = LightGlue(features=features_string,n_layers=2).eval().to(device) 
-        self.matcher_name = 'LightGlueFeatureMatcher'   
-        print('device: ', self.torch_device)  
-        Printer.green(f'matcher: {self.matcher_name}')
-        
-
-class LoFTRMatcher(FeatureMatcher):
-    def __init__(self, 
-                 norm_type=cv2.NORM_L2, 
-                 cross_check = False, 
-                 ratio_test=kRatioTest, 
-                 matcher_type = FeatureMatcherTypes.LOFTR,
-                 detector_type=FeatureDetectorTypes.NONE,
-                 descriptor_type=FeatureDescriptorTypes.NONE):
-        super().__init__(norm_type=norm_type, 
-                         cross_check=cross_check, 
-                         ratio_test=ratio_test, 
-                         matcher_type=matcher_type,
-                         detector_type=detector_type,
-                         descriptor_type=descriptor_type)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        #device = 'cpu' # force cpu mode
-        self.torch_device = device
-        if self.torch_device == 'cuda':
-            torch.cuda.empty_cache()
-        # https://kornia.readthedocs.io/en/latest/feature.html#kornia.feature.LoFTR
-        self.matcher = KF.LoFTR('outdoor').eval().to(device)  
-        self.matcher_name = 'LoFTRMatcher' 
-        print('device: ', self.torch_device)    
-        Printer.green(f'matcher: {self.matcher_name}')
-        
-        
+# ==============================================================================
 # Flann Matcher 
 class FlannFeatureMatcher(FeatureMatcher): 
     def __init__(self, 
@@ -476,3 +421,85 @@ class FlannFeatureMatcher(FeatureMatcher):
         self.matcher_name = 'FlannFeatureMatcher'                                        
         Printer.green(f'matcher: {self.matcher_name} - norm_type: {norm_type}, cross_check: {cross_check}, ratio_test: {ratio_test}')
 
+
+# ==============================================================================
+class XFeatMatcher(FeatureMatcher):
+    def __init__(self, 
+                 norm_type=cv2.NORM_L2, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.XFEAT,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
+        self.matcher = XFeat()    
+        self.matcher_name = 'XFeatFeatureMatcher'   
+        Printer.green(f'matcher: {self.matcher_name}')
+        
+
+# ==============================================================================
+class LightGlueMatcher(FeatureMatcher):
+    def __init__(self, 
+                 norm_type=cv2.NORM_L2, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.LIGHTGLUE,
+                 detector_type=FeatureDetectorTypes.SUPERPOINT,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.torch_device = device
+        if self.torch_device == 'cuda':
+            LightGlue.pruning_keypoint_thresholds['cuda']      
+        features_string = None 
+        if detector_type == FeatureDetectorTypes.SUPERPOINT:
+            features_string = 'superpoint'
+        elif detector_type == FeatureDetectorTypes.DISK:
+            features_string = 'disk'  
+        elif detector_type == FeatureDetectorTypes.ALIKED:
+            features_string = 'aliked'            
+        elif detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
+            features_string = 'sift'                  
+        else:
+            raise ValueError(f'LightGlue: Unmanaged detector type: {detector_type.name}')
+        self.matcher = LightGlue(features=features_string,n_layers=2).eval().to(device) 
+        self.matcher_name = 'LightGlueFeatureMatcher'   
+        print('device: ', self.torch_device)  
+        Printer.green(f'matcher: {self.matcher_name}')
+        
+
+# ==============================================================================
+class LoFTRMatcher(FeatureMatcher):
+    def __init__(self, 
+                 norm_type=cv2.NORM_L2, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.LOFTR,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #device = 'cpu' # force cpu mode
+        self.torch_device = device
+        if self.torch_device == 'cuda':
+            torch.cuda.empty_cache()
+        # https://kornia.readthedocs.io/en/latest/feature.html#kornia.feature.LoFTR
+        self.matcher = KF.LoFTR('outdoor').eval().to(device)  
+        self.matcher_name = 'LoFTRMatcher' 
+        print('device: ', self.torch_device)    
+        Printer.green(f'matcher: {self.matcher_name}')

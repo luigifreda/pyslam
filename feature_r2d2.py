@@ -149,7 +149,7 @@ def convert_pts_to_keypoints(pts, scores, sizes, levels):
     kps = []
     if pts is not None: 
         # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(p[0], p[1], _size=sizes[i], _response=scores[i], _octave=levels[i]) for i,p in enumerate(pts) ]                      
+        kps = [ cv2.KeyPoint(p[0], p[1], size=sizes[i], response=scores[i], octave=levels[i]) for i,p in enumerate(pts) ]                      
     return kps         
 
  

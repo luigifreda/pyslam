@@ -57,6 +57,8 @@ LfNetFeature2D = import_from('feature_lfnet', 'LfNetFeature2D')
 R2d2Feature2D = import_from('feature_r2d2', 'R2d2Feature2D')
 KeyNetDescFeature2D = import_from('feature_keynet', 'KeyNetDescFeature2D')
 DiskFeature2D = import_from('feature_disk', 'DiskFeature2D')
+AlikedFeature2D = import_from('feature_aliked', 'AlikedFeature2D')
+LightGlueSIFTFeature2D = import_from('feature_lightglue_sift', 'LightGlueSIFTFeature2D')
 KeyNetAffNetHardNetFeature2D = import_from('feature_keynet_affnet_hardnet', 'KeyNetAffNetHardNetFeature2D')
 
 kVerbose = True   
@@ -442,7 +444,7 @@ class FeatureManager(object):
             self.num_levels = 1 # force unless you have 12GB of VRAM        
             multiscale=self.num_levels>1                      
             self._feature_detector = D2NetFeature2D(multiscale=multiscale)
-            #self.keypoint_filter_type = KeyPointFilterTypes.NONE  
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE  
             #    
             #   
         elif self.detector_type == FeatureDetectorTypes.DELF:  
@@ -450,7 +452,7 @@ class FeatureManager(object):
             #self.num_levels = 1 # force              #scales are computed internally   
             self._feature_detector = DelfFeature2D(num_features=self.num_features,score_threshold=20)
             self.scale_factor = self._feature_detector.scale_factor 
-            #self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #    
             #         
         elif self.detector_type == FeatureDetectorTypes.CONTEXTDESC:  
@@ -488,9 +490,24 @@ class FeatureManager(object):
         elif self.detector_type == FeatureDetectorTypes.DISK:       
             self.num_levels = 1 # force 
             self.need_color_image = True               
-            self._feature_detector = DiskFeature2D(num_features=self.num_features)          
+            self._feature_detector = DiskFeature2D(num_features=self.num_features)      
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                
             #    
             #      
+        elif self.detector_type == FeatureDetectorTypes.ALIKED:       
+            self.num_levels = 1 # force 
+            self.need_color_image = True               
+            self._feature_detector = AlikedFeature2D(num_features=self.num_features)  
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                    
+            #    
+            #
+        elif self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:       
+            self.num_levels = 1 # force 
+            self.need_color_image = True               
+            self._feature_detector = LightGlueSIFTFeature2D(num_features=self.num_features)     
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                 
+            #    
+            #                        
         elif self.detector_type == FeatureDetectorTypes.KEYNETAFFNETHARDNET:       
             #self.num_levels = - # internally recomputed               
             self._feature_detector = KeyNetAffNetHardNetFeature2D(num_features=self.num_features)          
@@ -701,6 +718,20 @@ class FeatureManager(object):
                 self._feature_descriptor = self._feature_detector  # reuse detector object                                     
                 #
                 #     
+            elif self.descriptor_type == FeatureDescriptorTypes.ALIKED:   
+                self.oriented_features = False                           
+                if self.detector_type != FeatureDetectorTypes.ALIKED: 
+                    raise ValueError("You cannot use ALIKED internal descriptor without ALIKED detector!\nPlease, select ALIKED as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.LIGHTGLUESIFT:   
+                self.oriented_features = False                           
+                if self.detector_type != FeatureDetectorTypes.LIGHTGLUESIFT: 
+                    raise ValueError("You cannot use LIGHTGLUESIFT internal descriptor without LIGHTGLUESIFT detector!\nPlease, select LIGHTGLUESIFT as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #                                        
             elif self.descriptor_type == FeatureDescriptorTypes.KEYNETAFFNETHARDNET:              
                 if self.detector_type != FeatureDetectorTypes.KEYNETAFFNETHARDNET: 
                     raise ValueError("You cannot use KEYNETAFFNETHARDNET descriptor without KEYNETAFFNETHARDNET detector!\nPlease, select KEYNETAFFNETHARDNET as both descriptor and detector!")
