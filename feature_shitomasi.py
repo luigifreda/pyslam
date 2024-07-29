@@ -36,7 +36,10 @@ class ShiTomasiDetector(object):
         pts = cv2.goodFeaturesToTrack(frame, self.num_features, self.quality_level, self.min_coner_distance, blockSize=self.blockSize, mask=mask)
         # convert matrix of pts into list of keypoints 
         if pts is not None: 
+            #kps = [ cv2.KeyPoint(p[0][0]+0.5, p[0][1]+0.5, self.blockSize) for p in pts ]
             kps = [ cv2.KeyPoint(p[0][0], p[0][1], self.blockSize) for p in pts ]
+            # for kp in kps:
+            #     print(f'kp.pt: {kp.pt}, size: {kp.size}, octave: {kp.octave}, angle: {kp.angle}')
         else:
             kps = []
         #if kVerbose:

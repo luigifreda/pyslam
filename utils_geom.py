@@ -327,6 +327,25 @@ def homography_matrix(img,roll,pitch,yaw,tx=0,ty=0,tz=0):
     return H  
 
     
+# Checks if a matrix is a valid rotation matrix
+def is_rotation_matrix(R):
+  Rt = np.transpose(R)
+  should_be_identity = np.dot(Rt, R)
+  identity = np.identity(len(R))
+  n = np.linalg.norm(should_be_identity - identity)
+  return n < 1e-8 and np.allclose(np.linalg.det(R), 1.0)
 
+# Computes the closest orthogonal matrix to a given matrix.
+def closest_orthogonal_matrix(A):
+  # Singular Value Decomposition
+  U, _, Vt = np.linalg.svd(A)
+  R = np.dot(U, Vt)
+  return R
 
-
+#Computes the closest rotation matrix to a given matrix.
+def closest_rotation_matrix(A):
+  Q = closest_orthogonal_matrix(A)
+  detQ = np.linalg.det(Q)
+  if detQ < 0:
+    Q[:, -1] *= -1
+  return Q

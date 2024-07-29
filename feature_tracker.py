@@ -102,6 +102,7 @@ class FeatureTracker(object):
         self.detector_type = detector_type
         self.descriptor_type = descriptor_type
         self.tracker_type = tracker_type
+        self.matcher_type = FeatureMatcherTypes.NONE
 
         self.feature_manager = None      # it contains both detector and descriptor  
         self.matcher = None              # it contain descriptors matching methods based on BF, FLANN, etc.
