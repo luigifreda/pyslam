@@ -59,7 +59,6 @@ class XFeat2D:
             #print(kpts.shape, descs.shape)
             self.pts, self.des = kpts, descs
            
-            
             # N.B.: pts are - 3xN numpy array with corners [x_i, y_i, confidence_i]^T.
             #print('pts: ', self.pts.T)
             self.kps = convert_superpts_to_keypoints(self.pts, scores=1, size=self.keypoint_size)

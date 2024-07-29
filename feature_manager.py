@@ -334,6 +334,7 @@ class FeatureManager(object):
                 self.pyramid_type = PyramidType.GAUSS_PYRAMID    
                 self.pyramid_do_parallel = False                 # N.B.: XFEAT interface class is not thread-safe!
                 self.force_multiscale_detect_and_compute = True  # force it since XFEAT cannot compute descriptors separately from keypoints 
+                self.keypoint_filter_type = KeyPointFilterTypes.NONE 
             #  
             #                                                                                     
         elif self.detector_type == FeatureDetectorTypes.FAST:    

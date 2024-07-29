@@ -324,7 +324,8 @@ class FeatureMatcher(object):
             # If the original tensors were on a GPU, you should move the new tensors to GPU as well
             # d1_tensor = d1_tensor.to('cuda')  # Use 'cuda' or 'cuda:0' if your device is a GPU
             # d2_tensor = d2_tensor.to('cuda') 
-            idx0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, 0.93)     
+            min_cossim = 0.82 # default in xfeat code 
+            idx0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, min_cossim=min_cossim)    
             result.idxs1 = idx0.cpu()
             result.idxs2 = idxs1.cpu()
             return result
