@@ -23,12 +23,12 @@ Please, follow these install steps:
 5. in order to run `main_vo.py` run 
    ```bash
    $ . pyenv-activate.sh   # this is just needed once in a new terminal
-   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 -O main_vo.py 
+   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_vo.py 
    ```
 6. in order to run `main_slam.py` run 
    ```bash
    $ . pyenv-activate.sh   # this is just needed once in a new terminal 
-   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 -O main_slam.py
+   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_slam.py
    ```
 
 **NOTE 1**: the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 

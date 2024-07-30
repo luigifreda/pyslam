@@ -44,7 +44,7 @@ img1_box = None               # image 1 bounding box (initialization)
 model_fitting_type = None     # 'homography' or 'fundamental' (automatically set below, this is an initialization)
 draw_horizontal_layout=True   # draw matches with the two images in an horizontal or vertical layout (automatically set below, this is an initialization) 
 
-test_type='graf'             # select the test type (there's a template below to add your test)
+test_type='churchill'             # select the test type (there's a template below to add your test)
 #  
 if test_type == 'box': 
     img1 = cv2.imread(kScriptFolder + '/test/data/box.png')          # queryImage  
@@ -130,7 +130,8 @@ tracker_type = None
 #tracker_type = FeatureTrackerTypes.LIGHTGLUE    # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
 
 # select your tracker configuration (see the file feature_tracker_configs.py) 
-tracker_config = FeatureTrackerConfigs.XFEAT_XFEAT
+# FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT_XFEAT, LOFTR
+tracker_config = FeatureTrackerConfigs.LIGHTGLUE
 tracker_config['num_features'] = num_features
 tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default in feature_tracker_configs.py
 if tracker_type is not None:

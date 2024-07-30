@@ -29,7 +29,7 @@ $ . pyenv-conda-create.sh
 
 This will create a custom `pyslam` conda environment and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
 ```
-$ python3 -O main_vo.py
+$ ./main_vo.py
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
 
@@ -43,7 +43,7 @@ $ . install_all_conda.sh
 
 This will compile the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
 ```
-$ python3 -O main_slam.py
+$ ./main_slam.py
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
 

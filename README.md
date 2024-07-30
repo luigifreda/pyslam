@@ -3,24 +3,24 @@
 <!-- TOC -->
 
 - [pySLAM v2.1](#pyslam-v21)
-  - [Install](#install)
-    - [Requirements](#requirements)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting](#troubleshooting)
-  - [Usage](#usage)
-  - [Supported Local Features](#supported-local-features)
-  - [Supported Matchers](#supported-matchers)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-  - [Camera Settings](#camera-settings)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+    - [1. Install](#1-install)
+        - [1.1. Requirements](#11-requirements)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting](#16-troubleshooting)
+    - [2. Usage](#2-usage)
+    - [3. Supported Local Features](#3-supported-local-features)
+    - [4. Supported Matchers](#4-supported-matchers)
+    - [5. Datasets](#5-datasets)
+        - [5.1. KITTI Datasets](#51-kitti-datasets)
+        - [5.2. TUM Datasets](#52-tum-datasets)
+    - [6. Camera Settings](#6-camera-settings)
+    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
+    - [8. References](#8-references)
+    - [9. Credits](#9-credits)
+    - [10. TODOs](#10-todos)
 
 <!-- /TOC -->
 
@@ -116,7 +116,7 @@ If you run into issues or errors during the installation process or at run-time,
 Once you have run the script `install_all_venv.sh` (follow the instructions according to your OS), you can open a new terminal and run:
 ```bash
 $ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
-$ python3 -O main_vo.py
+$ ./main_vo.py
 ```
 This will process a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
 
@@ -130,16 +130,21 @@ In order to process a different **dataset**, you need to set the file `config.in
 Similarly, you can test `main_slam.py` by running:
 ```bash
 $ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
-$ python3 -O main_slam.py
+$ ./main_slam.py
 ```
 
 This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened *Figure 1* window and pressing the key 'Q'. 
+**N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
 
-You can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
+If you want to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and test the different available local features.
+```bash
+$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
+$ ./main_feature_matching.py
+```
 
-Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description/matching, you can start by taking a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) and [main_feature_matching.py](./main_feature_matching.py).
+In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
-**N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
+Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
 
 ---
 ## Supported Local Features
