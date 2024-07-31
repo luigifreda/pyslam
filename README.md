@@ -1,30 +1,30 @@
 # pySLAM v2.1
 
+Author: [Luigi Freda](https://www.luigifreda.com)
+
 <!-- TOC -->
 
 - [pySLAM v2.1](#pyslam-v21)
-    - [1. Install](#1-install)
-        - [1.1. Requirements](#11-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting](#16-troubleshooting)
-    - [2. Usage](#2-usage)
-    - [3. Supported Local Features](#3-supported-local-features)
-    - [4. Supported Matchers](#4-supported-matchers)
-    - [5. Datasets](#5-datasets)
-        - [5.1. KITTI Datasets](#51-kitti-datasets)
-        - [5.2. TUM Datasets](#52-tum-datasets)
-    - [6. Camera Settings](#6-camera-settings)
-    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
-    - [8. References](#8-references)
-    - [9. Credits](#9-credits)
-    - [10. TODOs](#10-todos)
+  - [Install](#install)
+    - [Requirements](#requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting](#troubleshooting)
+  - [Usage](#usage)
+  - [Supported Local Features](#supported-local-features)
+  - [Supported Matchers](#supported-matchers)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+  - [Camera Settings](#camera-settings)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
-
-Author: [Luigi Freda](https://www.luigifreda.com)
 
 **pySLAM** contains a python implementation of a monocular *Visual Odometry (VO)* pipeline. It supports many classical and modern **[local features](#supported-local-features)**, and it offers a convenient interface for them. Moreover, it collects other common and useful VO and SLAM tools.
 
@@ -42,11 +42,14 @@ You can use this framework as a baseline to play with [local features](#supporte
 **Enjoy it!**
 
 <center> <img src="images/main-vo.png"
-alt="VO" width="600" border="1" /> 
+alt="Visual Odometry" width="600" border="1" /> 
 <img src="images/main-slam-kitti-map.png"
 alt="SLAM" width="600" border="1" />
 <img src="images/feature-matching.png"
-alt="Feature Matching" width="600" border="1" />  </center>
+alt="Feature Matching" width="600" border="1" />  
+<img src="images/main-rerun-vo-and-matching.png"
+alt="Feature matching and Visual Odometry" width="600" border="1" />  
+</center>
 
 --- 
 ## Install 
