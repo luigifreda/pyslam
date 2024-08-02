@@ -343,7 +343,8 @@ class Tracking(object):
         # find keypoint matches between f_cur and kf_ref   
         print('matching keypoints with ', Frame.feature_matcher.matcher_type.name)              
         self.timer_match.start()
-        idxs_cur, idxs_ref = match_frames(f_cur, f_ref) 
+        matching_result = match_frames(f_cur, f_ref) 
+        idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)           
         self.timer_match.refresh()          
         self.num_matched_kps = idxs_cur.shape[0]    
         print("# keypoints matched: %d " % self.num_matched_kps)  

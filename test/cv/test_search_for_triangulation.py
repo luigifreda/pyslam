@@ -10,7 +10,6 @@ from config import Config
 
 from mplot_figure import MPlotFigure
 
-from frame import Frame, match_frames
 from utils_geom import triangulate_points, add_ones, poseRt, skew
 from utils_draw import draw_points2, draw_feature_matches
 from search_points import search_map_by_projection, search_frame_by_projection, search_frame_for_triangulation

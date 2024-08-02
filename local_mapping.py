@@ -34,7 +34,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 from parameters import Parameters  
 
-#from frame import Frame, match_frames
 from keyframe import KeyFrame
 from frame import Frame  
 from search_points import search_frame_for_triangulation, search_and_fuse

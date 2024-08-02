@@ -323,10 +323,16 @@ class LoftrFeatureTracker(FeatureTracker):
         res.des_ref = matching_result.des1  # all the reference descriptors   
         res.des_cur = matching_result.des2  # all the current descriptors         
         
-        res.kps_ref_matched = np.asarray(res.kps_ref[idxs_ref]) # the matched ref kps  
-        res.idxs_ref = np.asarray(idxs_ref)                  
+        # convert from list of keypoints to an array of points 
+        if not (isinstance(res.kps_ref, np.ndarray) and (res.kps_ref.dtype == np.float32 or res.kps_ref.dtype == np.float64)):
+            res.kps_ref = np.array([x.pt for x in res.kps_ref], dtype=np.float32)
+        if not (isinstance(res.kps_cur, np.ndarray) and (res.kps_cur.dtype == np.float32 or res.kps_cur.dtype == np.float64)):            
+            res.kps_cur = np.array([x.pt for x in res.kps_cur], dtype=np.float32)         
         
-        res.kps_cur_matched = np.asarray(res.kps_cur[idxs_cur]) # the matched cur kps  
-        res.idxs_cur = np.asarray(idxs_cur)
+        res.idxs_ref = np.asarray(idxs_ref)
+        res.kps_ref_matched = np.asarray(res.kps_ref[res.idxs_ref]) # the matched ref kps                    
+        
+        res.idxs_cur = np.asarray(idxs_cur)        
+        res.kps_cur_matched = np.asarray(res.kps_cur[res.idxs_cur]) # the matched cur kps  
         
         return res        

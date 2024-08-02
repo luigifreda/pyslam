@@ -74,6 +74,7 @@ if __name__ == "__main__":
 
     # select your tracker configuration (see the file feature_tracker_configs.py) 
     # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
+    # WARNING: At present, SLAM is not able to support LOFTR and other "pure" image matchers (further details in the commenting notes of LOFTR in feature_tracker_configs.py).
     tracker_config = FeatureTrackerConfigs.TEST
     tracker_config['num_features'] = num_features
     tracker_config['tracker_type'] = tracker_type

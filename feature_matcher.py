@@ -340,15 +340,15 @@ class FeatureMatcher(object):
             matching_input = {"image0": img1, "image1": img2}
             out_matching = self.matcher(matching_input)
             kps1 = out_matching['keypoints0'].cpu().numpy()
-            kps1 = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1 ] 
+            kps1 = np.array([ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1 ])
             kps2 = out_matching['keypoints1'].cpu().numpy()
-            kps2 = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2 ]
+            kps2 = np.array([ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2 ])
             #idxs = out_matching['batch_indexes'].cpu().numpy()
             #print(f'idxs.shape: {idxs.shape}, idxs.dtype: {idxs.dtype}')
             result.kps1 = kps1
             result.kps2 = kps2
-            result.idxs1 = range(len(kps1))
-            result.idxs2 = range(len(kps2))
+            result.idxs1 = np.arange(len(kps1), dtype=np.int32)
+            result.idxs2 = np.arange(len(kps2), dtype=np.int32)
             return result         
         # ===========================================================      
         else: 

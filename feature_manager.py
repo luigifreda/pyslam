@@ -970,6 +970,9 @@ class FeatureManager(object):
     
     # compute the descriptors once given the keypoints 
     def compute(self, frame, kps, filter = True):
+        if self._feature_descriptor is None:
+            Printer.orange('WARNING: descriptor is null according to your settings (are you using a "pure" matcher?), returning None')            
+            return kps, None
         if not self.need_color_image and frame.ndim>2:     # check if we have to convert to gray image 
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)          
         kps, des = self._feature_descriptor.compute(frame, kps)  # then, compute descriptors 
@@ -985,6 +988,9 @@ class FeatureManager(object):
     # detect keypoints and their descriptors
     # out: kps, des 
     def detectAndCompute(self, frame, mask=None, filter = True):
+        if self._feature_detector is None and self._feature_descriptor is None:
+            Printer.orange('WARNING: detector and/or descriptor are null according to your settings (are you using a "pure" matcher?), returning None')
+            return None, None        
         if not self.need_color_image and frame.ndim>2:     # check if we have to convert to gray image 
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)  
         if self.use_pyramid_adaptor:  

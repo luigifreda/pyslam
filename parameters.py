@@ -63,7 +63,7 @@ class Parameters(object):
     #kMinTraslation = 0.01*kInitializerDesiredMedianDepth  # not used at the present time     
     kInitializerNumMinFeatures = 100
     kInitializerNumMinTriangulatedPoints = 100
-    kFeatureMatchRatioTestInitializer = 0.8   # ratio test used by Initializer        
+    kFeatureMatchRatioTestInitializer = 0.9   # ratio test used by Initializer        
 
 
     # Tracking 

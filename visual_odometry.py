@@ -152,7 +152,7 @@ class VisualOdometry(object):
         # only detect on the current image 
         self.kps_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
         # convert from list of keypoints to an array of points 
-        self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) if self.kps_ref else None
+        self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) if self.kps_ref is not None else None
         self.draw_img = self.drawFeatureTracks(self.cur_image)
 
     def processFrame(self, frame_id):

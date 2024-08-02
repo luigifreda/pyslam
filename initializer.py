@@ -134,7 +134,8 @@ class Initializer(object):
             return out, is_ok
 
         # find keypoint matches
-        idxs_cur, idxs_ref = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)       
+        matching_result = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)      
+        idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)      
     
         print('|------------')        
         #print('deque ids: ', [f.id for f in self.frames])

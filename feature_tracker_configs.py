@@ -348,8 +348,14 @@ class FeatureTrackerConfigs(object):
 
     # =====================================
     # Matcher-based 'trackers'
-    # Note: matchers do not extract keypoints and descriptors on single images. 
-    #       They work directly on both images img1 and img2 and produces as results kps1,kps2,idxs1,idxs2
+    # Note: The following matchers are NOT able to extract keypoints and descriptors on a single provided image. They work directly on a pair of images (img1, img2) and produce
+    #       as a result a pair of corresponding keypoint vectors (kps1, kps2). 
+    #       By design, if we feed these matchers with video images then the extracted keypoints are different on each image. That is, given: 
+    #       - matcher(img1, img2) -> (kps1, kps2a)
+    #       - matcher(img2, img3) -> (kps2b, kps3)
+    #       we have that the keypoint kps2a[i], extrated on img2 the first time, does not necessarily correspond to kps2b[i] or to any other kps2b[j] extracted the second time on img2. 
+    # WARNING: For the reasons explained above, at present, we cannot use these "pure" matchers with classic SLAM. In fact, mapping and localization processes need more than two observations 
+    #          for each triangulated 3D point along different frames to obtain persistent map points and properly constrain camera pose optimizations in the Sim(3) manifold. WIP.
     
     LOFTR = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
                 num_levels = 1, 
