@@ -46,7 +46,15 @@ class TrajectoryWriter:
     def __init__(self, format_type: str, filename: str = None) -> None:
         self.format_type = format_type.lower()
         self.filename = filename or self.generate_filename()
+        self.file = None
+
+    def open_file(self):
         self._create_file()
+
+    def close_file(self):
+        if self.file:
+            self.file.close()
+            self.file = None
 
     def _create_file(self):
         if os.path.exists(self.filename):

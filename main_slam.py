@@ -68,6 +68,7 @@ if __name__ == "__main__":
 
     if bool(config.trajectory_settings['save_trajectory']) is True:
         trajectory_writer = TrajectoryWriter(format_type=config.trajectory_settings['format_type'], filename=config.trajectory_settings['filename'])
+        trajectory_writer.open_file()
     else:
         trajectory_writer = None
     
@@ -201,7 +202,8 @@ if __name__ == "__main__":
         
         if viewer3D is not None:
             is_paused = not viewer3D.is_paused()         
-                        
+    
+    trajectory_writer.close_file()                   
     slam.quit()
     
     #cv2.waitKey(0)
