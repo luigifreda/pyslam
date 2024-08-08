@@ -83,7 +83,7 @@ If you run into troubles or performance issues, check this [TROUBLESHOOTING](./T
 
 ### Ubuntu 
 
-Follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *Ubuntu 20.04* and *Ubuntu 22.04*. 
+Follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
 
 If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
 
@@ -95,7 +95,9 @@ Follow the instructions in this [file](./MAC.md). The reported procedure was tes
 ---
 ### Docker
 
-If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker) with its custom `pyslam` / `pyslam_cuda` docker files. Follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam).
+If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker): 
+- with its custom `pyslam` / `pyslam_cuda` docker files and follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam). 
+- with one of the suggested docker images (*ubuntu\*_cuda* or *ubuntu\**), where you can build and run pyslam. 
 
 ---
 ### How to install non-free OpenCV modules
@@ -118,7 +120,7 @@ If you run into issues or errors during the installation process or at run-time,
 
 Once you have run the script `install_all_venv.sh` (follow the instructions according to your OS), you can open a new terminal and run:
 ```bash
-$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py
 ```
 This will process a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
@@ -132,7 +134,7 @@ In order to process a different **dataset**, you need to set the file `config.in
 
 Similarly, you can test `main_slam.py` by running:
 ```bash
-$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_slam.py
 ```
 
@@ -141,7 +143,7 @@ This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.
 
 If you want to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and test the different available local features.
 ```bash
-$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_feature_matching.py
 ```
 
@@ -354,4 +356,5 @@ Many improvements and additional features are currently under development:
 - [x] modern DL matching algorithms 
 - [ ] object detection and semantic segmentation 
 - [ ] 3D dense reconstruction 
+- [x] unified install procedure (single branch) for all OSs 
 

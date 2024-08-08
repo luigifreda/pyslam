@@ -8,16 +8,25 @@ from camera import Camera
 import subprocess
 from utils_sys import Printer 
 import psutil
+import time
+import os
         
+
+
 def check_command_start(command):
     try:
-        process = subprocess.Popen([command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)        
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(1)
         for proc in psutil.process_iter(attrs=['name']):
-            if proc.info['name'] == command:
+            #print(f'found process: {proc.info["name"]}')
+            if proc.info['name'] == command and proc.is_running():
+                Printer.green('INFO: ' + command + ' running')
                 return True
+        Printer.orange('WARNING: ' + command + ' not running')
+        return False
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return False
-        
+            
 
 class Rerun:
     # static parameters
@@ -39,7 +48,6 @@ class Rerun:
             result = check_command_start(command)
         except Exception as e:
             Printer.orange('ERROR: ' + str(e))
-            pass
         return result
     
     # ===================================================================================

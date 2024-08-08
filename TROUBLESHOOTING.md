@@ -55,7 +55,6 @@ $ ./install_thirdparty.sh
 as explained in the main [README](./README.md) file. That's required in order to properly build and install the required thirdparty libs. 
 Please,follow these steps:
 - check you are on the correct pyslam branch according to your OS
-- check you have `rsync` installed in your OS (it should be installed by pyslam scripts)
 - use the pyslam install scripts
 - open a terminal in the root folder of the repo clean with `$ ./clean.sh`
 - launch a new install with `$ ./install_all_venv.sh`

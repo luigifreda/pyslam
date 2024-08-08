@@ -11,6 +11,9 @@
 #pragma once
 
 #include "cast.h"
+#ifdef __linux__
+#include <cinttypes>
+#endif 
 
 NAMESPACE_BEGIN(PYBIND11_NAMESPACE)
 
