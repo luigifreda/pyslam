@@ -26,12 +26,12 @@ $ ./install_all_conda.sh
 ```
 This will compile the required thirdparty packages and will also create a `pyslam` conda environment. Now, from the same terminal, you can run: 
 ```bash
-$ . pyenv-conda-create.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py
 ```
 or
 ```bash
-$ . pyenv-conda-create.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_slam.py
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).

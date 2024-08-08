@@ -59,7 +59,6 @@ To delete the `pyslam` environment, run
 $ . pyenv-delete.sh 
 ```
 
-
 --- 
 # General Notes About Python Virtual Environments 
 

@@ -93,6 +93,9 @@ else
         if [[ "$OSTYPE" == "darwin"* ]]; then
             git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin 
         fi 
+        cd pangolin
+        git apply ../pangolin.patch
+        cd ..
     fi
     cd pangolin
     if [ ! -f pangolin.cpython-*.so ]; then   
