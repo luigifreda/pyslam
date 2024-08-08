@@ -24,8 +24,8 @@ version=$(lsb_release -a 2>&1)  # ubuntu version
 
 sudo apt update 
 sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
-libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev \
-libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev unzip
+    libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev \
+    libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev unzip
 sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev ffmpeg 
 sudo apt-get install -y libgtk2.0-dev 
 sudo apt-get install -y libglew-dev
@@ -35,7 +35,6 @@ sudo apt-get install -y libsuitesparse-dev
 export CUSTOM_CC_OPTIONS=""
 if [[ $version == *"22.04"* ]] ; then
     sudo apt install -y clang
-    CUSTOM_CC_OPTIONS="CC=clang " 
 fi 
 
 # install required package to create virtual environment
@@ -53,7 +52,11 @@ export PYSLAM_PYTHON_VERSION="3.8.10"
 if [ ! -d $ENV_PATH/bin ]; then 
     export PATH="/home/$USER/.pyenv/bin:$PATH"  # this seems to be needed under docker (even if it seems redundant)
     print_blue creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION
-    $CUSTOM_CC_OPTIONS pyenv install -v $PYSLAM_PYTHON_VERSION
+    if [[ $version == *"22.04"* ]] ; then
+        CC=clang pyenv install -v $PYSLAM_PYTHON_VERSION
+    else
+        pyenv install -v $PYSLAM_PYTHON_VERSION
+    fi
     pyenv local $PYSLAM_PYTHON_VERSION
     python3 -m venv $ENV_NAME
 fi 

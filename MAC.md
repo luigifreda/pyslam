@@ -22,12 +22,12 @@ Please, follow these install steps:
    ```
 5. in order to run `main_vo.py` run 
    ```bash
-   $ . pyenv-activate.sh   # this is just needed once in a new terminal
+   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
    $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_vo.py 
    ```
 6. in order to run `main_slam.py` run 
    ```bash
-   $ . pyenv-activate.sh   # this is just needed once in a new terminal 
+   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal. 
    $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_slam.py
    ```
 

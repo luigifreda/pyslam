@@ -5,24 +5,24 @@ Author: [Luigi Freda](https://www.luigifreda.com)
 <!-- TOC -->
 
 - [pySLAM v2.1](#pyslam-v21)
-    - [1. Install](#1-install)
-        - [1.1. Requirements](#11-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting](#16-troubleshooting)
-    - [2. Usage](#2-usage)
-    - [3. Supported Local Features](#3-supported-local-features)
-    - [4. Supported Matchers](#4-supported-matchers)
-    - [5. Datasets](#5-datasets)
-        - [5.1. KITTI Datasets](#51-kitti-datasets)
-        - [5.2. TUM Datasets](#52-tum-datasets)
-    - [6. Camera Settings](#6-camera-settings)
-    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
-    - [8. References](#8-references)
-    - [9. Credits](#9-credits)
-    - [10. TODOs](#10-todos)
+  - [Install](#install)
+    - [Requirements](#requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting](#troubleshooting)
+  - [Usage](#usage)
+  - [Supported Local Features](#supported-local-features)
+  - [Supported Matchers](#supported-matchers)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+  - [Camera Settings](#camera-settings)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
 
@@ -60,13 +60,13 @@ $ git clone --recursive https://github.com/luigifreda/pyslam.git
 $ cd pyslam 
 ```
 
-Then, use the available specific install procedure according to your OS: 
+Then, use the available specific install procedure according to your OS. The provided scripts will create a **single python environment** that is able to host all the [supported local features](#supported-local-features)!
+
 - **Ubuntu**  [=>](#ubuntu)
 - **MacOs** [=>](#macos) 
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
 - **Docker** [=>](#docker)
 
-The provided scripts will create a **single python environment** that is able to support all the [supported local features](#supported-local-features)!
 
 ### Requirements
 
@@ -348,10 +348,10 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 
 Many improvements and additional features are currently under development: 
 
-* loop closure
-* relocalization 
-* map saving/loading 
-* modern DL matching algorithms
-* object detection and semantic segmentation 
-* 3D dense reconstruction 
+- [ ] loop closure
+- [ ] relocalization 
+- [ ] map saving/loading 
+- [x] modern DL matching algorithms 
+- [ ] object detection and semantic segmentation 
+- [ ] 3D dense reconstruction 
 

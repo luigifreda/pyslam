@@ -3,46 +3,35 @@
 <!-- TOC -->
 
 - [Install under Anaconda or Miniconda](#install-under-anaconda-or-miniconda)
-    - [1. Basic Conda Installation](#1-basic-conda-installation)
-    - [2. Full Conda Installation](#2-full-conda-installation)
-    - [3. Create a pyslam conda environment](#3-create-a-pyslam-conda-environment)
-    - [4. Activate the created pyslam conda environment](#4-activate-the-created-pyslam-conda-environment)
-    - [5. Deactivate pyslam conda environment](#5-deactivate-pyslam-conda-environment)
-    - [6. Delete pyslam conda environment](#6-delete-pyslam-conda-environment)
+  - [Installation](#installation)
+  - [Create a `pyslam` conda environment](#create-a-pyslam-conda-environment)
+  - [Activate the created `pyslam` conda environment](#activate-the-created-pyslam-conda-environment)
+  - [Deactivate `pyslam` conda environment](#deactivate-pyslam-conda-environment)
+  - [Delete `pyslam` conda environment](#delete-pyslam-conda-environment)
 - [General Notes About Conda](#general-notes-about-conda)
-    - [1. Install packages/env from file](#1-install-packagesenv-from-file)
-    - [2. Deleting an environment](#2-deleting-an-environment)
-    - [3. Creating an environment](#3-creating-an-environment)
+  - [Install packages/env from file](#install-packagesenv-from-file)
+  - [Deleting an environment](#deleting-an-environment)
+  - [Creating an environment](#creating-an-environment)
 
 <!-- /TOC -->
 
 I've successfully tested `pyslam` with [Anaconda](https://docs.anaconda.com/anaconda/install/linux/) (version *2019.10*, build *py37_0*) and [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *957d2f0f0701c3d1335e3b39f235d197837ad69a944fa6f5d8ad2c686b69df3b*) under Linux.   
 Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly set your conda python environment. 
 
-## Basic Conda Installation 
+## Installation 
 
-In order to run `main_vo.py` with conda, get in the root of this repository and run the following command:
+In order to use `pyslam` under conda, check you have activated `conda` in your terminal. Get in the root of this repository and run the following command:
+```bash
+$ ./install_all_conda.sh  
 ```
-$ . pyenv-conda-create.sh 
-```
-**N.B.**: do not forget the dot! (without '/' !)
-
-This will create a custom `pyslam` conda environment and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
-```
+This will compile the required thirdparty packages and will also create a `pyslam` conda environment. Now, from the same terminal, you can run: 
+```bash
+$ . pyenv-conda-create.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py
 ```
-If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
-
-## Full Conda Installation 
-
-In order to run `main_slam.py` with conda, get in the root of this repository and run the following command:
-```
-$ . install_all_conda.sh  
-```
-**N.B.**: do not forget the dot! (without '/' !)
-
-This will compile the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
-```
+or
+```bash
+$ . pyenv-conda-create.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_slam.py
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).

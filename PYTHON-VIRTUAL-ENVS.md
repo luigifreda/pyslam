@@ -2,37 +2,29 @@
 
 The following instructions allow you to create a custom `pyslam` virtual environment by using the package `python3-venv`. You will be able to run pyslam scripts within such environment. 
 
-## Basic Installation 
+If you are under **macOS**, please check this other [document](./MAC.md).
 
-In order to run `main_vo.py` with venv, get in the root of this repository and run the following command:
-```bash
-$ . pyenv-create.sh 
-```
-**N.B.**: do not forget the dot! (without '/' !)
-
-This will create a custom `pyslam` environment and will also activate it. Now, from the same terminal, you can run: 
-```bash
-$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
-$ ./main_vo.py
-```
-If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
- 
-If you are under **macOS**, please check this [document](./MAC.md).
-
-## Full Installation 
+## Installation 
 
 In order to run `main_slam.py` with venv, get in the root of this repository and run the following command:
 ```bash
-$ . install_all_venv.sh  
+$ ./install_all_venv.sh  
 ```
-**N.B.**: do not forget the dot! (without '/' !)
+This will compile all the required thirdparty packages and create a `pyslam` python virtual environment. 
 
-This will compile all the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
+## Run
+
+Now, you can run: 
 ```bash
-$ . pyenv-activate.sh   # This is just needed once in a new terminal: Activate pyslam python virtual environment
+$ . pyenv-activate.sh   # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ ./main_vo.py
+```
+or 
+```bash
+$ . pyenv-activate.sh   # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_slam.py
 ```
-If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
+If you want to use a new terminal, recall that you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
 
 
 ## Create a `pyslam` python virtual environment 

@@ -110,9 +110,13 @@ function check_conda(){
 }
 
 function gdrive_download () {
-  #CONFIRM=$(wget --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate "https://docs.google.com/uc?export=download&id=$1" -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')
-  #wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$CONFIRM&id=$1" -O $2
-  #rm -rf /tmp/cookies.txt
+  if gdown -V >/dev/null 2>&1; then
+    echo "" #"gdown is found in PATH"
+  else
+    if [[ -f $HOME/.local/bin/gdown ]]; then
+      export PATH=$HOME/.local/bin:$PATH
+    fi 
+  fi  
   gdown https://drive.google.com/uc?id=$1
 }
  

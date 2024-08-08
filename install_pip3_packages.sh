@@ -36,6 +36,8 @@ install_pip_package yacs==0.1.8
 install_pip_package gdown  # to download from google drive
 install_pip_package ordered-set==4.1.0 # from https://pypi.org/project/ordered-set/
 
+install_pip_package psutil
+
 # Install opencv_python from source with non-free modules enabled 
 PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
 MAKEFLAGS_OPTION="-j$(nproc)"

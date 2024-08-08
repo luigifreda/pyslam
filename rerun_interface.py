@@ -5,7 +5,19 @@ import rerun.blueprint as rrb
 import utils_geom as utils_geom
 import math as math
 from camera import Camera
-
+import subprocess
+from utils_sys import Printer 
+import psutil
+        
+def check_command_start(command):
+    try:
+        process = subprocess.Popen([command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)        
+        for proc in psutil.process_iter(attrs=['name']):
+            if proc.info['name'] == command:
+                return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
+        
 
 class Rerun:
     # static parameters
@@ -19,6 +31,17 @@ class Rerun:
     def __init__(self) -> None:
         self.init()
         
+    @staticmethod
+    def is_ok() -> bool:
+        command = 'rerun'
+        result = False 
+        try: 
+            result = check_command_start(command)
+        except Exception as e:
+            Printer.orange('ERROR: ' + str(e))
+            pass
+        return result
+    
     # ===================================================================================
     # Init
     # =================================================================================== 

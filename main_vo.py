@@ -47,7 +47,10 @@ from rerun_interface import Rerun
 
 
 kUseRerun = True
-
+# check rerun does not have issues 
+if kUseRerun and not Rerun.is_ok():
+    kUseRerun = False
+    
 """
 use or not pangolin (if you want to use it then you need to install it by using the script install_thirdparty.sh)
 """
@@ -103,10 +106,10 @@ if __name__ == "__main__":
         else:
             plt3d = Mplot3d(title='3D trajectory')
 
-    is_draw_err = False 
+    is_draw_err = True 
     err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
     
-    is_draw_matched_points = False 
+    is_draw_matched_points = True 
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
 
     
