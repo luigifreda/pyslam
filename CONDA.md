@@ -15,8 +15,8 @@
 
 <!-- /TOC -->
 
-I've successfully tested `pyslam` with [Anaconda](https://docs.anaconda.com/anaconda/install/linux/) (version *2019.10*, build *py37_0*) and [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *957d2f0f0701c3d1335e3b39f235d197837ad69a944fa6f5d8ad2c686b69df3b*) under Linux.   
-Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly set your conda python environment. 
+I successfully tested `pyslam` with [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *4b3b3b1b99215e85fd73fb2c2d7ebf318ac942a457072de62d885056556eb83e*) under Linux.   
+Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly initialized your conda python environment. 
 
 ## Installation 
 

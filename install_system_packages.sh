@@ -31,8 +31,8 @@ install_package libglew-dev
 
 install_package libeigen3-dev # pangolin installation 
 install_package libopencv-dev # orbslam2_features compilation
+install_package libgtk2.0-dev # needed by opencv when built from source 
 
-#install_package libgtk2.0-dev 
 install_package pkg-config
 install_package python3-gi
 install_package cmake 

@@ -31,3 +31,4 @@ fi
 
 # TODO
 # clean downloaded models 
+#git submodule foreach 'git reset --hard; git clean -xfd'
