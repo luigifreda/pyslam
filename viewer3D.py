@@ -22,7 +22,7 @@ import config
 import math 
 import multiprocessing as mp 
 from multiprocessing import Process, Queue, Value
-import pangolin
+import pypangolin as pangolin
 import OpenGL.GL as gl
 import numpy as np
 from utils_geom import inv_T 
@@ -329,6 +329,7 @@ class Viewer3D(object):
 
     @staticmethod
     def drawPlane(num_divs=200, div_size=10):
+        gl.glLineWidth(0.5)
         # Plane parallel to x-z at origin with normal -y
         minx = -num_divs*div_size
         minz = -num_divs*div_size
@@ -344,5 +345,6 @@ class Viewer3D(object):
             gl.glVertex3f(minx,0,minz+div_size*n)
             gl.glVertex3f(maxx,0,minz+div_size*n)
         gl.glEnd()
+        gl.glLineWidth(1)
 
 

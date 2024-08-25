@@ -20,7 +20,7 @@
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
+from feature_matcher import FeatureMatcherTypes
 
 from parameters import Parameters  
 
@@ -28,9 +28,7 @@ from parameters import Parameters
 # some default parameters 
 
 kNumFeatures=Parameters.kNumFeatures    
-
 kRatioTest=Parameters.kFeatureMatchRatioTest
-
 kTrackerType = FeatureTrackerTypes.DES_BF      # default descriptor-based, brute force matching with knn 
 #kTrackerType = FeatureTrackerTypes.DES_FLANN  # default descriptor-based, FLANN-based matching 
         
@@ -185,7 +183,87 @@ class FeatureTrackerConfigs(object):
                       descriptor_type = FeatureDescriptorTypes.SUPERPOINT, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = kTrackerType)
+    
+    XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.XFEAT, 
+                      descriptor_type = FeatureDescriptorTypes.XFEAT, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = kTrackerType)      
 
+    XFEAT_XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.XFEAT, 
+                      descriptor_type = FeatureDescriptorTypes.XFEAT, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.XFEAT)  # <= Using XFEAT matcher here!
+        
+        
+    LIGHTGLUE = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.SUPERPOINT, 
+                      descriptor_type = FeatureDescriptorTypes.SUPERPOINT, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.LIGHTGLUE)
+    
+    LIGHTGLUE_DISK = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.DISK, 
+                      descriptor_type = FeatureDescriptorTypes.DISK, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.LIGHTGLUE)    
+    
+    LIGHTGLUE_ALIKED = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.ALIKED, 
+                      descriptor_type = FeatureDescriptorTypes.ALIKED, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.LIGHTGLUE)      
+    
+    LIGHTGLUESIFT = dict(num_features=kNumFeatures,                            
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.LIGHTGLUESIFT, 
+                      descriptor_type = FeatureDescriptorTypes.LIGHTGLUESIFT, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = FeatureTrackerTypes.LIGHTGLUE)         
+    
+    DELF = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.DELF, 
+                       descriptor_type = FeatureDescriptorTypes.DELF, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    D2NET = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.D2NET, 
+                       descriptor_type = FeatureDescriptorTypes.D2NET, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    
+    R2D2 = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.R2D2, 
+                       descriptor_type = FeatureDescriptorTypes.R2D2, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    
+    LFNET = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.LFNET, 
+                       descriptor_type = FeatureDescriptorTypes.LFNET, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)
+    
     CONTEXTDESC = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
@@ -209,6 +287,21 @@ class FeatureTrackerConfigs(object):
                        descriptor_type = FeatureDescriptorTypes.DISK, 
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
+    ALIKED = dict(num_features=kNumFeatures,                   
+                       num_levels = 1,                                  
+                       scale_factor = 1.2,                              
+                       detector_type = FeatureDetectorTypes.ALIKED, 
+                       descriptor_type = FeatureDescriptorTypes.ALIKED, 
+                       match_ratio_test = kRatioTest,
+                       tracker_type = kTrackerType)    
+    
+    KEYNETAFFNETHARDNET = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.KEYNETAFFNETHARDNET, 
+                      descriptor_type = FeatureDescriptorTypes.KEYNETAFFNETHARDNET, 
+                      match_ratio_test = kRatioTest,                               
+                      tracker_type = kTrackerType) 
     
     # =====================================
     # Descriptor-based 'trackers' with ORB2
@@ -252,3 +345,22 @@ class FeatureTrackerConfigs(object):
                 descriptor_type = FeatureDescriptorTypes.L2NET, 
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType) 
+
+    # =====================================
+    # Matcher-based 'trackers'
+    # Note: The following matchers are NOT able to extract keypoints and descriptors on a single provided image. They work directly on a pair of images (img1, img2) and produce
+    #       as a result a pair of corresponding keypoint vectors (kps1, kps2). 
+    #       By design, if we feed these matchers with video images then the extracted keypoints are different on each image. That is, given: 
+    #       - matcher(img1, img2) -> (kps1, kps2a)
+    #       - matcher(img2, img3) -> (kps2b, kps3)
+    #       we have that the keypoint kps2a[i], extrated on img2 the first time, does not necessarily correspond to kps2b[i] or to any other kps2b[j] extracted the second time on img2. 
+    # WARNING: For the reasons explained above, at present, we cannot use these "pure" matchers with classic SLAM. In fact, mapping and localization processes need more than two observations 
+    #          for each triangulated 3D point along different frames to obtain persistent map points and properly constrain camera pose optimizations in the Sim(3) manifold. WIP.
+    
+    LOFTR = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                num_levels = 1, 
+                scale_factor = 1.2,
+                detector_type = FeatureDetectorTypes.NONE, 
+                descriptor_type = FeatureDescriptorTypes.NONE, 
+                match_ratio_test = kRatioTest,                               
+                tracker_type = FeatureTrackerTypes.LOFTR)       

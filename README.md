@@ -1,18 +1,20 @@
-# pySLAM v2 
+# pySLAM v2.1
+
+Author: [Luigi Freda](https://www.luigifreda.com)
 
 <!-- TOC -->
 
-- [pySLAM v2](#pyslam-v2)
+- [pySLAM v2.1](#pyslam-v21)
   - [Install](#install)
     - [Requirements](#requirements)
-    - [Ubuntu 18.04](#ubuntu-1804)
-    - [Ubuntu 20.04 and Ubuntu 22.04](#ubuntu-2004-and-ubuntu-2204)
+    - [Ubuntu](#ubuntu)
     - [MacOS](#macos)
     - [Docker](#docker)
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
     - [Troubleshooting](#troubleshooting)
   - [Usage](#usage)
   - [Supported Local Features](#supported-local-features)
+  - [Supported Matchers](#supported-matchers)
   - [Datasets](#datasets)
     - [KITTI Datasets](#kitti-datasets)
     - [TUM Datasets](#tum-datasets)
@@ -24,102 +26,83 @@
 
 <!-- /TOC -->
 
-Author: [Luigi Freda](https://www.luigifreda.com)
-
 **pySLAM** contains a python implementation of a monocular *Visual Odometry (VO)* pipeline. It supports many classical and modern **[local features](#supported-local-features)**, and it offers a convenient interface for them. Moreover, it collects other common and useful VO and SLAM tools.
 
-I released pySLAM v1 for educational purposes, for a [computer vision class](https://as-ai.org/visual-perception-and-spatial-computing/) I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
+I released pySLAM v1 for educational purposes, for a computer vision class I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
 
 Main Scripts:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
+* `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features.
+
 You can use this framework as a baseline to play with [local features](#supported-local-features), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, consider that's a work in progress, a development framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
 
 **Enjoy it!**
 
 <center> <img src="images/main-vo.png"
-alt="VO" width="600" border="1" /> 
+alt="Visual Odometry" width="600" border="1" /> 
 <img src="images/main-slam-kitti-map.png"
 alt="SLAM" width="600" border="1" />
 <img src="images/feature-matching.png"
-alt="Feature Matching" width="600" border="1" />  </center>
+alt="Feature Matching" width="600" border="1" />  
+<img src="images/main-rerun-vo-and-matching.png"
+alt="Feature matching and Visual Odometry" width="600" border="1" />  
+</center>
 
 --- 
 ## Install 
 
-Clone this repo and its modules by running 
-```
+First, clone this repo and its modules by running 
+```bash
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
+$ cd pyslam 
 ```
 
-The framework has been developed and tested under **Ubuntu 18.04**. Use the available specific install procedure according to your OS: 
-- **Ubuntu 18.04** [=>](#ubuntu-1804)
-- **Ubuntu 20.04** and **Ubuntu 22.04**  [=>](#ubuntu-2004)
+Then, use the available specific install procedure according to your OS. The provided scripts will create a **single python environment** that is able to host all the [supported local features](#supported-local-features)!
+
+- **Ubuntu**  [=>](#ubuntu)
 - **MacOs** [=>](#macos) 
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
 - **Docker** [=>](#docker)
 
+
 ### Requirements
 
-* Python 3.6.9
-* Numpy (1.18.2)
-* OpenCV (4.5.1 and newer versions supported, see [below](#how-to-install-non-free-opencv-modules) for a suggested python installation)
-* PyTorch (>= 1.4.0)
-* Tensorflow-gpu 1.14.0
+* Python 3.8.10
+* OpenCV >=4.8.1 (see [below](#how-to-install-non-free-opencv-modules))
+* PyTorch 2.3.1
+* Tensorflow 2.13.1
+* Kornia 0.7.3
+* Rerun
 
 If you run into troubles or performance issues, check this [TROUBLESHOOTING](./TROUBLESHOOTING.md) file.
 
 ---
-### Ubuntu 18.04
 
-**Install in your working Python environment**:
+### Ubuntu 
 
-If you want to launch `main_vo.py`, run the script:   
-
-`$ ./install_basic.sh`   
-
-in order to automatically install the basic required system and python3 packages.
-
-If you want to run `main_slam.py`, you must additionally install the libs [pangolin](https://github.com/stevenlovegrove/Pangolin), [g2opy](https://github.com/uoip/g2opy), etc. by running:    
-
-`$ ./install_all.sh`   
-
-**Install in a custom Python virtual environment**: 
-
-If you do not want to mess up your working (base) python environment, you can create a new virtual environment `pyslam` with **venv** by easily launching the scripts described [here](./PYTHON-VIRTUAL-ENVS.md).
+Follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
 
 If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
-
-**N.B.**: a *single* python environment is able to support all the [supported local features](#supported-local-features)!
-
----
-
-### Ubuntu 20.04 and Ubuntu 22.04
-
-This procedure is valid for both Ubuntu 20.04 and Ubuntu 22.04. Clone this repo recursively and move into the branch `ubuntu20` 
-```
-$ git clone --recursive https://github.com/luigifreda/pyslam.git
-$ cd pyslam 
-$ git checkout ubuntu20  
-```
-and then follow the instructions for creating a new virtual environment `pyslam` described [here](./PYTHON-VIRTUAL-ENVS.md). 
 
 --- 
 ### MacOS
 
-Check the instructions in this [file](./MAC.md). 
+Follow the instructions in this [file](./MAC.md). The reported procedure was tested under *Sonoma 14.5* and *Xcode 15.4*.
 
 ---
 ### Docker
 
-If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker#pyslam) with its custom `pyslam` or `pyslam_cuda` docker file.
+If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker): 
+- with its custom `pyslam` / `pyslam_cuda` docker files and follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam). 
+- with one of the suggested docker images (*ubuntu\*_cuda* or *ubuntu\**), where you can build and run pyslam. 
 
 ---
 ### How to install non-free OpenCV modules
 
-The install scripts take care of installing the new available opencv version (**4.8.1** on Ubuntu 18) and its non-free modules. 
+The provided install scripts take care of installing a recent opencv version (>=**4.8.1**) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
 
 Check your installed OpenCV version:      
 `$ python3 -c "import cv2; print(cv2.__version__)"`
@@ -127,18 +110,18 @@ Check your installed OpenCV version:
 Check if you have non-free OpenCV module support (no errors imply success):       
 `$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"` 
 
-For an advanced OpenCV installation procedure, you can take a look [here](https://docs.opencv.org/master/d2/de6/tutorial_py_setup_in_ubuntu.html). 
 
 ### Troubleshooting
 
-If you run into issues or errors during the installation process or at run-time, please, check the[TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
+If you run into issues or errors during the installation process or at run-time, please, check the [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
 
 --- 
 ## Usage
 
-Once you have run the script `install_basic.sh`, you can immediately run:
-```
-$ python3 -O main_vo.py
+Once you have run the script `install_all_venv.sh` (follow the instructions according to your OS), you can open a new terminal and run:
+```bash
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ ./main_vo.py
 ```
 This will process a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
 
@@ -149,18 +132,24 @@ In order to process a different **dataset**, you need to set the file `config.in
 * the camera settings file accordingly (see the section *[Camera Settings](#camera-settings)* below)
 * the groudtruth file accordingly (ee the section *[Datasets](#datasets)* below and check the files `ground_truth.py` and `convert_groundtruth.py` )
 
-Once you have run the script `install_all.sh` (or your specific OS install script as detailed [above](#install)), you can test  `main_slam.py` by running:
-```
-$ python3 -O main_slam.py
+Similarly, you can test `main_slam.py` by running:
+```bash
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ ./main_slam.py
 ```
 
 This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened *Figure 1* window and pressing the key 'Q'. 
+**N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
 
-You can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
+If you want to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and test the different available local features.
+```bash
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ ./main_feature_matching.py
+```
 
-Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description/matching, you can start by taking a look at [test/cv/test_feature_manager.py](https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_manager.py) and [test/cv/test_feature_matching.py](https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_matching.py).
+In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
-**N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). 
+Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
 
 ---
 ## Supported Local Features
@@ -187,6 +176,9 @@ At present time, the following feature **detectors** are supported:
 * *[R2D2](https://github.com/naver/r2d2)*
 * *[Key.Net](https://github.com/axelBarroso/Key.Net)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
+* *[ALIKED](https://arxiv.org/abs/2304.03608)*
+* *[Xfeat](https://arxiv.org/abs/2404.19174)*
+* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
 
 The following feature **descriptors** are supported: 
 * *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
@@ -215,8 +207,11 @@ The following feature **descriptors** are supported:
 * *[R2D2](https://github.com/naver/r2d2)*
 * *[BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)*
 * *[DISK](https://arxiv.org/abs/2006.13566)*
-
-You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `test/cv/test_feature_matching.py`.
+* *[ALIKED](https://arxiv.org/abs/2304.03608)*
+* *[Xfeat](https://arxiv.org/abs/2404.19174)*
+* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
+  
+You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
 
 In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
 
@@ -224,6 +219,15 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
 
 **N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#supported-local-features)!
 
+---
+## Supported Matchers 
+
+  * *BF*: Brute force matcher on descriptors (with KNN)
+  * *[FLANN](https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350)* 
+  * *[XFeat](https://arxiv.org/abs/2404.19174)*      
+  * *[LightGlue](https://arxiv.org/abs/2306.13643)*
+  * *[LoFTR](https://arxiv.org/abs/2104.00680)*
+  
 --- 
 ## Datasets
 
@@ -310,6 +314,7 @@ J.M.M. Montielb, K. Konolige
 * *[The Role of Wide Baseline Stereo in the Deep Learning World](https://ducha-aiki.github.io/wide-baseline-stereo-blog/2020/03/27/intro.html)* by Dmytro Mishkin
 * *[To Learn or Not to Learn: Visual Localization from Essential Matrices](https://arxiv.org/abs/1908.01293)* by Qunjie Zhou, Torsten Sattler, Marc Pollefeys, Laura Leal-Taixe
 * *[Awesome local-global descriptors](https://github.com/shamangary/awesome-local-global-descriptor)* repository 
+* *[Introduction to Feature Matching Using Neural Networks](https://learnopencv.com/feature-matching/)*
 
 Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html) or [tutorials](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_tutorials.html).  
 
@@ -332,6 +337,10 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [Contextdesc](https://github.com/lzx551402/contextdesc)
 * [LFNet](https://github.com/vcg-uvic/lf-net-release)
 * [R2D2](https://github.com/naver/r2d2)
+* [BEBLID](https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf)
+* [DISK](https://arxiv.org/abs/2006.13566)
+* [Xfeat](https://arxiv.org/abs/2404.19174)
+* [LightGlue](https://arxiv.org/abs/2306.13643)
 * [Key.Net](https://github.com/axelBarroso/Key.Net)
 * [Twitchslam](https://github.com/geohot/twitchslam)
 * [MonoVO](https://github.com/uoip/monoVO-python)  
@@ -341,10 +350,11 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 
 Many improvements and additional features are currently under development: 
 
-* loop closure
-* relocalization 
-* map saving/loading 
-* modern DL matching algorithms
-* object detection and semantic segmentation 
-* 3D dense reconstruction 
+- [ ] loop closure
+- [ ] relocalization 
+- [ ] map saving/loading 
+- [x] modern DL matching algorithms 
+- [ ] object detection and semantic segmentation 
+- [ ] 3D dense reconstruction 
+- [x] unified install procedure (single branch) for all OSs 
 

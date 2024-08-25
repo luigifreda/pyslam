@@ -4,6 +4,11 @@
 
 set -e
 
+
+echo This script is deprecated. Read the instructions in PYTHON-VIRTUAL-ENVS.md and use the command: . install_all_venv.sh
+exit 1
+
+
 # ====================================================
 # import the utils 
 . bash_utils.sh 

@@ -17,13 +17,20 @@ STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 # ====================================================
 # N.B.: this script requires that you have first run:
 #./install_basic.sh 
+
 # ====================================================
-if [[ -z "${USE_PYSLAM_ENV}" ]]; then
-    USE_PYSLAM_ENV=0
-fi
-if [ $USE_PYSLAM_ENV -eq 1 ]; then
-    . pyenv-activate.sh
-fi  
+# check if want to use conda or venv
+if [ -z $USING_CONDA_PYSLAM ]; then
+    if [[ -z "${USE_PYSLAM_ENV}" ]]; then
+        USE_PYSLAM_ENV=0
+    fi
+    if [ $USE_PYSLAM_ENV -eq 1 ]; then
+        . pyenv-activate.sh
+    fi  
+else 
+    echo "Using conda pyslam..."
+    . pyenv-conda-activate.sh
+fi 
 
 # ====================================================
 # check if we have external options
@@ -81,17 +88,21 @@ else
     if [ ! -d pangolin ]; then
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then    
             sudo apt-get install -y libglew-dev
-            git clone https://github.com/uoip/pangolin.git
-            cd pangolin
-            PANGOLIN_UOIP_REVISION=3ac794a
-            git checkout $PANGOLIN_UOIP_REVISION
-            cd ..      
-            # copy local changes 
-            rsync ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt             
+            # git clone https://github.com/uoip/pangolin.git
+            # cd pangolin
+            # PANGOLIN_UOIP_REVISION=3ac794a
+            # git checkout $PANGOLIN_UOIP_REVISION
+            # cd ..      
+            # # copy local changes 
+            # rsync ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt 
+            git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin
         fi 
         if [[ "$OSTYPE" == "darwin"* ]]; then
             git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin 
         fi 
+        cd pangolin
+        git apply ../pangolin.patch
+        cd ..
     fi
     cd pangolin
     if [ ! -f pangolin.cpython-*.so ]; then   
@@ -118,12 +129,8 @@ if [ ! -d g2opy ]; then
     cd g2opy
     G2OPY_REVISION=5587024
     git checkout $G2OPY_REVISION
-    cd ..
-    # copy local changes 
-    rsync ./g2opy_changes/types_six_dof_expmap.h ./g2opy/python/types/sba/types_six_dof_expmap.h
-    rsync ./g2opy_changes/sparse_optimizer.h ./g2opy/python/core/sparse_optimizer.h   
-    rsync ./g2opy_changes/python_CMakeLists.txt ./g2opy/python/CMakeLists.txt    
-    rsync ./g2opy_changes/eigen_types.h ./g2opy/python/core/eigen_types.h      
+    git apply ../g2opy.patch
+    cd ..     
 fi
 cd g2opy
 if [ ! -f lib/g2o.cpython-*.so ]; then  

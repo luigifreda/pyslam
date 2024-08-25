@@ -25,6 +25,10 @@ rm -Rf thirdparty/orbslam2_features/lib
 rm -Rf cpp/utils/build  
 rm -Rf cpp/utils/lib 
 
+if [ -d "thirdparty/opencv-python" ]; then
+    rm -Rf thirdparty/opencv-python
+fi
 
 # TODO
 # clean downloaded models 
+#git submodule foreach 'git reset --hard; git clean -xfd'

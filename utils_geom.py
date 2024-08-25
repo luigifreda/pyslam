@@ -262,6 +262,43 @@ def roll_matrix(roll):
     [0, math.sin(roll),  math.cos(roll)]
     ])    
 
+# from quaternion vector to rotation matrix
+def qvec2rotmat(qvec):
+    return np.array([
+        [
+            1 - 2 * qvec[2] ** 2 - 2 * qvec[3] ** 2,
+            2 * qvec[1] * qvec[2] - 2 * qvec[0] * qvec[3],
+            2 * qvec[3] * qvec[1] + 2 * qvec[0] * qvec[2],
+        ],
+        [
+            2 * qvec[1] * qvec[2] + 2 * qvec[0] * qvec[3],
+            1 - 2 * qvec[1] ** 2 - 2 * qvec[3] ** 2,
+            2 * qvec[2] * qvec[3] - 2 * qvec[0] * qvec[1],
+        ],
+        [
+            2 * qvec[3] * qvec[1] - 2 * qvec[0] * qvec[2],
+            2 * qvec[2] * qvec[3] + 2 * qvec[0] * qvec[1],
+            1 - 2 * qvec[1] ** 2 - 2 * qvec[2] ** 2,
+        ],
+    ])
+
+# from rotation matrix to quaternion vector
+def rotmat2qvec(R):
+    Rxx, Ryx, Rzx, Rxy, Ryy, Rzy, Rxz, Ryz, Rzz = R.flat
+    K = (
+        np.array([
+            [Rxx - Ryy - Rzz, 0, 0, 0],
+            [Ryx + Rxy, Ryy - Rxx - Rzz, 0, 0],
+            [Rzx + Rxz, Rzy + Ryz, Rzz - Rxx - Ryy, 0],
+            [Ryz - Rzy, Rzx - Rxz, Rxy - Ryx, Rxx + Ryy + Rzz],
+        ])
+        / 3.0
+    )
+    eigvals, eigvecs = np.linalg.eigh(K)
+    qvec = eigvecs[[3, 0, 1, 2], np.argmax(eigvals)]
+    if qvec[0] < 0:
+        qvec *= -1
+    return qvec
 
 # we compute H = K*(R-t*n'/d)*Kinv  with n=(0,0,1)' and d=1  <-- Hartley-Zisserman pag 327  
 # => the plane containing `img` is on the optical axis (i.e. along z=(0,0,1)) at a distance d=1, i.e. the plane is Z=1
@@ -290,6 +327,25 @@ def homography_matrix(img,roll,pitch,yaw,tx=0,ty=0,tz=0):
     return H  
 
     
+# Checks if a matrix is a valid rotation matrix
+def is_rotation_matrix(R):
+  Rt = np.transpose(R)
+  should_be_identity = np.dot(Rt, R)
+  identity = np.identity(len(R))
+  n = np.linalg.norm(should_be_identity - identity)
+  return n < 1e-8 and np.allclose(np.linalg.det(R), 1.0)
 
+# Computes the closest orthogonal matrix to a given matrix.
+def closest_orthogonal_matrix(A):
+  # Singular Value Decomposition
+  U, _, Vt = np.linalg.svd(A)
+  R = np.dot(U, Vt)
+  return R
 
-
+#Computes the closest rotation matrix to a given matrix.
+def closest_rotation_matrix(A):
+  Q = closest_orthogonal_matrix(A)
+  detQ = np.linalg.det(Q)
+  if detQ < 0:
+    Q[:, -1] *= -1
+  return Q

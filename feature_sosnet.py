@@ -44,7 +44,7 @@ class SosnetFeature2D:
 
         self.do_cuda = do_cuda & torch.cuda.is_available()
         print('cuda:',self.do_cuda)        
-        device = torch.device("cuda:0" if self.do_cuda else "cpu")
+        device = torch.device("cuda" if self.do_cuda else "cpu")
                 
         torch.set_grad_enabled(False)
         

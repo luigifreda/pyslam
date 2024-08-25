@@ -1,3 +1,3 @@
-# pybind11 binding for ORBSLAM2 features 
+# pybind11 binding for C++ pyslam utils
 
 

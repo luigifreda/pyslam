@@ -1,34 +1,35 @@
 
 # Install pyslam under macOS 
 
-The following procedure has been tested under *Big Sur 11.2* and *Xcode 12.0*. Please consider that, at present, **I'm not able to provide support on macOS anymore**. 
+The following procedure has been tested under *Sonoma 14.5* and *Xcode 15.4*. 
 
 Please, follow these install steps: 
 
 1. first you need to install homebrew and Xcode CLT (check the [section below](#notes-about-macos))
-2. download this repo and move to the **experimental** `mac` branch: 
-```
-   $ git clone https://github.com/luigifreda/pyslam.git 
+2. download this repo: 
+   ```bash
+   $ git clone --recursive https://github.com/luigifreda/pyslam.git 
    $ cd pyslam 
-   $ git checkout mac 
-```
-3. change your default shell type to `bash`: 
    ```
+3. change your default shell type to `bash`: 
+   ```bash
    $ chsh -s /bin/bash 
    ```
    (if you want to set `zsh` back then run: `$ chsh -s /bin/zsh`)
 4. launch the macOS install script
-```
-   $ ./install_all_mac_venv.sh
-```
+   ```bash
+   $ ./install_all_venv.sh
+   ```
 5. in order to run `main_vo.py` run 
-```
-   $ ./launch_main_vo.sh 
-```
+   ```bash
+   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
+   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_vo.py 
+   ```
 6. in order to run `main_slam.py` run 
-```
-   $ ./launch_main_slam.sh 
-```
+   ```bash
+   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal. 
+   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_slam.py
+   ```
 
 **NOTE 1**: the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
 ```
@@ -37,7 +38,7 @@ $ . pyenv-activate.sh
 (do not forget the dot! without '/' ! )
 You can find further details about python virtual environments [here](./PYTHON-VIRTUAL-ENVS.md).
 
-**NOTE 2**: the launch scripts above `launch_main_xxx.sh ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary environment variable setting (explained below):
+**NOTE 2**: the launch scripts `./scripts/launch_main_xxx.sh ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary environment variable setting (explained below):
 ```
 $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py
 ```
@@ -70,13 +71,13 @@ does not work. In another thread https://stackoverflow.com/questions/50168647/mu
 $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 xxx.py
 ```
 
-I found other issues with matplotlib due to `plt.ion()` (interactive mode) that does not work on mac. In order to make the matplotlib processes working, I add to apply some other tricks that make the matplot figures being refreshed in an inelegant way (being activated and refreshed in turn one over the other). But it works! :-)   
+I found other issues with matplotlib due to `plt.ion()` (interactive mode) that does not work on mac. In order to make the matplotlib processes working, I had to apply some other tricks that make the matplot figures being refreshed in an inelegant way (being activated and refreshed in turn one over the other). But it works! :-)   
 At the present time, `pyslam` is still experimental on macOS! 
 
 ### Issues found with OpenCV and pyenv 
 
 When you launch one of the scripts above, you get a warning: 
-```
+```bash
 objc[6169]: Class CaptureDelegate is implemented in both /Users/luigi/.python/venvs/pyslam/lib/python3.7/site-packages/cv2/cv2.cpython-37m-darwin.so (0x11923d590) and /usr/local/opt/opencv/lib/libopencv_videoio.4.3.dylib (0x13021d0c8). One of the two will be used. Which one is undefined.
 ```
 This is an **open issue** which needs to be solved. In a few words, this is an "interference" between the OpenCV libs of the installed virtual python environment and the OpenCV libs installed by homebrew.  

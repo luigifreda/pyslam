@@ -1,0 +1,16 @@
+diff --git a/lib/pyramid.py b/lib/pyramid.py
+index 2f9a513..a2378d9 100644
+--- a/lib/pyramid.py
++++ b/lib/pyramid.py
+@@ -83,8 +83,9 @@ def process_multiscale(image, model, scales=[.5, 1, 2]):
+             )
+         except EmptyTensorError:
+             continue
+-        fmap_pos = fmap_pos[:, ids]
+-        fmap_keypoints = fmap_keypoints[:, ids]
++        ids_cpu = ids.cpu()
++        fmap_pos = fmap_pos[:, ids_cpu]
++        fmap_keypoints = fmap_keypoints[:, ids_cpu]
+         del ids
+ 
+         keypoints = upscale_positions(fmap_keypoints, scaling_steps=2)

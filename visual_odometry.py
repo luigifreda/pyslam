@@ -19,10 +19,11 @@
 
 import numpy as np 
 import cv2
+import platform 
 from enum import Enum
 
 from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
-from utils_geom import poseRt
+from utils_geom import poseRt, is_rotation_matrix, closest_rotation_matrix
 from timer import TimerFps
 
 class VoStage(Enum):
@@ -31,11 +32,11 @@ class VoStage(Enum):
     
 kVerbose=True     
 kMinNumFeature = 2000
-kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
+kRansacThresholdNormalized = 0.0004  # metric threshold used for normalized image coordinates (originally 0.0003)
 kRansacThresholdPixels = 0.1         # pixel threshold used for image coordinates 
 kAbsoluteScaleThreshold = 0.1        # absolute translation scale; it is also the minimum translation norm for an accepted motion 
 kUseEssentialMatrixEstimation = True # using the essential matrix fitting algorithm is more robust RANSAC given five-point algorithm solver 
-kRansacProb = 0.999
+kRansacProb = 0.999                  # (originally 0.999)
 kUseGroundTruthScale = True 
 
 
@@ -96,7 +97,7 @@ class VisualOdometry(object):
             return 1
 
     def computeFundamentalMatrix(self, kps_ref, kps_cur):
-            F, mask = cv2.findFundamentalMat(kps_ref, kps_cur, cv2.FM_RANSAC, param1=kRansacThresholdPixels, param2=kRansacProb)
+            F, mask = cv2.findFundamentalMat(kps_ref, kps_cur, cv2.FM_RANSAC, kRansacThresholdPixels, kRansacProb)
             if F is None or F.shape == (1, 1):
                 # no fundamental matrix found
                 raise Exception('No fundamental matrix found')
@@ -151,7 +152,7 @@ class VisualOdometry(object):
         # only detect on the current image 
         self.kps_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
         # convert from list of keypoints to an array of points 
-        self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) 
+        self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) if self.kps_ref is not None else None
         self.draw_img = self.drawFeatureTracks(self.cur_image)
 
     def processFrame(self, frame_id):
@@ -169,16 +170,22 @@ class VisualOdometry(object):
         self.des_cur = self.track_result.des_cur 
         self.num_matched_kps = self.kpn_ref.shape[0] 
         self.num_inliers =  np.sum(self.mask_match)
+        #compute average delta pixel shift
+        self.average_pixel_shift = np.mean(np.abs(self.track_result.kps_ref_matched - self.track_result.kps_cur_matched))
+        print(f'average pixel shift: {self.average_pixel_shift}')
         if kVerbose:        
-            print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers)      
+            print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers, ', matcher type: ', self.feature_tracker.matcher.matcher_type.name if self.feature_tracker.matcher is not None else 'None', ', tracker type: ', self.feature_tracker.tracker_type.name)      
         # t is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
         absolute_scale = self.getAbsoluteScale(frame_id)
-        if(absolute_scale > kAbsoluteScaleThreshold):
+        if(absolute_scale > kAbsoluteScaleThreshold and self.average_pixel_shift > 1):
             # compose absolute motion [Rwa,twa] with estimated relative motion [Rab,s*tab] (s is the scale extracted from the ground truth)
             # [Rwb,twb] = [Rwa,twa]*[Rab,tab] = [Rwa*Rab|twa + Rwa*tab]
             print('estimated t with norm |t|: ', np.linalg.norm(t), ' (just for sake of clarity)')
             self.cur_t = self.cur_t + absolute_scale*self.cur_R.dot(t) 
-            self.cur_R = self.cur_R.dot(R)       
+            self.cur_R = self.cur_R.dot(R)
+            if not is_rotation_matrix(self.cur_R):
+                print(f'Correcting rotation matrix: {self.cur_R}')
+                self.cur_R = closest_rotation_matrix(self.cur_R)
         # draw image         
         self.draw_img = self.drawFeatureTracks(self.cur_image) 
         # check if we have enough features to track otherwise detect new ones and start tracking from them (used for LK tracker) 
@@ -246,4 +253,5 @@ class VisualOdometry(object):
             self.traj3d_est.append(p)
             pg = [self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]]  # the groudtruth traj starts at 0  
             self.traj3d_gt.append(pg)     
-            self.poses.append(poseRt(self.cur_R, p))   
+            self.poses.append(poseRt(self.cur_R, p))  
+            #self.poses.append(poseRt(self.cur_R, p[0])) 

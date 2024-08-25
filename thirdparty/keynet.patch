@@ -1,0 +1,65 @@
+diff --git a/keyNet/model/keynet_architecture.py b/keyNet/model/keynet_architecture.py
+index c181a01..549887e 100644
+--- a/keyNet/model/keynet_architecture.py
++++ b/keyNet/model/keynet_architecture.py
+@@ -1,6 +1,13 @@
+ import math
+ import numpy as np
+-import tensorflow as tf
++if False:
++    import tensorflow as tf
++    import tensorflow.contrib as tf_contrib
++else:
++    # from https://stackoverflow.com/questions/56820327/the-name-tf-session-is-deprecated-please-use-tf-compat-v1-session-instead
++    import tensorflow.compat.v1 as tf
++    import tensorflow as tfv2
++    #import tensorflow.contrib as tf_contrib
+ 
+ def gaussian_multiple_channels(num_channels, sigma):
+ 
+@@ -113,7 +120,7 @@ class keynet(object):
+         tf.set_random_seed(args.random_seed)
+         np.random.seed(args.random_seed)
+ 
+-        name_scope = tf.contrib.framework.get_name_scope()
++        name_scope = tfv2.get_current_name_scope()
+ 
+         # Smooth Gausian Filter
+         gaussian_avg = gaussian_multiple_channels(1, 1.5)
+@@ -168,7 +175,7 @@ class keynet(object):
+         features, network = self.compute_features(input_data, dim, reuse, is_training)
+ 
+         features = tf.layers.batch_normalization(inputs=features, scale=True, training=is_training,
+-                                                 name=tf.contrib.framework.get_name_scope() + '_batch_final', reuse=reuse)
++                                                 name=tfv2.get_current_name_scope() + '_batch_final', reuse=reuse)
+ 
+         output = self.conv_block(features, 'last_layer', reuse, is_training, num_filters=1, size_kernel=self.conv_kernel_size, batchnorm=False, activation_function=False)
+ 
+@@ -245,7 +252,7 @@ class keynet(object):
+             input_data_resized = self.local_norm_image(input_data_resized)
+ 
+             features_t, network = self.compute_handcrafted_features(input_data_resized, network, idx_level,
+-                                                                    tf.contrib.framework.get_name_scope())
++                                                                    tfv2.get_current_name_scope())
+ 
+             for idx_layer in range(self.num_blocks):
+                 features_t = self.conv_block(features_t, str(idx_layer + 1), reuse or idx_level > 0, is_training,
+@@ -266,14 +273,14 @@ class keynet(object):
+         features = tf.layers.conv2d(inputs=features, filters=num_filters,
+                                     kernel_size=size_kernel,
+                                     strides=1, padding='SAME', use_bias=True,
+-                                    kernel_initializer=tf.contrib.layers.variance_scaling_initializer(),
+-                                    kernel_regularizer=tf.contrib.layers.l2_regularizer(scale=0.1),
++                                    kernel_initializer=tfv2.initializers.variance_scaling(),
++                                    kernel_regularizer=tfv2.keras.regularizers.L2(0.1),
+                                     data_format='channels_last',
+-                                    name=tf.contrib.framework.get_name_scope() + '_conv_'+name, reuse=reuse)
++                                    name=tfv2.get_current_name_scope() + '_conv_'+name, reuse=reuse)
+ 
+         if batchnorm:
+             features = tf.layers.batch_normalization(inputs=features, scale=True, training=is_training,
+-                                                 name=tf.contrib.framework.get_name_scope() + '_batch_'+name, reuse=reuse)
++                                                 name=tfv2.get_current_name_scope() + '_batch_'+name, reuse=reuse)
+ 
+         if activation_function:
+             features = tf.nn.relu(features)

@@ -31,3 +31,10 @@
 [submodule "thirdparty/disk"]
 	path = thirdparty/disk
 	url = https://github.com/cvlab-epfl/disk.git
+[submodule "thirdparty/accelerated_features"]
+	path = thirdparty/accelerated_features
+	url = https://github.com/verlab/accelerated_features.git
+[submodule "thirdparty/LightGlue"]
+	path = thirdparty/LightGlue
+	url = https://github.com/cvg/LightGlue.git
+	

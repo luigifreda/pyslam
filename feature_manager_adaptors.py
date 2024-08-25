@@ -192,7 +192,7 @@ class PyramidAdaptor(object):
         self.scale_factors[0]=1.0          
         
         # compute desired number of features per level (by using the scale factor)
-        self.num_features_per_level = np.zeros(num_levels,dtype=np.int)
+        self.num_features_per_level = np.zeros(num_levels,dtype=np.int32)
         num_desired_features_per_level = self.num_features*(1 - self.inv_scale_factor)/(1 - math.pow(self.inv_scale_factor, self.num_levels))
         sum_num_features = 0
         for level in range(self.num_levels-1):

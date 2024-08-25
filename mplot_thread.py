@@ -40,10 +40,14 @@ kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#thre
 
 kUseFigCanvasDrawIdle = True  
 
+kUsePlotPause = not kUseFigCanvasDrawIdle # this should be set True under macOS   
+if platform.system() == 'Darwin':
+    kUsePlotPause = True       
+
 # global lock for drawing with matplotlib 
 mp_lock = RLock()
 
-if kUseFigCanvasDrawIdle:
+if kUseFigCanvasDrawIdle and platform.system() != 'Darwin':
     plt.ion()
     
 
@@ -126,7 +130,7 @@ class Mplot2d:
         #self.ax = self.fig.gca(projection='3d')
         #self.ax = self.fig.gca()
         self.ax = self.fig.add_subplot(111)   
-        if self.title is not '':
+        if self.title != '':
             self.ax.set_title(self.title) 
         self.ax.set_xlabel(self.xlabel)
         self.ax.set_ylabel(self.ylabel)	   
@@ -148,6 +152,8 @@ class Mplot2d:
     def draw(self, xy_signal, name, color='r', marker='.'):    
         if self.queue is None:
             return
+        if kVerbose:        
+            print(mp.current_process().name,"draw ", self.title)     
         self.queue.put((xy_signal, name, color, marker))
 
     def updateMinMax(self, np_signal):
@@ -180,7 +186,8 @@ class Mplot2d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()         
         self.setAxis()
-        if not kUseFigCanvasDrawIdle:        
+        #if not kUseFigCanvasDrawIdle:        
+        if kUsePlotPause:
             plt.pause(kPlotSleep)
         lock.release()
 
@@ -208,7 +215,7 @@ class Mplot3d:
         self.is_running = Value('i',1)         
 
         self.queue = Queue()
-        self.vp = Process(target=self.drawer_thread, args=(self.queue,mp_lock, self.key, self.is_running,))
+        self.vp = Process(target=self.drawer_thread, args=(self.queue, mp_lock, self.key, self.is_running,))
         self.vp.daemon = kSetDaemon
         self.vp.start()
 
@@ -230,14 +237,16 @@ class Mplot3d:
             self.got_data = True  
             self.data = queue.get()  
             traj, name, color, marker = self.data         
-            np_traj = np.asarray(traj)        
+            np_traj = np.asarray(traj)      
+            does_label_exist = False   
             if name in self.handle_map:
                 handle = self.handle_map[name]
-                self.ax.collections.remove(handle)
+                does_label_exist = True
             self.updateMinMax(np_traj)
             handle = self.ax.scatter3D(np_traj[:, 0], np_traj[:, 1], np_traj[:, 2], c=color, marker=marker)
-            handle.set_label(name)
-            self.handle_map[name] = handle     
+            if not does_label_exist:
+                handle.set_label(name)
+                self.handle_map[name] = handle     
         if self.got_data is True:               
             self.plot_refresh(lock)          
 
@@ -253,24 +262,24 @@ class Mplot3d:
         return chr(self.key.value) 
     
     def init(self, lock):
-        lock.acquire()      
+        lock.acquire()
         if kVerbose:
-            print(mp.current_process().name,"initializing...") 
+            print(mp.current_process().name, "initializing...")
         self.fig = plt.figure()
         if kUseFigCanvasDrawIdle:
-            self.fig.canvas.draw_idle()         
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)       
-        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)             
-        self.ax = self.fig.gca(projection='3d')
-        if self.title is not '':
-            self.ax.set_title(self.title)     
+            self.fig.canvas.draw_idle()
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
+        self.ax = self.fig.add_subplot(111, projection='3d')  # Adjusted line
+        #self.ax = self.fig.gca(projection='3d')
+        if self.title != '':
+            self.ax.set_title(self.title)
         self.ax.set_xlabel('X axis')
         self.ax.set_ylabel('Y axis')
-        self.ax.set_zlabel('Z axis')		   		
-
+        self.ax.set_zlabel('Z axis')
         self.setAxis()
-        lock.release() 
-
+        lock.release()
+        
     def setAxis(self):		
         #self.ax.axis('equal')   # this does not work with the new matplotlib 3    
         if self.axis_computed:	
@@ -326,7 +335,8 @@ class Mplot3d:
             print(mp.current_process().name,"refreshing ", self.title)          
         lock.acquire()          
         self.setAxis()
-        if not kUseFigCanvasDrawIdle:        
+        #if not kUseFigCanvasDrawIdle:        
+        if kUsePlotPause:     
             plt.pause(kPlotSleep)      
         lock.release()
 

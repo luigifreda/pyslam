@@ -29,9 +29,9 @@ message(STATUS "opencv libs: ${OpenCV_LIBS}")
 if(WITH_PYTHON_INTERP_CHECK)
   message(STATUS "WITH_PYTHON_INTERP_CHECK: ${WITH_PYTHON_INTERP_CHECK}")
   find_package(PythonInterp) 
-  find_package(PythonLibs)
+  #find_package(PythonLibs)
   message(STATUS "PythonInterp: ${PythonInterp}")
-  message(STATUS "PythonLibs: ${PythonLibs}")
+  #message(STATUS "PythonLibs: ${PythonLibs}")
 endif()
 
 

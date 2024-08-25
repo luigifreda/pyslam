@@ -48,17 +48,7 @@ from utils_tf import set_tf_logging
 #from utils_sys import Printer
 
 
-kVerbose = True   
-
-    
-# convert matrix of pts into list of keypoints
-def convert_pts_to_keypoints(pts, scores, sizes): 
-    assert(len(pts)==len(scores))
-    kps = []
-    if pts is not None: 
-        # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(p[0], p[1], _size=sizes[i], _response=scores[i]) for i,p in enumerate(pts) ]                      
-    return kps         
+kVerbose = True     
 
 
 # interface for pySLAM 

@@ -108,6 +108,50 @@ function check_conda(){
         echo 0
     fi 
 }
+
+function gdrive_download () {
+  if gdown -V >/dev/null 2>&1; then
+    echo "" #"gdown is found in PATH"
+  else
+    if [[ -f $HOME/.local/bin/gdown ]]; then
+      export PATH=$HOME/.local/bin:$PATH
+    fi 
+  fi  
+  gdown https://drive.google.com/uc?id=$1
+}
  
+function extract_version(){
+    #version=$(echo $1 | sed 's/[^0-9]*//g')
+    #version=$(echo $1 | sed 's/[[:alpha:]|(|[:space:]]//g')
+    version=$(echo $1 | sed 's/[[:alpha:]|(|[:space:]]//g' | sed s/://g)
+    echo $version
+}
+
+
+function get_usable_cuda_version(){
+    version="$1"
+    if [[ "$version" != *"cuda"* ]]; then
+        version="cuda-${version}"      
+    fi 
+    # check if we have two dots in the version, check if the folder exists otherwise remove last dot
+    if [[ $version =~ ^[a-zA-Z0-9-]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [ ! -d /usr/local/$version ]; then 
+            version="${version%.*}"  # remove last dot        
+        fi     
+    fi    
+    echo $version
+}
+
+
+function brew_install(){
+    if brew ls --versions $1 > /dev/null; then
+        # The package is installed
+        echo $1 is already installed!
+    else
+    # The package is not installed
+        brew install $1
+    fi
+}
+
 # ====================================================
 

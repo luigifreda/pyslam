@@ -39,7 +39,8 @@ from feature_root_sift import RootSIFTFeature2D
 from feature_shitomasi import ShiTomasiDetector
     
 # import and check 
-SuperPointFeature2D = import_from('feature_superpoint', 'SuperPointFeature2D')         
+SuperPointFeature2D = import_from('feature_superpoint', 'SuperPointFeature2D')   
+XfeatFeature2D = import_from('feature_xfeat', 'XFeat2D')      
 TfeatFeature2D = import_from('feature_tfeat', 'TfeatFeature2D')     
 Orbslam2Feature2D = import_from('feature_orbslam2', 'Orbslam2Feature2D')  
 HardnetFeature2D = import_from('feature_hardnet', 'HardnetFeature2D')
@@ -56,6 +57,9 @@ LfNetFeature2D = import_from('feature_lfnet', 'LfNetFeature2D')
 R2d2Feature2D = import_from('feature_r2d2', 'R2d2Feature2D')
 KeyNetDescFeature2D = import_from('feature_keynet', 'KeyNetDescFeature2D')
 DiskFeature2D = import_from('feature_disk', 'DiskFeature2D')
+AlikedFeature2D = import_from('feature_aliked', 'AlikedFeature2D')
+LightGlueSIFTFeature2D = import_from('feature_lightglue_sift', 'LightGlueSIFTFeature2D')
+KeyNetAffNetHardNetFeature2D = import_from('feature_keynet_affnet_hardnet', 'KeyNetAffNetHardNetFeature2D')
 
 kVerbose = True   
 
@@ -320,6 +324,18 @@ class FeatureManager(object):
                 self.pyramid_do_parallel = False                 # N.B.: SUPERPOINT interface class is not thread-safe!
                 self.force_multiscale_detect_and_compute = True  # force it since SUPERPOINT cannot compute descriptors separately from keypoints 
             #  
+            #     
+        elif self.detector_type == FeatureDetectorTypes.XFEAT:         
+            self.oriented_features = False                         
+            self._feature_detector = XfeatFeature2D()  
+            if self.descriptor_type != FeatureDescriptorTypes.NONE:              
+                self.use_pyramid_adaptor = self.num_levels > 1    
+                self.need_nms = self.num_levels > 1   
+                self.pyramid_type = PyramidType.GAUSS_PYRAMID    
+                self.pyramid_do_parallel = False                 # N.B.: XFEAT interface class is not thread-safe!
+                self.force_multiscale_detect_and_compute = True  # force it since XFEAT cannot compute descriptors separately from keypoints 
+                self.keypoint_filter_type = KeyPointFilterTypes.NONE 
+            #  
             #                                                                                     
         elif self.detector_type == FeatureDetectorTypes.FAST:    
             self.oriented_features = False             
@@ -429,7 +445,7 @@ class FeatureManager(object):
             self.num_levels = 1 # force unless you have 12GB of VRAM        
             multiscale=self.num_levels>1                      
             self._feature_detector = D2NetFeature2D(multiscale=multiscale)
-            #self.keypoint_filter_type = KeyPointFilterTypes.NONE  
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE  
             #    
             #   
         elif self.detector_type == FeatureDetectorTypes.DELF:  
@@ -437,7 +453,7 @@ class FeatureManager(object):
             #self.num_levels = 1 # force              #scales are computed internally   
             self._feature_detector = DelfFeature2D(num_features=self.num_features,score_threshold=20)
             self.scale_factor = self._feature_detector.scale_factor 
-            #self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
             #    
             #         
         elif self.detector_type == FeatureDetectorTypes.CONTEXTDESC:  
@@ -477,7 +493,37 @@ class FeatureManager(object):
             self.need_color_image = True               
             self._feature_detector = DiskFeature2D(num_features=self.num_features)          
             #    
-            #                                                                                                                                           
+            #       
+        elif self.detector_type == FeatureDetectorTypes.DISK:       
+            self.num_levels = 1 # force 
+            self.need_color_image = True               
+            self._feature_detector = DiskFeature2D(num_features=self.num_features)      
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                
+            #    
+            #      
+        elif self.detector_type == FeatureDetectorTypes.ALIKED:       
+            self.num_levels = 1 # force 
+            self.need_color_image = True               
+            self._feature_detector = AlikedFeature2D(num_features=self.num_features)  
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                    
+            #    
+            #
+        elif self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:       
+            self.num_levels = 1 # force 
+            self.need_color_image = True               
+            self._feature_detector = LightGlueSIFTFeature2D(num_features=self.num_features)     
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                 
+            #    
+            #                        
+        elif self.detector_type == FeatureDetectorTypes.KEYNETAFFNETHARDNET:       
+            #self.num_levels = - # internally recomputed               
+            self._feature_detector = KeyNetAffNetHardNetFeature2D(num_features=self.num_features)          
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE
+            #    
+            #    
+        elif self.detector_type == FeatureDetectorTypes.NONE:    
+            self._feature_detector = None
+            self.keypoint_filter_type = KeyPointFilterTypes.NONE                                                                                                                                                                        
         else:
             raise ValueError("Unknown feature detector %s" % self.detector_type)
                 
@@ -549,7 +595,13 @@ class FeatureManager(object):
             elif self.descriptor_type == FeatureDescriptorTypes.SUPERPOINT:              
                 if self.detector_type != FeatureDetectorTypes.SUPERPOINT: 
                     raise ValueError("You cannot use SUPERPOINT descriptor without SUPERPOINT detector!\nPlease, select SUPERPOINT as both descriptor and detector!")
-                self._feature_descriptor = self._feature_detector  # reuse the same SuperPointDector object                                     
+                self._feature_descriptor = self._feature_detector  # reuse the same SuperPointDector object  
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.XFEAT:              
+                if self.detector_type != FeatureDetectorTypes.XFEAT: 
+                    raise ValueError("You cannot use XFEAT descriptor without XFEAT detector!\nPlease, select XFEATas both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse the same XFeat object                                    
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.TFEAT:              
@@ -672,7 +724,27 @@ class FeatureManager(object):
                     raise ValueError("You cannot use DISK internal descriptor without DISK detector!\nPlease, select DISK as both descriptor and detector!")
                 self._feature_descriptor = self._feature_detector  # reuse detector object                                     
                 #
-                #                                                                                                                                                                                                                                                               
+                #     
+            elif self.descriptor_type == FeatureDescriptorTypes.ALIKED:   
+                self.oriented_features = False                           
+                if self.detector_type != FeatureDetectorTypes.ALIKED: 
+                    raise ValueError("You cannot use ALIKED internal descriptor without ALIKED detector!\nPlease, select ALIKED as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #
+            elif self.descriptor_type == FeatureDescriptorTypes.LIGHTGLUESIFT:   
+                self.oriented_features = False                           
+                if self.detector_type != FeatureDetectorTypes.LIGHTGLUESIFT: 
+                    raise ValueError("You cannot use LIGHTGLUESIFT internal descriptor without LIGHTGLUESIFT detector!\nPlease, select LIGHTGLUESIFT as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse detector object                                     
+                #
+                #                                        
+            elif self.descriptor_type == FeatureDescriptorTypes.KEYNETAFFNETHARDNET:              
+                if self.detector_type != FeatureDetectorTypes.KEYNETAFFNETHARDNET: 
+                    raise ValueError("You cannot use KEYNETAFFNETHARDNET descriptor without KEYNETAFFNETHARDNET detector!\nPlease, select KEYNETAFFNETHARDNET as both descriptor and detector!")
+                self._feature_descriptor = self._feature_detector  # reuse the same detector object  
+                #
+                #                                                                                                                                                                                                                                                                          
             elif self.descriptor_type == FeatureDescriptorTypes.NONE:        
                 self._feature_descriptor = None                                              
             else:
@@ -904,6 +976,9 @@ class FeatureManager(object):
     
     # compute the descriptors once given the keypoints 
     def compute(self, frame, kps, filter = True):
+        if self._feature_descriptor is None:
+            Printer.orange('WARNING: descriptor is null according to your settings (are you using a "pure" matcher?), returning None')            
+            return kps, None
         if not self.need_color_image and frame.ndim>2:     # check if we have to convert to gray image 
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)          
         kps, des = self._feature_descriptor.compute(frame, kps)  # then, compute descriptors 
@@ -919,6 +994,9 @@ class FeatureManager(object):
     # detect keypoints and their descriptors
     # out: kps, des 
     def detectAndCompute(self, frame, mask=None, filter = True):
+        if self._feature_detector is None and self._feature_descriptor is None:
+            Printer.orange('WARNING: detector and/or descriptor are null according to your settings (are you using a "pure" matcher?), returning None')
+            return None, None        
         if not self.need_color_image and frame.ndim>2:     # check if we have to convert to gray image 
             frame = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)  
         if self.use_pyramid_adaptor:  

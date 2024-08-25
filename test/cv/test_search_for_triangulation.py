@@ -10,7 +10,6 @@ from config import Config
 
 from mplot_figure import MPlotFigure
 
-from frame import Frame, match_frames
 from utils_geom import triangulate_points, add_ones, poseRt, skew
 from utils_draw import draw_points2, draw_feature_matches
 from search_points import search_map_by_projection, search_frame_by_projection, search_frame_for_triangulation
@@ -27,7 +26,7 @@ import optimizer_g2o
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
+from feature_matcher import FeatureMatcherTypes
 
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory

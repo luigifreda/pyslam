@@ -43,6 +43,7 @@ from threading import RLock
 from utils_tf import set_tf_logging
 from utils_sys import Printer, print_options
 
+import tf_slim as slim 
 
 kVerbose = True   
 
@@ -126,7 +127,7 @@ def build_keynet_config(keynet_base_path):
 
     # remove verbose bits from tf
     # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-    # tf.logging.set_verbosity(tf.logging.ERROR)
+    # tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
     # Set CUDA GPU environment
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_visible_devices
@@ -146,7 +147,7 @@ def convert_pts_to_keypoints(pts, scores, sizes, levels):
     kps = []
     if pts is not None: 
         # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(p[0], p[1], _size=sizes[i], _response=scores[i], _octave=levels[i]) for i,p in enumerate(pts) ]                      
+        kps = [ cv2.KeyPoint(p[0], p[1], size=sizes[i], response=scores[i], octave=levels[i]) for i,p in enumerate(pts) ]                      
     return kps         
 
 
@@ -207,7 +208,10 @@ class KeyNetDescFeature2D:
 
 
     def __del__(self): 
-        self.close()
+        try: 
+            self.close()
+        except:
+            pass
         
         
     def close(self):
@@ -229,13 +233,14 @@ class KeyNetDescFeature2D:
         #with tf.Session(config=config) as sess:        
         self.session = tf.Session(config=tf_config)         
 
-        tf.set_random_seed(self.keynet_config.random_seed)
+        tfv2.random.set_seed(self.keynet_config.random_seed)
 
         with tf.name_scope('inputs'):
 
             # Define the input tensor shape
             tensor_input_shape = (None, None, None, 1)
 
+            tf.compat.v1.disable_eager_execution()
             self.input_network = tf.placeholder(dtype=tf.float32, shape=tensor_input_shape, name='input_network')
             self.dimension_image = tf.placeholder(dtype=tf.int32, shape=(3,), name='dimension_image')
             self.kpts_coord = tf.placeholder(dtype=tf.float32, shape=(None, 2), name='kpts_coord')
@@ -268,7 +273,7 @@ class KeyNetDescFeature2D:
         detect_var = [v for v in tf.trainable_variables(scope='model_deep_detector')]
 
         if os.listdir(self.keynet_config.checkpoint_det_dir):
-            init_assign_op_det, init_feed_dict_det = tf_contrib.framework.assign_from_checkpoint(
+            init_assign_op_det, init_feed_dict_det = slim.assign_from_checkpoint(
                 tf.train.latest_checkpoint(self.keynet_config.checkpoint_det_dir), detect_var)
 
         point_level = []

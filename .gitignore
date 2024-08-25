@@ -9,10 +9,13 @@ kitti
 map.json
 config.pyc 
 thirdparty/g2opy
-thirdparty/pangolin 
+thirdparty/pangolin
+thirdparty/opencv-python
+thirdparty/contextdesc/pretrained 
 matches.txt 
 map.png
 .vscode 
+.project
 videos/webcam
 
 kf_info.log 

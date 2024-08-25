@@ -31,9 +31,10 @@ class MPlotFigure:
         self.width = round(img.shape[0]*scale/dpi)
         self.height = round(img.shape[1]*scale/dpi)
         #self.fig = plt.figure(dpi=self.dpi, figsize=(self.height,self.width), tight_layout=True, frameon=False)
-        self.fig = plt.figure(dpi=self.dpi, tight_layout=True, frameon=False)        
+        self.fig = plt.figure(dpi=self.dpi, tight_layout=True, frameon=True)
+        self.fig.set_facecolor('white')         
         if title is not None: 
-            self.fig.suptitle(title)
+            self.fig.suptitle(title, bbox={'facecolor': 'white', 'edgecolor': 'none'})
         plt.imshow(img)
         plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis        
 

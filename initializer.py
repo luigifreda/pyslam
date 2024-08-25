@@ -94,12 +94,12 @@ class Initializer(object):
         return poseRt(R,t.T)  # Trc  homogeneous transformation matrix with respect to 'ref' frame,  pr_= Trc * pc_        
 
     # push the first image
-    def init(self, f_cur):
+    def init(self, f_cur : Frame):
         self.frames.append(f_cur)    
         self.f_ref = f_cur           
 
     # actually initialize having two available images 
-    def initialize(self, f_cur, img_cur):
+    def initialize(self, f_cur: Frame, img_cur):
 
         if self.num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsHalved: 
             self.num_min_triangulated_points = 0.5 * Parameters.kInitializerNumMinTriangulatedPoints
@@ -134,7 +134,8 @@ class Initializer(object):
             return out, is_ok
 
         # find keypoint matches
-        idxs_cur, idxs_ref = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)       
+        matching_result = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)      
+        idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)      
     
         print('|------------')        
         #print('deque ids: ', [f.id for f in self.frames])

@@ -83,5 +83,11 @@ class BaseModel(metaclass=ABCMeta):
 
     def close(self):
         if self.sess is not None:
-            self.sess.close()
-            tf.compat.v1.reset_default_graph()
+            try:
+                self.sess.close()
+            except:
+                pass
+            try:
+                tf.compat.v1.reset_default_graph()
+            except: 
+                pass

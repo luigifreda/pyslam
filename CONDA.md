@@ -1,33 +1,38 @@
 # Install under Anaconda or Miniconda
 
-I've successfully tested `pyslam` with [Anaconda](https://docs.anaconda.com/anaconda/install/linux/) (version *2019.10*, build *py37_0*) and [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *957d2f0f0701c3d1335e3b39f235d197837ad69a944fa6f5d8ad2c686b69df3b*) under Linux.   
-Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly set your conda python environment. 
+<!-- TOC -->
 
-## Basic Conda Installation 
+- [Install under Anaconda or Miniconda](#install-under-anaconda-or-miniconda)
+  - [Installation](#installation)
+  - [Create a `pyslam` conda environment](#create-a-pyslam-conda-environment)
+  - [Activate the created `pyslam` conda environment](#activate-the-created-pyslam-conda-environment)
+  - [Deactivate `pyslam` conda environment](#deactivate-pyslam-conda-environment)
+  - [Delete `pyslam` conda environment](#delete-pyslam-conda-environment)
+- [General Notes About Conda](#general-notes-about-conda)
+  - [Install packages/env from file](#install-packagesenv-from-file)
+  - [Deleting an environment](#deleting-an-environment)
+  - [Creating an environment](#creating-an-environment)
 
-In order to run `main_vo.py` with conda, get in the root of this repository and run the following command:
-```
-$ . pyenv-conda-create.sh 
-```
-**N.B.**: do not forget the dot! (without '/' !)
+<!-- /TOC -->
 
-This will create a custom `pyslam` conda environment and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
-```
-$ python3 -O main_vo.py
-```
-If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
+I successfully tested `pyslam` with [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *4b3b3b1b99215e85fd73fb2c2d7ebf318ac942a457072de62d885056556eb83e*) under Linux.   
+Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly initialized your conda python environment. 
 
-## Full Conda Installation 
+## Installation 
 
-In order to run `main_slam.py` with conda, get in the root of this repository and run the following command:
+In order to use `pyslam` under conda, check you have activated `conda` in your terminal. Get in the root of this repository and run the following command:
+```bash
+$ ./install_all_conda.sh  
 ```
-$ . install_all_conda.sh  
+This will compile the required thirdparty packages and will also create a `pyslam` conda environment. Now, from the same terminal, you can run: 
+```bash
+$ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ ./main_vo.py
 ```
-**N.B.**: do not forget the dot! (without '/' !)
-
-This will compile the required thirdparty packages and will also activate the created `pyslam` environment. Now, from the same terminal, you can run: 
-```
-$ python3 -O main_slam.py
+or
+```bash
+$ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ ./main_slam.py
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
 
@@ -115,7 +120,7 @@ $ conda info --envs
 ```
 The environments list that displays should not show the removed environment.
 
-
+## Creating an environment 
 In order to create a new conda environment `opencvenv`, activate it  and install OpenCV in it, run the following commands:  
 ```
 $ conda create -yn opencvenv python=3.6.9

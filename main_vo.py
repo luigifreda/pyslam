@@ -1,3 +1,4 @@
+#!/usr/bin/env -S python3 -O
 """
 * This file is part of PYSLAM 
 *
@@ -26,6 +27,8 @@ gi.require_version('Gtk', '2.0')
 import numpy as np
 import cv2
 import math
+import time 
+import platform 
 
 from config import Config
 
@@ -41,27 +44,34 @@ from mplot_thread import Mplot2d, Mplot3d
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
+from feature_matcher import FeatureMatcherTypes
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
+from rerun_interface import Rerun
 
 
+
+kUseRerun = True
+# check rerun does not have issues 
+if kUseRerun and not Rerun.is_ok():
+    kUseRerun = False
+    
 """
 use or not pangolin (if you want to use it then you need to install it by using the script install_thirdparty.sh)
 """
-kUsePangolin = False  
-
+kUsePangolin = True  
+if platform.system() == 'Darwin':
+    kUsePangolin = True # Under mac force pangolin to be used since Mplot3d() has some reliability issues
+                
 if kUsePangolin:
     from viewer3D import Viewer3D
-
-
 
 
 if __name__ == "__main__":
 
     config = Config()
-
+    
     dataset = dataset_factory(config.dataset_settings)
 
     groundtruth = groundtruth_factory(config.dataset_settings)
@@ -76,10 +86,10 @@ if __name__ == "__main__":
 
     # select your tracker configuration (see the file feature_tracker_configs.py) 
     # LK_SHI_TOMASI, LK_FAST
-    # SHI_TOMASI_ORB, FAST_ORB, ORB, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT
+    # SHI_TOMASI_ORB, FAST_ORB, ORB, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, LIGHTGLUE, XFEAT, XFEAT_XFEAT, LOFTR
     tracker_config = FeatureTrackerConfigs.LK_SHI_TOMASI
     tracker_config['num_features'] = num_features
-    
+   
     feature_tracker = feature_tracker_factory(**tracker_config)
 
     # create visual odometry object 
@@ -92,17 +102,23 @@ if __name__ == "__main__":
     draw_scale = 1
 
     is_draw_3d = True
-    if kUsePangolin:
-        viewer3D = Viewer3D()
-    else:
-        plt3d = Mplot3d(title='3D trajectory')
+    
+    is_draw_with_rerun = kUseRerun
+    if is_draw_with_rerun:
+        Rerun.init_vo()
+    else: 
+        if kUsePangolin:
+            viewer3D = Viewer3D()
+        else:
+            plt3d = Mplot3d(title='3D trajectory')
 
     is_draw_err = True 
     err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
-
+    
     is_draw_matched_points = True 
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
 
+    
     img_id = 0
     while dataset.isOk():
 
@@ -127,35 +143,52 @@ if __name__ == "__main__":
                     text = "Coordinates: x=%2fm y=%2fm z=%2fm" % (x, y, z)
                     cv2.putText(traj_img, text, (20, 40), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1, 8)
                     # show 		
-                    cv2.imshow('Trajectory', traj_img)
 
-                if is_draw_3d:           # draw 3d trajectory 
-                    if kUsePangolin:
-                        viewer3D.draw_vo(vo)   
+                    if is_draw_with_rerun:
+                        Rerun.log_img_seq('trajectory_img/2d', img_id, traj_img)
                     else:
-                        plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
-                        plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
-                        plt3d.refresh()
-
-                if is_draw_err:         # draw error signals 
-                    errx = [img_id, math.fabs(x_true-x)]
-                    erry = [img_id, math.fabs(y_true-y)]
-                    errz = [img_id, math.fabs(z_true-z)] 
-                    err_plt.draw(errx,'err_x',color='g')
-                    err_plt.draw(erry,'err_y',color='b')
-                    err_plt.draw(errz,'err_z',color='r')
-                    err_plt.refresh()    
-
-                if is_draw_matched_points:
-                    matched_kps_signal = [img_id, vo.num_matched_kps]
-                    inliers_signal = [img_id, vo.num_inliers]                    
-                    matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
-                    matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
-                    matched_points_plt.refresh()                    
+                        cv2.imshow('Trajectory', traj_img)
 
 
+                if is_draw_with_rerun:                                        
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_x', img_id, math.fabs(x_true-x))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_y', img_id, math.fabs(y_true-y))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_z', img_id, math.fabs(z_true-z))
+                    
+                    Rerun.log_2d_seq_scalar('trajectory_stats/num_matches', img_id, vo.num_matched_kps)
+                    Rerun.log_2d_seq_scalar('trajectory_stats/num_inliers', img_id, vo.num_inliers)
+                    
+                    Rerun.log_3d_camera_img_seq(img_id, vo.draw_img, cam, vo.poses[-1])
+                    Rerun.log_3d_trajectory(img_id, vo.traj3d_est, 'estimated', color=[0,0,255])
+                    Rerun.log_3d_trajectory(img_id, vo.traj3d_gt, 'ground_truth', color=[255,0,0])     
+                else:
+                    if is_draw_3d:           # draw 3d trajectory 
+                        if kUsePangolin:
+                            viewer3D.draw_vo(vo)   
+                        else:
+                            plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
+                            plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
+                            plt3d.refresh()
+
+                    if is_draw_err:         # draw error signals 
+                        errx = [img_id, math.fabs(x_true-x)]
+                        erry = [img_id, math.fabs(y_true-y)]
+                        errz = [img_id, math.fabs(z_true-z)] 
+                        err_plt.draw(errx,'err_x',color='g')
+                        err_plt.draw(erry,'err_y',color='b')
+                        err_plt.draw(errz,'err_z',color='r')
+                        err_plt.refresh()    
+
+                    if is_draw_matched_points:
+                        matched_kps_signal = [img_id, vo.num_matched_kps]
+                        inliers_signal = [img_id, vo.num_inliers]                    
+                        matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
+                        matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
+                        matched_points_plt.refresh()                                   
+                    
             # draw camera image 
-            cv2.imshow('Camera', vo.draw_img)				
+            if not is_draw_with_rerun:
+                cv2.imshow('Camera', vo.draw_img)				
 
         # press 'q' to exit!
         if cv2.waitKey(1) & 0xFF == ord('q'):

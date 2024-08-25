@@ -23,12 +23,18 @@ if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
     EXTERNAL_OPTION="$EXTERNAL_OPTION -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
 fi
 # ====================================================
-if [[ -z "${USE_PYSLAM_ENV}" ]]; then
-    USE_PYSLAM_ENV=0
-fi
-if [ $USE_PYSLAM_ENV -eq 1 ]; then
-    . pyenv-activate.sh
-fi  
+# check if want to use conda or venv
+if [ -z $USING_CONDA_PYSLAM ]; then
+    if [[ -z "${USE_PYSLAM_ENV}" ]]; then
+        USE_PYSLAM_ENV=0
+    fi
+    if [ $USE_PYSLAM_ENV -eq 1 ]; then
+        . pyenv-activate.sh
+    fi  
+else 
+    echo "Using conda pyslam..."
+    . pyenv-conda-activate.sh
+fi 
 
 print_blue '================================================'
 print_blue "Building and installing cpp ..."

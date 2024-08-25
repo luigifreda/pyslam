@@ -267,6 +267,7 @@ class Frame(FrameBase):
         self.outliers = None      # outliers flags for map points (reset and set by pose_optimization())
         
         self.kf_ref = None        # reference keyframe 
+        self.img = None           # image (copy of img if available)
 
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
@@ -277,19 +278,21 @@ class Frame(FrameBase):
             if kps_data is None:   
                 self.kps, self.des = Frame.tracker.detectAndCompute(img)                                                         
                 # convert from a list of keypoints to arrays of points, octaves, sizes  
-                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps ], dtype=np.float32)                            
-                self.kps     = kps_data[:,:2]    
-                self.octaves = np.uint32(kps_data[:,2]) #print('octaves: ', self.octaves)                      
-                self.sizes   = kps_data[:,3]
-                self.angles  = kps_data[:,4]       
+                if self.kps is not None:    
+                    kps_data = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps ], dtype=np.float32)                     
+                    self.kps     = kps_data[:,:2] if kps_data is not None else None
+                    self.octaves = np.uint32(kps_data[:,2]) #print('octaves: ', self.octaves)                    
+                    self.sizes   = kps_data[:,3]
+                    self.angles  = kps_data[:,4]       
             else:
                 # FIXME: this must be updated according to the new serialization 
                 #self.kpsu, self.des = des, np.array(list(range(len(des)))*32, np.uint8).reshape(32, len(des)).T
                 pass 
-            self.kpsu = self.camera.undistort_points(self.kps) # convert to undistorted keypoint coordinates             
-            self.kpsn = self.camera.unproject_points(self.kpsu)
-            self.points = np.array( [None]*len(self.kpsu) )  # init map points
-            self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)
+            if self.kps is not None:
+                self.kpsu = self.camera.undistort_points(self.kps) # convert to undistorted keypoint coordinates             
+                self.kpsn = self.camera.unproject_points(self.kpsu)
+                self.points = np.array( [None]*len(self.kpsu) )  # init map points
+                self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)
             
     @staticmethod
     def set_tracker(tracker):
@@ -521,8 +524,10 @@ class Frame(FrameBase):
 
 # match frames f1 and f2
 # out: a vector of match index pairs [idx1[i],idx2[i]] such that the keypoint f1.kps[idx1[i]] is matched with f2.kps[idx2[i]]
-def match_frames(f1, f2, ratio_test=None):     
-    idx1, idx2 = Frame.feature_matcher.match(f1.des, f2.des, ratio_test)
-    idx1 = np.asarray(idx1)
-    idx2 = np.asarray(idx2)   
-    return idx1, idx2         
+def match_frames(f1: Frame, f2: Frame, ratio_test=None):     
+    matching_result = Frame.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, ratio_test)
+    return matching_result
+    # idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
+    # idxs1 = np.asarray(idxs1)
+    # idxs2 = np.asarray(idxs2)   
+    # return idxs1, idxs2         
