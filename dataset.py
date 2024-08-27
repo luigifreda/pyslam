@@ -169,8 +169,6 @@ class VideoDataset(Dataset):
         self.is_init = True
         ret, image = self.cap.read()
         if self.timestamps is not None:
-            print("NOT NONE")
-            print(self.timestamps)
             # read timestamps from timestamps file
             self._timestamp = int(self.timestamps[self.i])
             self._next_timestamp = int(self.timestamps[self.i + 1])
