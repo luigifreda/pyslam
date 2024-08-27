@@ -67,7 +67,7 @@ def dataset_factory(settings):
     if type == 'tum':
         dataset = TumDataset(path, name, associations, DatasetType.TUM)
     if type == 'video':
-        dataset = VideoDataset(path, name, associations, DatasetType.VIDEO)   
+        dataset = VideoDataset(path, name, associations, timestamps, DatasetType.VIDEO)   
     if type == 'folder':
         fps = 10 # a default value 
         if 'fps' in settings:
@@ -124,15 +124,30 @@ class Dataset(object):
         return self._timestamp
     
     def getNextTimestamp(self):
-        return self._next_timestamp    
+        return self._next_timestamp
+
+    def _read_timestamps(self, timestamps_file):
+        timestamps = []
+        try:
+            with open(timestamps_file, 'r') as file:
+                for line in file:
+                    timestamp = int(float(line.strip()))
+                    timestamps.append(timestamp)
+        except FileNotFoundError:
+            print('Timestamps file not found:', timestamps_file)
+        return timestamps   
 
 
 class VideoDataset(Dataset): 
-    def __init__(self, path, name, associations=None, type=DatasetType.VIDEO): 
+    def __init__(self, path, name, associations=None, timestamps=None, type=DatasetType.VIDEO): 
         super().__init__(path, name, None, associations, type)    
         self.filename = path + '/' + name 
         #print('video: ', self.filename)
         self.cap = cv2.VideoCapture(self.filename)
+        self.i = 0        
+        self.timestamps = None
+        if timestamps is not None:
+            self.timestamps = self._read_timestamps(path + '/' + timestamps)
         if not self.cap.isOpened():
             raise IOError('Cannot open movie file: ', self.filename)
         else: 
@@ -153,9 +168,17 @@ class VideoDataset(Dataset):
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
         self.is_init = True
         ret, image = self.cap.read()
-        #self._timestamp = time.time()  # rough timestamp if nothing else is available 
-        self._timestamp = float(self.cap.get(cv2.CAP_PROP_POS_MSEC)*1000)
-        self._next_timestamp = self._timestamp + self.Ts 
+        if self.timestamps is not None:
+            print("NOT NONE")
+            print(self.timestamps)
+            # read timestamps from timestamps file
+            self._timestamp = int(self.timestamps[self.i])
+            self._next_timestamp = int(self.timestamps[self.i + 1])
+            self.i += 1
+        else:
+            #self._timestamp = time.time()  # rough timestamp if nothing else is available 
+            self._timestamp = float(self.cap.get(cv2.CAP_PROP_POS_MSEC)*1000)
+            self._next_timestamp = self._timestamp + self.Ts 
         if ret is False:
             print('ERROR while reading from file: ', self.filename)
         return image       
@@ -211,16 +234,7 @@ class FolderDataset(Dataset):
             self.timestamps = self._read_timestamps(path + '/' + timestamps)
         
         
-    def _read_timestamps(self, timestamps_file):
-        timestamps = []
-        try:
-            with open(timestamps_file, 'r') as file:
-                for line in file:
-                    timestamp = int(float(line.strip()))
-                    timestamps.append(timestamp)
-        except FileNotFoundError:
-            print('Timestamps file not found:', timestamps_file)
-        return timestamps
+
             
     def getImage(self, frame_id):
         if self.i == self.maxlen:
