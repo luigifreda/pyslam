@@ -1,3 +1,18 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7578bec..45197ae 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -173,8 +173,8 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
+   
+   IF(NOT "${ARCH}" MATCHES "arm")
+     # Generic settings for optimisation
+-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -msse4.2")
+-    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -msse4.2")
++    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native")
++    SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -march=native")
+   ENDIF()
+ 
+   IF(G2O_FAST_MATH)
 diff --git a/EXTERNAL/pybind11/include/pybind11/attr.h b/EXTERNAL/pybind11/include/pybind11/attr.h
 index dce875a..e904cb2 100644
 --- a/EXTERNAL/pybind11/include/pybind11/attr.h

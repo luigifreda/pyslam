@@ -1,6 +1,6 @@
 # pySLAM v2.1
 
-Author: [Luigi Freda](https://www.luigifreda.com)
+Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
@@ -178,7 +178,7 @@ At present time, the following feature **detectors** are supported:
 * *[DISK](https://arxiv.org/abs/2006.13566)*
 * *[ALIKED](https://arxiv.org/abs/2304.03608)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
-* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
+* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
 
 The following feature **descriptors** are supported: 
 * *[ORB](http://www.willowgarage.com/sites/default/files/orb_final.pdf)*  
@@ -209,7 +209,7 @@ The following feature **descriptors** are supported:
 * *[DISK](https://arxiv.org/abs/2006.13566)*
 * *[ALIKED](https://arxiv.org/abs/2304.03608)*
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
-* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)*: (KeyNet detector + AffNet + HardNet descriptor).
+* *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
   
 You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
 
