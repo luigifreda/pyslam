@@ -1,8 +1,18 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 7578bec..45197ae 100644
+index 7578bec..0a59216 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -173,8 +173,8 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
+@@ -9,6 +9,9 @@ SET(LIB_PREFIX g2o_)
+ SET(g2o_C_FLAGS)
+ SET(g2o_CXX_FLAGS)
+ 
++# Generate file compile_commands.json in our build folder: it contains the full command line to compile individual source files
++set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
++
+ # default built type
+ IF(NOT CMAKE_BUILD_TYPE)
+   SET(CMAKE_BUILD_TYPE Release CACHE STRING
+@@ -173,8 +176,8 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
    
    IF(NOT "${ARCH}" MATCHES "arm")
      # Generic settings for optimisation
@@ -150,7 +160,7 @@ index 32314ba..1d55c49 100644
 \ No newline at end of file
 +}  // end namespace g2o
 diff --git a/python/types/sba/types_six_dof_expmap.h b/python/types/sba/types_six_dof_expmap.h
-index cf0ae75..e7ca67d 100644
+index cf0ae75..8fb83e0 100644
 --- a/python/types/sba/types_six_dof_expmap.h
 +++ b/python/types/sba/types_six_dof_expmap.h
 @@ -84,6 +84,10 @@ void declareTypesSixDofExpmap(py::module & m) {
@@ -173,6 +183,33 @@ index cf0ae75..e7ca67d 100644
 +        .def_readwrite("cx", &EdgeSE3ProjectXYZOnlyPose::cx)
 +        .def_readwrite("cy", &EdgeSE3ProjectXYZOnlyPose::cy)
 +        .def_readwrite("Xw", &EdgeSE3ProjectXYZOnlyPose::Xw)
+     ;
+ 
+ 
+@@ -104,7 +113,12 @@ void declareTypesSixDofExpmap(py::module & m) {
+         .def("compute_error", &EdgeStereoSE3ProjectXYZ::computeError)
+         .def("is_depth_positive", &EdgeStereoSE3ProjectXYZ::isDepthPositive)
+         .def("linearize_oplus", &EdgeStereoSE3ProjectXYZ::linearizeOplus)
+-        .def("cam_project", &EdgeStereoSE3ProjectXYZ::cam_project)
++        .def("cam_project", &EdgeStereoSE3ProjectXYZ::cam_project)   
++        .def_readwrite("fx", &EdgeStereoSE3ProjectXYZ::fx)
++        .def_readwrite("fy", &EdgeStereoSE3ProjectXYZ::fy)
++        .def_readwrite("cx", &EdgeStereoSE3ProjectXYZ::cx)
++        .def_readwrite("cy", &EdgeStereoSE3ProjectXYZ::cy)      
++        .def_readwrite("bf", &EdgeStereoSE3ProjectXYZ::bf)              
+     ;
+ 
+ 
+@@ -116,6 +130,12 @@ void declareTypesSixDofExpmap(py::module & m) {
+         .def("is_depth_positive", &EdgeStereoSE3ProjectXYZOnlyPose::isDepthPositive)
+         .def("linearize_oplus", &EdgeStereoSE3ProjectXYZOnlyPose::linearizeOplus)
+         .def("cam_project", &EdgeStereoSE3ProjectXYZOnlyPose::cam_project)
++        .def_readwrite("fx", &EdgeStereoSE3ProjectXYZOnlyPose::fx)
++        .def_readwrite("fy", &EdgeStereoSE3ProjectXYZOnlyPose::fy)
++        .def_readwrite("cx", &EdgeStereoSE3ProjectXYZOnlyPose::cx)
++        .def_readwrite("cy", &EdgeStereoSE3ProjectXYZOnlyPose::cy)
++        .def_readwrite("bf", &EdgeStereoSE3ProjectXYZOnlyPose::bf)        
++        .def_readwrite("Xw", &EdgeStereoSE3ProjectXYZOnlyPose::Xw)             
      ;
  
  

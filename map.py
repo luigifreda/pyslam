@@ -31,9 +31,9 @@ from threading import RLock, Thread
 
 from utils_geom import poseRt, add_ones, add_ones_1D
 from parameters import Parameters 
-from frame import Frame
+from frame import Frame, FrameBase
 from keyframe import KeyFrame
-from map_point import MapPoint
+from map_point import MapPoint, MapPointBase
 
 from utils_sys import Printer
 
@@ -59,8 +59,8 @@ class Map(object):
         self.keyframes = OrderedSet()  
         self.points = set()
         
-        self.max_frame_id = 0     # 0 is the first frame id
         self.max_point_id = 0     # 0 is the first point id
+        self.max_frame_id = 0     # 0 is the first frame id        
         self.max_keyframe_id = 0  # 0 is the first keyframe id
 
         # local map 
@@ -188,25 +188,32 @@ class Map(object):
 
     # add new points to the map from 3D point estimations, frames and pairwise matches
     # points3d is [Nx3]
-    def add_points(self, points3d, mask_pts3d, kf1, kf2, idxs1, idxs2, img1, do_check=True, cos_max_parallax=Parameters.kCosMaxParallax):
+    def add_points(self, points3d, mask_pts3d, kf1: KeyFrame, kf2: KeyFrame, idxs1, idxs2, img1, do_check=True, cos_max_parallax=Parameters.kCosMaxParallax):
         with self._lock:             
             assert(kf1.is_keyframe and  kf2.is_keyframe) # kf1 and kf2 must be keyframes 
             assert(points3d.shape[0] == len(idxs1))
             assert(len(idxs2) == len(idxs1))    
             
+            idxs1 = np.array(idxs1)
+            idxs2 = np.array(idxs2)
+            
             added_points = []
             out_mask_pts3d = np.full(points3d.shape[0], False, dtype=bool)
             if mask_pts3d is None:
                 mask_pts3d = np.full(points3d.shape[0], True, dtype=bool)
-            
-            ratio_scale_consistency = Parameters.kScaleConsistencyFactor * Frame.feature_manager.scale_factor 
-            
-            if do_check:            
+                        
+            if do_check:
+                                                        
                 # project points
-                uvs1, depths1 = kf1.project_points(points3d)    
-                bad_depths1 =  depths1 <= 0  
-                uvs2, depths2 = kf2.project_points(points3d)    
-                bad_depths2 =  depths2 <= 0                   
+                uvs1, proj_depths1 = kf1.project_points(points3d)    
+                bad_depths1 = proj_depths1 <= 0  
+                uvs2, proj_depths2 = kf2.project_points(points3d)    
+                bad_depths2 = proj_depths2 <= 0                   
+                
+                is_stereo1 = np.zeros(len(idxs1), dtype=bool) if kf1.kps_ur is None else kf1.kps_ur[idxs1]>0
+                is_mono1 = np.logical_not(is_stereo1)
+                is_stereo2 = np.zeros(len(idxs2), dtype=bool) if kf2.kps_ur is None else kf2.kps_ur[idxs2]>0
+                is_mono2 = np.logical_not(is_stereo2)
                 
                 # compute back-projected rays (unit vectors) 
                 rays1 = np.dot(kf1.Rwc, add_ones(kf1.kpsn[idxs1]).T).T
@@ -218,34 +225,105 @@ class Map(object):
                 
                 # compute dot products of rays                              
                 cos_parallaxs = np.sum(rays1 * rays2, axis=1)  
-                bad_cos_parallaxs = np.logical_or(cos_parallaxs < 0, cos_parallaxs > cos_max_parallax)           
                 
-                # compute reprojection errors              
-                errs1 = uvs1 - kf1.kpsu[idxs1]    
+                if kf1.depths is not None and kf2.depths is not None:
+                    # NOTE: 2.0 is certainly higher than any cos_parallax value
+                    cos_parallax_stereo1 = np.where(is_stereo1, np.cos(2.*np.arctan2(kf1.camera.b/2,kf1.depths[idxs1])),2.0) if kf1.depths is not None else [2.0]*len(idxs1)
+                    cos_parallax_stereo2 = np.where(is_stereo2, np.cos(2.*np.arctan2(kf2.camera.b/2,kf2.depths[idxs2])),2.0) if kf2.depths is not None else [2.0]*len(idxs2)
+                    cos_parallax_stereo = np.minimum(cos_parallax_stereo1, cos_parallax_stereo2)
+                    
+                    # check if we can recover bad-parallx points from stereo/rgbd data
+                    try_recover3d_from_stereo = np.logical_or(cos_parallaxs<0, np.logical_or(cos_parallaxs>cos_parallax_stereo, cos_parallaxs>cos_max_parallax))
+                    recover3d_from_stereo1 = np.logical_and(try_recover3d_from_stereo, 
+                                                            np.logical_and(is_stereo1,cos_parallax_stereo1<cos_parallax_stereo2))
+                    recover3d_from_stereo2 = np.logical_and(np.logical_and(try_recover3d_from_stereo,np.logical_not(recover3d_from_stereo1)),
+                                                            np.logical_and(is_stereo2,cos_parallax_stereo2<cos_parallax_stereo1)) 
+                    recovered3d_from_stereo = np.logical_or(recover3d_from_stereo1, recover3d_from_stereo2)    
+                
+                    if np.any(recover3d_from_stereo1):
+                        points3d[recover3d_from_stereo1,:],_ = kf1.unproject_points_3d(idxs1[recover3d_from_stereo1], transform_in_world=True)
+                    if np.any(recover3d_from_stereo2):
+                        points3d[recover3d_from_stereo2,:],_ = kf2.unproject_points_3d(idxs2[recover3d_from_stereo2], transform_in_world=True)
+                else: 
+                    recovered3d_from_stereo = np.zeros(len(idxs1), dtype=bool)
+                                                        
+                # we don't have bad parallax where we recovered from stereo
+                bad_cos_parallaxs = np.logical_and(np.logical_or(cos_parallaxs < 0, cos_parallaxs > cos_max_parallax), np.logical_not(recovered3d_from_stereo))           
+                
+                # compute reprojection errors and check chi2
+                bad_chis2_1 = None
+                bad_chis2_2 = None           
+                  
+                # compute mono reproj errors on kf1
+                errs1_mono_vec = uvs1 - kf1.kpsu[idxs1]
+                errs1 = np.where(is_mono1[:, np.newaxis], errs1_mono_vec, np.zeros(2))   # mono errors 
                 errs1_sqr = np.sum(errs1 * errs1, axis=1)  # squared reprojection errors 
                 kps1_levels = kf1.octaves[idxs1]
                 invSigmas2_1 = Frame.feature_manager.inv_level_sigmas2[kps1_levels] 
-                chis2_1 = errs1_sqr * invSigmas2_1         # chi square 
-                bad_chis2_1 = chis2_1 > Parameters.kChi2Mono   # chi-square 2 DOFs  (Hartley Zisserman pg 119)                   
-                                                                 
-                errs2 = uvs2 - kf2.kpsu[idxs2]             
+                chis2_1_mono = errs1_sqr * invSigmas2_1         # chi square 
+                                
+                # stereo reprojection error
+                #     u   = fx*x*invz+cx
+                #     u_r = u - camera.bf*invz
+                #     v1   = fy*y*invz+cy
+                #     errX   = u - kp.pt.x
+                #     errY   = v - kp.pt.y
+                #     errX_r = u_r - kp_ur
+                # compute stereo reproj errors on kf1
+                if kf1.kps_ur is not None:
+                    kp1_ur = kf1.kps_ur[idxs1] if kf1.kps_ur is not None else [-1]*len(idxs1) # kp right coords if available 
+                    depths1 = kf1.depths[idxs1] 
+                    safe_depths1 = np.where(depths1 == 0, np.inf, depths1) # to prevent division by zero 
+                    errs1_stereo_vec = np.concatenate((errs1_mono_vec, (uvs1[:,0] - kf1.camera.bf/safe_depths1 - kp1_ur)[:, np.newaxis]), axis=1)    # stereo errors                     
+                    errs1_stereo = np.where(is_stereo1[:, np.newaxis], errs1_stereo_vec, np.zeros(3)) 
+                    errs1_stereo_sqr = np.sum(errs1_stereo * errs1_stereo, axis=1)  # squared reprojection errors    
+                    chis2_1_stereo = errs1_stereo_sqr * invSigmas2_1         # chi square            
+                    bad_chis2_1 = np.logical_or(chis2_1_mono > Parameters.kChi2Mono, chis2_1_stereo > Parameters.kChi2Stereo)                                                  
+                else: 
+                    bad_chis2_1 = chis2_1_mono > Parameters.kChi2Mono
+                              
+                # compute mono reproj errors on kf1                                                                 
+                errs2_mono_vec = uvs2 - kf2.kpsu[idxs2] # mono errors               
+                errs2 = np.where(is_mono2[:, np.newaxis], errs2_mono_vec, np.zeros(2))   # mono errors
                 errs2_sqr = np.sum(errs2 * errs2, axis=1) # squared reprojection errors        
                 kps2_levels = kf2.octaves[idxs2]
                 invSigmas2_2 = Frame.feature_manager.inv_level_sigmas2[kps2_levels] 
-                chis2_2 = errs2_sqr * invSigmas2_2        # chi square 
-                bad_chis2_2 = chis2_2 > Parameters.kChi2Mono  # chi-square 2 DOFs  (Hartley Zisserman pg 119)                      
+                chis2_2_mono = errs2_sqr * invSigmas2_2        # chi square 
                 
-                # scale consistency 
-                scale_factors_x_depths1 =  Frame.feature_manager.scale_factors[kps1_levels] * depths1
+                if kf2.kps_ur is not None:
+                    kp2_ur = kf2.kps_ur[idxs2] if kf2.kps_ur is not None else [-1]*len(idxs2) # kp right coords if available
+                    depths2 = kf2.depths[idxs2] 
+                    safe_depths2 = np.where(depths2 == 0, np.inf, depths2) # to prevent division by zero                     
+                    errs2_stereo_vec = np.concatenate((errs2_mono_vec, (uvs2[:,0] - kf2.camera.bf/safe_depths2 - kp2_ur)[:, np.newaxis]), axis=1)    # stereo errors
+                    errs2_stereo = np.where(is_stereo2[:, np.newaxis], errs2_stereo_vec, np.zeros(3)) 
+                    errs2_stereo_sqr = np.sum(errs2_stereo * errs2_stereo, axis=1)  # squared reprojection errors
+                    chis2_2_stereo = errs2_stereo_sqr * invSigmas2_2         # chi square
+                    bad_chis2_2 = np.logical_or(chis2_2_mono > Parameters.kChi2Mono, chis2_2_stereo > Parameters.kChi2Stereo)
+                else: 
+                    bad_chis2_2 = chis2_2_mono > Parameters.kChi2Mono  # chi-square 2 DOFs  (Hartley Zisserman pg 119)                      
+                
+                # scale consistency check
+                ratio_scale_consistency = Parameters.kScaleConsistencyFactor * Frame.feature_manager.scale_factor 
+                scale_factors_x_depths1 =  Frame.feature_manager.scale_factors[kps1_levels] * proj_depths1
                 scale_factors_x_depths1_x_ratio_scale_consistency = scale_factors_x_depths1*ratio_scale_consistency                             
-                scale_factors_x_depths2 =  Frame.feature_manager.scale_factors[kps2_levels] * depths2   
+                scale_factors_x_depths2 =  Frame.feature_manager.scale_factors[kps2_levels] * proj_depths2   
                 scale_factors_x_depths2_x_ratio_scale_consistency = scale_factors_x_depths2*ratio_scale_consistency      
                 bad_scale_consistency = np.logical_or( (scale_factors_x_depths1 > scale_factors_x_depths2_x_ratio_scale_consistency), 
                                                        (scale_factors_x_depths2 > scale_factors_x_depths1_x_ratio_scale_consistency) )   
                 
                 # combine all checks 
-                bad_points = bad_cos_parallaxs | bad_depths1 | bad_depths2 | bad_chis2_1 | bad_chis2_2 | bad_scale_consistency                                                           
+                bad_points = bad_cos_parallaxs | bad_depths1 | bad_depths2 | bad_chis2_1 | bad_chis2_2 | bad_scale_consistency    
+                if False: # for debugging      
+                    print(f'[add_points] bad_points = {np.sum(bad_points)} of {len(idxs1)}')
+                    print(f'\t bad_depths1 = {np.sum(bad_depths1)}')
+                    print(f'\t bad_depths2 = {np.sum(bad_depths2)}')      
+                    print(f'\t bad_chis2_1 = {np.sum(bad_chis2_1)}')
+                    print(f'\t bad_chis2_2 = {np.sum(bad_chis2_2)}')
+                    print(f'\t bad_scale_consistency = {np.sum(bad_scale_consistency)}')                   
             
+                # end if do_check
+                
+            # get color patches
             img_coords = np.rint(kf1.kps[idxs1]).astype(np.intp) # image keypoints coordinates 
             # build img patches coordinates 
             delta = Parameters.kColorPatchDelta    
@@ -306,8 +384,8 @@ class Map(object):
                     #     continue               
                     
                     #check scale consistency 
-                    # scale_factor_x_depth1 =  Frame.feature_manager.scale_factors[kps1_levels[i]] * depths1[i]
-                    # scale_factor_x_depth2 =  Frame.feature_manager.scale_factors[kps2_levels[i]] * depths2[i]
+                    # scale_factor_x_depth1 =  Frame.feature_manager.scale_factors[kps1_levels[i]] * proj_depths1[i]
+                    # scale_factor_x_depth2 =  Frame.feature_manager.scale_factors[kps2_levels[i]] * proj_depths2[i]
                     # if (scale_factor_x_depth1 > scale_factor_x_depth2*ratio_scale_consistency) or \
                     #    (scale_factor_x_depth2 > scale_factor_x_depth1*ratio_scale_consistency):
                     #     continue                                    
@@ -317,7 +395,8 @@ class Map(object):
                     #color = img1[int(round(kf1.kps[idx1_i, 1])), int(round(kf1.kps[idx1_i, 0]))]
                     #img_pt = np.rint(kf1.kps[idx1_i]).astype(np.int)
                     # color at the point 
-                    #color = img1[img_pt[1],img_pt[0]]                    
+                    #color = img1[img_pt[1],img_pt[0]]   
+                                     
                     # buils color patch 
                     #color_patch = img1[img_pt[1]-delta:img_pt[1]+delta,img_pt[0]-delta:img_pt[0]+delta]
                     #color = color_patch.mean(axis=0).mean(axis=0)  # compute the mean color in the patch     
@@ -332,7 +411,8 @@ class Map(object):
                     color_patch = img1[img_range[1][:,np.newaxis],img_range[0]]         
                     #print('color_patch.shape:',color_patch.shape)    
                                                                                   
-                    color = cv2.mean(color_patch)[:3]  # compute the mean color in the patch                                                                                      
+                    color = cv2.mean(color_patch)[:3]  # compute the mean color in the patch  
+                                                                                                        
                 except IndexError:
                     Printer.orange('color out of range')
                     color = (255, 0, 0)
@@ -347,6 +427,53 @@ class Map(object):
                 added_points.append(mp)
             return len(added_points), out_mask_pts3d, added_points
 
+
+    # add new points to the map from 3D point stereo-back-projection
+    # points3d is [Nx3]
+    def add_stereo_points(self, points3d, mask_pts3d, f: Frame, kf: KeyFrame, idxs, img):
+        with self._lock:             
+            assert(kf.is_keyframe) 
+            
+            if mask_pts3d is None:
+                mask_pts3d = np.full(points3d.shape[0], True, dtype=bool)
+                            
+            img_coords = np.rint(kf.kps[idxs]).astype(np.intp) # image keypoints coordinates 
+            # build img patches coordinates 
+            delta = Parameters.kColorPatchDelta    
+            patch_extension = 1 + 2*delta   # patch_extension x patch_extension
+            img_pts_start = img_coords - delta           
+            img_pts_end   = img_coords + delta
+            img_ranges = np.linspace(img_pts_start,img_pts_end,patch_extension,dtype=np.intp)[:,:].T      
+            def img_range_elem(ranges,i):      
+                return ranges[:,i]                                                  
+            
+            num_added_points = 0
+            for i, p in enumerate(points3d):
+                if not mask_pts3d[i]:
+                    #print('p[%d] not good' % i)
+                    continue
+                    
+                # get the color of the point  
+                try:
+                    img_range = img_range_elem(img_ranges,i) 
+                    color_patch = img[img_range[1][:,np.newaxis],img_range[0]]         
+                    #print('color_patch.shape:',color_patch.shape)    
+                                                                                  
+                    color = cv2.mean(color_patch)[:3]  # compute the mean color in the patch                                                                                      
+                except IndexError:
+                    Printer.orange('color out of range')
+                    color = (255, 0, 0)
+                    
+                # add the point to this map                 
+                mp = MapPoint(p[0:3], color, kf, idxs[i]) 
+                
+                # we need to add the point both the originary frame and the newly created keyframe
+                f.points[idxs[i]] = mp # add point to the frame
+                self.add_point(mp) # add point to this map 
+                mp.add_observation(kf, idxs[i])                                  
+                mp.update_info()
+                num_added_points +=1
+            return num_added_points
 
     # remove points which have a big reprojection error 
     def remove_points_with_big_reproj_err(self, points): 
@@ -400,51 +527,60 @@ class Map(object):
     # FIXME: to be updated according to new data structure changes
     def serialize(self):
         ret = {}
-        # ret['points'] = [{'id': p.id, 'pt': p.pt.tolist(
-        # ), 'color': p.color.tolist()} for p in self.points]
-        # ret['keyframes'] = []
-        # for f in self.keyframes:
-        #     ret['frames'].append({
-        #         'id': f.id, 'K': f.K.tolist(), 'pose': f.pose.tolist(), 'H': f.H, 'W': f.W,
-        #         'kpus': f.kpus.tolist(), 'des': f.des.tolist(),
-        #         'pts': [p.id if p is not None else -1 for p in f.pts]
-        #         })
-        # ret['max_frame_id'] = self.max_frame_id
-        # ret['max_point_id'] = self.max_point_id
+        
+        # static stuff
+        ret['FrameBase._id'] = FrameBase._id
+        ret['MapPointBase._id'] = MapPointBase._id
+        
+        # non-static stuff
+        ret['frames'] = [f.to_json() for f in self.frames]
+        ret['keyframes'] = [kf.to_json() for kf in self.keyframes if not kf.is_bad]
+        ret['points'] = [p.to_json() for p in self.points if not p.is_bad]
+                
+        ret['max_frame_id'] = self.max_frame_id
+        ret['max_point_id'] = self.max_point_id
+        ret['max_keyframe_id'] = self.max_keyframe_id
+        
         return json.dumps(ret)
-        pass 
-
 
     # FIXME: to be updated according to new data structure changes
     def deserialize(self, s):
         ret = json.loads(s)
-        # self.max_frame_id = ret['max_frame_id']
-        # self.max_point_id = ret['max_point_id']
-        # self.points = []
-        # self.keyframes = []
+        
+        # static stuff        
+        FrameBase._id = ret['FrameBase._id']
+        MapPointBase._id = ret['MapPointBase._id']
+        
+        # non-static stuff 
+        self.frames = [KeyFrame.from_json(f) if bool(f['is_keyframe']) else Frame.from_json(f) for f in ret['frames']]
+        self.keyframes = [KeyFrame.from_json(f) for f in ret['keyframes']]
+        self.points = [MapPoint.from_json(p) for p in ret['points']]
+                        
+        self.max_frame_id = ret['max_frame_id']
+        self.max_point_id = ret['max_point_id']
+        self.max_keyframe_id = ret['max_keyframe_id']
+        
+        # now replace ids with actual objects
+        for f in self.frames: 
+            f.replace_ids_with_objects(self.points, self.frames, self.keyframes)
+        for kf in self.keyframes: 
+            kf.replace_ids_with_objects(self.points, self.frames, self.keyframes)
+        for p in self.points: 
+            p.replace_ids_with_objects(self.points, self.frames, self.keyframes)
 
-        # pids = {}
-        # for p in ret['points']:
-        #     pp = MapPoint(p['pt'], p['color'], p['id'])
-        #     self.add_point(pt) # add point to this map 
-        #     self.points.append(pp)
-        #     pids[p['id']] = pp
-
-        # for f in ret['keyframes']:
-        #     ff = Frame(None, f['K'], f['pose'], f['id'])
-        #     self.add_frame_view(ff)
-        #     ff.W, ff.H = f['W'], f['H']
-        #     ff.kpsu = np.array(f['kpus'])
-        #     ff.des = np.array(f['des'])
-        #     ff.points = [None] * len(ff.kpsu)
-        #     for i, p in enumerate(f['pts']):
-        #         if p != -1:
-        #             ff.points[i] = pids[p]
-        #     self.keyframes.append(ff)
-        pass
-
-
-
+        self.frames = deque(self.frames, maxlen=kMaxLenFrameDeque) 
+        self.keyframes = OrderedSet(self.keyframes)  
+        self.points = set(self.points)
+        
+    def save(self, filename):
+        with open(filename, 'w') as f:
+            f.write(self.serialize())
+        Printer.green('\t ...map saved to: ', filename)
+            
+    def load(self, filename):
+        with open(filename, 'rb') as f:
+            self.deserialize(f.read())
+        Printer.green('\t ...map loaded from: ', filename)
 
 # Local map base class 
 class LocalMapBase(object):

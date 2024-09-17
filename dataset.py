@@ -24,7 +24,9 @@ import cv2
 import os
 import glob
 import time 
+import csv
 import re 
+import datetime
 from multiprocessing import Process, Queue, Value 
 from utils_sys import Printer 
 
@@ -33,57 +35,81 @@ class DatasetType(Enum):
     NONE = 1
     KITTI = 2
     TUM = 3
-    VIDEO = 4
-    FOLDER = 5  # generic folder of pics 
-    LIVE = 6
+    EUROC = 4
+    VIDEO = 5
+    FOLDER = 6  # generic folder of pics 
+    LIVE = 7
 
+class SensorType(Enum):
+    MONOCULAR=0,
+    STEREO=1,
+    RGBD=2
 
-def dataset_factory(settings):
+def dataset_factory(config):
+    dataset_settings = config.dataset_settings
     type=DatasetType.NONE
     associations = None
     timestamps = None    
     path = None 
     is_color = None  # used for kitti datasets
 
-    type = settings['type']
-    name = settings['name']    
+    type = dataset_settings['type'].lower()
+    name = dataset_settings['name']    
     
-    path = settings['base_path'] 
+    sensor_type = SensorType.MONOCULAR
+    if 'sensor_type' in dataset_settings:
+        if dataset_settings['sensor_type'].lower() == 'mono':
+            sensor_type = SensorType.MONOCULAR
+        if dataset_settings['sensor_type'].lower() == 'stereo':
+            sensor_type = SensorType.STEREO
+        if dataset_settings['sensor_type'].lower() == 'rgbd':
+            sensor_type = SensorType.RGBD
+    Printer.green(f'dataset_factory - sensor_type: {sensor_type.name}')
+    
+    path = dataset_settings['base_path'] 
     path = os.path.expanduser(path)
-
     
-    if 'associations' in settings:
-        associations = settings['associations']
-    if 'timestamps' in settings:
-        timestamps = settings['timestamps']
-    if 'is_color' in settings:
-        is_color = settings['is_color'].lower() == 'true'
+    start_frame_id = 0
+    if 'start_frame_id' in dataset_settings:
+        Printer.green(f'dataset_factory - start_frame_id: {dataset_settings["start_frame_id"]}')
+        start_frame_id = int(dataset_settings['start_frame_id'])
+    
+    if 'associations' in dataset_settings:
+        associations = dataset_settings['associations']
+    if 'timestamps' in dataset_settings:
+        timestamps = dataset_settings['timestamps']
+    if 'is_color' in dataset_settings:
+        is_color = dataset_settings['is_color']
 
     dataset = None 
 
     if type == 'kitti':
-        dataset = KittiDataset(path, name, associations, DatasetType.KITTI)
+        dataset = KittiDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.KITTI)
         dataset.set_is_color(is_color)   
     if type == 'tum':
-        dataset = TumDataset(path, name, associations, DatasetType.TUM)
+        dataset = TumDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.TUM)
+    if type == 'euroc':
+        dataset = EurocDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.EUROC, config) 
     if type == 'video':
-        dataset = VideoDataset(path, name, associations, timestamps, DatasetType.VIDEO)   
+        dataset = VideoDataset(path, name, sensor_type, associations, timestamps, start_frame_id, DatasetType.VIDEO)   
     if type == 'folder':
         fps = 10 # a default value 
-        if 'fps' in settings:
-            fps = int(settings['fps'])
-        dataset = FolderDataset(path, name, fps, associations, timestamps, DatasetType.FOLDER)      
+        if 'fps' in dataset_settings:
+            fps = int(dataset_settings['fps'])
+        dataset = FolderDataset(path, name, sensor_type, fps, associations, timestamps, start_frame_id, DatasetType.FOLDER)      
     if type == 'live':
-        dataset = LiveDataset(path, name, associations, DatasetType.LIVE)   
+        dataset = LiveDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.LIVE)   
                 
     return dataset 
 
 
 class Dataset(object):
-    def __init__(self, path, name, fps=None, associations=None, type=DatasetType.NONE):
-        self.path=path 
-        self.name=name 
-        self.type=type    
+    def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, fps=None, associations=None, start_frame_id=0, type=DatasetType.NONE):
+        self.path = path 
+        self.name = name 
+        self.type = type    
+        self.sensor_type = sensor_type
+        self.scale_viewer_3d = 1.0 
         self.is_ok = True
         self.fps = fps   
         if fps is not None:       
@@ -91,23 +117,29 @@ class Dataset(object):
         else: 
             self.Ts = None 
           
+        self.start_frame_id = start_frame_id
         self.timestamps = None 
         self._timestamp = None       # current timestamp if available [s]
         self._next_timestamp = None  # next timestamp if available otherwise an estimate [s]
         
     def isOk(self):
         return self.is_ok
+    
+    def sensorType(self):
+        return self.sensor_type
 
     def getImage(self, frame_id):
         return None 
 
-    def getImage1(self, frame_id):
+    def getImageRight(self, frame_id):
         return None
 
     def getDepth(self, frame_id):
         return None        
 
+    # Adjust frame id with start frame id only here
     def getImageColor(self, frame_id):
+        frame_id += self.start_frame_id
         try: 
             img = self.getImage(frame_id)
             if img.ndim == 2:
@@ -117,8 +149,23 @@ class Dataset(object):
         except:
             img = None  
             #raise IOError('Cannot open dataset: ', self.name, ', path: ', self.path)        
-            Printer.red('Cannot open dataset: ', self.name, ', path: ', self.path)
+            Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}')
             return img    
+        
+    # Adjust frame id with start frame id only here
+    def getImageColorRight(self, frame_id):
+        frame_id += self.start_frame_id
+        try: 
+            img = self.getImageRight(frame_id)
+            if img is not None and img.ndim == 2:
+                return cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)     
+            else:
+                return img             
+        except:
+            img = None  
+            #raise IOError('Cannot open dataset: ', self.name, ', path: ', self.path)        
+            Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}, right image')
+            return img         
         
     def getTimestamp(self):
         return self._timestamp
@@ -139,8 +186,10 @@ class Dataset(object):
 
 
 class VideoDataset(Dataset): 
-    def __init__(self, path, name, associations=None, timestamps=None, type=DatasetType.VIDEO): 
-        super().__init__(path, name, None, associations, type)    
+    def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, associations=None, timestamps=None, start_frame_id=0, type=DatasetType.VIDEO): 
+        super().__init__(path, name, sensor_type, None, associations, start_frame_id, type)    
+        if sensor_type != SensorType.MONOCULAR:
+            raise ValueError('Video dataset only supports MONOCULAR sensor type')
         self.filename = path + '/' + name 
         #print('video: ', self.filename)
         self.cap = cv2.VideoCapture(self.filename)
@@ -184,8 +233,10 @@ class VideoDataset(Dataset):
 
 
 class LiveDataset(Dataset): 
-    def __init__(self, path, name, associations=None, type=DatasetType.VIDEO): 
-        super().__init__(path, name, None, associations, type)    
+    def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, associations=None, start_frame_id=0, type=DatasetType.VIDEO): 
+        super().__init__(path, name, sensor_type, None, associations, start_frame_id, type)
+        if sensor_type != SensorType.MONOCULAR:
+            raise ValueError('Video dataset only supports MONOCULAR sensor type')           
         self.camera_num = name # use name for camera number
         print('opening camera device: ', self.camera_num)
         self.cap = cv2.VideoCapture(self.camera_num)   
@@ -207,8 +258,10 @@ class LiveDataset(Dataset):
 
 
 class FolderDataset(Dataset): 
-    def __init__(self, path, name, fps=None, associations=None, timestamps=None, type=DatasetType.VIDEO): 
-        super().__init__(path, name, fps, associations, type)  
+    def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, fps=None, associations=None, timestamps=None, start_frame_id=0, type=DatasetType.VIDEO): 
+        super().__init__(path, name, sensor_type, fps, associations, start_frame_id, type)
+        if sensor_type != SensorType.MONOCULAR:
+            raise ValueError('Video dataset only supports MONOCULAR sensor type')        
         if fps is None: 
             fps = 10 # default value  
         self.fps = fps 
@@ -231,9 +284,6 @@ class FolderDataset(Dataset):
         if timestamps is not None:
             self.timestamps = self._read_timestamps(path + '/' + timestamps)
         
-        
-
-            
     def getImage(self, frame_id):
         if self.i == self.maxlen:
             return (None, False)
@@ -268,8 +318,10 @@ class FolderDatasetParallelStatus:
 
 # this is experimental 
 class FolderDatasetParallel(Dataset): 
-    def __init__(self, path, name, fps=None, associations=None, type=DatasetType.VIDEO): 
-        super().__init__(path, name, fps, associations, type)    
+    def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, fps=None, associations=None, start_frame_id=0, type=DatasetType.VIDEO): 
+        super().__init__(path, name, sensor_type, fps, associations, start_frame_id, type)
+        if sensor_type != SensorType.MONOCULAR:
+            raise ValueError('Video dataset only supports MONOCULAR sensor type')            
         print('fps: ', self.fps)  
         self.Ts = 1./self.fps    
         self._timestamp = 0     
@@ -288,7 +340,7 @@ class FolderDatasetParallel(Dataset):
 
         self.is_running = Value('i',1)  
         
-        self.folder_status = FolderDatasetParallelStatus(i,maxlen,listing,skip)
+        self.folder_status = FolderDatasetParallelStatus(self.i,self.maxlen,self.listing,self.skip)
 
         self.q = Queue(maxsize=10)    
         self.q.put(self.folder_status)   # pass the folder status with the initialization  
@@ -307,7 +359,7 @@ class FolderDatasetParallel(Dataset):
                     
     def _update_image(self, q):
         folder_status = q.get()  
-        while is_running.value == 1:
+        while self.is_running.value == 1:
             while not q.full():
                 self.current_frame = self._get_image(folder_status)
                 self.q.put(self.current_frame)
@@ -378,8 +430,10 @@ class Webcam(object):
 
 
 class KittiDataset(Dataset):
-    def __init__(self, path, name, associations=None, type=DatasetType.KITTI): 
-        super().__init__(path, name, 10, associations, type)
+    def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.KITTI): 
+        super().__init__(path, name, sensor_type, 10, associations, start_frame_id, type)
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.STEREO:
+            raise ValueError('Video dataset only supports MONOCULAR and STEREO sensor types')        
         self.fps = 10
         self.image_left_path = '/image_0/'
         self.image_right_path = '/image_1/'           
@@ -405,11 +459,12 @@ class KittiDataset(Dataset):
             if frame_id+1 < self.max_frame_id:   
                 self._next_timestamp = self.timestamps[frame_id+1]
             else:
-                self._next_timestamp = self.timestamps            
+                self._next_timestamp = self._timestamp + self.Ts             
         self.is_ok = (img is not None)
         return img 
 
-    def getImage1(self, frame_id):
+    def getImageRight(self, frame_id):
+        print(f'[KittiDataset] getImageRight: {frame_id}')
         img = None
         if frame_id < self.max_frame_id:        
             try: 
@@ -420,15 +475,18 @@ class KittiDataset(Dataset):
             if frame_id+1 < self.max_frame_id:   
                 self._next_timestamp = self.timestamps[frame_id+1]
             else:
-                self._next_timestamp = self.timestamps                  
+                self._next_timestamp = self._timestamp + self.Ts                   
         self.is_ok = (img is not None)        
         return img 
 
 
 class TumDataset(Dataset):
-    def __init__(self, path, name, associations, type=DatasetType.TUM): 
-        super().__init__(path, name, 30, associations, type)
+    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.TUM): 
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+            raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
         self.fps = 30
+        self.scale_viewer_3d = 0.1
         print('Processing TUM Sequence')        
         self.base_path=self.path + '/' + self.name + '/'
         associations_file=self.path + '/' + self.name + '/' + associations
@@ -448,24 +506,138 @@ class TumDataset(Dataset):
             if frame_id +1 < self.max_frame_id: 
                 self._next_timestamp = float(self.associations[frame_id+1].strip().split()[0])
             else:
-                self._next_timestamp = self.timestamps             
+                self._next_timestamp = self._timestamp + self.Ts              
         else:
             self.is_ok = False     
             self._timestamp = None                  
         return img 
 
     def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
             file = self.base_path + self.associations[frame_id].strip().split()[3]
-            img = cv2.imread(file)
+            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
             self.is_ok = (img is not None)
             self._timestamp = float(self.associations[frame_id].strip().split()[0])
             if frame_id +1 < self.max_frame_id: 
                 self._next_timestamp = float(self.associations[frame_id+1].strip().split()[0])
             else:
-                self._next_timestamp = self.timestamps               
+                self._next_timestamp = self._timestamp + self.Ts                
         else:
             self.is_ok = False      
             self._timestamp = None                       
+        return img 
+
+
+class EurocDataset(Dataset):
+    def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.EUROC, config=None): 
+        super().__init__(path, name, sensor_type, 20, associations, start_frame_id, type)
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.STEREO:
+            raise ValueError('Video dataset only supports MONOCULAR and STEREO sensor types')           
+        self.fps = 20
+        if sensor_type == SensorType.STEREO:
+            self.scale_viewer_3d = 0.1        
+        self.image_left_path = '/mav0/cam0/data/'
+        self.image_right_path = '/mav0/cam1/data/'
+        self.image_left_csv_path = '/mav0/cam0/data.csv'
+        self.image_right_csv_path = '/mav0/cam1/data.csv'
+        
+        timestamps_and_filenames_left = self.read_data(self.path + '/' + self.name + self.image_left_csv_path)
+        timestamps_and_filenames_right = self.read_data(self.path + '/' + self.name + self.image_right_csv_path)
+
+        self.timestamps = np.array([x[0] for x in timestamps_and_filenames_left])
+        self.filenames = np.array([x[1] for x in timestamps_and_filenames_left])
+        self.timestamps_right = np.array([x[0] for x in timestamps_and_filenames_right])
+        self.filenames_right = np.array([x[1] for x in timestamps_and_filenames_right])
+        self.max_frame_id = len(self.timestamps)
+        
+        # in case of stereo mode, we rectify the stereo images
+        self.stereo_settings = config.stereo_settings
+        if self.sensor_type == SensorType.STEREO:
+            Printer.yellow('[EuroDataset] automatically rectifying the stereo images')
+            if self.stereo_settings is None: 
+                sys.exit('ERROR: we are missing stereo settings in Euroc YAML settings!')   
+            width = config.width 
+            height = config.height         
+            
+            K_l = self.stereo_settings['left']['K']
+            D_l = self.stereo_settings['left']['D']
+            R_l = self.stereo_settings['left']['R']
+            P_l = self.stereo_settings['left']['P']
+            
+            K_r = self.stereo_settings['right']['K']
+            D_r = self.stereo_settings['right']['D']
+            R_r = self.stereo_settings['right']['R']
+            P_r = self.stereo_settings['right']['P']
+            
+            self.M1l,self.M2l = cv2.initUndistortRectifyMap(K_l, D_l, R_l, P_l[0:3,0:3], (width, height), cv2.CV_32FC1)
+            self.M1r,self.M2r = cv2.initUndistortRectifyMap(K_r, D_r, R_r, P_r[0:3,0:3], (width, height), cv2.CV_32FC1)
+        self.debug_rectification = False
+            
+        
+        print('Processing Euroc Sequence of lenght: ', len(self.timestamps))
+        
+    def read_data(self, csv_file):
+        timestamps_and_filenames = []
+        with open(csv_file, 'r') as f:
+            reader = csv.reader(f)
+            header = next(reader)  # Skip header row
+            for row in reader:
+                timestamp_ns = int(row[0])
+                filename = row[1]
+                timestamp_s = (timestamp_ns / 1000000000)
+                timestamps_and_filenames.append((timestamp_s, filename))
+        return timestamps_and_filenames
+                        
+        
+    def getImage(self, frame_id):
+        img = None
+        if frame_id < self.max_frame_id:
+            try: 
+                img = cv2.imread(self.path + '/' + self.name + self.image_left_path + self.filenames[frame_id])
+                if self.sensor_type == SensorType.STEREO:
+                    # rectify image
+                    if self.debug_rectification:
+                        imgs = img 
+                    img = cv2.remap(img,self.M1l,self.M2l,cv2.INTER_LINEAR)
+                    if self.debug_rectification: 
+                        imgs = np.concatenate((imgs,img),axis=1)
+                        cv2.imshow('left raw and rectified images',imgs)
+                        cv2.waitKey(1)
+                
+                self._timestamp = self.timestamps[frame_id]
+            except:
+                print('could not retrieve image: ', frame_id, ' in path ', self.path )
+            if frame_id+1 < self.max_frame_id:   
+                self._next_timestamp = self.timestamps[frame_id+1]
+            else:
+                self._next_timestamp = self._timestamp + self.Ts            
+        self.is_ok = (img is not None)
+        return img 
+
+    def getImageRight(self, frame_id):
+        img = None
+        if frame_id < self.max_frame_id:        
+            try: 
+                img = cv2.imread(self.path + '/' + self.name + self.image_right_path + self.filenames_right[frame_id]) 
+                if self.sensor_type == SensorType.STEREO:
+                    # rectify image
+                    if self.debug_rectification:
+                        imgs = img                     
+                    img = cv2.remap(img,self.M1r,self.M2r,cv2.INTER_LINEAR)
+                    if self.debug_rectification: 
+                        imgs = np.concatenate((imgs,img),axis=1)
+                        cv2.imshow('right raw and rectified images',imgs)
+                        cv2.waitKey(1)                           
+                self._timestamp = self.timestamps_right[frame_id]        
+            except:
+                print('could not retrieve image: ', frame_id, ' in path ', self.path )   
+            if frame_id+1 < self.max_frame_id:   
+                self._next_timestamp = self.timestamps_right[frame_id+1]
+            else:
+                self._next_timestamp = self._timestamp + self.Ts                  
+        self.is_ok = (img is not None)        
         return img 

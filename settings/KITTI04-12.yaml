@@ -45,24 +45,9 @@ Camera.RGB: 1
 # Close/Far threshold. Baseline times.
 ThDepth: 40
 
-
 #--------------------------------------------------------------------------------------------
-# ORB Parameters
+# Features extraction 
 #--------------------------------------------------------------------------------------------
 
-# ORB Extractor: Number of features per image
-# originally 2000 points 
-ORBextractor.nFeatures: 1000  
+FeatureExtractor.nFeatures: 2000
 
-# ORB Extractor: Scale factor between levels in the scale pyramid 	
-ORBextractor.scaleFactor: 1.2
-
-# ORB Extractor: Number of levels in the scale pyramid	
-ORBextractor.nLevels: 8
-
-# ORB Extractor: Fast threshold
-# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
-# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
-# You can lower these values if your images have low contrast			
-ORBextractor.iniThFAST: 12
-ORBextractor.minThFAST: 7

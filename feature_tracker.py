@@ -46,6 +46,7 @@ class FeatureTrackerTypes(Enum):
 def feature_tracker_factory(num_features=kMinNumFeatureDefault, 
                             num_levels = 1,                                 # number of pyramid levels or octaves for detector and descriptor   
                             scale_factor = 1.2,                             # detection scale factor (if it can be set, otherwise it is automatically computed)
+                            sigma_level0 = Parameters.kSigmaLevel0,         # sigma of the keypoint localization at level 0                             
                             detector_type = FeatureDetectorTypes.FAST, 
                             descriptor_type = FeatureDescriptorTypes.ORB, 
                             match_ratio_test = kRatioTest,
@@ -53,7 +54,8 @@ def feature_tracker_factory(num_features=kMinNumFeatureDefault,
     if tracker_type == FeatureTrackerTypes.LK:
         return LkFeatureTracker(num_features=num_features, 
                                 num_levels = num_levels, 
-                                scale_factor = scale_factor, 
+                                scale_factor = scale_factor,
+                                sigma_level0 = sigma_level0, 
                                 detector_type = detector_type, 
                                 descriptor_type = descriptor_type, 
                                 match_ratio_test = match_ratio_test,                                
@@ -61,7 +63,8 @@ def feature_tracker_factory(num_features=kMinNumFeatureDefault,
     elif tracker_type == FeatureTrackerTypes.LOFTR:
         return LoftrFeatureTracker(num_features=num_features, 
                                         num_levels = num_levels, 
-                                        scale_factor = scale_factor, 
+                                        scale_factor = scale_factor,
+                                        sigma_level0 = sigma_level0, 
                                         detector_type = detector_type, 
                                         descriptor_type = descriptor_type,
                                         match_ratio_test = match_ratio_test,    
@@ -69,7 +72,8 @@ def feature_tracker_factory(num_features=kMinNumFeatureDefault,
     else: 
         return DescriptorFeatureTracker(num_features=num_features, 
                                         num_levels = num_levels, 
-                                        scale_factor = scale_factor, 
+                                        scale_factor = scale_factor,
+                                        sigma_level0 = sigma_level0, 
                                         detector_type = detector_type, 
                                         descriptor_type = descriptor_type,
                                         match_ratio_test = match_ratio_test,    
@@ -94,7 +98,8 @@ class FeatureTrackingResult(object):
 class FeatureTracker(object): 
     def __init__(self, num_features=kMinNumFeatureDefault, 
                        num_levels = 1,                                   # number of pyramid levels for detector and descriptor  
-                       scale_factor = 1.2,                               # detection scale factor (if it can be set, otherwise it is automatically computed) 
+                       scale_factor = 1.2,                               # detection scale factor (if it can be set, otherwise it is automatically computed)
+                       sigma_level0 = Parameters.kSigmaLevel0,           # sigma of the keypoint localization at level 0 
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.ORB,
                        match_ratio_test = kRatioTest, 
@@ -131,6 +136,12 @@ class FeatureTracker(object):
     def descriptor_distances(self):
         return self.feature_manager.descriptor_distances               
     
+    def set_double_num_features(self):
+        self.feature_manager.set_double_num_features()
+    
+    def set_normal_num_features(self):
+        self.feature_manager.set_normal_num_features() 
+
     # out: keypoints and descriptors 
     def detectAndCompute(self, frame, mask): 
         return None, None 
@@ -148,6 +159,7 @@ class LkFeatureTracker(FeatureTracker):
     def __init__(self, num_features=kMinNumFeatureDefault, 
                        num_levels = 3,                             # number of pyramid levels for detector  
                        scale_factor = 1.2,                         # detection scale factor (if it can be set, otherwise it is automatically computed) 
+                       sigma_level0 = Parameters.kSigmaLevel0,     # sigma of the keypoint localization at level 0 
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.NONE, 
                        match_ratio_test = kRatioTest,
@@ -155,12 +167,14 @@ class LkFeatureTracker(FeatureTracker):
         super().__init__(num_features=num_features, 
                          num_levels=num_levels, 
                          scale_factor=scale_factor, 
+                         sigma_level0 = sigma_level0,
                          detector_type=detector_type, 
                          descriptor_type=descriptor_type, 
                          tracker_type=tracker_type)
         self.feature_manager = feature_manager_factory(num_features=num_features, 
                                                        num_levels=num_levels, 
                                                        scale_factor=scale_factor, 
+                                                       sigma_level0 = sigma_level0,
                                                        detector_type=detector_type, 
                                                        descriptor_type=descriptor_type)   
         #if num_levels < 3:
@@ -201,7 +215,8 @@ class LkFeatureTracker(FeatureTracker):
 class DescriptorFeatureTracker(FeatureTracker): 
     def __init__(self, num_features=kMinNumFeatureDefault, 
                        num_levels = 1,                                    # number of pyramid levels for detector  
-                       scale_factor = 1.2,                                # detection scale factor (if it can be set, otherwise it is automatically computed)                
+                       scale_factor = 1.2,                                # detection scale factor (if it can be set, otherwise it is automatically computed)  
+                       sigma_level0 = Parameters.kSigmaLevel0,            # sigma of the keypoint localization at level 0                                      
                        detector_type = FeatureDetectorTypes.FAST, 
                        descriptor_type = FeatureDescriptorTypes.ORB,
                        match_ratio_test = kRatioTest, 
@@ -215,7 +230,8 @@ class DescriptorFeatureTracker(FeatureTracker):
                          tracker_type=tracker_type)
         self.feature_manager = feature_manager_factory(num_features=num_features, 
                                                        num_levels=num_levels, 
-                                                       scale_factor=scale_factor, 
+                                                       scale_factor=scale_factor,
+                                                       sigma_level0 = sigma_level0, 
                                                        detector_type=detector_type, 
                                                        descriptor_type=descriptor_type)    
 
@@ -235,7 +251,7 @@ class DescriptorFeatureTracker(FeatureTracker):
                                                ratio_test=match_ratio_test, 
                                                matcher_type=self.matcher_type,
                                                detector_type=detector_type,
-                                               descriptor_type=detector_type)        
+                                               descriptor_type=descriptor_type)        
 
 
     # out: keypoints and descriptors 
@@ -274,7 +290,8 @@ class DescriptorFeatureTracker(FeatureTracker):
 class LoftrFeatureTracker(FeatureTracker): 
     def __init__(self, num_features=kMinNumFeatureDefault, 
                        num_levels = 1,                                    # number of pyramid levels for detector  
-                       scale_factor = 1.2,                                # detection scale factor (if it can be set, otherwise it is automatically computed)                
+                       scale_factor = 1.2,                                # detection scale factor (if it can be set, otherwise it is automatically computed)
+                       sigma_level0 = Parameters.kSigmaLevel0,            # sigma of the keypoint localization at level 0                                       
                        detector_type = FeatureDetectorTypes.NONE, 
                        descriptor_type = FeatureDescriptorTypes.NONE,
                        match_ratio_test = kRatioTest, 
@@ -288,7 +305,8 @@ class LoftrFeatureTracker(FeatureTracker):
                          tracker_type=tracker_type)
         self.feature_manager = feature_manager_factory(num_features=num_features, 
                                                        num_levels=num_levels, 
-                                                       scale_factor=scale_factor, 
+                                                       scale_factor=scale_factor,
+                                                       sigma_level0 = sigma_level0, 
                                                        detector_type=detector_type, 
                                                        descriptor_type=descriptor_type)    
 

@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")     
 
-    dataset = dataset_factory(config.dataset_settings)
+    dataset = dataset_factory(config)
 
     img_id=0
     video_path = '../../videos/kitti00/video.mp4'

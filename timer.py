@@ -37,6 +37,14 @@ class Timer:
     def start(self):
         self._accumulated = 0         
         self._start_time = cv2.getTickCount()
+        
+    @property
+    def start_time(self):
+        return self._start_time
+    
+    @property
+    def last_elapsed(self):
+        return self._elapsed
 
     def pause(self): 
         now_time = cv2.getTickCount()

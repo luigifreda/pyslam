@@ -1,10 +1,10 @@
-# pySLAM v2.1
+# pySLAM v2.2
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.1](#pyslam-v21)
+- [pySLAM v2.2](#pyslam-v22)
   - [Install](#install)
     - [Requirements](#requirements)
     - [Ubuntu](#ubuntu)
@@ -13,12 +13,16 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
     - [Troubleshooting](#troubleshooting)
   - [Usage](#usage)
+    - [Save and reload a map](#save-and-reload-a-map)
+    - [Trajectory saving](#trajectory-saving)
   - [Supported Local Features](#supported-local-features)
   - [Supported Matchers](#supported-matchers)
   - [Datasets](#datasets)
     - [KITTI Datasets](#kitti-datasets)
     - [TUM Datasets](#tum-datasets)
+    - [EuRoC Dataset](#euroc-dataset)
   - [Camera Settings](#camera-settings)
+  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
   - [Contributing to pySLAM](#contributing-to-pyslam)
   - [References](#references)
   - [Credits](#credits)
@@ -26,29 +30,28 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- /TOC -->
 
-**pySLAM** contains a python implementation of a monocular *Visual Odometry (VO)* pipeline. It supports many classical and modern **[local features](#supported-local-features)**, and it offers a convenient interface for them. Moreover, it collects other common and useful VO and SLAM tools.
+**pySLAM** is a python implementation of a *Visual Odometry (VO)* pipeline for **monocular**, **stereo** and **RGBD** cameras. It supports many classical and modern **[local features](#supported-local-features)**, and it offers a convenient interface for them. Moreover, it collects other common and useful VO and SLAM tools.
 
-I released pySLAM v1 for educational purposes, for a computer vision class I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
+I released the first version of pySLAM (v1) for educational purposes, for a computer vision class I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
 
-Main Scripts:
-* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
+**Main Scripts**:
+* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features.
 
+* `main_map_viewer.py` allows to reload a saved map and visualize it.  
+
 You can use this framework as a baseline to play with [local features](#supported-local-features), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, consider that's a work in progress, a development framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
 
 **Enjoy it!**
 
-<center> <img src="images/main-vo.png"
-alt="Visual Odometry" width="600" border="1" /> 
-<img src="images/main-slam-kitti-map.png"
-alt="SLAM" width="600" border="1" />
-<img src="images/feature-matching.png"
-alt="Feature Matching" width="600" border="1" />  
-<img src="images/main-rerun-vo-and-matching.png"
-alt="Feature matching and Visual Odometry" width="600" border="1" />  
+<center> 
+<img src="images/main-vo.png" alt="Visual Odometry" width="600" border="1" /> 
+<img src="images/main-slam-kitti-map.png" alt="SLAM" width="600" border="1" />
+<img src="images/feature-matching.png" alt="Feature Matching" width="600" border="1" />  
+<img src="images/main-rerun-vo-and-matching.png" alt="Feature matching and Visual Odometry" width="600" border="1" />  
 </center>
 
 --- 
@@ -102,12 +105,12 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 ---
 ### How to install non-free OpenCV modules
 
-The provided install scripts take care of installing a recent opencv version (>=**4.8.1**) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
+The provided install scripts take care of installing a recent opencv version (>=**4.8**) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
 
-Check your installed OpenCV version:      
+How to check your installed OpenCV version:      
 `$ python3 -c "import cv2; print(cv2.__version__)"`
 
-Check if you have non-free OpenCV module support (no errors imply success):       
+How to check if you have non-free OpenCV module support (no errors imply success):       
 `$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"` 
 
 
@@ -118,19 +121,19 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all_venv.sh` (follow the instructions according to your OS), you can open a new terminal and run:
+Once you have run the script `install_all_venv.sh` (follow the instructions above according to your OS), you can open a new terminal and run:
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py
 ```
-This will process a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
+This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
+**Note**: As explained above, the basic script `main_vo.py` **strictly requires a ground truth**.  
 
-**N.B.**: as explained above, the basic script `main_vo.py` **strictly requires a ground truth**.  
-
-In order to process a different **dataset**, you need to set the file `config.ini`:
-* select your dataset `type` in the section `[DATASET]` (see the section *[Datasets](#datasets)* below for further details) 
-* the camera settings file accordingly (see the section *[Camera Settings](#camera-settings)* below)
-* the groudtruth file accordingly (ee the section *[Datasets](#datasets)* below and check the files `ground_truth.py` and `convert_groundtruth.py` )
+In order to process a different **dataset**, you need to set the file `config.yaml`:
+* Select your dataset `type` in the section `[DATASET]` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
+* Select the `sensor_type` (`mono`, `stereo`, `rgbd`) in the chosen dataset section.  
+* Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
+* The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `ground_truth.py` and `convert_groundtruth.py`).
 
 Similarly, you can test `main_slam.py` by running:
 ```bash
@@ -138,10 +141,10 @@ $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is j
 $ ./main_slam.py
 ```
 
-This will process a [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened *Figure 1* window and pressing the key 'Q'. 
-**N.B.:**: due to information loss in video compression, `main_slam.py` tracking may peform worse with the available **KITTI videos** than with the original KITTI *image sequences*. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
+This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened *Figure 1* window and pressing the key 'Q'. 
+**Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
 
-If you want to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and test the different available local features.
+If you just want to test the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a tast of the different available local features, run
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_feature_matching.py
@@ -150,6 +153,26 @@ $ ./main_feature_matching.py
 In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
 Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
+
+### Save and reload a map
+
+- The current map can be saved into the file `map.json` by pressing the button `Save` on the GUI.
+- The saved map can be reloaded and visualized into the GUI by running: 
+```bash
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ ./main_map_viewer.py
+```
+Relocalization in a loaded map is a WIP.
+
+### Trajectory saving
+
+Estimated trajectories can be saved in three different formats: *TUM* (The Open Mapping format), *KITTI* (KITTI Odometry format), and *EuRoC* (EuRoC MAV format). To enable trajectory saving, open `config.yaml` and search for the `[SAVE_TRAJECTORY]`: set `save_trajectory=True`, select your `format_type` (`tum`, `kitti`, `euroc`), and the output filename. For instance for a `tum` format output:   
+```
+[SAVE_TRAJECTORY]
+save_trajectory=True
+format_type=tum
+filename=kitti00_trajectory.txt
+```
 
 ---
 ## Supported Local Features
@@ -231,18 +254,19 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
 --- 
 ## Datasets
 
-You can use 4 different types of datasets:
+You can use 5 different types of datasets:
 
-Dataset | type in `config.ini`
+Dataset | type in `config.yaml`
 --- | --- 
 [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)  | `type=KITTI_DATASET` 
 [TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                   | `type=TUM_DATASET` 
-video file        | `type=VIDEO_DATASET` 
-folder of images  | `type=FOLDER_DATASET` 
+[EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)                   | `type=EUROC_DATASET` 
+Video file        | `type=VIDEO_DATASET` 
+Folder of images  | `type=FOLDER_DATASET` 
 
 ### KITTI Datasets
 
-pySLAM code expects the following structure in the specified KITTI path folder (specified in the section `[KITTI_DATASET]` of the file `config.ini`). : 
+pySLAM code expects the following structure in the specified KITTI path folder (specified in the section `[KITTI_DATASET]` of the file `config.yaml`). : 
 ```
 ├── sequences
     ├── 00
@@ -256,13 +280,13 @@ pySLAM code expects the following structure in the specified KITTI path folder (
 ```
 1. Download the dataset (grayscale images) from http://www.cvlibs.net/datasets/kitti/eval_odometry.php and prepare the KITTI folder as specified above
 
-2. Select the corresponding calibration settings file (parameter `[KITTI_DATASET][cam_settings]` in the file `config.ini`)
+2. Select the corresponding calibration settings file (parameter `[KITTI_DATASET][cam_settings]` in the file `config.yaml`)
 
 
 
 ### TUM Datasets 
 
-pySLAM code expects a file `associations.txt` in each TUM dataset folder (specified in the section `[TUM_DATASET]` of the file `config.ini`). 
+pySLAM code expects a file `associations.txt` in each TUM dataset folder (specified in the section `[TUM_DATASET]` of the file `config.yaml`). 
 
 1. Download a sequence from http://vision.in.tum.de/data/datasets/rgbd-dataset/download and uncompress it.
 
@@ -271,13 +295,19 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 ```
 $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt
 ```
-3. Select the corresponding calibration settings file (parameter `[TUM_DATASET][cam_settings]` in the file `config.ini`)
+3. Select the corresponding calibration settings file (parameter `[TUM_DATASET][cam_settings]` in the file `config.yaml`)
 
+
+### EuRoC Dataset
+
+1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
+
+2. Select the corresponding calibration settings file (parameter `[EUROC_DATASET][cam_settings]` in the file `config.yaml`)
 
 --- 
 ## Camera Settings
 
-The folder `settings` contains the camera settings files which can be used for testing the code. These are the same used in the framework [ORBSLAM2](https://github.com/raulmur/ORB_SLAM2). You can easily modify one of those files for creating your own new calibration file (for your new datasets).
+The folder `settings` contains the camera settings files which can be used for testing the code. These are the same used in the framework [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2). You can easily modify one of those files for creating your own new calibration file (for your new datasets).
 
 In order to calibrate your camera, you can use the scripts in the folder `calibration`. In particular: 
 1. use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size therein, you can use the calibration pattern `calib_pattern.pdf` in the same folder) 
@@ -288,12 +318,19 @@ For further information about the calibration process, you may want to have a lo
 If you want to **use your camera**, you have to:
 * calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly
 * record a video (for instance, by using `save_video.py` in the folder `calibration`)
-* configure the `[VIDEO_DATASET]` section of `config.ini` in order to point to your video.
+* configure the `[VIDEO_DATASET]` section of `config.yaml` in order to point to your recorded video.
+
+--- 
+## Comparison pySLAM vs ORB-SLAM3
+
+For a comparison of the trajectories estimated by pySLAM and by ORB-SLAM3, see this [trajectory comparison notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). 
+
+Note that pySLAM pose estimates are saved **online**: At each frame, the current pose estimate is saved. On the other end, ORB-SLAM3 pose estimates are saved at the end of the dataset playback: That means each pose estimate is refined multiple times by LBA and BA over the multiple window optimizations that cover it.  
 
 --- 
 ## Contributing to pySLAM
 
-I would be very grateful if you would contribute to the code base by reporting bugs, leaving comments and proposing new features through issues and pull requests. Please  feel free to get in touch at *luigifreda(at)gmail[dot]com*. Thank you!
+If you like pySLAM and would like to contribute to the code base, you can report bugs, leave comments and proposing new features through issues and pull requests on github. Feel free to get in touch at *luigifreda(at)gmail[dot]com*. Thank you!
 
 --- 
 ## References
@@ -344,6 +381,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [Key.Net](https://github.com/axelBarroso/Key.Net)
 * [Twitchslam](https://github.com/geohot/twitchslam)
 * [MonoVO](https://github.com/uoip/monoVO-python)  
+* Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory saving feature and for the comparison notebook:  [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 
 ---
 ## TODOs
@@ -352,9 +390,10 @@ Many improvements and additional features are currently under development:
 
 - [ ] loop closure
 - [ ] relocalization 
-- [ ] map saving/loading 
+- [x] map saving/loading 
 - [x] modern DL matching algorithms 
 - [ ] object detection and semantic segmentation 
 - [ ] 3D dense reconstruction 
 - [x] unified install procedure (single branch) for all OSs 
+- [x] trajectory saving 
 

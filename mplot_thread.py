@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
 import multiprocessing as mp 
-from multiprocessing import Process, Queue, Lock, RLock, Value
+from multiprocessing import Process, Queue, RLock, Value
 import ctypes
 
 kPlotSleep = 0.04
@@ -50,6 +50,8 @@ mp_lock = RLock()
 if kUseFigCanvasDrawIdle and platform.system() != 'Darwin':
     plt.ion()
     
+# NOTE: Here we are using processes instead of threads. 
+# The file name `mplot_thread.py` is still here since the classes are used as parallel drawing threads. 
 
 # use mplotlib figure to draw in 2d dynamic data
 class Mplot2d:
@@ -78,6 +80,7 @@ class Mplot2d:
     def quit(self):
         self.is_running.value = 0
         self.vp.join(timeout=5)
+        self.vp.terminate()
 
     def drawer_thread(self, queue, lock, key, is_running):  
         self.init(lock) 
@@ -167,7 +170,7 @@ class Mplot2d:
                 self.xlim[1] = xmax 
             if ymax > self.ylim[1]:
                 self.ylim[1] = ymax                   
-            # update mins
+            # update minsS
             if xmin < self.xlim[0]:
                 self.xlim[0] = xmin   
             if ymin < self.ylim[0]:
@@ -222,6 +225,7 @@ class Mplot3d:
     def quit(self):
         self.is_running.value = 0
         self.vp.join(timeout=5)     
+        self.vp.terminate()        
         
     def drawer_thread(self, queue, lock, key, is_running):  
         self.init(lock) 

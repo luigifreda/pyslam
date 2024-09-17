@@ -34,7 +34,8 @@ kVerbose=True
 kMinNumFeature = 2000
 kRansacThresholdNormalized = 0.0004  # metric threshold used for normalized image coordinates (originally 0.0003)
 kRansacThresholdPixels = 0.1         # pixel threshold used for image coordinates 
-kAbsoluteScaleThreshold = 0.1        # absolute translation scale; it is also the minimum translation norm for an accepted motion 
+kAbsoluteScaleThresholdKitti = 0.1        # absolute translation scale; it is also the minimum translation norm for an accepted motion 
+kAbsoluteScaleThresholdIndoor = 0.01       # absolute translation scale; it is also the minimum translation norm for an accepted motion
 kUseEssentialMatrixEstimation = True # using the essential matrix fitting algorithm is more robust RANSAC given five-point algorithm solver 
 kRansacProb = 0.999                  # (originally 0.999)
 kUseGroundTruthScale = True 
@@ -50,9 +51,13 @@ class VisualOdometry(object):
     def __init__(self, cam, groundtruth, feature_tracker : FeatureTracker):
         self.stage = VoStage.NO_IMAGES_YET
         self.cam = cam
+        
         self.cur_image = None   # current image
-        self.prev_image = None  # previous/reference image
+        self.cur_timestamp = None
 
+        self.prev_image = None  # previous/reference image
+        self.prev_timestamp = None        
+        
         self.kps_ref = None  # reference keypoints 
         self.des_ref = None # refeference descriptors 
         self.kps_cur = None  # current keypoints 
@@ -63,7 +68,12 @@ class VisualOdometry(object):
 
         self.trueX, self.trueY, self.trueZ = None, None, None
         self.groundtruth = groundtruth
-        
+        self.absolute_scale_threshold = 0.0
+        if self.groundtruth.type == 'kitti':
+            self.absolute_scale_threshold = kAbsoluteScaleThresholdKitti
+        else: 
+            self.absolute_scale_threshold = kAbsoluteScaleThresholdIndoor
+            
         self.feature_tracker = feature_tracker
         self.track_result = None 
 
@@ -72,6 +82,7 @@ class VisualOdometry(object):
 
         self.init_history = True 
         self.poses = []              # history of poses
+        self.pose_timestamps = []    # history of pose timestamps
         self.t0_est = None           # history of estimated translations      
         self.t0_gt = None            # history of ground truth translations (if available)
         self.traj3d_est = []         # history of estimated translations centered w.r.t. first one
@@ -88,7 +99,7 @@ class VisualOdometry(object):
     # get current translation scale from ground-truth if groundtruth is not None 
     def getAbsoluteScale(self, frame_id):  
         if self.groundtruth is not None and kUseGroundTruthScale:
-            self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getPoseAndAbsoluteScale(frame_id)
+            timestamp, self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getTimePoseAndAbsoluteScale(frame_id)
             return scale
         else:
             self.trueX = 0 
@@ -177,15 +188,16 @@ class VisualOdometry(object):
             print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers, ', matcher type: ', self.feature_tracker.matcher.matcher_type.name if self.feature_tracker.matcher is not None else 'None', ', tracker type: ', self.feature_tracker.tracker_type.name)      
         # t is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
         absolute_scale = self.getAbsoluteScale(frame_id)
-        if(absolute_scale > kAbsoluteScaleThreshold and self.average_pixel_shift > 1):
+        # NOTE: This simplistic estimation approach provide reasonable results with Kitti where a good ground velocity provides a decent interframe parallax. It does not work with indoor datasets. 
+        if(absolute_scale > self.absolute_scale_threshold and self.average_pixel_shift > 1):
             # compose absolute motion [Rwa,twa] with estimated relative motion [Rab,s*tab] (s is the scale extracted from the ground truth)
             # [Rwb,twb] = [Rwa,twa]*[Rab,tab] = [Rwa*Rab|twa + Rwa*tab]
             print('estimated t with norm |t|: ', np.linalg.norm(t), ' (just for sake of clarity)')
-            self.cur_t = self.cur_t + absolute_scale*self.cur_R.dot(t) 
             self.cur_R = self.cur_R.dot(R)
             if not is_rotation_matrix(self.cur_R):
                 print(f'Correcting rotation matrix: {self.cur_R}')
                 self.cur_R = closest_rotation_matrix(self.cur_R)
+            self.cur_t = self.cur_t + absolute_scale*self.cur_R.dot(t) 
         # draw image         
         self.draw_img = self.drawFeatureTracks(self.cur_image) 
         # check if we have enough features to track otherwise detect new ones and start tracking from them (used for LK tracker) 
@@ -199,7 +211,7 @@ class VisualOdometry(object):
         self.updateHistory()           
         
 
-    def track(self, img, frame_id):
+    def track(self, img, frame_id, timestamp):
         if kVerbose:
             print('..................................')
             print('frame: ', frame_id) 
@@ -209,6 +221,7 @@ class VisualOdometry(object):
         # check coherence of image size with camera settings 
         assert(img.ndim==2 and img.shape[0]==self.cam.height and img.shape[1]==self.cam.width), "Frame: provided image has not the same size as the camera model or image is not grayscale"
         self.cur_image = img
+        self.cur_timestamp = timestamp
         # manage and check stage 
         if(self.stage == VoStage.GOT_FIRST_IMAGE):
             self.processFrame(frame_id)
@@ -216,6 +229,7 @@ class VisualOdometry(object):
             self.processFirstFrame()
             self.stage = VoStage.GOT_FIRST_IMAGE            
         self.prev_image = self.cur_image    
+        self.prev_timestamp = self.cur_timestamp
         # update main timer (for profiling)
         self.timer_main.refresh()  
   
@@ -254,4 +268,5 @@ class VisualOdometry(object):
             pg = [self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]]  # the groudtruth traj starts at 0  
             self.traj3d_gt.append(pg)     
             self.poses.append(poseRt(self.cur_R, p))  
+            self.pose_timestamps.append(self.cur_timestamp)
             #self.poses.append(poseRt(self.cur_R, p[0])) 

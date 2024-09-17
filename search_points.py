@@ -86,10 +86,11 @@ def propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur,
 
   
 # search by projection matches between {map points of f_ref} and {keypoints of f_cur},  (access frames from tracking thread, no need to lock)
-def search_frame_by_projection(f_ref, f_cur,
+def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
                                max_reproj_distance=Parameters.kMaxReprojectionDistanceFrame,
                                max_descriptor_distance=Parameters.kMaxDescriptorDistance,
-                               ratio_test=Parameters.kMatchRatioTestMap):
+                               ratio_test=Parameters.kMatchRatioTestMap,
+                               is_monocular=True):
     found_pts_count = 0
     idxs_ref = []
     idxs_cur = [] 
@@ -97,34 +98,47 @@ def search_frame_by_projection(f_ref, f_cur,
     rot_histo = RotationHistogram()
     check_orientation = kCheckFeaturesOrientation and Frame.oriented_features    
     
-    #des_dists = []
-    
+    trc = None
+    forward = False
+    backward = False
+    if not is_monocular:
+        Tcw = f_cur.pose
+        Rcw = Tcw[:3,:3]
+        tcw = Tcw[:3,3]
+        twc = -Rcw.T.dot(tcw)
+        
+        Trw = f_ref.pose
+        Rrw = Trw[:3,:3]
+        trw = Trw[:3,3]
+        trc = Rrw.T.dot(twc)+trw
+        forward = trc[2] > f_cur.camera.b
+        backward = trc[2] < -f_cur.camera.b
+          
     # get all matched points of f_ref which are non-outlier 
     matched_ref_idxs = np.flatnonzero( (f_ref.points!=None) & (f_ref.outliers==False)) 
     matched_ref_points = f_ref.points[matched_ref_idxs]
-    
-    if True: 
-        # project f_ref points on frame f_cur
-        projs, depths = f_cur.project_map_points(matched_ref_points)
-        # check if points lie on the image frame 
-        is_visible = f_cur.are_in_image(projs, depths)
-    else: 
-        # check if points are visible 
-        is_visible, projs, depths, dists = f_cur.are_visible(matched_ref_points)
+
+    # project f_ref points on frame f_cur
+    projs, depths = f_cur.project_map_points(matched_ref_points, f_cur.camera.is_stereo())
+    # check if points lie on the image frame 
+    is_visible = f_cur.are_in_image(projs, depths)
+
+    # # check if points are visible 
+    # is_visible, projs, depths, dists = f_cur.are_visible(matched_ref_points)
         
     kp_ref_octaves = f_ref.octaves[matched_ref_idxs]       
     kp_ref_scale_factors = Frame.feature_manager.scale_factors[kp_ref_octaves]              
     radiuses = max_reproj_distance * kp_ref_scale_factors     
-    kd_idxs = f_cur.kd.query_ball_point(projs, radiuses)        
-                                  
-    for i,p,j in zip(matched_ref_idxs, matched_ref_points, range(len(matched_ref_points))):
+    kd_cur_idxs = f_cur.kd.query_ball_point(projs[:,:2], radiuses)   
+    
+    do_check_stereo_reproj_err = f_cur.kps_ur is not None 
+                     
+    for ref_idx,p,j in zip(matched_ref_idxs, matched_ref_points, range(len(matched_ref_points))):
     
         if not is_visible[j]:
             continue 
         
-        kp_ref_octave = f_ref.octaves[i]
-        #kp_ref_scale_factor = Frame.feature_manager.scale_factors[kp_ref_octave]
-        #radius = max_reproj_distance * kp_ref_scale_factor        
+        kp_ref_octave = f_ref.octaves[ref_idx]  
         
         best_dist = math.inf 
         #best_dist2 = math.inf
@@ -132,9 +146,16 @@ def search_frame_by_projection(f_ref, f_cur,
         #best_level2 = -1                   
         best_k_idx = -1   
         best_ref_idx = -1          
-                
-        #for kd_idx in f_cur.kd.query_ball_point(projs[j], radius):            
-        for kd_idx in kd_idxs[j]:                   
+                  
+        kd_cur_idxs_j = kd_cur_idxs[j]                
+        if do_check_stereo_reproj_err:
+            check_stereo = f_cur.kps_ur[kd_cur_idxs_j]>0 
+            kp_cur_octaves = f_cur.octaves[kd_cur_idxs_j]       
+            kp_cur_scale_factors = Frame.feature_manager.scale_factors[kp_cur_octaves]  
+            errs_ur = np.fabs(projs[j,2] - f_cur.kps_ur[kd_cur_idxs_j]) 
+            ok_errs_ur = np.where(check_stereo, errs_ur < max_reproj_distance * kp_cur_scale_factors,True)  
+                           
+        for h, kd_idx in enumerate(kd_cur_idxs[j]):                   
             
             p_f_cur = f_cur.points[kd_idx]
             if  p_f_cur is not None:
@@ -142,15 +163,27 @@ def search_frame_by_projection(f_ref, f_cur,
                     continue          
     
             p_f_cur_octave = f_cur.octaves[kd_idx]
-            if p_f_cur_octave < (kp_ref_octave-1) or p_f_cur_octave > (kp_ref_octave+1):
-                continue                           
-            
+            if is_monocular:
+                if p_f_cur_octave < (kp_ref_octave-1) or p_f_cur_octave > (kp_ref_octave+1):
+                    continue
+            else:
+                if backward and p_f_cur_octave > kp_ref_octave:
+                    continue
+                elif forward and p_f_cur_octave < kp_ref_octave:
+                    continue
+                elif p_f_cur_octave < (kp_ref_octave-1) or p_f_cur_octave > (kp_ref_octave+1):
+                    continue
+                                       
+            if do_check_stereo_reproj_err:
+                if not ok_errs_ur[h]:
+                    continue
+                    
             descriptor_dist = p.min_des_distance(f_cur.des[kd_idx])
             #if descriptor_dist < max_descriptor_distance and descriptor_dist < best_dist:
             if descriptor_dist < best_dist:                
                 best_dist = descriptor_dist
                 best_k_idx = kd_idx
-                best_ref_idx = i     
+                best_ref_idx = ref_idx     
                 
             # if descriptor_dist < best_dist:                                      
             #     best_dist2 = best_dist
@@ -216,7 +249,7 @@ def search_map_by_projection(points, f_cur,
     predicted_levels = predict_detection_levels(points, dists) 
     kp_scale_factors = Frame.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
-    kd_idxs = f_cur.kd.query_ball_point(projs, radiuses)
+    kd_cur_idxs = f_cur.kd.query_ball_point(projs, radiuses)
                            
     for i, p in enumerate(points):
         if not visible_pts[i] or p.is_bad:     # point not visible in frame or is bad 
@@ -240,7 +273,7 @@ def search_map_by_projection(points, f_cur,
         # find closest keypoints of f_cur        
         #for kd_idx in f_cur.kd.query_ball_point(projs[i], radius):
         #for kd_idx in f_cur.kd.query_ball_point(proj, radius):  
-        for kd_idx in kd_idxs[i]:
+        for kd_idx in kd_cur_idxs[i]:
      
             p_f = f_cur.points[kd_idx]
             # check there is not already a match               
@@ -305,7 +338,8 @@ def search_all_map_by_projection(map, f_cur):
 # search for matches between unmatched keypoints (without a corresponding map point)
 # in input we have already some pose estimates for f1 and f2
 def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None, 
-                                   max_descriptor_distance=0.5*Parameters.kMaxDescriptorDistance):   
+                                   max_descriptor_distance=0.5*Parameters.kMaxDescriptorDistance,
+                                   is_monocular=True):   
     idxs2_out = []
     idxs1_out = []
     num_found_matches = 0
@@ -326,18 +360,18 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
     baseline = np.linalg.norm(O1w-O2w) 
 
     # if the translation is too small we cannot triangulate 
-    # if baseline < Parameters.kMinTraslation:  # we assume the Inializer has been used for building the first map 
-    #     Printer.red("search for triangulation: impossible with almost zero translation!")
-    #     return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT
-    # else:    
-    medianDepth = kf2.compute_points_median_depth()
-    if medianDepth == -1:
-        Printer.orange("search for triangulation: f2 with no points")        
-        medianDepth = kf1.compute_points_median_depth()        
-    ratioBaselineDepth = baseline/medianDepth
-    if ratioBaselineDepth < Parameters.kMinRatioBaselineDepth:  
-        Printer.orange("search for triangulation: impossible with too low ratioBaselineDepth!")
-        return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT        
+    if not is_monocular:  # we assume the Inializer has been used for building the first map 
+        baseline < kf2.camera.b
+        return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT
+    else:    
+        medianDepth = kf2.compute_points_median_depth()
+        if medianDepth == -1:
+            Printer.orange("search for triangulation: f2 with no points")        
+            medianDepth = kf1.compute_points_median_depth()        
+        ratioBaselineDepth = baseline/medianDepth
+        if ratioBaselineDepth < Parameters.kMinRatioBaselineDepth:  
+            Printer.orange("search for triangulation: impossible with too low ratioBaselineDepth!")
+            return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT        
 
     # compute the fundamental matrix between the two frames by using their estimated poses 
     F12, H21 = computeF12(kf1, kf2)
@@ -430,7 +464,7 @@ def search_and_fuse(points, keyframe,
         return
     
     # check if points are visible 
-    good_pts_visible, good_projs, good_depths, good_dists = keyframe.are_visible(good_pts)
+    good_pts_visible, good_projs, good_depths, good_dists = keyframe.are_visible(good_pts, keyframe.camera.is_stereo())
     
     if len(good_pts_visible) == 0:
         Printer.red('search_and_fuse - no visible points')
@@ -439,7 +473,9 @@ def search_and_fuse(points, keyframe,
     predicted_levels = predict_detection_levels(good_pts, good_dists) 
     kp_scale_factors = Frame.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
-    kd_idxs = keyframe.kd.query_ball_point(good_projs, radiuses)    
+    kd_idxs = keyframe.kd.query_ball_point(good_projs[:,:2], radiuses)    
+    
+    do_check_stereo_reproj_err = keyframe.kps_ur is not None    
 
     #for i, p in enumerate(points):
     for i,p,j in zip(good_pts_idxs,good_pts,range(len(good_pts))):            
@@ -467,8 +503,14 @@ def search_and_fuse(points, keyframe,
             
         # find closest keypoints of frame        
         proj = good_projs[j]
-        #for kd_idx in keyframe.kd.query_ball_point(proj, radius):  
-        for kd_idx in kd_idxs[j]:             
+
+        kd_idxs_j = kd_idxs[j]                
+        if do_check_stereo_reproj_err:
+            check_stereo = keyframe.kps_ur[kd_idxs_j]>0 
+            errs_ur = proj[2] - keyframe.kps_ur[kd_idxs_j] # proj_ur - kp_ur
+            errs_ur2 = errs_ur*errs_ur
+                        
+        for h, kd_idx in enumerate(kd_idxs[j]):             
                 
             # check detection level     
             kp_level = keyframe.octaves[kd_idx]    
@@ -478,12 +520,19 @@ def search_and_fuse(points, keyframe,
         
             # check the reprojection error     
             kp = keyframe.kpsu[kd_idx]
-            invSigma2 = Frame.feature_manager.inv_level_sigmas2[kp_level]                
-            err = proj - kp       
-            chi2 = np.inner(err,err)*invSigma2           
-            if chi2 > Parameters.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
-                #print('p[%d] big reproj err %f **********************************' % (i,chi2))
-                continue                  
+            invSigma2 = Frame.feature_manager.inv_level_sigmas2[kp_level]            
+                                    
+            err = proj[:2] - kp
+            chi2 = np.inner(err,err)*invSigma2     
+            if do_check_stereo_reproj_err and check_stereo[h]:
+                chi2 += errs_ur2[h]*invSigma2 
+                if chi2 > Parameters.kChi2Stereo: # chi-square 3 DOFs  (Hartley Zisserman pg 119)
+                    #print('p[%d] big reproj err %f **********************************' % (i,chi2))
+                    continue
+            else:           
+                if chi2 > Parameters.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
+                    #print('p[%d] big reproj err %f **********************************' % (i,chi2))
+                    continue                  
                             
             descriptor_dist = p.min_des_distance(keyframe.des[kd_idx])
             #print('p[%d] descriptor_dist %f **********************************' % (i,descriptor_dist))            
@@ -509,11 +558,17 @@ def search_and_fuse(points, keyframe,
             p_keyframe = keyframe.get_point_match(best_kd_idx)
             # if there is already a map point replace it otherwise add a new point
             if p_keyframe is not None:
-                if not p_keyframe.is_bad:
-                    if p_keyframe.num_observations > p.num_observations:
+                # if not p_keyframe.is_bad:
+                #     if p_keyframe.num_observations > p.num_observations:
+                #         p.replace_with(p_keyframe)
+                #     else:
+                #         p_keyframe.replace_with(p)        
+                p_keyframe_is_bad, p_keyframe_is_good_with_better_num_obs = p_keyframe.is_bad_and_is_good_with_min_obs(p.num_observations)
+                if not p_keyframe_is_bad:
+                    if p_keyframe_is_good_with_better_num_obs:
                         p.replace_with(p_keyframe)
                     else:
-                        p_keyframe.replace_with(p)                  
+                        p_keyframe.replace_with(p)
             else:
                 p.add_observation(keyframe, best_kd_idx) 
                 #p.update_info()    # done outside!

@@ -43,14 +43,11 @@ config = Config()
 config.config_parser[config.dataset_type]['cam_settings'] = 'settings/KITTI04-12.yaml'
 config.get_cam_settings()
 
-#dataset = dataset_factory(config.dataset_settings)
+#dataset = dataset_factory(config)
 #grountruth = groundtruth_factory(config.dataset_settings)
 
 
-cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Camera.height'],
-                    config.cam_settings['Camera.fx'], config.cam_settings['Camera.fy'],
-                    config.cam_settings['Camera.cx'], config.cam_settings['Camera.cy'],
-                    config.DistCoef,config.cam_settings['Camera.fps'])
+cam = PinholeCamera(config)
 
 
 #============================================

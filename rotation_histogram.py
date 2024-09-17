@@ -22,8 +22,8 @@ import numpy as np
 
 
 class RotationHistogram(object):
-    def __init__(self,histogram_lenght=12):  # NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30 
-        self.histogram_lenght=histogram_lenght
+    def __init__(self, histogram_lenght=12):  # NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30 
+        self.histogram_lenght = histogram_lenght
         self.factor = float(histogram_lenght)/360. #1.0/histogram_lenght
         self.histo = [ [] for i in range(self.histogram_lenght) ] 
         

@@ -20,6 +20,10 @@ scale_factor=2
 # declare ORB extractor
 orb_extractor = ORBextractor(num_features, scale_factor, num_levels)
 
+#orb_extractor.SetNumFeatures(1000)
+
+print(f'num features: {orb_extractor.GetNumFeatures()}')
+
 des = None
 
 N=20

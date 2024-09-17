@@ -105,7 +105,7 @@ class MatcherUtils:
     # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index
     @staticmethod    
     def goodMatchesOneToOne(matches, des1, des2, ratio_test=0.7):
-        len_des2 = len(des2)
+        #len_des2 = len(des2)
         idxs1, idxs2 = [], []           
         if matches is not None:         
             float_inf = float('inf')
@@ -129,7 +129,7 @@ class MatcherUtils:
                         assert(idxs2[index] == m.trainIdx) 
                         idxs1[index]=m.queryIdx
                         idxs2[index]=m.trainIdx
-        return idxs1, idxs2
+        return np.array(idxs1), np.array(idxs2)
 
     # input: des1 = query-descriptors, des2 = train-descriptors
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
@@ -142,9 +142,52 @@ class MatcherUtils:
                 if m.distance < ratio_test * n.distance:
                     idxs1.append(m.queryIdx)
                     idxs2.append(m.trainIdx)                                                         
-        return idxs1, idxs2 
+        return np.array(idxs1), np.array(idxs2) 
 
 
+    @staticmethod
+    def rowMatches(matcher, kps1, des1, kps2, des2, max_matching_distance, 
+            max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100):
+        idxs1, idxs2 = [], []  
+        matches = matcher.match(np.array(des1), np.array(des2))
+        for m in matches:          
+            pt1 = kps1[m.queryIdx]
+            pt2 = kps2[m.trainIdx]
+            if (m.distance < max_matching_distance and 
+                abs(pt1[1] - pt2[1]) < max_row_distance and 
+                abs(pt1[0] - pt2[0]) < max_disparity):   # epipolar constraint + max disparity check
+                idxs1.append(m.queryIdx)
+                idxs2.append(m.trainIdx)   
+        return np.array(idxs1), np.array(idxs2) 
+    
+    @staticmethod
+    def rowMatchesWithRatioTest(matcher, kps1, des1, kps2, des2, max_matching_distance, 
+            max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100, ratio_test=0.7):
+        idxs1, idxs2 = [], []  
+        matches =  matcher.knnMatch(np.array(des1), np.array(des2), k=2) 
+        for m,n in matches:          
+            pt1 = kps1[m.queryIdx]
+            pt2 = kps2[m.trainIdx]
+            if (m.distance < max_matching_distance and 
+                abs(pt1[1] - pt2[1]) < max_row_distance and 
+                abs(pt1[0] - pt2[0]) < max_disparity):   # epipolar constraint + max disparity check
+                if m.distance < ratio_test * n.distance:                
+                    idxs1.append(m.queryIdx)
+                    idxs2.append(m.trainIdx)   
+        return np.array(idxs1), np.array(idxs2)     
+    
+    @staticmethod
+    def filterNonRowMatches(kps1, idxs1, kps2, idxs2, max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100):  
+        assert(len(idxs1) == len(idxs2))
+        out_idxs1, out_idxs2 = [], []   
+        for idx1, idx2 in zip(idxs1, idxs2):
+            pt1 = kps1[idx1]
+            pt2 = kps2[idx2]
+            if abs(pt1[1] - pt2[1]) < max_row_distance and abs(pt1[0] - pt2[0]) < max_disparity:   # epipolar constraint + max disparity check
+                out_idxs1.append(idx1)
+                out_idxs2.append(idx2)   
+        return np.array(out_idxs1), np.array(out_idxs1)
+    
     # input: des1 = query-descriptors, des2 = train-descriptors, kps1 = query-keypoints, kps2 = train-keypoints 
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
     # N.B.0: cross checking can be also enabled with the BruteForce Matcher below 
@@ -175,18 +218,14 @@ class MatcherUtils:
 
         good_matches = []
 
-        for i,(m1,n1) in enumerate(init_matches1):
-            cond = True
-            if cross_check:
-                cond1 = cross_check and init_matches2[m1.trainIdx][0].trainIdx == i
-                cond *= cond1
-            if ratio_test is not None:
-                cond2 = m1.distance <= ratio_test * n1.distance
-                cond *= cond2
-            if cond:
-                good_matches.append(m1)
-                idxs1.append(m1.queryIdx)
-                idxs2.append(m1.trainIdx)
+        for i, (m1, n1) in enumerate(init_matches1):
+            if cross_check and init_matches2[m1.trainIdx][0].trainIdx != i:
+                continue
+            if ratio_test is not None and m1.distance > ratio_test * n1.distance:
+                continue
+            good_matches.append(m1)
+            idxs1.append(m1.queryIdx)
+            idxs2.append(m1.trainIdx)        
 
         if type(kps1) is list and type(kps2) is list:
             good_kps1 = np.array([kps1[m.queryIdx].pt for m in good_matches])
@@ -207,7 +246,6 @@ class MatcherUtils:
         n_inlier = np.count_nonzero(mask)
         print(info, 'n_putative', len(good_matches), 'n_inlier', n_inlier)
         return idxs1, idxs2, good_matches, mask
-    
     
 # ==============================================================================
 
@@ -242,11 +280,13 @@ class FeatureMatcher(object):
         self.matches = []
         self.ratio_test = ratio_test 
         self.matcher = None 
+        self.parallel = True
         self.matcher_name = ''
         
     # input: des1 = queryDescriptors, des2= trainDescriptors
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
-    def match(self, img1, img2, des1, des2, kps1 = None, kps2 = None, ratio_test=None):
+    def match(self, img1, img2, des1, des2, kps1=None, kps2=None, ratio_test=None, 
+              row_matching=False, max_disparity=None):
         result = FeatureMatchingResult()
         result.des1 = des1
         result.des2 = des2
@@ -270,6 +310,7 @@ class FeatureMatcher(object):
         # and it may change
         # ===========================================================   
         if self.matcher_type == FeatureMatcherTypes.LIGHTGLUE:            
+            # TODO: add row epipolar check for row matching
             scales1 = None
             scales2 = None
             oris1 = None 
@@ -316,6 +357,8 @@ class FeatureMatcher(object):
             #print(des1.shape,len(idx0),len(idxs1))
             result.idxs1 = idx0
             result.idxs2 = idxs1
+            if row_matching: 
+                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)            
             return result
         # ===========================================================
         elif self.matcher_type == FeatureMatcherTypes.XFEAT:
@@ -328,6 +371,8 @@ class FeatureMatcher(object):
             idx0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, min_cossim=min_cossim)    
             result.idxs1 = idx0.cpu()
             result.idxs2 = idxs1.cpu()
+            if row_matching: 
+                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)
             return result
         # ===========================================================
         elif self.matcher_type == FeatureMatcherTypes.LOFTR:
@@ -349,27 +394,39 @@ class FeatureMatcher(object):
             result.kps2 = kps2
             result.idxs1 = np.arange(len(kps1), dtype=np.int32)
             result.idxs2 = np.arange(len(kps2), dtype=np.int32)
+            if row_matching: 
+                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)            
             return result         
         # ===========================================================      
         else: 
-            """
-            The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects. 
-            A DMatch object has the following attributes:
-                DMatch.distance - Distance between descriptors. The lower, the better it is.
-                DMatch.trainIdx - Index of the descriptor in train descriptors
-                DMatch.queryIdx - Index of the descriptor in query descriptors
-                DMatch.imgIdx - Index of the train image.
-            """                 
-            matches = self.matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
-            self.matches = matches
-            #return MatcherUtils.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
-            idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)    
+            matcher = cv2.BFMatcher(self.norm_type, self.cross_check) if self.parallel else self.matcher            
+            if not row_matching:
+                """
+                The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects. 
+                A DMatch object has the following attributes:
+                    DMatch.distance - Distance between descriptors. The lower, the better it is.
+                    DMatch.trainIdx - Index of the descriptor in train descriptors
+                    DMatch.queryIdx - Index of the descriptor in query descriptors
+                    DMatch.imgIdx - Index of the train image.
+                """            
+                matches = matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
+                self.matches = matches
+                #return MatcherUtils.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
+                idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)    
+            else: 
+                assert(max_disparity is not None)
+                # we perform row matching for stereo images (matching rectified left and right images)
+                max_descriptor_distance = 0.75 * FeatureInfo.max_descriptor_distance[self.descriptor_type]  # for rectified stereo matching we assume the matching descriptors are in general close to each other 
+                if ratio_test < 1.0:
+                    idxs1, idxs2 = MatcherUtils.rowMatchesWithRatioTest(matcher, kps1, des1, kps2, des2, max_descriptor_distance, max_disparity=max_disparity, ratio_test=ratio_test)
+                else:                             
+                    idxs1, idxs2 = MatcherUtils.rowMatches(matcher, kps1, des1, kps2, des2, max_descriptor_distance, max_disparity=max_disparity)
             result.idxs1 = idxs1
-            result.idxs2 = idxs2
+            result.idxs2 = idxs2           
             return result      
 
     
-# ==============================================================================
+# ==============================================================================S
 # Brute-Force Matcher 
 class BfFeatureMatcher(FeatureMatcher): 
     def __init__(self, 

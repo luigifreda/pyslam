@@ -26,6 +26,7 @@ import configparser
 import os
 import yaml
 import numpy as np
+from utils_sys import Printer
 
 
 # N.B.: this file must stay in the root folder of the repository 
@@ -35,42 +36,46 @@ import numpy as np
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 
-# Class for getting libs settings (from config.ini) and camera settings from a yaml file 
+# Class for getting libs settings (from config.yaml) and camera settings from a yaml file 
 class Config(object):
     '''
-    Config is used for getting libs settings (from config.ini) and camera settings from a yaml file 
+    Config is used for getting libs settings (from config.yaml) and camera settings from a yaml file 
     '''
     def __init__(self):
         self.root_folder = __location__
-        self.config_file = 'config.ini'
-        self.config_parser = configparser.ConfigParser()
+        self.config_file = 'config.yaml'
+        self.config = yaml.load(open(__location__ + '/' + self.config_file, 'r'), Loader=yaml.FullLoader)
         self.cam_settings = None
+        self.cam_stereo_settings = None
+        self.feature_manager_settings = None
         self.dataset_settings = None
         self.dataset_type = None
+        self.sensor_type = None
         self.trajectory_settings = None
+        self.start_frame_id = 0  
         #self.current_path = os.getcwd()
         #print('current path: ', self.current_path)
 
-        self.config_parser.read(__location__ + '/' + self.config_file)
         self.set_core_lib_paths()
         self.read_lib_paths()
         
         self.get_dataset_settings()
         self.get_cam_settings()
+        self.get_feature_manager_settings()
         self.get_trajectory_settings()
 
 
-    # read core lib paths from config.ini and set sys paths
+    # read core lib paths from config.yaml and set sys paths
     def set_core_lib_paths(self):
-        self.core_lib_paths = self.config_parser['CORE_LIB_PATHS']
+        self.core_lib_paths = self.config['CORE_LIB_PATHS']
         for path in self.core_lib_paths:
             ext_path = __location__ + '/' + self.core_lib_paths[path]
             # print( "importing path: ", ext_path )
             sys.path.append(ext_path)
             
-    # read lib paths from config.ini 
+    # read lib paths from config.yaml 
     def read_lib_paths(self):
-        self.lib_paths = self.config_parser['LIB_PATHS']
+        self.lib_paths = self.config['LIB_PATHS']
         
     # set sys path of lib 
     def set_lib(self,lib_name,prepend=False):
@@ -89,27 +94,43 @@ class Config(object):
             
     # get dataset settings
     def get_dataset_settings(self):
-        self.dataset_type = self.config_parser['DATASET']['type']
-        self.dataset_settings = self.config_parser[self.dataset_type]
-
-        self.dataset_path = self.dataset_settings['base_path'];
+        self.dataset_type = self.config['DATASET']['type']
+        self.dataset_settings = self.config[self.dataset_type]
+        self.sensor_type = self.dataset_settings['sensor_type'].lower()
+        self.dataset_path = self.dataset_settings['base_path']
         self.dataset_settings['base_path'] = os.path.join( __location__, self.dataset_path)
         #print('dataset_settings: ', self.dataset_settings)
 
     # get camera settings
     def get_cam_settings(self):
         self.cam_settings = None
-        self.settings_doc = __location__ + '/' + self.config_parser[self.dataset_type]['cam_settings']
-        if(self.settings_doc is not None):
-            with open(self.settings_doc, 'r') as stream:
+        self.cam_settings_doc = __location__ + '/' + self.config[self.dataset_type]['settings']
+        if self.sensor_type == 'stereo':
+            if 'settings_stereo' in self.config[self.dataset_type]:
+                self.cam_settings_doc = __location__ + '/' + self.config[self.dataset_type]['settings_stereo']
+                Printer.orange('Using stereo settings file: ' + self.cam_settings_doc)
+                print('------------------------------------')            
+        if(self.cam_settings_doc is not None):
+            with open(self.cam_settings_doc, 'r') as stream:
                 try:
                     self.cam_settings = yaml.load(stream, Loader=yaml.FullLoader)
                 except yaml.YAMLError as exc:
                     print(exc)
+                    
+    # get feature manager settings
+    def get_feature_manager_settings(self):
+        self.feature_manager_settings = None
+        self.feature_manager_settings_doc = __location__ + '/' + self.config[self.dataset_type]['settings']
+        if(self.feature_manager_settings_doc is not None):
+            with open(self.feature_manager_settings_doc, 'r') as stream:
+                try:
+                    self.feature_manager_settings = yaml.load(stream, Loader=yaml.FullLoader)
+                except yaml.YAMLError as exc:
+                    print(exc)                    
 
     # get trajectory save settings
     def get_trajectory_settings(self):
-        self.trajectory_settings = self.config_parser['SAVE_TRAJECTORY']
+        self.trajectory_settings = self.config['SAVE_TRAJECTORY']
 
 
     # calibration matrix
@@ -150,11 +171,17 @@ class Config(object):
             if 'Camera.k3' in self.cam_settings:
                 k3 = self.cam_settings['Camera.k3']
             self._DistCoef = np.array([k1, k2, p1, p2, k3])
-            # if k3 != 0:
-            #     self._DistCoef = np.array([k1,k2,p1,p2,k3])
-            # else:
-            #     self._DistCoef = np.array([k1,k2,p1,p2])
+            if self.sensor_type == 'stereo':
+                self._DistCoef = np.array([0, 0, 0, 0, 0])
+                Printer.orange('WARNING: Using stereo camera, images are automatically rectified, and DistCoef is set to [0,0,0,0,0]')
         return self._DistCoef
+    
+    # baseline times fx
+    @property
+    def bf(self):
+        if not hasattr(self, '_bf'):
+            self._bf = self.cam_settings['Camera.bf']
+        return self._bf
 
     # camera width
     @property
@@ -177,7 +204,75 @@ class Config(object):
             self._fps= self.cam_settings['Camera.fps']
         return self._fps    
 
+    # depth factor
+    @property
+    def depth_factor(self):
+        if not hasattr(self, '_depth_factor'):
+            self._depth_factor = self.cam_settings['Camera.DepthMapFactor']
+        return self._depth_factor
+    
+    # depth threshold 
+    @property
+    def depth_threshold(self):
+        if not hasattr(self, '_depth_threshold'):
+            self._depth_threshold = self.cam_settings['Camera.ThDepth']
+        return self._depth_threshold
 
+    # num features to extract 
+    @property
+    def num_features_to_extract(self):
+        if not hasattr(self, '_num_features_to_extract'):
+            if 'FeatureExtractor.nFeatures' in self.feature_manager_settings:
+                self._num_features_to_extract = self.feature_manager_settings['FeatureExtractor.nFeatures']
+            else:
+                self._num_features_to_extract = 0
+        return self._num_features_to_extract    
+
+    # stereo settings 
+    @property
+    def stereo_settings(self):
+        if not hasattr(self, '_stereo_settings'):
+            self._stereo_settings = None
+            left, right = {}, {}
+            if 'LEFT.D' in self.cam_settings:
+                left_D = self.cam_settings['LEFT.D']
+                D = np.array(left_D['data']).reshape(left_D['rows'], left_D['cols'])
+                left['D'] = D
+            if 'LEFT.K' in self.cam_settings:
+                left_K = self.cam_settings['LEFT.K']
+                K = np.array(left_K['data']).reshape(left_K['rows'], left_K['cols'])
+                left['K'] = K
+            if 'LEFT.R' in self.cam_settings:
+                left_R = self.cam_settings['LEFT.R']
+                R = np.array(left_R['data']).reshape(left_R['rows'], left_R['cols'])
+                left['R'] = R
+            if 'LEFT.P' in self.cam_settings:
+                left_P = self.cam_settings['LEFT.P']
+                P = np.array(left_P['data']).reshape(left_P['rows'], left_P['cols'])
+                left['P'] = P
+                
+            if 'RIGHT.D' in self.cam_settings:
+                right_D = self.cam_settings['RIGHT.D']
+                D = np.array(right_D['data']).reshape(right_D['rows'], right_D['cols'])
+                right['D'] = D
+            if 'RIGHT.K' in self.cam_settings:
+                right_K = self.cam_settings['RIGHT.K']
+                K = np.array(right_K['data']).reshape(right_K['rows'], right_K['cols'])
+                right['K'] = K
+            if 'RIGHT.R' in self.cam_settings:
+                right_R = self.cam_settings['RIGHT.R']
+                R = np.array(right_R['data']).reshape(right_R['rows'], right_R['cols'])
+                right['R'] = R 
+            if 'RIGHT.P' in self.cam_settings:
+                right_P = self.cam_settings['RIGHT.P']
+                P = np.array(right_P['data']).reshape(right_P['rows'], right_P['cols'])
+                right['P'] = P         
+                   
+            if len(left) > 0 and len(right) > 0:
+                self._stereo_settings = {'left':left, 'right':right}
+        #print(f'[config] stereo settings: {self._stereo_settings}')
+        return self._stereo_settings
+                
 if __name__ != "__main__":
     # we automatically read lib path when this file is called via 'import'
     cfg = Config()

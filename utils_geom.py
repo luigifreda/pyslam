@@ -21,6 +21,8 @@ import os
 import numpy as np
 import cv2
 import math
+from utils_sys import Printer
+
 
 sign = lambda x: math.copysign(1, x)
 
@@ -342,10 +344,125 @@ def closest_orthogonal_matrix(A):
   R = np.dot(U, Vt)
   return R
 
-#Computes the closest rotation matrix to a given matrix.
+# Computes the closest rotation matrix to a given matrix.
 def closest_rotation_matrix(A):
   Q = closest_orthogonal_matrix(A)
   detQ = np.linalg.det(Q)
   if detQ < 0:
     Q[:, -1] *= -1
   return Q
+
+
+# align filter trajectory with ground truth trajectory by computing the SE(3) transformation between the two
+# - filter_timestamps [Nx1]
+# - filter_t_w_i [Nx3]
+# - gt_timestamps [Nx1]
+# - gt_t_w_i [Nx3]
+# - find_scale allows to compute the full Sim(3) transformation in case the scale is unknown
+def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_i, align_gt=True, compute_align_error=True, find_scale=False, verbose=False):
+    est_associations = []
+    gt_associations = []
+
+    if verbose:
+        print(f'filter_timestamps: {filter_timestamps.shape}')
+        print(f'filter_t_w_i: {filter_t_w_i.shape}')
+        print(f'gt_timestamps: {gt_timestamps.shape}')
+        print(f'gt_t_w_i: {gt_t_w_i.shape}')        
+        print(f'filter_timestamps: {filter_timestamps}')
+        print(f'gt_timestamps: {gt_timestamps}')
+
+    for i in range(len(filter_t_w_i)):
+        timestamp = filter_timestamps[i]
+
+        # Find the index in gt_timestamps where gt_timestamps[j] > timestamp
+        j = 0
+        while j < len(gt_timestamps) and gt_timestamps[j] <= timestamp:
+            j += 1
+        j -= 1
+        assert j>=0, f'j {j}'
+        
+        if j >= len(gt_timestamps) - 1:
+            continue
+
+        dt = timestamp - gt_timestamps[j]
+        dt_gt = gt_timestamps[j + 1] - gt_timestamps[j]
+
+        assert dt >= 0, f"dt {dt}"
+        assert dt_gt > 0, f"dt_gt {dt_gt}"
+
+        # Skip if the interval between gt is larger than 100ms
+        # if dt_gt > 1.1e8:
+        #     continue
+
+        ratio = dt / dt_gt
+
+        assert 0 <= ratio < 1
+
+        gt = (1 - ratio) * gt_t_w_i[j] + ratio * gt_t_w_i[j + 1]
+
+        gt_associations.append(gt)
+        est_associations.append(filter_t_w_i[i])
+
+    num_kfs = len(est_associations)
+    if verbose: 
+        print(f'num associations: {num_kfs}')
+
+    gt = np.zeros((3, num_kfs))
+    est = np.zeros((3, num_kfs))
+
+    for i in range(num_kfs):
+        gt[:, i] = gt_associations[i]
+        est[:, i] = est_associations[i]
+
+    mean_gt = np.mean(gt, axis=1)
+    mean_est = np.mean(est, axis=1)
+
+    gt -= mean_gt[:, None]
+    est -= mean_est[:, None]
+
+    cov = np.dot(gt, est.T)
+    if find_scale:
+        # apply Kabsch–Umeyama algorithm
+        cov /= gt.shape[0]
+        variance_gt = np.mean(np.linalg.norm(gt,axis=1)**2) 
+
+    try: 
+        U, D, Vt = np.linalg.svd(cov)
+    except: 
+        Printer.red('[align_trajs_with_svd] SVD failed!!!\n')
+        return np.eye(4), -1
+
+    c = 1
+    S = np.eye(3)
+    if np.linalg.det(U) * np.linalg.det(Vt) < 0:
+        S[2, 2] = -1
+    if find_scale: 
+        # apply Kabsch–Umeyama algorithm
+        c = variance_gt/np.trace(np.diag(D) @ S)
+
+    rot_gt_est = np.dot(U, np.dot(S, Vt))
+    trans = mean_gt - c * np.dot(rot_gt_est, mean_est)
+
+    T_gt_est = np.eye(4)
+    T_gt_est[:3, :3] = c * rot_gt_est
+    T_gt_est[:3, 3] = trans
+
+    T_est_gt = np.linalg.inv(T_gt_est)
+
+    # Update gt_t_w_i with transformation
+    if align_gt:
+        for i in range(len(gt_t_w_i)):
+            gt_t_w_i[i] = np.dot(T_est_gt[:3, :3], gt_t_w_i[i]) + T_est_gt[:3, 3]
+
+    # Compute error
+    error = 0
+    if compute_align_error:
+        for i in range(len(est_associations)):
+            est_associations[i] = np.dot(T_gt_est[:3, :3], est_associations[i]) + T_gt_est[:3, 3]
+            res = est_associations[i] - gt_associations[i]
+            error += np.dot(res.T, res)
+
+        error /= len(est_associations)
+        error = np.sqrt(error)
+
+    return T_gt_est, error

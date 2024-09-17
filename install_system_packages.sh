@@ -39,6 +39,7 @@ install_package cmake
 install_package build-essential 
 
 install_package liblz4-dev libzstd-dev
+install_package libhdf5-dev    # needed when building h5py wheel from src is required (arm64)
 
 
 echo "... Done!"

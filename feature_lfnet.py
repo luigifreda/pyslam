@@ -264,6 +264,12 @@ class LfNetFeature2D:
             tf.reset_default_graph()           
     
     
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.num_features = num_features
+        self.lfnet_config.top_k = num_features
+        # TODO: here we should rebuild the network! 
+            
+            
     def compute_kps_des(self,photo):     
         with self.lock:        
             height, width = photo.shape[:2]

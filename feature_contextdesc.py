@@ -45,7 +45,7 @@ from contextdesc.models.loc_model import LocModel
 from contextdesc.models.aug_model import AugModel 
 
 from utils_tf import set_tf_logging
-#from utils_sys import Printer
+from utils_sys import Printer
 
 
 kVerbose = True     
@@ -96,8 +96,8 @@ class ContextDescFeature2D:
         self.frame = None 
         
         print('==> Loading pre-trained network.')
-        self.ref_model = RegModel(reg_model_path) #get_model('reg_model')(reg_model_path)  #RegModel(reg_model_path)
-        self.loc_model = LocModel(loc_model_path, **{'sift_desc': False,             # compute or not SIFT descriptor (we do not need them here!)
+        self.ref_model = RegModel(reg_model_path) #get_model('reg_model')(reg_model_path)  # RegModel(reg_model_path)
+        self.loc_model = LocModel(loc_model_path, **{'sift_desc': False,                   # compute or not SIFT descriptor (we do not need them here!)
                                                     'n_feature': self.num_features,                                                     
                                                     'n_sample': self.n_sample,
                                                     'peak_thld': 0.04,
@@ -106,7 +106,13 @@ class ContextDescFeature2D:
         self.aug_model = AugModel(aug_model_path, **{'quantz': self.quantize})         
         print('==> Successfully loaded pre-trained network.')
     
-            
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.num_features = num_features
+        try:
+            self.loc_model.sift_wrapper.n_features = num_features
+        except:
+            Printer.red('[ContextDescFeature2D] Failed to set number of features for SIFT')
+                    
     def __del__(self): 
         with self.lock:              
             self.ref_model.close()

@@ -55,11 +55,16 @@ class LightGlueSIFTFeature2D:
     def __init__(self,num_features=2000): 
         print('Using LightGlueSIFTFeature2D')
         self.num_features = num_features        
-        config = SIFT.default_conf.copy()  
-        config['max_num_keypoints'] = self.num_features
+        self.config = SIFT.default_conf.copy()  
+        self.config['max_num_keypoints'] = self.num_features
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'        
-        self.SIFT = SIFT(conf=config)
+        self.SIFT = SIFT(conf=self.config)
                 
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.num_features = num_features
+        self.config['max_num_keypoints'] = self.num_features
+        self.SIFT = SIFT(conf=self.config)
+                        
     def extract(self, image):
         tensor = numpy_image_to_torch(image)
         feats = self.SIFT.extract(tensor.to(self.device))

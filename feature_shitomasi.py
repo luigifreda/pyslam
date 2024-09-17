@@ -32,6 +32,9 @@ class ShiTomasiDetector(object):
         self.min_coner_distance = min_coner_distance
         self.blockSize=5    # 3 is the default block size 
 
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.num_features = num_features
+        
     def detect(self, frame, mask=None):                
         pts = cv2.goodFeaturesToTrack(frame, self.num_features, self.quality_level, self.min_coner_distance, blockSize=self.blockSize, mask=mask)
         # convert matrix of pts into list of keypoints 

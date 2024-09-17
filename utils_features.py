@@ -135,7 +135,7 @@ def unpackSiftOctaveKps(kps, method=UnpackOctaveMethod.DEFAULT):
 #      descriptor_distance < factor * sigma_mad
 # https://en.wikipedia.org/wiki/Median_absolute_deviation 
 def descriptor_sigma_mad(des1, des2, descriptor_distances=l2_distances):
-    dists = np.full(des1.shape[0], 0., dtype=np.float32) 
+    #dists = np.full(des1.shape[0], 0., dtype=np.float32) 
     # for i in range(des1.shape[0]):
     #     dists[i] = descriptor_distance(des1[i],des2[i])
     dists = descriptor_distances(des1,des2)
@@ -148,7 +148,7 @@ def descriptor_sigma_mad(des1, des2, descriptor_distances=l2_distances):
 #  (descriptor_distance < dists_median) or (descriptor_distance - dists_median < factor * sigma_mad)
 # https://en.wikipedia.org/wiki/Median_absolute_deviation
 def descriptor_sigma_mad_v2(des1, des2, descriptor_distances=l2_distances):
-    dists = np.full(des1.shape[0], 0., dtype=np.float32) 
+    #dists = np.full(des1.shape[0], 0., dtype=np.float32) 
     # for i in range(des1.shape[0]):
     #     dists[i] = descriptor_distance(des1[i],des2[i])
     dists = descriptor_distances(des1,des2)
@@ -432,6 +432,88 @@ def compute_hom_reprojection_error(H, kps1, kps2, mask=None):
     error_vecs = kps1_reproj.T - kps2
     return np.mean(np.sum(error_vecs*error_vecs,axis=1))
     
+# compute ZNCC between the mached keypoints of img1 and img2
+# - window_size is the size of the window used to compute the ZNCC
+# - kps1 and kps2 are the matched keypoints and expected to be of size [N x 2] 
+def compute_ZNCC_between_matched_keypoints(img1, img2, kps1, kps2, window_size=5):
+    def extract_windows(img, kps, window_size):
+        half_window = window_size // 2
+        windows = []
+        for kp in kps:
+            x = int(kp[0])
+            y = int(kp[1])
+            if (x - half_window >= 0 and x + half_window < img.shape[1] and
+                y - half_window >= 0 and y + half_window < img.shape[0]):
+                window = img[y - half_window:y + half_window + 1, x - half_window:x + half_window + 1]
+                windows.append(window)
+            else:
+                window = np.zeros((window_size, window_size), dtype=img.dtype)
+                windows.append(window)
+        return np.array(windows)
+
+    def normalize_windows(windows):
+        means = np.mean(windows, axis=(1, 2), keepdims=True)
+        stds = np.std(windows, axis=(1, 2), keepdims=True)
+        stds = np.where(stds == 0, 1, stds)
+        normalized_windows = (windows - means) / stds
+        return normalized_windows
+
+    def compute_cross_correlation(windows1, windows2):
+        correlations = []
+        for w1, w2 in zip(windows1, windows2):
+            correlation = np.sum(w1 * w2) / (w1.size)
+            correlations.append(correlation)
+        return np.array(correlations)
+        
+    windows1 = extract_windows(img1, kps1, window_size=window_size)
+    windows2 = extract_windows(img2, kps2, window_size=window_size)
+    normalized_windows1 = normalize_windows(windows1)
+    normalized_windows2 = normalize_windows(windows2)
+    correlations = compute_cross_correlation(normalized_windows1, normalized_windows2)
+    return correlations
+
+
+# compute NSAD between the mached keypoints of img1 and img2
+# - window_size is the size of the window used to compute the ZNCC
+# - kps1 and kps2 are the matched keypoints and expected to be of size [N x 2] 
+def compute_NSAD_between_matched_keypoints(img1, img2, kps1, kps2, window_size=5):
+    def extract_windows(img, kps, window_size):
+        half_window = window_size // 2
+        windows = []
+        for kp in kps:
+            x = int(kp[0])
+            y = int(kp[1])
+            if (x - half_window >= 0 and x + half_window < img.shape[1] and
+                y - half_window >= 0 and y + half_window < img.shape[0]):
+                window = img[y - half_window:y + half_window + 1, x - half_window:x + half_window + 1]
+            else:
+                window = np.zeros((window_size, window_size), dtype=img.dtype)
+            windows.append(window)
+        print(f'img shape: {img.shape}')
+        print(f'num windows: {len(windows)}')
+        print(f'num kps: {len(kps)}')
+        return np.array(windows)
+
+    def normalize_windows(windows):
+        means = np.mean(windows, axis=(1, 2), keepdims=True)
+        normalized_windows = (windows - means)
+        return normalized_windows
+
+    def compute_sum_of_abs_differences(windows1, windows2):
+        sads = []
+        for w1, w2 in zip(windows1, windows2):
+            sad = np.sum(np.abs(w1 - w2))/(w1.size)
+            sads.append(sad)
+        return np.array(sads)
+        
+    windows1 = extract_windows(img1, kps1, window_size=window_size)
+    windows2 = extract_windows(img2, kps2, window_size=window_size)
+    normalized_windows1 = normalize_windows(windows1)
+    normalized_windows2 = normalize_windows(windows2)
+    sads = compute_sum_of_abs_differences(normalized_windows1, normalized_windows2)
+    return sads
+
+
 
 # extract/rectify patches around openCV keypoints, and returns patches tensor
 # out: patches as a numpy array of size (len(kps), 1, patch_size, patch_size)

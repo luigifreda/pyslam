@@ -33,13 +33,15 @@ from utils_geom import triangulate_points, triangulate_normalized_points, add_on
 from camera  import Camera, PinholeCamera
 from utils_sys import Printer
 from parameters import Parameters  
+from dataset import SensorType
 
 
 kVerbose=True     
 kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
 
-kMaxIdDistBetweenIntializingFrames = 5   # N.B.: worse performances with values smaller than 5!
+kMinIdDistBetweenIntializingFrames = 2
+kMaxIdDistBetweenIntializingFrames = 6   # N.B.: worse performances with values smaller than 5!
 
 kFeatureMatchRatioTestInitializer = Parameters.kFeatureMatchRatioTestInitializer
 
@@ -58,14 +60,15 @@ class InitializerOutput(object):
 
 
 class Initializer(object):
-    def __init__(self):
+    def __init__(self, sensor_type=SensorType.MONOCULAR):
+        self.sensor_type = sensor_type
         self.mask_match = None
         self.mask_recover = None 
         self.frames = deque(maxlen=kMaxLenFrameDeque)  # deque with max length, it is thread-safe      
         self.idx_f_ref = 0   # index of the reference frame in self.frames buffer  
         self.f_ref = None 
         
-        self.num_min_features = Parameters.kInitializerNumMinFeatures
+        self.num_min_features = Parameters.kInitializerNumMinFeatures if self.sensor_type == SensorType.MONOCULAR else Parameters.kInitializerNumMinFeaturesStereo
         self.num_min_triangulated_points = Parameters.kInitializerNumMinTriangulatedPoints       
         self.num_failures = 0 
         
@@ -83,7 +86,7 @@ class Initializer(object):
     # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation     
     # N.B.5: the OpenCV findEssentialMat function uses the five-point algorithm solver by D. Nister => hence it should work well in the degenerate planar cases
     def estimatePose(self, kpn_ref, kpn_cur):	     
-        ransac_method = None 
+        ransac_method = None
         try: 
             ransac_method = cv2.USAC_MSAC 
         except: 
@@ -127,6 +130,12 @@ class Initializer(object):
         # append current frame 
         self.frames.append(f_cur)
 
+        if self.sensor_type == SensorType.MONOCULAR:
+            if f_cur.id - f_ref.id < kMinIdDistBetweenIntializingFrames:
+                Printer.red('Inializer: ko - init frames are too close!') 
+                self.num_failures += 1
+                return out, is_ok
+
         # if the current frames do no have enough features exit 
         if len(f_ref.kps) < self.num_min_features or len(f_cur.kps) < self.num_min_features:
             Printer.red('Inializer: ko - not enough features!') 
@@ -151,8 +160,8 @@ class Initializer(object):
         mask_idxs = (self.mask_match.ravel() == 1)
         self.num_inliers = sum(mask_idxs)
         print('# keypoint inliers: ', self.num_inliers )
+        idx_ref_inliers = idxs_ref[mask_idxs]        
         idx_cur_inliers = idxs_cur[mask_idxs]
-        idx_ref_inliers = idxs_ref[mask_idxs]
 
         # create a temp map for initializing 
         map = Map()
@@ -167,13 +176,40 @@ class Initializer(object):
         map.add_keyframe(kf_ref)        
         map.add_keyframe(kf_cur)      
         
-        pts3d, mask_pts3d = triangulate_normalized_points(kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idx_cur_inliers], kf_ref.kpsn[idx_ref_inliers])
+        pts3d = None 
+        mask_pts3d = None
+        do_check = True
+        
+        if self.sensor_type == SensorType.RGBD or self.sensor_type == SensorType.STEREO:                    
+            # unproject 3D points by using available depths 
+            pts3d, mask_pts3d = kf_ref.unproject_points_3d(idx_ref_inliers)
+            
+            num_valid_pts3d = np.sum(mask_pts3d) 
+            if num_valid_pts3d < Parameters.kInitializerNumMinNumPointsForPnPWithDepth:
+                return out, is_ok
+            
+            # solve pnp to get a pose of the current frame w.r.t. the reference frame (the scale is defined by the depths of the reference frame)
+            mask_pts3d = mask_pts3d.flatten()
+            print(f'init PnP - #pts3d: {len(pts3d)}, #mask_pts3d: {sum(mask_pts3d)}')
+            success, rvec_rc, tvec_rc = cv2.solvePnP(pts3d[mask_pts3d], kf_cur.kps[idx_cur_inliers[mask_pts3d]], kf_cur.camera.K, kf_cur.camera.D, flags=cv2.SOLVEPNP_EPNP)
+            if success:
+                rot_matrix_rc, _ = cv2.Rodrigues(rvec_rc)
+                Trc = poseRt(rot_matrix_rc, tvec_rc.flatten())
+            else: 
+                Trc = np.eye(4)
+            print(f'init PnP - success: {success}, Trc: {Trc}')                
+            kf_cur.update_pose(Trc)
+            f_cur.update_pose(Trc)
+                
+            do_check = False # in this case, we do not check reprojection errors and other related stuff
+        else: 
+            pts3d, mask_pts3d = triangulate_normalized_points(kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idx_cur_inliers], kf_ref.kpsn[idx_ref_inliers])
 
-        new_pts_count, mask_points, _ = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idx_cur_inliers, idx_ref_inliers, img_cur, do_check=True, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
+        new_pts_count, mask_points, _ = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idx_cur_inliers, idx_ref_inliers, img_cur, do_check=do_check, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
         print("# triangulated points: ", new_pts_count)   
                         
-        if new_pts_count > self.num_min_triangulated_points:  
-            err = map.optimize(verbose=False, rounds=20,use_robust_kernel=True)
+        if new_pts_count > self.num_min_triangulated_points:                      
+            err = map.optimize(verbose=False, rounds=20, use_robust_kernel=True)
             print("init optimization error^2: %f" % err)         
 
             num_map_points = len(map.points)
@@ -186,15 +222,16 @@ class Initializer(object):
             out.kf_ref = kf_ref 
             out.idxs_ref = idx_ref_inliers[mask_points]
 
-            # set scene median depth to equal desired_median_depth'
-            desired_median_depth = Parameters.kInitializerDesiredMedianDepth
-            median_depth = kf_cur.compute_points_median_depth(out.pts)        
-            depth_scale = desired_median_depth/median_depth 
-            print('forcing current median depth ', median_depth,' to ',desired_median_depth)
-
-            out.pts[:,:3] = out.pts[:,:3] * depth_scale  # scale points 
-            tcw = kf_cur.tcw * depth_scale  # scale initial baseline 
-            kf_cur.update_translation(tcw)
+            depth_scale = 1.0
+            if self.sensor_type == SensorType.MONOCULAR:
+                # set scene median depth to equal desired_median_depth'
+                desired_median_depth = Parameters.kInitializerDesiredMedianDepth
+                median_depth = kf_cur.compute_points_median_depth(out.pts)        
+                depth_scale = desired_median_depth/median_depth 
+                print('forcing current median depth ', median_depth,' to ',desired_median_depth) 
+                out.pts[:,:3] = out.pts[:,:3] * depth_scale  # scale points 
+                tcw = kf_cur.tcw * depth_scale  # scale initial baseline    
+                kf_cur.update_translation(tcw)
             
         map.delete()
   

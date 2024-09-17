@@ -217,6 +217,9 @@ class DiskFeature2D:
         self.cropx = [0,0]  # [startx, endx]
         self.cropy = [0,0]  # [starty, endy]
     
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.num_features = num_features
+            
     def crop_center(self,img,cropx,cropy):
         y,x = img.shape
         startx = x//2-(cropx//2)

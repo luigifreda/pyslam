@@ -194,6 +194,9 @@ class KeyNetDescFeature2D:
         self.load_model()      
         print('==> Successfully loaded pre-trained network.')
 
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.keynet_config.num_points = num_features
+            
     @property
     def num_features(self):
         return self.keynet_config.num_points

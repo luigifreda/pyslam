@@ -44,6 +44,7 @@ class FeatureTrackerConfigs(object):
     TEST = dict(num_features=kNumFeatures,                   
                 num_levels = 8,                                  # N.B: some detectors/descriptors do not allow to set num_levels or they set it on their own
                 scale_factor = 1.2,                              # N.B: some detectors/descriptors do not allow to set scale_factor or they set it on their own
+                sigma_level0 = Parameters.kSigmaLevel0, 
                 detector_type = FeatureDetectorTypes.ORB2, 
                 descriptor_type = FeatureDescriptorTypes.ORB2, 
                 match_ratio_test = kRatioTest,
@@ -56,12 +57,14 @@ class FeatureTrackerConfigs(object):
                          num_levels = 3,
                          detector_type = FeatureDetectorTypes.SHI_TOMASI,
                          descriptor_type = FeatureDescriptorTypes.NONE, 
+                         sigma_level0 = Parameters.kSigmaLevel0, 
                          tracker_type = FeatureTrackerTypes.LK)
 
     LK_FAST = dict(num_features=kNumFeatures,
                    num_levels = 3,
                    detector_type = FeatureDetectorTypes.FAST, 
                    descriptor_type = FeatureDescriptorTypes.NONE, 
+                   sigma_level0 = Parameters.kSigmaLevel0,                    
                    tracker_type = FeatureTrackerTypes.LK)
 
 
@@ -73,6 +76,7 @@ class FeatureTrackerConfigs(object):
                           scale_factor = 1.2,
                           detector_type = FeatureDetectorTypes.SHI_TOMASI, 
                           descriptor_type = FeatureDescriptorTypes.ORB, 
+                          sigma_level0 = Parameters.kSigmaLevel0,                             
                           match_ratio_test = kRatioTest,
                           tracker_type = kTrackerType)
     
@@ -80,7 +84,8 @@ class FeatureTrackerConfigs(object):
                             num_levels=8,                      
                             scale_factor = 1.2,
                             detector_type = FeatureDetectorTypes.SHI_TOMASI, 
-                            descriptor_type = FeatureDescriptorTypes.FREAK, 
+                            descriptor_type = FeatureDescriptorTypes.FREAK,
+                            sigma_level0 = Parameters.kSigmaLevel0, 
                             match_ratio_test = kRatioTest,
                             tracker_type = kTrackerType)      
 
@@ -88,7 +93,8 @@ class FeatureTrackerConfigs(object):
                     num_levels = 8, 
                     scale_factor = 1.2,
                     detector_type = FeatureDetectorTypes.FAST, 
-                    descriptor_type = FeatureDescriptorTypes.ORB, 
+                    descriptor_type = FeatureDescriptorTypes.ORB,
+                    sigma_level0 = Parameters.kSigmaLevel0, 
                     match_ratio_test = kRatioTest,                         
                     tracker_type = kTrackerType) 
     
@@ -96,7 +102,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 8,
                       scale_factor = 1.2,                    
                       detector_type = FeatureDetectorTypes.FAST, 
-                      descriptor_type = FeatureDescriptorTypes.FREAK,      
+                      descriptor_type = FeatureDescriptorTypes.FREAK,
+                      sigma_level0 = Parameters.kSigmaLevel0,      
                       match_ratio_test = kRatioTest,                          
                       tracker_type = kTrackerType)       
 
@@ -104,7 +111,8 @@ class FeatureTrackerConfigs(object):
                 num_levels = 4, 
                 scale_factor = 1.2,
                 detector_type = FeatureDetectorTypes.BRISK, 
-                descriptor_type = FeatureDescriptorTypes.BRISK, 
+                descriptor_type = FeatureDescriptorTypes.BRISK,
+                sigma_level0 = Parameters.kSigmaLevel0, 
                 match_ratio_test = kRatioTest,                               
                 tracker_type = kTrackerType)  
     
@@ -113,6 +121,7 @@ class FeatureTrackerConfigs(object):
                        scale_factor = 1.2,
                        detector_type = FeatureDetectorTypes.BRISK, 
                        descriptor_type = FeatureDescriptorTypes.TFEAT, 
+                       sigma_level0 = Parameters.kSigmaLevel0,
                        match_ratio_test = kRatioTest,                               
                        tracker_type = kTrackerType)        
 
@@ -120,7 +129,8 @@ class FeatureTrackerConfigs(object):
                num_levels = 8, 
                scale_factor = 1.2, 
                detector_type = FeatureDetectorTypes.ORB, 
-               descriptor_type = FeatureDescriptorTypes.ORB, 
+               descriptor_type = FeatureDescriptorTypes.ORB,
+               sigma_level0 = Parameters.kSigmaLevel0, 
                match_ratio_test = kRatioTest,                        
                tracker_type = kTrackerType)
     
@@ -128,7 +138,8 @@ class FeatureTrackerConfigs(object):
                 num_levels = 8, 
                 scale_factor = 1.2, 
                 detector_type = FeatureDetectorTypes.ORB2, 
-                descriptor_type = FeatureDescriptorTypes.ORB2, 
+                descriptor_type = FeatureDescriptorTypes.ORB2,
+                sigma_level0 = Parameters.kSigmaLevel0, 
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType)    
     
@@ -136,32 +147,37 @@ class FeatureTrackerConfigs(object):
                  num_levels = 8,
                  detector_type = FeatureDetectorTypes.BRISK, 
                  descriptor_type = FeatureDescriptorTypes.BRISK,
+                 sigma_level0 = Parameters.kSigmaLevel0,
                  match_ratio_test = kRatioTest,                           
                  tracker_type = kTrackerType)   
 
     KAZE = dict(num_features=kNumFeatures,
                 num_levels = 8,
                 detector_type = FeatureDetectorTypes.KAZE, 
-                descriptor_type = FeatureDescriptorTypes.KAZE, 
+                descriptor_type = FeatureDescriptorTypes.KAZE,
+                sigma_level0 = Parameters.kSigmaLevel0, 
                 match_ratio_test = kRatioTest,                          
                 tracker_type = kTrackerType)  
     
     AKAZE = dict(num_features=kNumFeatures,
                  num_levels = 8,
                  detector_type = FeatureDetectorTypes.AKAZE, 
-                 descriptor_type = FeatureDescriptorTypes.AKAZE, 
+                 descriptor_type = FeatureDescriptorTypes.AKAZE,
+                 sigma_level0 = Parameters.kSigmaLevel0, 
                  match_ratio_test = kRatioTest,                          
                  tracker_type = kTrackerType)  
                 
     SIFT = dict(num_features=kNumFeatures,
                 detector_type = FeatureDetectorTypes.SIFT, 
-                descriptor_type = FeatureDescriptorTypes.SIFT, 
+                descriptor_type = FeatureDescriptorTypes.SIFT,
+                sigma_level0 = Parameters.kSigmaLevel0, 
                 match_ratio_test = kRatioTest,                         
                 tracker_type = kTrackerType)
     
     ROOT_SIFT = dict(num_features=kNumFeatures,
                      detector_type = FeatureDetectorTypes.ROOT_SIFT, 
-                     descriptor_type = FeatureDescriptorTypes.ROOT_SIFT, 
+                     descriptor_type = FeatureDescriptorTypes.ROOT_SIFT,
+                     sigma_level0 = Parameters.kSigmaLevel0, 
                      match_ratio_test = kRatioTest,                              
                      tracker_type = kTrackerType)    
     
@@ -172,7 +188,8 @@ class FeatureTrackerConfigs(object):
     SURF = dict(num_features=kNumFeatures,
                 num_levels = 8,
                 detector_type = FeatureDetectorTypes.SURF, 
-                descriptor_type = FeatureDescriptorTypes.SURF, 
+                descriptor_type = FeatureDescriptorTypes.SURF,
+                sigma_level0 = Parameters.kSigmaLevel0, 
                 match_ratio_test = kRatioTest,                         
                 tracker_type = kTrackerType)
         
@@ -180,7 +197,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.SUPERPOINT, 
-                      descriptor_type = FeatureDescriptorTypes.SUPERPOINT, 
+                      descriptor_type = FeatureDescriptorTypes.SUPERPOINT,
+                      sigma_level0 = Parameters.kSigmaLevel0, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = kTrackerType)
     
@@ -188,7 +206,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.XFEAT, 
-                      descriptor_type = FeatureDescriptorTypes.XFEAT, 
+                      descriptor_type = FeatureDescriptorTypes.XFEAT,
+                      sigma_level0 = Parameters.kSigmaLevel0, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = kTrackerType)      
 
@@ -196,7 +215,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.XFEAT, 
-                      descriptor_type = FeatureDescriptorTypes.XFEAT, 
+                      descriptor_type = FeatureDescriptorTypes.XFEAT,
+                      sigma_level0 = Parameters.kSigmaLevel0, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.XFEAT)  # <= Using XFEAT matcher here!
         
@@ -205,7 +225,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.SUPERPOINT, 
-                      descriptor_type = FeatureDescriptorTypes.SUPERPOINT, 
+                      descriptor_type = FeatureDescriptorTypes.SUPERPOINT,
+                      sigma_level0 = Parameters.kSigmaLevel0,
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)
     
@@ -213,7 +234,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.DISK, 
-                      descriptor_type = FeatureDescriptorTypes.DISK, 
+                      descriptor_type = FeatureDescriptorTypes.DISK,
+                      sigma_level0 = Parameters.kSigmaLevel0,
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)    
     
@@ -221,7 +243,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.ALIKED, 
-                      descriptor_type = FeatureDescriptorTypes.ALIKED, 
+                      descriptor_type = FeatureDescriptorTypes.ALIKED,
+                      sigma_level0 = Parameters.kSigmaLevel0, 
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)      
     
@@ -229,7 +252,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.LIGHTGLUESIFT, 
-                      descriptor_type = FeatureDescriptorTypes.LIGHTGLUESIFT, 
+                      descriptor_type = FeatureDescriptorTypes.LIGHTGLUESIFT,
+                      sigma_level0 = Parameters.kSigmaLevel0,
                       match_ratio_test = kRatioTest,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)         
     
@@ -237,14 +261,16 @@ class FeatureTrackerConfigs(object):
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.DELF, 
-                       descriptor_type = FeatureDescriptorTypes.DELF, 
+                       descriptor_type = FeatureDescriptorTypes.DELF,
+                       sigma_level0 = Parameters.kSigmaLevel0, 
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     D2NET = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.D2NET, 
-                       descriptor_type = FeatureDescriptorTypes.D2NET, 
+                       descriptor_type = FeatureDescriptorTypes.D2NET,
+                       sigma_level0 = Parameters.kSigmaLevel0,
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
@@ -252,7 +278,8 @@ class FeatureTrackerConfigs(object):
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.R2D2, 
-                       descriptor_type = FeatureDescriptorTypes.R2D2, 
+                       descriptor_type = FeatureDescriptorTypes.R2D2,
+                       sigma_level0 = Parameters.kSigmaLevel0,
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
@@ -260,7 +287,8 @@ class FeatureTrackerConfigs(object):
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.LFNET, 
-                       descriptor_type = FeatureDescriptorTypes.LFNET, 
+                       descriptor_type = FeatureDescriptorTypes.LFNET,
+                       sigma_level0 = Parameters.kSigmaLevel0,
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
@@ -268,7 +296,8 @@ class FeatureTrackerConfigs(object):
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.CONTEXTDESC, 
-                       descriptor_type = FeatureDescriptorTypes.CONTEXTDESC, 
+                       descriptor_type = FeatureDescriptorTypes.CONTEXTDESC,
+                       sigma_level0 = Parameters.kSigmaLevel0,
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     
@@ -276,7 +305,8 @@ class FeatureTrackerConfigs(object):
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.KEYNET, 
-                       descriptor_type = FeatureDescriptorTypes.KEYNET, 
+                       descriptor_type = FeatureDescriptorTypes.KEYNET,
+                       sigma_level0 = Parameters.kSigmaLevel0,
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
         
@@ -284,14 +314,16 @@ class FeatureTrackerConfigs(object):
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.DISK, 
-                       descriptor_type = FeatureDescriptorTypes.DISK, 
+                       descriptor_type = FeatureDescriptorTypes.DISK,
+                       sigma_level0 = Parameters.kSigmaLevel0,
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)
     ALIKED = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  
                        scale_factor = 1.2,                              
                        detector_type = FeatureDetectorTypes.ALIKED, 
-                       descriptor_type = FeatureDescriptorTypes.ALIKED, 
+                       descriptor_type = FeatureDescriptorTypes.ALIKED,
+                       sigma_level0 = Parameters.kSigmaLevel0, 
                        match_ratio_test = kRatioTest,
                        tracker_type = kTrackerType)    
     
@@ -299,7 +331,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 1, 
                       scale_factor = 1.2,
                       detector_type = FeatureDetectorTypes.KEYNETAFFNETHARDNET, 
-                      descriptor_type = FeatureDescriptorTypes.KEYNETAFFNETHARDNET, 
+                      descriptor_type = FeatureDescriptorTypes.KEYNETAFFNETHARDNET,
+                      sigma_level0 = Parameters.kSigmaLevel0,
                       match_ratio_test = kRatioTest,                               
                       tracker_type = kTrackerType) 
     
@@ -310,7 +343,8 @@ class FeatureTrackerConfigs(object):
                       num_levels = 8, 
                       scale_factor = 1.2,                     
                       detector_type = FeatureDetectorTypes.ORB2, 
-                      descriptor_type = FeatureDescriptorTypes.FREAK, 
+                      descriptor_type = FeatureDescriptorTypes.FREAK,
+                      sigma_level0 = Parameters.kSigmaLevel0,
                       match_ratio_test = kRatioTest,                        
                       tracker_type = kTrackerType)    
     
@@ -318,7 +352,8 @@ class FeatureTrackerConfigs(object):
                 num_levels = 8, 
                 scale_factor = 1.2, 
                 detector_type = FeatureDetectorTypes.ORB2, 
-                descriptor_type = FeatureDescriptorTypes.BEBLID, 
+                descriptor_type = FeatureDescriptorTypes.BEBLID,
+                sigma_level0 = Parameters.kSigmaLevel0,
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType)    
     
@@ -326,7 +361,8 @@ class FeatureTrackerConfigs(object):
                 num_levels = 8, 
                 scale_factor = 1.2, 
                 detector_type = FeatureDetectorTypes.ORB2, 
-                descriptor_type = FeatureDescriptorTypes.HARDNET, 
+                descriptor_type = FeatureDescriptorTypes.HARDNET,
+                sigma_level0 = Parameters.kSigmaLevel0,
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType)    
     
@@ -334,7 +370,8 @@ class FeatureTrackerConfigs(object):
                 num_levels = 8, 
                 scale_factor = 1.2, 
                 detector_type = FeatureDetectorTypes.ORB2, 
-                descriptor_type = FeatureDescriptorTypes.SOSNET, 
+                descriptor_type = FeatureDescriptorTypes.SOSNET,
+                sigma_level0 = Parameters.kSigmaLevel0,
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType)   
     
@@ -342,7 +379,8 @@ class FeatureTrackerConfigs(object):
                 num_levels = 8, 
                 scale_factor = 1.2, 
                 detector_type = FeatureDetectorTypes.ORB2, 
-                descriptor_type = FeatureDescriptorTypes.L2NET, 
+                descriptor_type = FeatureDescriptorTypes.L2NET,
+                sigma_level0 = Parameters.kSigmaLevel0,
                 match_ratio_test = kRatioTest,                        
                 tracker_type = kTrackerType) 
 
@@ -361,6 +399,7 @@ class FeatureTrackerConfigs(object):
                 num_levels = 1, 
                 scale_factor = 1.2,
                 detector_type = FeatureDetectorTypes.NONE, 
-                descriptor_type = FeatureDescriptorTypes.NONE, 
+                descriptor_type = FeatureDescriptorTypes.NONE,
+                sigma_level0 = Parameters.kSigmaLevel0,
                 match_ratio_test = kRatioTest,                               
                 tracker_type = FeatureTrackerTypes.LOFTR)       
