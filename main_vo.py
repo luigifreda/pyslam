@@ -66,14 +66,11 @@ if __name__ == "__main__":
 
     config = Config()
     
-    dataset = dataset_factory(config.dataset_settings)
+    dataset = dataset_factory(config)
 
     groundtruth = groundtruth_factory(config.dataset_settings)
 
-    cam = PinholeCamera(config.cam_settings['Camera.width'], config.cam_settings['Camera.height'],
-                        config.cam_settings['Camera.fx'], config.cam_settings['Camera.fy'],
-                        config.cam_settings['Camera.cx'], config.cam_settings['Camera.cy'],
-                        config.DistCoef, config.cam_settings['Camera.fps'])
+    cam = PinholeCamera(config)
 
 
     num_features=2000  # how many features do you want to detect and track?
@@ -116,11 +113,12 @@ if __name__ == "__main__":
     img_id = 0
     while dataset.isOk():
 
-        img = dataset.getImage(img_id)
+        timestamp = dataset.getTimestamp()          # get current timestamp 
+        img = dataset.getImageColor(img_id)
 
         if img is not None:
 
-            vo.track(img, img_id)  # main VO function 
+            vo.track(img, img_id, timestamp)  # main VO function 
 
             if(img_id > 2):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
 

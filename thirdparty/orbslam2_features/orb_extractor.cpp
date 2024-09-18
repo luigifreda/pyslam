@@ -27,6 +27,7 @@ PYBIND11_MODULE(orbslam2_features, m)
         .def("GetNumFeatures", &ORBextractor::GetNumFeatures)        
         .def("GetLevels", &ORBextractor::GetLevels)
         .def("GetScaleFactor", &ORBextractor::GetScaleFactor)  
+        .def("SetNumFeatures", &ORBextractor::SetNumFeatures)         
         //.def("detectAndCompute", &ORBextractor::detectAndCompute)    
         .def("detectAndCompute",   
             [](ORBextractor& o, cv::Mat& image) 
@@ -44,7 +45,7 @@ PYBIND11_MODULE(orbslam2_features, m)
                 std::vector<cv::KeyPoint> keypoints;         
                 o.detect(image, mask, keypoints, bComputeOrientation); 
                 return keypoints;
-            },"image"_a,"bComputeOrientation"_a=true)            
+            },"image"_a,"bComputeOrientation"_a=true)           
         .def_static("DistributeOctTree", &ORBextractor::DistributeOctTree, 
                 "vToDistributeKeys"_a, "minX"_a, "maxX"_a, "minY"_a, "maxY"_a, "nFeatures"_a, "level"_a=0)                                 
         .def("__repr__",

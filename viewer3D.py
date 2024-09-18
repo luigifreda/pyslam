@@ -25,7 +25,7 @@ from multiprocessing import Process, Queue, Value
 import pypangolin as pangolin
 import OpenGL.GL as gl
 import numpy as np
-from utils_geom import inv_T 
+from utils_geom import inv_T, align_trajs_with_svd
 
 
 kUiWidth = 180
@@ -38,39 +38,64 @@ kDrawReferenceCamera = True
 
 kMinWeightForDrawingCovisibilityEdge=100
 
+kAlignGroundTruthEveryNKeyframes = 10
+
 
 class Viewer3DMapElement(object): 
     def __init__(self):
-        self.cur_pose = None 
+        self.cur_pose = None
+        self.cur_pose_timestamp = None
         self.predicted_pose = None 
         self.reference_pose = None 
         self.poses = [] 
+        self.pose_timestamps = []
         self.points = [] 
         self.colors = []         
         self.covisibility_graph = []
         self.spanning_tree = []        
-        self.loops = []            
+        self.loops = []       
+        self.gt_trajectory = None 
+        self.gt_timestamps = None    
+        self.align_gt_with_scale = False 
         
               
 class Viewer3DVoElement(object): 
     def __init__(self):
         self.poses = [] 
+        self.pose_timestamps = []        
         self.traj3d_est = []   # estimated trajectory 
         self.traj3d_gt = []    # ground truth trajectory            
         
 
 class Viewer3D(object):
-    def __init__(self):
+    def __init__(self, scale=1.0):
+        self.scale = scale
         self.map_state = None
+        self.gt_trajectory = None
+        self.gt_timestamps = None
+        self.align_gt_with_scale = False
+        self.estimated_trajectory = None
+        self.estimated_trajectory_timestamps = None
         self.qmap = Queue()
         self.vo_state = None
         self.qvo = Queue()        
         self._is_running  = Value('i',1)
-        self._is_paused = Value('i',1)
+        self._is_paused = Value('i',0)
+        self._is_map_save = Value('i',0)
+        self._do_step = Value('i',0)
+        self._is_gt_set = Value('i',0)
         self.vp = Process(target=self.viewer_thread,
-                          args=(self.qmap, self.qvo,self._is_running ,self._is_paused,))
+                          args=(self.qmap, self.qvo,self._is_running,self._is_paused,self._is_map_save, self._do_step, self._is_gt_set))
         self.vp.daemon = True
         self.vp.start()
+        
+    def set_gt_trajectory(self, gt_trajectory, gt_timestamps, align_with_scale=False):
+        if len(gt_timestamps) > 0:
+            self.gt_trajectory = gt_trajectory
+            self.gt_timestamps = gt_timestamps
+            self.align_gt_with_scale = align_with_scale
+            self._is_gt_set.value = 0
+            print(f'groundtruth shape: {gt_trajectory.shape}')
 
     def quit(self):
         self._is_running.value = 0
@@ -80,11 +105,29 @@ class Viewer3D(object):
         
     def is_paused(self):
         return (self._is_paused.value == 1)       
+    
+    def is_map_save(self):
+        is_map_save = (self._is_map_save.value == 1) 
+        if is_map_save:
+            self._is_map_save.value = 0
+        return is_map_save   
+    
+    def do_step(self):
+        do_step = (self._do_step.value == 1)
+        if do_step:
+            self._do_step.value = 0
+        return do_step   
 
-    def viewer_thread(self, qmap, qvo, is_running, is_paused):
+    def viewer_thread(self, qmap, qvo, is_running, is_paused, is_map_save, do_step, is_gt_set):
         self.viewer_init(kViewportWidth, kViewportHeight)
+        # init local vars for the the process 
+        self.thread_gt_trajectory = None
+        self.thread_gt_timestamps = None
+        self.thread_align_gt_with_scale = False
+        self.thread_gt_aligned = False
+        self.thread_last_num_poses_gt_was_aligned = 0
         while not pangolin.ShouldQuit() and (is_running.value == 1):
-            self.viewer_refresh(qmap, qvo, is_paused)
+            self.viewer_refresh(qmap, qvo, is_paused, is_map_save, do_step, is_gt_set)
         print('Quitting viewer...')    
 
     def viewer_init(self, w, h):
@@ -93,9 +136,9 @@ class Viewer3D(object):
         pangolin.CreateWindowAndBind('Map Viewer', w, h)
         gl.glEnable(gl.GL_DEPTH_TEST)
         
-        viewpoint_x = 0
-        viewpoint_y = -40
-        viewpoint_z = -80
+        viewpoint_x =   0 * self.scale
+        viewpoint_y = -40 * self.scale
+        viewpoint_z = -80 * self.scale
         viewpoint_f = 1000
             
         self.proj = pangolin.ProjectionMatrix(w, h, viewpoint_f, viewpoint_f, w//2, h//2, 0.1, 5000)
@@ -120,12 +163,16 @@ class Viewer3D(object):
         self.draw_loops = True                
 
         #self.button = pangolin.VarBool('ui.Button', value=False, toggle=False)
+        
         self.checkboxFollow = pangolin.VarBool('ui.Follow', value=True, toggle=True)
         self.checkboxCams = pangolin.VarBool('ui.Draw Cameras', value=True, toggle=True)
         self.checkboxCovisibility = pangolin.VarBool('ui.Draw Covisibility', value=True, toggle=True)  
-        self.checkboxSpanningTree = pangolin.VarBool('ui.Draw Tree', value=True, toggle=True)                
+        self.checkboxSpanningTree = pangolin.VarBool('ui.Draw Tree', value=True, toggle=True)       
+        self.checkboxGT = pangolin.VarBool('ui.Draw GT', value=False, toggle=True)                   
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
-        self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)             
+        self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
+        self.buttonSave = pangolin.VarBool('ui.Save', value=False, toggle=False)   
+        self.buttonStep = pangolin.VarBool('ui.Step', value=False, toggle=False)                      
         #self.float_slider = pangolin.VarFloat('ui.Float', value=3, min=0, max=5)
         #self.float_log_slider = pangolin.VarFloat('ui.Log_scale var', value=3, min=1, max=1e4, logscale=True)
         self.int_slider = pangolin.VarInt('ui.Point Size', value=kDefaultPointSize, min=1, max=10)  
@@ -137,7 +184,7 @@ class Viewer3D(object):
         # print("self.Twc.m",self.Twc.m)
 
 
-    def viewer_refresh(self, qmap, qvo, is_paused):
+    def viewer_refresh(self, qmap, qvo, is_paused, is_map_save, do_step, is_gt_set):
 
         while not qmap.empty():
             self.map_state = qmap.get()
@@ -153,12 +200,24 @@ class Viewer3D(object):
         self.draw_cameras = self.checkboxCams.Get()
         self.draw_covisibility = self.checkboxCovisibility.Get()
         self.draw_spanning_tree = self.checkboxSpanningTree.Get()
+        self.draw_gt = self.checkboxGT.Get()
         
         #if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
-            is_paused.value = 0  
-        else:
             is_paused.value = 1  
+        else:
+            is_paused.value = 0  
+            
+        if pangolin.Pushed(self.buttonSave): 
+            self.checkboxPause.SetVal(True)
+            is_paused.value = 1
+            is_map_save.value = 1            
+            
+        if pangolin.Pushed(self.buttonStep):
+            if not is_paused.value:
+                self.checkboxPause.SetVal(True)
+                is_paused.value = 1            
+            do_step.value = 1 
                     
         # self.int_slider.SetVal(int(self.float_slider))
         self.pointSize = self.int_slider.Get()
@@ -178,29 +237,51 @@ class Viewer3D(object):
         self.dcam.Activate(self.scam)
 
         if self.is_grid:
-            Viewer3D.drawPlane()
+            Viewer3D.drawPlane(scale=self.scale)
 
         # ==============================
         # draw map 
         if self.map_state is not None:
+            
+            if not is_gt_set.value and self.map_state.gt_trajectory is not None:
+                self.thread_gt_trajectory = np.array(self.map_state.gt_trajectory)
+                self.thread_gt_timestamps = np.array(self.map_state.gt_timestamps)
+                self.thread_align_gt_with_scale = self.map_state.align_gt_with_scale
+                is_gt_set.value = 1
+            
             if self.map_state.cur_pose is not None:
                 # draw current pose in blue
                 gl.glColor3f(0.0, 0.0, 1.0)
                 gl.glLineWidth(2)                
-                pangolin.DrawCamera(self.map_state.cur_pose)
+                pangolin.DrawCamera(self.map_state.cur_pose, self.scale)
                 gl.glLineWidth(1)                
                 self.updateTwc(self.map_state.cur_pose)
                 
             if self.map_state.predicted_pose is not None and kDrawCameraPrediction:
                 # draw predicted pose in red
                 gl.glColor3f(1.0, 0.0, 0.0)
-                pangolin.DrawCamera(self.map_state.predicted_pose)           
+                pangolin.DrawCamera(self.map_state.predicted_pose, self.scale)           
                 
+            if self.thread_gt_timestamps is not None: 
+                if self.draw_gt:                
+                    # align the gt to the estimated trajectory every 'kAlignGroundTruthEveryNKeyframes' frames;
+                    # the more estimated frames we have the better the alignment! 
+                    if len(self.map_state.poses) > kAlignGroundTruthEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned:
+                        estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=np.float32)
+                        align_trajs_with_svd(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, align_gt=True, compute_align_error=False, find_scale=self.thread_align_gt_with_scale)
+                        self.thread_gt_aligned = True
+                        self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)
+                    if self.thread_gt_aligned:
+                        gt_lines = [[*self.thread_gt_trajectory[i], *self.thread_gt_trajectory[i+1]] for i in range(len(self.thread_gt_trajectory)-1)]
+                        gl.glLineWidth(1)
+                        gl.glColor3f(1.0, 0.0, 0.0)
+                        pangolin.DrawLines(gt_lines,2)                      
+                    
             if len(self.map_state.poses) >1:
                 # draw keyframe poses in green
                 if self.draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
-                    pangolin.DrawCameras(self.map_state.poses[:])
+                    pangolin.DrawCameras(self.map_state.poses[:], self.scale)
 
             if len(self.map_state.points)>0:
                 # draw keypoints with their color
@@ -212,7 +293,7 @@ class Viewer3D(object):
                 # draw predicted pose in purple
                 gl.glColor3f(0.5, 0.0, 0.5)
                 gl.glLineWidth(2)                
-                pangolin.DrawCamera(self.map_state.reference_pose)      
+                pangolin.DrawCamera(self.map_state.reference_pose, self.scale)      
                 gl.glLineWidth(1)          
                 
             if len(self.map_state.covisibility_graph)>0:
@@ -241,13 +322,13 @@ class Viewer3D(object):
                 # draw poses in green
                 if self.draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
-                    pangolin.DrawCameras(self.vo_state.poses[:-1])
+                    pangolin.DrawCameras(self.vo_state.poses[:-1], self.scale)
 
             if self.vo_state.poses.shape[0] >= 1:
                 # draw current pose in blue
                 gl.glColor3f(0.0, 0.0, 1.0)
                 current_pose = self.vo_state.poses[-1:]
-                pangolin.DrawCameras(current_pose)
+                pangolin.DrawCameras(current_pose, self.scale)
                 self.updateTwc(current_pose[0])
 
             if self.vo_state.traj3d_est.shape[0] != 0:
@@ -274,19 +355,23 @@ class Viewer3D(object):
         
         if map.num_frames() > 0: 
             map_state.cur_pose = map.get_frame(-1).Twc.copy()
+            map_state.cur_pose_timestamp = map.get_frame(-1).timestamp
             
         if slam.tracking.predicted_pose is not None: 
             map_state.predicted_pose = slam.tracking.predicted_pose.inverse().matrix().copy()
             
-        if slam.tracking.kf_ref is not None: 
-            reference_pose = slam.tracking.kf_ref.Twc.copy()            
+        if False: 
+            if slam.tracking.kf_ref is not None: 
+                map_state.reference_pose = slam.tracking.kf_ref.Twc.copy()            
             
         num_map_keyframes = map.num_keyframes()
         keyframes = map.get_keyframes()
         if num_map_keyframes>0:       
             for kf in keyframes:
-                map_state.poses.append(kf.Twc)  
-        map_state.poses = np.array(map_state.poses)
+                map_state.poses.append(kf.Twc)
+                map_state.pose_timestamps.append(kf.timestamp)
+        map_state.poses = np.array(map_state.poses, dtype=np.float32)
+        map_state.pose_timestamps = np.array(map_state.pose_timestamps, dtype=np.float64)
 
         num_map_points = map.num_points()
         if num_map_points>0:
@@ -308,7 +393,13 @@ class Viewer3D(object):
         map_state.covisibility_graph = np.array(map_state.covisibility_graph)   
         map_state.spanning_tree = np.array(map_state.spanning_tree)   
         map_state.loops = np.array(map_state.loops)                     
-                                             
+                            
+        if self.gt_trajectory is not None:
+            if not self._is_gt_set.value:
+                map_state.gt_trajectory = np.array(self.gt_trajectory)
+                map_state.gt_timestamps = np.array(self.gt_timestamps)
+                map_state.align_gt_with_scale = self.align_gt_with_scale
+                             
         self.qmap.put(map_state)
 
 
@@ -317,6 +408,7 @@ class Viewer3D(object):
             return
         vo_state = Viewer3DVoElement()
         vo_state.poses = np.array(vo.poses)
+        vo_state.pose_timestamps = np.array(vo.pose_timestamps)
         vo_state.traj3d_est = np.array(vo.traj3d_est).reshape(-1,3)
         vo_state.traj3d_gt = np.array(vo.traj3d_gt).reshape(-1,3)        
         
@@ -328,9 +420,10 @@ class Viewer3D(object):
 
 
     @staticmethod
-    def drawPlane(num_divs=200, div_size=10):
+    def drawPlane(num_divs=200, div_size=10, scale=1.0):
         gl.glLineWidth(0.5)
         # Plane parallel to x-z at origin with normal -y
+        div_size = scale*div_size
         minx = -num_divs*div_size
         minz = -num_divs*div_size
         maxx = num_divs*div_size

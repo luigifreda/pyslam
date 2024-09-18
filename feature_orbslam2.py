@@ -50,6 +50,9 @@ class Orbslam2Feature2D:
         return self.detectAndCompute(img)
         #return kps, np.array([])
         
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.orb_extractor.SetNumFeatures(num_features) # custom method name for OrbSlam2 python wrapper
+        
     # compute both keypoints and descriptors       
     def detectAndCompute(self, img, mask=None): #mask is fake: it is not considered by the c++ implementation 
         # detect and compute 

@@ -20,7 +20,7 @@
 import math 
 import time
 import numpy as np
-from threading import RLock, Thread
+from threading import RLock, Lock, Thread
 
 from utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
 from frame import Frame
@@ -114,20 +114,35 @@ class MapPointBase(object):
         with self._lock_features:
             return self._observations[keyframe]                 
 
+    def add_observation_no_lock_(self, keyframe, idx):
+        if keyframe not in self._observations:
+            keyframe.set_point_match(self, idx) # add point association in keyframe 
+            self._observations[keyframe] = idx
+            if keyframe.kps_ur is not None and keyframe.kps_ur[idx]>0:
+                self._num_observations += 2
+            else:
+                self._num_observations += 1      
+            return True 
+        # elif self._observations[keyframe] != idx:     # if the keyframe is already there but it is incoherent then fix it!
+        #    self._observations[keyframe] = idx   
+        #    return True              
+        else: 
+            return False    
+        
     def add_observation(self, keyframe, idx):         
         assert(keyframe.is_keyframe)   
         with self._lock_features:            
-            if keyframe not in self._observations:
-                keyframe.set_point_match(self, idx) # add point association in keyframe 
-                self._observations[keyframe] = idx
-                self._num_observations += 1      
-                return True 
-            #elif self._observations[keyframe] != idx:     # if the keyframe is already there but it is incoherent then fix it!
-            #    self._observations[keyframe] = idx   
-            #    return True              
-            else: 
-                return False                   
-
+            return self.add_observation_no_lock_(keyframe, idx)
+        
+    # return (was the observation added?, self.is_bad)
+    def add_observation_if_not_bad(self, keyframe, idx):
+        assert(keyframe.is_keyframe)   
+        with self._lock_features:            
+            if self._is_bad: 
+                return (False, self._is_bad) # we didn't add the observation
+            else:
+                return (self.add_observation_no_lock_(keyframe, idx), self._is_bad)
+            
     def remove_observation(self, keyframe, idx=None):        
         assert(keyframe.is_keyframe)          
         with self._lock_features:                                
@@ -142,9 +157,12 @@ class MapPointBase(object):
                 keyframe.remove_point(self)                
             try:
                 del self._observations[keyframe]
-                self._num_observations = max(0, self._num_observations-1)
+                if keyframe.kps_ur is not None and keyframe.kps_ur[idx]>0:
+                    self._num_observations = max(0, self._num_observations-2)
+                else: 
+                    self._num_observations = max(0, self._num_observations-1)
                 self._is_bad = (self._num_observations <= 2)  
-                if self.kf_ref is keyframe: 
+                if self.kf_ref is keyframe and self._observations: 
                     self.kf_ref = list(self._observations.keys())[0]
                 # if bad remove it from map 
                 if self._is_bad and self.map is not None:                    
@@ -176,6 +194,7 @@ class MapPointBase(object):
         with self._lock_features:
             return (frame in self._frame_views)      
                                              
+    # add a frame observation
     def add_frame_view(self, frame, idx):
         assert(not frame.is_keyframe)
         with self._lock_features:
@@ -209,13 +228,21 @@ class MapPointBase(object):
     @property
     def is_bad(self):
         with self._lock_features:
-            with self._lock_pos:    
+            #with self._lock_pos:    
                 return self._is_bad                
 
     @property
     def num_observations(self):
         with self._lock_features:
             return self._num_observations
+        
+    def is_good_with_min_obs(self, minObs):
+        with self._lock_features:
+            return not self._is_bad and (self._num_observations >= minObs)        
+        
+    def is_bad_and_is_good_with_min_obs(self, minObs):
+        with self._lock_features:
+            return (self._is_bad, not self._is_bad and (self._num_observations >= minObs))          
             
     def increase_visible(self, num_times=1):
         with self._lock_features:
@@ -248,12 +275,15 @@ class MapPoint(MapPointBase):
         self.first_kid = -1     # first observation keyframe id 
         #self.idxf_ref = idxf            
         if keyframe is not None:
-            self.first_kid = keyframe.kid 
-            self.des = keyframe.des[idxf]  
+            if keyframe.is_keyframe: 
+                self.first_kid = keyframe.kid 
+            if idxf is not None:
+                self.des = keyframe.des[idxf]  
             # update normal and depth infos 
             po = (self._pt - self.kf_ref.Ow)
             self.normal, dist = normalize_vector(po)
-            level = keyframe.octaves[idxf]
+            if idxf is not None:            
+                level = keyframe.octaves[idxf]
             level_scale_factor =  Frame.feature_manager.scale_factors[level]
             self._max_distance = dist * level_scale_factor
             self._min_distance = self._max_distance / Frame.feature_manager.scale_factors[Frame.feature_manager.num_levels-1]     
@@ -261,6 +291,64 @@ class MapPoint(MapPointBase):
         self.num_observations_on_last_update_des = 1       # must be 1!    
         self.num_observations_on_last_update_normals = 1   # must be 1!       
         
+    def to_json(self):     
+        return {'id': int(self.id) if self.id is not None else None, 
+                '_observations': [(int(kf.id), int(idx)) for kf,idx in self._observations.items()], 
+                '_frame_views': [(int(f.id), int(idx)) for f,idx in self._frame_views.items()],
+                '_is_bad': bool(self._is_bad),
+                '_num_observations': self._num_observations,
+                'num_times_visible': self.num_times_visible,
+                'num_times_found': self.num_times_found,
+                'last_frame_id_seen': self.last_frame_id_seen,
+                'pt': self.pt.tolist(),
+                'color': self.color,
+                'des': self.des.tolist(),
+                '_min_distance': self._min_distance,
+                '_max_distance': self._max_distance,
+                'normal': self.normal.tolist(),
+                'first_kid': int(self.first_kid),
+                'kf_ref': int(self.kf_ref.id) if self.kf_ref is not None else None
+                }        
+        
+    @staticmethod 
+    def from_json(json_str):
+        p = MapPoint(json_str['pt'], json_str['color'], keyframe=None, idxf=None, id=json_str['id'])
+        
+        p._observations = json_str['_observations']
+        p._frame_views = json_str['_frame_views']
+        p._is_bad = json_str['_is_bad']
+        p._num_observations = json_str['_num_observations']
+        p.num_times_visible = json_str['num_times_visible']
+        p.num_times_found = json_str['num_times_found']
+        p.last_frame_id_seen = json_str['last_frame_id_seen']
+        
+        p.des = np.array(json_str['des'])
+        p._min_distance = json_str['_min_distance']
+        p._max_distance = json_str['_max_distance']
+        p.normal = np.array(json_str['normal'])
+        p.first_kid = json_str['first_kid']
+        p.kf_ref = json_str['kf_ref']
+        return p
+        
+    def replace_ids_with_objects(self, points, frames, keyframes):
+        def get_object_with_id(id, objs):
+            if id is None: 
+                return None            
+            found_objs = [o for o in objs if o is not None and o.id == id]
+            #print(f'found_objs = {found_objs}, id = {id}, objs = {[o.id for o in objs]}')
+            return found_objs[0] if len(found_objs) > 0 else None
+        # get actual _observations
+        if self._observations is not None: 
+            actual_observations = {get_object_with_id(fid, keyframes):idx for fid,idx in self._observations}
+            self._observations = actual_observations
+        # get actual _frame_views
+        if self._frame_views is not None: 
+            actual_frame_views = {get_object_with_id(fid, frames):idx for fid,idx in self._frame_views}
+            self._frame_views = actual_frame_views
+        # get actual kf_ref 
+        if self.kf_ref is not None:
+            self.kf_ref = get_object_with_id(self.kf_ref, keyframes)
+                    
     @property  
     def pt(self):
         with self._lock_pos:   
@@ -290,7 +378,7 @@ class MapPoint(MapPointBase):
         
     def get_reference_keyframe(self):
         with self._lock_features:
-            return kf_ref            
+            return self.kf_ref            
                                  
     # return array of corresponding descriptors 
     def descriptors(self):
@@ -405,7 +493,7 @@ class MapPoint(MapPointBase):
         
 
     # update normal and depth representations     
-    def update_normal_and_depth(self, frame=None, idxf=None,force=False):
+    def update_normal_and_depth(self, frame=None, idxf=None, force=False):
         skip = False  
         with self._lock_features:
             with self._lock_pos:   
@@ -437,9 +525,9 @@ class MapPoint(MapPointBase):
             self.normal = normal         
                     
         
-    def update_best_descriptor(self,force=False):
+    def update_best_descriptor(self, force=False):
         skip = False 
-        with self._lock_features:
+        with self._lock_features:         
             if self._is_bad:
                 return                          
             if self._num_observations > self.num_observations_on_last_update_des or force:    # implicit if self._num_observations > 1   
@@ -447,7 +535,7 @@ class MapPoint(MapPointBase):
                 observations = list(self._observations.items())
             else: 
                 skip = True 
-        if skip:
+        if skip or len(observations)==0:
             return 
         descriptors = [kf.des[idx] for kf,idx in observations if not kf.is_bad]
         N = len(descriptors)
@@ -462,10 +550,12 @@ class MapPoint(MapPointBase):
 
 
     def update_info(self):
-        with self._lock_features:
-            with self._lock_pos:            
-                self.update_normal_and_depth()
-                self.update_best_descriptor()     
+        #if self._is_bad:
+        #    return
+        # with self._lock_features:
+        #     with self._lock_pos:            
+        self.update_normal_and_depth()
+        self.update_best_descriptor()     
                              
     # predict detection level from map point distance    
     def predict_detection_level(self, dist):

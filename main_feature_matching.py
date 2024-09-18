@@ -44,7 +44,7 @@ img1_box = None               # image 1 bounding box (initialization)
 model_fitting_type = None     # 'homography' or 'fundamental' (automatically set below, this is an initialization)
 draw_horizontal_layout=True   # draw matches with the two images in an horizontal or vertical layout (automatically set below, this is an initialization) 
 
-test_type='graf'             # select the test type (there's a template below to add your test)
+test_type='kitti'             # select the test type (there's a template below to add your test)
 #  
 if test_type == 'box': 
     img1 = cv2.imread(kScriptFolder + '/test/data/box.png')          # queryImage  
@@ -131,7 +131,7 @@ tracker_type = None
 
 # select your tracker configuration (see the file feature_tracker_configs.py) 
 # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT_XFEAT, LOFTR
-tracker_config = FeatureTrackerConfigs.LOFTR
+tracker_config = FeatureTrackerConfigs.XFEAT_XFEAT
 tracker_config['num_features'] = num_features
 tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default in feature_tracker_configs.py
 if tracker_type is not None:
@@ -241,16 +241,18 @@ else:
 # Drawing  
 #============================================  
 
+show_kps_size = False
 img_matched_inliers = None 
+
 if mask is not None:    
     # Build arrays of matched inliers 
     mask_idxs = (mask.ravel() == 1)    
     
     kps1_matched_inliers = kps1_matched[mask_idxs]
-    kps1_size_inliers = kps1_size[mask_idxs]
+    kps1_size_inliers = kps1_size[mask_idxs] if kps1_size is not None else None
     des1_matched_inliers  = des1_matched[mask_idxs][:] if des1_matched is not None else None
     kps2_matched_inliers = kps2_matched[mask_idxs]   
-    kps2_size_inliers = kps2_size[mask_idxs]    
+    kps2_size_inliers = kps2_size[mask_idxs] if kps2_size is not None else None
     des2_matched_inliers  = des2_matched[mask_idxs][:] if des2_matched is not None else None       
     print('num inliers: ', len(kps1_matched_inliers))
     print('inliers percentage: ', len(kps1_matched_inliers)/max(len(kps1_matched),1.)*100,'%')
@@ -258,14 +260,16 @@ if mask is not None:
     if des1_matched_inliers is not None and des2_matched_inliers is not None: 
         sigma_mad_inliers, dists = descriptor_sigma_mad(des1_matched_inliers,des2_matched_inliers,descriptor_distances=feature_tracker.descriptor_distances)
         print('3 x sigma-MAD of descriptor distances (inliers): ', 3 * sigma_mad)  
-    #print('distances: ', dists)  
-    img_matched_inliers = draw_feature_matches(img1, img2, kps1_matched_inliers, kps2_matched_inliers, kps1_size_inliers, kps2_size_inliers,draw_horizontal_layout)    
-                          
-                          
-img_matched = draw_feature_matches(img1, img2, kps1_matched, kps2_matched, kps1_size, kps2_size,draw_horizontal_layout)
-                          
+    #print('distances: ', dists)
+    if not show_kps_size:
+        kps1_size_inliers, kps2_size_inliers = None, None
+    img_matched_inliers = draw_feature_matches(img1, img2, kps1_matched_inliers, kps2_matched_inliers, kps1_size_inliers, kps2_size_inliers, draw_horizontal_layout)    
+
+if not show_kps_size:
+    kps1_size, kps2_size = None, None
+img_matched = draw_feature_matches(img1, img2, kps1_matched, kps2_matched, kps1_size, kps2_size, draw_horizontal_layout)                          
                                                 
-fig1 = MPlotFigure(img_matched, title='All matches')
 if img_matched_inliers is not None: 
-    fig2 = MPlotFigure(img_matched_inliers, title='Inlier matches')
+    fig1 = MPlotFigure(img_matched_inliers, title='Inlier matches')                                                
+fig2 = MPlotFigure(img_matched, title='All matches')
 MPlotFigure.show()

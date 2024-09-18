@@ -185,6 +185,11 @@ class PyramidAdaptor(object):
             self.block_adaptor = BlockAdaptor(self.detector, self.descriptor, row_divs = kAdaptorNumRowDivs, col_divs = kAdaptorNumColDivs, do_parallel=False)            
 
 
+    def setNumFeatures(self, num_features):
+        self.num_features = num_features
+        self.initSigmaLevels()
+        
+
     def initSigmaLevels(self): 
         num_levels = max(kNumLevelsInitSigma, self.num_levels)
         self.scale_factors = np.zeros(num_levels)

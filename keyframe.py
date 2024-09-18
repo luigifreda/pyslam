@@ -19,6 +19,7 @@
 
 import cv2
 import numpy as np
+import json
 
 from scipy.spatial import cKDTree
 
@@ -48,6 +49,54 @@ class KeyFrameGraph(object):
         # 
         self.is_first_connection=True 
         
+    def to_json(self):
+        with self._lock_connections:
+            return {'parent': self.parent.id if self.parent is not None else None, 
+                    'children': [k.id for k in self.children],
+                    'loop_edges': [k.id for k in self.loop_edges],
+                    'not_to_erase': bool(self.not_to_erase),
+                    'connected_keyframes_weights': [ (k.id,w) for k,w in self.connected_keyframes_weights.items()],
+                    'ordered_keyframes_weights': [ (k.id,w) for k,w in self.ordered_keyframes_weights.items()],
+                    'is_first_connection': bool(self.is_first_connection)
+                    }
+       
+    def init_from_json(self, json_str):
+        with self._lock_connections:
+            self.parent = json_str['parent']
+            self.children = json_str['children'] # converted to set in replace_ids_with_objects()
+            self.loop_edges = json_str['loop_edges'] # converted to set in replace_ids_with_objects()
+            self.not_to_erase = json_str['not_to_erase']
+            self.connected_keyframes_weights = json_str['connected_keyframes_weights'] # converted to Counter in replace_ids_with_objects()
+            self.ordered_keyframes_weights = json_str['ordered_keyframes_weights'] # converted to OrderedDict in replace_ids_with_objects()
+            self.is_first_connection = json_str['is_first_connection']
+       
+    # post processing after deserialization to replace saved ids with reloaded objects       
+    def replace_ids_with_objects(self, points, frames, keyframes):
+        #print(f'replace ids with objects, keyframes = {[k.id for k in keyframes]}')
+        def get_object_with_id(id, objs):
+            if id is None: 
+                return None            
+            found_objs = [o for o in objs if o is not None and o.id == id]
+            #print(f'found_objs = {found_objs}, id = {id}, objs = {[o.id for o in objs]}')
+            return found_objs[0] if len(found_objs) > 0 else None
+        # get actual parent 
+        if self.parent is not None:
+            self.parent = get_object_with_id(self.parent, keyframes)        
+        # get actual children
+        if self.children is not None: 
+            actual_children = set([get_object_with_id(id, keyframes) for id in self.children])
+            self.children = actual_children
+        # get actual loop edges
+        if self.loop_edges is not None: 
+            actual_loop_edges = set([get_object_with_id(id, keyframes) for id in self.loop_edges])
+            self.loop_edges = actual_loop_edges
+        # get actual connected_keyframes_weights
+        if self.connected_keyframes_weights is not None: 
+            self.connected_keyframes_weights = Counter({get_object_with_id(id, keyframes):w for id,w in self.connected_keyframes_weights})
+        # get actual ordered_keyframes_weights
+        if self.ordered_keyframes_weights is not None: 
+            self.ordered_keyframes_weights = OrderedDict({get_object_with_id(id, keyframes):w for id,w in self.ordered_keyframes_weights})
+                    
     # ===============================    
     # spanning tree     
     def add_child(self, keyframe):
@@ -144,15 +193,20 @@ class KeyFrameGraph(object):
                     
 
 class KeyFrame(Frame,KeyFrameGraph):
-    def __init__(self, frame, img=None):
+    def __init__(self, frame: Frame, img=None):
         KeyFrameGraph.__init__(self)
-        Frame.__init__(self, img=None, camera=frame.camera, pose=frame.pose, id=frame.id, timestamp=frame.timestamp)   # here we MUST have img=None in order to avoid recomputing keypoint info
+        Frame.__init__(self, img=None, camera=frame.camera, pose=frame.pose, id=frame.id, timestamp=frame.timestamp, img_id=frame.img_id)   # here we MUST have img=None in order to avoid recomputing keypoint info
                 
         if frame.img is not None: 
             self.img = frame.img  # this is already a copy of an image 
         else:
             if img is not None: 
                 self.img = img.copy()
+                
+        if frame.depth_img is not None: 
+            self.depth_img = frame.depth_img
+        else:
+            self.depth_img = None
                 
         self.map = None 
                 
@@ -166,13 +220,15 @@ class KeyFrame(Frame,KeyFrameGraph):
         self._pose_Tcp = CameraPose() 
 
         # share keypoints info with frame (these are computed once for all on frame initialization and they are not changed anymore)
-        self.kps     = frame.kps      # keypoint coordinates                  [Nx2]
-        self.kpsu    = frame.kpsu     # [u]ndistorted keypoint coordinates    [Nx2]
-        self.kpsn    = frame.kpsn     # [n]ormalized keypoint coordinates     [Nx2] (Kinv * [kp,1])    
-        self.octaves = frame.octaves  # keypoint octaves                      [Nx1]
-        self.sizes   = frame.sizes    # keypoint sizes                        [Nx1] 
-        self.angles  = frame.angles   # keypoint angles                       [Nx1] 
-        self.des     = frame.des      # keypoint descriptors                  [NxD] where D is the descriptor length 
+        self.kps     = frame.kps        # keypoint coordinates                  [Nx2]
+        self.kpsu    = frame.kpsu       # [u]ndistorted keypoint coordinates    [Nx2]
+        self.kpsn    = frame.kpsn       # [n]ormalized keypoint coordinates     [Nx2] (Kinv * [kp,1])    
+        self.octaves = frame.octaves    # keypoint octaves                      [Nx1]
+        self.sizes   = frame.sizes      # keypoint sizes                        [Nx1] 
+        self.angles  = frame.angles     # keypoint angles                       [Nx1] 
+        self.des     = frame.des        # keypoint descriptors                  [NxD] where D is the descriptor length 
+        self.depths  = frame.depths     # keypoint depths                       [Nx1]
+        self.kps_ur = frame.kps_ur      # right keypoint coordinates            [Nx1]
         
         if hasattr(frame, '_kd'):     
             self._kd = frame._kd 
@@ -184,6 +240,37 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.points   = frame.get_points()     # map points => self.points[idx] is the map point matched with self.kps[idx] (if is not None)
         self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)     # used just in propagate_map_point_matches()   
         
+    def to_json(self):
+        frame_json = Frame.to_json(self)
+        
+        frame_json['is_keyframe'] = self.is_keyframe
+        frame_json['kid'] = self.kid
+        frame_json['_is_bad'] = self._is_bad        
+        frame_json['to_be_erased'] = self.to_be_erased
+        frame_json['_pose_Tcp'] = json.dumps(self._pose_Tcp.Tcw.astype(float).tolist())
+        
+        keyframe_graph_json = KeyFrameGraph.to_json(self)
+        return {**frame_json, **keyframe_graph_json}
+    
+    @staticmethod
+    def from_json(json_str):
+        f = Frame.from_json(json_str)
+        kf = KeyFrame(f)
+                
+        kf.is_keyframe = bool(json_str['is_keyframe'])
+        kf.kid = json_str['kid']        
+        kf._is_bad = bool(json_str['_is_bad'])        
+        kf.to_be_erased = bool(json_str['to_be_erased'])
+        kf._pose_Tcp = CameraPose(json.loads(json_str['_pose_Tcp']))
+        
+        kf.init_from_json(json_str)
+        return kf
+        
+    # post processing after deserialization to replace saved ids with reloaded objects
+    def replace_ids_with_objects(self, points, frames, keyframes):
+        Frame.replace_ids_with_objects(self, points, frames, keyframes)
+        KeyFrameGraph.replace_ids_with_objects(self, points, frames, keyframes)
+                            
     # associate matched map points to observations    
     def init_observations(self):
         with self._lock_features:           
@@ -246,7 +333,7 @@ class KeyFrame(Frame,KeyFrameGraph):
 
     def set_bad(self): 
         with self._lock_connections: 
-            if self.kid == 0: 
+            if not self.kid: 
                 return 
             if self.not_to_erase: 
                 self.to_be_erased = True     

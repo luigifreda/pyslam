@@ -62,6 +62,8 @@ public:
 
     void detect(cv::InputArray image, cv::InputArray mask, std::vector<cv::KeyPoint > &keypoints, bool bComputeOrientation=true);
 
+    void SetNumFeatures(int nfeatures);
+
     int inline GetNumFeatures() const{
         return nfeatures;}
 

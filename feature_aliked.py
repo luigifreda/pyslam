@@ -72,6 +72,9 @@ class AlikedFeature2D:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
         self.ALIKED = ALIKED(conf=config).eval().to(self.device)
         
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.num_features = num_features
+                
     def extract(self, image):
         tensor = numpy_image_to_torch(image)
         feats = self.ALIKED.extract(tensor.to(self.device))

@@ -16,7 +16,7 @@ config = Config()
 
 lightglue_base_path='../../thirdparty/LightGlue'
 
-dataset = dataset_factory(config.dataset_settings)
+dataset = dataset_factory(config)
 # torch.set_float32_matmul_precision('high')
 LightGlue.pruning_keypoint_thresholds['cuda']
 # torch.set_grad_enabled(False)

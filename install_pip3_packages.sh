@@ -36,6 +36,7 @@ install_pip_package yacs==0.1.8
 install_pip_package gdown  # to download from google drive
 install_pip_package ordered-set==4.1.0 # from https://pypi.org/project/ordered-set/
 
+install_pip_package numpy-quaternion==2023.0.4
 install_pip_package psutil
 
 # Install opencv_python from source with non-free modules enabled 
@@ -68,6 +69,7 @@ else
 fi 
 
 install_pip_package rerun-sdk #==0.17.0
+install_pip_package ujson
 
 pip install protobuf==3.20.*    # for delf NN
 

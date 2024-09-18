@@ -34,7 +34,8 @@ class FeatureManagerConfigs(object):
     # Template configuration (required for feature_manager_factory(), see feature_manager.py)
     TEMPLATE = dict(num_features=kNumFeatures,                     
                 num_levels=8,     
-                scale_factor = 1.2,                                     
+                scale_factor = 1.2,
+                sigma_level0 = Parameters.kSigmaLevel0,                                     
                 detector_type = FeatureDetectorTypes.NONE,
                 descriptor_type = FeatureDescriptorTypes.NONE)      
             

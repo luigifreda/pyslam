@@ -21,5 +21,7 @@ videos/webcam
 kf_info.log 
 local_mapping.log 
 tum_association_matches.txt 
+kitti_trajectory.txt
+map.json
 
 thirdparty/protoc 

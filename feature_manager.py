@@ -96,9 +96,10 @@ class KeyPointFilterTypes(Enum):
 def feature_manager_factory(num_features=kNumFeatureDefault, 
                             num_levels = kNumLevelsDefault,                  # number of pyramid levels or octaves for detector and descriptor
                             scale_factor = kScaleFactorDefault,              # detection scale factor (if it can be set, otherwise it is automatically computed)
+                            sigma_level0 = kSigmaLevel0,                     # sigma of the keypoint localization at level 0 
                             detector_type = FeatureDetectorTypes.FAST, 
                             descriptor_type = FeatureDescriptorTypes.ORB):
-    return FeatureManager(num_features, num_levels, scale_factor, detector_type, descriptor_type)
+    return FeatureManager(num_features, num_levels, scale_factor, sigma_level0, detector_type, descriptor_type)
 
 
 # Manager of both detector and descriptor 
@@ -107,8 +108,9 @@ class FeatureManager(object):
     def __init__(self, num_features=kNumFeatureDefault, 
                        num_levels = kNumLevelsDefault,                         # number of pyramid levels or octaves for detector and descriptor
                        scale_factor = kScaleFactorDefault,                     # detection scale factor (if it can be set, otherwise it is automatically computed)
+                       sigma_level0 = kSigmaLevel0,                            # sigma of the keypoint localization at level 0 
                        detector_type = FeatureDetectorTypes.FAST,  
-                       descriptor_type = FeatureDescriptorTypes.ORB):
+                       descriptor_type = FeatureDescriptorTypes.ORB,):
         self.detector_type = detector_type 
         self._feature_detector   = None 
                 
@@ -121,7 +123,7 @@ class FeatureManager(object):
         self.first_level = 0              # not always applicable = > 0: start pyramid from input image; 
                                           #                          -1: start pyramid from up-scaled image*scale_factor (as in SIFT)
         self.scale_factor = scale_factor  # scale factor bewteen two octaves 
-        self.sigma_level0 = kSigmaLevel0  # sigma on first octave 
+        self.sigma_level0 = sigma_level0  # sigma of the keypoint localization at level 0 
         self.layers_per_octave = 3        # for methods that uses octaves (SIFT, SURF, etc)
         
         # feature norm options  
@@ -327,7 +329,7 @@ class FeatureManager(object):
             #     
         elif self.detector_type == FeatureDetectorTypes.XFEAT:         
             self.oriented_features = False                         
-            self._feature_detector = XfeatFeature2D()  
+            self._feature_detector = XfeatFeature2D(self.num_features)  
             if self.descriptor_type != FeatureDescriptorTypes.NONE:              
                 self.use_pyramid_adaptor = self.num_levels > 1    
                 self.need_nms = self.num_levels > 1   
@@ -561,7 +563,10 @@ class FeatureManager(object):
                 #
                 #
             elif self.descriptor_type == FeatureDescriptorTypes.ORB2: 
-                self._feature_descriptor = self.ORB_create(**self.orb_params)                           
+                if self.detector_type == FeatureDetectorTypes.ORB2:
+                    self._feature_descriptor = self._feature_detector
+                else: 
+                    self._feature_descriptor = self.ORB_create(**self.orb_params)                           
                 #
                 #                      
             elif self.descriptor_type == FeatureDescriptorTypes.BRISK:    
@@ -803,6 +808,31 @@ class FeatureManager(object):
                                        do_sat_features_per_level = self.do_sat_features_per_level)       
             self.pyramid_adaptor = PyramidAdaptor(**self.pyramid_params)
          
+    
+    def set_num_features(self, num_features):
+        if self.pyramid_adaptor is not None:
+            self.pyramid_adaptor.setNumFeatures(num_features)
+        if self._feature_detector is not None:
+            try: 
+                self._feature_detector.setMaxFeatures(self.num_features)
+            except:
+                Printer.orange('WARNING: could not set nFeatures in detector: ', self.detector_type.name)
+        if self._feature_descriptor is not None:                
+            try: 
+                self._feature_descriptor.setMaxFeatures(self.num_features)
+            except:
+                Printer.orange('WARNING: could not set nFeatures in descriptor: ', self.detector_type.name)          
+    
+    def set_double_num_features(self):
+        if not hasattr(self, '_original_num_features'):
+            self._original_num_features = self.num_features
+        self.num_features = 2 * self._original_num_features
+        self.set_num_features(self.num_features)
+    
+    def set_normal_num_features(self):
+        if hasattr(self, '_original_num_features'):
+            self.num_features = self._original_num_features
+            self.set_num_features(self.num_features)                
     
     def set_sift_parameters(self):
         # N.B.: The number of SIFT octaves is automatically computed from the image resolution, 

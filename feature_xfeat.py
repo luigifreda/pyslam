@@ -33,12 +33,12 @@ class CVWrapper():
         return self.mtd.detectAndCompute(torch.tensor(x).unsqueeze(0).float().unsqueeze(0))[0]
 
 class XFeat2D: 
-    def __init__(self): 
+    def __init__(self, num_features=2000): 
         self.lock = RLock()
                 
         print('====>XFeat')
         # This class runs the SuperPoint network and processes its outputs.
-        self.xfeat = XFeat(top_k=2000)
+        self.xfeat = XFeat(top_k=num_features)
               
         self.pts = []
         self.kps = []        
@@ -48,6 +48,9 @@ class XFeat2D:
         self.frameFloat = None 
         self.keypoint_size = 30  # just a representative size for visualization and in order to convert extracted points to cv2.KeyPoint 
           
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.xfeat.top_k = num_features
+                  
     # compute both keypoints and descriptors       
     def detectAndCompute(self, frame, mask=None):  # mask is a fake input 
         with self.lock: 

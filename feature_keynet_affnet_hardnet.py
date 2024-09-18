@@ -44,6 +44,13 @@ class KeyNetAffNetHardNetFeature2D:
         self.num_features = num_features
         self.feature = KF.KeyNetAffNetHardNet(num_features, True).eval().to(self.device)
 
+    def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
+        self.num_features = num_features
+        try: 
+            self.feature.detector.num_features = num_features
+        except:
+            Printer.red('[KeyNetAffNetHardNetFeature2D] Error setting num_features')
+        
     def convert_to_keypoints_array(self, lafs):
         mkpts = KF.get_laf_center(lafs).squeeze().detach().cpu().numpy()
         return mkpts
