@@ -51,7 +51,7 @@ You can use this framework as a baseline to play with [local features](#supporte
 <center> 
 <img src="images/STEREO.png" alt="Visual Odometry" width="600" border="0" /> 
 <img src="images/feature-matching.png" alt="Feature Matching" width="600" border="0" />  
-<img src="images/RGBD.png" alt="SLAM" width="600" border="0" />
+<img src="images/RGBD2.png" alt="SLAM" width="600" border="0" />
 <img src="images/main-rerun-vo-and-matching.png" alt="Feature matching and Visual Odometry" width="600" border="0" />  
 </center>
 

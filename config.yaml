@@ -63,8 +63,10 @@ TUM_DATASET:
   type: tum
   sensor_type: rgbd # here, sensor_type can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
-  name: rgbd_dataset_freiburg1_room
-  settings: settings/TUM1.yaml
+  #name: rgbd_dataset_freiburg1_room   
+  name: rgbd_dataset_freiburg3_long_office_household
+  #settings: settings/TUM1.yaml
+  settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file
   associations: associations.txt
   groundtruth_file: auto
 
