@@ -37,7 +37,7 @@ from dataset import SensorType
 
 
 kVerbose=True     
-kRansacThresholdNormalized = 0.0003  # metric threshold used for normalized image coordinates 
+kRansacThresholdNormalized = 0.0004  # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
 
 kMinIdDistBetweenIntializingFrames = 2
@@ -105,8 +105,8 @@ class Initializer(object):
     def initialize(self, f_cur: Frame, img_cur):
 
         if self.num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsHalved: 
-            self.num_min_triangulated_points = 0.5 * Parameters.kInitializerNumMinTriangulatedPoints
-            self.num_failures = 0
+            self.num_min_triangulated_points = 2.0/3 * Parameters.kInitializerNumMinTriangulatedPoints
+            #self.num_failures = 0
             Printer.orange('Initializer: halved min num triangulated features to ', self.num_min_triangulated_points)            
 
         # prepare the output 
@@ -226,7 +226,10 @@ class Initializer(object):
             if self.sensor_type == SensorType.MONOCULAR:
                 # set scene median depth to equal desired_median_depth'
                 desired_median_depth = Parameters.kInitializerDesiredMedianDepth
-                median_depth = kf_cur.compute_points_median_depth(out.pts)        
+                median_depth = kf_cur.compute_points_median_depth(out.pts)     
+                if median_depth <= 0: 
+                    is_ok = False
+                    return InitializerOutput(), is_ok
                 depth_scale = desired_median_depth/median_depth 
                 print('forcing current median depth ', median_depth,' to ',desired_median_depth) 
                 out.pts[:,:3] = out.pts[:,:3] * depth_scale  # scale points 
