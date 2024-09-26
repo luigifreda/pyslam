@@ -8,6 +8,8 @@
 
 # ====================================================
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 set -e
 
 print_blue "=================================================================="
@@ -28,6 +30,19 @@ rm -Rf cpp/utils/lib
 if [ -d "thirdparty/opencv-python" ]; then
     rm -Rf thirdparty/opencv-python
 fi
+
+cd thirdparty/pydbow3
+./clean.sh
+cd $SCRIPT_DIR
+
+cd thirdparty/pydbow2
+./clean.sh
+cd $SCRIPT_DIR
+
+cd thirdparty/pyibow
+./clean.sh
+cd $SCRIPT_DIR
+
 
 # TODO
 # clean downloaded models 

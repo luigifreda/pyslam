@@ -1,0 +1,8 @@
+{
+    "coords_file": "/datasets/CityCentre/imageCoords.mat",
+    "gt_file": "/datasets/CityCentre/groundtruth.mat",
+    "img_dir": "/datasets/CityCentre/images/",
+    "min_consecutive_loops": 5,
+    "min_inliers": 22,
+    "p": 50
+}

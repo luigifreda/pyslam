@@ -36,7 +36,8 @@ num_features=2000
 
  
 # select your tracker configuration (see the file feature_tracker_configs.py) 
-feature_tracker_config = FeatureTrackerConfigs.TEST
+# FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
+feature_tracker_config = FeatureTrackerConfigs.ORB2
 feature_tracker_config['num_features'] = num_features
 
 feature_manager_config = FeatureManagerConfigs.extract_from(feature_tracker_config)
@@ -45,6 +46,8 @@ feature_manager = feature_manager_factory(**feature_manager_config)
 
 des = None 
 
+img_old = img.copy()
+    
 # loop for measuring time performance 
 N=20
 for i in range(N):
@@ -55,7 +58,7 @@ for i in range(N):
     
     # detect keypoints and compute descriptors 
     kps, des = feature_manager.detectAndCompute(img) 
-        
+    
     timer.refresh()
 
 #sizes = np.array([x.size for x in kps], dtype=np.float32) 

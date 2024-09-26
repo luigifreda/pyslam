@@ -32,8 +32,7 @@ kUiWidth = 180
 kDefaultPointSize = 2
 kViewportWidth = 1024
 #kViewportHeight = 768
-kViewportHeight = 550
-kDrawCameraPrediction = False   
+kViewportHeight = 550   
 kDrawReferenceCamera = True   
 
 kMinWeightForDrawingCovisibilityEdge=100
@@ -68,7 +67,7 @@ class Viewer3DVoElement(object):
         
 
 class Viewer3D(object):
-    def __init__(self, scale=1.0):
+    def __init__(self, scale=0.1):
         self.scale = scale
         self.map_state = None
         self.gt_trajectory = None
@@ -168,7 +167,8 @@ class Viewer3D(object):
         self.checkboxCams = pangolin.VarBool('ui.Draw Cameras', value=True, toggle=True)
         self.checkboxCovisibility = pangolin.VarBool('ui.Draw Covisibility', value=True, toggle=True)  
         self.checkboxSpanningTree = pangolin.VarBool('ui.Draw Tree', value=True, toggle=True)       
-        self.checkboxGT = pangolin.VarBool('ui.Draw GT', value=False, toggle=True)                   
+        self.checkboxGT = pangolin.VarBool('ui.Draw GT', value=False, toggle=True)    
+        self.checkboxPredicted = pangolin.VarBool('ui.Draw Predicted', value=False, toggle=True)                       
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
         self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
         self.buttonSave = pangolin.VarBool('ui.Save', value=False, toggle=False)   
@@ -201,6 +201,7 @@ class Viewer3D(object):
         self.draw_covisibility = self.checkboxCovisibility.Get()
         self.draw_spanning_tree = self.checkboxSpanningTree.Get()
         self.draw_gt = self.checkboxGT.Get()
+        self.draw_predicted = self.checkboxPredicted.Get()
         
         #if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
@@ -257,7 +258,7 @@ class Viewer3D(object):
                 gl.glLineWidth(1)                
                 self.updateTwc(self.map_state.cur_pose)
                 
-            if self.map_state.predicted_pose is not None and kDrawCameraPrediction:
+            if self.map_state.predicted_pose is not None and self.draw_predicted:
                 # draw predicted pose in red
                 gl.glColor3f(1.0, 0.0, 0.0)
                 pangolin.DrawCamera(self.map_state.predicted_pose, self.scale)           
@@ -396,8 +397,8 @@ class Viewer3D(object):
                             
         if self.gt_trajectory is not None:
             if not self._is_gt_set.value:
-                map_state.gt_trajectory = np.array(self.gt_trajectory)
-                map_state.gt_timestamps = np.array(self.gt_timestamps)
+                map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
+                map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
                 map_state.align_gt_with_scale = self.align_gt_with_scale
                              
         self.qmap.put(map_state)
@@ -408,7 +409,7 @@ class Viewer3D(object):
             return
         vo_state = Viewer3DVoElement()
         vo_state.poses = np.array(vo.poses)
-        vo_state.pose_timestamps = np.array(vo.pose_timestamps)
+        vo_state.pose_timestamps = np.array(vo.pose_timestamps, dtype=np.float64)
         vo_state.traj3d_est = np.array(vo.traj3d_est).reshape(-1,3)
         vo_state.traj3d_gt = np.array(vo.traj3d_gt).reshape(-1,3)        
         

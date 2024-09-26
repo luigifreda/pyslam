@@ -32,6 +32,11 @@ LIB_PATHS:
   torch-dimcheck: thirdparty/disk/submodules/torch-dimcheck
   torch-localize: thirdparty/disk/submodules/torch-localize
   unets: thirdparty/disk/submodules/unets
+  pydbow3: thirdparty/pydbow3/lib
+  pydbow2: thirdparty/pydbow2/lib
+  pyibow: thirdparty/pyibow/lib
+  pyobindex2: thirdparty/pyibow/lib
+  vpr: thirdparty/vpr, thirdparty/patch_netvlad
 
 
 DATASET:
@@ -64,11 +69,14 @@ TUM_DATASET:
   sensor_type: rgbd # here, sensor_type can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
-  name: rgbd_dataset_freiburg1_room 
-  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
+  name: rgbd_dataset_freiburg3_long_office_household
+  settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file    
   #
-  # name: rgbd_dataset_freiburg3_long_office_household
-  # settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file  
+  # name: rgbd_dataset_freiburg1_xyz 
+  # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file
+  #
+  # name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations
+  # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto
@@ -76,10 +84,15 @@ TUM_DATASET:
 
 EUROC_DATASET:
   type: euroc
-  sensor_type: stereo # here, sensor_type can be 'mono' or 'stereo'
+  sensor_type: mono # here, sensor_type can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/euroc
-  #name: MH01
-  name: V102
+  name: MH01
+  #name: MH02  
+  #name: MH03    
+  #name: V101  
+  #name: V102
+  #name: V202
+  #name: V203   
   # 'settings' will be used when sensor_type: : 'mono'
   settings: settings/EuRoC_mono.yaml
   # 'settings_stereo' will be used when sensor_type: : 'stereo' (if available)
@@ -107,6 +120,7 @@ VIDEO_DATASET:
   #name: video.mp4
   #
   groundtruth_file: groundtruth.txt
+  timestamps: times.txt # to be intended as the frame timestamps
 
 
 FOLDER_DATASET:
@@ -124,7 +138,7 @@ FOLDER_DATASET:
 # DO NOT USE [LIVE_DATASET]! This section is here for future developments. 
 # At the present time (see the README file):
 # - main_vo.py cannot be used with your webcam since it requires a grountruth for recovering a correct inter-frame scale (see the README file) 
-# - main_slam.py does NOT have REAL-TIME processing capabilities yet!
+# - main_slam.py does NOT have REAL-TIME processing capabilities yet (even if it does not need grountruth data)
 # If you want to use your webcam, please, record a video by using calibration/save_video.py and then use it as a VIDEO_DATASET
 LIVE_DATASET: 
   type: live 

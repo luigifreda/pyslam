@@ -1,0 +1,8 @@
+{
+    "coords_file": "/datasets/NewCollege/imageCoords.mat",
+    "gt_file": "/datasets/NewCollege/groundtruth.mat",
+    "img_dir": "/datasets/NewCollege/images/",
+    "min_consecutive_loops": 10,
+    "min_inliers": 85,
+    "p": 50
+}

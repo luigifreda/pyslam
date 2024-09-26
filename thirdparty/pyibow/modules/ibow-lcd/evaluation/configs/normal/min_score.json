@@ -1,0 +1,98 @@
+{
+  "config_name": "CityCentre_1",
+  "base_dir": "/datasets/CityCentre/",
+  "results_dir": "/home/emilio/Escritorio/ibow-lcd/",
+  "debug": true,
+  "executions" : [
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.1,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.2,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.4,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.5,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.6,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.7,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.8,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.9,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    }
+  ]
+}

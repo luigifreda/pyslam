@@ -1,0 +1,304 @@
+diff --git a/datasets/load_dataset.py b/datasets/load_dataset.py
+index 45f4e7b..5aabafe 100644
+--- a/datasets/load_dataset.py
++++ b/datasets/load_dataset.py
+@@ -26,6 +26,12 @@ from typing import List, Tuple
+ from abc import ABC, abstractmethod
+ 
+ 
++
++kLocalDir = os.path.dirname(os.path.abspath(__file__))
++kPySlamDir = kLocalDir + '/../../../'
++kDataDir = kPySlamDir + 'data/'
++
++
+ class Dataset(ABC):
+     @abstractmethod
+     def load(self) -> Tuple[List[np.ndarray], List[np.ndarray], np.ndarray, np.ndarray]:
+@@ -37,7 +43,7 @@ class Dataset(ABC):
+ 
+ 
+ class GardensPointDataset(Dataset):
+-    def __init__(self, destination: str = 'images/GardensPoint/'):
++    def __init__(self, destination: str = kDataDir + 'images/GardensPoint/'):
+         self.destination = destination
+ 
+     def load(self) -> Tuple[List[np.ndarray], List[np.ndarray], np.ndarray, np.ndarray]:
+@@ -83,7 +89,7 @@ class GardensPointDataset(Dataset):
+ 
+ 
+ class StLuciaDataset(Dataset):
+-    def __init__(self, destination: str = 'images/StLucia_small/'):
++    def __init__(self, destination: str = kDataDir + 'images/StLucia_small/'):
+         self.destination = destination
+ 
+     def load(self) -> Tuple[List[np.ndarray], List[np.ndarray], np.ndarray, np.ndarray]:
+@@ -129,7 +135,7 @@ class StLuciaDataset(Dataset):
+ 
+ 
+ class SFUDataset(Dataset):
+-    def __init__(self, destination: str = 'images/SFU/'):
++    def __init__(self, destination: str = kDataDir + 'images/SFU/'):
+         self.destination = destination
+ 
+     def load(self) -> Tuple[List[np.ndarray], List[np.ndarray], np.ndarray, np.ndarray]:
+diff --git a/feature_aggregation/hdc.py b/feature_aggregation/hdc.py
+index f958f96..5c810e4 100644
+--- a/feature_aggregation/hdc.py
++++ b/feature_aggregation/hdc.py
+@@ -64,7 +64,7 @@ class HDC(object):
+         self.posY = np.linspace(0., 1., nY)
+ 
+ 
+-    def compute_holistic(self) -> np.ndarray:
++    def compute_holistic(self, Ds=None) -> np.ndarray:
+         """
+         Computes the holistic HDC descriptors for each entry in self.Ds.
+ 
+@@ -72,6 +72,8 @@ class HDC(object):
+             np.ndarray: A two-dimensional array with the shape (len(self.Ds), self.nDims),
+                 containing the holistic HDC descriptors for each entry in self.Ds.
+         """
++        if Ds is not None: 
++            self.Ds = Ds
+         Y = np.zeros((len(self.Ds), self.nDims), 'float32')
+ 
+         for i in range(len(self.Ds)):
+diff --git a/feature_extraction/feature_extractor_cosplace.py b/feature_extraction/feature_extractor_cosplace.py
+index fe24051..44b0b9c 100644
+--- a/feature_extraction/feature_extractor_cosplace.py
++++ b/feature_extraction/feature_extractor_cosplace.py
+@@ -40,13 +40,13 @@ class CosPlaceFeatureExtractor(torch.nn.Module):
+         super().__init__()
+ 
+         if torch.cuda.is_available():
+-            print('Using GPU')
++            print('CosPlaceFeatureExtractor - Using GPU')
+             self.device = torch.device("cuda")
+         elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+-            print('Using MPS')
++            print('CosPlaceFeatureExtractor - Using MPS')
+             self.device = torch.device("mps")
+         else:
+-            print('Using CPU')
++            print('CosPlaceFeatureExtractor - Using CPU')
+             self.device = torch.device("cpu")
+         self.model = torch.hub.load("gmberton/cosplace", "get_trained_model",
+                                     backbone="ResNet50", fc_output_dim=2048)
+@@ -61,11 +61,14 @@ class CosPlaceFeatureExtractor(torch.nn.Module):
+         self.model.eval()
+         with torch.no_grad():
+             global_feats = np.empty((len(img_set), self.dim), dtype=np.float32)
+-            for input_data, indices in tqdm(test_data_loader):
++            test_data_ = tqdm(test_data_loader) if len(imgs)>1 else test_data_loader
++            for input_data, indices in test_data_:
+                 indices_np = indices.numpy()
+                 input_data = input_data.to(self.device)
+                 image_encoding = self.model(input_data)
+                 global_feats[indices_np, :] = image_encoding.cpu().numpy()
+         return global_feats
+ 
++    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
++        return self.compute_features([img])
+ 
+diff --git a/feature_extraction/feature_extractor_eigenplaces.py b/feature_extraction/feature_extractor_eigenplaces.py
+index 5471cff..63150c6 100644
+--- a/feature_extraction/feature_extractor_eigenplaces.py
++++ b/feature_extraction/feature_extractor_eigenplaces.py
+@@ -40,13 +40,13 @@ class EigenPlacesFeatureExtractor(torch.nn.Module):
+         super().__init__()
+ 
+         if torch.cuda.is_available():
+-            print('Using GPU')
++            print('EigenPlacesFeatureExtractor - Using GPU')
+             self.device = torch.device("cuda")
+         elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+-            print('Using MPS')
++            print('EigenPlacesFeatureExtractor - Using MPS')
+             self.device = torch.device("mps")
+         else:
+-            print('Using CPU')
++            print('EigenPlacesFeatureExtractor - Using CPU')
+             self.device = torch.device("cpu")
+         self.model = torch.hub.load("gmberton/eigenplaces", "get_trained_model",
+                                     backbone="ResNet50", fc_output_dim=2048)
+@@ -61,11 +61,13 @@ class EigenPlacesFeatureExtractor(torch.nn.Module):
+         self.model.eval()
+         with torch.no_grad():
+             global_feats = np.empty((len(img_set), self.dim), dtype=np.float32)
+-            for input_data, indices in tqdm(test_data_loader):
++            test_data_ = tqdm(test_data_loader) if len(imgs)>1 else test_data_loader
++            for input_data, indices in test_data_:
+                 indices_np = indices.numpy()
+                 input_data = input_data.to(self.device)
+                 image_encoding = self.model(input_data)
+                 global_feats[indices_np, :] = image_encoding.cpu().numpy()
+         return global_feats
+ 
+-
++    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
++        return self.compute_features([img])
+\ No newline at end of file
+diff --git a/feature_extraction/feature_extractor_holistic.py b/feature_extraction/feature_extractor_holistic.py
+index 6440ec0..59766be 100644
+--- a/feature_extraction/feature_extractor_holistic.py
++++ b/feature_extraction/feature_extractor_holistic.py
+@@ -33,6 +33,8 @@ class AlexNetConv3Extractor(FeatureExtractor):
+ 
+         # select conv3
+         self.model = self.model.features[:7]
++        
++        self.Proj = None
+ 
+         # preprocess images
+         self.preprocess = transforms.Compose([
+@@ -73,10 +75,35 @@ class AlexNetConv3Extractor(FeatureExtractor):
+         rng = np.random.default_rng(seed=0)
+         Proj = rng.standard_normal([Ds.shape[1], self.nDims], 'float32')
+         Proj = Proj / np.linalg.norm(Proj , axis=1, keepdims=True)
++        self.Proj = Proj
+ 
+         Ds = Ds @ Proj
+ 
+-        return Ds
++        return Ds    
++    
++    def compute_features_step(self, img: List[np.ndarray]) -> List[np.ndarray]:
++        import torch
++
++        imgs_torch = self.preprocess(img)
++        imgs_torch = torch.stack(imgs_torch, dim=0)
++
++        imgs_torch = imgs_torch.to(self.device)
++
++        with torch.no_grad():
++            output = self.model(imgs_torch)
++
++        output = output.to('cpu').numpy()
++        Ds = output.reshape([1, -1])
++
++        if self.Proj is None:
++            rng = np.random.default_rng(seed=0)
++            Proj = rng.standard_normal([Ds.shape[1], self.nDims], 'float32')
++            Proj = Proj / np.linalg.norm(Proj , axis=1, keepdims=True)
++            self.Proj = Proj
++
++        Ds = Ds @ self.Proj
++
++        return Ds    
+ 
+ 
+ class HDCDELF(FeatureExtractor):
+@@ -84,14 +111,26 @@ class HDCDELF(FeatureExtractor):
+         from .feature_extractor_local import DELF
+ 
+         self.DELF = DELF() # local DELF descriptor
++        self.HDC = None
+ 
+     def compute_features(self, imgs: List[np.ndarray]) -> np.ndarray:
+         from feature_aggregation.hdc import HDC
+ 
+         D_local = self.DELF.compute_features(imgs)
+-        D_holistic = HDC(D_local).compute_holistic()
++        self.HDC = HDC(D_local)
++        D_holistic = self.HDC.compute_holistic()
+ 
+         return D_holistic
++    
++    def compute_features_step(self, img: List[np.ndarray]) -> np.ndarray:
++        from feature_aggregation.hdc import HDC
++
++        D_local = self.DELF.compute_features([img])
++        if self.HDC is None:
++            self.HDC = HDC(D_local) # init HDC only once
++        D_holistic = self.HDC.compute_holistic(D_local)
++
++        return D_holistic    
+ 
+ 
+ # sum of absolute differences (SAD) [Milford and Wyeth (2012). "SeqSLAM: Visual
+@@ -136,6 +175,10 @@ class SAD(FeatureExtractor):
+         Ds = np.array(Ds).astype('float32')
+ 
+         return Ds
++    
++    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
++        return self.compute_features([img])
++            
+ 
+     def __patch_normalize(self, img: np.ndarray) -> np.ndarray:
+         np.seterr(divide='ignore', invalid='ignore') # ignore potential division by 0
+diff --git a/feature_extraction/feature_extractor_local.py b/feature_extraction/feature_extractor_local.py
+index e66b7d1..8ceee29 100644
+--- a/feature_extraction/feature_extractor_local.py
++++ b/feature_extraction/feature_extractor_local.py
+@@ -46,7 +46,8 @@ class DELF(LocalFeatureExtractor):
+ 
+     def compute_local_features(self, imgs: List[np.ndarray]) -> List[np.ndarray]:
+         D = []
+-        for img in tqdm(imgs):
++        imgs_ = tqdm(imgs) if len(imgs)>1 else imgs
++        for img in imgs_:            
+             D.append(self.compute_local_delf_descriptor(img))
+ 
+         return D
+diff --git a/feature_extraction/feature_extractor_patchnetvlad.py b/feature_extraction/feature_extractor_patchnetvlad.py
+index 961cda2..af13ccb 100644
+--- a/feature_extraction/feature_extractor_patchnetvlad.py
++++ b/feature_extraction/feature_extractor_patchnetvlad.py
+@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
+ 
+ from patchnetvlad.models.models_generic import get_backend, get_model, get_pca_encoding
+ from patchnetvlad.tools import PATCHNETVLAD_ROOT_DIR
++from patch_netvlad.download_models import download_all_models
+ 
+ from .feature_extractor import FeatureExtractor
+ 
+@@ -57,13 +58,13 @@ class PatchNetVLADFeatureExtractor(FeatureExtractor):
+         self.config = config
+ 
+         if torch.cuda.is_available():
+-            print('Using GPU')
++            print('PatchNetVLADFeatureExtractor - Using GPU')
+             self.device = torch.device("cuda")
+         elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+-            print('Using MPS')
++            print('PatchNetVLADFeatureExtractor - Using MPS')
+             self.device = torch.device("mps")
+         else:
+-            print('Using CPU')
++            print('PatchNetVLADFeatureExtractor - Using CPU')
+             self.device = torch.device("cpu")
+ 
+         encoder_dim, encoder = get_backend()
+@@ -77,8 +78,8 @@ class PatchNetVLADFeatureExtractor(FeatureExtractor):
+             resume_ckpt = join(PATCHNETVLAD_ROOT_DIR, resume_ckpt)
+             if not isfile(resume_ckpt):
+                 print('Downloading Patch-NetVLAD models, this might take a while ...')
+-                subprocess.run(["patchnetvlad-download-models"])
+-
++                #subprocess.run(["patchnetvlad-download-models"])
++                download_all_models()
+ 
+         if isfile(resume_ckpt):
+             print("=> loading checkpoint '{}'".format(resume_ckpt))
+@@ -139,8 +140,9 @@ class PatchNetVLADFeatureExtractor(FeatureExtractor):
+             if self.config['global_params']['pooling'].lower() == 'patchnetvlad':
+                 patch_feats = np.empty((len(img_set), pool_size, self.num_patches), dtype=np.float32)
+ 
++            test_data_ = tqdm(test_data_loader) if len(imgs)>1 else test_data_loader
+             for iteration, (input_data, indices) in \
+-                    enumerate(tqdm(test_data_loader), 1):
++                    enumerate(test_data_, 1):                        
+                 indices_np = indices.detach().numpy()
+                 input_data = input_data.to(self.device)
+                 image_encoding = self.model.encoder(input_data)
+@@ -170,6 +172,8 @@ class PatchNetVLADFeatureExtractor(FeatureExtractor):
+         else:
+             return global_feats
+ 
++    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
++        return self.compute_features([img])
+ 
+     def local_matcher_from_numpy_single_scale(self, input_query_local_features_prefix, input_index_local_features_prefix):
+         from patchnetvlad.models.local_matcher import normalise_func, calc_keypoint_centers_from_patches

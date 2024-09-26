@@ -109,9 +109,10 @@ class Dataset(object):
         self.name = name 
         self.type = type    
         self.sensor_type = sensor_type
-        self.scale_viewer_3d = 1.0 
+        self.scale_viewer_3d = 0.1 
         self.is_ok = True
         self.fps = fps   
+        self.num_frames = None
         if fps is not None:       
             self.Ts = 1./fps 
         else: 
@@ -178,7 +179,7 @@ class Dataset(object):
         try:
             with open(timestamps_file, 'r') as file:
                 for line in file:
-                    timestamp = int(float(line.strip()))
+                    timestamp = float(line.strip())
                     timestamps.append(timestamp)
         except FileNotFoundError:
             print('Timestamps file not found:', timestamps_file)
@@ -191,12 +192,14 @@ class VideoDataset(Dataset):
         if sensor_type != SensorType.MONOCULAR:
             raise ValueError('Video dataset only supports MONOCULAR sensor type')
         self.filename = path + '/' + name 
+                
         #print('video: ', self.filename)
         self.cap = cv2.VideoCapture(self.filename)
         self.i = 0        
         self.timestamps = None
         if timestamps is not None:
             self.timestamps = self._read_timestamps(path + '/' + timestamps)
+            Printer.green('read timestamps from ' + path + '/' + timestamps)
         if not self.cap.isOpened():
             raise IOError('Cannot open movie file: ', self.filename)
         else: 
@@ -219,8 +222,8 @@ class VideoDataset(Dataset):
         ret, image = self.cap.read()
         if self.timestamps is not None:
             # read timestamps from timestamps file
-            self._timestamp = int(self.timestamps[self.i])
-            self._next_timestamp = int(self.timestamps[self.i + 1])
+            self._timestamp = float(self.timestamps[self.i])
+            self._next_timestamp = float(self.timestamps[self.i + 1])
             self.i += 1
         else:
             #self._timestamp = time.time()  # rough timestamp if nothing else is available 
@@ -276,6 +279,7 @@ class FolderDataset(Dataset):
         self.listing = self.listing[::self.skip]
         #print('list of files: ', self.listing)
         self.maxlen = len(self.listing)
+        self.num_frames = self.maxlen
         self.i = 0        
         if self.maxlen == 0:
           raise IOError('No images were found in folder: ', path)   
@@ -286,19 +290,19 @@ class FolderDataset(Dataset):
         
     def getImage(self, frame_id):
         if self.i == self.maxlen:
-            return (None, False)
+            return None
         image_file = self.listing[self.i]
         img = cv2.imread(image_file)
         pattern = re.compile(r'\d+')
         if self.timestamps is not None:
             # read timestamps from timestamps file
-            self._timestamp = int(self.timestamps[self.i])
-            self._next_timestamp = int(self.timestamps[self.i + 1])
+            self._timestamp = float(self.timestamps[self.i])
+            self._next_timestamp = float(self.timestamps[self.i + 1])
 
         elif pattern.search(image_file.split('/')[-1].split('.')[0]):
             # read timestamps from image filename
-            self._timestamp = int(image_file.split('/')[-1].split('.')[0])
-            self._next_timestamp = int(self.listing[self.i + 1].split('/')[-1].split('.')[0])
+            self._timestamp = float(image_file.split('/')[-1].split('.')[0])
+            self._next_timestamp = float(self.listing[self.i + 1].split('/')[-1].split('.')[0])
         else:
             self._timestamp += self.Ts
             self._next_timestamp = self._timestamp + self.Ts 
@@ -334,6 +338,7 @@ class FolderDatasetParallel(Dataset):
         self.listing = self.listing[::self.skip]
         #print('list of files: ', self.listing)
         self.maxlen = len(self.listing)
+        self.num_frames = self.maxlen
         self.i = 0        
         if self.maxlen == 0:
           raise IOError('No images were found in folder: ', path)     
@@ -435,10 +440,13 @@ class KittiDataset(Dataset):
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.STEREO:
             raise ValueError('Video dataset only supports MONOCULAR and STEREO sensor types')        
         self.fps = 10
+        if sensor_type == SensorType.STEREO:
+            self.scale_viewer_3d = 1          
         self.image_left_path = '/image_0/'
         self.image_right_path = '/image_1/'           
-        self.timestamps = np.loadtxt(self.path + '/sequences/' + self.name + '/times.txt')
+        self.timestamps = np.loadtxt(self.path + '/sequences/' + self.name + '/times.txt', dtype=np.float64)
         self.max_frame_id = len(self.timestamps)
+        self.num_frames = self.max_frame_id
         print('Processing KITTI Sequence of lenght: ', len(self.timestamps))
         
     def set_is_color(self,val):
@@ -487,12 +495,15 @@ class TumDataset(Dataset):
             raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
         self.fps = 30
         self.scale_viewer_3d = 0.1
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05             
         print('Processing TUM Sequence')        
         self.base_path=self.path + '/' + self.name + '/'
         associations_file=self.path + '/' + self.name + '/' + associations
         with open(associations_file) as f:
             self.associations = f.readlines()
-            self.max_frame_id = len(self.associations)           
+            self.max_frame_id = len(self.associations)   
+            self.num_frames = self.max_frame_id        
         if self.associations is None:
             sys.exit('ERROR while reading associations file!')    
 
@@ -539,7 +550,7 @@ class EurocDataset(Dataset):
             raise ValueError('Video dataset only supports MONOCULAR and STEREO sensor types')           
         self.fps = 20
         if sensor_type == SensorType.STEREO:
-            self.scale_viewer_3d = 0.1        
+            self.scale_viewer_3d = 0.1                      
         self.image_left_path = '/mav0/cam0/data/'
         self.image_right_path = '/mav0/cam1/data/'
         self.image_left_csv_path = '/mav0/cam0/data.csv'
@@ -553,6 +564,7 @@ class EurocDataset(Dataset):
         self.timestamps_right = np.array([x[0] for x in timestamps_and_filenames_right])
         self.filenames_right = np.array([x[1] for x in timestamps_and_filenames_right])
         self.max_frame_id = len(self.timestamps)
+        self.num_frames = self.max_frame_id
         
         # in case of stereo mode, we rectify the stereo images
         self.stereo_settings = config.stereo_settings

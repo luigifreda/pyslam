@@ -36,10 +36,6 @@ from dataset import dataset_factory
 from mplot_thread import Mplot2d, Mplot3d
 
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_manager import feature_manager_factory
-from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import FeatureMatcherTypes
-
 from feature_tracker_configs import FeatureTrackerConfigs
 
 from rerun_interface import Rerun
@@ -92,14 +88,15 @@ if __name__ == "__main__":
     half_traj_img_size = int(0.5*traj_img_size)
     draw_scale = 1
 
-    is_draw_3d = True
+    plt3d = None
     
+    is_draw_3d = True
     is_draw_with_rerun = kUseRerun
     if is_draw_with_rerun:
         Rerun.init_vo()
     else: 
         if kUsePangolin:
-            viewer3D = Viewer3D()
+            viewer3D = Viewer3D(scale=dataset.scale_viewer_3d*10)
         else:
             plt3d = Mplot3d(title='3D trajectory')
 
@@ -182,8 +179,16 @@ if __name__ == "__main__":
             if not is_draw_with_rerun:
                 cv2.imshow('Camera', vo.draw_img)				
 
+        # get keys 
+        key = matched_points_plt.get_key() if matched_points_plt is not None else None
+        if key == '' or key is None:
+            key = err_plt.get_key() if err_plt is not None else None
+        if key == '' or key is None:
+            key = plt3d.get_key() if plt3d is not None else None
+            
         # press 'q' to exit!
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        key_cv = cv2.waitKey(1) & 0xFF
+        if key == 'q' or (key_cv == ord('q')):            
             break
         img_id += 1
 

@@ -70,6 +70,13 @@ fi
 
 install_pip_package rerun-sdk #==0.17.0
 install_pip_package ujson
+install_pip_package tensorflow_hub  # required for VPR
+
+if command -v nvidia-smi &> /dev/null; then
+    install_pip_package faiss-gpu 
+else 
+    install_pip_package faiss-cpu
+fi 
 
 pip install protobuf==3.20.*    # for delf NN
 

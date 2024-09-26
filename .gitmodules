@@ -37,4 +37,9 @@
 [submodule "thirdparty/LightGlue"]
 	path = thirdparty/LightGlue
 	url = https://github.com/cvg/LightGlue.git
-	
+[submodule "thirdparty/vpr"]
+	path = thirdparty/vpr
+	url = https://github.com/stschubert/VPR_Tutorial.git
+[submodule "thirdparty/patch_netvlad"]
+	path = thirdparty/patch_netvlad
+	url = https://github.com/QVPR/Patch-NetVLAD.git

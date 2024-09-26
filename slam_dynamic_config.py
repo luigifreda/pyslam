@@ -9,9 +9,12 @@ from frame import Frame
 class SLAMDynamicConfig(object):
     def __init__(self):
         
-        self.descriptor_distance_sigma=None  
+        self.descriptor_distance_sigma=Parameters.kMaxDescriptorDistance   # Note: Parameters.kMaxDescriptorDistance is initialized by the feature manager  
         self.descriptor_distance_alpha=0.9
         self.descriptor_distance_factor=3
+        self.descriptor_distance_max_delta_fraction = 0.5
+        self.descriptor_distance_min = Parameters.kMaxDescriptorDistance * (1. - self.descriptor_distance_max_delta_fraction)
+        self.descriptor_distance_max = Parameters.kMaxDescriptorDistance * (1. + self.descriptor_distance_max_delta_fraction)
         
         self.reproj_err_frame_map_sigma=Parameters.kMaxReprojectionDistanceMap
         self.reproj_err_frame_map_alpha=0.9  
@@ -23,10 +26,11 @@ class SLAMDynamicConfig(object):
             des_ref = f_ref.des[idxs_ref]
             sigma_mad,_ = descriptor_sigma_mad(des_cur, des_ref, descriptor_distances=Frame.descriptor_distances)
             delta = self.descriptor_distance_factor*sigma_mad
-            if self.descriptor_distance_sigma is not None:
-                self.descriptor_distance_sigma = self.descriptor_distance_alpha*self.descriptor_distance_sigma + (1.-self.descriptor_distance_alpha)*delta
-            else:
+            if self.descriptor_distance_sigma is None:
                 self.descriptor_distance_sigma = delta
+            else:
+                self.descriptor_distance_sigma = self.descriptor_distance_alpha*self.descriptor_distance_sigma + (1.-self.descriptor_distance_alpha)*delta
+                self.descriptor_distance_sigma = max(min(self.descriptor_distance_sigma, self.descriptor_distance_max), self.descriptor_distance_min)
             print('descriptor sigma: ', self.descriptor_distance_sigma)
         else:
             self.descriptor_distance_sigma = 0
