@@ -1,0 +1,28 @@
+{
+  "config_name": "CityCentre_0",
+  "base_dir": "/datasets/CityCentre/",
+  "results_dir": "/home/emilio/Escritorio/ibow-lcd/",
+  "debug": true,
+  "executions" : [
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.4,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": false,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.4,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    }
+  ]
+}

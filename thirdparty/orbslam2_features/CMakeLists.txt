@@ -48,3 +48,9 @@ pybind11_add_module(orbslam2_features orb_extractor.cpp ORBextractor.cpp)
 target_link_libraries(orbslam2_features PRIVATE
     ${OpenCV_LIBS}    
 )
+
+
+add_executable(test test.cpp ORBextractor.cpp)
+target_link_libraries(test PRIVATE
+    ${OpenCV_LIBS}    
+)

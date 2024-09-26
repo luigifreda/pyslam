@@ -5,6 +5,7 @@ __pycache__
 tmp
 build
 debug.txt
+groundtruth.txt
 kitti
 map.json
 config.pyc 
@@ -23,5 +24,13 @@ local_mapping.log
 tum_association_matches.txt 
 kitti_trajectory.txt
 map.json
+
+data/ORBvoc.txt
+data/orbvoc.dbow3
+data/images/GardensPoint
+data/images/StLucia_small
+data/images/SFU
+
+thirdparty/pydbow3/ORBvoc.txt
 
 thirdparty/protoc 

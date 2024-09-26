@@ -307,7 +307,7 @@ class KeyFrame(Frame,KeyFrameGraph):
                         break 
             else:
                 self.connected_keyframes_weights = Counter({kf_max,w_max}) 
-                self.ordered_keyframes_weights = OrderedDict({kf_max,w_max})    
+                self.ordered_keyframes_weights = OrderedDict([(kf_max,w_max)])    
                 kf_max.add_connection(self,w_max)        
             # update spanning tree                     
             if self.is_first_connection and self.kid!=0: 

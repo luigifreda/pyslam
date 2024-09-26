@@ -1,0 +1,18 @@
+{
+  "config_name": "NewCollege",
+  "base_dir": "/datasets/NewCollege/",
+  "results_dir": "/home/emilio/Escritorio/ibow-lcd/",
+  "debug": true,
+  "purge_descriptors": true,
+  "min_feat_apps": 2,
+  "nndr": 0.8,
+  "nndr_bf": 0.8,
+  "ep_dist": 2.0,
+  "conf_prob": 0.985,
+  "p": 50,
+  "min_score": 0.4,
+  "island_size": 7,
+  "min_inliers": 85,
+  "nframes_after_lc": 2,
+  "min_consecutive_loops": 10
+}

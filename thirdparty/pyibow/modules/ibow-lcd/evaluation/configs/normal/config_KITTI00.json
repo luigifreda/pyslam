@@ -1,0 +1,18 @@
+{
+  "config_name": "KITTI00",
+  "base_dir": "/datasets/KITTI/00/",
+  "results_dir": "/home/emilio/Escritorio/ibow-lcd/",
+  "debug": true,
+  "executions" : [
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 1400,
+      "min_score": 0.6,
+      "island_size": 11,
+      "min_inliers": 40,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 25
+    }
+  ]
+}

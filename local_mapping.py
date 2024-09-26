@@ -100,6 +100,8 @@ class LocalMapping(object):
         self.sensor_type = sensor_type
         self.recently_added_points = set()
         
+        self.mean_ba_chi2_error = None
+        
         self.kf_cur = None   # current processed keyframe  
         self.kid_last_BA = -1 # last keyframe id when performed BA  
         
@@ -140,9 +142,10 @@ class LocalMapping(object):
 
     def quit(self):
         print('local mapping: quitting...')
-        self.stop = True
-        self.opt_abort_flag.value = True        
-        self.work_thread.join(timeout=5)
+        if self.stop == False:
+            self.stop = True
+            self.opt_abort_flag.value = True        
+            self.work_thread.join(timeout=5)
         print('local mapping: done')   
         
     def push_keyframe(self, keyframe):
@@ -280,6 +283,7 @@ class LocalMapping(object):
         # local optimization 
         self.time_local_opt.start()   
         err = self.map.locally_optimize(kf_ref=self.kf_cur, abort_flag=self.opt_abort_flag)
+        self.mean_ba_chi2_error = err
         self.time_local_opt.refresh()
         print(f'local optimization error^2: {err}, timing: {self.time_local_opt.last_elapsed}')       
         num_kf_ref_tracked_points = self.kf_cur.num_tracked_points(kNumMinObsForKeyFrameDefault) # number of tracked points in k_ref

@@ -510,6 +510,6 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
                 p.update_normal_and_depth(force=True)
 
     active_edges = num_edges-num_bad_edges
-    mean_squared_error = opt.active_chi2()/active_edges
+    mean_squared_error = opt.active_chi2()/max(active_edges,1)
 
     return mean_squared_error, num_bad_observations/max(num_edges,1)

@@ -1,10 +1,10 @@
-# pySLAM v2.2
+# pySLAM v2.2.5
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.2](#pyslam-v22)
+- [pySLAM v2.2.5](#pyslam-v225)
   - [Install](#install)
     - [Requirements](#requirements)
     - [Ubuntu](#ubuntu)
@@ -16,8 +16,9 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [Save and reload a map](#save-and-reload-a-map)
     - [Trajectory saving](#trajectory-saving)
     - [GUI](#gui)
-  - [Supported Local Features](#supported-local-features)
-  - [Supported Matchers](#supported-matchers)
+  - [Supported local features](#supported-local-features)
+  - [Supported matchers](#supported-matchers)
+  - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
   - [Datasets](#datasets)
     - [KITTI Datasets](#kitti-datasets)
     - [TUM Datasets](#tum-datasets)
@@ -31,9 +32,10 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- /TOC -->
 
-**pySLAM** is a python implementation of a *Visual Odometry (VO)* pipeline for **monocular**, **stereo** and **RGBD** cameras. It supports many classical and modern **[local features](#supported-local-features)**, and it offers a convenient interface for them. Moreover, it collects other common and useful VO and SLAM tools.
-
-I released the first version of pySLAM (v1) for educational purposes, for a computer vision class I taught. I started developing it for fun as a python programming exercise, during my free time, taking inspiration from some repos available on the web. 
+**pySLAM** is a python implementation of a *Visual Odometry (VO)* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
+- It supports many classical and modern **[local features](#supported-local-features)** and it offers a convenient interface for them.
+- It implements loop-closing via descriptor aggregators such as visual Bag of Words (BoW), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise). 
+- It collects other common and useful VO and SLAM tools. 
 
 **Main Scripts**:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
@@ -83,7 +85,6 @@ Then, use the available specific install procedure according to your OS. The pro
 
 If you run into troubles or performance issues, check this [TROUBLESHOOTING](./TROUBLESHOOTING.md) file.
 
----
 
 ### Ubuntu 
 
@@ -91,19 +92,19 @@ Follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a
 
 If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
 
---- 
+
 ### MacOS
 
 Follow the instructions in this [file](./MAC.md). The reported procedure was tested under *Sonoma 14.5* and *Xcode 15.4*.
 
----
+
 ### Docker
 
 If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker): 
 - with its custom `pyslam` / `pyslam_cuda` docker files and follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam). 
 - with one of the suggested docker images (*ubuntu\*_cuda* or *ubuntu\**), where you can build and run pyslam. 
 
----
+
 ### How to install non-free OpenCV modules
 
 The provided install scripts take care of installing a recent opencv version (>=**4.8**) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
@@ -127,7 +128,7 @@ Once you have run the script `install_all_venv.sh` (follow the instructions abov
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py
 ```
-This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on the *Trajectory* window and pressing the key 'Q'. 
+This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on one of the matplotlib windows and pressing the key 'Q'. 
 **Note**: As explained above, the basic script `main_vo.py` **strictly requires a ground truth**.  
 
 In order to process a different **dataset**, you need to set the file `config.yaml`:
@@ -142,7 +143,7 @@ $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is j
 $ ./main_slam.py
 ```
 
-This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened *Figure 1* window and pressing the key 'Q'. 
+This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened matplotlib window and pressing the key 'Q'. 
 **Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
 
 If you just want to test the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a tast of the different available local features, run
@@ -184,7 +185,7 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 - `Draw GT`: In the case a groundtruth is loaded (e.g. with *KITTI*, *TUM*, *EUROC* datasets), you can visualize it by pressing this button. The groundtruth trajectory will be visualized and progressively aligned to the estimated trajectory. 
 
 ---
-## Supported Local Features
+## Supported local features
 
 At present time, the following feature **detectors** are supported: 
 * *[FAST](https://www.edwardrosten.com/work/fast.html)*  
@@ -252,14 +253,35 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
 **N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#supported-local-features)!
 
 ---
-## Supported Matchers 
+## Supported matchers 
 
-  * *BF*: Brute force matcher on descriptors (with KNN)
-  * *[FLANN](https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350)* 
-  * *[XFeat](https://arxiv.org/abs/2404.19174)*      
-  * *[LightGlue](https://arxiv.org/abs/2306.13643)*
-  * *[LoFTR](https://arxiv.org/abs/2104.00680)*
+* *BF*: Brute force matcher on descriptors (with KNN)
+* *[FLANN](https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350)* 
+* *[XFeat](https://arxiv.org/abs/2404.19174)*      
+* *[LightGlue](https://arxiv.org/abs/2306.13643)*
+* *[LoFTR](https://arxiv.org/abs/2104.00680)*
   
+
+---
+## Supported global descriptors and local descriptor aggregation methods
+
+**Local descriptor aggregation methods**
+
+* Bag of Words (BoW) with TF-IDF: [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3)
+* Vector of Locally Aggregated Descriptors: [VLAD](http://www.vlfeat.org/) 
+* Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: [iBoW](https://github.com/emiliofidalgo/ibow-lcd), [OBIndex2](https://github.com/emiliofidalgo/obindex2)
+* Hyperdimensional Computing: [HDC](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)
+
+
+**Global descriptors**
+
+* [AlexNet](https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet)
+* [NetVLAD](https://www.di.ens.fr/willow/research/netvlad/)
+* [HDC-DELF](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)
+* [CosPlace](https://github.com/gmberton/CosPlace)
+* [EigenPlaces](https://github.com/gmberton/EigenPlaces)
+
+
 --- 
 ## Datasets
 
@@ -389,16 +411,18 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [LightGlue](https://arxiv.org/abs/2306.13643)
 * [Key.Net](https://github.com/axelBarroso/Key.Net)
 * [Twitchslam](https://github.com/geohot/twitchslam)
-* [MonoVO](https://github.com/uoip/monoVO-python)  
-* Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory saving feature and for the comparison notebook:  [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
+* [MonoVO](https://github.com/uoip/monoVO-python)
+* [VPR_Tutorial](https://github.com/stschubert/VPR_Tutorial.git)
+* Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook:  [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 
 ---
 ## TODOs
 
 Many improvements and additional features are currently under development: 
 
-- [ ] loop closure
+- [ ] loop closing
 - [ ] relocalization 
+- [x] stereo and RGBD support
 - [x] map saving/loading 
 - [x] modern DL matching algorithms 
 - [ ] object detection and semantic segmentation 

@@ -86,7 +86,7 @@ fi
 cd $STARTING_DIR
 
 
-# setting keynet  
+# Updating keynet  
 print_blue '================================================'
 print_blue "Updating keynet ..."
 cd thirdparty
@@ -99,4 +99,22 @@ cd $STARTING_DIR
 
 # install delf   
 ./install_delf.sh 
+cd $STARTING_DIR
+
+
+# Updating vpr  
+print_blue '================================================'
+print_blue "Updating vpr ..."
+cd thirdparty
+cd vpr
+git apply ../vpr.patch 
+cd $STARTING_DIR
+
+
+# Updating patch_netvlad  
+print_blue '================================================'
+print_blue "Updating patch_netvlad ..."
+cd thirdparty
+cd patch_netvlad
+git apply ../patch_netvlad.patch 
 cd $STARTING_DIR

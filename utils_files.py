@@ -3,7 +3,8 @@ import smtplib, socket, os, os.path, hashlib, errno
 import __main__ as main
 from email.mime.text import MIMEText
 from os import path, mkdir
-
+import multiprocessing
+import gdown
 
 def check_integrity(fpath, md5):
     if not os.path.isfile(fpath):
@@ -103,7 +104,7 @@ def send_email(recipient, ignore_host="", login_gmail="", login_password=""):
     if socket.gethostname() == ignore_host:
         return
     msg["Subject"] = socket.gethostname() + " just finished running a job " + os.path.basename(main.__file__)
-    msg["From"] = "clustersgpu@gmail.com"
+    msg["From"] = "pyslam@gmail.com"
     msg["To"] = recipient
 
     s = smtplib.SMTP_SSL("smtp.gmail.com", 465)
@@ -111,3 +112,19 @@ def send_email(recipient, ignore_host="", login_gmail="", login_password=""):
     s.login(login_gmail, login_password)
     s.sendmail(login_gmail, recipient, msg.as_string())
     s.quit()
+
+
+# download file from google drive
+# need to pass as input the 'url' and output 'path'
+def gdrive_download_lambda(*args, **kwargs):
+    url = kwargs["url"]
+    output = kwargs["path"]
+    # check if outfolder exists or create it
+    output_folder = os.path.dirname(output)
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    if not os.path.exists(output):
+        print(f'downloading {url} to {output}')
+        gdown.download(url, output)
+    else: 
+        print(f'file already exists: {output}')

@@ -1044,7 +1044,7 @@ class FeatureManager(object):
         else:                         
             # standard detectAndCompute  
             if self.is_detector_equal_to_descriptor:                     
-                # detector = descriptor => call them together with detectAndCompute() method    
+                # detector = descriptor => call them together with detectAndCompute() method 
                 kps, des = self._feature_detector.detectAndCompute(frame, mask)   
                 if kVerbose:
                     print('detector:', self.detector_type.name,', #features:',len(kps))           

@@ -580,3 +580,62 @@ def extract_patches_array_cpp(img, kps, patch_size=32, mag_factor=1.0, warp_flag
     else:
         print('using python version extract_patches_array()')
         return extract_patches_array(img=img, kps=kps, patch_size=patch_size, mag_factor=mag_factor, warp_flags=warp_flags)
+
+# Transform float descriptors [NxD] into a binary descriptors [Nx(D-1)].
+# Use the approach of LBP, BRIEF, CENSUS: compare a descriptor float component to its adjacent values 
+# to get a binary descriptor: [...,d[i-1]>d[i],d[i]<d[i+1],...]
+# In the end, this is equivalent to [...,d[i]>d[i-1],d[i+1]<d[i],...] 
+def transform_float_to_binary_descriptor(float_des):
+    binary_des = (float_des[:, :-1] > float_des[:, 1:]).astype(np.uint8)
+    return binary_des
+
+
+# Represents an image grid with specified cell size equal to (width/num_div_x,height/num_div_y)
+# This can be used to count the num of features that are present in each cell
+class ImageGrid:
+    def __init__(self, width, height, num_div_x=4, num_div_y=4):
+        self.width = width
+        self.height = height
+        self.offset_x = 0  
+        self.offset_y = 0
+        self.cell_x = int(width / num_div_x)
+        self.cell_y = int(height / num_div_y)
+        assert (self.cell_x > 0 and self.cell_y > 0)
+        self.num_cells_x = num_div_x
+        self.num_cells_y = num_div_y
+        self.offset_x = (width - num_div_x * self.cell_x)/2
+        self.offset_y = (height - num_div_y * self.cell_y)/2
+        #print(f'cell_x: {self.cell_x}, cell_y: {self.cell_y}, num_cells_x: {self.num_cells_x}, num_cells_y: {self.num_cells_y}')
+        self.point_map = np.zeros((self.num_cells_y, self.num_cells_x), dtype=int)
+
+    def add_point(self, pt):
+        cell_x_index = int((pt[0]-self.offset_x) // self.cell_x)
+        cell_y_index = int((pt[1]-self.offset_y) // self.cell_y)
+        if 0 <= cell_x_index < self.num_cells_x and 0 <= cell_y_index < self.num_cells_y:
+            self.point_map[cell_y_index, cell_x_index] += 1
+
+    # points is an array of shape (N, 2)
+    def add_points(self, points):
+        cell_x_indices = ((points[:, 0]-self.offset_x) // self.cell_x).astype(int)
+        cell_y_indices = ((points[:, 1]-self.offset_y) // self.cell_y).astype(int)
+        cell_x_indices = np.clip(cell_x_indices, 0, self.num_cells_x-1)
+        cell_y_indices = np.clip(cell_y_indices, 0, self.num_cells_y-1)
+        np.add.at(self.point_map, (cell_y_indices, cell_x_indices), 1)
+
+    # check if each cell has at least 'num_min_points' points
+    def is_each_cell_covered(self, num_min_points=1):
+        return np.all(self.point_map.ravel() >= num_min_points)
+    
+    def num_cells_uncovered(self, num_min_points=1):
+        return np.sum(self.point_map.ravel() < num_min_points)
+    
+    def get_grid_img(self, num_min_points=1):
+        width = self.num_cells_x * self.cell_x
+        height = self.num_cells_y * self.cell_y
+        img = np.zeros((height, width), dtype=np.uint8)
+        for y in range(self.num_cells_y):
+            for x in range(self.num_cells_x):
+                if self.point_map[y,x] >= num_min_points:
+                    img[y*self.cell_y:(y+1)*self.cell_y, x*self.cell_x:(x+1)*self.cell_x] = 255
+        return img
+

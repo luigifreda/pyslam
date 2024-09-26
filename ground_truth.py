@@ -24,6 +24,7 @@ import json
 import numpy as np 
 from enum import Enum
 from utils_sys import Printer 
+import decimal
 
 
 class GroundTruthType(Enum):
@@ -105,7 +106,8 @@ class GroundTruth(object):
             timestamp,x,y,z,scale = self.getTimePoseAndAbsoluteScale(ii)
             if ii == 0:
                 scale = 1 # first sample: we do not have a relative 
-            out_file.write( "%f %f %f %f %f\n" % (timestamp,x,y,z,scale) )
+            print(f'writing timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {scale:.15f}')
+            out_file.write( f"{timestamp:.15f} {x:.15f} {y:.15f} {z:.15f} {scale:.15f}\n" ) # (timestamp,x,y,z,scale) )
         out_file.close()
 
     def getNumSamples(self): 
@@ -195,7 +197,8 @@ class KittiGroundTruth(GroundTruth):
         abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
 
         timestamp = float(self.data_timestamps[frame_id].strip())
-            
+        
+        #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z,abs_scale 
 
 

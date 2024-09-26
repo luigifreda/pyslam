@@ -548,10 +548,8 @@ class Frame(FrameBase):
             #         if p.num_observations > 0:
             #             num_matched_points += 1             
             # return num_matched_points     
-            return sum(
-                1 for i, p in enumerate(self.points)
-                if p is not None and not self.outliers[i] and p.num_observations > 0
-            )            
+            return sum(1 for i, p in enumerate(self.points)
+                if p is not None and not self.outliers[i] and p.num_observations > 0)            
         
     # update found count for map points        
     def update_map_points_statistics(self, sensor_type=SensorType.MONOCULAR):
@@ -786,7 +784,7 @@ class Frame(FrameBase):
         else:
             return None, None
                                                                
-    def compute_points_median_depth(self, points3d = None):
+    def compute_points_median_depth(self, points3d = None, percentile=0.5):
         with self._lock_pose:        
             Rcw2 = self._pose.Rcw[2,:3]  # just 2-nd row 
             tcw2 = self._pose.tcw[2]   # just 2-nd row                    
@@ -796,7 +794,8 @@ class Frame(FrameBase):
         if len(points3d)>0:
             z = np.dot(Rcw2, points3d[:,:3].T) + tcw2 
             z = sorted(z) 
-            return z[ ( len(z)-1)//2 ]                
+            idx = min(int(len(z)*percentile),len(z)-1)
+            return z[idx]                
         else:
             Printer.red('frame.compute_points_median_depth() with no points')
             return -1 

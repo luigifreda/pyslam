@@ -1,0 +1,8 @@
+{
+    "coords_file": "/datasets/KITTI/06/imageCoords.mat",
+    "gt_file": "/datasets/KITTI/06/groundtruth.mat",
+    "img_dir": "/datasets/KITTI/06/images/",
+    "min_consecutive_loops": 2,
+    "min_inliers": 40,
+    "p": 50
+}

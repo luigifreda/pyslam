@@ -143,4 +143,27 @@ if [ ! -f lib/g2o.cpython-*.so ]; then
 fi    
 cd $STARTING_DIR
 
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/pydbow3 ..."
 
+cd thirdparty/pydbow3
+./build.sh
+
+cd $STARTING_DIR
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/pydbow2 ..."
+
+cd thirdparty/pydbow2
+./build.sh
+
+cd $STARTING_DIR
+
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/pyibow ..."
+
+cd thirdparty/pyibow
+./build.sh
+
+cd $STARTING_DIR

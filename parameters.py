@@ -39,7 +39,7 @@ class Parameters(object):
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # max cos angle for triangulation (min parallax angle) in the Initializer
     kCosMaxParallax=0.9999 # 0.9998                 # max cos angle for triangulation (min parallax angle)   
-    
+    kMinRatioBaselineDepth = 0.01      
     
     # Point visibility 
     kViewingCosLimitForPoint=0.5    # must be viewing cos < kViewingCosLimitForPoint (viewing angle must be less than 60 deg)
@@ -59,9 +59,8 @@ class Parameters(object):
 
 
     # Initializer 
-    kInitializerDesiredMedianDepth = 20    # when initializing, the initial median depth is computed and forced to this value (for better visualization is > 1) 
-    kMinRatioBaselineDepth = 0.01 
-    #kMinTraslation = 0.01*kInitializerDesiredMedianDepth  # not used at the present time     
+    kInitializerDesiredMedianDepth = 1         # when initializing, the initial median depth is computed and forced to this value (for better visualization is > 1) 
+    kInitializerMinRatioDepthBaseline = 100    # compare to 1/kMinRatioBaselineDepth
     kInitializerNumMinFeatures = 100
     kInitializerNumMinFeaturesStereo = 500
     kInitializerNumMinTriangulatedPoints = 150
@@ -86,6 +85,7 @@ class Parameters(object):
     kThNewKfRefRatio = 0.9                                   # for determining if a new KF must be spawned, condition 3
     kThNewKfRefRatioStereo = 0.75                            # for determining if a new KF must be spawned, condition 3, in the case non-monocular
     kThNewKfRefRatioNonMonocualar = 0.25                     # for determining if a new KF must be spawned in case the system is not monocular, condition 2b
+    kUseFeatureCoverageControlForNewKf = False               # check if all the matched map points in the current frame well cover the image (by using an image grid check)
     
     # Keyframe culling
     kKeyframeCullingRedundantObsRatio = 0.9  
@@ -106,7 +106,7 @@ class Parameters(object):
     kMatchRatioTestEpipolarLine=0.8      # used just for test function find_matches_along_line()
     #
     # Reference max descriptor distance (used for initial checks and then updated and adapted)                   
-    kMaxDescriptorDistance=0 # it is updated by feature_manager.py at runtime 
+    kMaxDescriptorDistance=0 # it is initialized and updated by feature_manager.py at runtime 
     
 
     # Search matches for triangulation by using epipolar lines 

@@ -259,3 +259,101 @@ def remove_borders(image, borders):
     else:
         new_im[borders:shape[0] - borders, borders:shape[1] - borders] = image[borders:shape[0] - borders, borders:shape[1] - borders]
     return new_im
+
+
+
+# keep the same shape (same channels) of input image
+def get_dark_gray_image(img, dark_factor = 0.3):
+    res = None
+    if img.ndim == 3:
+        gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        dark_gray_image = (gray_image * dark_factor).astype(np.uint8)
+        res = cv2.merge([dark_gray_image, dark_gray_image, dark_gray_image])
+    else: 
+        gray_image = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        dark_gray_image = (gray_image * dark_factor).astype(np.uint8)
+        res = dark_gray_image
+    return res
+
+
+# See https://docs.opencv.org/4.x/d3/d50/group__imgproc__colormap.html
+def convert_float_to_colored_uint8_image(float_img, color_map=cv2.COLORMAP_AUTUMN):
+    # Normalize the float image to [0, 255]
+    normalized_gray_image = cv2.normalize(float_img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+    # Convert the image to uint8 (necessary for display)
+    uint8_img = np.uint8(normalized_gray_image)
+    colored_img = cv2.applyColorMap(uint8_img, color_map)
+    return colored_img
+
+# Convert a float value in the range [0, 1] to a color using a colormap.
+# see https://docs.opencv.org/4.x/d3/d50/group__imgproc__colormap.html
+def float_to_color_array(values, colormap=cv2.COLORMAP_AUTUMN):
+    values = np.where(values < 0, 0, values)
+    values = np.where(values > 1, 1, values)
+    # Convert the float value to a 1x1 grayscale image (in range [0, 255])
+    gray_values = np.uint8(values * 255.0)   
+    gray_image = np.array(gray_values, dtype=np.uint8)
+    # Apply the colormap to the grayscale image
+    colored_image = cv2.applyColorMap(gray_image, colormap)
+    return colored_image.reshape(-1, 3)
+
+def float_to_color(value, colormap=cv2.COLORMAP_AUTUMN):
+    if not 0 <= value <= 1:
+        Printer.orange(f"The input value {value} was expected to be between 0 and 1.")
+        value = max(0.0, min(value, 1.0))
+    # Convert the float value to a 1x1 grayscale image (in range [0, 255])
+    gray_value = np.uint8(value * 255)
+    gray_image = np.array([gray_value], dtype=np.uint8)
+    # Apply the colormap to the grayscale image
+    colored_image = cv2.applyColorMap(gray_image, colormap)
+    # Return the color in BGR format
+    color = tuple(int(c) for c in colored_image[0, 0])
+    return color
+
+
+
+# visualize loop closure candidates in a single image 
+class LoopClosuresImgs:
+    kFont = cv2.FONT_HERSHEY_SIMPLEX
+    kFontScale = 1
+    kFontColor = (255, 255, 255)  
+    kFontThickness = 2
+    def __init__(self):
+        self.candidates = None
+        self.map_color = {}
+        self.current_count = 0
+        self.max_count = 0
+        self.img_size = None
+        
+    def add(self, img_loop, img_id, score=None):
+        font_pos = (50, 50)   
+        text = f'id: {img_id}' if score is None else f'id: {img_id}, s: {score:.2f}'                
+        cv2.putText(img_loop, text, font_pos, LoopClosuresImgs.kFont, LoopClosuresImgs.kFontScale, \
+                    LoopClosuresImgs.kFontColor, LoopClosuresImgs.kFontThickness, cv2.LINE_AA)              
+        if img_loop is not None:                 
+            self.img_size = img_loop.shape
+            img_rows = self.img_size[0]               
+            if self.candidates is None: 
+                self.candidates = img_loop
+            else: 
+                img_rows = self.img_size[0]
+                if self.max_count == 0:
+                    self.candidates = img_loop
+                elif self.current_count < self.max_count:
+                    self.candidates[self.current_count*img_rows:(self.current_count+1)*img_rows, :] = img_loop
+                else:
+                    self.candidates = np.vstack((self.candidates, img_loop))             
+            self.map_color[self.current_count] = True               
+            self.current_count += 1               
+            self.max_count = max(self.max_count, self.current_count)
+                     
+    def reset(self):
+        if self.candidates is not None:
+            img_rows = self.img_size[0]
+            # make all the old candidates gray
+            for i in range(self.max_count):
+                if i in self.map_color and self.map_color[i]:
+                    temp = self.candidates[i*img_rows:(i+1)*img_rows, :] 
+                    self.candidates[i*img_rows:(i+1)*img_rows, :] = get_dark_gray_image(temp)
+                    self.map_color[i] = False
+        self.current_count = 0

@@ -1,0 +1,6 @@
+[submodule "modules/dbow3"]
+	path = modules/dbow3
+	url = https://github.com/rmsalinas/DBow3.git
+[submodule "modules/pybind11"]
+	path = modules/pybind11
+	url = https://github.com/pybind/pybind11

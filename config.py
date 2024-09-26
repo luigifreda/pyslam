@@ -44,7 +44,9 @@ class Config(object):
     def __init__(self):
         self.root_folder = __location__
         self.config_file = 'config.yaml'
-        self.config = yaml.load(open(__location__ + '/' + self.config_file, 'r'), Loader=yaml.FullLoader)
+        self.config_file_path = __location__ + '/' + self.config_file
+        #print(f'root folder: {self.root_folder}, config file path: {self.config_file_path}')
+        self.config = yaml.load(open(self.config_file_path, 'r'), Loader=yaml.FullLoader)
         self.cam_settings = None
         self.cam_stereo_settings = None
         self.feature_manager_settings = None
@@ -70,7 +72,7 @@ class Config(object):
         self.core_lib_paths = self.config['CORE_LIB_PATHS']
         for path in self.core_lib_paths:
             ext_path = __location__ + '/' + self.core_lib_paths[path]
-            # print( "importing path: ", ext_path )
+            #print( "importing path: ", ext_path )
             sys.path.append(ext_path)
             
     # read lib paths from config.yaml 

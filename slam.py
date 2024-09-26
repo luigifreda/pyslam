@@ -55,11 +55,11 @@ from feature_tracker import FeatureTrackerTypes
 from utils_sys import Printer, getchar, Logging
 from utils_draw import draw_feature_matches
 from utils_geom import triangulate_points, poseRt, normalize_vector, inv_T, triangulate_normalized_points, estimate_pose_ess_mat
-
+from utils_features import ImageGrid
 
 kVerbose = True     
 kTimerVerbose = False 
-kDebugDrawMatches = False 
+kShowFeatureMatches = False 
 
 kLocalMappingOnSeparateThread = Parameters.kLocalMappingOnSeparateThread 
 kTrackingWaitForLocalMappingToGetIdle = Parameters.kTrackingWaitForLocalMappingToGetIdle
@@ -68,7 +68,7 @@ kLogKFinfoToFile = True
 
 kUseDynamicDesDistanceTh = True  
 
-kRansacThresholdNormalized = 0.0003  # 0.0003 # metric threshold used for normalized image coordinates 
+kRansacThresholdNormalized = 0.0004  # 0.0003 # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
 kNumMinInliersEssentialMat = 8
 
@@ -115,7 +115,7 @@ class Slam(object):
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
         self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances 
-        self.tracking = Tracking(self)
+        self.tracking = Tracking(self) # after all the other initializations
 
         
     def quit(self):
@@ -150,7 +150,7 @@ class Slam(object):
 class Tracking(object):
     def __init__(self, system: Slam):
         
-        if kDebugDrawMatches: 
+        if kShowFeatureMatches: 
             Frame.is_store_imgs = True 
                     
         self.system = system                     
@@ -170,7 +170,7 @@ class Tracking(object):
         #self.motion_model = MotionModelDamping()  # motion model for current frame pose prediction with damping       
         
         self.dyn_config = SLAMDynamicConfig()
-        self.descriptor_distance_sigma = Parameters.kMaxDescriptorDistance 
+        self.descriptor_distance_sigma = Parameters.kMaxDescriptorDistance   # Note: Parameters.kMaxDescriptorDistance is initialized by the feature manager
         self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMap 
         if self.sensor_type == SensorType.RGBD:
             self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapRgbd   
@@ -190,6 +190,7 @@ class Tracking(object):
         self.mask_match = None 
 
         self.pose_is_ok = False 
+        self.mean_pose_opt_chi2_error = None
         self.predicted_pose = None 
         self.velocity = None 
         
@@ -281,19 +282,19 @@ class Tracking(object):
         pose_before=f_cur.pose.copy() 
         # f_cur pose optimization 1  (here we use f_cur pose as first guess and exploit the matched map points of f_ref )
         self.timer_pose_opt.start()          
-        pose_opt_error, self.pose_is_ok, self.num_matched_map_points = optimizer_g2o.pose_optimization(f_cur, verbose=False)
+        self.mean_pose_opt_chi2_error, self.pose_is_ok, self.num_matched_map_points = optimizer_g2o.pose_optimization(f_cur, verbose=False)
         self.timer_pose_opt.pause()
-        print('     error^2: %f,  ok: %d' % (pose_opt_error, int(self.pose_is_ok)) ) 
+        print('     error^2: %f,  ok: %d' % (self.mean_pose_opt_chi2_error, int(self.pose_is_ok)) ) 
         
         if not self.pose_is_ok: 
             # if current pose optimization failed, reset f_cur pose             
             f_cur.update_pose(pose_before)                         
          
-        return self.pose_is_ok   
+        return self.pose_is_ok, self.mean_pose_opt_chi2_error
     
     
     # track camera motion of f_cur w.r.t. f_ref 
-    def track_previous_frame(self, f_ref, f_cur):            
+    def track_previous_frame(self, f_ref: Frame, f_cur: Frame):            
         print('>>>> tracking previous frame ...')        
         is_search_frame_by_projection_failure = False 
         use_search_frame_by_projection = self.motion_model.is_ok and kUseSearchFrameByProjection and kUseMotionModel
@@ -326,9 +327,9 @@ class Tracking(object):
                                                                                  max_descriptor_distance=0.5*self.descriptor_distance_sigma,
                                                                                  is_monocular=(self.sensor_type == SensorType.MONOCULAR))
                 self.num_matched_kps = len(idxs_cur)    
-                Printer.orange("# matched map points in prev frame (wider search): %d " % self.num_matched_kps)    
+                Printer.orange("# matched map points in prev frame (wider search 1): %d " % self.num_matched_kps)                   
                                                 
-            if kDebugDrawMatches and True: 
+            if kShowFeatureMatches and True: 
                 img_matches = draw_feature_matches(f_ref.img, f_cur.img, 
                                                    f_ref.kps[idxs_ref], f_cur.kps[idxs_cur], 
                                                    f_ref.sizes[idxs_ref], f_cur.sizes[idxs_cur],
@@ -392,7 +393,7 @@ class Tracking(object):
                                                                                                 max_descriptor_distance=self.descriptor_distance_sigma) 
         print("# matched map points in prev frame: %d " % num_found_map_pts_inter_frame)      
                 
-        if kDebugDrawMatches and True: 
+        if kShowFeatureMatches and True: 
             img_matches = draw_feature_matches(f_ref.img, f_cur.img, 
                                                f_ref.kps[idx_ref_prop], f_cur.kps[idx_cur_prop], 
                                                f_ref.sizes[idx_ref_prop], f_cur.sizes[idx_cur_prop],
@@ -446,10 +447,10 @@ class Tracking(object):
                                     ratio_test=Parameters.kMatchRatioTestMap) # use the updated local map          
         self.timer_seach_map.refresh()
         #print('reproj_err_sigma: ', reproj_err_frame_map_sigma, ' used: ', self.reproj_err_frame_map_sigma)        
-        print("# new matched map points in local map: %d " % num_found_map_pts)                   
+        print(f"# matched map points in local map: {num_found_map_pts}, perc%: {100*num_found_map_pts/len(self.local_points):.2f}")                   
         print("# local map points ", self.map.local_map.num_points())         
         
-        if kDebugDrawMatches and True: 
+        if kShowFeatureMatches and True: 
             img_matched_trails = f_cur.draw_feature_trails(f_cur.img.copy(), matched_points_frame_idxs, trail_max_length=3) 
             cv2.imshow('tracking local map - matched trails', img_matched_trails)
             cv2.waitKey(1)          
@@ -489,7 +490,7 @@ class Tracking(object):
             p.delete()
         self.vo_points.clear()
       
-    def need_new_keyframe(self, f_cur):
+    def need_new_keyframe(self, f_cur: Frame):
         num_keyframes = self.map.num_keyframes()
         nMinObs = kNumMinObsForKeyFrameDefault
         if num_keyframes <= 2:
@@ -511,6 +512,8 @@ class Tracking(object):
         # Check how many "close" points are being tracked and how many could be potentially created.
         num_non_tracked_close = 0 
         num_tracked_close = 0 
+        # Create a mask for tracked points (not None and not an outlier)
+        tracked_mask = (f_cur.points != None) & (~f_cur.outliers)        
         if self.sensor_type!=SensorType.MONOCULAR:
             # for i in range(len(f_cur.points)):
             #     if f_cur.depths[i]>0 and f_cur.depths[i]<f_cur.camera.depth_threshold:
@@ -521,7 +524,7 @@ class Tracking(object):
             # Create a mask to identify valid depth values within the threshold
             depth_mask = (f_cur.depths > 0) & (f_cur.depths < f_cur.camera.depth_threshold)
             # Create a mask for tracked points (not None and not an outlier)
-            tracked_mask = (f_cur.points != None) & (~f_cur.outliers)
+            #tracked_mask = (f_cur.points != None) & (~f_cur.outliers)
             # Count points that are close and tracked
             num_tracked_close = np.sum(depth_mask & tracked_mask)
             # Count points that are close but not tracked
@@ -545,15 +548,28 @@ class Tracking(object):
         cond2a = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) & is_local_mapping_idle          
         #cond2a = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) 
                   
-        # condition 2b: tracking is weak
+        # condition 2b: tracking is weak 1
         cond2b = (self.sensor_type!=SensorType.MONOCULAR) and (num_f_cur_tracked_points<num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocualar or is_need_to_insert_close) 
-                      
+        
+        # condition 2c: tracking is weak 2
+        # we divide the image in 3x2 cells and check that each cell is filled by at least one point (the partition is assumed to be gross in order not to generate too many KFs)
+        cond2c = False 
+        if Parameters.kUseFeatureCoverageControlForNewKf:
+            image_grid = ImageGrid(self.camera.width, self.camera.height, num_div_x=3, num_div_y=2)
+            image_grid.add_points(f_cur.kps[tracked_mask])
+            num_uncovered_cells = image_grid.num_cells_uncovered(num_min_points=1)  
+            cond2c = (num_uncovered_cells > 1)    
+            if True:
+                cv2.namedWindow('grid_img', cv2.WINDOW_NORMAL)
+                cv2.imshow('grid_img', image_grid.get_grid_img())
+                cv2.waitKey(1)
+
         # condition 3: few tracked features compared to reference keyframe 
         cond3 = (num_f_cur_tracked_points < num_kf_ref_tracked_points * thRefRatio) and (num_f_cur_tracked_points > Parameters.kNumMinPointsForNewKf)
         
         #print('KF conditions: %d %d %d' % (cond1, cond2, cond3) )
-        ret = (cond1 or cond2a or cond2b ) and cond3    
-                                                
+        ret = (cond1 or cond2a or cond2b or cond2c) and cond3    
+                                                        
         if ret:
             if is_local_mapping_idle:
                 return True 
@@ -576,12 +592,11 @@ class Tracking(object):
         time_start = time.time()
                 
         # check image size is coherent with camera params 
-        print("img.shape: ", img.shape)
+        print(f'img.shape: {img.shape}, camera: {self.camera.height}x{self.camera.width}')
         if depth is not None: 
             print("depth.shape: ", depth.shape)
         if img_right is not None:
             print("img_right.shape: ", img_right.shape)
-        print("camera ", self.camera.height," x ", self.camera.width)
         assert img.shape[0:2] == (self.camera.height, self.camera.width)   
         if timestamp is not None: 
             print('timestamp: ', timestamp)  
@@ -607,7 +622,7 @@ class Tracking(object):
         
         if self.state == SlamState.NO_IMAGES_YET: 
             # push first frame in the inizializer 
-            self.intializer.init(f_cur) 
+            self.intializer.init(f_cur, img) 
             self.state = SlamState.NOT_INITIALIZED
             return # EXIT (jump to second frame)
         

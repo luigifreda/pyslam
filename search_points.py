@@ -72,7 +72,7 @@ def propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur,
             if check_orientation:
                 index_match = len(idx_cur_out)-1
                 rot = f_ref.angles[idx]-f_cur.angles[idx_cur]
-                rot_histo.push(rot,index_match)
+                rot_histo.push(rot, index_match)
             
     if check_orientation:            
         valid_match_idxs = rot_histo.get_valid_idxs()     

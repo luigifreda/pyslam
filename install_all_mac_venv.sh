@@ -32,6 +32,7 @@ brew install zlib bzip2
 brew install rsync
 brew install readline
 brew install pyenv
+brew install libomp   # need to add -L/opt/homebrew/opt/libomp/lib -I/opt/homebrew/opt/libomp/include
 
 # create a pyslam environment within pyenv and activate it 
 ./pyenv-mac-create.sh  # NOTE: the use of ./ seems crucial for the correct identification of the python libs for C++ projects 

@@ -1,0 +1,19 @@
+<package>
+  <name>obindex2</name>
+  <version>0.1.0</version>
+  <description>This package implements an index of images based on an incremental Binary Bag of Words approach. It can be used to efficiently search for the most similar images in a set.</description>
+
+  <maintainer email="emilio.garcia@uib.es">Emilio Garcia-Fidalgo</maintainer>
+  <author email="emilio.garcia@uib.es">Emilio Garcia-Fidalgo</author>
+
+  <license>GPL</license>
+  <url type="website">http://wiki.ros.org/obindex2</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend>
+
+  <export>
+    <cpp lflags="-L${prefix}/lib -Wl,-rpath,${prefix}/lib -lobindex2" cflags="-I${prefix}/lib/include/"/>
+  </export>
+</package>

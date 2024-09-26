@@ -44,10 +44,6 @@ from viewer3D import Viewer3D
 from utils_sys import getchar, Printer 
 
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_manager import feature_manager_factory
-from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import FeatureMatcherTypes
-
 from feature_tracker_configs import FeatureTrackerConfigs
 
 from parameters import Parameters  
@@ -87,7 +83,7 @@ if __name__ == "__main__":
     feature_tracker = feature_tracker_factory(**tracker_config)
     
     # create SLAM object 
-    slam = Slam(cam, feature_tracker, dataset.sensorType(), groundtruth=None) # not actually used by Slam class; could be used in the future for evaluating performances online
+    slam = Slam(cam, feature_tracker, dataset.sensorType(), groundtruth=None) # groundtruth not actually used by Slam class
     time.sleep(1) # to show initial messages 
     
     viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
@@ -101,11 +97,14 @@ if __name__ == "__main__":
         display2d = None  # enable this if you want to use opencv window
 
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')  
-    info_3dpoints_plt = Mplot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
+    info_3dpoints_plt = None #Mplot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
+    reproj_error_plt = Mplot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
 
     do_step = False      # proceed step by step on GUI  
     is_paused = False    # pause/resume on GUI 
     is_map_save = False  # save map on GUI
+    
+    key_cv = None
             
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
     last_processed_kf_img_id = -1
@@ -115,8 +114,7 @@ if __name__ == "__main__":
             Printer.green('do step: ', do_step)
                         
         if not is_paused or do_step: 
-            print('..................................')
-            print('image: ', img_id)                
+            print('..................................')               
             img = dataset.getImageColor(img_id)
             depth = dataset.getDepth(img_id)
             img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
@@ -128,6 +126,8 @@ if __name__ == "__main__":
             next_timestamp = dataset.getNextTimestamp() # get next timestamp 
             frame_duration = next_timestamp-timestamp if (timestamp is not None and next_timestamp is not None) else -1
 
+            print(f'image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}') 
+            
             time_start = None 
             if img is not None:
                 time_start = time.time()                  
@@ -183,7 +183,16 @@ if __name__ == "__main__":
                         if slam.tracking.last_num_static_stereo_map_points is not None: 
                             num_static_stereo_map_points_signal = [img_id, slam.tracking.last_num_static_stereo_map_points]
                             info_3dpoints_plt.draw(num_static_stereo_map_points_signal,'# static triangulated pts',color='k') 
-                    info_3dpoints_plt.refresh()                       
+                    info_3dpoints_plt.refresh()   
+                    
+                if reproj_error_plt is not None:
+                    if slam.tracking.mean_pose_opt_chi2_error is not None:
+                        mean_pose_opt_chi2_error_signal = [img_id, slam.tracking.mean_pose_opt_chi2_error]
+                        reproj_error_plt.draw(mean_pose_opt_chi2_error_signal,'pose opt chi2 error',color='r')
+                    if slam.local_mapping.mean_ba_chi2_error is not None:
+                        mean_squared_reproj_error_signal = [img_id, slam.local_mapping.mean_ba_chi2_error]
+                        reproj_error_plt.draw(mean_squared_reproj_error_signal,'BA chi2 error',color='g')
+                                            
                        
             if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                 trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
@@ -198,27 +207,38 @@ if __name__ == "__main__":
             time.sleep(0.1)                                 
         
         # get keys 
-        key = matched_points_plt.get_key()  
-        key_pt = info_3dpoints_plt.get_key()
-        key_cv = cv2.waitKey(1) & 0xFF    
+        key = matched_points_plt.get_key() if matched_points_plt is not None else None
+        if key == '' or key is None:
+            key = info_3dpoints_plt.get_key() if info_3dpoints_plt is not None else None
+        if key == '' or key is None:
+            key = reproj_error_plt.get_key() if reproj_error_plt is not None else None
+        if display2d is None:
+            key_cv = cv2.waitKey(1) & 0xFF   
+            
+        # if key != '' and key is not None:
+        #     print(f'key pressed: {key}') 
         
         # manage interface infos  
         
         if slam.tracking.state==SlamState.LOST:
-            if display2d is not None:     
-                getchar()                              
+            if display2d is None:  
+                key_cv = cv2.waitKey(0) & 0xFF   # useful when drawing stuff for debugging                                 
             else: 
-                key_cv = cv2.waitKey(0) & 0xFF   # useful when drawing stuff for debugging 
+                getchar()
+                 
         
         if is_map_save:
             slam.save_map('map.json') 
             Printer.green('uncheck pause checkbox on GUI to continue...\n')        
                       
-        if key == 'q' or key_pt == 'q' or (key_cv == ord('q')):
+        if key == 'q' or (key_cv == ord('q')):
+            slam.quit()
             if matched_points_plt is not None:
                 matched_points_plt.quit()
             if info_3dpoints_plt is not None:
-                info_3dpoints_plt.quit()                 
+                info_3dpoints_plt.quit()    
+            if reproj_error_plt is not None:
+                reproj_error_plt.quit()             
             if display2d is not None:
                 display2d.quit()
             if viewer3D is not None:

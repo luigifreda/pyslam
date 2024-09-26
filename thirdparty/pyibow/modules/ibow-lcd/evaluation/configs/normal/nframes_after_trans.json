@@ -1,0 +1,88 @@
+{
+  "config_name": "CityCentre_2",
+  "base_dir": "/datasets/CityCentre/",
+  "results_dir": "/home/emilio/Escritorio/ibow-lcd/",
+  "debug": true,
+  "executions" : [
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 1,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 2,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 3,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 4,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 5,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 6,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 7,
+      "min_consecutive_loops": 4
+    },
+    {
+      "purge_descriptors": true,
+      "min_feat_apps": 2,
+      "p": 150,
+      "min_score": 0.3,
+      "island_size": 10,
+      "min_inliers": 15,
+      "nframes_after_lc": 8,
+      "min_consecutive_loops": 4
+    }
+  ]
+}

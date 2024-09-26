@@ -1,0 +1,8 @@
+{
+    "coords_file": "/datasets/Lip6_indoor/imageCoords.mat",
+    "gt_file": "/datasets/Lip6_indoor/groundtruth.mat",
+    "img_dir": "/datasets/Lip6_indoor/images/",
+    "min_consecutive_loops": 5,
+    "min_inliers": 85,
+    "p": 50
+}

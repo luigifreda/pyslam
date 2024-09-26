@@ -1,0 +1,23 @@
+<package>
+  <name>ibow-lcd</name>
+  <version>0.1.0</version>
+  <description>Appearance-based Loop Closure Detection using Incremental Bags of Binary Words.</description>
+
+  <maintainer email="emilio.garcia@uib.es">Emilio Garcia-Fidalgo</maintainer>
+  <author email="emilio.garcia@uib.es">Emilio Garcia-Fidalgo</author>
+
+  <license>GPL</license>
+  <url type="website">http://wiki.ros.org/ibow-lcd</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>obindex2</build_depend>
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>obindex2</run_depend>
+
+  <export>
+    <cpp lflags="-L${prefix}/lib -Wl,-rpath,${prefix}/lib -llcdetector" cflags="-I${prefix}/include/"/>
+  </export>
+</package>

@@ -197,7 +197,7 @@ class Map(object):
             idxs1 = np.array(idxs1)
             idxs2 = np.array(idxs2)
             
-            added_points = []
+            added_map_points = []
             out_mask_pts3d = np.full(points3d.shape[0], False, dtype=bool)
             if mask_pts3d is None:
                 mask_pts3d = np.full(points3d.shape[0], True, dtype=bool)
@@ -345,50 +345,7 @@ class Map(object):
                 # perform different required checks before adding the point 
                 if do_check:
                     if bad_points[i]:
-                        continue 
-                                        
-                    # check parallax is large enough (this is going to filter out all points when the inter-frame motion is almost zero)           
-                    # ray1 = np.dot(kf1.Rwc, add_ones_1D(kf1.kpsn[idx1_i]))
-                    # ray2 = np.dot(kf2.Rwc, add_ones_1D(kf2.kpsn[idx2_i]))
-                    # cos_parallax = ray1.dot(ray2) / (np.linalg.norm(ray1) * np.linalg.norm(ray2))
-                    # if cos_parallax < 0 or cos_parallax > cos_max_parallax:
-                    #     #print('p[',i,']: ',p,' not enough parallax: ', cos_parallaxs[i]) 
-                    #     continue
-
-                    # check points are visible on f1
-                    # uv1, depth1 = kf1.project_point(p)
-                    # is_visible1  = kf1.is_in_image(uv1, depth1) # N.B.: is_in_image() check is redundant since we check the reproj errror 
-                    # if not is_visible1:
-                    #     continue   
-                    
-                    # check points are visible on f2                       
-                    # uv2, depth2 = kf2.project_point(p) 
-                    # is_visible2  = kf2.is_in_image(uv2, depth2)  # N.B.: is_in_image() check is redundant since we check the reproj errror 
-                    # if not is_visible2:
-                    #     continue                                      
-                        
-                    # check reprojection error on f1
-                    #kp1_level = kf1.octaves[idx1_i]
-                    #invSigma2_1 = Frame.feature_manager.inv_level_sigmas2[kp1_level]                
-                    # err1 = uvs1[i] - kf1.kpsu[idx1_i]       
-                    # chi2_1 = np.inner(err1,err1)*invSigma2_1 
-                    # if chi2_1 > Parameters.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
-                    #     continue                                 
-                    
-                    # check reprojection error on f2     
-                    # kp2_level = kf2.octaves[idx2_i]                          
-                    # invSigma2_2 = Frame.feature_manager.inv_level_sigmas2[kp2_level]                 
-                    # err2 = uvs2[i] - kf2.kpsu[idx2_i]         
-                    # chi2_2 = np.inner(err2,err2)*invSigma2_2                             
-                    # if chi2_2 > Parameters.kChi2Mono: # chi-square 2 DOFs  (Hartley Zisserman pg 119)
-                    #     continue               
-                    
-                    #check scale consistency 
-                    # scale_factor_x_depth1 =  Frame.feature_manager.scale_factors[kps1_levels[i]] * proj_depths1[i]
-                    # scale_factor_x_depth2 =  Frame.feature_manager.scale_factors[kps2_levels[i]] * proj_depths2[i]
-                    # if (scale_factor_x_depth1 > scale_factor_x_depth2*ratio_scale_consistency) or \
-                    #    (scale_factor_x_depth2 > scale_factor_x_depth1*ratio_scale_consistency):
-                    #     continue                                    
+                        continue                                  
 
                 # get the color of the point  
                 try:
@@ -424,8 +381,8 @@ class Map(object):
                 mp.add_observation(kf2, idx2_i)                   
                 mp.update_info()
                 out_mask_pts3d[i] = True 
-                added_points.append(mp)
-            return len(added_points), out_mask_pts3d, added_points
+                added_map_points.append(mp)
+            return len(added_map_points), out_mask_pts3d, added_map_points
 
 
     # add new points to the map from 3D point stereo-back-projection
@@ -499,6 +456,25 @@ class Map(object):
                         self.remove_point(p)
                 Printer.blue("# culled map points: ", culled_pt_count)        
 
+
+
+    def compute_mean_reproj_error(self, points=None): 
+        chi2 = 0
+        num_obs = 0
+        with self._lock:             
+            with self.update_lock:
+                if points is None:
+                    points = self.points                
+                for p in points:
+                    # compute reprojection error
+                    for f, idx in p.observations():
+                        uv = f.kpsu[idx]
+                        proj,_ = f.project_map_point(p)
+                        invSigma2 = Frame.feature_manager.inv_level_sigmas2[f.octaves[idx]]
+                        err = (proj-uv)
+                        chi2 += np.inner(err,err)*invSigma2
+                        num_obs += 1
+        return chi2/max(num_obs,1)
 
     # BA considering all keyframes: 
     # - local keyframes are adjusted, 
