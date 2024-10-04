@@ -41,7 +41,7 @@ class MovingAverage:
             initVal = 0. 
         self._ring_buffer = np.full(self._average_width, initVal, dtype=np.float32)        
         self._average	= initVal;	
-        self._sigma2	= 0;
+        self._sigma2	= 0
         self._is_init	= True;        
 
     def getAverage(self, new_val=None):

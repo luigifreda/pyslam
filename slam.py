@@ -43,6 +43,8 @@ from local_mapping import LocalMapping
 from initializer import Initializer
 import optimizer_g2o
 
+from loop_closing import LoopClosing
+
 from timer import TimerFps
 
 from dataset import SensorType
@@ -111,7 +113,11 @@ class Slam(object):
         self.camera = camera 
         self.sensor_type = sensor_type
         self.map = Map()
-        self.local_mapping = LocalMapping(self.map, self.sensor_type)
+        self.loop_closing = None
+        if Parameters.kUseLoopClosing:  # must be before local mapping init
+            self.loop_closing = LoopClosing(self)
+            self.loop_closing.start()     
+        self.local_mapping = LocalMapping(self)
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
         self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances 
@@ -119,9 +125,12 @@ class Slam(object):
 
         
     def quit(self):
+        print('SLAM: quitting ...')
         if kLocalMappingOnSeparateThread:
-            self.local_mapping.quit()                       
-
+            self.local_mapping.quit()  
+        if self.loop_closing is not None:
+            self.loop_closing.quit()                   
+        print('SLAM: done')
 
     def init_feature_tracker(self, tracker):
         Frame.set_tracker(tracker) # set the static field of the class 
@@ -163,6 +172,7 @@ class Tracking(object):
             self.trackingWaitForLocalMappingSleepTime = Parameters.kTrackingWaitForLocalMappingSleepTimeStereo
         
         self.local_mapping = system.local_mapping
+        self.loop_closing = system.loop_closing # type: LoopClosing
                                 
         self.intializer = Initializer(self.sensor_type)
         
@@ -216,7 +226,9 @@ class Tracking(object):
         self.timer_match = TimerFps('Match', is_verbose = self.timer_verbose)                   
         self.timer_pose_est = TimerFps('Ess mat pose estimation', is_verbose = self.timer_verbose)
         self.timer_frame = TimerFps('Frame', is_verbose = self.timer_verbose)
-        self.timer_seach_map = TimerFps('Search map', is_verbose = self.timer_verbose)     
+        self.timer_seach_map = TimerFps('Search map', is_verbose = self.timer_verbose)   
+        
+        self.time_track = None  
         
         self.init_history = True 
         self.poses = []              # history of poses
@@ -762,9 +774,10 @@ class Tracking(object):
                     self.map.add_keyframe(kf_new)   # add kf_cur to map 
                     self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
                     
-                    self.local_mapping.push_keyframe(kf_new) 
+                    self.local_mapping.push_keyframe(kf_new, img) 
+                                        
                     if not kLocalMappingOnSeparateThread:
-                        self.local_mapping.do_local_mapping()                                      
+                        self.local_mapping.step()                                                         
                 else: 
                     Printer.yellow('NOT KF')      
                     
@@ -787,6 +800,7 @@ class Tracking(object):
             self.timer_main_track.refresh()
             
             duration = time.time() - time_start
+            self.time_track = duration
             print('tracking duration: ', duration)            
         
     def create_vo_points_on_last_frame(self):
@@ -887,8 +901,12 @@ class Tracking(object):
         else:
             #if not self.local_mapping.is_idle() and self.trackingWaitForLocalMappingSleepTime>0:
             if self.local_mapping.queue_size()>0 and self.trackingWaitForLocalMappingSleepTime>0:
-                print('>>>> sleeping for local mapping...')                    
-                time.sleep(self.trackingWaitForLocalMappingSleepTime)  
+                if self.local_mapping.queue_size()==0:
+                    print('>>>> sleeping for local mapping...')                    
+                    time.sleep(self.trackingWaitForLocalMappingSleepTime)  
+                else:
+                    print('>>>> waiting for local mapping idle...')  
+                    self.local_mapping.wait_idle()
                 
         # check again for debug                     
         #is_local_mapping_idle = self.local_mapping.is_idle()  

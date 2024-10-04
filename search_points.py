@@ -386,6 +386,10 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
     rot_histo = RotationHistogram()
     check_orientation = kCheckFeaturesOrientation and Frame.oriented_features     
         
+        
+    level_sigmas2 = Frame.feature_manager.level_sigmas2
+    scale_factors = Frame.feature_manager.scale_factors
+    
     # check epipolar constraints 
     for i1,i2 in zip(idxs1,idxs2):
         if kf1.get_point_match(i1) is not None or kf2.get_point_match(i2) is not None: # we are searching for keypoint matches where both keypoints do not have a corresponding map point 
@@ -397,7 +401,7 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
             continue     
         
         kp1 = kf1.kpsu[i1]
-        #kp1_scale_factor = Frame.feature_manager.scale_factors[kf1.octaves[i1]]
+        #kp1_scale_factor = scale_factors[kf1.octaves[i1]]
         #kp1_size = f1.sizes[i1]
         # discard points which are too close to the epipole            
         #if np.linalg.norm(kp1-e1) < Parameters.kMinDistanceFromEpipole * kp1_scale_factor:                 
@@ -405,7 +409,7 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
         #    continue   
         
         kp2 = kf2.kpsu[i2]
-        kp2_scale_factor = Frame.feature_manager.scale_factors[kf2.octaves[i2]]        
+        kp2_scale_factor = scale_factors[kf2.octaves[i2]]        
         # kp2_size = f2.sizes[i2]        
         # discard points which are too close to the epipole            
         delta = kp2-e2        
@@ -415,7 +419,7 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
              continue           
         
         # check epipolar constraint         
-        sigma2_kp2 = Frame.feature_manager.level_sigmas2[kf2.octaves[i2]]
+        sigma2_kp2 = level_sigmas2[kf2.octaves[i2]]
         if check_dist_epipolar_line(kp1,kp2,F12,sigma2_kp2):
             idxs1_out.append(i1)
             idxs2_out.append(i2)
@@ -473,6 +477,7 @@ def search_and_fuse(points, keyframe,
     predicted_levels = predict_detection_levels(good_pts, good_dists) 
     kp_scale_factors = Frame.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
+    
     kd_idxs = keyframe.kd.query_ball_point(good_projs[:,:2], radiuses)    
     
     do_check_stereo_reproj_err = keyframe.kps_ur is not None    
@@ -509,6 +514,8 @@ def search_and_fuse(points, keyframe,
             check_stereo = keyframe.kps_ur[kd_idxs_j]>0 
             errs_ur = proj[2] - keyframe.kps_ur[kd_idxs_j] # proj_ur - kp_ur
             errs_ur2 = errs_ur*errs_ur
+            
+        inv_level_sigmas2 = Frame.feature_manager.inv_level_sigmas2
                         
         for h, kd_idx in enumerate(kd_idxs[j]):             
                 
@@ -520,10 +527,10 @@ def search_and_fuse(points, keyframe,
         
             # check the reprojection error     
             kp = keyframe.kpsu[kd_idx]
-            invSigma2 = Frame.feature_manager.inv_level_sigmas2[kp_level]            
+            invSigma2 = inv_level_sigmas2[kp_level]            
                                     
             err = proj[:2] - kp
-            chi2 = np.inner(err,err)*invSigma2     
+            chi2 = np.dot(err,err)*invSigma2     
             if do_check_stereo_reproj_err and check_stereo[h]:
                 chi2 += errs_ur2[h]*invSigma2 
                 if chi2 > Parameters.kChi2Stereo: # chi-square 3 DOFs  (Hartley Zisserman pg 119)
@@ -544,10 +551,9 @@ def search_and_fuse(points, keyframe,
                 best_dist = descriptor_dist
                 best_level = kp_level
                 best_kd_idx = kd_idx   
-            else: 
-                if descriptor_dist < best_dist2:  # N.O.
-                    best_dist2 = descriptor_dist       
-                    best_level2 = kp_level                                   
+            elif descriptor_dist < best_dist2:  # N.O.
+                best_dist2 = descriptor_dist       
+                best_level2 = kp_level                                   
                                                             
         #if best_kd_idx > -1 and best_dist < max_descriptor_distance:
         if best_dist < max_descriptor_distance:         

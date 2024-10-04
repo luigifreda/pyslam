@@ -36,6 +36,7 @@ from trajectory_writer import TrajectoryWriter
 #from mplot3d import Mplot3d
 #from mplot2d import Mplot2d
 from mplot_thread import Mplot2d, Mplot3d
+import matplotlib.colors as mcolors
 
 if platform.system()  == 'Linux':     
     from display2D import Display2D  #  !NOTE: pygame generate troubles under macOS!
@@ -48,6 +49,9 @@ from feature_tracker_configs import FeatureTrackerConfigs
 
 from parameters import Parameters  
 import multiprocessing as mp 
+
+from rerun_interface import Rerun
+
 
 
 if __name__ == "__main__":
@@ -99,6 +103,7 @@ if __name__ == "__main__":
     matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')  
     info_3dpoints_plt = None #Mplot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
     reproj_error_plt = Mplot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
+    timing_plt = Mplot2d(xlabel='img id', ylabel='s',title='timing')
 
     do_step = False      # proceed step by step on GUI  
     is_paused = False    # pause/resume on GUI 
@@ -192,7 +197,38 @@ if __name__ == "__main__":
                     if slam.local_mapping.mean_ba_chi2_error is not None:
                         mean_squared_reproj_error_signal = [img_id, slam.local_mapping.mean_ba_chi2_error]
                         reproj_error_plt.draw(mean_squared_reproj_error_signal,'BA chi2 error',color='g')
+                    reproj_error_plt.refresh()
                                             
+                if timing_plt is not None:
+                    if slam.tracking.time_track is not None:
+                        time_track_signal = [img_id, slam.tracking.time_track]
+                        timing_plt.draw(time_track_signal,'tracking',color='r')
+                    if slam.local_mapping.time_local_mapping is not None:
+                        time_local_mapping_signal = [img_id, slam.local_mapping.time_local_mapping]
+                        timing_plt.draw(time_local_mapping_signal,'local mapping',color='g')  
+                    if slam.local_mapping.time_local_opt.last_elapsed:
+                        time_LBA_signal = [img_id, slam.local_mapping.time_local_opt.last_elapsed]
+                        timing_plt.draw(time_LBA_signal,'LBA',color='b')
+                    if slam.local_mapping.timer_triangulation.last_elapsed:
+                        time_local_mapping_triangulation_signal = [img_id, slam.local_mapping.timer_triangulation.last_elapsed]
+                        timing_plt.draw(time_local_mapping_triangulation_signal,'local mapping triangulation',color='k')
+                    if slam.local_mapping.timer_pts_culling.last_elapsed:
+                        time_local_mapping_pts_culling_signal = [img_id, slam.local_mapping.timer_pts_culling.last_elapsed]
+                        timing_plt.draw(time_local_mapping_pts_culling_signal,'local mapping pts culling',color='c')
+                    if slam.local_mapping.timer_kf_culling.last_elapsed:
+                        time_local_mapping_kf_culling_signal = [img_id, slam.local_mapping.timer_kf_culling.last_elapsed]
+                        timing_plt.draw(time_local_mapping_kf_culling_signal,'local mapping kf culling',color='m')
+                    if slam.local_mapping.timer_pts_fusion.last_elapsed:
+                        time_local_mapping_pts_fusion_signal = [img_id, slam.local_mapping.timer_pts_fusion.last_elapsed]
+                        timing_plt.draw(time_local_mapping_pts_fusion_signal,'local mapping pts fusion',color='y')
+                    if slam.loop_closing is not None:
+                        if slam.loop_closing.timer_loop_closing.last_elapsed:
+                            time_loop_closing_signal = [img_id, slam.loop_closing.timer_loop_closing.last_elapsed]
+                            timing_plt.draw(time_loop_closing_signal,'loop closing',color=mcolors.CSS4_COLORS['lightcoral'])
+                        if slam.loop_closing.time_loop_detection.value:
+                            time_loop_detection_signal = [img_id, slam.loop_closing.time_loop_detection.value]
+                            timing_plt.draw(time_loop_detection_signal,'loop detection',color=mcolors.CSS4_COLORS['darkgray'])
+                    timing_plt.refresh()
                        
             if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                 trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
@@ -212,6 +248,8 @@ if __name__ == "__main__":
             key = info_3dpoints_plt.get_key() if info_3dpoints_plt is not None else None
         if key == '' or key is None:
             key = reproj_error_plt.get_key() if reproj_error_plt is not None else None
+        if key == '' or key is None:
+            key = timing_plt.get_key() if timing_plt is not None else None
         if display2d is None:
             key_cv = cv2.waitKey(1) & 0xFF   
             
@@ -226,11 +264,15 @@ if __name__ == "__main__":
             else: 
                 getchar()
                  
-        
         if is_map_save:
             slam.save_map('map.json') 
             Printer.green('uncheck pause checkbox on GUI to continue...\n')        
-                      
+        
+        if viewer3D is not None:
+            is_paused = viewer3D.is_paused()    
+            is_map_save = viewer3D.is_map_save() and is_map_save == False 
+            do_step = viewer3D.do_step() and do_step == False    
+                                  
         if key == 'q' or (key_cv == ord('q')):
             slam.quit()
             if matched_points_plt is not None:
@@ -238,20 +280,16 @@ if __name__ == "__main__":
             if info_3dpoints_plt is not None:
                 info_3dpoints_plt.quit()    
             if reproj_error_plt is not None:
-                reproj_error_plt.quit()             
+                reproj_error_plt.quit()
+            if timing_plt is not None:
+                timing_plt.quit()             
             if display2d is not None:
                 display2d.quit()
             if viewer3D is not None:
                 viewer3D.quit()           
             break
-        
-        if viewer3D is not None:
-            is_paused = viewer3D.is_paused()    
-            is_map_save = viewer3D.is_map_save() and is_map_save == False 
-            do_step = viewer3D.do_step() and do_step == False     
-    
-    trajectory_writer.close_file()                   
-    slam.quit()
+            
+    trajectory_writer.close_file()
     
     #cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    #cv2.destroyAllWindows()

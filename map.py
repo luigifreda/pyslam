@@ -495,7 +495,8 @@ class Map(object):
         print('                   #points: ', len(points))               
         #print('                   points: ', sorted([p.id for p in points]))        
         #err = optimizer_g2o.optimize(frames, points, None, False, verbose, rounds)  
-        err, ratio_bad_observations = optimizer_g2o.local_bundle_adjustment(keyframes, points, ref_keyframes, False, verbose, rounds, abort_flag=abort_flag, map_lock=self.update_lock)
+        ba_function = optimizer_g2o.local_bundle_adjustment_parallel if Parameters.kUseParallelProcessLBA and len(ref_keyframes) > 10 else optimizer_g2o.local_bundle_adjustment
+        err, ratio_bad_observations = ba_function(keyframes, points, ref_keyframes, False, verbose, rounds, abort_flag=abort_flag, map_lock=self.update_lock)
         Printer.green('local optimization - perc bad observations: %.2f %%' % (ratio_bad_observations*100) )              
         return err 
 
@@ -635,6 +636,8 @@ class LocalMapBase(object):
         # increase counter for those keyframes            
         viewing_keyframes = [kf for p in points for kf in p.keyframes() if not kf.is_bad]# if kf in keyframes]
         viewing_keyframes = Counter(viewing_keyframes)
+        if len(viewing_keyframes) == 0:
+            Printer.red('get_frame_covisibles - no viewing keyframes')        
         kf_ref = viewing_keyframes.most_common(1)[0][0]          
         #local_keyframes = viewing_keyframes.keys()
     

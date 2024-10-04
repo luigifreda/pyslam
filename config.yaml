@@ -69,11 +69,11 @@ TUM_DATASET:
   sensor_type: rgbd # here, sensor_type can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
-  name: rgbd_dataset_freiburg3_long_office_household
-  settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file    
+  # name: rgbd_dataset_freiburg3_long_office_household
+  # settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file    
   #
-  # name: rgbd_dataset_freiburg1_xyz 
-  # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file
+  name: rgbd_dataset_freiburg1_xyz 
+  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file
   #
   # name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations
   # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
@@ -84,13 +84,13 @@ TUM_DATASET:
 
 EUROC_DATASET:
   type: euroc
-  sensor_type: mono # here, sensor_type can be 'mono' or 'stereo'
+  sensor_type: stereo # here, sensor_type can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/euroc
-  name: MH01
+  #name: MH01
   #name: MH02  
   #name: MH03    
   #name: V101  
-  #name: V102
+  name: V102
   #name: V202
   #name: V203   
   # 'settings' will be used when sensor_type: : 'mono'

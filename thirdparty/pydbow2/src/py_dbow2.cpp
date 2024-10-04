@@ -44,7 +44,18 @@ PYBIND11_MODULE(pydbow2, m)
 		.def("addWeight", &DBoW2::BowVector::addWeight)
 		.def("addIfNotExist", &DBoW2::BowVector::addIfNotExist)
 		.def("normalize", &DBoW2::BowVector::normalize)
-		.def("saveM", &DBoW2::BowVector::saveM);
+		.def("saveM", &DBoW2::BowVector::saveM)
+		.def("toVec", &DBoW2::BowVector::toVec)
+		.def("__repr__", [](const DBoW2::BowVector &obj) {
+				std::ostringstream os;
+				os << obj;
+				return os.str();
+			})
+		.def("__str__", [](const DBoW2::BowVector &obj) {
+			std::ostringstream os;
+			os << obj;
+			return os.str();
+		});			
 
 	py::enum_<DBoW2::WeightingType>(m, "WeightingType")
 		.value("TF_IDF", DBoW2::TF_IDF)

@@ -192,6 +192,32 @@ class KeyFrameGraph(object):
             return self.connected_keyframes_weights[keyframe]  
                     
 
+# class KeyFrameData:
+#     def __init__(self, keyframe):
+#         # replicate the same main fields of KeyFrame with locks
+#         self.id = keyframe.id
+#         self.kid = keyframe.kid
+#         self.is_keyframe = keyframe.is_keyframe
+                
+#         self.img = keyframe.img
+#         self.depth_img = keyframe.depth_img
+#         self.camera = keyframe.camera
+
+#         self.kps = keyframe.kps
+#         self.kpsu = keyframe.kpsu
+#         self.kpsn = keyframe.kpsn
+#         self.octaves = keyframe.octaves
+#         self.sizes = keyframe.sizes
+#         self.angles = keyframe.angles
+#         self.des = keyframe.des
+#         self.dephts = keyframe.dephts
+#         self.kps_ur = keyframe.kps_ur
+        
+#         self.g_des = keyframe.g_des
+        
+#         self.outliers = keyframe.outliers
+        
+
 class KeyFrame(Frame,KeyFrameGraph):
     def __init__(self, frame: Frame, img=None):
         KeyFrameGraph.__init__(self)
@@ -229,6 +255,17 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.des     = frame.des        # keypoint descriptors                  [NxD] where D is the descriptor length 
         self.depths  = frame.depths     # keypoint depths                       [Nx1]
         self.kps_ur = frame.kps_ur      # right keypoint coordinates            [Nx1]
+        
+        # for loop closing 
+        self.g_des = None               # global (image-wise) descriptor for loop closing
+        self.loop_query_id = None
+        self.num_loop_words = 0
+        self.loop_score = None
+        
+        # for relocalization 
+        self.reloc_query_id = None
+        self.num_reloc_words = 0
+        self.reloc_score = None
         
         if hasattr(frame, '_kd'):     
             self._kd = frame._kd 
@@ -322,7 +359,7 @@ class KeyFrame(Frame,KeyFrameGraph):
 
     def set_not_erase(self): 
         with self._lock_connections:          
-            not_to_erase = True 
+            self.not_to_erase = True 
             
     def set_erase(self): 
         with self._lock_connections: 

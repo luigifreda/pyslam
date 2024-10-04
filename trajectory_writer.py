@@ -55,6 +55,7 @@ class TrajectoryWriter:
         if self.file:
             self.file.close()
             self.file = None
+        print(f'Trajectory saved to {self.filename}')
 
     def write_trajectory(self, R, t, timestamp):
         write_func = self.FORMAT_FUNCTIONS.get(self.format_type)

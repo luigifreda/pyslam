@@ -7,7 +7,7 @@ config = Config()
 
 from utils_files import gdrive_download_lambda 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopClosuresImgs
+from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
 
 import math
 import cv2 
@@ -38,9 +38,9 @@ class GlobalFeatureDatabase:
                                
         self.voc = dbow.BinaryVocabulary()
         print(f'loading vocabulary...')
-        if not os.path.exists(kVocabFile):
+        if not os.path.exists(voc_filename):
             gdrive_url = 'https://drive.google.com/uc?id=1-4qDFENJvswRd1c-8koqt3_5u1jMR4aF'
-            gdrive_download_lambda(url=gdrive_url, path=kVocabFile)
+            gdrive_download_lambda(url=gdrive_url, path=voc_filename)
         self.voc.load(voc_filename)
         print(f'...done')
                                    
@@ -68,7 +68,7 @@ class GlobalFeatureDatabase:
     def compute_global_des(self, local_des):
         # Feature vector associate features with nodes in the 4th level (from leaves up)
         # We assume the vocabulary tree has 6 levels, change the 4 otherwise        
-        des_transform_result = self.voc.transform(des,4)
+        des_transform_result = self.voc.transform(local_des,4)
         global_des = des_transform_result.bowVector
         # at present, we don't use the featureVector des_transform_result.featureVector
         return global_des
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     global_des_database = GlobalFeatureDatabase(kVocabFile, dataset.num_frames)
 
     # to nicely visualize current loop candidates in a single image
-    loop_closures = LoopClosuresImgs()
+    loop_closure_imgs = LoopDetectionCandidateImgs()
     
     cv2.namedWindow('S', cv2.WINDOW_NORMAL)
         
@@ -105,7 +105,7 @@ if __name__ == '__main__':
             print('----------------------------------------')
             print(f'processing img {img_id}')
             
-            loop_closures.reset()
+            loop_closure_imgs.reset()
                        
             # Find the keypoints and descriptors in img1
             kps, des = feature_tracker.detectAndCompute(img)   # with DL matchers this a null operation 
@@ -121,18 +121,18 @@ if __name__ == '__main__':
                     if abs(idx - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
                         print(f'result - best id: {idx}, score: {score}')
                         loop_img = dataset.getImageColor(idx)
-                        loop_closures.add(loop_img, idx, score)
+                        loop_closure_imgs.add(loop_img, idx, score)
 
             font_pos = (50, 50)                   
-            cv2.putText(img, f'id: {img_id}', font_pos, LoopClosuresImgs.kFont, LoopClosuresImgs.kFontScale, \
-                        LoopClosuresImgs.kFontColor, LoopClosuresImgs.kFontThickness, cv2.LINE_AA)     
+            cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
+                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
             cv2.imshow('img', img)
             
             cv2.imshow('S', global_des_database.S_color)            
             #cv2.imshow('S', convert_float_to_colored_uint8_image(global_des_database.S_float))
             
-            if loop_closures.candidates is not None:
-                cv2.imshow('loop_closures', loop_closures.candidates)
+            if loop_closure_imgs.candidates is not None:
+                cv2.imshow('loop_closure_imgs', loop_closure_imgs.candidates)
             
             cv2.waitKey(1)
         else: 

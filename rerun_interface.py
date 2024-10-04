@@ -97,7 +97,7 @@ class Rerun:
     # =================================================================================== 
 
     @staticmethod
-    def log_3d_camera_img_seq(frame_id: int, img, camera: Camera, camera_pose, adjust_rgb=True) -> None:
+    def log_3d_camera_img_seq(frame_id: int, img, depth, camera: Camera, camera_pose) -> None:
                 
         R = camera_pose[:3, :3]
         t = camera_pose[:3, 3]
@@ -119,6 +119,8 @@ class Rerun:
             new_width = int(float(img.shape[1]) * Rerun.camera_img_resize_factors[1])
             new_height = int(float(img.shape[0]) * Rerun.camera_img_resize_factors[0])
             bgr = cv2.resize(img, (new_width, new_height))
+            if depth is not None:
+                depth = cv2.resize(depth, (new_width, new_height))
         else: 
             bgr = img
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
@@ -127,6 +129,9 @@ class Rerun:
             rr.log("world/camera/image", rr.Image(rgb).compress(jpeg_quality=Rerun.img_compress_jpeg_quality))
         else: 
             rr.log("world/camera/image", rr.Image(rgb))
+
+        if depth is not None:
+            rr.log("world/camera/depth", rr.DepthImage(depth, meter=1.0, colormap="viridis"))
 
         Rerun.log_3d_camera_pose(frame_id, camera, camera_pose, color=[0,255,0], size=Rerun.camera_poses_view_size)
         

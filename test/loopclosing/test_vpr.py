@@ -13,7 +13,7 @@ import numpy as np
 import cv2
 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, float_to_color_array, convert_float_to_colored_uint8_image, LoopClosuresImgs
+from utils_img import float_to_color, float_to_color_array, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
 
 
 from dataset import dataset_factory
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     global_des_database = GlobalFeatureDatabase(global_descriptor_type, dataset.num_frames)
     
     # to nicely visualize current loop candidates in a single image
-    loop_closures = LoopClosuresImgs()
+    loop_closure_imgs = LoopDetectionCandidateImgs()
     
     cv2.namedWindow('S', cv2.WINDOW_NORMAL)
     
@@ -148,7 +148,7 @@ if __name__ == "__main__":
             print('----------------------------------------')
             print(f'processing img {img_id}')
     
-            loop_closures.reset()
+            loop_closure_imgs.reset()
 
             g_des = global_des_database.compute_global_des(img)
             global_des_database.add(g_des) # add image descriptors to database after having computed the scores
@@ -161,18 +161,18 @@ if __name__ == "__main__":
                     if abs(idx - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
                         print(f'result - best id: {idx}, score: {score}')
                         loop_img = dataset.getImageColor(idx)
-                        loop_closures.add(loop_img, idx, score)
+                        loop_closure_imgs.add(loop_img, idx, score)
                                     
             font_pos = (50, 50)                   
-            cv2.putText(img, f'id: {img_id}', font_pos, LoopClosuresImgs.kFont, LoopClosuresImgs.kFontScale, \
-                        LoopClosuresImgs.kFontColor, LoopClosuresImgs.kFontThickness, cv2.LINE_AA)     
+            cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
+                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
             cv2.imshow('img', img)
             
             #cv2.imshow('S', convert_float_to_colored_uint8_image(global_des_database.S_float))
             cv2.imshow('S', global_des_database.S_color)
             
-            if loop_closures.candidates is not None:
-                cv2.imshow('loop_closures', loop_closures.candidates)
+            if loop_closure_imgs.candidates is not None:
+                cv2.imshow('loop_closure_imgs', loop_closure_imgs.candidates)
             
             cv2.waitKey(1)
         else: 

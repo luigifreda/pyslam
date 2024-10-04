@@ -113,6 +113,11 @@ public:
 	 * @param W number of words in the vocabulary
 	 */
 	void saveM(const std::string &filename, size_t W) const;
+
+	/**
+	 * Tansform this vector into a vector of pairs (id, value)
+	 */
+	std::vector<std::pair<WordId, WordValue>> toVec() const;	
 };
 
 } // namespace DBoW2

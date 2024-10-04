@@ -126,5 +126,20 @@ void BowVector::saveM(const std::string &filename, size_t W) const
 
 // --------------------------------------------------------------------------
 
+std::vector<std::pair<WordId, WordValue>> BowVector::toVec() const
+{
+  BowVector::const_iterator vit;
+  std::vector<unsigned int>::const_iterator iit;
+  std::vector<std::pair<WordId, WordValue>> result(this->size());
+  size_t i = 0;
+  for(vit = this->begin(); vit != this->end(); ++vit, ++i)
+  {
+    result[i] = std::pair<WordId, WordValue>(vit->first, vit->second);
+  }
+  return result;
+}
+
+// --------------------------------------------------------------------------
+
 } // namespace DBoW2
 

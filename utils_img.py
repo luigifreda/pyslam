@@ -299,7 +299,7 @@ def float_to_color_array(values, colormap=cv2.COLORMAP_AUTUMN):
 
 def float_to_color(value, colormap=cv2.COLORMAP_AUTUMN):
     if not 0 <= value <= 1:
-        Printer.orange(f"The input value {value} was expected to be between 0 and 1.")
+        print(f"[float_to_color]: The input value {value} was expected to be between 0 and 1.")
         value = max(0.0, min(value, 1.0))
     # Convert the float value to a 1x1 grayscale image (in range [0, 255])
     gray_value = np.uint8(value * 255)
@@ -313,7 +313,7 @@ def float_to_color(value, colormap=cv2.COLORMAP_AUTUMN):
 
 
 # visualize loop closure candidates in a single image 
-class LoopClosuresImgs:
+class LoopDetectionCandidateImgs:
     kFont = cv2.FONT_HERSHEY_SIMPLEX
     kFontScale = 1
     kFontColor = (255, 255, 255)  
@@ -328,8 +328,8 @@ class LoopClosuresImgs:
     def add(self, img_loop, img_id, score=None):
         font_pos = (50, 50)   
         text = f'id: {img_id}' if score is None else f'id: {img_id}, s: {score:.2f}'                
-        cv2.putText(img_loop, text, font_pos, LoopClosuresImgs.kFont, LoopClosuresImgs.kFontScale, \
-                    LoopClosuresImgs.kFontColor, LoopClosuresImgs.kFontThickness, cv2.LINE_AA)              
+        cv2.putText(img_loop, text, font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
+                    LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)              
         if img_loop is not None:                 
             self.img_size = img_loop.shape
             img_rows = self.img_size[0]               

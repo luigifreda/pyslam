@@ -21,7 +21,10 @@ import numpy as np
 import cv2
 import platform
 import torch
+
 from utils_sys import Printer, import_from
+from utils_data import AtomicCounter
+
 from parameters import Parameters  
 from enum import Enum
 from collections import defaultdict
@@ -39,6 +42,11 @@ config.cfg.set_lib('lightglue')
 
 XFeat = import_from('modules.xfeat', 'XFeat')
 LightGlue = import_from('lightglue', 'LightGlue')
+
+import builtins as __builtin__
+logging_file=open('matcher.log','w')
+def print_to_file(*args, **kwargs):
+    return __builtin__.print(*args, **kwargs,file=logging_file,flush=True)
 
 
 kRatioTest = Parameters.kFeatureMatchRatioTest
@@ -262,9 +270,10 @@ class FeatureMatchingResult(object):
         self.idxs1 = None         # indices of matches in kps_ref so that kps_ref_matched = kps_ref[idxs_ref]  (numpy array of indexes)
         self.idxs2 = None         # indices of matches in kps_cur so that kps_cur_matched = kps_cur[idxs_cur]  (numpy array of indexes)
 
-
+            
 # base class 
 class FeatureMatcher(object): 
+    global_counter=AtomicCounter()
     def __init__(self,
                  norm_type=cv2.NORM_HAMMING,
                  cross_check = False,
@@ -277,16 +286,16 @@ class FeatureMatcher(object):
         self.descriptor_type = descriptor_type
         self.norm_type = norm_type 
         self.cross_check = cross_check   # apply cross check 
-        self.matches = []
         self.ratio_test = ratio_test 
         self.matcher = None 
         self.parallel = True
         self.matcher_name = ''
-        
+                    
     # input: des1 = queryDescriptors, des2= trainDescriptors
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
     def match(self, img1, img2, des1, des2, kps1=None, kps2=None, ratio_test=None, 
-              row_matching=False, max_disparity=None):
+              row_matching=False, max_disparity=None, data=None):
+                        
         result = FeatureMatchingResult()
         result.des1 = des1
         result.des2 = des2
@@ -305,9 +314,8 @@ class FeatureMatcher(object):
                 print('kps2.shape:',kps2.shape,' kps2.dtype:',kps2.dtype)                           
         if ratio_test is None:
             ratio_test = self.ratio_test 
-        # TODO: Use inheritance here instead of using if-else   
-        # NOTE: Not using inheritance for now since the interface is not yet optimal
-        # and it may change
+        # TODO: Use inheritance here instead of using if-else.   
+        # NOTE: Not using inheritance for now since the interface is not optimal yet and it may change.
         # ===========================================================   
         if self.matcher_type == FeatureMatcherTypes.LIGHTGLUE:            
             # TODO: add row epipolar check for row matching
@@ -398,8 +406,8 @@ class FeatureMatcher(object):
                 result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)            
             return result         
         # ===========================================================      
-        else: 
-            matcher = cv2.BFMatcher(self.norm_type, self.cross_check) if self.parallel else self.matcher            
+        else:
+            matcher = cv2.BFMatcher(self.norm_type, self.cross_check) #if self.parallel else self.matcher            
             if not row_matching:
                 """
                 The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects. 
@@ -410,9 +418,8 @@ class FeatureMatcher(object):
                     DMatch.imgIdx - Index of the train image.
                 """            
                 matches = matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
-                self.matches = matches
                 #return MatcherUtils.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
-                idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)    
+                idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)                    
             else: 
                 assert(max_disparity is not None)
                 # we perform row matching for stereo images (matching rectified left and right images)
@@ -422,7 +429,7 @@ class FeatureMatcher(object):
                 else:                             
                     idxs1, idxs2 = MatcherUtils.rowMatches(matcher, kps1, des1, kps2, des2, max_descriptor_distance, max_disparity=max_disparity)
             result.idxs1 = idxs1
-            result.idxs2 = idxs2           
+            result.idxs2 = idxs2                               
             return result      
 
     
