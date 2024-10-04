@@ -7,7 +7,7 @@ config = Config()
 
 from utils_files import gdrive_download_lambda 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopClosuresImgs
+from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
 from utils_features import transform_float_to_binary_descriptor
 
 import math
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     index = obindex2.ImageIndex(16, 150, 4, obindex2.MERGE_POLICY_AND, True)
     
     # to nicely visualize current loop candidates in a single image
-    loop_closures = LoopClosuresImgs()
+    loop_closure_imgs = LoopDetectionCandidateImgs()
     
     # init the similarity matrix
     S_float = np.empty([dataset.num_frames, dataset.num_frames], 'float32')
@@ -69,7 +69,7 @@ if __name__ == '__main__':
             print('----------------------------------------')
             print(f'processing img {img_id}')
             
-            loop_closures.reset()
+            loop_closure_imgs.reset()
                        
             # Find the keypoints and descriptors in img1
             kps, des = feature_tracker.detectAndCompute(img)   # with DL matchers this a null operation 
@@ -105,7 +105,7 @@ if __name__ == '__main__':
                         if abs(m.image_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
                             print(f'result - best id: {m.image_id}, score: {m.score}')
                             loop_img = dataset.getImageColor(m.image_id)
-                            loop_closures.add(loop_img, m.image_id, m.score)   
+                            loop_closure_imgs.add(loop_img, m.image_id, m.score)   
                                                    
                         if i >= (kMaxResultsForLoopClosure-1): break   
             
@@ -113,20 +113,20 @@ if __name__ == '__main__':
                 index.addImage(img_id, kps_, des_, matches)
                                 
             # Reindex features every 500 images
-            if img_count % 250 == 0:
+            if img_count % 250 == 0 and img_count>0:
                 print("------ Rebuilding indices ------")
                 index.rebuild()
                                                 
             font_pos = (50, 50)                   
-            cv2.putText(img, f'id: {img_id}', font_pos, LoopClosuresImgs.kFont, LoopClosuresImgs.kFontScale, \
-                        LoopClosuresImgs.kFontColor, LoopClosuresImgs.kFontThickness, cv2.LINE_AA)     
+            cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
+                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
             cv2.imshow('img', img)
             
             cv2.imshow('S', S_color)            
             #cv2.imshow('S', convert_float_to_colored_uint8_image(S_float))
             
-            if loop_closures.candidates is not None:
-                cv2.imshow('loop_closures', loop_closures.candidates)
+            if loop_closure_imgs.candidates is not None:
+                cv2.imshow('loop_closure_imgs', loop_closure_imgs.candidates)
             
             cv2.waitKey(1)
         else: 

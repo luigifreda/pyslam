@@ -632,8 +632,6 @@ void Vocabulary::transform(
     //    for(int r=0;r<features.rows;r++) vf[r]=features.rowRange(r,r+1);
     //    transform(vf,v);
 
-
-
     v.clear();
 
     if(empty())
@@ -703,7 +701,6 @@ void Vocabulary::transform(
   LNorm norm;
   bool must = m_scoring_object->mustNormalize(norm);
 
-
   if(m_weighting == TF || m_weighting == TF_IDF)
   {
     for(auto fit = features.begin(); fit < features.end(); ++fit)
@@ -711,8 +708,7 @@ void Vocabulary::transform(
       WordId id;
       WordValue w;
       // w is the idf value if TF_IDF, 1 if TF
-
-      transform(*fit, id, w);
+      transform(*fit, id, w);   
 
       // not stopped
       if(w > 0) v.addWeight(id, w);
@@ -728,7 +724,7 @@ void Vocabulary::transform(
 
   }
   else // IDF || BINARY
-  {
+  {  
     for(auto fit = features.begin(); fit < features.end(); ++fit)
     {
       WordId id;
@@ -752,7 +748,7 @@ void Vocabulary::transform(
 void Vocabulary::transform(
   const std::vector<cv::Mat>& features,
   BowVector &v, FeatureVector &fv, int levelsup) const
-{
+{ 
   v.clear();
   fv.clear();
 

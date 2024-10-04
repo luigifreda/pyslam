@@ -7,18 +7,19 @@ config = Config()
 
 from utils_files import gdrive_download_lambda 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopClosuresImgs
+from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
 
 import math
 import cv2 
 import numpy as np
 
+from parameters import Parameters
 from dataset import dataset_factory
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
 config.set_lib('pydbow3')
-import pydbow3 as dbow
+import pydbow3 as dbow3
 
 
 kScriptPath = os.path.realpath(__file__)
@@ -33,6 +34,141 @@ kMinDeltaFrameForMeaningfulLoopClosure = 10
 kMaxResultsForLoopClosure = 5
 
 
+class LoopCloserBase:
+    def __init__(self):
+        self.img_count = 0
+        self.map_img_count_to_kf_id = {}
+        self.map_kf_id_to_img = {}
+                
+        # init the similarity matrix        
+        if Parameters.kLoopClosingDebugWithSimmetryMatrix:
+            self.max_num_kfs = 200            
+            self.S_float = np.empty([self.max_num_kfs, self.max_num_kfs], 'float32')
+            self.S_color = np.empty([self.max_num_kfs, self.max_num_kfs, 3], 'uint8')
+            #self.S_color = np.full([self.max_num_kfs, self.max_num_kfs, 3], 0, 'uint8') # loop closures are found with a small score, this will make them disappear    
+        else: 
+            self.S_float = None 
+            self.S_color = None
+            
+        # to nicely visualize current loop candidates in a single image
+        self.loop_closure_imgs = LoopDetectionCandidateImgs() if Parameters.kLoopClosingDebugWithLoopClosureImages else None 
+            
+    def resize_similary_matrix_if_needed(self):
+        if self.S_float is None:
+            return
+        if self.img_count >= self.max_num_kfs:
+            self.max_num_kfs += 100
+            # self.S_float.resize([self.max_num_kfs, self.max_num_kfs])
+            # self.S_color.resize([self.max_num_kfs, self.max_num_kfs, 3])
+            S_float = np.pad(self.S_float, ((0, self.max_num_kfs - self.S_float.shape[0]), \
+                                            (0, self.max_num_kfs - self.S_float.shape[1])),\
+                                            mode='constant', constant_values=0)
+            self.S_float = S_float
+            S_color = np.pad(self.S_color, ((0, self.max_num_kfs - self.S_color.shape[0]), \
+                                            (0, self.max_num_kfs - self.S_color.shape[1]), \
+                                            (0, 0)),\
+                                            mode='constant', constant_values=0)
+            self.S_color = S_color
+    
+    def update_similarity_matrix_and_loop_closure_imgs(self, score, img_count, img_id, other_img_count, other_img_id): 
+        color_value = float_to_color(score)
+        if self.S_float is not None:
+            self.S_float[img_count, other_img_count] = score
+            self.S_float[other_img_count, img_count] = score
+        if self.S_color is not None:                     
+            self.S_color[img_count, other_img_count] = color_value
+            self.S_color[other_img_count, img_count] = color_value
+
+        # visualize non-trivial loop closures: we check the query results are not too close to the current image
+        if self.loop_closure_imgs is not None:
+            if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
+                print(f'result - best id: {other_img_id}, score: {score}')
+                loop_img = self.map_kf_id_to_img[other_img_id]
+                self.loop_closure_imgs.add(loop_img.copy(), other_img_id, score) 
+                            
+    def draw_loop_closure_imgs(self, img_cur, img_id):
+        if self.S_color is not None or self.loop_closure_imgs.candidates is not None:
+            font_pos = (50, 50)                   
+            cv2.putText(img_cur, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
+                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
+            cv2.imshow('loop img', img_cur)
+            
+            if self.S_color is not None:
+                cv2.imshow('S', self.S_color)            
+                #cv2.imshow('S', convert_float_to_colored_uint8_image(S_float))
+            
+            if self.loop_closure_imgs.candidates is not None:
+                cv2.imshow('loop_closure_imgs', self.loop_closure_imgs.candidates)
+            
+            cv2.waitKey(1)
+        
+        
+class LoopCloserDBoW3(LoopCloserBase): 
+    def __init__(self, vocab_path=kVocabFile):
+        super().__init__()
+        self.voc = dbow3.Vocabulary()
+        print(f'loading vocabulary...')
+        if not os.path.exists(kVocabFile):
+            gdrive_url = 'https://drive.google.com/uc?id=1-4qDFENJvswRd1c-8koqt3_5u1jMR4aF'
+            gdrive_download_lambda(url=gdrive_url, path=vocab_path)
+        self.voc.load(vocab_path)
+        print(f'...done')
+        self.db = dbow3.Database()
+        self.db.setVocabulary(self.voc)      
+        
+    def compute_global_des(self, local_des):  
+        #print(f'computing global descriptors... voc empty: {self.voc.empty()}')     
+        global_des = self.voc.transform(local_des) # this returns a bow vector
+        return global_des
+            
+    # query with local descriptors 
+    def db_query(self, local_des: np.ndarray, img_id, max_num_results=5): 
+        results = self.db.query(local_des, max_results=max_num_results+1) # we need plus one to eliminate the best trivial equal to img_id
+        return results
+    
+    # query with global descriptors
+    def db_query(self, global_des: dbow3.BowVector, img_id, max_num_results=5): 
+        results = self.db.query(global_des, max_results=max_num_results+1) # we need plus one to eliminate the best trivial equal to img_id
+        return results    
+                
+    def add_keyframe(self, img, img_id, des):
+        
+        use_local_des = False
+                
+        print(f'LoopCloserDBoW3: adding frame {img_id}, img_count = {self.img_count}')        
+        self.map_img_count_to_kf_id[self.img_count] = img_id        
+        self.map_kf_id_to_img[img_id] = img
+        
+        # add image descriptors to database
+        if use_local_des:
+            self.db.addFeatures(des) # add local descriptors 
+        else: 
+            g_des = self.compute_global_des(des)
+            #print(f'global_des: {g_des}')
+            self.db.addBowVector(g_des) # add directly global descriptors
+                                
+        if self.loop_closure_imgs is not None:
+            self.loop_closure_imgs.reset()
+            
+        self.resize_similary_matrix_if_needed()
+                            
+        if self.img_count >= 1:
+            if use_local_des:            
+                results = self.db_query(des, img_id, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
+            else:
+                results = self.db_query(g_des, img_id, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
+            for r in results:
+                r_img_id = self.map_img_count_to_kf_id[r.Id]
+                self.update_similarity_matrix_and_loop_closure_imgs(score=r.Score, \
+                                                                    img_count=self.img_count, \
+                                                                    img_id=img_id, \
+                                                                    other_img_count=r.Id, \
+                                                                    other_img_id = r_img_id)                 
+        if self.loop_closure_imgs: 
+            self.draw_loop_closure_imgs(img, img_id)       
+        self.img_count += 1   
+
+
 # online loop closure detection by using DBoW3        
 if __name__ == '__main__':
     
@@ -44,27 +180,29 @@ if __name__ == '__main__':
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
     
-    voc = dbow.Vocabulary()
-    print(f'loading vocabulary...')
-    if not os.path.exists(kVocabFile):
-        gdrive_url = 'https://drive.google.com/uc?id=1-4qDFENJvswRd1c-8koqt3_5u1jMR4aF'
-        gdrive_download_lambda(url=gdrive_url, path=kVocabFile)
-    voc.load(kVocabFile)
-    print(f'...done')
-    db = dbow.Database()
-    db.setVocabulary(voc)
+    loop_closer = LoopCloserDBoW3()
     
-    # to nicely visualize current loop candidates in a single image
-    loop_closures = LoopClosuresImgs()
+    # voc = dbow.Vocabulary()
+    # print(f'loading vocabulary...')
+    # if not os.path.exists(kVocabFile):
+    #     gdrive_url = 'https://drive.google.com/uc?id=1-4qDFENJvswRd1c-8koqt3_5u1jMR4aF'
+    #     gdrive_download_lambda(url=gdrive_url, path=kVocabFile)
+    # voc.load(kVocabFile)
+    # print(f'...done')
+    # db = dbow.Database()
+    # db.setVocabulary(voc)
     
-    # init the similarity matrix
-    S_float = np.empty([dataset.num_frames, dataset.num_frames], 'float32')
-    S_color = np.empty([dataset.num_frames, dataset.num_frames, 3], 'uint8')
-    #S_color = np.full([dataset.num_frames, dataset.num_frames, 3], 0, 'uint8') # loop closures are found with a small score, this will make them disappear    
+    # # to nicely visualize current loop candidates in a single image
+    # loop_closure_imgs = LoopDetectionCandidateImgs()
     
-    cv2.namedWindow('S', cv2.WINDOW_NORMAL)
+    # # init the similarity matrix
+    # S_float = np.empty([dataset.num_frames, dataset.num_frames], 'float32')
+    # S_color = np.empty([dataset.num_frames, dataset.num_frames, 3], 'uint8')
+    # #S_color = np.full([dataset.num_frames, dataset.num_frames, 3], 0, 'uint8') # loop closures are found with a small score, this will make them disappear    
+    
+    # cv2.namedWindow('S', cv2.WINDOW_NORMAL)
         
-    img_count = 0
+    #img_count = 0
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
     while dataset.isOk():
 
@@ -74,43 +212,48 @@ if __name__ == '__main__':
         if img is not None:
             print('----------------------------------------')
             print(f'processing img {img_id}')
-            
-            loop_closures.reset()
+                        
+            # loop_closure_imgs.reset()
                        
             # Find the keypoints and descriptors in img1
             kps, des = feature_tracker.detectAndCompute(img)   # with DL matchers this a null operation 
-            # add image descriptors to database
-            db.add(des)
+            
+            loop_closer.add_keyframe(img, img_id, des)
+            img_id += 1
+            
+            # # add image descriptors to database
+            # db.add(des)
                        
-            if img_count >= 1:
-                results = db.query(des, max_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
-                for r in results:
-                    float_value = r.Score * 255
-                    color_value = float_to_color(r.Score)
-                    S_float[img_id, r.Id] = float_value
-                    S_float[r.Id, img_id] = float_value
-                    S_color[img_id, r.Id] = color_value
-                    S_color[r.Id, img_id] = color_value
-                    # visualize non-trivial loop closures: we check the query results are not too close to the current image
-                    if abs(r.Id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
-                        print(f'result - best id: {r.Id}, score: {r.Score}')
-                        loop_img = dataset.getImageColor(r.Id)
-                        loop_closures.add(loop_img, r.Id, r.Score)
+        #     if img_count >= 1:
+        #         results = db.query(des, max_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
+        #         for r in results:
+        #             float_value = r.Score * 255
+        #             color_value = float_to_color(r.Score)
+        #             S_float[img_id, r.Id] = float_value
+        #             S_float[r.Id, img_id] = float_value
+        #             S_color[img_id, r.Id] = color_value
+        #             S_color[r.Id, img_id] = color_value
+                    
+        #             # visualize non-trivial loop closures: we check the query results are not too close to the current image
+        #             if abs(r.Id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
+        #                 print(f'result - best id: {r.Id}, score: {r.Score}')
+        #                 loop_img = dataset.getImageColor(r.Id)
+        #                 loop_closure_imgs.add(loop_img, r.Id, r.Score)
 
-            font_pos = (50, 50)                   
-            cv2.putText(img, f'id: {img_id}', font_pos, LoopClosuresImgs.kFont, LoopClosuresImgs.kFontScale, \
-                        LoopClosuresImgs.kFontColor, LoopClosuresImgs.kFontThickness, cv2.LINE_AA)     
-            cv2.imshow('img', img)
+        #     font_pos = (50, 50)                   
+        #     cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
+        #                 LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
+        #     cv2.imshow('img', img)
             
-            cv2.imshow('S', S_color)            
-            #cv2.imshow('S', convert_float_to_colored_uint8_image(S_float))
+        #     cv2.imshow('S', S_color)            
+        #     #cv2.imshow('S', convert_float_to_colored_uint8_image(S_float))
             
-            if loop_closures.candidates is not None:
-                cv2.imshow('loop_closures', loop_closures.candidates)
+        #     if loop_closure_imgs.candidates is not None:
+        #         cv2.imshow('loop_closure_imgs', loop_closure_imgs.candidates)
             
-            cv2.waitKey(1)
-        else: 
-            getchar()
+        #     cv2.waitKey(1)
+        # else: 
+        #     getchar()
             
-        img_id += 1
-        img_count += 1
+        # img_id += 1
+        # img_count += 1

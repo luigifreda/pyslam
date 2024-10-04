@@ -105,11 +105,16 @@ public:
 	 */
 	void saveM(const std::string &filename, size_t W) const;
 
+	/**
+	 * Tansform this vector into a vector of pairs (id, value)
+	 */
+	std::vector<std::pair<WordId, WordValue>> toVec() const;	
+
     //returns a unique number from the configuration
     uint64_t getSignature()const;
     //serialization
     void toStream(std::ostream &str)const;
-    void fromStream(std::istream &str);
+    void fromStream(std::istream &str);	
 };
 
 } // namespace DBoW3

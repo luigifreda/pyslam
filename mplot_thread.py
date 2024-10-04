@@ -53,6 +53,16 @@ if kUseFigCanvasDrawIdle and platform.system() != 'Darwin':
 # NOTE: Here we are using processes instead of threads. 
 # The file name `mplot_thread.py` is still here since the classes are used as parallel drawing threads. 
 
+
+class FigureNum: 
+    figure_num = 0
+    
+    @staticmethod
+    def getFigureNum():
+        FigureNum.figure_num += 1
+        return FigureNum.figure_num
+
+
 # use mplotlib figure to draw in 2d dynamic data
 class Mplot2d:
     def __init__(self, xlabel='', ylabel='', title=''):
@@ -75,7 +85,7 @@ class Mplot2d:
         self.queue = Queue()
         self.key_queue = Queue()
         
-        self.vp = Process(target=self.drawer_thread, args=(self.queue, mp_lock,self.key,self.is_running,self.key_queue,))
+        self.vp = Process(target=self.drawer_run, args=(FigureNum.getFigureNum(), self.queue, mp_lock,self.key,self.is_running,self.key_queue,))
         self.vp.daemon = kSetDaemon
         self.vp.start()
 
@@ -83,12 +93,16 @@ class Mplot2d:
         print(f'Mplot2d \"{self.title}\" closing...')
         self.is_running.value = 0
         self.vp.join(timeout=5)
+        self.vp.join(timeout=5)     
+        if self.vp.is_alive():
+            print("Warning: Mplot2d \"{self.title}\" process did not terminate in time, forced kill.")         
         self.vp.terminate()
+        print(f'Mplot2d \"{self.title}\" closed')
 
-    def drawer_thread(self, queue, lock, key, is_running, key_queue):  
+    def drawer_run(self, figure_num, queue, lock, key, is_running, key_queue):  
         self.key_queue_thread = key_queue        
-        self.init(lock) 
-        #print('starting drawer_thread')
+        self.init(figure_num, lock) 
+        #print('starting drawer_run')
         while is_running.value == 1:
             #print('drawer_refresh step')
             self.drawer_refresh(queue, lock)                                    
@@ -133,11 +147,11 @@ class Mplot2d:
         else:
             return ''
 
-    def init(self, lock):    
+    def init(self, figure_num, lock):    
         lock.acquire()      
         if kVerbose:
             print(mp.current_process().name,"initializing...") 
-        self.fig = plt.figure()
+        self.fig = plt.figure(figure_num)
         if kUseFigCanvasDrawIdle:
             self.fig.canvas.draw_idle() 
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)       
@@ -234,7 +248,7 @@ class Mplot3d:
         self.queue = Queue()
         self.key_queue = Queue()
                 
-        self.vp = Process(target=self.drawer_thread, args=(self.queue, mp_lock, self.key, self.is_running, self.key_queue,))
+        self.vp = Process(target=self.drawer_run, args=(FigureNum.getFigureNum(), self.queue, mp_lock, self.key, self.is_running, self.key_queue,))
         self.vp.daemon = kSetDaemon
         self.vp.start()
 
@@ -242,11 +256,13 @@ class Mplot3d:
         print(f'Mplot3d \"{self.title}\" closing...')
         self.is_running.value = 0
         self.vp.join(timeout=5)     
+        if self.vp.is_alive():
+            print("Warning: Mplot3d \"{self.title}\" process did not terminate in time, forced kill.")          
         self.vp.terminate()        
         
-    def drawer_thread(self, queue, lock, key, is_running, key_queue):  
+    def drawer_run(self, figure_num, queue, lock, key, is_running, key_queue):  
         self.key_queue_thread = key_queue          
-        self.init(lock) 
+        self.init(figure_num, lock) 
         while is_running.value == 1:
             self.drawer_refresh(queue, lock)   
             if kUseFigCanvasDrawIdle:               
@@ -291,11 +307,11 @@ class Mplot3d:
         else:
             return ''
     
-    def init(self, lock):
+    def init(self, figure_num, lock):
         lock.acquire()
         if kVerbose:
             print(mp.current_process().name, "initializing...")
-        self.fig = plt.figure()
+        self.fig = plt.figure(figure_num)
         if kUseFigCanvasDrawIdle:
             self.fig.canvas.draw_idle()
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)

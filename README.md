@@ -11,7 +11,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [MacOS](#macos)
     - [Docker](#docker)
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting](#troubleshooting)
+    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
   - [Usage](#usage)
     - [Save and reload a map](#save-and-reload-a-map)
     - [Trajectory saving](#trajectory-saving)
@@ -116,7 +116,7 @@ How to check if you have non-free OpenCV module support (no errors imply success
 `$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"` 
 
 
-### Troubleshooting
+### Troubleshooting and performance issues
 
 If you run into issues or errors during the installation process or at run-time, please, check the [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
 

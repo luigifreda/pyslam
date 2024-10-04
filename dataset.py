@@ -587,9 +587,7 @@ class EurocDataset(Dataset):
             
             self.M1l,self.M2l = cv2.initUndistortRectifyMap(K_l, D_l, R_l, P_l[0:3,0:3], (width, height), cv2.CV_32FC1)
             self.M1r,self.M2r = cv2.initUndistortRectifyMap(K_r, D_r, R_r, P_r[0:3,0:3], (width, height), cv2.CV_32FC1)
-        self.debug_rectification = False
-            
-        
+        self.debug_rectification = False # DEBUGGING
         print('Processing Euroc Sequence of lenght: ', len(self.timestamps))
         
     def read_data(self, csv_file):

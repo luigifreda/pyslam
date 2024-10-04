@@ -22,11 +22,11 @@ if sys.version_info[0] != 3:
     print("This script requires Python 3")
     exit()
     
-import configparser
 import os
 import yaml
 import numpy as np
 from utils_sys import Printer
+import math
 
 
 # N.B.: this file must stay in the root folder of the repository 
@@ -210,14 +210,20 @@ class Config(object):
     @property
     def depth_factor(self):
         if not hasattr(self, '_depth_factor'):
-            self._depth_factor = self.cam_settings['Camera.DepthMapFactor']
+            if 'Camera.DepthMapFactor' in self.cam_settings:
+                self._depth_factor = self.cam_settings['Camera.DepthMapFactor']
+            else:
+                self._depth_factor = 1.0
         return self._depth_factor
     
     # depth threshold 
     @property
     def depth_threshold(self):
         if not hasattr(self, '_depth_threshold'):
-            self._depth_threshold = self.cam_settings['Camera.ThDepth']
+            if 'Camera.ThDepth' in self.cam_settings:
+                self._depth_threshold = self.cam_settings['Camera.ThDepth']
+            else:
+                self._depth_threshold = float('inf')
         return self._depth_threshold
 
     # num features to extract 
@@ -238,37 +244,37 @@ class Config(object):
             left, right = {}, {}
             if 'LEFT.D' in self.cam_settings:
                 left_D = self.cam_settings['LEFT.D']
-                D = np.array(left_D['data']).reshape(left_D['rows'], left_D['cols'])
-                left['D'] = D
+                left_D = np.array(left_D['data'],dtype=np.float).reshape(left_D['rows'], left_D['cols'])
+                left['D'] = left_D
             if 'LEFT.K' in self.cam_settings:
                 left_K = self.cam_settings['LEFT.K']
-                K = np.array(left_K['data']).reshape(left_K['rows'], left_K['cols'])
-                left['K'] = K
+                left_K = np.array(left_K['data'],dtype=np.float).reshape(left_K['rows'], left_K['cols'])
+                left['K'] = left_K
             if 'LEFT.R' in self.cam_settings:
                 left_R = self.cam_settings['LEFT.R']
-                R = np.array(left_R['data']).reshape(left_R['rows'], left_R['cols'])
-                left['R'] = R
+                left_R = np.array(left_R['data'],dtype=np.float).reshape(left_R['rows'], left_R['cols'])
+                left['R'] = left_R
             if 'LEFT.P' in self.cam_settings:
                 left_P = self.cam_settings['LEFT.P']
-                P = np.array(left_P['data']).reshape(left_P['rows'], left_P['cols'])
-                left['P'] = P
+                left_P = np.array(left_P['data'],dtype=np.float).reshape(left_P['rows'], left_P['cols'])
+                left['P'] = left_P
                 
             if 'RIGHT.D' in self.cam_settings:
                 right_D = self.cam_settings['RIGHT.D']
-                D = np.array(right_D['data']).reshape(right_D['rows'], right_D['cols'])
-                right['D'] = D
+                right_D = np.array(right_D['data'],dtype=np.float).reshape(right_D['rows'], right_D['cols'])
+                right['D'] = right_D
             if 'RIGHT.K' in self.cam_settings:
                 right_K = self.cam_settings['RIGHT.K']
-                K = np.array(right_K['data']).reshape(right_K['rows'], right_K['cols'])
-                right['K'] = K
+                right_K = np.array(right_K['data'],dtype=np.float).reshape(right_K['rows'], right_K['cols'])
+                right['K'] = right_K
             if 'RIGHT.R' in self.cam_settings:
                 right_R = self.cam_settings['RIGHT.R']
-                R = np.array(right_R['data']).reshape(right_R['rows'], right_R['cols'])
-                right['R'] = R 
+                right_R = np.array(right_R['data'],dtype=np.float).reshape(right_R['rows'], right_R['cols'])
+                right['R'] = right_R 
             if 'RIGHT.P' in self.cam_settings:
                 right_P = self.cam_settings['RIGHT.P']
-                P = np.array(right_P['data']).reshape(right_P['rows'], right_P['cols'])
-                right['P'] = P         
+                right_P = np.array(right_P['data'],dtype=np.float).reshape(right_P['rows'], right_P['cols'])
+                right['P'] = right_P         
                    
             if len(left) > 0 and len(right) > 0:
                 self._stereo_settings = {'left':left, 'right':right}

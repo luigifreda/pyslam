@@ -72,7 +72,7 @@ class Timer:
 
 
 class TimerFps(Timer):
-    def __init__(self, name='', average_width = 10, is_verbose = True): 
+    def __init__(self, name='', average_width = 10, is_verbose = False): 
         super().__init__(name, is_verbose)   
         self.moving_average = MovingAverage(average_width)
 

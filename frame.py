@@ -41,6 +41,8 @@ from concurrent.futures import ThreadPoolExecutor
 from utils_draw import draw_feature_matches
 from utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad
 
+import rerun as rr              # pip install rerun-sdk
+
 kDrawFeatureRadius = [r*5 for r in range(1,100)]
 kDrawOctaveColor = np.linspace(0, 255, 12)
 
@@ -263,8 +265,9 @@ def detect_and_compute(img):
             
 # A Frame mainly collects keypoints, descriptors and their corresponding 3D points 
 class Frame(FrameBase):
-    tracker         = None      # shared tracker  
-    feature_manager = None 
+    # shared stuff
+    tracker         = None      # type: FeatureTracker 
+    feature_manager = None      # type: FeatureManager
     feature_matcher = None 
     descriptor_distance = None       
     descriptor_distances = None  # norm for vectors     
@@ -767,9 +770,13 @@ class Frame(FrameBase):
             good_matched_idxs1 = good_matched_idxs1[good_des_dists_mask]
             good_matched_idxs2 = good_matched_idxs2[good_des_dists_mask]                
                 
-        print(f'[compute_stereo_matches] found final {len(good_matched_idxs1)} stereo matches')                
-        self.depths[good_matched_idxs1] = self.camera.bf / good_disparities
-        self.kps_ur[good_matched_idxs1] = self.kps_r[good_matched_idxs2][:,0]              
+        print(f'[compute_stereo_matches] found final {len(good_matched_idxs1)} stereo matches')             
+        self.depths[good_matched_idxs1] = self.camera.bf * np.reciprocal(good_disparities.astype(float))
+        self.kps_ur[good_matched_idxs1] = self.kps_r[good_matched_idxs2][:,0]                   
+        
+        if False:
+            points, _ = self.unproject_points_3d(good_matched_idxs1, transform_in_world=False)
+            rr.log("points", rr.Points3D(points))
 
     # unproject keypoints where the depth is available                               
     def unproject_points_3d(self, idxs, transform_in_world=False):
@@ -779,6 +786,7 @@ class Frame(FrameBase):
             pts3d_mask = np.where(depth_values>0, True, False)
             pts3d = np.where(depth_values>0, kpsn*depth_values, np.zeros(3))
             if transform_in_world: 
+                #print(f'unproject_points_3d: Rwc: {self._pose.Rwc}, Ow: {self._pose.Ow}')
                 pts3d = (self._pose.Rwc @ pts3d.T + self._pose.Ow[:, np.newaxis]).T
             return pts3d, pts3d_mask
         else:

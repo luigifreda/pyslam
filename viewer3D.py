@@ -19,13 +19,16 @@
 
 import config
 
+import time
 import math 
 import multiprocessing as mp 
 from multiprocessing import Process, Queue, Value
 import pypangolin as pangolin
 import OpenGL.GL as gl
 import numpy as np
+
 from utils_geom import inv_T, align_trajs_with_svd
+from utils_sys import Printer
 
 
 kUiWidth = 180
@@ -39,6 +42,7 @@ kMinWeightForDrawingCovisibilityEdge=100
 
 kAlignGroundTruthEveryNKeyframes = 10
 
+kRefreshDurationTime = 0.03 # [s]
 
 class Viewer3DMapElement(object): 
     def __init__(self):
@@ -83,7 +87,7 @@ class Viewer3D(object):
         self._is_map_save = Value('i',0)
         self._do_step = Value('i',0)
         self._is_gt_set = Value('i',0)
-        self.vp = Process(target=self.viewer_thread,
+        self.vp = Process(target=self.viewer_run,
                           args=(self.qmap, self.qvo,self._is_running,self._is_paused,self._is_map_save, self._do_step, self._is_gt_set))
         self.vp.daemon = True
         self.vp.start()
@@ -97,10 +101,11 @@ class Viewer3D(object):
             print(f'groundtruth shape: {gt_trajectory.shape}')
 
     def quit(self):
+        print('Viewer3D: quitting...')        
         self._is_running.value = 0
-        self.vp.join()
+        self.vp.join()    
         #pangolin.Quit()
-        print('Viewer stopped')   
+        print('Viewer3D: done')   
         
     def is_paused(self):
         return (self._is_paused.value == 1)       
@@ -117,7 +122,7 @@ class Viewer3D(object):
             self._do_step.value = 0
         return do_step   
 
-    def viewer_thread(self, qmap, qvo, is_running, is_paused, is_map_save, do_step, is_gt_set):
+    def viewer_run(self, qmap, qvo, is_running, is_paused, is_map_save, do_step, is_gt_set):
         self.viewer_init(kViewportWidth, kViewportHeight)
         # init local vars for the the process 
         self.thread_gt_trajectory = None
@@ -126,8 +131,12 @@ class Viewer3D(object):
         self.thread_gt_aligned = False
         self.thread_last_num_poses_gt_was_aligned = 0
         while not pangolin.ShouldQuit() and (is_running.value == 1):
+            ts = time.time()
             self.viewer_refresh(qmap, qvo, is_paused, is_map_save, do_step, is_gt_set)
-        print('Quitting viewer...')    
+            sleep = (time.time() - ts) - kRefreshDurationTime         
+            if sleep > 0:
+                time.sleep(sleep)                        
+        print('Viewer3D: loop exit...')    
 
     def viewer_init(self, w, h):
         # pangolin.ParseVarsFile('app.cfg')

@@ -24,12 +24,13 @@ List of shared parameters
 class Parameters(object):   
     
     # SLAM threads 
-    kLocalMappingOnSeparateThread=True           # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
-    kTrackingWaitForLocalMappingToGetIdle=False  
-    kTrackingWaitForLocalMappingSleepTimeStereo=0.1 #      -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
-    kTrackingWaitForLocalMappingSleepTimeMono=0.1   #0.6 # -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
+    kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
+    kTrackingWaitForLocalMappingToGetIdle=False      # True: wait for local mapping to be idle before starting tracking, False: tracking and then local mapping in a single thread  
+    kTrackingWaitForLocalMappingSleepTimeStereo=0.1  #      -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
+    kTrackingWaitForLocalMappingSleepTimeMono=0.1    #0.6 # -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
     kLocalMappingParallelKpsMatching=True
     kLocalMappingParallelKpsMatchingNumWorkers=6
+    kLocalMappingDebugAndPrintToFile = True
     
     
     # Number of desired keypoints per frame 
@@ -128,7 +129,14 @@ class Parameters(object):
     kUseLargeWindowBA=False           # True: perform BA over a large window; False: do not perform large window BA       
     kEveryNumFramesLargeWindowBA=10   # num of frames between two large window BA  
     kLargeBAWindow=20                 #  [# frames] 
+    kUseParallelProcessLBA = False    # experimental (keep it False for the moment)
         
+    
+    # Loop closing
+    kUseLoopClosing = False
+    kLoopClosingDebugWithLoopClosureImages = False
+    kLoopClosingDebugWithSimmetryMatrix = False
+    kLoopClosingDebugAndPrintToFile = True
     
     # Pointcloud 
     kColorPatchDelta=1  # center +- delta

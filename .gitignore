@@ -21,6 +21,7 @@ videos/webcam
 
 kf_info.log 
 local_mapping.log 
+loop_closing.log
 tum_association_matches.txt 
 kitti_trajectory.txt
 map.json

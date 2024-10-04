@@ -27,6 +27,11 @@ public:
 		vocabulary->create(training_features);
 	}
 
+	size_t size() const
+	{
+		return vocabulary->size();
+	}
+
 	void clear()
 	{
 		vocabulary->clear();
@@ -42,7 +47,7 @@ public:
 		vocabulary->save(path, binary_compressed);
 	}
 
-	DBoW3::BowVector transform(const std::vector<cv::Mat> &features)
+	DBoW3::BowVector transform(const cv::Mat &features)
 	{
 		DBoW3::BowVector word;
 		vocabulary->transform(features, word);
@@ -52,6 +57,11 @@ public:
 	double score(const DBoW3::BowVector &A, const DBoW3::BowVector &B)
 	{
 		return vocabulary->score(A, B);
+	}
+
+	bool empty() const
+	{
+		return vocabulary->empty();
 	}
 
 	DBoW3::Vocabulary *vocabulary;
@@ -77,15 +87,33 @@ public:
 		database->setVocabulary(*vocabulary.vocabulary, use_di, di_levels);
 	}
 
-	unsigned int add(const cv::Mat &features)
+	// add local descriptors (they will be internally transformed into a global descriptor)
+	unsigned int addFeatures(const cv::Mat &features)
 	{
-		return database->add(features, NULL, NULL);
+		unsigned int res = database->add(features, NULL, NULL);
+		return res;		
 	}
 
+	// add directly global descriptor
+	unsigned int addBowVector(const DBoW3::BowVector &vec)
+	{
+		unsigned int res = database->add(vec);
+		return res;
+	}
+
+	// query with local descriptors (they will be internally transformed into a global descriptor)
 	std::vector<DBoW3::Result> query(const cv::Mat &features, int max_results = 1, int max_id = -1)
 	{
 		DBoW3::QueryResults results;
 		database->query(features, results, max_results, max_id);
+		return results;
+	}
+
+	// query directly with global descriptor 
+	std::vector<DBoW3::Result> query(const DBoW3::BowVector &vec, int max_results = 1, int max_id = -1)
+	{
+		DBoW3::QueryResults results;
+		database->query(vec, results, max_results, max_id);
 		return results;
 	}
 
@@ -128,26 +156,6 @@ PYBIND11_MODULE(pydbow3, m)
 		.value("BHATTACHARYYA", DBoW3::BHATTACHARYYA)
 		.value("DOT_PRODUCT", DBoW3::DOT_PRODUCT);
 
-	py::class_<Vocabulary>(m, "Vocabulary")
-		.def(py::init<const std::string &, int, int, DBoW3::WeightingType, DBoW3::ScoringType>(),
-			 py::arg("path") = std::string(), py::arg("k") = 10, py::arg("L") = 5,
-			 py::arg("weighting") = DBoW3::TF_IDF, py::arg("scoring") = DBoW3::L1_NORM)
-		.def("load", &Vocabulary::load)
-		.def("save", &Vocabulary::save)
-		.def("create", &Vocabulary::create)
-		.def("transform", &Vocabulary::transform, py::return_value_policy::copy)
-		.def("score", &Vocabulary::score)
-		.def("clear", &Vocabulary::clear);
-
-	py::class_<Database>(m, "Database")
-		.def(py::init<const std::string &>(), py::arg("path") = std::string())
-		.def("setVocabulary", &Database::setVocabulary, py::arg("vocabulary"), py::arg("use_di") = false, py::arg("di_levels") = 0)
-		.def("save", &Database::save)
-		.def("load", &Database::load)
-		.def("loadVocabulary", &Database::loadVocabulary, py::arg("filename"), py::arg("use_di") = false, py::arg("di_levels") = 0)
-		.def("add", &Database::add)
-		.def("query", &Database::query, py::return_value_policy::copy, py::arg("features"), py::arg("max_results") = 0, py::arg("max_id") = -1);
-
 	py::class_<DBoW3::Result>(m, "Result")
 		.def_readonly("Id", &DBoW3::Result::Id)
 		.def_readonly("Score", &DBoW3::Result::Score)
@@ -157,4 +165,56 @@ PYBIND11_MODULE(pydbow3, m)
 		.def_readonly("sumCommonVi", &DBoW3::Result::sumCommonVi)
 		.def_readonly("sumCommonWi", &DBoW3::Result::sumCommonWi)
 		.def_readonly("expectedChiScore", &DBoW3::Result::expectedChiScore);
+
+	py::class_<DBoW3::BowVector>(m, "BowVector")
+		.def(py::init<>())
+		.def("addWeight", &DBoW3::BowVector::addWeight)
+		.def("addIfNotExist", &DBoW3::BowVector::addIfNotExist)
+		.def("normalize", &DBoW3::BowVector::normalize)
+		.def("saveM", &DBoW3::BowVector::saveM)
+		.def("toVec", &DBoW3::BowVector::toVec)	
+		.def("__repr__", [](const DBoW3::BowVector &obj) {
+				std::ostringstream os;
+				os << obj;
+				return os.str();
+			})
+		.def("__str__", [](const DBoW3::BowVector &obj) {
+			std::ostringstream os;
+			os << obj;
+			return os.str();
+		});			
+
+	py::class_<Vocabulary>(m, "Vocabulary")
+		.def(py::init<const std::string &, int, int, DBoW3::WeightingType, DBoW3::ScoringType>(),
+			 py::arg("path") = std::string(), py::arg("k") = 10, py::arg("L") = 5,
+			 py::arg("weighting") = DBoW3::TF_IDF, py::arg("scoring") = DBoW3::L1_NORM)
+		.def("load", &Vocabulary::load)
+		.def("save", &Vocabulary::save)
+		.def("create", &Vocabulary::create)
+		.def("transform", &Vocabulary::transform)
+		.def("score", &Vocabulary::score)
+		.def("clear", &Vocabulary::clear)
+		.def("empty", &Vocabulary::empty)
+		.def("size", &Vocabulary::size);
+
+	py::class_<Database>(m, "Database")
+		.def(py::init<const std::string &>(), py::arg("path") = std::string())
+		.def("setVocabulary", &Database::setVocabulary, py::arg("vocabulary"), py::arg("use_di") = false, py::arg("di_levels") = 0)
+		.def("save", &Database::save)
+		.def("load", &Database::load)
+		.def("loadVocabulary", &Database::loadVocabulary, py::arg("filename"), py::arg("use_di") = false, py::arg("di_levels") = 0)
+		.def("addFeatures", 
+			(unsigned int (Database::*)(const cv::Mat &)) &Database::addFeatures,
+			py::arg("features"))
+		.def("addBowVector",
+			(unsigned int (Database::*)(const DBoW3::BowVector &)) &Database::addBowVector,
+			py::arg("vec"))
+		.def("query", 
+			(std::vector<DBoW3::Result> (Database::*)(const cv::Mat&,int,int)) &Database::query, 
+			py::return_value_policy::copy, 
+			py::arg("features"), py::arg("max_results") = 1, py::arg("max_id") = -1)
+		.def("query",
+			(std::vector<DBoW3::Result> (Database::*)(const DBoW3::BowVector&,int,int)) &Database::query,
+			py::return_value_policy::copy,
+			py::arg("vec"), py::arg("max_results") = 1, py::arg("max_id") = -1);
 }
