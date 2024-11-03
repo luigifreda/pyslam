@@ -3,7 +3,11 @@
 # ----------------------------------------------------------------------------
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
+
+# Set the C++ standard 
+set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 PROJECT(DBoW3)
 set(PROJECT_VERSION "0.0.1")
@@ -98,6 +102,7 @@ INSTALL(FILES "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake" DESTINATION ${
 # ----------------------------------------------------------------------------
 #   Program Optimization and debug (Extracted from OpenCV)
 # ----------------------------------------------------------------------------
+set(USE_MARCH_NATIVE 	        ON CACHE BOOL "Enable -march=native for GCC")
 set(WARNINGS_ARE_ERRORS 		OFF CACHE BOOL "Treat warnings as errors")
 set(WHOLE_PROGRAM_OPTIMIZATION 	OFF CACHE BOOL "Flags for whole program optimization.")
 
@@ -206,8 +211,8 @@ ELSE()  # MSVC
 ENDIF()#END OF COMPILER SPECIFIC OPTIONS
 SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} ${EXTRA_C_FLAGS_RELEASE}")
 SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS}  ${EXTRA_C_FLAGS_DEBUG}")
-SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -std=c++11")
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -std=c++11")
+# SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -std=c++11")
+# SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -std=c++11")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELEASE} ${CMAKE_C_FLAGS_DEBUG}")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} ${CMAKE_CXX_FLAGS_DEBUG}")
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EXTRA_EXE_LINKER_FLAGS}")

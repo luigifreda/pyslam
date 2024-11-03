@@ -108,8 +108,12 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING,
 # ==============================================================================
 
 class MatcherUtils: 
-    # input: des1 = query-descriptors, des2 = train-descriptors
-    # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
+    # input: 
+    #   matches: list of cv2.DMatch (expected k=2 for knn search)
+    #   des1 = query-descriptors, 
+    #   des2 = train-descriptors
+    # output: 
+    #   idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
     # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index
     @staticmethod    
     def goodMatchesOneToOne(matches, des1, des2, ratio_test=0.7):
@@ -423,7 +427,7 @@ class FeatureMatcher(object):
             else: 
                 assert(max_disparity is not None)
                 # we perform row matching for stereo images (matching rectified left and right images)
-                max_descriptor_distance = 0.75 * FeatureInfo.max_descriptor_distance[self.descriptor_type]  # for rectified stereo matching we assume the matching descriptors are in general close to each other 
+                max_descriptor_distance = 0.75 * FeatureInfo.max_descriptor_distance[self.descriptor_type]  # for rectified stereo matching we assume the matching descriptors have in general a small relative distance 
                 if ratio_test < 1.0:
                     idxs1, idxs2 = MatcherUtils.rowMatchesWithRatioTest(matcher, kps1, des1, kps2, des2, max_descriptor_distance, max_disparity=max_disparity, ratio_test=ratio_test)
                 else:                             

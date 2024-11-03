@@ -22,6 +22,10 @@ videos/webcam
 kf_info.log 
 local_mapping.log 
 loop_closing.log
+loop_detecting.log
+gba.log
+matcher.log
+mplot_thread.log
 tum_association_matches.txt 
 kitti_trajectory.txt
 map.json

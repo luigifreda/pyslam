@@ -105,6 +105,18 @@ public:
   void setVocabulary(const Vocabulary& voc, bool use_di, int di_levels = 0);
   
   /**
+   * Sets the weighting method if a vocabulary is not set
+   * @param type new weighting type
+   */
+  void setWeighting(const WeightingType weighting);
+
+  /**
+   * Sets the scoring method if a vocabulary is not set
+   * @param type new scoring type
+   */
+  void setScoring(const ScoringType scoring);
+
+  /**
    * Returns a pointer to the vocabulary used
    * @return vocabulary
    */
@@ -327,7 +339,7 @@ protected:
 protected:
 
   /// Associated vocabulary
-  Vocabulary *m_voc;
+  Vocabulary *m_voc=nullptr;
   
   /// Flag to use direct index
   bool m_use_di;
@@ -344,6 +356,12 @@ protected:
   
   /// Number of valid entries in m_dfile
   int m_nentries;
+
+
+  /// Used as a fallaback in the case we don't set a vocabulary.
+  /// These are supposed to be set by the user if the vocabulary is not set.
+  WeightingType m_weighting = TF_IDF;
+  ScoringType m_scoring = L1_NORM;
   
 };
 

@@ -148,8 +148,8 @@ void Vocabulary::create(
         for(int r=0;r<training_features[i].rows;r++)
             vtf[i][r]=training_features[i].rowRange(r,r+1);
     }
+  	std::cout << "features size: " << training_features.size() << " vtf size: " << vtf.size() << std::endl;
     create(vtf);
-
 }
 
 void Vocabulary::create(
@@ -161,23 +161,26 @@ void Vocabulary::create(
   // expected_nodes = Sum_{i=0..L} ( k^i )
     int expected_nodes =
         (int)((pow((double)m_k, (double)m_L + 1) - 1)/(m_k - 1));
-
+  std::cout << "Expected number of nodes: " << expected_nodes << std::endl;
   m_nodes.reserve(expected_nodes); // avoid allocations when creating the tree
 
-
+  std::cout << "Getting features... " << std::endl;
   std::vector<cv::Mat> features;
   getFeatures(training_features, features);
 
-
+  std::cout << "Creating root..." << std::endl;
   // create root
   m_nodes.push_back(Node(0)); // root
 
+  std::cout << "Creating tree..." << std::endl;  
   // create the tree
   HKmeansStep(0, features, 1);
 
+  std::cout << "Creating words..." << std::endl;
   // create the words
   createWords();
 
+  std::cout << "Setting node weights..." << std::endl;
   // and set the weight of each node of the tree
   setNodeWeights(training_features);
 
@@ -220,9 +223,18 @@ void Vocabulary::getFeatures(
   std::vector<cv::Mat> &features) const
 {
   features.resize(0);
+  const size_t N = training_features.size();  
   for(size_t i=0;i<training_features.size();i++)
-      for(size_t j=0;j<training_features[i].size();j++)
-              features.push_back(training_features[i][j]);
+  {
+      const size_t M = training_features[i].size();
+      for(size_t j=0;j<M;j++)
+      {
+            //std::cout << "\rFeature: " << i << "/" << j << "(" << N << "/ " << M << ")";
+            features.push_back(training_features[i][j]);
+      }
+      std::cout << "\rFeature: " << i << "/" << N;         
+  }
+  std::cout << std::endl;  
 }
 
 // --------------------------------------------------------------------------
@@ -239,9 +251,10 @@ void Vocabulary::HKmeansStep(NodeId parent_id,
     std::vector<std::vector<unsigned int> > groups; // groups[i] = [j1, j2, ...]
     // j1, j2, ... indices of descriptors associated to cluster i
 
+    std::cout << "HKmeansStep: current_level: " << current_level << ", k: " << m_k <<", L: " << m_L << std::endl; 
+
     clusters.reserve(m_k);
     groups.reserve(m_k);
-
 
     if((int)descriptors.size() <= m_k)
     {
@@ -302,7 +315,7 @@ void Vocabulary::HKmeansStep(NodeId parent_id,
             //assoc.clear();
 
             //unsigned int d = 0;
-            for(auto  fit = descriptors.begin(); fit != descriptors.end(); ++fit)//, ++d)
+            for(auto fit = descriptors.begin(); fit != descriptors.end(); ++fit)//, ++d)
             {
                 double best_dist = DescManip::distance((*fit), clusters[0]);
                 unsigned int icluster = 0;
@@ -1173,7 +1186,7 @@ void Vocabulary::save(cv::FileStorage &f,
 
 }
 
-void Vocabulary::toStream(  std::ostream &out_str, bool compressed) const throw(std::exception){
+void Vocabulary::toStream(  std::ostream &out_str, bool compressed) const{
 
     uint64_t sig=88877711233;//magic number describing the file
     out_str.write((char*)&sig,sizeof(sig));
@@ -1253,7 +1266,7 @@ void Vocabulary::toStream(  std::ostream &out_str, bool compressed) const throw(
 }
 
 
-void Vocabulary:: load_fromtxt(const std::string &filename)throw(std::runtime_error){
+void Vocabulary:: load_fromtxt(const std::string &filename){
 
     std::ifstream ifile(filename);
     if(!ifile)throw std::runtime_error("Vocabulary:: load_fromtxt  Could not open file for reading:"+filename);
@@ -1328,7 +1341,7 @@ void Vocabulary:: load_fromtxt(const std::string &filename)throw(std::runtime_er
            }
        }
 }
-void Vocabulary::fromStream(  std::istream &str )   throw(std::exception){
+void Vocabulary::fromStream(  std::istream &str ){
 
 
     m_words.clear();

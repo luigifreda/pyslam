@@ -57,6 +57,39 @@ index f31df8d..ce99857 100644
    )
  
  include(FindPackageHandleStandardArgs)
+diff --git a/g2o/types/sim3/types_seven_dof_expmap.h b/g2o/types/sim3/types_seven_dof_expmap.h
+index 254b745..dd0830a 100644
+--- a/g2o/types/sim3/types_seven_dof_expmap.h
++++ b/g2o/types/sim3/types_seven_dof_expmap.h
+@@ -139,6 +139,13 @@ class EdgeSim3ProjectXYZ : public  BaseBinaryEdge<2, Vector2D,  VertexSBAPointXY
+       _error = obs-v1->cam_map1(project(v1->estimate().map(v2->estimate())));
+     }
+ 
++    bool isDepthPositive() 
++    {
++      const VertexSim3Expmap *v1 = static_cast<const VertexSim3Expmap *>(_vertices[1]);
++      const VertexSBAPointXYZ *v2 = static_cast<const VertexSBAPointXYZ *>(_vertices[0]);
++      return (v1->estimate().map(v2->estimate()))(2) > 0.0;
++    }
++
+    // virtual void linearizeOplus();
+ 
+ };
+@@ -159,6 +166,14 @@ class EdgeInverseSim3ProjectXYZ : public BaseBinaryEdge<2, Vector2D, VertexSBAPo
+     _error = obs - v1->cam_map2(project(v1->estimate().inverse().map(v2->estimate())));
+   }
+ 
++  bool isDepthPositive() 
++  {
++    const VertexSim3Expmap *v1 = static_cast<const VertexSim3Expmap *>(_vertices[1]);
++    const VertexSBAPointXYZ *v2 = static_cast<const VertexSBAPointXYZ *>(_vertices[0]);
++    return (v1->estimate().inverse().map(v2->estimate()))(2) > 0.0;
++  }
++
++
+   // virtual void linearizeOplus();
+ 
+ };
 diff --git a/python/CMakeLists.txt b/python/CMakeLists.txt
 index c44a30b..09cefc1 100644
 --- a/python/CMakeLists.txt
@@ -110,11 +143,23 @@ index b58d529..24a53f2 100644
  
          .def("vec", (const Eigen::VectorBlock<const Eigen::Quaterniond::Coefficients,3> (Eigen::Quaterniond::*) () const) &Eigen::Quaterniond::vec)
  
+diff --git a/python/core/optimization_algorithm.h b/python/core/optimization_algorithm.h
+index 37239fb..0991583 100644
+--- a/python/core/optimization_algorithm.h
++++ b/python/core/optimization_algorithm.h
+@@ -37,6 +37,7 @@ void declareOptimizationAlgorithm(py::module & m) {
+         .def(py::init([](PyBlockSolverBase& blockSolver){
+             return new OptimizationAlgorithmLevenberg(blockSolver.solver());
+         }))
++        .def("set_user_lambda_init", &OptimizationAlgorithmLevenberg::setUserLambdaInit)
+     ;
+ 
+     py::class_<OptimizationAlgorithmDogleg, OptimizationAlgorithmWithHessian>(m, "OptimizationAlgorithmDogleg")
 diff --git a/python/core/sparse_optimizer.h b/python/core/sparse_optimizer.h
-index 32314ba..1d55c49 100644
+index 32314ba..c884eed 100644
 --- a/python/core/sparse_optimizer.h
 +++ b/python/core/sparse_optimizer.h
-@@ -16,12 +16,24 @@
+@@ -16,12 +16,39 @@
  namespace py = pybind11;
  using namespace pybind11::literals;
  
@@ -126,6 +171,19 @@ index 32314ba..1d55c49 100644
 +public:
 +	Flag(bool init=false):value(init){}
 +	bool value;
++
++        // Methods to make the class pickleable
++        py::tuple __getstate__() const {
++                // Return the object's state as a tuple
++                return py::make_tuple(value);
++        }
++
++        void __setstate__(py::tuple t) {
++                // Restore the object's state from the tuple
++                if (t.size() != 1)
++                        throw std::runtime_error("Invalid state!");
++                value = t[0].cast<bool>();
++        }        
 +};
 +
  void declareSparseOptimizer(py::module & m) {
@@ -134,13 +192,15 @@ index 32314ba..1d55c49 100644
 +    py::class_<Flag>(m, "Flag")
 +        .def(py::init<>())
 +        .def(py::init<bool>(),"init"_a)
-+        .def_readwrite("value", &Flag::value);
++        .def_readwrite("value", &Flag::value)
++        .def("__getstate__", &Flag::__getstate__)
++        .def("__setstate__", &Flag::__setstate__);
 +
 +
      py::class_<CLS, OptimizableGraph>(m, "SparseOptimizer")
          // ATTENTION: _solver & _statistics is own by SparseOptimizer and will be
          // deleted in its destructor.
-@@ -84,8 +96,10 @@ void declareSparseOptimizer(py::module & m) {
+@@ -84,8 +111,10 @@ void declareSparseOptimizer(py::module & m) {
          .def("set_verbose", &CLS::setVerbose,
                  "verbose"_a)                                                                                  // -> void
  
@@ -152,7 +212,7 @@ index 32314ba..1d55c49 100644
          .def("force_stop_flag", &CLS::forceStopFlag)                                                             // -> bool*
          .def("terminate", &CLS::terminate)                                                                                   // -> bool
  
-@@ -154,4 +168,4 @@ void declareSparseOptimizer(py::module & m) {
+@@ -154,4 +183,4 @@ void declareSparseOptimizer(py::module & m) {
  
  }
  
@@ -213,3 +273,55 @@ index cf0ae75..8fb83e0 100644
      ;
  
  
+diff --git a/python/types/sim3/sim3.h b/python/types/sim3/sim3.h
+index 6345ca7..93b31da 100644
+--- a/python/types/sim3/sim3.h
++++ b/python/types/sim3/sim3.h
+@@ -19,9 +19,12 @@ void declareSim3(py::module & m) {
+ 
+     py::class_<Sim3>(m, "Sim3")
+         .def(py::init<>())
+-        .def(py::init<const Eigen::Quaterniond&, const Eigen::Vector3d&, double>())
+-        .def(py::init<const Eigen::Matrix3d&, const Eigen::Vector3d&, double>())
+-        .def(py::init<const Vector7d&>())
++        .def(py::init<const Eigen::Quaterniond&, const Eigen::Vector3d&, double>(),
++                "q"_a, "t"_a, "s"_a)
++        .def(py::init<const Eigen::Matrix3d&, const Eigen::Vector3d&, double>(), 
++                "R"_a, "t"_a, "s"_a)
++        .def(py::init<const Vector7d&>(),
++                "vec"_a)
+ 
+         .def("map", &Sim3::map)
+         .def("log", &Sim3::log)
+diff --git a/python/types/sim3/types_seven_dof_expmap.h b/python/types/sim3/types_seven_dof_expmap.h
+index 52cb983..c3a7d80 100644
+--- a/python/types/sim3/types_seven_dof_expmap.h
++++ b/python/types/sim3/types_seven_dof_expmap.h
+@@ -21,6 +21,11 @@ void declareTypesSevenDofExpmap(py::module & m) {
+         .def("oplus_impl", &VertexSim3Expmap::oplusImpl)
+         .def("cam_map1", &VertexSim3Expmap::cam_map1)
+         .def("cam_map2", &VertexSim3Expmap::cam_map2)
++        .def_readwrite("_principle_point1", &VertexSim3Expmap::_principle_point1)
++        .def_readwrite("_principle_point2", &VertexSim3Expmap::_principle_point2)
++        .def_readwrite("_focal_length1", &VertexSim3Expmap::_focal_length1)
++        .def_readwrite("_focal_length2", &VertexSim3Expmap::_focal_length2)
++        .def_readwrite("_fix_scale", &VertexSim3Expmap::_fix_scale)
+     ;
+ 
+ 
+@@ -44,6 +49,7 @@ void declareTypesSevenDofExpmap(py::module & m) {
+         "EdgeSim3ProjectXYZ")
+         .def(py::init<>())
+         .def("compute_error", &EdgeSim3ProjectXYZ::computeError)
++        .def("is_depth_positive", &EdgeSim3ProjectXYZ::isDepthPositive)
+     ;
+ 
+ 
+@@ -52,6 +58,7 @@ void declareTypesSevenDofExpmap(py::module & m) {
+         "EdgeInverseSim3ProjectXYZ")
+         .def(py::init<>())
+         .def("compute_error", &EdgeInverseSim3ProjectXYZ::computeError)
++        .def("is_depth_positive", &EdgeInverseSim3ProjectXYZ::isDepthPositive)
+     ;
+ 
+ }

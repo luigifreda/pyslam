@@ -7,7 +7,7 @@ config = Config()
 
 from utils_files import gdrive_download_lambda 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
+from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
 
 import math
 import cv2 
@@ -25,7 +25,7 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/../..'
 kDataFolder = kRootFolder + '/data'
-kVocabFile = kDataFolder + '/ORBvoc.txt'
+kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
 
 
 kMinDeltaFrameForMeaningfulLoopClosure = 10
@@ -87,10 +87,12 @@ if __name__ == '__main__':
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
     
-    global_des_database = GlobalFeatureDatabase(kVocabFile, dataset.num_frames)
+    global_des_database = GlobalFeatureDatabase(kOrbVocabFile, dataset.num_frames)
 
     # to nicely visualize current loop candidates in a single image
-    loop_closure_imgs = LoopDetectionCandidateImgs()
+    loop_closure_imgs = LoopCandidateImgs()
+    
+    img_writer = ImgWriter(font_scale=0.7)    
     
     cv2.namedWindow('S', cv2.WINDOW_NORMAL)
         
@@ -123,9 +125,7 @@ if __name__ == '__main__':
                         loop_img = dataset.getImageColor(idx)
                         loop_closure_imgs.add(loop_img, idx, score)
 
-            font_pos = (50, 50)                   
-            cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
-                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
+            img_writer.write(img, f'id: {img_id}', (30, 30))
             cv2.imshow('img', img)
             
             cv2.imshow('S', global_des_database.S_color)            

@@ -280,7 +280,8 @@ class Config(object):
                 self._stereo_settings = {'left':left, 'right':right}
         #print(f'[config] stereo settings: {self._stereo_settings}')
         return self._stereo_settings
-                
+
+   
 if __name__ != "__main__":
     # we automatically read lib path when this file is called via 'import'
     cfg = Config()

@@ -31,6 +31,7 @@ def draw_points(img, pts, radius=5):
         img = cv2.cvtColor(img,cv2.COLOR_GRAY2BGR)
     for pt in pts:
         color = tuple(np.random.randint(0,255,3).tolist())
+        pt = tuple(map(int, pt))
         img = cv2.circle(img,tuple(pt),radius,color,-1)
     return img    
 
@@ -43,6 +44,8 @@ def draw_points2(img1, img2, pts1, pts2, radius=5):
         img2 = cv2.cvtColor(img2,cv2.COLOR_GRAY2BGR)
     for pt1,pt2 in zip(pts1,pts2):
         color = tuple(np.random.randint(0,255,3).tolist())
+        pt1 = tuple(map(int, pt1))
+        pt2 = tuple(map(int, pt2))
         img1 = cv2.circle(img1,tuple(pt1),radius,color,-1)
         img2 = cv2.circle(img2,tuple(pt2),radius,color,-1)
     return img1,img2    
@@ -57,8 +60,8 @@ def draw_lines(img, line_edges, pts=None, radius=5):
         x1,y1 = l[1]
         img = cv2.line(img, (int(x0),int(y0)), (int(x1),int(y1)), color,1)
         if pts is not None: 
-            pt = pts[i]        
-            img = cv2.circle(img,tuple(pt),radius,color,-1)
+            pt = tuple(map(int, pts[i])) 
+            img = cv2.circle(img,pt,radius,color,-1)
     return img
 
 

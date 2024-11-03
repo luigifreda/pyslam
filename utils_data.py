@@ -1,6 +1,33 @@
 import multiprocessing as mp
 import threading as th    
+import numpy as np
 
+
+# empty a queue before exiting from the consumer thread/process for safety
+def empty_queue(queue):
+    while not queue.empty():
+        try:
+            queue.get(timeout=0.001)
+        except:
+            pass
+
+class Value:
+    def __init__(self, type, value):
+        self.type = type
+        self.value = value
+
+
+class SingletonMeta(type):
+    def __init__(cls, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        cls._instance = None
+
+    def __call__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__call__(*args, **kwargs)
+        return cls._instance
+    
+    
 class FixedSizeQueue:
     def __init__(self, maxsize):
         self.queue = mp.Queue() 

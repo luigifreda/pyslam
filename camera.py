@@ -20,7 +20,10 @@
 from enum import Enum
 import numpy as np 
 import cv2
-import json
+
+#import json
+import ujson as json
+
 #import g2o
 from utils_geom import add_ones
 from utils_sys import Printer
@@ -144,6 +147,20 @@ class Camera(CameraBase):
         self.v_max = float(json_str['v_max'])
         self.initialized = bool(json_str['initialized'])
         
+     
+    def is_in_image(self, uv, z):
+        return (uv[0] > self.u_min) & (uv[0] < self.u_max) & \
+               (uv[1] > self.v_min) & (uv[1] < self.v_max) & \
+               (z > 0)         
+                
+    # input: [Nx2] array of uvs, [Nx1] of zs 
+    # output: [Nx1] array of visibility flags             
+    def are_in_image(self, uvs, zs):
+        return (uvs[:, 0] > self.u_min) & (uvs[:, 0] < self.u_max) & \
+               (uvs[:, 1] > self.v_min) & (uvs[:, 1] < self.v_max) & \
+               (zs > 0 )
+
+        
 class PinholeCamera(Camera):
     def __init__(self, config):
         super().__init__(config)
@@ -259,15 +276,3 @@ class PinholeCamera(Camera):
         # print('camera u_max: ', self.u_max)
         # print('camera v_min: ', self.v_min)         
         # print('camera v_max: ', self.v_max)      
-     
-    def is_in_image(self, uv, z):
-        return (uv[0] > self.u_min) & (uv[0] < self.u_max) & \
-               (uv[1] > self.v_min) & (uv[1] < self.v_max) & \
-               (z > 0)         
-                
-    # input: [Nx2] array of uvs, [Nx1] of zs 
-    # output: [Nx1] array of visibility flags             
-    def are_in_image(self, uvs, zs):
-        return (uvs[:, 0] > self.u_min) & (uvs[:, 0] < self.u_max) & \
-               (uvs[:, 1] > self.v_min) & (uvs[:, 1] < self.v_max) & \
-               (zs > 0 )

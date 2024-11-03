@@ -86,6 +86,10 @@ void FORB::meanValue(const std::vector<FORB::pDescriptor> &descriptors,
 int FORB::distance(const FORB::TDescriptor &a,
   const FORB::TDescriptor &b)
 {
+  if(a.empty() || b.empty())
+  {
+    return std::numeric_limits<int>::max();
+  }
   // Bit set count operation from
   // http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
 

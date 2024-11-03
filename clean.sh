@@ -13,7 +13,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 set -e
 
 print_blue "=================================================================="
-print_blue "clearning thirdparty packages and utils..."
+print_blue "cleaning thirdparty packages and utils..."
 
 rm -Rf thirdparty/pangolin 
 
@@ -46,4 +46,4 @@ cd $SCRIPT_DIR
 
 # TODO
 # clean downloaded models 
-#git submodule foreach 'git reset --hard; git clean -xfd'
+# git submodule foreach 'git reset --hard; git clean -xfd'

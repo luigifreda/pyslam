@@ -43,7 +43,7 @@ vector<string> readImagePaths(int argc,char **argv,int start){
         return paths;
 }
 
-vector< cv::Mat  >  loadFeatures( std::vector<string> path_to_images,string descriptor="") throw (std::exception){
+vector< cv::Mat  >  loadFeatures( std::vector<string> path_to_images,string descriptor=""){
     //select detector
     cv::Ptr<cv::Feature2D> fdetector;
     if (descriptor=="orb")        fdetector=cv::ORB::create();

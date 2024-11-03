@@ -489,9 +489,9 @@ def compute_NSAD_between_matched_keypoints(img1, img2, kps1, kps2, window_size=5
             else:
                 window = np.zeros((window_size, window_size), dtype=img.dtype)
             windows.append(window)
-        print(f'img shape: {img.shape}')
-        print(f'num windows: {len(windows)}')
-        print(f'num kps: {len(kps)}')
+        #print(f'img shape: {img.shape}')
+        #print(f'num windows: {len(windows)}')
+        #print(f'num kps: {len(kps)}')
         return np.array(windows)
 
     def normalize_windows(windows):
@@ -584,7 +584,7 @@ def extract_patches_array_cpp(img, kps, patch_size=32, mag_factor=1.0, warp_flag
 # Transform float descriptors [NxD] into a binary descriptors [Nx(D-1)].
 # Use the approach of LBP, BRIEF, CENSUS: compare a descriptor float component to its adjacent values 
 # to get a binary descriptor: [...,d[i-1]>d[i],d[i]<d[i+1],...]
-# In the end, this is equivalent to [...,d[i]>d[i-1],d[i+1]<d[i],...] 
+# In the end, this is equivalent to [...,d[i]>d[i-1],d[i+1]>d[i],...] 
 def transform_float_to_binary_descriptor(float_des):
     binary_des = (float_des[:, :-1] > float_des[:, 1:]).astype(np.uint8)
     return binary_des

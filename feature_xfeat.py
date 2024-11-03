@@ -71,3 +71,11 @@ class XFeat2D:
             #print('detector: SUPERPOINT, #features: ', len(self.kps), ', frame res: ', frame.shape[0:2])  
             #print (self.kps,self.des.shape)    
             return self.kps,self.des 
+        
+    # return descriptors if available otherwise call detectAndCompute()  
+    def compute(self, frame, kps=None, mask=None): # kps is a fake input, mask is a fake input
+        with self.lock:        
+            if self.frame is not frame:
+                Printer.orange('WARNING: XFeat2D is recomputing both kps and des on last input frame', frame.shape)            
+                self.detectAndCompute(frame)
+            return self.kps, self.des          

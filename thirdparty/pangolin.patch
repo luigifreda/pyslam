@@ -1,9 +1,3 @@
-diff --git a/external/pybind11 b/external/pybind11
---- a/external/pybind11
-+++ b/external/pybind11
-@@ -1 +1 @@
--Subproject commit e43e1cc01ae6d4e4e5ba10557a057d7f3d5ece0d
-+Subproject commit e43e1cc01ae6d4e4e5ba10557a057d7f3d5ece0d-dirty
 diff --git a/include/pangolin/log/packetstream_tags.h b/include/pangolin/log/packetstream_tags.h
 index 13216f3..a608e73 100644
 --- a/include/pangolin/log/packetstream_tags.h
@@ -17,6 +11,18 @@ index 13216f3..a608e73 100644
 +#endif 
  
  namespace pangolin {
+ 
+diff --git a/python/pangolin.cpp b/python/pangolin.cpp
+index 798800c..75fd45e 100644
+--- a/python/pangolin.cpp
++++ b/python/pangolin.cpp
+@@ -1,3 +1,7 @@
++#ifdef __linux__
++#include <cinttypes>
++#endif
++
+ #include <pybind11/pybind11.h>
+ #include <pybind11/stl.h>
  
 diff --git a/src/image/image_io_jpg.cpp b/src/image/image_io_jpg.cpp
 index cfa110a..5144865 100644

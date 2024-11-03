@@ -18,7 +18,7 @@
 """
 
 from feature_manager import feature_manager_factory
-from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
+from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes
 
 from parameters import Parameters  
 
@@ -31,7 +31,9 @@ Interface for feature manager configurations
 """
 class FeatureManagerConfigs(object):   
         
-    # Template configuration (required for feature_manager_factory(), see feature_manager.py)
+    # Template configuration used by FeatureManagerConfigs.extract_from() to extract 
+    # a FeatureManager subconfiguration from a full FeatureTracker input configuration.
+    # See for instance the file test_feature_manager.py.
     TEMPLATE = dict(num_features=kNumFeatures,                     
                 num_levels=8,     
                 scale_factor = 1.2,
@@ -39,12 +41,48 @@ class FeatureManagerConfigs(object):
                 detector_type = FeatureDetectorTypes.NONE,
                 descriptor_type = FeatureDescriptorTypes.NONE)      
             
-                 
-    # get the useful sub-part of an input configuration dictionary (used for extracting sub-configurations from FeatureTrackerConfigs) 
-    # (see for instance the file test_feature_manager.py)      
+                                 
+    # Extract the FeatureManager sub-configuration from a full FeatureTracker input configuration (selected from FeatureTrackerConfigs) 
+    # See for instance the file test_feature_manager.py.      
     @staticmethod        
     def extract_from(dict_in):
         dict_out = { key:dict_in[key] for key in FeatureManagerConfigs.TEMPLATE.keys() if key in dict_in }      
         return dict_out       
         
-         
+        
+    # The following configurations were manually extracted from the corresponding tracker configs in feature_tracker_configs.py.
+    # These are just examples. 
+    # Normally, you should use the FeatureManagerConfigs.extract_from() method instead of manually specifying these configurations. 
+    # See for instance the file test_feature_manager.py. 
+    ORB2 = dict(num_features=kNumFeatures, 
+                num_levels = 8, 
+                scale_factor = 1.2, 
+                detector_type = FeatureDetectorTypes.ORB2, 
+                descriptor_type = FeatureDescriptorTypes.ORB2,
+                sigma_level0 = Parameters.kSigmaLevel0)
+    
+    BRISK = dict(num_features=kNumFeatures,                     
+                num_levels = 4, 
+                scale_factor = 1.2,
+                detector_type = FeatureDetectorTypes.BRISK, 
+                descriptor_type = FeatureDescriptorTypes.BRISK,
+                sigma_level0 = Parameters.kSigmaLevel0) 
+        
+    ROOT_SIFT = dict(num_features=kNumFeatures,   # independently computes the number of octaves as SIFT
+                detector_type = FeatureDetectorTypes.ROOT_SIFT, 
+                descriptor_type = FeatureDescriptorTypes.ROOT_SIFT,
+                sigma_level0 = Parameters.kSigmaLevel0)     
+    
+    SUPERPOINT = dict(num_features=kNumFeatures,   # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                    num_levels = 1, 
+                    scale_factor = 1.2,
+                    detector_type = FeatureDetectorTypes.SUPERPOINT, 
+                    descriptor_type = FeatureDescriptorTypes.SUPERPOINT,
+                    sigma_level0 = Parameters.kSigmaLevel0)                     
+                 
+    XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.XFEAT, 
+                      descriptor_type = FeatureDescriptorTypes.XFEAT,
+                      sigma_level0 = Parameters.kSigmaLevel0)   

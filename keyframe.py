@@ -19,7 +19,9 @@
 
 import cv2
 import numpy as np
-import json
+
+#import json
+import ujson as json
 
 from scipy.spatial import cKDTree
 
@@ -44,11 +46,25 @@ class KeyFrameGraph(object):
         self.loop_edges = set() 
         self.not_to_erase = False   # if there is a loop edge then you cannot erase this keyframe 
         # covisibility graph 
-        self.connected_keyframes_weights = Counter() #defaultdict(int) 
+        self.connected_keyframes_weights = Counter()    # defaultdict(int) 
         self.ordered_keyframes_weights = OrderedDict()  # ordered list of connected keyframes (on the basis of the number of map points with this keyframe)
         # 
         self.is_first_connection=True 
         
+    def __getstate__(self):
+        # Create a copy of the instance's __dict__
+        state = self.__dict__.copy()
+        # Remove the RLock from the state (don't pickle it)
+        if '_lock_connections' in state:
+            del state['_lock_connections']
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state (without 'lock' initially)
+        self.__dict__.update(state)
+        # Recreate the RLock after unpickling
+        self._lock_connections = RLock()
+                
     def to_json(self):
         with self._lock_connections:
             return {'parent': self.parent.id if self.parent is not None else None, 
@@ -190,33 +206,7 @@ class KeyFrameGraph(object):
     def get_weight(self,keyframe): 
         with self._lock_connections:  
             return self.connected_keyframes_weights[keyframe]  
-                    
-
-# class KeyFrameData:
-#     def __init__(self, keyframe):
-#         # replicate the same main fields of KeyFrame with locks
-#         self.id = keyframe.id
-#         self.kid = keyframe.kid
-#         self.is_keyframe = keyframe.is_keyframe
-                
-#         self.img = keyframe.img
-#         self.depth_img = keyframe.depth_img
-#         self.camera = keyframe.camera
-
-#         self.kps = keyframe.kps
-#         self.kpsu = keyframe.kpsu
-#         self.kpsn = keyframe.kpsn
-#         self.octaves = keyframe.octaves
-#         self.sizes = keyframe.sizes
-#         self.angles = keyframe.angles
-#         self.des = keyframe.des
-#         self.dephts = keyframe.dephts
-#         self.kps_ur = keyframe.kps_ur
-        
-#         self.g_des = keyframe.g_des
-        
-#         self.outliers = keyframe.outliers
-        
+                            
 
 class KeyFrame(Frame,KeyFrameGraph):
     def __init__(self, frame: Frame, img=None):
@@ -237,7 +227,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.map = None 
                 
         self.is_keyframe = True  
-        self.kid = None           # keyframe id 
+        self.kid = None           # keyframe id (keyframe counter-id, different from frame.id)
         
         self._is_bad = False 
         self.to_be_erased = False 
@@ -267,6 +257,11 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.num_reloc_words = 0
         self.reloc_score = None
         
+        # for GBA 
+        self.GBA_kf_id = 0
+        self.Tcw_GBA = None
+        self.Tcw_before_GBA = None
+        
         if hasattr(frame, '_kd'):     
             self._kd = frame._kd 
         else: 
@@ -276,7 +271,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         # map points information arrays (copy points coming from frame)
         self.points   = frame.get_points()     # map points => self.points[idx] is the map point matched with self.kps[idx] (if is not None)
         self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)     # used just in propagate_map_point_matches()   
-        
+                        
     def to_json(self):
         frame_json = Frame.to_json(self)
         
@@ -302,6 +297,26 @@ class KeyFrame(Frame,KeyFrameGraph):
         
         kf.init_from_json(json_str)
         return kf
+        
+    def __getstate__(self):
+        # Create a copy of the instance's __dict__
+        state = self.__dict__.copy()
+        # Remove the RLock from the state (don't pickle it)
+        if '_lock_pose' in state: # from FrameBase
+            del state['_lock_pose']        
+        if '_lock_features' in state: # from Frame
+            del state['_lock_features']
+        if '_lock_connections' in state: # from KeyFrameGraph
+            del state['_lock_connections']            
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state (without 'RLock' initially)
+        self.__dict__.update(state)
+        # Recreate the RLock after unpickling
+        self._lock_pose = RLock() # from FrameBase
+        self._lock_features = RLock()
+        self._lock_connections = RLock()
         
     # post processing after deserialization to replace saved ids with reloaded objects
     def replace_ids_with_objects(self, points, frames, keyframes):

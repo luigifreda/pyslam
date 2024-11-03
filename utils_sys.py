@@ -24,6 +24,8 @@ import logging
 from termcolor import colored
 import cv2
 
+import threading
+
 # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
 myjet = np.array([[0.        , 0.        , 0.5       ],
                   [0.        , 0.        , 0.99910873],
@@ -258,3 +260,29 @@ def get_opencv_version():
 def is_opencv_version_greater_equal(a, b, c):
     opencv_version = get_opencv_version()
     return opencv_version[0]*1000 + opencv_version[1]*100 + opencv_version[2] >= a*1000 + b*100 + c
+
+
+def check_if_main_thread(message=""):
+    if threading.current_thread() is threading.main_thread():
+        print(f"This is the main thread. {message}")
+        return True
+    else:
+        print(f"This is NOT the main thread. {message}")
+        return False
+    
+    
+# Set the limit of open files. This is useful when using multiprocessing and socket management
+# returns the error: OSError: [Errno 24] Too many open files.    
+def set_rlimit():
+    import resource
+    # Check the current soft and hard limits
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    print(f"Current soft limit: {soft_limit}, hard limit: {hard_limit}")
+
+    # Set the new limit
+    new_soft_limit = 4096
+    resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft_limit, hard_limit))
+
+    # Confirm the change
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    print(f"Updated soft limit: {soft_limit}, hard limit: {hard_limit}")

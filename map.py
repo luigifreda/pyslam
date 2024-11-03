@@ -19,9 +19,11 @@
 
 import time
 import numpy as np
-import json
 import math 
 import cv2
+
+#import json
+import ujson as json
 
 from collections import Counter, deque
 
@@ -31,11 +33,13 @@ from threading import RLock, Thread
 
 from utils_geom import poseRt, add_ones, add_ones_1D
 from parameters import Parameters 
-from frame import Frame, FrameBase
+from frame import Frame, FrameShared, FrameBase
 from keyframe import KeyFrame
 from map_point import MapPoint, MapPointBase
 
 from utils_sys import Printer
+
+import traceback
 
 import g2o
 import optimizer_g2o 
@@ -59,14 +63,38 @@ class Map(object):
         self.keyframes = OrderedSet()  
         self.points = set()
         
+        self.keyframe_origins = OrderedSet()   # first keyframe(s) where the map is rooted
+        
+        self.keyframes_map = {} # map: frame id -> keyframe  (for fast retrieving keyframe from img_id/frame_id)
+        
         self.max_point_id = 0     # 0 is the first point id
         self.max_frame_id = 0     # 0 is the first frame id        
-        self.max_keyframe_id = 0  # 0 is the first keyframe id
+        self.max_keyframe_id = 0  # 0 is the first keyframe id (kid)
 
         # local map 
         #self.local_map = LocalWindowMap(map=self)
         self.local_map = LocalCovisibilityMap(map=self)
+        
+        self.viewer_scale = -1
 
+    def __getstate__(self):
+        # Create a copy of the instance's __dict__
+        state = self.__dict__.copy()
+        # Remove the RLock from the state (don't pickle it)
+        if '_lock' in state:
+            del state['_lock']
+        if '_update_lock' in state:
+            del state['_update_lock']            
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state (without 'lock' initially)
+        self.__dict__.update(state)
+        # Recreate the RLock after unpickling
+        self._lock = RLock()
+        self._update_lock = RLock()
+                
+                
     @property    
     def lock(self):  
         return self._lock 
@@ -118,6 +146,7 @@ class Map(object):
                 f.reset_points()
             for kf in self.keyframes:
                 kf.reset_points()
+                
 
     def add_point(self, point):
         with self._lock:           
@@ -163,7 +192,8 @@ class Map(object):
             keyframe.kid = ret # override original keyframe kid    
             keyframe.is_keyframe = True 
             keyframe.map = self 
-            self.keyframes.add(keyframe)            
+            self.keyframes.add(keyframe)
+            self.keyframes_map[keyframe.id] = keyframe          
             self.max_keyframe_id += 1                                  
             return ret    
     
@@ -171,7 +201,8 @@ class Map(object):
         with self._lock:
             assert(keyframe.is_keyframe)                               
             try: 
-                self.keyframes.remove(keyframe) 
+                self.keyframes.remove(keyframe)
+                del self.keyframes_map[keyframe.id] 
             except: 
                 pass     
     
@@ -226,6 +257,7 @@ class Map(object):
                 # compute dot products of rays                              
                 cos_parallaxs = np.sum(rays1 * rays2, axis=1)  
                 
+                # if we have depths check if we can use depths in case of bad parallax
                 if kf1.depths is not None and kf2.depths is not None:
                     # NOTE: 2.0 is certainly higher than any cos_parallax value
                     cos_parallax_stereo1 = np.where(is_stereo1, np.cos(2.*np.arctan2(kf1.camera.b/2,kf1.depths[idxs1])),2.0) if kf1.depths is not None else [2.0]*len(idxs1)
@@ -259,7 +291,7 @@ class Map(object):
                 errs1 = np.where(is_mono1[:, np.newaxis], errs1_mono_vec, np.zeros(2))   # mono errors 
                 errs1_sqr = np.sum(errs1 * errs1, axis=1)  # squared reprojection errors 
                 kps1_levels = kf1.octaves[idxs1]
-                invSigmas2_1 = Frame.feature_manager.inv_level_sigmas2[kps1_levels] 
+                invSigmas2_1 = FrameShared.feature_manager.inv_level_sigmas2[kps1_levels] 
                 chis2_1_mono = errs1_sqr * invSigmas2_1         # chi square 
                                 
                 # stereo reprojection error
@@ -287,7 +319,7 @@ class Map(object):
                 errs2 = np.where(is_mono2[:, np.newaxis], errs2_mono_vec, np.zeros(2))   # mono errors
                 errs2_sqr = np.sum(errs2 * errs2, axis=1) # squared reprojection errors        
                 kps2_levels = kf2.octaves[idxs2]
-                invSigmas2_2 = Frame.feature_manager.inv_level_sigmas2[kps2_levels] 
+                invSigmas2_2 = FrameShared.feature_manager.inv_level_sigmas2[kps2_levels] 
                 chis2_2_mono = errs2_sqr * invSigmas2_2        # chi square 
                 
                 if kf2.kps_ur is not None:
@@ -303,10 +335,10 @@ class Map(object):
                     bad_chis2_2 = chis2_2_mono > Parameters.kChi2Mono  # chi-square 2 DOFs  (Hartley Zisserman pg 119)                      
                 
                 # scale consistency check
-                ratio_scale_consistency = Parameters.kScaleConsistencyFactor * Frame.feature_manager.scale_factor 
-                scale_factors_x_depths1 =  Frame.feature_manager.scale_factors[kps1_levels] * proj_depths1
+                ratio_scale_consistency = Parameters.kScaleConsistencyFactor * FrameShared.feature_manager.scale_factor 
+                scale_factors_x_depths1 =  FrameShared.feature_manager.scale_factors[kps1_levels] * proj_depths1
                 scale_factors_x_depths1_x_ratio_scale_consistency = scale_factors_x_depths1*ratio_scale_consistency                             
-                scale_factors_x_depths2 =  Frame.feature_manager.scale_factors[kps2_levels] * proj_depths2   
+                scale_factors_x_depths2 =  FrameShared.feature_manager.scale_factors[kps2_levels] * proj_depths2   
                 scale_factors_x_depths2_x_ratio_scale_consistency = scale_factors_x_depths2*ratio_scale_consistency      
                 bad_scale_consistency = np.logical_or( (scale_factors_x_depths1 > scale_factors_x_depths2_x_ratio_scale_consistency), 
                                                        (scale_factors_x_depths2 > scale_factors_x_depths1_x_ratio_scale_consistency) )   
@@ -444,12 +476,12 @@ class Map(object):
                     chi2s = []
                     for f, idx in p.observations():
                         uv = f.kpsu[idx]
-                        proj,_ = f.project_map_point(p)
-                        invSigma2 = Frame.feature_manager.inv_level_sigmas2[f.octaves[idx]]
+                        proj,z = f.project_map_point(p)
+                        invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
                         err = (proj-uv)
                         chi2s.append(np.inner(err,err)*invSigma2)
                     # cull
-                    mean_chi2 = np.mean(chi2s)
+                    #mean_chi2 = np.mean(chi2s)
                     if np.mean(chi2s) > Parameters.kChi2Mono:  # chi-square 2 DOFs  (Hartley Zisserman pg 119)
                         culled_pt_count += 1
                         #print('removing point: ',p.id, 'from frames: ', [f.id for f in p.keyframes])
@@ -470,38 +502,50 @@ class Map(object):
                     for f, idx in p.observations():
                         uv = f.kpsu[idx]
                         proj,_ = f.project_map_point(p)
-                        invSigma2 = Frame.feature_manager.inv_level_sigmas2[f.octaves[idx]]
+                        invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
                         err = (proj-uv)
                         chi2 += np.inner(err,err)*invSigma2
                         num_obs += 1
         return chi2/max(num_obs,1)
+
 
     # BA considering all keyframes: 
     # - local keyframes are adjusted, 
     # - other keyframes are fixed
     # - all points are adjusted  
     def optimize(self, local_window=Parameters.kLargeBAWindow, verbose=False, rounds=10, use_robust_kernel=False, do_cull_points = False, abort_flag=g2o.Flag()):            
-        err = optimizer_g2o.bundle_adjustment(self.get_keyframes(), self.get_points(), local_window = local_window, verbose = verbose, rounds = rounds, use_robust_kernel=False, abort_flag=abort_flag)        
+        err = optimizer_g2o.bundle_adjustment(self.get_keyframes(), self.get_points(), local_window=local_window, \
+                                              rounds=rounds, loop_kf_id=0, use_robust_kernel=use_robust_kernel, abort_flag=abort_flag, verbose=verbose)        
         if do_cull_points: 
             self.remove_points_with_big_reproj_err(self.get_points())
         return err
 
 
     # local BA: only local keyframes and local points are adjusted
-    def locally_optimize(self, kf_ref, verbose = False, rounds=10, abort_flag=g2o.Flag()):    
-        keyframes, points, ref_keyframes = self.local_map.update(kf_ref)
-        print('local optimization window: ', sorted([kf.id for kf in keyframes]))        
-        print('                     refs: ', sorted([kf.id for kf in ref_keyframes]))
-        print('                   #points: ', len(points))               
-        #print('                   points: ', sorted([p.id for p in points]))        
-        #err = optimizer_g2o.optimize(frames, points, None, False, verbose, rounds)  
-        ba_function = optimizer_g2o.local_bundle_adjustment_parallel if Parameters.kUseParallelProcessLBA and len(ref_keyframes) > 10 else optimizer_g2o.local_bundle_adjustment
-        err, ratio_bad_observations = ba_function(keyframes, points, ref_keyframes, False, verbose, rounds, abort_flag=abort_flag, map_lock=self.update_lock)
-        Printer.green('local optimization - perc bad observations: %.2f %%' % (ratio_bad_observations*100) )              
-        return err 
+    def locally_optimize(self, kf_ref, verbose = False, rounds=10, abort_flag=g2o.Flag(), mp_abort_flag=None):   
+        from local_mapping import print 
+        try:
+            keyframes, points, ref_keyframes = self.local_map.update(kf_ref)
+            print('local optimization window: ', sorted([kf.id for kf in keyframes]))        
+            print('                     refs: ', sorted([kf.id for kf in ref_keyframes]))
+            print('                   #points: ', len(points))               
+            #print('                   points: ', sorted([p.id for p in points]))        
+            #err = optimizer_g2o.optimize(frames, points, None, False, verbose, rounds)  
+            # NOTE: Why do we want to use parallel multi-processing instead of multi-threading for local BA?
+            #       Unfortunately, the GIL does use a SINGLE CPU-core under multi-threading. On the other hand, multi-processing allows to distribute computation over multiple CPU-cores.
+            ba_function = optimizer_g2o.local_bundle_adjustment_parallel if Parameters.kUseParallelProcessLBA \
+                     else optimizer_g2o.local_bundle_adjustment
+            err, ratio_bad_observations = ba_function(keyframes, points, ref_keyframes, False, verbose, rounds, abort_flag=abort_flag, mp_abort_flag=mp_abort_flag, map_lock=self.update_lock)
+            Printer.green('local optimization - perc bad observations: %.2f %%' % (ratio_bad_observations*100) )
+            return err
+        except Exception as e:
+            print(f'locally_optimize: EXCEPTION: {e} !!!')
+            traceback_details = traceback.format_exc()
+            print(f'\t traceback details: {traceback_details}')                        
+            return -1 
 
 
-    # FIXME: to be updated according to new data structure changes
+    # NOTE: keep this updated according to new data structure changes
     def serialize(self):
         ret = {}
         
@@ -513,14 +557,17 @@ class Map(object):
         ret['frames'] = [f.to_json() for f in self.frames]
         ret['keyframes'] = [kf.to_json() for kf in self.keyframes if not kf.is_bad]
         ret['points'] = [p.to_json() for p in self.points if not p.is_bad]
+        ret['keyframe_origins'] = [kf.to_json() for kf in self.keyframe_origins]
                 
         ret['max_frame_id'] = self.max_frame_id
         ret['max_point_id'] = self.max_point_id
         ret['max_keyframe_id'] = self.max_keyframe_id
         
+        ret['viewer_scale'] = self.viewer_scale
+        
         return json.dumps(ret)
 
-    # FIXME: to be updated according to new data structure changes
+    # NOTE: keep this updated according to new data structure changes
     def deserialize(self, s):
         ret = json.loads(s)
         
@@ -532,10 +579,13 @@ class Map(object):
         self.frames = [KeyFrame.from_json(f) if bool(f['is_keyframe']) else Frame.from_json(f) for f in ret['frames']]
         self.keyframes = [KeyFrame.from_json(f) for f in ret['keyframes']]
         self.points = [MapPoint.from_json(p) for p in ret['points']]
+        self.keyframe_origins = [KeyFrame.from_json(kf) for kf in ret['keyframe_origins']]
                         
         self.max_frame_id = ret['max_frame_id']
         self.max_point_id = ret['max_point_id']
         self.max_keyframe_id = ret['max_keyframe_id']
+        
+        self.viewer_scale = ret['viewer_scale']
         
         # now replace ids with actual objects
         for f in self.frames: 
@@ -544,10 +594,13 @@ class Map(object):
             kf.replace_ids_with_objects(self.points, self.frames, self.keyframes)
         for p in self.points: 
             p.replace_ids_with_objects(self.points, self.frames, self.keyframes)
+        for kf in self.keyframe_origins: 
+            kf.replace_ids_with_objects(self.points, self.frames, self.keyframes)            
 
         self.frames = deque(self.frames, maxlen=kMaxLenFrameDeque) 
         self.keyframes = OrderedSet(self.keyframes)  
         self.points = set(self.points)
+        self.keyframe_origins = OrderedSet(self.keyframe_origins)
         
     def save(self, filename):
         with open(filename, 'w') as f:
@@ -630,7 +683,7 @@ class LocalMapBase(object):
         #keyframes = self.get_local_keyframes()
         #assert len(points) > 0
         if len(points) == 0:
-            Printer.red('get_frame_covisibles - frame with not points')
+            Printer.red('get_frame_covisibles - frame without points')
         
         # for all map points in frame check in which other keyframes are they seen
         # increase counter for those keyframes            
@@ -685,6 +738,20 @@ class LocalCovisibilityMap(LocalMapBase):
     def __init__(self, map=None):
         super().__init__(map)
                 
+    def __getstate__(self):
+        # Create a copy of the instance's __dict__
+        state = self.__dict__.copy()
+        # Remove the RLock from the state (don't pickle it)
+        if '_lock' in state:
+            del state['_lock']       
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state (without 'lock' initially)
+        self.__dict__.update(state)
+        # Recreate the RLock after unpickling
+        self._lock = RLock()
+                        
     def update_keyframes(self, kf_ref): 
         with self._lock:         
             assert(kf_ref is not None)

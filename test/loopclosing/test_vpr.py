@@ -13,7 +13,7 @@ import numpy as np
 import cv2
 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, float_to_color_array, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
+from utils_img import float_to_color, float_to_color_array, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
 
 
 from dataset import dataset_factory
@@ -122,10 +122,10 @@ if __name__ == "__main__":
     dataset = dataset_factory(config)
     
     #global_descriptor_type = 'HDC-DELF'    # very slow
-    global_descriptor_type = 'SAD'          # fast 
+    #global_descriptor_type = 'SAD'          # fast 
     #global_descriptor_type = 'AlexNet'     # very slow
     #global_descriptor_type = 'NetVLAD'     # decently fast
-    #global_descriptor_type = 'CosPlace'    # decently fast
+    global_descriptor_type = 'CosPlace'    # decently fast
     #global_descriptor_type = 'EigenPlaces' # decently fast    
     
     global_feature_extractor = None
@@ -133,7 +133,9 @@ if __name__ == "__main__":
     global_des_database = GlobalFeatureDatabase(global_descriptor_type, dataset.num_frames)
     
     # to nicely visualize current loop candidates in a single image
-    loop_closure_imgs = LoopDetectionCandidateImgs()
+    loop_closure_imgs = LoopCandidateImgs()
+    
+    img_writer = ImgWriter(font_scale=0.7)
     
     cv2.namedWindow('S', cv2.WINDOW_NORMAL)
     
@@ -162,10 +164,8 @@ if __name__ == "__main__":
                         print(f'result - best id: {idx}, score: {score}')
                         loop_img = dataset.getImageColor(idx)
                         loop_closure_imgs.add(loop_img, idx, score)
-                                    
-            font_pos = (50, 50)                   
-            cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
-                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
+                                        
+            img_writer.write(img, f'id: {img_id}', (30, 30))
             cv2.imshow('img', img)
             
             #cv2.imshow('S', convert_float_to_colored_uint8_image(global_des_database.S_float))

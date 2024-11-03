@@ -40,7 +40,8 @@ from feature_tracker_configs import FeatureTrackerConfigs
 
 config = Config()
 # forced camera settings to be kept coherent with the input file below 
-config.config_parser[config.dataset_type]['cam_settings'] = 'settings/KITTI04-12.yaml'
+config.config[config.dataset_type]['settings'] = 'settings/KITTI04-12.yaml'
+config.sensor_type='mono'
 config.get_cam_settings()
 
 #dataset = dataset_factory(config)
@@ -60,17 +61,15 @@ tracker_type = FeatureTrackerTypes.DES_BF      # descriptor-based, brute force m
 #tracker_type = FeatureTrackerTypes.DES_FLANN  # descriptor-based, FLANN-based matching 
 
 # select your tracker configuration (see the file feature_tracker_configs.py) 
-tracker_config = FeatureTrackerConfigs.TEST
-tracker_config['num_features'] = num_features
-tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default
-tracker_config['tracker_type'] = tracker_type
-
-feature_tracker = feature_tracker_factory(**tracker_config)
+feature_tracker_config = FeatureTrackerConfigs.TEST
+feature_tracker_config['num_features'] = num_features
+feature_tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default
+feature_tracker_config['tracker_type'] = tracker_type
 
 #============================================
 # create SLAM object 
 #============================================
-slam = Slam(cam, feature_tracker) #, grountruth)
+slam = Slam(cam, feature_tracker_config) #, grountruth)
 
 
 timer = Timer()
@@ -83,8 +82,11 @@ img_ref = cv2.imread('../data/kitti06-12.png',cv2.IMREAD_COLOR)
 img_cur = cv2.imread('../data/kitti06-13.png',cv2.IMREAD_COLOR)
 
 
-slam.track(img_ref, frame_id=0)
-slam.track(img_cur, frame_id=1)
+print(f'camera: {slam.tracking.camera.width}x{slam.tracking.camera.height}')
+
+slam.track(img_ref, frame_id=0, img_right=None, depth=None)
+slam.track(img_ref, frame_id=1, img_right=None, depth=None) # fake input to get an id-distance of 2 frames in the initializer
+slam.track(img_cur, frame_id=2, img_right=None, depth=None)
 
 f_ref = slam.map.get_frame(-2)
 f_cur = slam.map.get_frame(-1)

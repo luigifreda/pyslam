@@ -65,64 +65,62 @@ index f958f96..5c810e4 100644
  
          for i in range(len(self.Ds)):
 diff --git a/feature_extraction/feature_extractor_cosplace.py b/feature_extraction/feature_extractor_cosplace.py
-index fe24051..44b0b9c 100644
+index fe24051..6e1febc 100644
 --- a/feature_extraction/feature_extractor_cosplace.py
 +++ b/feature_extraction/feature_extractor_cosplace.py
-@@ -40,13 +40,13 @@ class CosPlaceFeatureExtractor(torch.nn.Module):
-         super().__init__()
+@@ -3,6 +3,7 @@ import torch
+ from torch.utils.data import DataLoader
+ import torchvision.transforms as transforms
+ import torch.utils.data as data
++import torch.multiprocessing as mp
  
-         if torch.cuda.is_available():
+ from typing import List
+ import numpy as np
+@@ -36,36 +37,63 @@ class ImageDataset(data.Dataset):
+ 
+ 
+ class CosPlaceFeatureExtractor(torch.nn.Module):
+-    def __init__(self):
++    def __init__(self, device=None, share_memory=False):
+         super().__init__()
+-
+-        if torch.cuda.is_available():
 -            print('Using GPU')
-+            print('CosPlaceFeatureExtractor - Using GPU')
-             self.device = torch.device("cuda")
-         elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+-            self.device = torch.device("cuda")
+-        elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
 -            print('Using MPS')
-+            print('CosPlaceFeatureExtractor - Using MPS')
-             self.device = torch.device("mps")
+-            self.device = torch.device("mps")
++        if device is None:
++            if torch.cuda.is_available():
++                print('CosPlaceFeatureExtractor - Using GPU')
++                self.device = torch.device("cuda")
++            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
++                print('CosPlaceFeatureExtractor - Using MPS')
++                self.device = torch.device("mps")
++            else:
++                print('CosPlaceFeatureExtractor - Using CPU')
++                self.device = torch.device("cpu")
          else:
 -            print('Using CPU')
-+            print('CosPlaceFeatureExtractor - Using CPU')
-             self.device = torch.device("cpu")
+-            self.device = torch.device("cpu")
++            self.device = device
          self.model = torch.hub.load("gmberton/cosplace", "get_trained_model",
                                      backbone="ResNet50", fc_output_dim=2048)
-@@ -61,11 +61,14 @@ class CosPlaceFeatureExtractor(torch.nn.Module):
-         self.model.eval()
-         with torch.no_grad():
-             global_feats = np.empty((len(img_set), self.dim), dtype=np.float32)
--            for input_data, indices in tqdm(test_data_loader):
-+            test_data_ = tqdm(test_data_loader) if len(imgs)>1 else test_data_loader
-+            for input_data, indices in test_data_:
-                 indices_np = indices.numpy()
-                 input_data = input_data.to(self.device)
-                 image_encoding = self.model(input_data)
-                 global_feats[indices_np, :] = image_encoding.cpu().numpy()
-         return global_feats
++        if share_memory:
++            print('CosPlaceFeatureExtractor - Share memory')
++            self.model.share_memory() # Share the model parameters among processes
++        
+         self.dim = 2048
+         self.model = self.model.to(self.device)
  
-+    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
-+        return self.compute_features([img])
- 
-diff --git a/feature_extraction/feature_extractor_eigenplaces.py b/feature_extraction/feature_extractor_eigenplaces.py
-index 5471cff..63150c6 100644
---- a/feature_extraction/feature_extractor_eigenplaces.py
-+++ b/feature_extraction/feature_extractor_eigenplaces.py
-@@ -40,13 +40,13 @@ class EigenPlacesFeatureExtractor(torch.nn.Module):
-         super().__init__()
- 
-         if torch.cuda.is_available():
--            print('Using GPU')
-+            print('EigenPlacesFeatureExtractor - Using GPU')
-             self.device = torch.device("cuda")
-         elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
--            print('Using MPS')
-+            print('EigenPlacesFeatureExtractor - Using MPS')
-             self.device = torch.device("mps")
-         else:
--            print('Using CPU')
-+            print('EigenPlacesFeatureExtractor - Using CPU')
-             self.device = torch.device("cpu")
-         self.model = torch.hub.load("gmberton/eigenplaces", "get_trained_model",
-                                     backbone="ResNet50", fc_output_dim=2048)
-@@ -61,11 +61,13 @@ class EigenPlacesFeatureExtractor(torch.nn.Module):
+     def compute_features(self, imgs: List[np.ndarray]) -> np.ndarray:
++        #use_cuda = torch.cuda.is_available()
++        use_cuda = (self.device.type == "cuda")
+         img_set = ImageDataset(imgs)
+         test_data_loader = DataLoader(dataset=img_set, num_workers=4,
+                                      batch_size=4, shuffle=False,
+-                                     pin_memory=torch.cuda.is_available())
++                                     pin_memory=use_cuda)
          self.model.eval()
          with torch.no_grad():
              global_feats = np.empty((len(img_set), self.dim), dtype=np.float32)
@@ -137,10 +135,119 @@ index 5471cff..63150c6 100644
  
 -
 +    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
-+        return self.compute_features([img])
++        #use_cuda = torch.cuda.is_available()
++        use_cuda = (self.device.type == "cuda")
++        self.model.eval()
++        with torch.no_grad():
++            
++            # # Ensure image has 3 channels (RGB)
++            # if img.ndim == 2:  # If grayscale
++            #     img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
++            # elif img.shape[2] == 1:  # If single channel
++            #     img = np.repeat(img, 3, axis=2)
++                            
++            # Apply transformations to the image
++            img = ImageDataset.input_transform()(img)
++            # Add a batch dimension
++            input_data = img.unsqueeze(0).to(self.device)
++            # Compute the image encoding
++            image_encoding = self.model(input_data)
++        return image_encoding.cpu().numpy()
+\ No newline at end of file
+diff --git a/feature_extraction/feature_extractor_eigenplaces.py b/feature_extraction/feature_extractor_eigenplaces.py
+index 5471cff..6a32d4c 100644
+--- a/feature_extraction/feature_extractor_eigenplaces.py
++++ b/feature_extraction/feature_extractor_eigenplaces.py
+@@ -3,6 +3,7 @@ import torch
+ from torch.utils.data import DataLoader
+ import torchvision.transforms as transforms
+ import torch.utils.data as data
++import torch.multiprocessing as mp
+ 
+ from typing import List
+ import numpy as np
+@@ -36,36 +37,65 @@ class ImageDataset(data.Dataset):
+ 
+ 
+ class EigenPlacesFeatureExtractor(torch.nn.Module):
+-    def __init__(self):
++    def __init__(self, device=None, share_memory=False):
+         super().__init__()
+ 
+-        if torch.cuda.is_available():
+-            print('Using GPU')
+-            self.device = torch.device("cuda")
+-        elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+-            print('Using MPS')
+-            self.device = torch.device("mps")
++        if device is None:
++            if torch.cuda.is_available():
++                print('CosPlaceFeatureExtractor - Using GPU')
++                self.device = torch.device("cuda")
++            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
++                print('CosPlaceFeatureExtractor - Using MPS')
++                self.device = torch.device("mps")
++            else:
++                print('CosPlaceFeatureExtractor - Using CPU')
++                self.device = torch.device("cpu")
+         else:
+-            print('Using CPU')
+-            self.device = torch.device("cpu")
++            self.device = device
+         self.model = torch.hub.load("gmberton/eigenplaces", "get_trained_model",
+                                     backbone="ResNet50", fc_output_dim=2048)
++        
++        if share_memory:
++            print('EigenPlacesFeatureExtractor - Share memory')
++            self.model.share_memory() # Share the model parameters among processes
++            
+         self.dim = 2048
+         self.model = self.model.to(self.device)
+ 
+     def compute_features(self, imgs: List[np.ndarray]) -> np.ndarray:
++        #use_cuda = torch.cuda.is_available()
++        use_cuda = (self.device.type == "cuda")        
+         img_set = ImageDataset(imgs)
+         test_data_loader = DataLoader(dataset=img_set, num_workers=4,
+                                      batch_size=4, shuffle=False,
+-                                     pin_memory=torch.cuda.is_available())
++                                     pin_memory=use_cuda)
+         self.model.eval()
+         with torch.no_grad():
+             global_feats = np.empty((len(img_set), self.dim), dtype=np.float32)
+-            for input_data, indices in tqdm(test_data_loader):
++            test_data_ = tqdm(test_data_loader) if len(imgs)>1 else test_data_loader
++            for input_data, indices in test_data_:
+                 indices_np = indices.numpy()
+                 input_data = input_data.to(self.device)
+                 image_encoding = self.model(input_data)
+                 global_feats[indices_np, :] = image_encoding.cpu().numpy()
+         return global_feats
+-
+-
++    
++    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
++        #use_cuda = torch.cuda.is_available()
++        use_cuda = (self.device.type == "cuda")
++        self.model.eval()
++        with torch.no_grad():
++            
++            # # Ensure image has 3 channels (RGB)
++            # if img.ndim == 2:  # If grayscale
++            #     img = np.repeat(img[:, :, np.newaxis], 3, axis=2)
++            # elif img.shape[2] == 1:  # If single channel
++            #     img = np.repeat(img, 3, axis=2)
++                            
++            # Apply transformations to the image
++            img = ImageDataset.input_transform()(img)
++            # Add a batch dimension
++            input_data = img.unsqueeze(0).to(self.device)
++            # Compute the image encoding
++            image_encoding = self.model(input_data)
++        return image_encoding.cpu().numpy()
 \ No newline at end of file
 diff --git a/feature_extraction/feature_extractor_holistic.py b/feature_extraction/feature_extractor_holistic.py
-index 6440ec0..59766be 100644
+index 6440ec0..0a2b804 100644
 --- a/feature_extraction/feature_extractor_holistic.py
 +++ b/feature_extraction/feature_extractor_holistic.py
 @@ -33,6 +33,8 @@ class AlexNetConv3Extractor(FeatureExtractor):
@@ -163,11 +270,11 @@ index 6440ec0..59766be 100644
 -        return Ds
 +        return Ds    
 +    
-+    def compute_features_step(self, img: List[np.ndarray]) -> List[np.ndarray]:
++    def compute_features_step(self, img: np.ndarray) -> np.ndarray:
 +        import torch
 +
 +        imgs_torch = self.preprocess(img)
-+        imgs_torch = torch.stack(imgs_torch, dim=0)
++        #imgs_torch = torch.stack(imgs_torch, dim=0)
 +
 +        imgs_torch = imgs_torch.to(self.device)
 +

@@ -56,7 +56,8 @@ Database::Database
 
 Database::~Database(void)
 {
-  delete m_voc;
+  if(m_voc)
+    delete m_voc;
 }
 
 // --------------------------------------------------------------------------
@@ -92,6 +93,7 @@ EntryId Database::add(
   const std::vector<cv::Mat> &features,
   BowVector *bowvec, FeatureVector *fvec)
 {
+  assert(m_voc);
   BowVector aux;
   BowVector& v = (bowvec ? *bowvec : aux);
 
@@ -161,7 +163,8 @@ EntryId Database::add(const BowVector &v,
   void Database::setVocabulary
   (const Vocabulary& voc)
 {
-  delete m_voc;
+  if(m_voc)
+    delete m_voc;
   m_voc = new Vocabulary(voc);
   clear();
 }
@@ -174,9 +177,29 @@ EntryId Database::add(const BowVector &v,
 {
   m_use_di = use_di;
   m_dilevels = di_levels;
-  delete m_voc;
+  if(m_voc)
+    delete m_voc;
   m_voc = new Vocabulary(voc);
   clear();
+}
+
+// --------------------------------------------------------------------------
+
+
+  void Database::setWeighting
+  (const WeightingType weighting)
+{
+  assert(!m_voc);
+  m_weighting = weighting;
+}
+
+// --------------------------------------------------------------------------
+
+  void Database::setScoring
+  (const ScoringType scoring)
+{
+  assert(!m_voc);
+  m_scoring = scoring;
 }
 
 // --------------------------------------------------------------------------
@@ -195,7 +218,8 @@ Database::getVocabulary() const
 {
   // resize vectors
   m_ifile.resize(0);
-  m_ifile.resize(m_voc->size());
+  if(m_voc)
+    m_ifile.resize(m_voc->size());
   m_dfile.resize(0);
   m_nentries = 0;
 }
@@ -245,6 +269,7 @@ void Database::query(
   const std::vector<cv::Mat> &features,
   QueryResults &ret, int max_results, int max_id) const
 {
+  assert(m_voc);
   BowVector vec;
   m_voc->transform(features, vec);
   query(vec, ret, max_results, max_id);
@@ -259,7 +284,9 @@ void Database::query(
 {
   ret.resize(0);
 
-  switch(m_voc->getScoringType())
+  const ScoringType scoring = m_voc ? m_voc->getScoringType() : m_scoring;
+
+  switch(scoring)
   {
     case L1_NORM:
       queryL1(vec, ret, max_results, max_id);
@@ -728,6 +755,8 @@ void Database::queryDotProduct(
   std::map<EntryId, double> pairs;
   std::map<EntryId, double>::iterator pit;
 
+  const WeightingType type = m_voc? m_voc->getWeightingType() : m_weighting;
+
   for(vit = vec.begin(); vit != vec.end(); ++vit)
   {
     const WordId word_id = vit->first;
@@ -745,7 +774,7 @@ void Database::queryDotProduct(
       if((int)entry_id < max_id || max_id == -1)
       {
         double value;
-        if(this->m_voc->getWeightingType() == BINARY)
+        if(m_weighting == BINARY)
           value = 1;
         else
           value = qvalue * dvalue;
@@ -844,7 +873,8 @@ void Database::save(cv::FileStorage &fs,
   // imageId's and nodeId's must be stored in ascending order
   // (according to the construction of the indexes)
 
-  m_voc->save(fs);
+  if(m_voc)
+    m_voc->save(fs);
 
   fs << name << "{";
 

@@ -70,13 +70,16 @@ public:
 class Database
 {
 public:
-	Database(const std::string &path = std::string())
+	Database(const bool use_di = true, const int di_levels = 0)
 	{
-		if (path.empty())
-			database = new DBoW3::Database();
-		else
-			database = new DBoW3::Database(path);
+		database = new DBoW3::Database(use_di, di_levels);
 	}
+
+	Database(const std::string &filename)
+	{
+		database = new DBoW3::Database(filename);
+	}
+
 	~Database()
 	{
 		delete database;
@@ -85,6 +88,16 @@ public:
 	void setVocabulary(const Vocabulary &vocabulary, bool use_di, int di_levels = 0)
 	{
 		database->setVocabulary(*vocabulary.vocabulary, use_di, di_levels);
+	}
+
+	void setScoring(const DBoW3::ScoringType scoring)
+	{
+		database->setScoring(scoring);
+	}
+
+	void setWeighting(const DBoW3::WeightingType weighting)
+	{
+		database->setWeighting(weighting);
 	}
 
 	// add local descriptors (they will be internally transformed into a global descriptor)
@@ -135,7 +148,7 @@ public:
 	}
 
 private:
-	DBoW3::Database *database;
+	DBoW3::Database *database=nullptr;
 };
 
 PYBIND11_MODULE(pydbow3, m)
@@ -157,8 +170,8 @@ PYBIND11_MODULE(pydbow3, m)
 		.value("DOT_PRODUCT", DBoW3::DOT_PRODUCT);
 
 	py::class_<DBoW3::Result>(m, "Result")
-		.def_readonly("Id", &DBoW3::Result::Id)
-		.def_readonly("Score", &DBoW3::Result::Score)
+		.def_readonly("id", &DBoW3::Result::Id)
+		.def_readonly("score", &DBoW3::Result::Score)
 		.def_readonly("nWords", &DBoW3::Result::nWords)
 		.def_readonly("bhatScore", &DBoW3::Result::bhatScore)
 		.def_readonly("chiScore", &DBoW3::Result::chiScore)
@@ -168,11 +181,15 @@ PYBIND11_MODULE(pydbow3, m)
 
 	py::class_<DBoW3::BowVector>(m, "BowVector")
 		.def(py::init<>())
+		.def(py::init<const std::vector<std::pair<DBoW3::WordId, DBoW3::WordValue>> &>())
+		.def(py::init<const std::vector<DBoW3::WordValue> &>())		
 		.def("addWeight", &DBoW3::BowVector::addWeight)
 		.def("addIfNotExist", &DBoW3::BowVector::addIfNotExist)
 		.def("normalize", &DBoW3::BowVector::normalize)
 		.def("saveM", &DBoW3::BowVector::saveM)
 		.def("toVec", &DBoW3::BowVector::toVec)	
+		.def("fromVec", &DBoW3::BowVector::fromVec)
+		.def("fromVecValues", &DBoW3::BowVector::fromVecValues)		
 		.def("__repr__", [](const DBoW3::BowVector &obj) {
 				std::ostringstream os;
 				os << obj;
@@ -182,7 +199,16 @@ PYBIND11_MODULE(pydbow3, m)
 			std::ostringstream os;
 			os << obj;
 			return os.str();
-		});			
+		})
+		// Adding pickling support
+		.def("__getstate__", [](const DBoW3::BowVector &obj) {
+			// Extract state in a serializable format
+			return obj.toVec(); // Assuming toVec() returns a picklable structure
+		})
+		.def("__setstate__", [](DBoW3::BowVector &obj, const std::vector<std::pair<DBoW3::WordId, DBoW3::WordValue>> &state) {
+			// Restore the object state
+			obj.fromVec(state);
+		});					
 
 	py::class_<Vocabulary>(m, "Vocabulary")
 		.def(py::init<const std::string &, int, int, DBoW3::WeightingType, DBoW3::ScoringType>(),
@@ -198,8 +224,11 @@ PYBIND11_MODULE(pydbow3, m)
 		.def("size", &Vocabulary::size);
 
 	py::class_<Database>(m, "Database")
-		.def(py::init<const std::string &>(), py::arg("path") = std::string())
+		.def(py::init<const bool, const int>(), py::arg("use_di") = false, py::arg("di_levels") = 0)
+		.def(py::init<const std::string &>(), py::arg("filename"))
 		.def("setVocabulary", &Database::setVocabulary, py::arg("vocabulary"), py::arg("use_di") = false, py::arg("di_levels") = 0)
+		.def("setScoring", &Database::setScoring, py::arg("scoring"))
+		.def("setWeighting", &Database::setWeighting, py::arg("weighting"))
 		.def("save", &Database::save)
 		.def("load", &Database::load)
 		.def("loadVocabulary", &Database::loadVocabulary, py::arg("filename"), py::arg("use_di") = false, py::arg("di_levels") = 0)

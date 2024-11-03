@@ -5,37 +5,40 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.2.5](#pyslam-v225)
-  - [Install](#install)
-    - [Requirements](#requirements)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
-  - [Usage](#usage)
-    - [Save and reload a map](#save-and-reload-a-map)
-    - [Trajectory saving](#trajectory-saving)
-    - [GUI](#gui)
-  - [Supported local features](#supported-local-features)
-  - [Supported matchers](#supported-matchers)
-  - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-    - [EuRoC Dataset](#euroc-dataset)
-  - [Camera Settings](#camera-settings)
-  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+    - [1. Install](#1-install)
+        - [1.1. Requirements](#11-requirements)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
+    - [2. Usage](#2-usage)
+        - [2.1. Feature tracking](#21-feature-tracking)
+        - [2.2. Loop closing](#22-loop-closing)
+        - [2.3. Save and reload a map](#23-save-and-reload-a-map)
+        - [2.4. Trajectory saving](#24-trajectory-saving)
+        - [2.5. SLAM GUI](#25-slam-gui)
+        - [2.6. Watch the logs of tracking, local mapping and loop closing in parallel](#26-watch-the-logs-of-tracking-local-mapping-and-loop-closing-in-parallel)
+    - [3. Supported local features](#3-supported-local-features)
+    - [4. Supported matchers](#4-supported-matchers)
+    - [5. Supported global descriptors and local descriptor aggregation methods](#5-supported-global-descriptors-and-local-descriptor-aggregation-methods)
+    - [6. Datasets](#6-datasets)
+        - [6.1. KITTI Datasets](#61-kitti-datasets)
+        - [6.2. TUM Datasets](#62-tum-datasets)
+        - [6.3. EuRoC Dataset](#63-euroc-dataset)
+    - [7. Camera Settings](#7-camera-settings)
+    - [8. Comparison pySLAM vs ORB-SLAM3](#8-comparison-pyslam-vs-orb-slam3)
+    - [9. Contributing to pySLAM](#9-contributing-to-pyslam)
+    - [10. References](#10-references)
+    - [11. Credits](#11-credits)
+    - [12. TODOs](#12-todos)
 
 <!-- /TOC -->
 
 **pySLAM** is a python implementation of a *Visual Odometry (VO)* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
 - It supports many classical and modern **[local features](#supported-local-features)** and it offers a convenient interface for them.
-- It implements loop-closing via descriptor aggregators such as visual Bag of Words (BoW), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise). 
-- It collects other common and useful VO and SLAM tools. 
+- It implements loop-closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise). 
+- It collects other useful VO and SLAM tools. 
 
 **Main Scripts**:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
@@ -46,7 +49,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 * `main_map_viewer.py` allows to reload a saved map and visualize it.  
 
-You can use this framework as a baseline to play with [local features](#supported-local-features), VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you test it, consider that's a work in progress, a development framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
+You can use this framework as a baseline to play with [local features](#supported-local-features), *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you work with it, consider that's a work in progress, a research framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
 
 **Enjoy it!**
 
@@ -128,7 +131,7 @@ Once you have run the script `install_all_venv.sh` (follow the instructions abov
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py
 ```
-This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). You can stop `main_vo.py` by focusing on one of the matplotlib windows and pressing the key 'Q'. 
+This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. 
 **Note**: As explained above, the basic script `main_vo.py` **strictly requires a ground truth**.  
 
 In order to process a different **dataset**, you need to set the file `config.yaml`:
@@ -143,10 +146,12 @@ $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is j
 $ ./main_slam.py
 ```
 
-This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing on the opened matplotlib window and pressing the key 'Q'. 
+This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing/clicking on one of the opened matplotlib windows and pressing the key 'Q'. 
 **Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
 
-If you just want to test the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a tast of the different available local features, run
+### Feature tracking
+
+If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a tast of the different available local features, run
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_feature_matching.py
@@ -154,7 +159,14 @@ $ ./main_feature_matching.py
 
 In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
-Some basic **test/example files** are available in the subfolder `test`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
+Some basic **example files** are available in the subfolder `test`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
+
+### Loop closing
+
+Loop closing is enabled by default. You can disable it by setting `kUseLoopClosing=False` in `parameters.py`. 
+
+Some **example files** are available in the subfolder `test/loopclosing`.  In particular, as for loop closure, you may want to take a look at [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
+
 
 ### Save and reload a map
 
@@ -177,12 +189,17 @@ SAVE_TRAJECTORY:
   filename: kitti00_trajectory.txt
 ```
 
-### GUI 
+### SLAM GUI 
 
 Some quick information about the non-trivial GUI buttons of `main_slam.py`: 
 - `Step`: Enter in the *Step by step mode*. Press the button `Step` a first time to pause. Then, press it again to make the pipeline process a single new frame.
 - `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `/main_map_viewer.py` (as explained above). 
-- `Draw GT`: In the case a groundtruth is loaded (e.g. with *KITTI*, *TUM*, *EUROC* datasets), you can visualize it by pressing this button. The groundtruth trajectory will be visualized and progressively aligned to the estimated trajectory. 
+- `Draw Grount Truth`: In the case a groundtruth is loaded (e.g. with *KITTI*, *TUM*, *EUROC* datasets), you can visualize it by pressing this button. The groundtruth trajectory will be visualized and progressively aligned to the estimated trajectory: The more the number of samples in the estimated trajectory the better the computed alignment.  
+
+
+### Watch the logs of tracking, local mapping and loop closing in parallel
+
+The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, respectively. For fun/debugging, you can watch their parallel flows by running the command `tail -f <log file name>` in a separate shell. Otherwise, just run the script `./scripts/launch_tmux_slam.sh` from the repo root folder. 
 
 ---
 ## Supported local features
@@ -261,19 +278,23 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
 * *[LightGlue](https://arxiv.org/abs/2306.13643)*
 * *[LoFTR](https://arxiv.org/abs/2104.00680)*
   
+Check the file `feature_matcher.py`.
 
 ---
 ## Supported global descriptors and local descriptor aggregation methods
 
+
 **Local descriptor aggregation methods**
 
-* Bag of Words (BoW) with TF-IDF: [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3)
+* Bag of Words (BoW): [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3)
 * Vector of Locally Aggregated Descriptors: [VLAD](http://www.vlfeat.org/) 
 * Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: [iBoW](https://github.com/emiliofidalgo/ibow-lcd), [OBIndex2](https://github.com/emiliofidalgo/obindex2)
 * Hyperdimensional Computing: [HDC](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)
 
 
 **Global descriptors**
+
+Also referred to as *holistic descriptors*:
 
 * [AlexNet](https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet)
 * [NetVLAD](https://www.di.ens.fr/willow/research/netvlad/)
@@ -282,10 +303,12 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
 * [EigenPlaces](https://github.com/gmberton/EigenPlaces)
 
 
+Check the file `loop_detector_configs.py`.
+
 --- 
 ## Datasets
 
-You can use 5 different types of datasets:
+Five different types of datasets are available:
 
 Dataset | type in `config.yaml`
 --- | --- 
@@ -356,7 +379,9 @@ If you want to **use your camera**, you have to:
 
 For a comparison of the trajectories estimated by pySLAM and by ORB-SLAM3, see this [trajectory comparison notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). 
 
-Note that pySLAM pose estimates are saved **online**: At each frame, the current pose estimate is saved. On the other end, ORB-SLAM3 pose estimates are saved at the end of the dataset playback: That means each pose estimate $q$ is refined multiple times by LBA and BA over the multiple window optimizations that cover $q$.  
+Note that pySLAM saves its pose estimates in an **online** fashion: At each frame, the current pose estimate is saved at the end of the front-end `tracking` iteration. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback: That means each pose estimate $q$ of ORB-SLAM is refined multiple times by LBA and BA over the multiple window optimizations that cover $q$.  
+
+You can save your pyslam trajectories as detailed [here](#trajectory-saving).
 
 --- 
 ## Contributing to pySLAM
@@ -377,12 +402,13 @@ Suggested material:
 * *[Vision Algorithms for Mobile Robotics](http://rpg.ifi.uzh.ch/teaching.html)* by Davide Scaramuzza 
 * *[CS 682 Computer Vision](http://cs.gmu.edu/~kosecka/cs682.html)* by Jana Kosecka   
 * *[ORB-SLAM: a Versatile and Accurate Monocular SLAM System](http://webdiis.unizar.es/~raulmur/MurMontielTardosTRO15.pdf)* by R. Mur-Artal, J. M. M. Montiel, and J. D. Tardos
-* *[Double Window Optimisation for Constant Time Visual SLAM](http://hauke.strasdat.net/files/strasdat2011iccv.pdf)* by H. Strasdat, A. J. Davison
-J.M.M. Montielb, K. Konolige
+* *[Double Window Optimisation for Constant Time Visual SLAM](http://hauke.strasdat.net/files/strasdat2011iccv.pdf)* by H. Strasdat, A. J. Davison, J.M.M. Montiel, K. Konolige
 * *[The Role of Wide Baseline Stereo in the Deep Learning World](https://ducha-aiki.github.io/wide-baseline-stereo-blog/2020/03/27/intro.html)* by Dmytro Mishkin
 * *[To Learn or Not to Learn: Visual Localization from Essential Matrices](https://arxiv.org/abs/1908.01293)* by Qunjie Zhou, Torsten Sattler, Marc Pollefeys, Laura Leal-Taixe
 * *[Awesome local-global descriptors](https://github.com/shamangary/awesome-local-global-descriptor)* repository 
 * *[Introduction to Feature Matching Using Neural Networks](https://learnopencv.com/feature-matching/)*
+* *[Visual Place Recognition: A Tutorial](https://arxiv.org/pdf/2303.03281)*
+* *[Bags of Binary Words for Fast Place Recognition in Image Sequences](http://doriangalvez.com/papers/GalvezTRO12.pdf)*
 
 Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html) or [tutorials](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_tutorials.html).  
 
@@ -413,14 +439,14 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [Twitchslam](https://github.com/geohot/twitchslam)
 * [MonoVO](https://github.com/uoip/monoVO-python)
 * [VPR_Tutorial](https://github.com/stschubert/VPR_Tutorial.git)
-* Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook:  [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
+* Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 
 ---
 ## TODOs
 
 Many improvements and additional features are currently under development: 
 
-- [ ] loop closing
+- [x] loop closing
 - [ ] relocalization 
 - [x] stereo and RGBD support
 - [x] map saving/loading 

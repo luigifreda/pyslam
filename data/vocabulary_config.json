@@ -1,0 +1,7 @@
+{
+    "paths": ["/media/luigi/Samsung_T51/datasets/rgbd_datasets/kitti/dataset/sequences"],
+
+    "extensions": [".jpg", ".png"],
+    "filter_out": "image_1",
+    "recursive": true
+}

@@ -578,22 +578,27 @@ void TemplatedVocabulary<TDescriptor,F>::create(
 	int expected_nodes = 
 		(int)((pow((double)m_k, (double)m_L + 1) - 1)/(m_k - 1));
 
+  std::cout << "Expected number of nodes: " << expected_nodes << std::endl;
   m_nodes.reserve(expected_nodes); // avoid allocations when creating the tree
   
-  
+  std::cout << "Getting features... " << std::endl;  
   vector<pDescriptor> features;
   getFeatures(training_features, features);
+  std::cout << "Number of features: " << features.size() << std::endl;
 
-
+  std::cout << "Creating root..." << std::endl;
   // create root  
   m_nodes.push_back(Node(0)); // root
   
+  std::cout << "Creating tree..." << std::endl;  
   // create the tree
   HKmeansStep(0, features, 1);
 
+  std::cout << "Creating words..." << std::endl;
   // create the words
   createWords();
 
+  std::cout << "Setting node weights..." << std::endl;
   // and set the weight of each node of the tree
   setNodeWeights(training_features);
   
@@ -632,21 +637,47 @@ void TemplatedVocabulary<TDescriptor,F>::create(
 
 template<class TDescriptor, class F>
 void TemplatedVocabulary<TDescriptor,F>::getFeatures(
-  const vector<vector<TDescriptor> > &training_features, 
+  const vector<vector<TDescriptor>> &training_features, 
   vector<pDescriptor> &features) const
 {
+#if 1
   features.resize(0);
   
   typename vector<vector<TDescriptor> >::const_iterator vvit;
   typename vector<TDescriptor>::const_iterator vit;
+  const size_t N = training_features.size();
+  size_t i = 0;
   for(vvit = training_features.begin(); vvit != training_features.end(); ++vvit)
   {
-    features.reserve(features.size() + vvit->size());
+    //features.reserve(features.size() + vvit->size());
+    const size_t M = vvit->size();
+    size_t j = 0;
     for(vit = vvit->begin(); vit != vvit->end(); ++vit)
     {
+      //std::cout << "\rFeature: " << i << "/" << j << "(" << N << "/ " << M << ")";
       features.push_back(&(*vit));
+      j++;
     }
+    std::cout << "\rFeature: " << i << "/" << N;
+    i++;
   }
+#else 
+  features.resize(0);
+  const size_t N = training_features.size();
+  for(size_t i = 0; i < N; i++)
+  {
+    const vector<TDescriptor> &v = training_features[i];
+    const size_t M = v.size();
+    //features.reserve(features.size() + M);
+    for(size_t j = 0; j < M; j++)
+    {
+      //std::cout << "\rFeature: " << i << "/" << j << "(" << N << "/ " << M << ")";
+      features.push_back(&(v[j]));
+    }
+    std::cout << "\rFeature: " << i << "/" << N;   
+  }
+#endif
+  std::cout << std::endl;
 }
 
 // --------------------------------------------------------------------------
@@ -662,6 +693,8 @@ void TemplatedVocabulary<TDescriptor,F>::HKmeansStep(NodeId parent_id,
 	vector<vector<unsigned int> > groups; // groups[i] = [j1, j2, ...]
 	// j1, j2, ... indices of descriptors associated to cluster i
 
+  std::cout << "HKmeansStep: current_level: " << current_level << ", k: " << m_k <<", L: " << m_L << std::endl; 
+  
   clusters.reserve(m_k);
 	groups.reserve(m_k);
   
@@ -959,6 +992,7 @@ void TemplatedVocabulary<TDescriptor,F>::setNodeWeights
   const unsigned int NWords = m_words.size();
   const unsigned int NDocs = training_features.size();
 
+  std::cout << "setNodeWeights num words: " << NWords  << " num docs: " << NDocs << std::endl;
   if(m_weighting == TF || m_weighting == BINARY)
   {
     // idf part must be 1 always

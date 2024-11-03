@@ -29,6 +29,7 @@ from parameters import Parameters
 
 kNumFeatures=Parameters.kNumFeatures    
 kRatioTest=Parameters.kFeatureMatchRatioTest
+
 kTrackerType = FeatureTrackerTypes.DES_BF      # default descriptor-based, brute force matching with knn 
 #kTrackerType = FeatureTrackerTypes.DES_FLANN  # default descriptor-based, FLANN-based matching 
         
@@ -167,14 +168,14 @@ class FeatureTrackerConfigs(object):
                  match_ratio_test = kRatioTest,                          
                  tracker_type = kTrackerType)  
                 
-    SIFT = dict(num_features=kNumFeatures,
+    SIFT = dict(num_features=kNumFeatures,    # independently computes the number of octaves
                 detector_type = FeatureDetectorTypes.SIFT, 
                 descriptor_type = FeatureDescriptorTypes.SIFT,
                 sigma_level0 = Parameters.kSigmaLevel0, 
                 match_ratio_test = kRatioTest,                         
                 tracker_type = kTrackerType)
     
-    ROOT_SIFT = dict(num_features=kNumFeatures,
+    ROOT_SIFT = dict(num_features=kNumFeatures, # independently computes the number of octaves as SIFT
                      detector_type = FeatureDetectorTypes.ROOT_SIFT, 
                      descriptor_type = FeatureDescriptorTypes.ROOT_SIFT,
                      sigma_level0 = Parameters.kSigmaLevel0, 
@@ -392,8 +393,9 @@ class FeatureTrackerConfigs(object):
     #       - matcher(img1, img2) -> (kps1, kps2a)
     #       - matcher(img2, img3) -> (kps2b, kps3)
     #       we have that the keypoint kps2a[i], extrated on img2 the first time, does not necessarily correspond to kps2b[i] or to any other kps2b[j] extracted the second time on img2. 
-    # WARNING: For the reasons explained above, at present, we cannot use these "pure" matchers with classic SLAM. In fact, mapping and localization processes need more than two observations 
-    #          for each triangulated 3D point along different frames to obtain persistent map points and properly constrain camera pose optimizations in the Sim(3) manifold. WIP.
+    # WARNING: For the reasons explained above, at present, we cannot use these "pure" matchers with classic SLAM architecture. In fact, mapping and localization processes need more than two observations 
+    #          for each triangulated 3D point along different frames to obtain persistent map points and properly constrain camera pose optimizations in the Sim(3) manifold. 
+    #          An explicit additional mechanism to associate keypoints across images is needed. This is WIP.
     
     LOFTR = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
                 num_levels = 1, 

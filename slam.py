@@ -31,7 +31,7 @@ import g2o
 
 from parameters import Parameters  
 
-from frame import Frame, match_frames
+from frame import Frame, FrameShared, match_frames
 from keyframe import KeyFrame
 from map_point import MapPoint
 from map import Map
@@ -52,7 +52,7 @@ from dataset import SensorType
 from slam_dynamic_config import SLAMDynamicConfig
 from motion_model import MotionModel, MotionModelDamping
 
-from feature_tracker import FeatureTrackerTypes 
+from feature_tracker import feature_tracker_factory, FeatureTracker, FeatureTrackerTypes 
 
 from utils_sys import Printer, getchar, Logging
 from utils_draw import draw_feature_matches
@@ -78,6 +78,8 @@ kUseGroundTruthScale = False
 
 kNumMinInliersPoseOptimizationTrackFrame = 10
 kNumMinInliersPoseOptimizationTrackLocalMap = 20
+kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 40 # defines bad tracking condition
+
 
 kUseMotionModel = Parameters.kUseMotionModel or Parameters.kUseSearchFrameByProjection
 kUseSearchFrameByProjection = Parameters.kUseSearchFrameByProjection and not Parameters.kUseEssentialMatrixFitting         
@@ -108,19 +110,27 @@ class TrackingHistory(object):
 
 # main slam class containing all the required modules 
 class Slam(object):
-    def __init__(self, camera, feature_tracker, sensor_type=SensorType.MONOCULAR, groundtruth = None):    
+    def __init__(self, camera, feature_tracker_config, loop_detector_config=None, sensor_type=SensorType.MONOCULAR, groundtruth=None):
+        feature_tracker = feature_tracker_factory(**feature_tracker_config)    
         self.init_feature_tracker(feature_tracker)
         self.camera = camera 
         self.sensor_type = sensor_type
         self.map = Map()
+        self.local_mapping = LocalMapping(self)        
         self.loop_closing = None
-        if Parameters.kUseLoopClosing:  # must be before local mapping init
-            self.loop_closing = LoopClosing(self)
+        self.GBA = None
+        
+        if Parameters.kUseLoopClosing and loop_detector_config is not None:  
+            self.loop_closing = LoopClosing(self, loop_detector_config)
+            self.loop_closing.set_map(self.map)
+            self.GBA = self.loop_closing.GBA
             self.loop_closing.start()     
-        self.local_mapping = LocalMapping(self)
+            
+        self.local_mapping.set_loop_closing(self.loop_closing)
+        
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
-        self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances 
+        self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
         self.tracking = Tracking(self) # after all the other initializations
 
         
@@ -133,6 +143,7 @@ class Slam(object):
         print('SLAM: done')
 
     def init_feature_tracker(self, tracker):
+        self.feature_tracker = tracker
         Frame.set_tracker(tracker) # set the static field of the class 
         if kUseEssentialMatrixFitting:
             Printer.orange('forcing feature matcher ratio_test to 0.8')
@@ -146,7 +157,7 @@ class Slam(object):
         return self.tracking.track(img, img_right, depth, frame_id, timestamp)
     
     def save_map(self, path):
-        Printer.green(f'\nsaving the map into {path}...') 
+        Printer.green(f'\nsaving the map into {path}...')
         self.map.save(path)
 
     def load_map(self, path):
@@ -155,32 +166,38 @@ class Slam(object):
             Printer.red(f'Cannot load map: {path}')
             sys.exit(0)
         self.map.load(path)
+        
+    # for saving and reloading it when needed
+    def set_viewer_scale(self, scale):
+        self.map.viewer_scale = scale
+        
+    def viewer_scale(self):
+        return self.map.viewer_scale
 
 class Tracking(object):
     def __init__(self, system: Slam):
         
         if kShowFeatureMatches: 
-            Frame.is_store_imgs = True 
+            FrameShared.is_store_imgs = True 
                     
-        self.system = system                     
+        self.system = system     
+        self.feature_tracker = system.feature_tracker # type: FeatureTracker                        
         self.camera = system.camera 
         self.map = system.map
         self.sensor_type = system.sensor_type
         
-        self.trackingWaitForLocalMappingSleepTime = Parameters.kTrackingWaitForLocalMappingSleepTimeMono
-        if self.sensor_type != SensorType.MONOCULAR:
-            self.trackingWaitForLocalMappingSleepTime = Parameters.kTrackingWaitForLocalMappingSleepTimeStereo
+        self.trackingWaitForLocalMappingSleepTime = Parameters.kTrackingWaitForLocalMappingSleepTime
         
-        self.local_mapping = system.local_mapping
-        self.loop_closing = system.loop_closing # type: LoopClosing
+        self.local_mapping = system.local_mapping # type: LocalMapping
+        self.loop_closing = system.loop_closing   # type: LoopClosing
                                 
         self.intializer = Initializer(self.sensor_type)
         
         self.motion_model = MotionModel()  # motion model for current frame pose prediction without damping  
         #self.motion_model = MotionModelDamping()  # motion model for current frame pose prediction with damping       
         
-        self.dyn_config = SLAMDynamicConfig()
-        self.descriptor_distance_sigma = Parameters.kMaxDescriptorDistance   # Note: Parameters.kMaxDescriptorDistance is initialized by the feature manager
+        self.dyn_config = SLAMDynamicConfig(self.feature_tracker.feature_manager.max_descriptor_distance)
+        self.descriptor_distance_sigma = self.feature_tracker.feature_manager.max_descriptor_distance
         self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMap 
         if self.sensor_type == SensorType.RGBD:
             self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapRgbd   
@@ -241,7 +258,7 @@ class Tracking(object):
         self.cur_R = None # current rotation w.r.t. world frame  
         self.cur_t = None # current translation w.r.t. world frame 
         self.trueX, self.trueY, self.trueZ = None, None, None
-        self.groundtruth = system.groundtruth  # not actually used here; could be used for evaluating performances 
+        self.groundtruth = system.groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
         
         if kLogKFinfoToFile:
             self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', 'kf_info.log',formatter=Logging.simple_log_formatter)
@@ -386,7 +403,7 @@ class Tracking(object):
         if f_ref is None:
             return 
         # find keypoint matches between f_cur and kf_ref   
-        print('matching keypoints with ', Frame.feature_matcher.matcher_type.name)              
+        print('matching keypoints with ', FrameShared.feature_matcher.matcher_type.name)              
         self.timer_match.start()
         matching_result = match_frames(f_cur, f_ref) 
         idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)           
@@ -503,6 +520,11 @@ class Tracking(object):
         self.vo_points.clear()
       
     def need_new_keyframe(self, f_cur: Frame):
+        
+        # If Local Mapping is freezed by a Loop Closure do not insert keyframes
+        if self.local_mapping.is_stopped() or self.local_mapping.is_stop_requested():
+            return False
+        
         num_keyframes = self.map.num_keyframes()
         nMinObs = kNumMinObsForKeyFrameDefault
         if num_keyframes <= 2:
@@ -520,19 +542,12 @@ class Tracking(object):
         local_mapping_queue_size = self.local_mapping.queue_size()        
         print('is_local_mapping_idle: ', is_local_mapping_idle,', local_mapping_queue_size: ', local_mapping_queue_size)                                    
                 
-                
         # Check how many "close" points are being tracked and how many could be potentially created.
         num_non_tracked_close = 0 
         num_tracked_close = 0 
         # Create a mask for tracked points (not None and not an outlier)
         tracked_mask = (f_cur.points != None) & (~f_cur.outliers)        
         if self.sensor_type!=SensorType.MONOCULAR:
-            # for i in range(len(f_cur.points)):
-            #     if f_cur.depths[i]>0 and f_cur.depths[i]<f_cur.camera.depth_threshold:
-            #         if f_cur.points[i] and  not f_cur.outliers[i]:
-            #             num_tracked_close+=1
-            #         else:
-            #             num_non_tracked_close+=1
             # Create a mask to identify valid depth values within the threshold
             depth_mask = (f_cur.depths > 0) & (f_cur.depths < f_cur.camera.depth_threshold)
             # Create a mask for tracked points (not None and not an outlier)
@@ -597,6 +612,28 @@ class Tracking(object):
         else: 
             return False 
 
+    def create_new_keyframe(self, f_cur: Frame, img):
+        if not self.local_mapping.set_not_stop(True):
+            return
+            
+        Printer.green('adding new KF with frame id % d: ' %(f_cur.id))
+        if kLogKFinfoToFile:
+            self.kf_info_logger.info('adding new KF with frame id % d: ' %(f_cur.id))  
+                          
+        kf_new = KeyFrame(f_cur, img)                                     
+        self.kf_last = kf_new  
+        self.kf_ref = kf_new 
+        f_cur.kf_ref = kf_new                  
+        
+        self.map.add_keyframe(kf_new)   # add kf_cur to map 
+        
+        if self.sensor_type != SensorType.MONOCULAR:
+            self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
+        
+        self.local_mapping.push_keyframe(kf_new, img)         
+        
+        self.local_mapping.set_not_stop(False)
+
 
     # @ main track method @
     def track(self, img, img_right, depth, frame_id, timestamp=None):
@@ -617,15 +654,15 @@ class Tracking(object):
         
         # at initialization time is better to use more extracted features     
         if self.state != SlamState.OK:
-            Frame.tracker.set_double_num_features() 
+            FrameShared.tracker.set_double_num_features() 
         else:
-            Frame.tracker.set_normal_num_features()
+            FrameShared.tracker.set_normal_num_features()
 
         # build current frame 
         self.timer_frame.start()        
         f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=frame_id) 
         self.f_cur = f_cur 
-        print("frame: ", f_cur.id)        
+        #print("frame: ", f_cur.id)        
         self.timer_frame.refresh()   
         
         # reset indexes of matches 
@@ -646,6 +683,7 @@ class Tracking(object):
                 kf_cur = initializer_output.kf_cur
                         
                 # add the two initialized frames in the map 
+                self.map.keyframe_origins.add(kf_ref)
                 self.map.add_frame(kf_ref) # add first frame in map and update its frame id
                 self.map.add_frame(kf_cur) # add second frame in map and update its frame id  
                 # add the two initialized frames as keyframes in the map               
@@ -658,7 +696,7 @@ class Tracking(object):
                 new_pts_count,_,_ = self.map.add_points(initializer_output.pts, None, kf_cur, kf_ref, initializer_output.idxs_cur, initializer_output.idxs_ref, img, do_check=False)
                 #new_pts_count = self.map.add_stereo_points(initializer_output.pts, None, f_cur, kf_cur, np.arange(len(initializer_output.pts), dtype=np.int), img)
                 
-                Printer.green("map: initialized %d new points" % (new_pts_count))                 
+                Printer.green(f"map: initialized with kfs {kf_ref.id}, {kf_cur.id} and {new_pts_count} new map points")                 
                 # update covisibility graph connections 
                 kf_ref.update_connections()
                 kf_cur.update_connections()     
@@ -693,6 +731,16 @@ class Tracking(object):
         # reset pose state flag 
         self.pose_is_ok = False 
                             
+        # HACK: Since loop-closing may be not fast enough (when adjusting the loop) in python (and tracking is not in real-time) => give loop closing more time to process stuff 
+        if self.loop_closing is not None:
+            if self.loop_closing.is_closing():
+                self.local_mapping.wait_idle(print=print)
+                self.loop_closing.wait_if_closing()
+                print('...loop closing done')                            
+                            
+        # HACK: Since local mapping may be not fast enough in python (and tracking is not in real-time) => give local mapping more time to process stuff  
+        self.wait_for_local_mapping()  # N.B.: this must be outside the `with self.map.update_lock:` block
+                                    
         with self.map.update_lock:
             # check for map point replacements in previous frame f_ref (some points might have been replaced by local mapping during point fusion)
             self.f_ref.check_replaced_map_points()
@@ -732,14 +780,8 @@ class Tracking(object):
             if self.pose_is_ok: 
                 self.track_local_map(f_cur)
                 
-        # end block {with self.map.update_lock:}
         
-        # TODO: add relocalization 
-
-        # HACK: since local mapping is not fast enough in python (and tracking is not in real-time) => give local mapping more time to process stuff  
-        self.wait_for_local_mapping()  # N.B.: this must be outside the `with self.map.update_lock:` block
-
-        with self.map.update_lock:
+            # TODO: add relocalization 
             
             # update slam state 
             if self.pose_is_ok:
@@ -762,22 +804,12 @@ class Tracking(object):
                 # do we need a new KeyFrame? 
                 need_new_kf = self.need_new_keyframe(f_cur)
                                     
-                if need_new_kf: 
-                    Printer.green('adding new KF with frame id % d: ' %(f_cur.id))
-                    if kLogKFinfoToFile:
-                        self.kf_info_logger.info('adding new KF with frame id % d: ' %(f_cur.id))                
-                    kf_new = KeyFrame(f_cur, img)                                     
-                    self.kf_last = kf_new  
-                    self.kf_ref = kf_new 
-                    f_cur.kf_ref = kf_new                  
-                    
-                    self.map.add_keyframe(kf_new)   # add kf_cur to map 
-                    self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
-                    
-                    self.local_mapping.push_keyframe(kf_new, img) 
+                if need_new_kf:
+                    self.create_new_keyframe(f_cur, img)
                                         
                     if not kLocalMappingOnSeparateThread:
-                        self.local_mapping.step()                                                         
+                        self.local_mapping.step()  
+                                                                               
                 else: 
                     Printer.yellow('NOT KF')      
                     
@@ -787,22 +819,26 @@ class Tracking(object):
                 # pass to the new keyframe, so that bundle adjustment will finally decide
                 # if they are outliers or not. We don't want next frame to estimate its position
                 # with those points so we discard them in the frame.                
-                f_cur.clean_outlier_map_points()                    
+                f_cur.clean_outlier_map_points()     
+                
+                                  
+        # end block {with self.map.update_lock:}  
+                                                      
+        if self.f_cur.kf_ref is None:
+            self.f_cur.kf_ref = self.kf_ref  
                                 
-            if self.f_cur.kf_ref is None:
-                self.f_cur.kf_ref = self.kf_ref  
-                                    
-            self.update_tracking_history()    # must stay after having updated slam state (self.state)                                                                  
-            self.update_history()
-            Printer.green("map: %d points, %d keyframes" % (self.map.num_points(), self.map.num_keyframes()))
-            #self.update_history()
-            
-            self.timer_main_track.refresh()
-            
-            duration = time.time() - time_start
-            self.time_track = duration
-            print('tracking duration: ', duration)            
+        self.update_tracking_history()    # must stay after having updated slam state (self.state)                                                                  
+        self.update_history()
+        Printer.green("map: %d points, %d keyframes" % (self.map.num_points(), self.map.num_keyframes()))
+        #self.update_history()   
+                        
+        self.timer_main_track.refresh()
+        elapsed_time = time.time() - time_start
+        self.time_track = elapsed_time
+        print('Tracking: elapsed_time: ', elapsed_time)      
+                  
         
+    
     def create_vo_points_on_last_frame(self):
         if self.sensor_type == SensorType.MONOCULAR or self.kf_last.id == self.f_ref.id or self.f_ref.depths is None: 
             return
@@ -865,20 +901,21 @@ class Tracking(object):
             # create new map points where the depth is smaller than the prefixed depth threshold 
             #        or at least N new points with the closest depths
             mask_depths_smaller_than_th = sorted_z_values < kf.camera.depth_threshold
-            mask_first_N_points = np.zeros(len(sorted_z_values), dtype=np.bool)[:min(N, len(sorted_z_values))] = True
+            mask_first_N_points = np.zeros(len(sorted_z_values), dtype=np.bool)
+            mask_first_N_points[:min(N, len(sorted_z_values))] = True  # set True for the first N points otherwise set all True if len(sorted_z_values) < N
             mask_first_selection = np.logical_or(mask_depths_smaller_than_th, mask_first_N_points)
             
             sorted_z_values = sorted_z_values[mask_first_selection]
             sorted_idx_values = sorted_idx_values[mask_first_selection]
             sorted_points = kf.points[sorted_idx_values]
                         
-            # get the points that are None or where the num of observations i< smaller than 1
+            # get the points that are None or where the num of observations is smaller than 1
             vector_num_mp_observations = np.array([ p.num_observations if p is not None else 0 for p in sorted_points], dtype=np.int32)
             mask_where_to_create_new_map_points = vector_num_mp_observations<1
              
             sorted_z_values = sorted_z_values[mask_where_to_create_new_map_points]
             sorted_idx_values = sorted_idx_values[mask_where_to_create_new_map_points]
-            sorted_points = sorted_points[mask_where_to_create_new_map_points]
+            #sorted_points = sorted_points[mask_where_to_create_new_map_points]
                                                 
             # we need to reset the points in the originary frame 
             null_array = np.full(len(sorted_idx_values), None, dtype=object)
@@ -888,25 +925,27 @@ class Tracking(object):
             num_added_points = self.map.add_stereo_points(pts3d, pts3d_mask, f, kf, sorted_idx_values, img)
             self.last_num_static_stereo_map_points = num_added_points
         
+
     # Since we do not have real-time performances, we can slow-down things and make tracking wait till local mapping gets idle  
     # N.B.: this function must be called outside 'with self.map.update_lock' blocks, 
     #       since both self.track() and the local-mapping optimization use the RLock 'map.update_lock'    
     #       => they cannot wait for each other once map.update_lock is locked (deadlock)                        
-    def wait_for_local_mapping(self):                   
+    def wait_for_local_mapping(self, timeout=1.0):                   
         if kTrackingWaitForLocalMappingToGetIdle:                        
             #while not self.local_mapping.is_idle() or self.local_mapping.queue_size()>0:       
             if not self.local_mapping.is_idle():       
                 print('>>>> waiting for local mapping...')                         
-                self.local_mapping.wait_idle()
+                self.local_mapping.wait_idle(print=print, timeout=timeout)
         else:
-            #if not self.local_mapping.is_idle() and self.trackingWaitForLocalMappingSleepTime>0:
-            if self.local_mapping.queue_size()>0 and self.trackingWaitForLocalMappingSleepTime>0:
-                if self.local_mapping.queue_size()==0:
-                    print('>>>> sleeping for local mapping...')                    
-                    time.sleep(self.trackingWaitForLocalMappingSleepTime)  
-                else:
-                    print('>>>> waiting for local mapping idle...')  
-                    self.local_mapping.wait_idle()
+            # if we are close to bad tracking give local mapping more time
+            if self.num_matched_map_points is not None and self.num_matched_map_points < kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle:
+                if self.local_mapping.queue_size()>0:
+                    Printer.orange(">>>> close to bad tracking: forcing waiting for local mapping...")
+                    self.local_mapping.wait_idle(print=print, timeout=timeout)
+                            
+            if self.local_mapping.queue_size()>0: # and self.trackingWaitForLocalMappingSleepTime>0:
+                print('>>>> waiting for local mapping idle...')  
+                self.local_mapping.wait_idle(print=print, timeout=timeout)
                 
         # check again for debug                     
         #is_local_mapping_idle = self.local_mapping.is_idle()  
@@ -930,16 +969,4 @@ class Tracking(object):
             self.traj3d_gt.append([self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]])            
             self.poses.append(poseRt(self.cur_R, p))
             self.pose_timestamps.append(f_cur.timestamp)
-
-
-    # get current translation scale from ground-truth if this is set 
-    # def get_absolute_scale(self, frame_id):  
-    #     if self.groundtruth is not None and kUseGroundTruthScale:
-    #         timestamp, self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getTimePoseAndAbsoluteScale(frame_id)
-    #         return scale
-    #     else:
-    #         self.trueX = 0 
-    #         self.trueY = 0 
-    #         self.trueZ = 0
-    #         return 1
 

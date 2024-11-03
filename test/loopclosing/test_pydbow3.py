@@ -7,7 +7,7 @@ config = Config()
 
 from utils_files import gdrive_download_lambda 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
+from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
 
 import math
 import cv2 
@@ -26,8 +26,8 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/../..'
 kDataFolder = kRootFolder + '/data'
-kVocabFile = kDataFolder + '/ORBvoc.txt'
-#kVocabFile = kDataFolder + '/orbvoc.dbow3'
+kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
+#kOrbVocabFile = kDataFolder + '/orbvoc.dbow3'
 
 
 kMinDeltaFrameForMeaningfulLoopClosure = 10
@@ -51,7 +51,7 @@ class LoopCloserBase:
             self.S_color = None
             
         # to nicely visualize current loop candidates in a single image
-        self.loop_closure_imgs = LoopDetectionCandidateImgs() if Parameters.kLoopClosingDebugWithLoopClosureImages else None 
+        self.loop_closure_imgs = LoopCandidateImgs() if Parameters.kLoopClosingDebugWithLoopDetectionImages else None 
             
     def resize_similary_matrix_if_needed(self):
         if self.S_float is None:
@@ -89,8 +89,8 @@ class LoopCloserBase:
     def draw_loop_closure_imgs(self, img_cur, img_id):
         if self.S_color is not None or self.loop_closure_imgs.candidates is not None:
             font_pos = (50, 50)                   
-            cv2.putText(img_cur, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
-                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
+            cv2.putText(img_cur, f'id: {img_id}', font_pos, LoopCandidateImgs.kFont, LoopCandidateImgs.kFontScale, \
+                        LoopCandidateImgs.kFontColor, LoopCandidateImgs.kFontThickness, cv2.LINE_AA)     
             cv2.imshow('loop img', img_cur)
             
             if self.S_color is not None:
@@ -104,11 +104,11 @@ class LoopCloserBase:
         
         
 class LoopCloserDBoW3(LoopCloserBase): 
-    def __init__(self, vocab_path=kVocabFile):
+    def __init__(self, vocab_path=kOrbVocabFile):
         super().__init__()
         self.voc = dbow3.Vocabulary()
         print(f'loading vocabulary...')
-        if not os.path.exists(kVocabFile):
+        if not os.path.exists(kOrbVocabFile):
             gdrive_url = 'https://drive.google.com/uc?id=1-4qDFENJvswRd1c-8koqt3_5u1jMR4aF'
             gdrive_download_lambda(url=gdrive_url, path=vocab_path)
         self.voc.load(vocab_path)
@@ -158,11 +158,11 @@ class LoopCloserDBoW3(LoopCloserBase):
             else:
                 results = self.db_query(g_des, img_id, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
             for r in results:
-                r_img_id = self.map_img_count_to_kf_id[r.Id]
-                self.update_similarity_matrix_and_loop_closure_imgs(score=r.Score, \
+                r_img_id = self.map_img_count_to_kf_id[r.id]
+                self.update_similarity_matrix_and_loop_closure_imgs(score=r.score, \
                                                                     img_count=self.img_count, \
                                                                     img_id=img_id, \
-                                                                    other_img_count=r.Id, \
+                                                                    other_img_count=r.id, \
                                                                     other_img_id = r_img_id)                 
         if self.loop_closure_imgs: 
             self.draw_loop_closure_imgs(img, img_id)       
@@ -182,18 +182,20 @@ if __name__ == '__main__':
     
     loop_closer = LoopCloserDBoW3()
     
+    img_writer = ImgWriter(font_scale=0.7)
+        
     # voc = dbow.Vocabulary()
     # print(f'loading vocabulary...')
-    # if not os.path.exists(kVocabFile):
+    # if not os.path.exists(kOrbVocabFile):
     #     gdrive_url = 'https://drive.google.com/uc?id=1-4qDFENJvswRd1c-8koqt3_5u1jMR4aF'
-    #     gdrive_download_lambda(url=gdrive_url, path=kVocabFile)
-    # voc.load(kVocabFile)
+    #     gdrive_download_lambda(url=gdrive_url, path=kOrbVocabFile)
+    # voc.load(kOrbVocabFile)
     # print(f'...done')
     # db = dbow.Database()
     # db.setVocabulary(voc)
     
     # # to nicely visualize current loop candidates in a single image
-    # loop_closure_imgs = LoopDetectionCandidateImgs()
+    # loop_closure_imgs = LoopCandidateImgs()
     
     # # init the similarity matrix
     # S_float = np.empty([dataset.num_frames, dataset.num_frames], 'float32')
@@ -221,28 +223,32 @@ if __name__ == '__main__':
             loop_closer.add_keyframe(img, img_id, des)
             img_id += 1
             
+            
+            img_writer.write(img, f'id: {img_id}', (30, 30))
+            cv2.imshow('img', img)
+                        
             # # add image descriptors to database
             # db.add(des)
                        
         #     if img_count >= 1:
         #         results = db.query(des, max_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
         #         for r in results:
-        #             float_value = r.Score * 255
-        #             color_value = float_to_color(r.Score)
-        #             S_float[img_id, r.Id] = float_value
-        #             S_float[r.Id, img_id] = float_value
-        #             S_color[img_id, r.Id] = color_value
-        #             S_color[r.Id, img_id] = color_value
+        #             float_value = r.score * 255
+        #             color_value = float_to_color(r.score)
+        #             S_float[img_id, r.id] = float_value
+        #             S_float[r.id, img_id] = float_value
+        #             S_color[img_id, r.id] = color_value
+        #             S_color[r.id, img_id] = color_value
                     
         #             # visualize non-trivial loop closures: we check the query results are not too close to the current image
-        #             if abs(r.Id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
-        #                 print(f'result - best id: {r.Id}, score: {r.Score}')
-        #                 loop_img = dataset.getImageColor(r.Id)
-        #                 loop_closure_imgs.add(loop_img, r.Id, r.Score)
+        #             if abs(r.id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
+        #                 print(f'result - best id: {r.id}, score: {r.score}')
+        #                 loop_img = dataset.getImageColor(r.id)
+        #                 loop_closure_imgs.add(loop_img, r.id, r.score)
 
         #     font_pos = (50, 50)                   
-        #     cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
-        #                 LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
+        #     cv2.putText(img, f'id: {img_id}', font_pos, LoopCandidateImgs.kFont, LoopCandidateImgs.kFontScale, \
+        #                 LoopCandidateImgs.kFontColor, LoopCandidateImgs.kFontThickness, cv2.LINE_AA)     
         #     cv2.imshow('img', img)
             
         #     cv2.imshow('S', S_color)            
@@ -251,9 +257,9 @@ if __name__ == '__main__':
         #     if loop_closure_imgs.candidates is not None:
         #         cv2.imshow('loop_closure_imgs', loop_closure_imgs.candidates)
             
-        #     cv2.waitKey(1)
-        # else: 
-        #     getchar()
+            cv2.waitKey(1)
+        else: 
+            getchar()
             
         # img_id += 1
         # img_count += 1
