@@ -1,6 +1,8 @@
 PyDBoW3
 ==============
-This is a modified version of https://github.com/JHMeusener/PyDBoW3 .
+This is a modified version of https://github.com/JHMeusener/PyDBoW3.
+
+Updated by Luigi Freda for pyslam.
 
 
 ## Get started

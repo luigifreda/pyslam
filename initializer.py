@@ -20,9 +20,9 @@
 import numpy as np
 import time
 import cv2
-from enum import Enum
+import random 
 
-from frame import Frame, match_frames
+from frame import Frame, FrameShared, match_frames
 from keyframe import KeyFrame
 
 from collections import deque
@@ -35,23 +35,26 @@ from utils_sys import Printer
 from utils_features import ImageGrid
 from parameters import Parameters  
 from dataset import SensorType
+from rotation_histogram import filter_matches_with_histogram_orientation
 
 from utils_draw import draw_feature_matches
+
 
 kVerbose=True     
 kRansacThresholdNormalized = 0.0004  # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
 
 kMinIdDistBetweenIntializingFrames = 2
-kMaxIdDistBetweenIntializingFrames = 6   # N.B.: worse performances with values smaller than 5!
+kMaxIdDistBetweenIntializingFrames = 5   # N.B.: worse performances with values smaller than 5!
 
 kShowFeatureMatches = False # show the feature matches during initialization
+kShowGridCellCoverage = False
 
-kFeatureMatchRatioTestInitializer = Parameters.kFeatureMatchRatioTestInitializer
+kInitializerFeatureMatchRatioTest = Parameters.kInitializerFeatureMatchRatioTest
 
-kNumOfFailuresAfterWichNumMinTriangulatedPointsIsHalved = 10
+kNumOfFailuresAfterWichNumMinTriangulatedPointsIsReduced = 10
 
-kMaxLenFrameDeque = 20
+kMaxLenFrameDeque = kMaxIdDistBetweenIntializingFrames + 1
 
 
 class InitializerOutput(object):
@@ -66,20 +69,21 @@ class InitializerOutput(object):
 class Initializer(object):
     def __init__(self, sensor_type=SensorType.MONOCULAR):
         self.sensor_type = sensor_type
+        self.is_monocular = (self.sensor_type == SensorType.MONOCULAR)
         self.mask_match = None
-        self.mask_recover = None 
         self.frames = deque(maxlen=kMaxLenFrameDeque)  # deque with max length, it is thread-safe      
-        #self.idx_f_ref = 0   # index of the reference frame in self.frames buffer  
         self.f_ref = None        
                 
-        self.num_min_features = Parameters.kInitializerNumMinFeatures if self.sensor_type == SensorType.MONOCULAR else Parameters.kInitializerNumMinFeaturesStereo
+        self.num_min_features = Parameters.kInitializerNumMinFeatures if self.is_monocular else Parameters.kInitializerNumMinFeaturesStereo
         self.num_min_triangulated_points = Parameters.kInitializerNumMinTriangulatedPoints       
         self.num_failures = 0 
         
-        self.check_frame_distance = True
-        
+        # more checks for monocular inizialization
+        self.check_min_frame_distance = Parameters.kInitializerUseMinFrameDistanceCheck
+        self.check_cell_coverage = Parameters.kInitializerUseCellCoverageCheck
+            
         if kShowFeatureMatches: 
-            Frame.is_store_imgs = True         
+            FrameShared.is_store_imgs = True         
         
     def reset(self):
         self.frames.clear()
@@ -105,66 +109,102 @@ class Initializer(object):
         _, R, t, mask = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0., 0.))                                                     
         return poseRt(R,t.T)  # Trc  homogeneous transformation matrix with respect to 'ref' frame,  pr_= Trc * pc_        
 
+
+    def check_num_failures(self):
+        if self.num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsReduced: 
+            self.num_min_triangulated_points = 2.0/3 * Parameters.kInitializerNumMinTriangulatedPoints
+            #self.check_min_frame_distance = False
+            self.check_cell_coverage = False
+            Printer.orange('Initializer: reduced min num triangulated features to ', self.num_min_triangulated_points)          
+
+
     # push the first image
     def init(self, f_cur : Frame, img_cur):
         self.frames.append(f_cur)    
         self.f_ref = f_cur
-                  
-    # actually initialize having two available images 
-    def initialize(self, f_cur: Frame, img_cur):
+             
+            
+    # actually initialize having two available images                
+    def initialize(self, f_cur: Frame, img_cur): 
+        return self.initialize_simple(f_cur, img_cur)     # try to inizialize current frame with reference frame: reference position is adjusted in the buffer
+        #return self.initialize_enumerate(f_cur, img_cur) # try to inizialize current frame with all frames we can use in the buffer    
+            
 
-        if self.num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsHalved: 
-            self.num_min_triangulated_points = 2.0/3 * Parameters.kInitializerNumMinTriangulatedPoints
-            #self.num_failures = 0
-            #self.check_frame_distance = False
-            Printer.orange('Initializer: reduced min num triangulated features to ', self.num_min_triangulated_points)            
-
-        # prepare the output 
-        out = InitializerOutput()
-        is_ok = False 
-
-        #print('num frames: ', len(self.frames))
-        
+    # try to inizialize current with reference: reference position is adjusted in the buffer            
+    def initialize_simple(self, f_cur: Frame, img_cur):
+        self.check_num_failures()            
         # if too many frames have passed, move the current idx_f_ref forward 
-        # this is just one very simple policy that can be used 
         if self.f_ref is not None: 
             if f_cur.id - self.f_ref.id > kMaxIdDistBetweenIntializingFrames: 
-                self.f_ref = self.frames[-1]  # take last frame in the buffer
-                #self.idx_f_ref = len(self.frames)-1  # take last frame in the buffer
-                #self.idx_f_ref = self.frames.index(self.f_ref)  # since we are using a deque, the code of the previous commented line is not valid anymore 
-                #print('*** idx_f_ref:',self.idx_f_ref)            
-        #self.f_ref = self.frames[self.idx_f_ref] 
+                self.f_ref = self.frames[-1]  # take last frame in the buffer        
         f_ref = self.f_ref 
-        #print('ref fid: ',self.f_ref.id,', curr fid: ', f_cur.id, ', idxs_ref: ', self.idxs_ref)
                 
         # append current frame 
         self.frames.append(f_cur)
+        
+        return self.process_frames(f_cur, img_cur, f_ref)
 
-        if self.check_frame_distance and self.sensor_type == SensorType.MONOCULAR:
+
+    # try to inizialize current with all references I can use in the buffer
+    def initialize_enumerate(self, f_cur: Frame, img_cur):
+        self.check_num_failures()            
+        # append current frame 
+        self.frames.append(f_cur) # now the last entry is the current frame
+        out, is_ok = None, False
+        # search from last to oldest
+        i = 2 
+        while i <= len(self.frames) and f_cur.id - self.frames[-i].id < kMaxIdDistBetweenIntializingFrames:
+            #print(f'Initializer: i: {i}, frames: {[f.id for f in self.frames]}')
+            self.f_ref = self.frames[-i]
+            f_ref = self.f_ref 
+            i += 1
+            if self.check_min_frame_distance and self.is_monocular:
+                if f_cur.id - f_ref.id < kMinIdDistBetweenIntializingFrames:
+                    continue
+            out, is_ok = self.process_frames(f_cur, img_cur, f_ref)
+            if is_ok:
+                break        
+        return out, is_ok    
+    
+
+    def process_frames(self, f_cur: Frame, img_cur, f_ref: Frame):        
+        # prepare the output 
+        out = InitializerOutput()
+        is_ok = False 
+        
+        print('|------------')          
+        print(f'Initializer: processing frames: {f_cur.id}, {f_ref.id}')
+        
+        if self.check_min_frame_distance and self.is_monocular:
             if f_cur.id - f_ref.id < kMinIdDistBetweenIntializingFrames:
-                Printer.red('Inializer: ko - init frames are too close!') 
+                Printer.yellow('Inializer: ko - init frames are too close!') 
                 self.num_failures += 1
                 return out, is_ok
 
         # if the current frames do no have enough features exit 
         if len(f_ref.kps) < self.num_min_features or len(f_cur.kps) < self.num_min_features:
-            Printer.red('Inializer: ko - not enough features!') 
+            Printer.yellow('Inializer: ko - not enough features!') 
             self.num_failures += 1
             return out, is_ok
 
         # find keypoint matches
-        matching_result = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)      
-        idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)      
+        matching_result = match_frames(f_cur, f_ref, kInitializerFeatureMatchRatioTest)      
+        idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)
+        if FrameShared.oriented_features:      
+            valid_match_idxs = filter_matches_with_histogram_orientation(idxs_cur, idxs_ref, f_cur, f_ref)
+            if len(valid_match_idxs)>0:
+                idxs_cur = idxs_cur[valid_match_idxs]
+                idxs_ref = idxs_ref[valid_match_idxs]   
+    
     
         if kShowFeatureMatches: # debug frame matching
             frame_img_matches = draw_feature_matches(img_cur, self.f_ref.img, f_cur.kps[idxs_cur], self.f_ref.kps[idxs_ref], horizontal=False)
             #cv2.namedWindow('stereo_img_matches', cv2.WINDOW_NORMAL)
             cv2.imshow('initializer frame matches', frame_img_matches)
             cv2.waitKey(1)   
-
-        print('|------------')        
+      
         #print('deque ids: ', [f.id for f in self.frames])
-        print('initializing frames ', f_cur.id, ', ', f_ref.id)
+        #print('initializing frames ', f_cur.id, ', ', f_ref.id)
         print("# keypoint matches: ", len(idxs_cur))  
                 
         Trc = self.estimatePose(f_ref.kpsn[idxs_ref], f_cur.kpsn[idxs_cur])
@@ -176,8 +216,8 @@ class Initializer(object):
         mask_idxs = (self.mask_match.ravel() == 1)
         self.num_inliers = sum(mask_idxs)
         print('# keypoint inliers: ', self.num_inliers )
-        idx_ref_inliers = idxs_ref[mask_idxs]        
-        idx_cur_inliers = idxs_cur[mask_idxs]
+        idxs_ref_inliers = idxs_ref[mask_idxs]        
+        idxs_cur_inliers = idxs_cur[mask_idxs]
 
         # create a temp map for initializing 
         map = Map()
@@ -198,7 +238,7 @@ class Initializer(object):
         
         if self.sensor_type == SensorType.RGBD or self.sensor_type == SensorType.STEREO:                    
             # unproject 3D points by using available depths 
-            pts3d, mask_pts3d = kf_ref.unproject_points_3d(idx_ref_inliers)
+            pts3d, mask_pts3d = kf_ref.unproject_points_3d(idxs_ref_inliers)
             
             num_valid_pts3d = np.sum(mask_pts3d) 
             if num_valid_pts3d < Parameters.kInitializerNumMinNumPointsForPnPWithDepth:
@@ -207,21 +247,21 @@ class Initializer(object):
             # solve pnp to get a pose of the current frame w.r.t. the reference frame (the scale is defined by the depths of the reference frame)
             mask_pts3d = mask_pts3d.flatten()
             print(f'init PnP - #pts3d: {len(pts3d)}, #mask_pts3d: {sum(mask_pts3d)}')
-            success, rvec_rc, tvec_rc = cv2.solvePnP(pts3d[mask_pts3d], kf_cur.kps[idx_cur_inliers[mask_pts3d]], kf_cur.camera.K, kf_cur.camera.D, flags=cv2.SOLVEPNP_EPNP)
+            success, rvec_rc, tvec_rc = cv2.solvePnP(pts3d[mask_pts3d], kf_cur.kps[idxs_cur_inliers[mask_pts3d]], kf_cur.camera.K, kf_cur.camera.D, flags=cv2.SOLVEPNP_EPNP)
             if success:
                 rot_matrix_rc, _ = cv2.Rodrigues(rvec_rc)
                 Trc = poseRt(rot_matrix_rc, tvec_rc.flatten())
             else: 
                 Trc = np.eye(4)
-            print(f'init PnP - success: {success}, Trc: {Trc}')                
+            print(f'init PnP - success: {success}') #, Trc: {Trc}')                
             kf_cur.update_pose(Trc)
             f_cur.update_pose(Trc)
                 
             do_check = False # in this case, we do not check reprojection errors and other related stuff
         else: 
-            pts3d, mask_pts3d = triangulate_normalized_points(kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idx_cur_inliers], kf_ref.kpsn[idx_ref_inliers])
+            pts3d, mask_pts3d = triangulate_normalized_points(kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idxs_cur_inliers], kf_ref.kpsn[idxs_ref_inliers])
 
-        new_pts_count, mask_points, added_map_points = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idx_cur_inliers, idx_ref_inliers, img_cur, do_check=do_check, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
+        new_pts_count, mask_points, added_map_points = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idxs_cur_inliers, idxs_ref_inliers, img_cur, do_check=do_check, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
         print("# triangulated points: ", new_pts_count)   
                         
         if new_pts_count > self.num_min_triangulated_points:   
@@ -229,11 +269,11 @@ class Initializer(object):
             reproj_error_before = map.compute_mean_reproj_error()
             print(f'reprojection error before: {reproj_error_before}')
                                
-            reproj_error_after = map.optimize(verbose=False, rounds=20, use_robust_kernel=True)
+            reproj_error_after, _ = map.optimize(verbose=False, rounds=20, use_robust_kernel=True)
             print(f'init optimization error^2: {reproj_error_after}')        
             
             num_map_points = len(map.points)
-            print("# map points:   %d" % num_map_points)   
+            print(f"# map points: {num_map_points} , # min triangulated points: {self.num_min_triangulated_points} ")   
                             
             is_ok = reproj_error_after < reproj_error_before and  num_map_points > self.num_min_triangulated_points        
 
@@ -247,22 +287,22 @@ class Initializer(object):
                             
                 out.pts = out_pts3d 
                 out.kf_cur = kf_cur
-                out.idxs_cur = idx_cur_inliers[mask_points]        
+                out.idxs_cur = idxs_cur_inliers[mask_points]        
                 out.kf_ref = kf_ref 
-                out.idxs_ref = idx_ref_inliers[mask_points]
+                out.idxs_ref = idxs_ref_inliers[mask_points]
 
-            if is_ok and self.sensor_type == SensorType.MONOCULAR: 
+            if is_ok and self.is_monocular: 
                 median_depth = kf_cur.compute_points_median_depth(out_pts3d)
                 baseline = np.linalg.norm(kf_cur.Ow - kf_ref.Ow)               
                 is_ok = median_depth > 0 and baseline > 0
                 
-            if is_ok and self.sensor_type == SensorType.MONOCULAR:    
+            if is_ok and self.is_monocular:    
                 ratioDepthBaseline = median_depth/baseline                       
                 print(f'ratioDepthBaseline: {ratioDepthBaseline}, median_depth: {median_depth}, baseline: {baseline}') 
                 if ratioDepthBaseline > Parameters.kInitializerMinRatioDepthBaseline:
                     is_ok = False     
                 
-            if is_ok and self.sensor_type == SensorType.MONOCULAR:             
+            if is_ok and self.is_monocular:             
                 # set scene median depth to equal desired_median_depth'                
                 desired_median_depth = Parameters.kInitializerDesiredMedianDepth
                 depth_scale = desired_median_depth/median_depth 
@@ -271,17 +311,17 @@ class Initializer(object):
                 tcw = kf_cur.tcw * depth_scale  # scale initial baseline    
                 kf_cur.update_translation(tcw)                
             
-            # if is_ok:
-            #     image_grid = ImageGrid(kf_cur.camera.width, kf_cur.camera.height, num_div_x=3, num_div_y=2)
-            #     image_grid.add_points(kf_cur.kps[out.idxs_cur])
-            #     # num_uncovered_cells = image_grid.num_cells_uncovered(num_min_points=1)      
-            #     # print(f'# uncovered cells: {num_uncovered_cells}')          
-            #     # #is_ok = image_grid.is_each_cell_covered(num_min_points=1)     
-            #     is_ok = image_grid.is_each_cell_covered(num_min_points=1)   
-            #     if True:
-            #         cv2.namedWindow('grid_img', cv2.WINDOW_NORMAL)
-            #         cv2.imshow('grid_img', image_grid.get_grid_img())
-            #         cv2.waitKey(1)
+            if is_ok and self.is_monocular and self.check_cell_coverage:
+                # check image coverage for projections of found map points
+                image_grid = ImageGrid(kf_cur.camera.width, kf_cur.camera.height, num_div_x=3, num_div_y=3)
+                image_grid.add_points(kf_cur.kps[out.idxs_cur])
+                # num_uncovered_cells = image_grid.num_cells_uncovered(num_min_points=1)      
+                # print(f'#uncovered cells: {num_uncovered_cells}')               
+                is_ok = image_grid.is_each_cell_covered(num_min_points=1)   
+                if kShowGridCellCoverage:
+                    cv2.namedWindow('grid_img', cv2.WINDOW_NORMAL)
+                    cv2.imshow('grid_img', image_grid.get_grid_img())
+                    cv2.waitKey(1)
             
         map.delete()
   
@@ -289,6 +329,6 @@ class Initializer(object):
             Printer.green('Inializer: ok!')    
         else:
             self.num_failures += 1            
-            Printer.red('Inializer: ko!')                         
-        print('|------------')               
+            Printer.yellow('Inializer: ko!')                         
+        #print('|------------')               
         return out, is_ok

@@ -21,13 +21,12 @@
 '''
 List of shared parameters 
 ''' 
-class Parameters(object):   
+class Parameters:   
     
     # SLAM threads 
     kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
     kTrackingWaitForLocalMappingToGetIdle=False      # True: wait for local mapping to be idle before starting tracking, False: tracking and then local mapping in a single thread  
-    kTrackingWaitForLocalMappingSleepTimeStereo=0.1  #      -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
-    kTrackingWaitForLocalMappingSleepTimeMono=0.1    #0.6 # -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
+    kTrackingWaitForLocalMappingSleepTime=0.1        # DEPRECATED: -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
     kLocalMappingParallelKpsMatching=True
     kLocalMappingParallelKpsMatchingNumWorkers=6
     kLocalMappingDebugAndPrintToFile = True
@@ -51,8 +50,8 @@ class Parameters(object):
 
     # Feature management
     kSigmaLevel0 = 1.0                        # sigma of the keypoint localization at level 0 (default value is 1 for ORB detector); can be changed by selected feature    
-    kFeatureMatchRatioTest = 0.7              
-    #kFeatureMatchRatioTestInitializer        # ratio test used by Initializer 
+    kFeatureMatchRatioTest = 0.7              # TODO: put it in an table and make it configurable per descriptor
+    #kInitializerFeatureMatchRatioTest        # ratio test used by Initializer 
     #
     kKdtNmsRadius = 3 # pixels  #3            # radius for kd-tree based Non-Maxima Suppression
     #
@@ -65,8 +64,10 @@ class Parameters(object):
     kInitializerNumMinFeatures = 100
     kInitializerNumMinFeaturesStereo = 500
     kInitializerNumMinTriangulatedPoints = 150
-    kFeatureMatchRatioTestInitializer = 0.9   # ratio test used by Initializer       
+    kInitializerFeatureMatchRatioTest = 0.9    # ratio test used by Initializer   # TODO: put it in an table and make it configurable per descriptor
     kInitializerNumMinNumPointsForPnPWithDepth = 15 
+    kInitializerUseCellCoverageCheck = True
+    kInitializerUseMinFrameDistanceCheck = True
 
 
     # Tracking 
@@ -102,23 +103,22 @@ class Parameters(object):
     kMaxReprojectionDistanceMap = 3      #3   # [pixels]    o:1,(rgbd)3,(reloc)5 => mainly 2.5*th where th acts as a multiplicative factor 
     kMaxReprojectionDistanceMapRgbd = 5  #5   # [pixels]    o:5
     kMaxReprojectionDistanceFuse = 3     #3   # [pixels]    o:3
+    kMaxReprojectionDistanceSim3 = 7.5        # [pixels]    o:7.5
     #
     kMatchRatioTestMap=0.8
     kMatchRatioTestEpipolarLine=0.8      # used just for test function find_matches_along_line()
     #
     # Reference max descriptor distance (used for initial checks and then updated and adapted)                   
-    kMaxDescriptorDistance=0 # it is initialized and updated by feature_manager.py at runtime 
+    kMaxDescriptorDistance=0 # it is initialized by the first created instance of feature_manager.py at runtime 
     
 
     # Search matches for triangulation by using epipolar lines 
-    kMinDistanceFromEpipole=10                  # [pixels] Used with search by epipolar lines 
-    #
-    kMaxDescriptorDistanceSearchEpipolar=0 # it is updated by feature_manager.py at runtime 
+    kMinDistanceFromEpipole=10             # [pixels] Used with search by epipolar lines 
 
 
     # Local Mapping 
     kLocalMappingNumNeighborKeyFrames=20                   #  [# frames]   for generating new points and fusing them              
-
+    kLocalMappingTimeoutPopKeyframe=0.5 # [s]
 
     # Covisibility graph 
     kMinNumOfCovisiblePointsForCreatingConnection=15 
@@ -129,15 +129,35 @@ class Parameters(object):
     kUseLargeWindowBA=False           # True: perform BA over a large window; False: do not perform large window BA       
     kEveryNumFramesLargeWindowBA=10   # num of frames between two large window BA  
     kLargeBAWindow=20                 #  [# frames] 
-    kUseParallelProcessLBA = False    # experimental (keep it False for the moment)
+    kUseParallelProcessLBA = False    # Experimental - keep it False for the moment since it is neither faster (probably due to the overhead of copying data to multi-processing shared memory) nor stable yet! 
         
     
     # Loop closing
-    kUseLoopClosing = False
-    kLoopClosingDebugWithLoopClosureImages = False
-    kLoopClosingDebugWithSimmetryMatrix = False
+    kUseLoopClosing = True
+    kMinDeltaFrameForMeaningfulLoopClosure = 10
+    kMaxResultsForLoopClosure = 5
+    kLoopDetectingTimeoutPopKeyframe=0.5 # [s]
+    kLoopClosingDebugWithLoopDetectionImages = False
+    kLoopClosingDebugWithSimmetryMatrix = True
     kLoopClosingDebugAndPrintToFile = True
+    kLoopClosingDebugWithLoopConsistencyCheckImages = True
+    kLoopClosingDebugShowLoopMatchedPoints = False
+    kLoopClosingParallelKpsMatching=True    
+    kLoopClosingParallelKpsMatchingNumWorkers = 6
+    kLoopClosingGeometryCheckerMinKpsMatches = 20            # o:20
+    kLoopClosingTh2 = 10
+    kLoopClosingMaxReprojectionDistanceMapSearch = 10        # [pixels]    o:10
+    kLoopClosingMinNumMatchedMapPoints = 40
+    kLoopClosingMaxReprojectionDistanceFuse = 4              # [pixels]    o:4
+    kLoopClosingFeatureMatchRatioTest = 0.75                 # TODO: put it in an table and make it configurable per descriptor
+
     
+    # Global Bundle Adjustment (GBA)
+    kUseGBA = True                      # Activated by loop closing
+    kGBADebugAndPrintToFile = True
+    kGBAUseRobustKernel = True
+    
+        
     # Pointcloud 
     kColorPatchDelta=1  # center +- delta
 

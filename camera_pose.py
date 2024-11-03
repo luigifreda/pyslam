@@ -29,6 +29,19 @@ class CameraPose(object):
         self.set(pose)
         self.covariance = np.identity(6, dtype=np.float64)          # pose covariance
         
+    def __getstate__(self):
+        # Create a copy of the instance's __dict__
+        state = self.__dict__.copy()
+        # Replace the unpickable g2o.Isometry3d with a pickable matrix
+        if '_pose' in state: 
+            state['_pose'] = self._pose.matrix()                  
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state (without 'lock' initially)
+        self.__dict__.update(state)
+        self._pose = g2o.Isometry3d(self._pose) # set back to g2o.Isometry3d
+                
     # input pose is expected to be an g2o.Isometry3d      
     def set(self, pose):
         if isinstance(pose, g2o.SE3Quat) or isinstance(pose, g2o.Isometry3d):

@@ -23,10 +23,14 @@ import math
 import time 
 sys.path.append("../../")
 
+import torch.multiprocessing as mp
+
 from mplot_thread import Mplot2d, Mplot3d
 from utils_sys import getchar
 
 if __name__ == "__main__":
+
+    #mp.set_start_method('spawn', force=True)
 
     is_draw_3d = True
     plt3d = None     
@@ -37,9 +41,6 @@ if __name__ == "__main__":
     err_plt = None      
     if is_draw_err: 
         err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
-          
-
-    time.sleep(1)
     
     is_draw_matched_points = True
     matched_points_plt = None     

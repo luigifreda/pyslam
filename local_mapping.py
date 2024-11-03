@@ -28,15 +28,18 @@ from enum import Enum
 
 from collections import defaultdict 
 
-from threading import RLock, Thread, Condition, current_thread 
+from threading import RLock, Lock, Thread, Condition, current_thread
 from queue import Queue 
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 from parameters import Parameters  
 
+from feature_manager import FeatureManager
+from feature_tracker import FeatureTracker
+
 from dataset import SensorType
 from keyframe import KeyFrame
-from frame import Frame  
+from frame import Frame, compute_frame_matches
 from search_points import search_frame_for_triangulation, search_and_fuse
 from map_point import MapPoint
 from map import Map
@@ -47,7 +50,7 @@ import optimizer_g2o
 
 from utils_sys import Printer
 from utils_geom import triangulate_normalized_points
-from utils_data import AtomicCounter
+from utils_data import AtomicCounter, empty_queue
 
 import multiprocessing
 
@@ -65,37 +68,36 @@ kNumMinObsForKeyFrameDefault = 3
 kLocalMappingSleepTime = 5e-3  # [s]
 
 
-if kLocalMappingOnSeparateThread: 
-    kLocalMappingDebugAndPrintToFile = True 
-    if kLocalMappingDebugAndPrintToFile:
-        # redirect the prints of local mapping to the file local_mapping.log 
-        # you can watch the output in separate shell by running:
-        # $ tail -f local_mapping.log 
-        import builtins as __builtin__
-        logging_file=open('local_mapping.log','w')
-        def print(*args, **kwargs):
-            return __builtin__.print(*args, **kwargs,file=logging_file,flush=True)
-    else:
-        def print(*args, **kwargs):
-            return
-     
-
-if not kVerbose:
+if kVerbose:
+    if kLocalMappingOnSeparateThread: 
+        if kLocalMappingDebugAndPrintToFile:
+            # redirect the prints of local mapping to the file local_mapping.log
+            # you can watch the output in separate shell by is_running:
+            # $ tail -f local_mapping.log 
+            import builtins as __builtin__
+            logging_file=open('local_mapping.log','w')
+            def print(*args, **kwargs):
+                return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+else:
     def print(*args, **kwargs):
-        pass  
+        return
     
+
 def kf_search_frame_for_triangulation(kf1, kf2, kf2_idx, idxs1, idxs2, max_descriptor_distance, is_monocular, result_queue):
     idxs1_out, idxs2_out, num_found_matches, _ = search_frame_for_triangulation(kf1, kf2, idxs1, idxs2, max_descriptor_distance, is_monocular)
     print(f'\t kf_search_frame_for_triangulation: found for ({kf1.id}, {kf2.id}), #potential matches: {num_found_matches}')    
     result_queue.put((idxs1_out, idxs2_out, num_found_matches, _, kf2_idx)) 
                 
     
-class LocalMapping(object):
+class LocalMapping:
     def __init__(self, slam):
+        self.feature_tracker = slam.feature_tracker # type: FeatureTracker
         self.map = slam.map  # type: Map
         self.sensor_type = slam.sensor_type
         self.recently_added_points = set()
-        self.loop_closing = slam.loop_closing # type: LoopClosing
+        
+        if hasattr(slam, 'loop_closing'):
+            self.loop_closing = slam.loop_closing # type: LoopClosing
         
         self.mean_ba_chi2_error = None
         self.time_local_mapping = None
@@ -103,7 +105,7 @@ class LocalMapping(object):
         self.kf_cur = None   # current processed keyframe  
         self.kid_last_BA = -1 # last keyframe id when performed BA  
         
-        self.descriptor_distance_sigma = Parameters.kMaxDescriptorDistance            
+        self.descriptor_distance_sigma = self.feature_tracker.feature_manager.max_descriptor_distance            
 
         self.timer_verbose = kTimerVerbose  # set this to True if you want to print timings  
         self.timer_triangulation = TimerFps('Triangulation', is_verbose = self.timer_verbose)    
@@ -117,12 +119,18 @@ class LocalMapping(object):
         self.queue = Queue()
         self.queue_condition = Condition()
         self.work_thread = Thread(target=self.run)
-        self.running = False
+        self.is_running = False
         
         self._is_idle = True 
         self.idle_codition = Condition()
         
-        self.opt_abort_flag = g2o.Flag(False)  
+        # use self.set_opt_abort_flag() to manage the following two guys
+        self.opt_abort_flag = g2o.Flag(False)                      # for multi-threading
+        self.mp_opt_abort_flag = multiprocessing.Value('i',False)  # for multi-processing (when used)
+                                              
+        self.stop_requested = False
+        self.stopped = False
+        self.stop_mutex = RLock()
          
         self.log_file = None 
         self.thread_large_BA = None 
@@ -133,34 +141,48 @@ class LocalMapping(object):
         self.last_num_culled_points = None
         self.last_num_culled_keyframes = None
         
-                
+        
+    def set_loop_closing(self, loop_closing):
+        self.loop_closing = loop_closing
+        
     def start(self):    
         self.work_thread.start()
 
     def quit(self):
         print('LocalMapping: quitting...')
-        if self.running:
-            self.running = False
-            self.opt_abort_flag.value = True        
+        if self.is_running:
+            self.is_running = False
+            self.set_opt_abort_flag(True)      
             self.work_thread.join(timeout=5)
         print('LocalMapping: done')   
+        
+    def set_opt_abort_flag(self, value):
+        if self.opt_abort_flag.value != value:
+            self.opt_abort_flag.value = value     # for multi-threading
+            self.mp_opt_abort_flag.value = value  # for multi-processing  (when used)      
         
     # push the new keyframe and its image into the queue
     def push_keyframe(self, keyframe, img=None):
         with self.queue_condition:
             self.queue.put((keyframe,img))      
             self.queue_condition.notifyAll() 
-            self.opt_abort_flag.value = True        
+            self.set_opt_abort_flag(True)              
         
+    # blocking call
     def pop_keyframe(self):
-        if self.queue.empty():
-            with self.queue_condition:
-                while self.queue.empty():
-                    self.queue_condition.wait()
-                    return self.queue.get()
-        else: 
-            return self.queue.get()
-        
+        with self.queue_condition:        
+            if self.queue.empty():
+                while self.queue.empty() and not self.stop_requested:
+                    ok = self.queue_condition.wait(timeout=Parameters.kLocalMappingTimeoutPopKeyframe)
+                    if not ok: 
+                        break # Timeout occurred
+        if self.queue.empty() or self.stop_requested:
+            return None
+        try:
+            return self.queue.get(timeout=Parameters.kLocalMappingTimeoutPopKeyframe)
+        except Exception as e:
+            print(f'LocalMapping: pop_keyframe: encountered exception: {e}')
+            return None
         
     def queue_size(self):
         return self.queue.qsize()              
@@ -174,34 +196,87 @@ class LocalMapping(object):
             self._is_idle = flag
             self.idle_codition.notifyAll() 
             
-    def wait_idle(self): 
-        if self.running == False:
+    def wait_idle(self, print=print, timeout=None): 
+        if self.is_running == False:
             return
         with self.idle_codition:
-            while not self.is_idle() and self.running:
-                self.idle_codition.wait()
+            while not self._is_idle and self.is_running:
                 print('LocalMapping: waiting for idle...')
+                ok = self.idle_codition.wait(timeout=timeout)
+                if not ok:
+                    Printer.yellow(f'LocalMapping: timeout {timeout}s reached, quit waiting for idle')
+                    return
         
     def interrupt_optimization(self):
         Printer.yellow('interrupting local mapping optimization')        
-        self.opt_abort_flag.value = True
+        self.set_opt_abort_flag(True)
+          
+    def request_stop(self):
+        with self.stop_mutex:
+            Printer.yellow('requesting a stop for local mapping optimization') 
+            self.stop_requested = True
+        with self.queue_condition:
+            self.set_opt_abort_flag(True) 
+            self.queue_condition.notifyAll() # to unblock self.pop_keyframe()  
         
+    def is_stop_requested(self):
+        with self.stop_mutex:         
+            return self.stop_requested    
+    
+    def stop(self):
+        with self.stop_mutex:        
+            if self.stop_requested and not self.stopped:
+                self.stopped = True
+                print('LocalMapping: stopped...')
+                return True
+            return False
+        
+    def is_stopped(self):
+        with self.stop_mutex:         
+            return self.stopped
+    
+    def set_not_stop(self, value):
+        with self.stop_mutex:              
+            if value and self.stopped:
+                return False 
+            self.stopped = value
+            return True
+    
+    def release(self):   
+        if not self.is_running:
+            return 
+        with self.stop_mutex:              
+            self.stopped = False
+            self.stop_requested = False
+            # emtpy the queue
+            while not self.queue.empty():
+                self.queue.get()
+            print(f'LocalMapping: released...')
         
     def run(self):
-        self.running = True
-        while self.running:
+        self.is_running = True
+        while self.is_running:
             self.step()
+        empty_queue(self.queue) # empty the queue before exiting
         print('LocalMapping: loop exit...')
         
     def step(self):
         if not self.map.local_map.is_empty():
-                                            
-            self.kf_cur, self.img_cur = self.pop_keyframe()
-            self.last_processed_kf_img_id = self.kf_cur.img_id
-                                                                        
-            self.set_idle(False) 
-            self.do_local_mapping()    
-            self.set_idle(True)
+            if not self.stop_requested:              
+                ret = self.pop_keyframe() # blocking call
+                if ret is not None: 
+                    self.kf_cur, self.img_cur = ret
+                    if self.kf_cur is not None:
+                        self.last_processed_kf_img_id = self.kf_cur.img_id
+                                                                                    
+                        self.set_idle(False) 
+                        self.do_local_mapping()    
+                        self.set_idle(True)
+            elif self.stop():
+                self.set_idle(True)
+                while self.is_stopped():
+                    print(f'LocalMapping: stopped, idle: {self._is_idle} ...')
+                    time.sleep(kLocalMappingSleepTime) 
                 
         else: 
             #Printer.red('[local mapping] local map is empty')
@@ -247,10 +322,10 @@ class LocalMapping(object):
             self.timer_pts_fusion.refresh()
             print(f'#fused map points: {total_fused_pts}, timing: {self.timer_pts_fusion.last_elapsed}') 
 
-        # reset optimization flag 
-        self.opt_abort_flag.value = False                
+        # reset optimization abort flag 
+        self.set_opt_abort_flag(False)                
         
-        if self.queue.empty():                
+        if self.queue.empty() and not self.is_stop_requested():                
              
             if self.thread_large_BA is not None: 
                 if self.thread_large_BA.is_alive(): # for security, check if large BA thread finished his work
@@ -277,18 +352,19 @@ class LocalMapping(object):
             print(f'\t #culled keyframes: {num_culled_keyframes}, timing: {self.timer_kf_culling.last_elapsed}')                       
             
         if self.loop_closing is not None and self.kf_cur is not None:
-            self.loop_closing.add_keyframe(self.kf_cur, self.img_cur)   
+            print('pushing new keyframe to loop closing...')
+            self.loop_closing.add_keyframe(self.kf_cur, self.img_cur)  
                                     
-        duration = time.time() - time_start
-        self.time_local_mapping = duration
-        print(f'local mapping duration: {duration}')
+        elapsed_time = time.time() - time_start
+        self.time_local_mapping = elapsed_time
+        print(f'local mapping elapsed time: {elapsed_time}')
          
          
     def local_BA(self):
         # local optimization 
         self.time_local_opt.start()   
         print('>>>> local optimization (LBA) ...')
-        err = self.map.locally_optimize(kf_ref=self.kf_cur, abort_flag=self.opt_abort_flag)
+        err = self.map.locally_optimize(kf_ref=self.kf_cur, abort_flag=self.opt_abort_flag, mp_abort_flag=self.mp_opt_abort_flag)
         self.mean_ba_chi2_error = err
         self.time_local_opt.refresh()
         print(f'local optimization (LBA) error^2: {err}, timing: {self.time_local_opt.last_elapsed}')     
@@ -395,35 +471,6 @@ class LocalMapping(object):
                 num_culled_keyframes += 1
         return num_culled_keyframes
 
-    def precompute_kps_matches_threading(self, match_idxs, local_keyframes):
-        # do parallell computation using multithreading   
-        timer = Timer()         
-        #print(f'matching local keyframes ids: {[(self.kf_cur.id,kf.id) for kf in local_keyframes if not kf.id is None]}')                
-        def thread_match_function(kf_pair):
-            kf1,kf2 = kf_pair
-            matching_result = Frame.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des)
-            idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2             
-            match_idxs[(kf1, kf2)] = (np.array(idxs1),np.array(idxs2))        
-                    
-        kf_pairs = [(self.kf_cur, kf) for kf in local_keyframes if kf is not self.kf_cur and not kf.is_bad]                       
-        with ThreadPoolExecutor(max_workers=Parameters.kLocalMappingParallelKpsMatchingNumWorkers) as executor:
-            executor.map(thread_match_function, kf_pairs) # automatic join() at the end of the `width` block 
-        print(f'[precompute_kps_matches_threading] timing: {timer.elapsed()}')
-        return match_idxs  
-    
-    def precompute_kps_matches(self, match_idxs, local_keyframes):
-        if not Parameters.kLocalMappingParallelKpsMatching: 
-            # Do serial computation 
-            for kf in local_keyframes:
-                if kf is self.kf_cur or kf.is_bad:
-                    continue   
-                matching_result = Frame.feature_matcher.match(self.kf_cur.img, kf.img, self.kf_cur.des, kf.des)        
-                idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2    
-                match_idxs[(self.kf_cur, kf)] = (idxs1, idxs2)  
-        else:  
-            match_idxs = self.precompute_kps_matches_threading(match_idxs, local_keyframes)
-        #print(f'[precompute_kps_matches] #matches: {len(match_idxs)}')
-        return match_idxs            
             
     # triangulate matched keypoints (without a corresponding map point) amongst recent keyframes      
     def create_new_map_points(self):
@@ -439,7 +486,10 @@ class LocalMapping(object):
         
         match_idxs = defaultdict(lambda: (None,None))   # dictionary of matches  (kf_i, kf_j) -> (idxs_i,idxs_j)         
         # precompute keypoint matches 
-        match_idxs = self.precompute_kps_matches(match_idxs, local_keyframes)
+        match_idxs = compute_frame_matches(self.kf_cur, local_keyframes, match_idxs, \
+                                              do_parallel=Parameters.kLocalMappingParallelKpsMatching,\
+                                              max_workers=Parameters.kLocalMappingParallelKpsMatchingNumWorkers,
+                                              print_fun=print)
                     
         #print(f'\t processing local keyframes...')
         for i,kf in enumerate(local_keyframes):

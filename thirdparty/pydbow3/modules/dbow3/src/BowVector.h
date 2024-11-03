@@ -63,12 +63,15 @@ public:
 	/** 
 	 * Constructor
 	 */
-	BowVector(void);
+	BowVector() = default;
+
+	BowVector(const std::vector<std::pair<WordId, WordValue>> &vec);
+	BowVector(const std::vector<WordValue> &vec);	
 
 	/**
 	 * Destructor
 	 */
-	~BowVector(void);
+	//~BowVector(void);
 	
 	/**
 	 * Adds a value to a word value existing in the vector, or creates a new
@@ -109,6 +112,13 @@ public:
 	 * Tansform this vector into a vector of pairs (id, value)
 	 */
 	std::vector<std::pair<WordId, WordValue>> toVec() const;	
+	
+	/**
+	 * Creates a bow vector from a vector of pairs (id, value)
+	 */
+	void fromVec(const std::vector<std::pair<WordId, WordValue>> &vec);
+
+	void fromVecValues(const std::vector<WordValue> &vec);
 
     //returns a unique number from the configuration
     uint64_t getSignature()const;

@@ -5,12 +5,15 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -march=native -fPIC -DNDEBUG")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fPIC -DNDEBUG")
+
+find_package(Eigen3 REQUIRED)
 
 find_package(OpenCV ${OPENCV_VERSION} QUIET)
 if(NOT OpenCV_FOUND)
@@ -37,6 +40,7 @@ endif()
 
 include_directories(
     ${PYTHON_INCLUDE_DIRS}
+    ${EIGEN3_INCLUDE_DIR}
     ${OpenCV_INCLUDE_DIRS}    
 )
 
@@ -46,6 +50,11 @@ add_subdirectory(pybind11)
 
 pybind11_add_module(pyslam_utils utils_module.cpp utils.cpp)
 target_link_libraries(pyslam_utils PRIVATE
+    ${OpenCV_LIBS}    
+)
+
+pybind11_add_module(sim3solver sim3solver_module.cpp Sim3Solver.cpp Random.cpp)
+target_link_libraries(sim3solver PRIVATE
     ${OpenCV_LIBS}    
 )
 

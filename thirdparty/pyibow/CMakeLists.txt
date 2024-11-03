@@ -1,9 +1,28 @@
 cmake_minimum_required(VERSION 3.4...3.18)
 project(pyibow)
 
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING
+      "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+      FORCE)
+endif()
+
+set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
+
 LIST(APPEND CMAKE_MODULE_PATH 
     ${PROJECT_SOURCE_DIR}/cmake
 )
+
+# Generate file compile_commands.json in our build folder: it contains the full command line to compile individual source files
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(BUILD_WITH_MARCH_NATIVE AND NOT "${ARCH}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+    message(STATUS "Build with -march=native")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -O3")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -O3")
+endif()
+
 
 add_subdirectory(modules/pybind11)
 

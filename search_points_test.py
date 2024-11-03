@@ -22,7 +22,7 @@ import math
 import numpy as np
 import cv2 
 
-from frame import Frame 
+from frame import Frame, FrameShared
 from utils_geom import skew, add_ones, normalize_vector, computeF12, check_dist_epipolar_line
 from utils_draw import draw_lines, draw_points 
 from utils_sys import Printer, getchar
@@ -80,10 +80,10 @@ def epiline_to_end_points(line, e, xinf, cols):
 # 'e' is the epipole 
 # the found keypoint match must not already have a point match
 # overlap_ratio must be in [0,1]
-def find_matches_along_line(f, e, line, descriptor, radius = Parameters.kMaxReprojectionDistanceFrame, overlap_ratio = 0.5):
-    
-    max_descriptor_distance = 0.5*Parameters.kMaxDescriptorDistanceSearchEpipolar
-    
+def find_matches_along_line(f, e, line, descriptor, 
+                            radius = Parameters.kMaxReprojectionDistanceFrame,
+                            max_descriptor_distance = 0.5*Parameters.kMaxDescriptorDistance, 
+                            overlap_ratio = 0.5):    
     #print('line: ', line[0], ", ", line[1])    
     step = radius*(1-overlap_ratio)
     delta = line[1].ravel() - line[0].ravel()
@@ -101,7 +101,7 @@ def find_matches_along_line(f, e, line, descriptor, radius = Parameters.kMaxRepr
         for k_idx in f.kd.query_ball_point(x, radius):
             # if no point associated 
             if f.get_point_match(k_idx) is None: 
-                descriptor_dist = Frame.descriptor_distance(f.des[k_idx], descriptor)                
+                descriptor_dist = FrameShared.descriptor_distance(f.des[k_idx], descriptor)                
                 if descriptor_dist < max_descriptor_distance:  
                     if True: 
                         return k_idx, descriptor_dist  # stop at the first match 
@@ -169,7 +169,7 @@ def search_frame_for_triangulation_test(f1, f2, img2, img1 = None):
     for i, p in enumerate(f1.get_points()): 
         if p is None:  # we consider just unmatched keypoints 
             kp = f1.kpsu[i]
-            scale_factor = Frame.feature_manager.scale_factors[f1.octaves[i]]
+            scale_factor = FrameShared.feature_manager.scale_factors[f1.octaves[i]]
             # discard points which are too close to the epipole 
             if np.linalg.norm(kp-e1) < Parameters.kMinDistanceFromEpipole * scale_factor:             
                 continue    

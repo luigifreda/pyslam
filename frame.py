@@ -20,11 +20,13 @@
 import sys
 import cv2
 import numpy as np
-import json
-#import g2o
+
+#import json
+import ujson as json
 
 from threading import RLock, Thread, current_thread
 from scipy.spatial import cKDTree
+from timer import Timer
 
 from dataset import SensorType
 from parameters import Parameters  
@@ -59,7 +61,7 @@ class FrameBase(object):
     def __init__(self, camera: Camera, pose=None, id=None, timestamp=None, img_id=None):
         self._lock_pose = RLock()
         # frame camera info
-        self.camera = camera
+        self.camera = camera # type: Camera
         # self._pose is a CameraPose() representing Tcw (pc = Tcw * pw)
         if pose is None: 
             self._pose = CameraPose()      
@@ -76,6 +78,20 @@ class FrameBase(object):
         self.timestamp = timestamp 
         self.img_id = img_id
         
+    def __getstate__(self):
+        # Create a copy of the instance's __dict__
+        state = self.__dict__.copy()
+        # Remove the RLock from the state (don't pickle it)
+        if '_lock_pose' in state:
+            del state['_lock_pose']
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state (without 'RLock' initially)
+        self.__dict__.update(state)
+        # Recreate the RLock after unpickling
+        self._lock_pose = RLock()
+                
     def __hash__(self):
         return self.id   
     
@@ -165,9 +181,9 @@ class FrameBase(object):
     # out: points  w.r.t. camera frame  [Nx3] 
     def transform_points(self, points):    
         with self._lock_pose:          
-            Rcw = self._pose.Rcw
-            tcw = self._pose.tcw.reshape((3,1))              
-            return (Rcw @ points.T + tcw).T  # get points  w.r.t. camera frame  [Nx3]      
+            Rcw = self._pose.Rcw.copy()
+            tcw = self._pose.tcw.reshape((3,1)).copy()              
+        return (Rcw @ points.T + tcw).T  # get points  w.r.t. camera frame  [Nx3]      
     
     # project an [Nx3] array of map point vectors on this frame 
     # out: [Nx2] image projections (u,v) or [Nx3] array of stereo projections (u,v,ur) in case do_stereo_projet=True,
@@ -229,21 +245,18 @@ class FrameBase(object):
     #         [Nx1] array of distances PO
     # check a) points are in image b) good view angle c) good distance range  
     def are_visible(self, map_points, do_stereo_project=False):
-        points = []
-        point_normals = []
-        min_dists = []
-        max_dists = []
-        for p in map_points:
-            points.append(p.pt)
-            point_normals.append(p.get_normal())
-            min_dists.append(p.min_distance)
-            max_dists.append(p.max_distance)
-        points = np.array(points)
-        point_normals = np.array(point_normals)
-        min_dists = np.array(min_dists)
-        max_dists = np.array(max_dists)
+        n = len(map_points)
+        points = np.zeros((n, 3), dtype=np.float32) 
+        point_normals = np.zeros((n, 3), dtype=np.float32) 
+        min_dists = np.zeros(n, dtype=np.float32)
+        max_dists = np.zeros(n, dtype=np.float32)
+        for i, p in enumerate(map_points):
+            pt, normal, min_dist, max_dist = p.get_all_pos_info() # just one lock here
+            points[i] = pt
+            point_normals[i] = normal # corresponding to p.get_normal()
+            min_dists[i] = min_dist   # corresponding to p.min_distance
+            max_dists[i] = max_dist   # corresponding to p.max_distance
         
-        #with self._lock_pose:  (no need, project_points already locks the pose) 
         uvs, zs = self.project_points(points, do_stereo_project)    
         POs = points - self.Ow 
         dists   = np.linalg.norm(POs, axis=-1, keepdims=True)    
@@ -259,24 +272,43 @@ class FrameBase(object):
         return out_flags, uvs, zs, dists        
 
 
+
+# Shared frame stuff
+class FrameShared:
+    tracker              = None      # type: FeatureTracker
+    feature_manager      = None
+    feature_matcher      = None 
+    descriptor_distance  = None
+    descriptor_distances = None
+    oriented_features    = False     
+    is_store_imgs        = False  
+                
+    @staticmethod
+    def set_tracker(tracker):
+        if FrameShared.tracker is not None:
+            raise Exception("FrameShared.tracker is not None")
+        FrameShared.tracker = tracker
+        FrameShared.feature_manager = tracker.feature_manager
+        FrameShared.feature_matcher = tracker.matcher
+        FrameShared.descriptor_distance = tracker.feature_manager.descriptor_distance
+        FrameShared.descriptor_distances = tracker.feature_manager.descriptor_distances
+        FrameShared.oriented_features = tracker.feature_manager.oriented_features
+    
+
+# for parallel stereo processing
 def detect_and_compute(img):
-    return Frame.tracker.detectAndCompute(img)
+    return FrameShared.tracker.detectAndCompute(img)
      
             
 # A Frame mainly collects keypoints, descriptors and their corresponding 3D points 
-class Frame(FrameBase):
-    # shared stuff
-    tracker         = None      # type: FeatureTracker 
-    feature_manager = None      # type: FeatureManager
-    feature_matcher = None 
-    descriptor_distance = None       
-    descriptor_distances = None  # norm for vectors     
-    is_store_imgs = False         
+class Frame(FrameBase):       
     def __init__(self, camera: Camera, img, img_right=None, depth=None, pose=None, id=None, timestamp=None, kps_data=None, img_id=None):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
         
         self._lock_features = RLock()  
         self.is_keyframe = False  
+        
+        self._kd = None # kdtree for fast-search of keypoints
 
         # image keypoints information arrays (unpacked from array of cv::KeyPoint())
         # NOTE: in the stereo case, we assume the images are rectified (and unistortion becomes redundant)
@@ -303,13 +335,13 @@ class Frame(FrameBase):
                                 
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
-            if Frame.is_store_imgs: 
+            if FrameShared.is_store_imgs: 
                 self.img = img.copy()  
             else: 
                 self.img = None    
 
         if img_right is not None:
-            if Frame.is_store_imgs: 
+            if FrameShared.is_store_imgs: 
                 self.img_r = img_right.copy()  
             else: 
                 self.img_r = None                                        
@@ -317,7 +349,7 @@ class Frame(FrameBase):
         if depth is not None:
             if self.camera is not None and self.camera.depth_factor != 1.0:
                 depth = depth * self.camera.depth_factor             
-            if Frame.is_store_imgs: 
+            if FrameShared.is_store_imgs: 
                 self.depth_img = depth.copy()  
             else: 
                 self.depth_img = None   
@@ -331,7 +363,7 @@ class Frame(FrameBase):
                     self.kps_r, self.des_r = future_r.result()
                     #print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
             else: 
-                self.kps, self.des = Frame.tracker.detectAndCompute(img)  
+                self.kps, self.des = FrameShared.tracker.detectAndCompute(img)  
                                                                                 
             # convert from a list of keypoints to arrays of points, octaves, sizes  
             if self.kps is not None:    
@@ -358,7 +390,25 @@ class Frame(FrameBase):
                     self.depths = np.full(len(self.kps), -1, dtype=np.float)     
                     self.kps_ur = np.full(len(self.kps), -1, dtype=np.float)
                     self.compute_stereo_matches(img, img_right)
+           
             
+    def __getstate__(self):
+        # Create a copy of the instance's __dict__
+        state = self.__dict__.copy()
+        # Remove the RLock from the state (don't pickle it)
+        if '_lock_pose' in state: # from FrameBase
+            del state['_lock_pose']        
+        if '_lock_features' in state:
+            del state['_lock_features']
+        return state
+
+    def __setstate__(self, state):
+        # Restore the state (without 'lock' initially)
+        self.__dict__.update(state)
+        # Recreate the RLock after unpickling
+        self._lock_pose = RLock() # from FrameBase
+        self._lock_features = RLock()
+                    
     def to_json(self):
         ret = {
                 'id': int(self.id),
@@ -450,18 +500,13 @@ class Frame(FrameBase):
                 
     @staticmethod
     def set_tracker(tracker):
-        Frame.tracker = tracker 
-        Frame.feature_manager = tracker.feature_manager 
-        Frame.feature_matcher = tracker.matcher
-        Frame.descriptor_distance  = tracker.descriptor_distance       
-        Frame.descriptor_distances = tracker.descriptor_distances        
-        Frame.oriented_features = tracker.feature_manager.oriented_features
+        FrameShared.set_tracker(tracker)
         Frame._id = 0           
      
     # KD tree of undistorted keypoints
     @property
     def kd(self):
-        if not hasattr(self, '_kd'):
+        if self._kd is None:
             self._kd = cKDTree(self.kpsu)
         return self._kd
 
@@ -530,7 +575,12 @@ class Frame(FrameBase):
     def get_matched_good_points(self):       
         with self._lock_features:               
             good_points = [p for p in self.points if p is not None and not p.is_bad]         
-            return good_points    
+            return good_points
+        
+    def get_matched_good_points_with_idxs(self):       
+        with self._lock_features:               
+            good_idxs, good_points = zip(*[(i,p) for i,p in enumerate(self.points) if p is not None and not p.is_bad])         
+            return good_idxs, good_points               
     
     def num_tracked_points(self, minObs = 1):
         with self._lock_features:          
@@ -642,7 +692,7 @@ class Frame(FrameBase):
         # we enforce matching on the same row here by using the flag row_matching (epipolar constraint)
         row_matching = True
         ratio_test = 0.8
-        stereo_matching_result = Frame.feature_matcher.match(img, img_right, self.des, self.des_r, self.kps, self.kps_r, \
+        stereo_matching_result = FrameShared.feature_matcher.match(img, img_right, self.des, self.des_r, self.kps, self.kps_r, \
                                                                   ratio_test=ratio_test, row_matching=row_matching, max_disparity=max_disparity)
         matched_kps_l = np.array(self.kps[stereo_matching_result.idxs1])
         matched_kps_r = np.array(self.kps_r[stereo_matching_result.idxs2])         
@@ -733,7 +783,7 @@ class Frame(FrameBase):
            
             errs_l_sqr = np.sum(errs_l_vec * errs_l_vec, axis=1)  # squared reprojection errors 
             kpsl_levels = self.octaves[good_matched_idxs1]
-            invSigmas2_1 = Frame.feature_manager.inv_level_sigmas2[kpsl_levels] 
+            invSigmas2_1 = FrameShared.feature_manager.inv_level_sigmas2[kpsl_levels] 
             chis2_l = errs_l_sqr * invSigmas2_1         # chi square 
             #print(f'chis2_l: {chis2_l}')
             good_chi2_l_mask = chis2_l < Parameters.kChi2Mono
@@ -743,7 +793,7 @@ class Frame(FrameBase):
             errs_r_vec = uvs_r - self.kps_r[good_matched_idxs2]
             errs_r_sqr = np.sum(errs_r_vec * errs_r_vec, axis=1)  # squared reprojection errors 
             kpsr_levels = self.octaves_r[good_matched_idxs2]
-            invSigmas2_2 = Frame.feature_manager.inv_level_sigmas2[kpsr_levels] 
+            invSigmas2_2 = FrameShared.feature_manager.inv_level_sigmas2[kpsr_levels] 
             chis2_r = errs_r_sqr * invSigmas2_2         # chi square 
             #print(f'chis2_r: {chis2_r}')
             good_chi2_r_mask = chis2_r < Parameters.kChi2Mono
@@ -762,7 +812,7 @@ class Frame(FrameBase):
         if do_check_with_des_distances_sigma_mad:
             des1 = stereo_matching_result.des1[good_matched_idxs1]
             des2 = stereo_matching_result.des2[good_matched_idxs2]
-            sigma_mad, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=Frame.descriptor_distances)
+            sigma_mad, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=FrameShared.descriptor_distances)
             good_des_dists_mask = des_dists < 1.5 * sigma_mad
             num_good_des_dists = good_des_dists_mask.sum()
             print(f'[compute_stereo_matches] perc good des distances: {100*num_good_des_dists/len(good_des_dists_mask)}')
@@ -850,13 +900,168 @@ class Frame(FrameBase):
         kps_idxs = range(len(self.kps))
         return self.draw_feature_trails(img, kps_idxs)   
 
+####################################################################################
+#  Frame utils 
+####################################################################################
+
+# input: a list of map points,
+#        a target frame,
+#        a suggested se3 transformation Rcw, tcw for target frame
+# output: [Nx1] array of visibility flags, (target map points from 1 on 2)
+#         [Nx1] array of depths, 
+#         [Nx1] array of distances PO
+# check a) map points are in image b) good view angle c) good distance range  
+def are_map_points_visible_in_frame(map_points: list, frame: Frame, Rcw: np.ndarray, tcw: np.ndarray):      
+    # similar to frame.are_visible()
+    n = len(map_points)
+    points_w = np.zeros((n, 3), dtype=np.float32) 
+    point_normals = np.zeros((n, 3), dtype=np.float32) 
+    min_dists = np.zeros(n, dtype=np.float32)
+    max_dists = np.zeros(n, dtype=np.float32)
+    for i, p in enumerate(map_points):
+        pt, normal, min_dist, max_dist = p.get_all_pos_info()
+        points_w[i] = pt
+        point_normals[i] = normal  # in world frame
+        min_dists[i] = min_dist
+        max_dists[i] = max_dist
+                
+    points_c = (Rcw @ points_w.T + tcw.reshape((3,1))).T # in camera 1
+    uvs, zs = frame.camera.project(points_c)  # project on camera 2
+            
+    Ow = (-Rcw.T @ tcw.reshape((3,1))).T
+    POs = points_w - Ow   
+    dists = np.linalg.norm(POs, axis=-1, keepdims=True) 
+    POs /= dists
+    cos_view = np.sum(point_normals * POs, axis=1)           
+                        
+    are_in_image = frame.are_in_image(uvs, zs)    
+    are_in_good_view_angle = cos_view > Parameters.kViewingCosLimitForPoint                  
+    dists = dists.reshape(-1,)              
+    are_in_good_distance = (dists > min_dists) & (dists < max_dists)        
+                        
+    out_flags = are_in_image & are_in_good_view_angle & are_in_good_distance
+    return out_flags, uvs, zs, dists 
+
+
+# input: two frames frame1 and frame2,
+#        a list of target map points of frame1,
+#        a suggested se3 or sim3 transformation sR21, t21 between the frames
+# output: [Nx1] array of visibility flags, (target map points from 1 on 2)
+#         [Nx1] array of depths, 
+#         [Nx1] array of distances PO
+# check a) map points are in image b) good view angle c) good distance range  
+def are_map_points_visible(frame1: Frame, frame2: Frame, map_points1, sR21: np.ndarray, t21: np.ndarray):
+    # similar to frame.are_visible()      
+    n = len(map_points1)
+    points_w = np.zeros((n, 3), dtype=np.float32) 
+    point_normals = np.zeros((n, 3), dtype=np.float32) 
+    min_dists = np.zeros(n, dtype=np.float32)
+    max_dists = np.zeros(n, dtype=np.float32)
+    for i, p in enumerate(map_points1):
+        pt, normal, min_dist, max_dist = p.get_all_pos_info()
+        points_w[i] = pt
+        point_normals[i] = normal  # in world frame
+        min_dists[i] = min_dist
+        max_dists[i] = max_dist
+                
+    points_c1 = frame1.transform_points(points_w) # in camera 1
+    points_c2 = (sR21 @ points_c1.T + t21.reshape((3,1))).T # in camera 2 by using input sim3
+    
+    uvs_2, zs_2 = frame2.camera.project(points_c2)  # project on camera 2
+            
+    #PO2s = points_w - frame2.Ow   
+    #dists_2 = np.linalg.norm(PO2s, axis=-1, keepdims=True) 
+    dists_2 = np.linalg.norm(points_c2, axis=-1, keepdims=True)
+    #PO2s /= dists_2
+    #cos_view = np.sum(point_normals * PO2s, axis=1)           
+                        
+    are_in_image_2 = frame2.are_in_image(uvs_2, zs_2)    
+    #are_in_good_view_angle_2 = cos_view > Parameters.kViewingCosLimitForPoint                  
+    dists_2 = dists_2.reshape(-1,)              
+    are_in_good_distance_2 = (dists_2 > min_dists) & (dists_2 < max_dists)        
+                        
+    #out_flags = are_in_image_2 & are_in_good_view_angle_2 & are_in_good_distance_2
+    out_flags = are_in_image_2 & are_in_good_distance_2
+    return out_flags, uvs_2, zs_2, dists_2 
+
 
 # match frames f1 and f2
 # out: a vector of match index pairs [idx1[i],idx2[i]] such that the keypoint f1.kps[idx1[i]] is matched with f2.kps[idx2[i]]
 def match_frames(f1: Frame, f2: Frame, ratio_test=None):     
-    matching_result = Frame.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, ratio_test)
+    matching_result = FrameShared.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, ratio_test)
     return matching_result
     # idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
     # idxs1 = np.asarray(idxs1)
     # idxs2 = np.asarray(idxs2)   
     # return idxs1, idxs2         
+
+
+def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \
+                                       match_idxs, max_workers=6, ratio_test=None, print_fun=None):
+    # do parallell computation using multithreading   
+    timer = Timer()      
+    def thread_match_function(kf_pair):
+        kf1,kf2 = kf_pair
+        matching_result = FrameShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des, ratio_test)
+        idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2             
+        match_idxs[(kf1, kf2)] = (np.array(idxs1),np.array(idxs2))
+    kf_pairs = [(target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad]                       
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        executor.map(thread_match_function, kf_pairs) # automatic join() at the end of the `width` block 
+    if print_fun is not None:        
+        print(f'compute_keypoint_matches_threading: timing: {timer.elapsed()}')
+    return match_idxs  
+
+# compute matches between target frame and other frames
+# out:
+#   match_idxs: dictionary of keypoint matches  (kf_i, kf_j) -> (idxs_i,idxs_j)
+def compute_frame_matches(target_frame: Frame, other_frames: list, \
+                             match_idxs, do_parallel=True, max_workers=6, ratio_test=None, print_fun=None):
+    if do_parallel:  
+        # Do serial computation 
+        for kf in other_frames:
+            if kf is target_frame or kf.is_bad:
+                continue   
+            matching_result = FrameShared.feature_matcher.match(target_frame.img, kf.img, target_frame.des, kf.des, ratio_test)        
+            idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2    
+            match_idxs[(target_frame, kf)] = (idxs1, idxs2)  
+    else:  
+        match_idxs = compute_frame_matches_threading(match_idxs, target_frame, other_frames, max_workers, ratio_test, print_fun)
+    if print_fun is not None:
+        print_fun(f'compute_frame_matches: #compared pairs: {len(match_idxs)}')
+    return match_idxs    
+
+
+# prepare input data for sim3 solver
+# in: 
+#   f1, f2: two frames
+#   idxs1, idxs2: indices of matches between f1 and f2
+# out:
+#   points_3d_1, points_3d_2: 3D points in f1 and f2
+#   sigmas2_1, sigmas2_2: feature sigmas in f1 and f2
+#   idxs1_out, idxs2_out: indices of good point matches in f1 and f2
+def prepare_input_data_for_sim3solver(f1: Frame, f2: Frame, idxs1, idxs2):
+    level_sigmas2 = FrameShared.feature_manager.level_sigmas2        
+    points_3d_1 = []
+    points_3d_2 = []
+    sigmas2_1 = []
+    sigmas2_2 = []
+    idxs1_out = []
+    idxs2_out = []
+    # get matches for current keyframe and candidate keyframes
+    for i1,i2 in zip(idxs1,idxs2):
+        p1 = f1.get_point_match(i1)
+        if p1 is None or p1.is_bad:
+            continue 
+        p2 = f2.get_point_match(i2)
+        if p2 is None or p2.is_bad:
+            continue 
+        points_3d_1.append(p1.pt)
+        points_3d_2.append(p2.pt)
+        sigmas2_1.append(level_sigmas2[f1.octaves[i1]])
+        sigmas2_2.append(level_sigmas2[f2.octaves[i2]])
+        idxs1_out.append(i1)
+        idxs2_out.append(i2)
+    return np.array(points_3d_1), np.array(points_3d_2), \
+            np.array(sigmas2_1), np.array(sigmas2_2), \
+            np.array(idxs1_out), np.array(idxs2_out) 

@@ -2,6 +2,7 @@
 
 #include <DBoW2/TemplatedVocabulary.h>
 #include <DBoW2/FORB.h>
+#include <DBoW2/KeyFrameOrbDatabase.h>
 
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
@@ -41,11 +42,13 @@ PYBIND11_MODULE(pydbow2, m)
 
 	py::class_<DBoW2::BowVector>(m, "BowVector")
 		.def(py::init<>())
+		.def(py::init<const std::vector<std::pair<DBoW2::WordId, DBoW2::WordValue>> &>())		
 		.def("addWeight", &DBoW2::BowVector::addWeight)
 		.def("addIfNotExist", &DBoW2::BowVector::addIfNotExist)
 		.def("normalize", &DBoW2::BowVector::normalize)
 		.def("saveM", &DBoW2::BowVector::saveM)
 		.def("toVec", &DBoW2::BowVector::toVec)
+		.def("fromVec", &DBoW2::BowVector::fromVec)		
 		.def("__repr__", [](const DBoW2::BowVector &obj) {
 				std::ostringstream os;
 				os << obj;
@@ -55,7 +58,15 @@ PYBIND11_MODULE(pydbow2, m)
 			std::ostringstream os;
 			os << obj;
 			return os.str();
-		});			
+		})
+		// Adding pickling support
+		.def("__getstate__", [](const DBoW2::BowVector &obj) {
+			// Extract state into a serializable format, e.g., a dictionary
+			return obj.toVec(); // Assuming toVec() returns a serializable structure
+		})
+		.def("__setstate__", [](DBoW2::BowVector &obj, const std::vector<std::pair<DBoW2::WordId, DBoW2::WordValue>> &state) {
+			obj.fromVec(state); // Restore state from the vector format
+		});	
 
 	py::enum_<DBoW2::WeightingType>(m, "WeightingType")
 		.value("TF_IDF", DBoW2::TF_IDF)
@@ -75,7 +86,29 @@ PYBIND11_MODULE(pydbow2, m)
 		.def(py::init<int, int, DBoW2::WeightingType, DBoW2::ScoringType>(),
 			 py::arg("k") = 10, py::arg("L") = 5,
 			 py::arg("weighting") = DBoW2::TF_IDF, py::arg("scoring") = DBoW2::L1_NORM)
-		.def("load", &BinaryVocabulary::loadFromTextFile)			 
+		.def("load", &BinaryVocabulary::loadFromTextFile)
+		.def("create",[](BinaryVocabulary& o, std::vector<DBoW2::FORB::TDescriptor>& features) {
+		#if 1
+			std::vector<std::vector<DBoW2::FORB::TDescriptor>> vtf(features.size());
+			for(size_t i=0;i<features.size();i++){
+				vtf[i].resize(features[i].rows);
+				for(int r=0;r<features[i].rows;r++)
+					vtf[i][r]=features[i].rowRange(r,r+1);
+			}
+		#else 
+			std::vector<std::vector<DBoW2::FORB::TDescriptor>> vtf;
+			vtf.push_back(features);
+		#endif 
+			std::cout << "features size: " << features.size() << " vtf size: " << vtf.size() << std::endl;				
+			o.create(vtf);			
+			})
+		.def("save", [](BinaryVocabulary& o, 
+			const std::string& filename, const bool compressed) {
+			if (compressed)
+				o.saveToBinaryFile(filename);
+			else 
+				o.saveToTextFile(filename); 
+			})			 
 		.def("size", &BinaryVocabulary::size)
 		.def("score", &BinaryVocabulary::score) 
 		.def("transform", [](BinaryVocabulary& o,
@@ -87,4 +120,12 @@ PYBIND11_MODULE(pydbow2, m)
 				return r;
 			}, 
 			"features"_a, "levelsup"_a);		
+
+	py::class_<DBoW2::KeyFrameOrbDatabase>(m, "KeyFrameOrbDatabase")
+		.def(py::init<const DBoW2::ORBVocabulary &>())
+		.def("add", &DBoW2::KeyFrameOrbDatabase::add)
+		.def("erase", &DBoW2::KeyFrameOrbDatabase::erase)
+		.def("clear", &DBoW2::KeyFrameOrbDatabase::clear)
+		.def("detect_loop_candidates", &DBoW2::KeyFrameOrbDatabase::detectLoopCandidates)
+		.def("detect_relocalization_candidates", &DBoW2::KeyFrameOrbDatabase::detectRelocalizationCandidates);
 }

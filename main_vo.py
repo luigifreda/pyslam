@@ -157,7 +157,6 @@ if __name__ == "__main__":
                         else:
                             plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
                             plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
-                            plt3d.refresh()
 
                     if is_draw_err:         # draw error signals 
                         errx = [img_id, math.fabs(x_true-x)]
@@ -166,14 +165,12 @@ if __name__ == "__main__":
                         err_plt.draw(errx,'err_x',color='g')
                         err_plt.draw(erry,'err_y',color='b')
                         err_plt.draw(errz,'err_z',color='r')
-                        err_plt.refresh()    
 
                     if is_draw_matched_points:
                         matched_kps_signal = [img_id, vo.num_matched_kps]
                         inliers_signal = [img_id, vo.num_inliers]                    
                         matched_points_plt.draw(matched_kps_signal,'# matches',color='b')
-                        matched_points_plt.draw(inliers_signal,'# inliers',color='g')                    
-                        matched_points_plt.refresh()                                   
+                        matched_points_plt.draw(inliers_signal,'# inliers',color='g')                                                     
                     
             # draw camera image 
             if not is_draw_with_rerun:

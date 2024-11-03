@@ -27,25 +27,33 @@ import matplotlib
 #matplotlib.use('Agg')  # running non-interactive mode
 
 import matplotlib.pyplot as plt
-from mpl_toolkits import mplot3d
 
-import multiprocessing as mp 
-from multiprocessing import Process, Queue, RLock, Value
-import ctypes
+#import multiprocessing as mp 
+import torch.multiprocessing as mp
 
 kPlotSleep = 0.04
 kVerbose = False 
+kDebugAndPrintToFile = True
+
 kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#threading.Thread.daemon
                     # The entire Python program exits when no alive non-daemon threads are left.
 
 kUseFigCanvasDrawIdle = True  
 
+
+if kVerbose and kDebugAndPrintToFile:
+    # redirect the prints of local mapping to the file local_mapping.log 
+    # you can watch the output in separate shell by running:
+    # $ tail -f mplot_thread.log 
+    import builtins as __builtin__
+    logging_file=open('mplot_thread.log','w')
+    def print(*args, **kwargs):
+        return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+
+
 kUsePlotPause = not kUseFigCanvasDrawIdle # this should be set True under macOS   
 if platform.system() == 'Darwin':
     kUsePlotPause = True       
-
-# global lock for drawing with matplotlib 
-mp_lock = RLock()
 
 if kUseFigCanvasDrawIdle and platform.system() != 'Darwin':
     plt.ion()
@@ -63,6 +71,29 @@ class FigureNum:
         return FigureNum.figure_num
 
 
+# empty a queue before exiting from the consumer thread/process for safety
+def empty_queue(queue):
+    while not queue.empty():
+        try:
+            queue.get(timeout=0.001)
+        except:
+            pass
+
+# global lock for drawing with matplotlib 
+class SharedSingletonLock:
+    _instance = None  # Placeholder for singleton instance
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(SharedSingletonLock, cls).__new__(cls)
+            cls._instance.lock = mp.Lock()  # Create the lock only once
+        return cls._instance
+
+    @property
+    def get_lock(self):
+        return self.lock
+
+
 # use mplotlib figure to draw in 2d dynamic data
 class Mplot2d:
     def __init__(self, xlabel='', ylabel='', title=''):
@@ -72,42 +103,53 @@ class Mplot2d:
 
         self.data = None 
         self.got_data = False 
-
+        self.handle_map = {}  
+        
         self.axis_computed = False 
         self.xlim = [float("inf"),float("-inf")]
         self.ylim = [float("inf"),float("-inf")]    
 
-        self.key = Value('i',0)
-        self.is_running = Value('i',1)
+        self.key = mp.Value('i',0)
+        self.is_running = mp.Value('i',1)
 
-        self.handle_map = {}        
-
-        self.queue = Queue()
-        self.key_queue = Queue()
+        # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing 
+        # self.manager = mp.Manager()
+        # self.queue = self.manager.Queue()
+        # self.key_queue = self.manager.Queue()
+        self.queue = mp.Queue()
+        self.key_queue = mp.Queue()
         
-        self.vp = Process(target=self.drawer_run, args=(FigureNum.getFigureNum(), self.queue, mp_lock,self.key,self.is_running,self.key_queue,))
-        self.vp.daemon = kSetDaemon
-        self.vp.start()
+        self.figure_num = mp.Value('i', int(FigureNum.getFigureNum()))
+        print(f'Mplot2d: starting the process on figure: {self.figure_num}')
+        
+        self.lock = SharedSingletonLock().get_lock
+        
+        args = (self.figure_num,self.queue,self.lock,self.key,self.is_running,self.key_queue,)
+        self.process = mp.Process(target=self.run, args=args)
+        #self.process.daemon = kSetDaemon  
+        self.process.start()
 
     def quit(self):
         print(f'Mplot2d \"{self.title}\" closing...')
         self.is_running.value = 0
-        self.vp.join(timeout=5)
-        self.vp.join(timeout=5)     
-        if self.vp.is_alive():
+        self.process.join(timeout=5)     
+        if self.process.is_alive():
             print("Warning: Mplot2d \"{self.title}\" process did not terminate in time, forced kill.")         
-        self.vp.terminate()
+        self.process.terminate()
         print(f'Mplot2d \"{self.title}\" closed')
 
-    def drawer_run(self, figure_num, queue, lock, key, is_running, key_queue):  
+    def run(self, figure_num, queue, lock, key, is_running, key_queue):  
+        if kVerbose:
+            print('Mplot2d: starting run on figure ', figure_num.value)
         self.key_queue_thread = key_queue        
-        self.init(figure_num, lock) 
-        #print('starting drawer_run')
+        self.init(figure_num.value, lock) 
         while is_running.value == 1:
-            #print('drawer_refresh step')
+            if kVerbose:            
+                print('Mplot2d: drawer_refresh step')
             self.drawer_refresh(queue, lock)                                    
             if kUseFigCanvasDrawIdle:               
                 time.sleep(kPlotSleep) 
+        empty_queue(queue)  # empty the queue before exiting 
         print(mp.current_process().name,f" - Mplot2d \'{self.title}\': closing fig ", self.fig)  
         plt.close(self.fig)              
 
@@ -166,8 +208,7 @@ class Mplot2d:
         self.ax.set_ylabel(self.ylabel)	   
         self.ax.grid()		
         #Autoscale on unknown axis and known lims on the other
-        self.ax.set_autoscaley_on(True)
-        #self.refresh()     
+        self.ax.set_autoscaley_on(True)   
         lock.release()
 
     def setAxis(self):		                     
@@ -222,10 +263,6 @@ class Mplot2d:
             plt.pause(kPlotSleep)
         lock.release()
 
-    # fake 
-    def refresh(self):
-        pass
-
 
 # use mplotlib figure to draw in 3D trajectories 
 class Mplot3d:
@@ -242,31 +279,44 @@ class Mplot3d:
 
         self.handle_map = {}     
         
-        self.key = Value('i',0)
-        self.is_running = Value('i',1)         
+        self.key = mp.Value('i',0)
+        self.is_running = mp.Value('i',1)         
 
-        self.queue = Queue()
-        self.key_queue = Queue()
-                
-        self.vp = Process(target=self.drawer_run, args=(FigureNum.getFigureNum(), self.queue, mp_lock, self.key, self.is_running, self.key_queue,))
-        self.vp.daemon = kSetDaemon
-        self.vp.start()
+        # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing 
+        # self.manager = mp.Manager()
+        # self.queue = self.manager.Queue()
+        # self.key_queue = self.manager.Queue()
+        self.queue = mp.Queue()
+        self.key_queue = mp.Queue()
+        
+        self.lock = SharedSingletonLock().get_lock 
+        
+        self.figure_num = mp.Value('i', int(FigureNum.getFigureNum()))
+        print(f'Mplot3d: starting the process on figure: {self.figure_num}')
+        
+        args=(self.figure_num, self.queue, self.lock, self.key, self.is_running, self.key_queue,)        
+        self.process = mp.Process(target=self.run, args=args)
+        #self.process.daemon = kSetDaemon  
+        self.process.start()
 
     def quit(self):
         print(f'Mplot3d \"{self.title}\" closing...')
         self.is_running.value = 0
-        self.vp.join(timeout=5)     
-        if self.vp.is_alive():
+        self.process.join(timeout=5)     
+        if self.process.is_alive():
             print("Warning: Mplot3d \"{self.title}\" process did not terminate in time, forced kill.")          
-        self.vp.terminate()        
+        self.process.terminate()        
         
-    def drawer_run(self, figure_num, queue, lock, key, is_running, key_queue):  
+    def run(self, figure_num, queue, lock, key, is_running, key_queue):  
+        if kVerbose:
+            print('Mplot3d: starting run on figure ', figure_num.value)        
         self.key_queue_thread = key_queue          
-        self.init(figure_num, lock) 
+        self.init(figure_num.value, lock) 
         while is_running.value == 1:
             self.drawer_refresh(queue, lock)   
             if kUseFigCanvasDrawIdle:               
-                time.sleep(kPlotSleep)    
+                time.sleep(kPlotSleep)
+        empty_queue(queue)  # empty the queue before exiting  
         print(mp.current_process().name,f" - Mplot3d \'{self.title}\': closing fig ", self.fig)  
         plt.close(self.fig)                                 
 
@@ -387,7 +437,3 @@ class Mplot3d:
         if kUsePlotPause:     
             plt.pause(kPlotSleep)      
         lock.release()
-
-    # fake 
-    def refresh(self):
-        pass         

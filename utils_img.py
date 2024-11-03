@@ -25,6 +25,7 @@ import math
 from utils_geom import add_ones, homography_matrix
 from utils_draw import draw_random_img
 from utils_sys import Printer
+from utils_data import SingletonMeta
 
 
 # combine two images horizontally
@@ -77,6 +78,35 @@ def img_mask_blocks(img, mask, row_divs, col_divs):
             yield img[y1:y2, x1:x2], mask_block(mask,x1,x2,y1,y2), y1, x1    # return block, row, col            
 
   
+# Pad an image
+def pad_img(img: np.ndarray, padding:int, color:tuple=(0, 0, 0)) -> np.ndarray:
+    """
+        Pad an image with 'padding' along each side (height and width)
+        and fill the padding with 'color'.
+        
+        Parameters:
+        - img:  Image of shape [H, W, C=3] with channels as RGB (same
+                as the 'color' channels)
+        - padding:      Padding 'P' (int) for each dimension (applied 
+                        on both ends of axis)
+        - color:    The RGB color of the padding
+        
+        Returns:
+        - _img:     Image of shape [H+2P, W+2P, C=3]
+    """
+    if type(color) == list:
+        color = tuple(color)
+    assert len(color) == 3, "Color should be (R, G, B) value"
+    color = np.array(color)
+    # ret_img = np.pad(img, [(padding, padding), (padding, padding), 
+    #             (0, 0)], constant_values=[(color, color), 
+    #                         (color, color), (0, 0)])
+    ret_img = np.ones((img.shape[0] + 2*padding, 
+                img.shape[1] + 2*padding, 3), np.uint8) * color
+    ret_img[padding:-padding, padding:-padding] = img
+    return ret_img.astype(img.dtype)
+
+
 # create a generator over an image to produce a pyramid of images in the scale space by using the input scale factor 
 # N.B: check the newer Pyramid class in pyramid.py! 
 def pyramid(image, scale=1.2, minSize=(30, 30), gauss_filter=True, sigma0=1.0):
@@ -263,7 +293,7 @@ def remove_borders(image, borders):
 
 
 # keep the same shape (same channels) of input image
-def get_dark_gray_image(img, dark_factor = 0.3):
+def get_dark_gray_image(img, dark_factor = 0.4):
     res = None
     if img.ndim == 3:
         gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -299,7 +329,8 @@ def float_to_color_array(values, colormap=cv2.COLORMAP_AUTUMN):
 
 def float_to_color(value, colormap=cv2.COLORMAP_AUTUMN):
     if not 0 <= value <= 1:
-        print(f"[float_to_color]: The input value {value} was expected to be between 0 and 1.")
+        if value > 1.0001:
+            print(f"[float_to_color]: The input value {value} was expected to be between 0 and 1.")
         value = max(0.0, min(value, 1.0))
     # Convert the float value to a 1x1 grayscale image (in range [0, 255])
     gray_value = np.uint8(value * 255)
@@ -310,26 +341,42 @@ def float_to_color(value, colormap=cv2.COLORMAP_AUTUMN):
     color = tuple(int(c) for c in colored_image[0, 0])
     return color
 
-
+    
+class ImgWriter:
+    kFont = cv2.FONT_HERSHEY_SIMPLEX
+    kFontScale = 0.7
+    kFontColor = (255, 255, 255)
+    kBgColor = (0.2, 0.2, 0.2)
+    kFontThickness = 1
+    kFontLineType = cv2.LINE_AA
+    def __init__(self, font_scale=kFontScale, font_color=kFontColor, font_thickness=kFontThickness, font_line_type=kFontLineType):
+        self.font_scale = font_scale
+        self.font_color = font_color
+        self.font_thickness = font_thickness
+        self.font_thickness_bg = font_thickness+1
+        self.font_line_type = font_line_type
+        
+    def write(self, img, text, pos):
+        cv2.putText(img, text, pos, self.kFont, self.font_scale, \
+                    ImgWriter.kBgColor, self.font_thickness_bg, self.font_line_type)          
+        cv2.putText(img, text, pos, self.kFont, self.font_scale, \
+                    self.font_color, self.font_thickness, self.font_line_type)
+      
 
 # visualize loop closure candidates in a single image 
-class LoopDetectionCandidateImgs:
-    kFont = cv2.FONT_HERSHEY_SIMPLEX
-    kFontScale = 1
-    kFontColor = (255, 255, 255)  
-    kFontThickness = 2
+class LoopCandidateImgs:
     def __init__(self):
         self.candidates = None
         self.map_color = {}
         self.current_count = 0
         self.max_count = 0
         self.img_size = None
+        self.img_writer = ImgWriter()
         
     def add(self, img_loop, img_id, score=None):
         font_pos = (50, 50)   
-        text = f'id: {img_id}' if score is None else f'id: {img_id}, s: {score:.2f}'                
-        cv2.putText(img_loop, text, font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
-                    LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)              
+        text = f'id: {img_id}' if score is None else f'id: {img_id}, s: {score:.2f}'                  
+        self.img_writer.write(img_loop, text, font_pos)           
         if img_loop is not None:                 
             self.img_size = img_loop.shape
             img_rows = self.img_size[0]               

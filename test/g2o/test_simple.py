@@ -25,3 +25,7 @@ print('position', position)
 print('orientation2*position', orientation2*position)
 
 
+rotation2= np.eye(3).reshape(3,3)
+position2= np.zeros((3,1)).ravel()
+sim3 = g2o.Sim3(np.eye(3), position2, 1)
+print(f'sim3: R', sim3.rotation().matrix(), ' t', sim3.translation(), ' s', sim3.scale())

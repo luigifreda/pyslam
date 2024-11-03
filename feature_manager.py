@@ -104,7 +104,7 @@ def feature_manager_factory(num_features=kNumFeatureDefault,
 
 # Manager of both detector and descriptor 
 # This exposes an interface that is similar to OpenCV::Feature2D, i.e. detect(), compute() and detectAndCompute()
-class FeatureManager(object):
+class FeatureManager:
     def __init__(self, num_features=kNumFeatureDefault, 
                        num_levels = kNumLevelsDefault,                         # number of pyramid levels or octaves for detector and descriptor
                        scale_factor = kScaleFactorDefault,                     # detection scale factor (if it can be set, otherwise it is automatically computed)
@@ -769,12 +769,14 @@ class FeatureManager(object):
             self.descriptor_distances = l2_distances         
             
          # get and set reference max descriptor distance      
-        try: 
-            Parameters.kMaxDescriptorDistance = FeatureInfo.max_descriptor_distance[self.descriptor_type]
+        try:
+            self.max_descriptor_distance = FeatureInfo.max_descriptor_distance[self.descriptor_type]
+            # Initialze the global max descriptor distance if it was not initialized
+            if Parameters.kMaxDescriptorDistance == 0:
+                Parameters.kMaxDescriptorDistance = FeatureInfo.max_descriptor_distance[self.descriptor_type]
         except: 
             Printer.red('You did not set the reference max descriptor distance for: ', self.descriptor_type.name)                                                         
-            raise ValueError("Unmanaged max descriptor distance for feature descriptor %s" % self.descriptor_type.name)                
-        Parameters.kMaxDescriptorDistanceSearchEpipolar = Parameters.kMaxDescriptorDistance                    
+            raise ValueError("Unmanaged max descriptor distance for feature descriptor %s" % self.descriptor_type.name)              
                 
         # --------------------------------------------- #
         # other required initializations  

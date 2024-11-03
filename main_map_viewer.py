@@ -64,23 +64,23 @@ if __name__ == "__main__":
     config = Config()
 
     cam = PinholeCamera(config)
-    tracker_config = FeatureTrackerConfigs.TEST    
-    feature_tracker = feature_tracker_factory(**tracker_config)
+    feature_tracker_config = FeatureTrackerConfigs.TEST
     
     # create SLAM object 
-    slam = Slam(cam, feature_tracker)
+    slam = Slam(cam, feature_tracker_config)
     time.sleep(1) # to show initial messages 
-    
-    viewer3D = Viewer3D()
 
     slam.load_map(args.filename)
+    viewer_scale = slam.viewer_scale() if slam.viewer_scale()>0 else 0.1  # 0.1 is the default viewer scale
+    print(f'viewer_scale: {viewer_scale}')
+        
+    viewer3D = Viewer3D(viewer_scale)
             
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
     while True:            
         # 3D display (map display)
         if viewer3D is not None:
             viewer3D.draw_map(slam)   
-            
-                   
+                
     slam.quit()
     

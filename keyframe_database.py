@@ -8,7 +8,7 @@ class KeyFrameDatabaseDBow(object):
     def __init__(self, voc=None):
         self.voc = voc
         self.inverted_file = defaultdict(list[KeyFrame])  # Similar to mvInvertedFile
-        self.mutex = Lock()  # To replicate the unique_lock behavior
+        self.mutex = Lock() 
 
     def add(self, keyframe):
         with self.mutex:  # Locking for thread safety

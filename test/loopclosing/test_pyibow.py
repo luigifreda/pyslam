@@ -7,7 +7,7 @@ config = Config()
 
 from utils_files import gdrive_download_lambda 
 from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopDetectionCandidateImgs
+from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs
 from utils_features import transform_float_to_binary_descriptor
 
 import math
@@ -27,7 +27,7 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/../..'
 kDataFolder = kRootFolder + '/data'
-kVocabFile = kDataFolder + '/ORBvoc.txt'
+kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
 
 
 kMinDeltaFrameForMeaningfulLoopClosure = 10
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     lc_detector = ibow.LCDetector(lc_detector_parameters)
     
     # to nicely visualize current loop candidates in a single image
-    loop_closure_imgs = LoopDetectionCandidateImgs()
+    loop_closure_imgs = LoopCandidateImgs()
     
     # init the similarity matrix
     S_float = np.empty([dataset.num_frames, dataset.num_frames], 'float32')
@@ -110,8 +110,8 @@ if __name__ == '__main__':
                 print('No status information')
         
             font_pos = (50, 50)                   
-            cv2.putText(img, f'id: {img_id}', font_pos, LoopDetectionCandidateImgs.kFont, LoopDetectionCandidateImgs.kFontScale, \
-                        LoopDetectionCandidateImgs.kFontColor, LoopDetectionCandidateImgs.kFontThickness, cv2.LINE_AA)     
+            cv2.putText(img, f'id: {img_id}', font_pos, LoopCandidateImgs.kFont, LoopCandidateImgs.kFontScale, \
+                        LoopCandidateImgs.kFontColor, LoopCandidateImgs.kFontThickness, cv2.LINE_AA)     
             cv2.imshow('img', img)
             
             cv2.imshow('S', S_color)            

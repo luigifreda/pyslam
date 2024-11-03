@@ -103,10 +103,10 @@ class FeatureDescriptorTypes(Enum):
 
 class FeatureInfo(object): 
     norm_type = dict() 
-    max_descriptor_distance = dict()   # initial reference max descriptor distances used by SLAM for locally searching matches around frame keypoints; 
-                                       # these are initialized and then updated by using standard deviation robust estimation (MAD) and exponential smoothing 
-                                       # N.B.: these intial reference distances can be easily estimated by using main_feature_matching.py 
-                                       #       where (3 x sigma_mad) is computed 
+    max_descriptor_distance = dict()   # Reference max descriptor distances used by SLAM for locally searching matches around frame keypoints. 
+                                       # These reference distances are used as initial values at init time and are then online updated by using standard deviation robust estimation (MAD) and exponential smoothing. 
+                                       # N.B.: These reference distances can be easily estimated by using main_feature_matching.py: 
+                                       #       Use as reference max descriptor distance the computed (3 x sigma_mad).  
     # 
     norm_type[FeatureDescriptorTypes.NONE] = cv2.NORM_L2
     max_descriptor_distance[FeatureDescriptorTypes.NONE] = float('inf')            

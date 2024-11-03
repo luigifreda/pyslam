@@ -17,17 +17,29 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native -fPIC -DNDEBUG"
 
 
 set(HDRS_DBOW2
+  DBoW2/DBoW2.h
   DBoW2/BowVector.h
   DBoW2/FORB.h
   DBoW2/FClass.h
+  DBoW2/FSurf64.h
+  DBoW2/FBrief.h
   DBoW2/FeatureVector.h
   DBoW2/ScoringObject.h
-  DBoW2/TemplatedVocabulary.h)
+  DBoW2/TemplatedVocabulary.h
+  DBoW2/TemplatedDatabase.h  
+  DBoW2/QueryResults.h
+  DBoW2/KeyFrameOrbDatabase.h
+)
 set(SRCS_DBOW2
   DBoW2/BowVector.cpp
   DBoW2/FORB.cpp
+  DBoW2/FSurf64.cpp
+  DBoW2/FBrief.cpp
   DBoW2/FeatureVector.cpp
-  DBoW2/ScoringObject.cpp)
+  DBoW2/ScoringObject.cpp
+  DBoW2/QueryResults.cpp  
+  DBoW2/KeyFrameOrbDatabase.cpp
+)
 
 set(HDRS_DUTILS
   DUtils/Random.h

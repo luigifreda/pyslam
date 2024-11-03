@@ -57,8 +57,8 @@ KITTI_DATASET:
   name: '06'
   settings: settings/KITTI04-12.yaml # do not forget to set the corresponding camera settings file 
   #
-  #name: '00'
-  #settings: settings/KITTI00-02.yaml # do not forget to set the corresponding camera settings file 
+  # name: '00'
+  # settings: settings/KITTI00-02.yaml # do not forget to set the corresponding camera settings file 
   #
   is_color: True # do you have the color images for the kitti dataset? (image2 and image3 folders)
   groundtruth_file: auto
@@ -69,14 +69,14 @@ TUM_DATASET:
   sensor_type: rgbd # here, sensor_type can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
-  # name: rgbd_dataset_freiburg3_long_office_household
-  # settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file    
+  #name: rgbd_dataset_freiburg3_long_office_household
+  #settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file    
   #
-  name: rgbd_dataset_freiburg1_xyz 
-  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file
+  #name: rgbd_dataset_freiburg1_xyz 
+  #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file
   #
-  # name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations
-  # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
+  name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
+  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto

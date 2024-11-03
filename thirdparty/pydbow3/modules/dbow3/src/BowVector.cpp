@@ -19,15 +19,27 @@ namespace DBoW3 {
 
 // --------------------------------------------------------------------------
 
-BowVector::BowVector(void)
+// BowVector::BowVector(void)
+// {
+// }
+
+// --------------------------------------------------------------------------
+
+BowVector::BowVector(const std::vector<std::pair<WordId, WordValue>> &vec)
 {
+  for(auto& ww:vec) insert(ww);  
+}
+
+BowVector::BowVector(const std::vector<WordValue> &vec)
+{
+  for(size_t i=0;i<vec.size();i++) insert(std::make_pair(i,vec[i]));
 }
 
 // --------------------------------------------------------------------------
 
-BowVector::~BowVector(void)
-{
-}
+// BowVector::~BowVector(void)
+// {
+// }
 
 // --------------------------------------------------------------------------
 
@@ -147,6 +159,20 @@ std::vector<std::pair<WordId, WordValue>> BowVector::toVec() const
     result[i] = std::pair<WordId, WordValue>(vit->first, vit->second);
   }
   return result;
+}
+
+// --------------------------------------------------------------------------
+
+void BowVector::fromVec(const std::vector<std::pair<WordId, WordValue>> &vec)
+{
+  clear();
+  for(auto& ww:vec) insert(ww);
+}
+
+void BowVector::fromVecValues(const std::vector<WordValue> &vec)
+{
+  clear();
+  for(size_t i=0;i<vec.size();i++) insert(std::make_pair(i,vec[i]));
 }
 
 // --------------------------------------------------------------------------

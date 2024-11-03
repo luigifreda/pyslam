@@ -22,14 +22,17 @@ import config
 import time
 import math 
 import multiprocessing as mp 
-from multiprocessing import Process, Queue, Value
+
 import pypangolin as pangolin
 import OpenGL.GL as gl
 import numpy as np
 
+from slam import Slam
+from map import Map
+
 from utils_geom import inv_T, align_trajs_with_svd
 from utils_sys import Printer
-
+from utils_data import empty_queue
 
 kUiWidth = 180
 kDefaultPointSize = 2
@@ -41,11 +44,15 @@ kDrawReferenceCamera = True
 kMinWeightForDrawingCovisibilityEdge=100
 
 kAlignGroundTruthEveryNKeyframes = 10
+kAlignGroundTruthEveryNFrames = 30
 
 kRefreshDurationTime = 0.03 # [s]
 
+
+
 class Viewer3DMapElement(object): 
     def __init__(self):
+        self.cur_frame_id = None
         self.cur_pose = None
         self.cur_pose_timestamp = None
         self.predicted_pose = None 
@@ -74,20 +81,28 @@ class Viewer3D(object):
     def __init__(self, scale=0.1):
         self.scale = scale
         self.map_state = None
+        self.vo_state = None
+                
         self.gt_trajectory = None
         self.gt_timestamps = None
         self.align_gt_with_scale = False
         self.estimated_trajectory = None
         self.estimated_trajectory_timestamps = None
-        self.qmap = Queue()
-        self.vo_state = None
-        self.qvo = Queue()        
-        self._is_running  = Value('i',1)
-        self._is_paused = Value('i',0)
-        self._is_map_save = Value('i',0)
-        self._do_step = Value('i',0)
-        self._is_gt_set = Value('i',0)
-        self.vp = Process(target=self.viewer_run,
+
+        # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing  
+        # self.manager = mp.Manager()
+        # self.qmap = self.manager.Queue()        
+        # self.qvo = self.manager.Queue()        
+
+        self.qmap = mp.Queue()
+        self.qvo = mp.Queue()
+                
+        self._is_running  = mp.Value('i',1)
+        self._is_paused = mp.Value('i',0)
+        self._is_map_save = mp.Value('i',0)
+        self._do_step = mp.Value('i',0)
+        self._is_gt_set = mp.Value('i',0)
+        self.vp = mp.Process(target=self.viewer_run,
                           args=(self.qmap, self.qvo,self._is_running,self._is_paused,self._is_map_save, self._do_step, self._is_gt_set))
         self.vp.daemon = True
         self.vp.start()
@@ -130,12 +145,17 @@ class Viewer3D(object):
         self.thread_align_gt_with_scale = False
         self.thread_gt_aligned = False
         self.thread_last_num_poses_gt_was_aligned = 0
+        self.thread_last_frame_id_gt_was_aligned = 0
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
             self.viewer_refresh(qmap, qvo, is_paused, is_map_save, do_step, is_gt_set)
             sleep = (time.time() - ts) - kRefreshDurationTime         
             if sleep > 0:
-                time.sleep(sleep)                        
+                time.sleep(sleep)     
+                
+        empty_queue(qmap)  # empty the queue before exiting
+        empty_queue(qvo)   # empty the queue before exiting
+                                                       
         print('Viewer3D: loop exit...')    
 
     def viewer_init(self, w, h):
@@ -175,8 +195,9 @@ class Viewer3D(object):
         self.checkboxFollow = pangolin.VarBool('ui.Follow', value=True, toggle=True)
         self.checkboxCams = pangolin.VarBool('ui.Draw Cameras', value=True, toggle=True)
         self.checkboxCovisibility = pangolin.VarBool('ui.Draw Covisibility', value=True, toggle=True)  
-        self.checkboxSpanningTree = pangolin.VarBool('ui.Draw Tree', value=True, toggle=True)       
-        self.checkboxGT = pangolin.VarBool('ui.Draw GT', value=False, toggle=True)    
+        self.checkboxSpanningTree = pangolin.VarBool('ui.Draw Tree', value=True, toggle=True)    
+        self.checkboxLoops = pangolin.VarBool('ui.Draw Loops', value=True, toggle=True)           
+        self.checkboxGT = pangolin.VarBool('ui.Draw Ground Truth', value=False, toggle=True)    
         self.checkboxPredicted = pangolin.VarBool('ui.Draw Predicted', value=False, toggle=True)                       
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
         self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
@@ -209,6 +230,7 @@ class Viewer3D(object):
         self.draw_cameras = self.checkboxCams.Get()
         self.draw_covisibility = self.checkboxCovisibility.Get()
         self.draw_spanning_tree = self.checkboxSpanningTree.Get()
+        self.draw_loops = self.checkboxLoops.Get()
         self.draw_gt = self.checkboxGT.Get()
         self.draw_predicted = self.checkboxPredicted.Get()
         
@@ -276,11 +298,17 @@ class Viewer3D(object):
                 if self.draw_gt:                
                     # align the gt to the estimated trajectory every 'kAlignGroundTruthEveryNKeyframes' frames;
                     # the more estimated frames we have the better the alignment! 
-                    if len(self.map_state.poses) > kAlignGroundTruthEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned:
-                        estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=np.float32)
-                        align_trajs_with_svd(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, align_gt=True, compute_align_error=False, find_scale=self.thread_align_gt_with_scale)
-                        self.thread_gt_aligned = True
-                        self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)
+                    condition1 = len(self.map_state.poses) > kAlignGroundTruthEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned
+                    condition2 = self.map_state.cur_frame_id > kAlignGroundTruthEveryNFrames + self.thread_last_frame_id_gt_was_aligned  # this is useful when we are not generating new kfs
+                    if condition1 or condition2:
+                        try:
+                            estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=np.float32)
+                            align_trajs_with_svd(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, align_gt=True, compute_align_error=False, find_scale=self.thread_align_gt_with_scale)
+                            self.thread_gt_aligned = True
+                            self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)
+                            self.thread_last_frame_id_gt_was_aligned = self.map_state.cur_frame_id
+                        except Exception as e:
+                            print(f'Viewer3D: viewer_refresh - align_gt_with_svd failed: {e}')
                     if self.thread_gt_aligned:
                         gt_lines = [[*self.thread_gt_trajectory[i], *self.thread_gt_trajectory[i+1]] for i in range(len(self.thread_gt_trajectory)-1)]
                         gl.glLineWidth(1)
@@ -319,7 +347,7 @@ class Viewer3D(object):
                     pangolin.DrawLines(self.map_state.spanning_tree,3)              
                     
             if len(self.map_state.loops)>0:
-                if self.draw_spanning_tree:
+                if self.draw_loops:
                     gl.glLineWidth(2)
                     gl.glColor3f(0.5, 0.0, 0.5)
                     pangolin.DrawLines(self.map_state.loops,3)        
@@ -357,11 +385,13 @@ class Viewer3D(object):
         pangolin.FinishFrame()
 
 
-    def draw_map(self, slam):
+    def draw_map(self, slam: Slam):
         if self.qmap is None:
             return
-        map = slam.map 
-        map_state = Viewer3DMapElement()        
+        map = slam.map                     # type: Map
+        map_state = Viewer3DMapElement()    
+        
+        map_state.cur_frame_id = slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
         
         if map.num_frames() > 0: 
             map_state.cur_pose = map.get_frame(-1).Twc.copy()

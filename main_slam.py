@@ -43,19 +43,151 @@ if platform.system()  == 'Linux':
 
 from viewer3D import Viewer3D
 from utils_sys import getchar, Printer 
+from utils_img import ImgWriter
 
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
+from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory
+
 from parameters import Parameters  
-import multiprocessing as mp 
 
 from rerun_interface import Rerun
 
+import traceback
 
+
+class SlamPlotDrawer:
+    def __init__(self, slam):
+        self.slam = slam
+        
+        self.matched_points_plt = None
+        self.info_3dpoints_plt = None
+        self.chi2_error_plt = None
+        self.timing_plt = None
+        
+        # To disable one of them just set it to None
+        self.matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')  
+        #self.info_3dpoints_plt = Mplot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
+        self.chi2_error_plt = Mplot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
+        self.timing_plt = Mplot2d(xlabel='img id', ylabel='s',title='timing')        
+        
+        self.last_processed_kf_img_id = -1
+        
+    def quit(self):
+        if self.matched_points_plt is not None:
+            self.matched_points_plt.quit()
+        if self.info_3dpoints_plt is not None:
+            self.info_3dpoints_plt.quit()    
+        if self.chi2_error_plt is not None:
+            self.chi2_error_plt.quit()
+        if self.timing_plt is not None:
+            self.timing_plt.quit()            
+            
+    def get_key(self):
+        key = self.matched_points_plt.get_key() if self.matched_points_plt is not None else None
+        if key == '' or key is None:
+            key = self.info_3dpoints_plt.get_key() if self.info_3dpoints_plt is not None else None
+        if key == '' or key is None:
+            key = self.chi2_error_plt.get_key() if self.chi2_error_plt is not None else None
+        if key == '' or key is None:
+            key = self.timing_plt.get_key() if self.timing_plt is not None else None
+        return key      
+
+    def draw(self, img_id):
+        try:
+            # draw matching info
+            if self.matched_points_plt is not None: 
+                if self.slam.tracking.num_matched_kps is not None: 
+                    matched_kps_signal = [img_id, self.slam.tracking.num_matched_kps]     
+                    self.matched_points_plt.draw(matched_kps_signal,'# keypoint matches',color='r')                         
+                if self.slam.tracking.num_inliers is not None: 
+                    inliers_signal = [img_id, self.slam.tracking.num_inliers]                    
+                    self.matched_points_plt.draw(inliers_signal,'# inliers',color='g')
+                if self.slam.tracking.num_matched_map_points is not None: 
+                    valid_matched_map_points_signal = [img_id, self.slam.tracking.num_matched_map_points]   # valid matched map points (in current pose optimization)                                       
+                    self.matched_points_plt.draw(valid_matched_map_points_signal,'# matched map pts', color='b')  
+                if self.slam.tracking.num_kf_ref_tracked_points is not None: 
+                    kf_ref_tracked_points_signal = [img_id, self.slam.tracking.num_kf_ref_tracked_points]                    
+                    self.matched_points_plt.draw(kf_ref_tracked_points_signal,'# $KF_{ref}$  tracked pts',color='c')   
+                if self.slam.tracking.descriptor_distance_sigma is not None: 
+                    descriptor_sigma_signal = [img_id, self.slam.tracking.descriptor_distance_sigma]                    
+                    self.matched_points_plt.draw(descriptor_sigma_signal,'descriptor distance $\sigma_{th}$',color='k')                                                                  
+                
+            # draw info about 3D points management by local mapping 
+            if self.info_3dpoints_plt is not None:
+                if self.slam.local_mapping.last_processed_kf_img_id is not None and self.last_processed_kf_img_id != self.slam.local_mapping.last_processed_kf_img_id:
+                    self.last_processed_kf_img_id = self.slam.local_mapping.last_processed_kf_img_id
+                    print(f'last_processed_kf_img_id: {self.last_processed_kf_img_id}')                             
+                    if self.slam.local_mapping.last_num_triangulated_points is not None:
+                        num_triangulated_points_signal = [img_id, self.slam.local_mapping.last_num_triangulated_points]     
+                        self.info_3dpoints_plt.draw(num_triangulated_points_signal,'# temporal triangulated pts',color='r') 
+                    if self.slam.local_mapping.last_num_fused_points is not None:
+                        num_fused_points_signal = [img_id, self.slam.local_mapping.last_num_fused_points]
+                        self.info_3dpoints_plt.draw(num_fused_points_signal,'# fused pts',color='g')
+                    if self.slam.local_mapping.last_num_culled_keyframes is not None:
+                        num_culled_keyframes_signal = [img_id, self.slam.local_mapping.last_num_culled_keyframes]
+                        self.info_3dpoints_plt.draw(num_culled_keyframes_signal,'# culled keyframes',color='b')
+                    if self.slam.local_mapping.last_num_culled_points is not None:
+                        num_culled_points_signal = [img_id, self.slam.local_mapping.last_num_culled_points]
+                        self.info_3dpoints_plt.draw(num_culled_points_signal,'# culled pts',color='c')
+                    if self.slam.tracking.last_num_static_stereo_map_points is not None: 
+                        num_static_stereo_map_points_signal = [img_id, self.slam.tracking.last_num_static_stereo_map_points]
+                        self.info_3dpoints_plt.draw(num_static_stereo_map_points_signal,'# static triangulated pts',color='k') 
+                
+            if self.chi2_error_plt is not None:
+                if self.slam.tracking.mean_pose_opt_chi2_error is not None:
+                    mean_pose_opt_chi2_error_signal = [img_id, self.slam.tracking.mean_pose_opt_chi2_error]
+                    self.chi2_error_plt.draw(mean_pose_opt_chi2_error_signal,'pose opt chi2 error',color='r')
+                if self.slam.local_mapping.mean_ba_chi2_error is not None:
+                    mean_squared_reproj_error_signal = [img_id, self.slam.local_mapping.mean_ba_chi2_error]
+                    self.chi2_error_plt.draw(mean_squared_reproj_error_signal,'LBA chi2 error',color='g')
+                if self.slam.loop_closing is not None: 
+                    if self.slam.loop_closing.mean_graph_chi2_error is not None:
+                        mean_graph_chi2_error_signal = [img_id, self.slam.loop_closing.mean_graph_chi2_error]
+                        self.chi2_error_plt.draw(mean_graph_chi2_error_signal,'graph chi2 error',color='b')
+                    if self.slam.GBA.mean_squared_error.value >0:
+                        mean_BA_chi2_error_signal = [img_id, self.slam.GBA.mean_squared_error.value]
+                        self.chi2_error_plt.draw(mean_BA_chi2_error_signal,'GBA chi2 error',color='k')
+                                        
+            if self.timing_plt is not None:
+                if self.slam.tracking.time_track is not None:
+                    time_track_signal = [img_id, self.slam.tracking.time_track]
+                    self.timing_plt.draw(time_track_signal,'tracking',color='r')
+                if self.slam.local_mapping.time_local_mapping is not None:
+                    time_local_mapping_signal = [img_id, self.slam.local_mapping.time_local_mapping]
+                    self.timing_plt.draw(time_local_mapping_signal,'local mapping',color='g')  
+                if self.slam.local_mapping.time_local_opt.last_elapsed:
+                    time_LBA_signal = [img_id, self.slam.local_mapping.time_local_opt.last_elapsed]
+                    self.timing_plt.draw(time_LBA_signal,'LBA',color='b')
+                if self.slam.local_mapping.timer_triangulation.last_elapsed:
+                    time_local_mapping_triangulation_signal = [img_id, self.slam.local_mapping.timer_triangulation.last_elapsed]
+                    self.timing_plt.draw(time_local_mapping_triangulation_signal,'local mapping triangulation',color='k')
+                if self.slam.local_mapping.timer_pts_culling.last_elapsed:
+                    time_local_mapping_pts_culling_signal = [img_id, self.slam.local_mapping.timer_pts_culling.last_elapsed]
+                    self.timing_plt.draw(time_local_mapping_pts_culling_signal,'local mapping pts culling',color='c')
+                if self.slam.local_mapping.timer_kf_culling.last_elapsed:
+                    time_local_mapping_kf_culling_signal = [img_id, self.slam.local_mapping.timer_kf_culling.last_elapsed]
+                    self.timing_plt.draw(time_local_mapping_kf_culling_signal,'local mapping kf culling',color='m')
+                if self.slam.local_mapping.timer_pts_fusion.last_elapsed:
+                    time_local_mapping_pts_fusion_signal = [img_id, self.slam.local_mapping.timer_pts_fusion.last_elapsed]
+                    self.timing_plt.draw(time_local_mapping_pts_fusion_signal,'local mapping pts fusion',color='y')
+                if self.slam.loop_closing is not None:
+                    if self.slam.loop_closing.timer.last_elapsed:
+                        time_loop_closing_signal = [img_id, self.slam.loop_closing.timer.last_elapsed]
+                        self.timing_plt.draw(time_loop_closing_signal,'loop closing',color=mcolors.CSS4_COLORS['darkgoldenrod'], marker='+')
+                    if self.slam.loop_closing.time_loop_detection.value:
+                        time_loop_detection_signal = [img_id, self.slam.loop_closing.time_loop_detection.value]
+                        self.timing_plt.draw(time_loop_detection_signal,'loop detection',color=mcolors.CSS4_COLORS['slategrey'], marker='+')
+                
+        except Exception as e:
+            Printer.red(f'SlamPlotDrawer: draw: encountered exception: {e}')
+            traceback_details = traceback.format_exc()
+            print(f'\t traceback details: {traceback_details}')
+    
 
 if __name__ == "__main__":
-
+                               
     config = Config()
 
     dataset = dataset_factory(config)
@@ -73,21 +205,21 @@ if __name__ == "__main__":
     if config.num_features_to_extract > 0:  # override the number of features to extract if we set something in the settings file
         num_features = config.num_features_to_extract
 
-    tracker_type = FeatureTrackerTypes.DES_BF      # descriptor-based, brute force matching with knn 
-    #tracker_type = FeatureTrackerTypes.DES_FLANN  # descriptor-based, FLANN-based matching 
-
-    # select your tracker configuration (see the file feature_tracker_configs.py) 
+    # Select your tracker configuration (see the file feature_tracker_configs.py) 
     # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
-    # WARNING: At present, SLAM does not support LOFTR and other "pure" image matchers (further details in the commenting notes of LOFTR in feature_tracker_configs.py).
-    tracker_config = FeatureTrackerConfigs.ORB2
-    tracker_config['num_features'] = num_features
-    tracker_config['tracker_type'] = tracker_type
+    # WARNING: At present, SLAM does not support LOFTR and other "pure" image matchers (further details in the commenting notes about LOFTR in feature_tracker_configs.py).
+    feature_tracker_config = FeatureTrackerConfigs.ORB2
+    feature_tracker_config['num_features'] = num_features
+    Printer.green('feature_tracker_config: ',feature_tracker_config)    
     
-    print('tracker_config: ',tracker_config)    
-    feature_tracker = feature_tracker_factory(**tracker_config)
-    
+    # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
+    # LoopDetectorConfigs: DBOW2, DBOW3, etc.
+    loop_detection_config = LoopDetectorConfigs.DBOW3   
+    Printer.green('loop_detection_config: ',loop_detection_config)
+        
     # create SLAM object 
-    slam = Slam(cam, feature_tracker, dataset.sensorType(), groundtruth=None) # groundtruth not actually used by Slam class
+    slam = Slam(cam, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None) # groundtruth not actually used by Slam class
+    slam.set_viewer_scale(dataset.scale_viewer_3d)
     time.sleep(1) # to show initial messages 
     
     viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
@@ -100,10 +232,9 @@ if __name__ == "__main__":
     else: 
         display2d = None  # enable this if you want to use opencv window
 
-    matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')  
-    info_3dpoints_plt = None #Mplot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
-    reproj_error_plt = Mplot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
-    timing_plt = Mplot2d(xlabel='img id', ylabel='s',title='timing')
+    plot_drawer = SlamPlotDrawer(slam)
+    
+    img_writer = ImgWriter(font_scale=0.7)
 
     do_step = False      # proceed step by step on GUI  
     is_paused = False    # pause/resume on GUI 
@@ -112,7 +243,6 @@ if __name__ == "__main__":
     key_cv = None
             
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
-    last_processed_kf_img_id = -1
     while dataset.isOk():
             
         if do_step:
@@ -143,92 +273,16 @@ if __name__ == "__main__":
                     viewer3D.draw_map(slam)
 
                 img_draw = slam.map.draw_feature_trails(img)
+                img_writer.write(img_draw, f'id: {img_id}', (30, 30))
+                
                 # 2D display (image display)
                 if display2d is not None:
                     display2d.draw(img_draw)
                 else: 
                     cv2.imshow('Camera', img_draw)
-
-                # draw matching info
-                if matched_points_plt is not None: 
-                    if slam.tracking.num_matched_kps is not None: 
-                        matched_kps_signal = [img_id, slam.tracking.num_matched_kps]     
-                        matched_points_plt.draw(matched_kps_signal,'# keypoint matches',color='r')                         
-                    if slam.tracking.num_inliers is not None: 
-                        inliers_signal = [img_id, slam.tracking.num_inliers]                    
-                        matched_points_plt.draw(inliers_signal,'# inliers',color='g')
-                    if slam.tracking.num_matched_map_points is not None: 
-                        valid_matched_map_points_signal = [img_id, slam.tracking.num_matched_map_points]   # valid matched map points (in current pose optimization)                                       
-                        matched_points_plt.draw(valid_matched_map_points_signal,'# matched map pts', color='b')  
-                    if slam.tracking.num_kf_ref_tracked_points is not None: 
-                        kf_ref_tracked_points_signal = [img_id, slam.tracking.num_kf_ref_tracked_points]                    
-                        matched_points_plt.draw(kf_ref_tracked_points_signal,'# $KF_{ref}$  tracked pts',color='c')   
-                    if slam.tracking.descriptor_distance_sigma is not None: 
-                        descriptor_sigma_signal = [img_id, slam.tracking.descriptor_distance_sigma]                    
-                        matched_points_plt.draw(descriptor_sigma_signal,'descriptor distance $\sigma_{th}$',color='k')                                                                 
-                    matched_points_plt.refresh()    
-                    
-                # draw info about 3D points management by local mapping 
-                if info_3dpoints_plt is not None:
-                    print(f'last_processed_kf_img_id: {last_processed_kf_img_id}')
-                    if slam.local_mapping.last_processed_kf_img_id is not None and last_processed_kf_img_id != slam.local_mapping.last_processed_kf_img_id:
-                        if slam.local_mapping.last_num_triangulated_points is not None:
-                            last_processed_kf_img_id = slam.local_mapping.last_processed_kf_img_id 
-                            num_triangulated_points_signal = [img_id, slam.local_mapping.last_num_triangulated_points]     
-                            info_3dpoints_plt.draw(num_triangulated_points_signal,'# temporal triangulated pts',color='r') 
-                        if slam.local_mapping.last_num_fused_points is not None:
-                            num_fused_points_signal = [img_id, slam.local_mapping.last_num_fused_points]
-                            info_3dpoints_plt.draw(num_fused_points_signal,'# fused pts',color='g')
-                        if slam.local_mapping.last_num_culled_keyframes is not None:
-                            num_culled_keyframes_signal = [img_id, slam.local_mapping.last_num_culled_keyframes]
-                            info_3dpoints_plt.draw(num_culled_keyframes_signal,'# culled keyframes',color='b')
-                        if slam.local_mapping.last_num_culled_points is not None:
-                            num_culled_points_signal = [img_id, slam.local_mapping.last_num_culled_points]
-                            info_3dpoints_plt.draw(num_culled_points_signal,'# culled pts',color='c')
-                        if slam.tracking.last_num_static_stereo_map_points is not None: 
-                            num_static_stereo_map_points_signal = [img_id, slam.tracking.last_num_static_stereo_map_points]
-                            info_3dpoints_plt.draw(num_static_stereo_map_points_signal,'# static triangulated pts',color='k') 
-                    info_3dpoints_plt.refresh()   
-                    
-                if reproj_error_plt is not None:
-                    if slam.tracking.mean_pose_opt_chi2_error is not None:
-                        mean_pose_opt_chi2_error_signal = [img_id, slam.tracking.mean_pose_opt_chi2_error]
-                        reproj_error_plt.draw(mean_pose_opt_chi2_error_signal,'pose opt chi2 error',color='r')
-                    if slam.local_mapping.mean_ba_chi2_error is not None:
-                        mean_squared_reproj_error_signal = [img_id, slam.local_mapping.mean_ba_chi2_error]
-                        reproj_error_plt.draw(mean_squared_reproj_error_signal,'BA chi2 error',color='g')
-                    reproj_error_plt.refresh()
-                                            
-                if timing_plt is not None:
-                    if slam.tracking.time_track is not None:
-                        time_track_signal = [img_id, slam.tracking.time_track]
-                        timing_plt.draw(time_track_signal,'tracking',color='r')
-                    if slam.local_mapping.time_local_mapping is not None:
-                        time_local_mapping_signal = [img_id, slam.local_mapping.time_local_mapping]
-                        timing_plt.draw(time_local_mapping_signal,'local mapping',color='g')  
-                    if slam.local_mapping.time_local_opt.last_elapsed:
-                        time_LBA_signal = [img_id, slam.local_mapping.time_local_opt.last_elapsed]
-                        timing_plt.draw(time_LBA_signal,'LBA',color='b')
-                    if slam.local_mapping.timer_triangulation.last_elapsed:
-                        time_local_mapping_triangulation_signal = [img_id, slam.local_mapping.timer_triangulation.last_elapsed]
-                        timing_plt.draw(time_local_mapping_triangulation_signal,'local mapping triangulation',color='k')
-                    if slam.local_mapping.timer_pts_culling.last_elapsed:
-                        time_local_mapping_pts_culling_signal = [img_id, slam.local_mapping.timer_pts_culling.last_elapsed]
-                        timing_plt.draw(time_local_mapping_pts_culling_signal,'local mapping pts culling',color='c')
-                    if slam.local_mapping.timer_kf_culling.last_elapsed:
-                        time_local_mapping_kf_culling_signal = [img_id, slam.local_mapping.timer_kf_culling.last_elapsed]
-                        timing_plt.draw(time_local_mapping_kf_culling_signal,'local mapping kf culling',color='m')
-                    if slam.local_mapping.timer_pts_fusion.last_elapsed:
-                        time_local_mapping_pts_fusion_signal = [img_id, slam.local_mapping.timer_pts_fusion.last_elapsed]
-                        timing_plt.draw(time_local_mapping_pts_fusion_signal,'local mapping pts fusion',color='y')
-                    if slam.loop_closing is not None:
-                        if slam.loop_closing.timer_loop_closing.last_elapsed:
-                            time_loop_closing_signal = [img_id, slam.loop_closing.timer_loop_closing.last_elapsed]
-                            timing_plt.draw(time_loop_closing_signal,'loop closing',color=mcolors.CSS4_COLORS['lightcoral'])
-                        if slam.loop_closing.time_loop_detection.value:
-                            time_loop_detection_signal = [img_id, slam.loop_closing.time_loop_detection.value]
-                            timing_plt.draw(time_loop_detection_signal,'loop detection',color=mcolors.CSS4_COLORS['darkgray'])
-                    timing_plt.refresh()
+                
+                # draw 2d plots
+                plot_drawer.draw(img_id)
                        
             if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                 trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
@@ -243,13 +297,7 @@ if __name__ == "__main__":
             time.sleep(0.1)                                 
         
         # get keys 
-        key = matched_points_plt.get_key() if matched_points_plt is not None else None
-        if key == '' or key is None:
-            key = info_3dpoints_plt.get_key() if info_3dpoints_plt is not None else None
-        if key == '' or key is None:
-            key = reproj_error_plt.get_key() if reproj_error_plt is not None else None
-        if key == '' or key is None:
-            key = timing_plt.get_key() if timing_plt is not None else None
+        key = plot_drawer.get_key()
         if display2d is None:
             key_cv = cv2.waitKey(1) & 0xFF   
             
@@ -275,14 +323,7 @@ if __name__ == "__main__":
                                   
         if key == 'q' or (key_cv == ord('q')):
             slam.quit()
-            if matched_points_plt is not None:
-                matched_points_plt.quit()
-            if info_3dpoints_plt is not None:
-                info_3dpoints_plt.quit()    
-            if reproj_error_plt is not None:
-                reproj_error_plt.quit()
-            if timing_plt is not None:
-                timing_plt.quit()             
+            plot_drawer.quit()         
             if display2d is not None:
                 display2d.quit()
             if viewer3D is not None:
