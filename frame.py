@@ -352,8 +352,8 @@ class Frame(FrameBase):
                 if depth is not None: 
                     self.compute_stereo_from_rgbd(kps_data, depth)
                 if img_right is not None:
-                    self.depths = np.full(len(self.kps), -1)     
-                    self.kps_ur = np.full(len(self.kps), -1)
+                    self.depths = np.full(len(self.kps), -1, dtype=np.float)     
+                    self.kps_ur = np.full(len(self.kps), -1, dtype=np.float)
                     self.compute_stereo_matches(img, img_right)
             
     def to_json(self):
@@ -647,7 +647,7 @@ class Frame(FrameBase):
         matched_kps_r = np.array(self.kps_r[stereo_matching_result.idxs2])         
                           
         # check disparity range
-        disparities =  np.array(matched_kps_l[:,0] - matched_kps_r[:,0]) # assuming keypoints are extracted from rectified images
+        disparities =  np.array(matched_kps_l[:,0] - matched_kps_r[:,0], dtype=np.float64) # assuming keypoints are extracted from rectified images
         good_disparities_mask = np.logical_and(disparities > min_disparity, disparities < max_disparity)
         good_disparities = disparities[good_disparities_mask]
         good_matched_idxs1 = stereo_matching_result.idxs1[good_disparities_mask]
