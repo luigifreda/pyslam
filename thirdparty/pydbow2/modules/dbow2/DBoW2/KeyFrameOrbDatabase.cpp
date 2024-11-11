@@ -102,6 +102,7 @@ void KeyFrameOrbDatabase::erase(const FrameId& id, const BowVector& bowVector)
 
 void KeyFrameOrbDatabase::clear()
 {
+    unique_lock<mutex> lock(mMutex);    
     mvInvertedFile.clear();
     mvInvertedFile.resize(mpVoc->size());
 

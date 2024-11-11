@@ -130,6 +130,11 @@ public:
 		return results;
 	}
 
+	void clear()
+	{
+		database->clear();
+	}
+
 	void save(const std::string &filename) const
 	{
 		database->save(filename);
@@ -229,6 +234,7 @@ PYBIND11_MODULE(pydbow3, m)
 		.def("setVocabulary", &Database::setVocabulary, py::arg("vocabulary"), py::arg("use_di") = false, py::arg("di_levels") = 0)
 		.def("setScoring", &Database::setScoring, py::arg("scoring"))
 		.def("setWeighting", &Database::setWeighting, py::arg("weighting"))
+		.def("clear", &Database::clear)
 		.def("save", &Database::save)
 		.def("load", &Database::load)
 		.def("loadVocabulary", &Database::loadVocabulary, py::arg("filename"), py::arg("use_di") = false, py::arg("di_levels") = 0)

@@ -3,5 +3,6 @@
 
     "extensions": [".jpg", ".png"],
     "filter_out": "image_1",
+    "frame_step": 5,
     "recursive": true
 }

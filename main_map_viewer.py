@@ -51,8 +51,7 @@ from feature_matcher import FeatureMatcherTypes
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
-from parameters import Parameters  
-import multiprocessing as mp 
+from parameters import Parameters
 
 
 if __name__ == "__main__":

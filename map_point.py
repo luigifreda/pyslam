@@ -205,7 +205,7 @@ class MapPointBase(object):
     def add_frame_view(self, frame, idx):
         assert(not frame.is_keyframe)
         with self._lock_features:
-            if frame not in self._frame_views:  # do not allow a point to be matched to diffent keypoints 
+            if frame not in self._frame_views:  # do not allow a point to be matched to diffent keypoints of the same frame
                 frame.set_point_match(self, idx)            
                 self._frame_views[frame] = idx
                 return True 

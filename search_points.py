@@ -93,7 +93,8 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
                                max_reproj_distance=Parameters.kMaxReprojectionDistanceFrame,
                                max_descriptor_distance=None,
                                ratio_test=Parameters.kMatchRatioTestMap,
-                               is_monocular=True):
+                               is_monocular=True,
+                               already_matched_ref_idxs=None):
     if max_descriptor_distance is None:
         max_descriptor_distance = Parameters.kMaxDescriptorDistance    
 
@@ -122,6 +123,11 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
           
     # get all matched points of f_ref which are non-outlier 
     matched_ref_idxs = np.flatnonzero( (f_ref.points!=None) & (f_ref.outliers==False)) 
+    
+    # if we have some already matched points in reference frame, remove them from the list
+    if already_matched_ref_idxs is not None:
+        matched_ref_idxs = np.setdiff1d(matched_ref_idxs, already_matched_ref_idxs)
+    
     matched_ref_points = f_ref.points[matched_ref_idxs]
 
     # project f_ref points on frame f_cur
@@ -342,14 +348,14 @@ def search_all_map_by_projection(map, f_cur, max_descriptor_distance=None):
 
 
 
-# search by more projection matches between {input map points} and {unmatched keypoints of frame f_cur}
+# search by projection more matches between {input map points} and {unmatched keypoints of frame f_cur}
 # in: 
 #   points: input map points
 #   f_cur: current frame
 #   f_cur_matched_points: matched points in current frame  (f_cur_matched_points[i] is the i-th map point matched on f_cur or None)   
 #   Scw: suggested se3 or sim3 transformation
-# a suggested transformation Scw (in se3 or sim3) is suggested (instead of using the frame pose)
-def search_map_points_by_projection(points: set, 
+# The suggested transformation Scw (in se3 or sim3) is used in the search (instead of using the current frame pose)
+def search_more_map_points_by_projection(points: set, 
                                     f_cur: Frame,
                                     f_cur_matched_points: list,  # f_cur_matched_points[i] is the i-th map point matched in f_cur or None
                                     Scw,
@@ -384,14 +390,14 @@ def search_map_points_by_projection(points: set,
     
     if len(target_points) == 0:
         if print_fun is not None:
-            print_fun('search_map_points_by_projection: no target points available after difference')
+            print_fun('search_more_map_points_by_projection: no target points available after difference')
         return found_pts_count, f_cur_matched_points
     
     # check if points are visible     
     visible_pts, projs, depths, dists = are_map_points_visible_in_frame(target_points, f_cur, Rcw, tcw)
     
     if print_fun is not None:
-        print_fun(f'search_map_points_by_projection: #visible points: {len(visible_pts)}')
+        print_fun(f'search_more_map_points_by_projection: #visible points: {len(visible_pts)}')
     
     predicted_levels = predict_detection_levels(target_points, dists) 
     kp_scale_factors = FrameShared.feature_manager.scale_factors[predicted_levels]              
@@ -426,7 +432,7 @@ def search_map_points_by_projection(points: set,
             kp_level = f_cur.octaves[kd_idx]    
             if (kp_level<predicted_level-1) or (kp_level>predicted_level):
                 # if print_fun is not None:                
-                #     print_fun(f'search_map_points_by_projection: bad kp level: {kp_level},  predicted_level: {predicted_level}')
+                #     print_fun(f'search_more_map_points_by_projection: bad kp level: {kp_level},  predicted_level: {predicted_level}')
                 # num_failures_kp_level += 1
                 continue                
                 
@@ -441,14 +447,14 @@ def search_map_points_by_projection(points: set,
             found_pts_count += 1
         # else:
         #     if print_fun is not None:
-        #         print_fun(f'search_map_points_by_projection: bad best_des_distance: {best_dist}, max_descriptor_distance: {max_descriptor_distance}')
+        #         print_fun(f'search_more_map_points_by_projection: bad best_des_distance: {best_dist}, max_descriptor_distance: {max_descriptor_distance}')
         #     num_failures_max_des_distance += 1
             
     # if print_fun is not None:
-    #     print_fun(f'search_map_points_by_projection: num_failures_vis_or_bad: {num_failures_vis_or_bad}')
-    #     print_fun(f'search_map_points_by_projection: num_failures_pf_is_not_none: {num_failures_pf_is_not_none}')
-    #     print_fun(f'search_map_points_by_projection: num_failures_kp_level: {num_failures_kp_level}')
-    #     print_fun(f'search_map_points_by_projection: num_failures_max_des_distance: {num_failures_max_des_distance}')
+    #     print_fun(f'search_more_map_points_by_projection: num_failures_vis_or_bad: {num_failures_vis_or_bad}')
+    #     print_fun(f'search_more_map_points_by_projection: num_failures_pf_is_not_none: {num_failures_pf_is_not_none}')
+    #     print_fun(f'search_more_map_points_by_projection: num_failures_kp_level: {num_failures_kp_level}')
+    #     print_fun(f'search_more_map_points_by_projection: num_failures_max_des_distance: {num_failures_max_des_distance}')
     
     return found_pts_count, f_cur_matched_points
             

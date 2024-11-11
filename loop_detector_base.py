@@ -54,7 +54,6 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder
 kDataFolder = kRootFolder + '/data'
-kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
 
 
 if kVerbose:
@@ -88,10 +87,16 @@ class LoopDetectKeyframeData:
         self.sizes = keyframe.sizes if keyframe is not None else []
         self.octaves = keyframe.octaves if keyframe is not None else []
         self.des = keyframe.des if keyframe is not None else []
-        # NOTE: The kid is not actually used for the processing in this whole file
-        self.kid = keyframe.kid if keyframe is not None else -1
+        
         self.img = img if img is not None else (keyframe.img if keyframe is not None else None)
-        self.g_des = keyframe.g_des if keyframe is not None else None
+                
+        # NOTE: The kid is not actually used for the processing in this whole file
+        if isinstance(keyframe, KeyFrame):
+            self.kid = keyframe.kid if keyframe is not None else -1
+            self.g_des = keyframe.g_des if keyframe is not None else None
+        else: 
+            self.kid = -1
+            self.g_des = None
 
 
 class LoopDetectorTask: 
@@ -166,7 +171,15 @@ class LoopDetectorBase:
         return False
         
     def reset(self):
-        pass 
+        self.img_count = 0
+        self.map_img_count_to_kf_img_id.clear()
+        self.map_kf_img_id_to_img.clear()
+        self.map_kf_img_id_to_img_count.clear()
+        if self.S_float is not None:
+            self.S_float.fill(0)
+            self.S_color.fill(0)
+        if self.loop_detection_imgs is not None:
+            self.loop_detection_imgs.reset()
         
     def init(self):
         pass
@@ -179,8 +192,7 @@ class LoopDetectorBase:
             kps, des = self.local_feature_manager.compute(task.keyframe_data.img, task.keyframe_data.kps)
             task.keyframe_data.des = des
             print(f'LoopDetectorBase: re-computed {des.shape[0]} local descriptors ({self.local_feature_manager.descriptor_type.name}) for keyframe {task.keyframe_data.id}')
-            
-            
+   
     def compute_global_des(self, local_des, img): 
         return None
                             
@@ -195,7 +207,7 @@ class LoopDetectorBase:
         min_score = 1
         #print(f'LoopDetectorBase: computing reference similarity score for keyframe {keyframe.id} with covisible keyframes {[cov_kf.id for cov_kf in task.covisible_keyframes_data]}')
         if len(task.covisible_keyframes_data) == 0:
-            return 0
+            return -sys.float_info.max
         for cov_kf in task.covisible_keyframes_data:
             if cov_kf.g_des is None:
                 try:
@@ -208,7 +220,6 @@ class LoopDetectorBase:
             if cov_kf.g_des is not None:             
                 if not isinstance(cov_kf.g_des, vector_type):
                     cov_kf.g_des = vector_type(cov_kf.g_des) # transform back from vec to specialized vector (this is used for bow vector) 
-                print(f'LoopDetectorBase: here')
                 score = score_fun(cov_kf.g_des, keyframe.g_des)
                 min_score = min(min_score, score)
             else: 

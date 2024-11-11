@@ -123,6 +123,19 @@ class ImageIndex {
     }
   }
 
+  inline void clear() {
+    init_ = false;
+    nimages_ = 0;
+    ndesc_ = 0;
+
+    dset_.clear();
+    trees_.clear();
+    inv_index_.clear();
+    desc_to_id_.clear();
+    id_to_desc_.clear();
+    recently_added_.clear();
+  }
+
  private:
   BinaryDescriptorSet dset_;
   unsigned k_;

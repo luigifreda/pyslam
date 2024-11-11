@@ -72,7 +72,7 @@ class GlobalDescriptorType(Enum):
 # Additional information about used local descriptors aggregation method
 class LocalDescriptorAggregationType(Enum):
     NONE        = 0
-    DBOW2       = 1   # Bags of Words (BoW). Works only with ORB local features
+    DBOW2       = 1   # Bags of Words (BoW). This version only works with ORB2 local features (DBOW3 is easier to use).
     DBOW3       = 2   # Bags of Words (BoW)
     OBINDEX2    = 3   # Hierarchical indexing scheme. Incremental Bags of binary Words.
     IBOW        = 4   # Incremental Bags of binary Words (iBoW). Built on the top of OBINDEX2.
@@ -83,42 +83,50 @@ class LocalDescriptorAggregationType(Enum):
 
 """
 A collection of ready-to-used loop detection configurations. These configurations are used by LoopDetectingProcess.
+Temaplate: 
+
+LoopDetectorConfigs.XXX = dict(
+    global_descriptor_type = GlobalDescriptorType.XXX,
+    local_feature_manager_config = FeatureManagerConfigs.XXX,                  # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary), 
+                                                                               # otherwise use an independent local feature manager is created and used.
+    local_descriptor_aggregation_type = LocalDescriptorAggregationType.XXX,
+    vocabulary_data = XXX)                                                     # Must be a vocabulary built with the frontend local descriptor type (see the file loop_detector_vocabulary.py)
 """
-class LoopDetectorConfigs(object):   
+class LoopDetectorConfigs(object):
     
     DBOW2 = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW2,
-        local_feature_manager_config = None,                                      # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary)
+        local_feature_manager_config = None,                                       # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.DBOW2,
         vocabulary_data = OrbVocabularyData())                                     # Must be a vocabulary built with the frontend local descriptor type
 
     DBOW2_INDEPENDENT = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW2,
-        local_feature_manager_config = FeatureManagerConfigs.ORB2,                # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and vocabulary)
+        local_feature_manager_config = FeatureManagerConfigs.ORB2,                 # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.DBOW2,
         vocabulary_data = OrbVocabularyData())                                     # Must be a vocabulary built with the frontend local descriptor type  
         
     DBOW3 = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW3,
-        local_feature_manager_config = None,                                      # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary)
+        local_feature_manager_config = None,                                       # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.DBOW3,
         vocabulary_data = OrbVocabularyData())                                     # Must be a vocabulary built with the frontend local descriptor type
 
     DBOW3_INDEPENDENT = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW3,
-        local_feature_manager_config = FeatureManagerConfigs.ORB2,                # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and vocabulary)
+        local_feature_manager_config = FeatureManagerConfigs.ORB2,                 # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.VLAD,
         vocabulary_data = OrbVocabularyData())                                     # Must be a vocabulary built with the adopted local descriptor type                       
 
     VLAD = dict(
         global_descriptor_type = GlobalDescriptorType.VLAD,
-        local_feature_manager_config = None,                                      # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary)
+        local_feature_manager_config = None,                                       # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.VLAD,
         vocabulary_data = VladVocabularyData())                                    # Must be a vocabulary built with the adopted local descriptor type
 
     VLAD_INDEPENDENT = dict(
         global_descriptor_type = GlobalDescriptorType.VLAD,
-        local_feature_manager_config = FeatureManagerConfigs.ORB2,                # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and vocabulary)
+        local_feature_manager_config = FeatureManagerConfigs.ORB2,                 # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.VLAD,
         vocabulary_data = VladVocabularyData())                                    # Must be a vocabulary built with the adopted local descriptor type
 
@@ -132,7 +140,7 @@ class LoopDetectorConfigs(object):
         global_descriptor_type = GlobalDescriptorType.IBOW,
         local_feature_manager_config = None,                                     # If None the frontend local descriptors will be re-used 
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.IBOW,
-        vocabulary_data = None)                                             # IBow does not need a vocabulary. It incrementally builds it.
+        vocabulary_data = None)                                                  # IBow does not need a vocabulary. It incrementally builds it.
     
     IBOW_INDEPENDENT = dict(
         global_descriptor_type = GlobalDescriptorType.IBOW,
@@ -241,16 +249,21 @@ def loop_detector_check(loop_detector: LoopDetectorBase, slam_feature_descriptor
     else:
         descriptor_type_to_check = loop_detector.local_feature_manager.descriptor_type
         
-    if loop_detector.vocabulary_data is not None:
-        if descriptor_type_to_check != loop_detector.vocabulary_data.descriptor_type:
-            message = f'loop_detector_check: ERROR: incompatible vocabulary type! vocabulary_data.descriptor_type must be {loop_detector.vocabulary_data.descriptor_type.name}.'
-            message += f'\n\t If you dont have such vocabulary type you must create it. Otherwise, you can set the loop detector to work with an independent {loop_detector.vocabulary_data.descriptor_type.name} local_feature_manager.'
-            message += f'\n\t See the file loop_detector_configs.py for more details.'
-            Printer.red(message)
-            raise ValueError(message)     
-        
     if loop_detector.global_descriptor_type == GlobalDescriptorType.DBOW2:
         if descriptor_type_to_check != FeatureDescriptorTypes.ORB2 and descriptor_type_to_check != FeatureDescriptorTypes.ORB:
-            message = f'loop_detector_check: ERROR: incompatible descriptor_type! With DBOW2, the local_feature_manager must be ORB2 or ORB.'
+            message = f'loop_detector_check: ERROR: incompatible descriptor_type! With DBOW2, the only available voculary that is loaded needs a local_feature_manager with ORB2 or ORB.'
+            message += f'\n\t As a quick solution, you can set the loop detector to work with an independent ORB2 local_feature_manager: Use the configuration DBOW2_INDEPENDENT.'
+            message += f'\n\t Alternatively, you may want to use DBOW3 instead and then create a vocabulary with your favorite descriptors (see the pyslam README file) and then load it.'
+            Printer.red(message)
+            raise ValueError(message)
+                
+    if loop_detector.vocabulary_data is not None:
+        if descriptor_type_to_check != loop_detector.vocabulary_data.descriptor_type:
+            message = f'loop_detector_check: ERROR: incompatible vocabulary type!'
+            message += f'\n\t The loaded vocabulary_data.descriptor_type is {loop_detector.vocabulary_data.descriptor_type.name}.'
+            message += f'\n\t On the other end, the loop detector is configured to work with a {descriptor_type_to_check.name} local_feature_manager.'
+            message += f'\n\t If you dont have a vocabulary with {descriptor_type_to_check.name} then you must create it (see the pyslam README file) and then load it.'
+            message += f'\n\t Otherwise, you can set the loop detector to work with an independent {loop_detector.vocabulary_data.descriptor_type.name} local_feature_manager.'
+            message += f'\n\t See the file loop_detector_configs.py for further details.'
             Printer.red(message)
             raise ValueError(message)

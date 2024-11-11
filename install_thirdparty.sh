@@ -2,6 +2,9 @@
 
 #set -e
 
+# NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
+# export WITH_PYTHON_INTERP_CHECK=ON
+
 # ====================================================
 # import the utils 
 . bash_utils.sh 
@@ -167,3 +170,6 @@ cd thirdparty/pyibow
 ./build.sh
 
 cd $STARTING_DIR
+
+# NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
+# export WITH_PYTHON_INTERP_CHECK=ON

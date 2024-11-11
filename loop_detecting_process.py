@@ -29,7 +29,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from utils_sys import Printer, set_rlimit
+from utils_sys import Printer, set_rlimit, MultiprocessingManager
 from utils_data import empty_queue
 
 from parameters import Parameters
@@ -54,13 +54,11 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder
 kDataFolder = kRootFolder + '/data'
-kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
 
 
 if Parameters.kLoopClosingDebugAndPrintToFile:
     from loop_detector_base import print
     
-
 
 # Entry point for loop detection that generates candidates for loop closure. An instance of LoopDetectingProcess is used by LoopClosing. 
 # For efficiency, we use multiprocessing to run detection tasks in a parallel process. That means on a different CPU core thanks to multiprocessing.
@@ -76,19 +74,27 @@ class LoopDetectingProcess:
         self.time_loop_detection = mp.Value('d',0.0)       
         
         self.last_input_task = None
-        #self.manager = mp.Manager()  # NOTE: this generates pickling problems with torch.multiprocessing
-        #self.q_in = self.manager.Queue()
-        #self.q_out = self.manager.Queue()
-        self.q_in = mp.Queue()
-        self.q_out = mp.Queue()
+        
+        self.reset_mutex = mp.Lock()
+        self.reset_requested = mp.Value('i',0)
+
+        # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
+        self.mp_manager = MultiprocessingManager()
+        self.q_in = self.mp_manager.Queue()
+        self.q_out = self.mp_manager.Queue()
+        self.q_out_reloc = self.mp_manager.Queue()
                                         
         self.q_in_condition = mp.Condition()
-        self.q_out_condition = mp.Condition()        
+        self.q_out_condition = mp.Condition()    
+        self.q_out_reloc_condition = mp.Condition()    
         
         self.is_running  = mp.Value('i',1)
         self.process = mp.Process(target=self.run,
-                          args=(self.loop_detector, self.q_in, self.q_in_condition, self.q_out, self.q_out_condition, \
-                                self.is_running, self.time_loop_detection,))
+                          args=(self.loop_detector, \
+                                self.q_in, self.q_in_condition, \
+                                self.q_out, self.q_out_condition, \
+                                self.q_out_reloc, self.q_out_reloc_condition, \
+                                self.is_running, self.reset_mutex, self.reset_requested, self.time_loop_detection,))
         
         #self.process.daemon = True
         self.process.start()
@@ -99,6 +105,46 @@ class LoopDetectingProcess:
     def using_torch_mp(self):
         return self.loop_detector.using_torch_mp()
 
+    def request_reset(self):
+        print('LoopDetectingProcess: Requesting reset...')
+        with self.reset_mutex:
+            self.reset_requested.value = 1
+        while True:
+            with self.reset_mutex:
+                with self.q_in_condition:
+                    self.q_in_condition.notify_all() # to unblock q_in_condition.wait() in run() method               
+                if self.reset_requested.value == 0:
+                    break
+            time.sleep(0.1)
+        print('LoopDetectingProcess: ...Reset done.')
+            
+    def reset_if_requested(self, reset_mutex, reset_requested, loop_detector, \
+                            q_in, q_in_condition, \
+                            q_out, q_out_condition, \
+                            q_out_reloc, q_out_reloc_condition):
+        # acting within the launched process with the passed mp.Value() (received in input)      
+        with reset_mutex:
+            if reset_requested.value == 1:
+                print('LoopDetectingProcess: reset_if_requested()...')                
+                with q_in_condition:
+                    empty_queue(q_in)
+                    q_in_condition.notify_all()
+                with q_out_condition:
+                    empty_queue(q_out)
+                    q_out_condition.notify_all()
+                with q_out_reloc_condition:
+                    empty_queue(q_out_reloc)
+                    q_out_reloc_condition.notify_all()
+                # Now reset the loop detector in the launched parallel process
+                try:
+                    loop_detector.reset()
+                except Exception as e:
+                    print(f'LoopDetectingProcess: reset_if_requested: Exception: {e}')
+                    if kPrintTrackebackDetails:
+                        traceback_details = traceback.format_exc()
+                        print(f'\t traceback details: {traceback_details}')
+                reset_requested.value = 0
+        
     def quit(self):
         if self.is_running.value == 1:
             print('LoopDetectingProcess: quitting...')
@@ -107,7 +153,9 @@ class LoopDetectingProcess:
                 self.q_in.put(None)  # put a None in the queue to signal we have to exit
                 self.q_in_condition.notify_all()       
             with self.q_out_condition:
-                self.q_out_condition.notify_all()                           
+                self.q_out_condition.notify_all()
+            with self.q_out_reloc_condition:
+                self.q_out_reloc_condition.notify_all()                       
             self.process.join(timeout=5)
             if self.process.is_alive():
                 Printer.orange("Warning: Loop detection process did not terminate in time, forced kill.")  
@@ -115,36 +163,44 @@ class LoopDetectingProcess:
             print('LoopDetectingProcess: done')   
     
     # main loop of the loop detection process
-    def run(self, loop_detector: LoopDetectorBase, q_in, q_in_condition, q_out, q_out_condition, is_running, time_loop_detection):
+    def run(self, loop_detector: LoopDetectorBase, \
+            q_in, q_in_condition, \
+            q_out, q_out_condition, \
+            q_out_reloc, q_out_reloc_condition, \
+            is_running, reset_mutex, reset_requested, time_loop_detection):
         print('LoopDetectingProcess: starting...')
         loop_detector.init()
         while is_running.value == 1:
             with q_in_condition:
-                while q_in.empty() and is_running.value == 1:
+                while q_in.empty() and is_running.value == 1 and reset_requested.value == 0:
                     print('LoopDetectingProcess: waiting for new task...')
                     q_in_condition.wait()
             if not q_in.empty():            
-                self.loop_detecting(loop_detector, q_in, q_out, q_out_condition, is_running, time_loop_detection)
+                self.loop_detecting(loop_detector, q_in, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition, is_running, time_loop_detection)
             else: 
                 print('LoopDetectingProcess: q_in is empty...')
+            self.reset_if_requested(reset_mutex, reset_requested, loop_detector, q_in, q_in_condition, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition)
 
         empty_queue(q_in) # empty the queue before exiting         
         print('LoopDetectingProcess: loop exit...')         
 
-    def loop_detecting(self, loop_detector, q_in, q_out, q_out_condition, is_running, time_loop_detection):
+    def loop_detecting(self, loop_detector: LoopDetectorBase, q_in, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition, is_running, time_loop_detection):
         #print('LoopDetectingProcess: loop_detecting')        
         timer = TimerFps("LoopDetectingProcess", is_verbose = kTimerVerbose)
         timer.start()        
         try: 
             if is_running.value == 1:
+                
+                # check q_in size and send a warn message if it is too big
                 q_in_size = q_in.qsize()
                 if q_in_size >= 10: 
                     warn_msg = f'\n!LoopDetectingProcess: WARNING: q_in size: {q_in_size} is too big!!!\n'
                     print(warn_msg)
                     Printer.red(warn_msg)
+                    
                 self.last_input_task = q_in.get() # blocking call to get a new input task
-                if self.last_input_task is None: # got a None to exit
-                    is_running.value = 0
+                if self.last_input_task is None: 
+                    is_running.value = 0 # got a None to exit
                 else:
                     last_output = None
                     try:
@@ -152,6 +208,8 @@ class LoopDetectingProcess:
                         loop_detector.compute_local_des_if_needed(self.last_input_task)
                         # run the loop detection task
                         last_output = loop_detector.run_task(self.last_input_task)
+                        if last_output is None: 
+                            print(f'LoopDetectingProcess: loop detection task failed with None output')
                     except Exception as e:
                         print(f'LoopDetectingProcess: EXCEPTION: {e} !!!')
                         if kPrintTrackebackDetails:
@@ -159,11 +217,19 @@ class LoopDetectingProcess:
                             print(f'\t traceback details: {traceback_details}')  
                             
                     if is_running.value == 1 and last_output is not None:
-                        with q_out_condition:
-                            # push the computed output in the output queue
-                            q_out.put(last_output)
-                            q_out_condition.notify_all()
-                            print(f'LoopDetectingProcess: pushed new output to queue_out size: {q_out.qsize()}')
+                        # push the computed task output in its output queue
+                        if last_output.task_type == LoopDetectorTaskType.RELOCALIZATION:
+                            with q_out_reloc_condition:
+                                # push the computed output in the output queue
+                                q_out_reloc.put(last_output)
+                                q_out_reloc_condition.notify_all()
+                                print(f'LoopDetectingProcess: pushed new output to queue_out_reloc size: {q_out_reloc.qsize()}')
+                        else:
+                            with q_out_condition:
+                                # push the computed output in the output queue
+                                q_out.put(last_output)
+                                q_out_condition.notify_all()
+                                print(f'LoopDetectingProcess: pushed new output to queue_out size: {q_out.qsize()}')
                 
         except Exception as e:
             print(f'LoopDetectingProcess: EXCEPTION: {e} !!!')
@@ -173,7 +239,7 @@ class LoopDetectingProcess:
 
         timer.refresh()
         time_loop_detection.value = timer.last_elapsed
-        print(f'LoopDetectingProcess: q_in size: {q_in.qsize()}, q_out size: {q_out.qsize()}, loop-detection-process elapsed time: {time_loop_detection.value}')
+        print(f'LoopDetectingProcess: q_in size: {q_in.qsize()}, q_out size: {q_out.qsize()}, q_out_reloc size: {q_out_reloc.qsize()}, loop-detection-process elapsed time: {time_loop_detection.value}')
 
 
     def add_task(self, task: LoopDetectorTask): 
@@ -182,20 +248,32 @@ class LoopDetectingProcess:
                 self.q_in.put(task)
                 self.q_in_condition.notify_all()
 
-    def pop_output(self): 
+    def pop_output(self, q_out=None, q_out_condition=None):
+        if q_out is None: 
+            q_out = self.q_out
+        if q_out_condition is None:
+            q_out_condition = self.q_out_condition
+             
         if self.is_running.value == 0:
             return None
-        with self.q_out_condition:        
-            while self.q_out.empty() and self.is_running.value == 1:
-                ok = self.q_out_condition.wait(timeout=Parameters.kLoopDetectingTimeoutPopKeyframe)
+        with q_out_condition:        
+            while q_out.empty() and self.is_running.value == 1:
+                ok = q_out_condition.wait(timeout=Parameters.kLoopDetectingTimeoutPopKeyframe)
                 if not ok: 
                     break # Timeout occurred
                 
-        if self.q_out.empty():
+        if q_out.empty():
             return None
                
         try:
-            return self.q_out.get(timeout=Parameters.kLoopDetectingTimeoutPopKeyframe)
+            return q_out.get(timeout=Parameters.kLoopDetectingTimeoutPopKeyframe)
         except Exception as e:
             print(f'LoopDetectingProcess: pop_output: encountered exception: {e}')
             return None
+        
+    def relocalize(self, task: LoopDetectorTask):
+        assert task.task_type == LoopDetectorTaskType.RELOCALIZATION
+        self.add_task(task)
+        detection_output = self.pop_output(q_out=self.q_out_reloc, q_out_condition=self.q_out_reloc_condition)
+        assert detection_output.task_type == LoopDetectorTaskType.RELOCALIZATION
+        return detection_output          

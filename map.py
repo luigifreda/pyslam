@@ -76,6 +76,21 @@ class Map(object):
         self.local_map = LocalCovisibilityMap(map=self)
         
         self.viewer_scale = -1
+        
+    def reset(self):
+        print('Map: reset...')        
+        with self._lock:
+            with self._update_lock:
+                self.frames.clear()
+                self.keyframes.clear()
+                self.points.clear()
+
+                self.keyframe_origins.clear()  
+                    
+                self.keyframes_map.clear()
+                
+                self.local_map.reset()
+
 
     def __getstate__(self):
         # Create a copy of the instance's __dict__
@@ -135,10 +150,12 @@ class Map(object):
     def get_last_keyframes(self, local_window=Parameters.kLocalBAWindow): 
         with self._lock:         
             return OrderedSet(self.keyframes.copy()[-local_window:])                     
-                
+    
+                    
     def num_keyframes(self):
         with self._lock: 
             return len(self.keyframes)             
+    
     
     def delete(self):
         with self._lock:          
@@ -205,10 +222,6 @@ class Map(object):
                 del self.keyframes_map[keyframe.id] 
             except: 
                 pass     
-    
-    def num_keyframes(self):      
-        return self.max_keyframe_id
-
 
     def draw_feature_trails(self, img):
         if len(self.frames) > 0:
@@ -620,6 +633,13 @@ class LocalMapBase(object):
         self.keyframes     = OrderedSet() # collection of local keyframes 
         self.points        = set() # points visible in 'keyframes'  
         self.ref_keyframes = set() # collection of 'covisible' keyframes not in self.keyframes that see at least one point in self.points   
+
+
+    def reset(self):
+        with self._lock:
+            self.keyframes.clear()
+            self.points.clear()
+            self.ref_keyframes.clear()
 
     @property    
     def lock(self):  

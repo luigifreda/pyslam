@@ -58,6 +58,11 @@ target_link_libraries(sim3solver PRIVATE
     ${OpenCV_LIBS}    
 )
 
+pybind11_add_module(pnpsolver pnpsolver_module.cpp PnPsolver.cpp MLPnPsolver.cpp Random.cpp)
+target_link_libraries(pnpsolver PRIVATE
+    ${OpenCV_LIBS}    
+)
+
 # pybind11_add_module(cv2_pyslam cv2_pyslam_module.cpp)
 # target_link_libraries(cv2_pyslam PRIVATE
 #     ${OpenCV_LIBS}    

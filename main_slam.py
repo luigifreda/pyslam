@@ -66,7 +66,7 @@ class SlamPlotDrawer:
         self.chi2_error_plt = None
         self.timing_plt = None
         
-        # To disable one of them just set it to None
+        # To disable one of them just comment it out
         self.matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')  
         #self.info_3dpoints_plt = Mplot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
         self.chi2_error_plt = Mplot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.DBOW3   
+    loop_detection_config = LoopDetectorConfigs.DBOW3
     Printer.green('loop_detection_config: ',loop_detection_config)
         
     # create SLAM object 
@@ -236,7 +236,8 @@ if __name__ == "__main__":
     
     img_writer = ImgWriter(font_scale=0.7)
 
-    do_step = False      # proceed step by step on GUI  
+    do_step = False      # proceed step by step on GUI 
+    do_reset = False     # reset on GUI 
     is_paused = False    # pause/resume on GUI 
     is_map_save = False  # save map on GUI
     
@@ -247,6 +248,10 @@ if __name__ == "__main__":
             
         if do_step:
             Printer.green('do step: ', do_step)
+            
+        if do_reset: 
+            Printer.green('do reset: ', do_reset)
+            slam.reset()
                         
         if not is_paused or do_step: 
             print('..................................')               
@@ -319,7 +324,8 @@ if __name__ == "__main__":
         if viewer3D is not None:
             is_paused = viewer3D.is_paused()    
             is_map_save = viewer3D.is_map_save() and is_map_save == False 
-            do_step = viewer3D.do_step() and do_step == False    
+            do_step = viewer3D.do_step() and do_step == False  
+            do_reset = viewer3D.reset() and do_reset == False  
                                   
         if key == 'q' or (key_cv == ord('q')):
             slam.quit()

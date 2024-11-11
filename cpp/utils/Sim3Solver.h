@@ -160,6 +160,6 @@ protected:
     Eigen::Matrix3f mK2;
 };
 
-} //namespace ORB_SLAM
+} //namespace 
 
 #endif // SIM3SOLVER_H

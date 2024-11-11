@@ -56,9 +56,21 @@ PYBIND11_MODULE(pyibow, m)
 			const unsigned image_id,
             const std::vector<cv::KeyPoint>& kps,
             const cv::Mat& descs) 
-		{ 
-			LCDetectorResult result;
-			d.process(image_id, kps, descs, &result);
-			return result;
-		}, "image_id"_a, "kps"_a, "descs"_a);
+			{ 
+				LCDetectorResult result;
+				d.process(image_id, kps, descs, true/*add_to_index*/, &result);
+				return result;
+			}, "image_id"_a, "kps"_a, "descs"_a)
+		.def("process_without_pushing", [](LCDetector& d, 
+			// processing image without adding the input to the index database
+			const unsigned image_id,
+            const std::vector<cv::KeyPoint>& kps,
+            const cv::Mat& descs) 
+			{ 
+				LCDetectorResult result;
+				d.process(image_id, kps, descs, false/*add_to_index*/, &result);
+				return result;
+			}, "image_id"_a, "kps"_a, "descs"_a)		
+		.def("num_pushed_images", &LCDetector::numPushedImages)	
+		.def("clear", &LCDetector::clear);
 }

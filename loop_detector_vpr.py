@@ -93,13 +93,13 @@ class HdcAdaptor:
         return D_holistic    
 
 
-# Table of models:
-# global_descriptor_name = 'HDC-DELF'    # Slow (local DELF descriptor + Hyperdimensional Computing (HDC))
-# global_descriptor_name = 'SAD'         # Fast (Sum of Absolute Differences (SAD) [Milford and Wyeth (2012). "SeqSLAM: Visual Route-Based Navigation for Sunny Summer Days and Stormy Winter Nights". ICRA.])
-# global_descriptor_name = 'AlexNet'     # Slow (AlexNetConv3Extractor)
-# global_descriptor_name = 'NetVLAD'     # Decently fast (PatchNetVLADFeatureExtractor)
-# global_descriptor_name = 'CosPlace'    # Decently fast (CosPlaceFeatureExtractor model)
-# global_descriptor_name = 'EigenPlaces' # Decently fast (EigenPlacesFeatureExtractor model)  
+# Table of models covered by LoopDetectorVprBase:
+# global_descriptor_name = 'HDC-DELF'    # Slow. local DELF descriptor + Hyperdimensional Computing (HDC)), https://www.tu-chemnitz.de/etit/proaut/hdc_desc
+# global_descriptor_name = 'SAD'         # Decently fast. Sum of Absolute Differences as an holistic descriptor (SAD). Milford and Wyeth (2012). "SeqSLAM: Visual Route-Based Navigation for Sunny Summer Days and Stormy Winter Nights".
+# global_descriptor_name = 'AlexNet'     # Slow. AlexNetConv3Extractor https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet
+# global_descriptor_name = 'NetVLAD'     # Decently fast. PatchNetVLADFeatureExtractor model. https://www.di.ens.fr/willow/research/netvlad/
+# global_descriptor_name = 'CosPlace'    # Decently fast. CosPlaceFeatureExtractor model. https://github.com/gmberton/CosPlace
+# global_descriptor_name = 'EigenPlaces' # Decently fast. EigenPlacesFeatureExtractor model. https://github.com/gmberton/EigenPlaces
 class LoopDetectorVprBase(LoopDetectorBase): 
     def __init__(self, global_descriptor_name= None, local_feature_manager=None, name='LoopDetectorVprBase'):
         super().__init__()
@@ -137,14 +137,22 @@ class LoopDetectorVprBase(LoopDetectorBase):
             mp.set_start_method('spawn', force=True)
             self._using_torch_mp = True
     
-        #self.init() # NOTE: We call init() in the run_task() method at its first call so as to 
-                     #       initialize the globa feature extractor in the possible parallel process.
-                     #       This is needed to avoid pickling problem with multiprocessing.   
+        #self.init() # NOTE: We call init() in the run_task() method at its first call to 
+                     #       initialize the global feature extractor in the potentially launched parallel process.
+                     #       This is required to avoid pickling problem when multiprocessing is used in combination 
+                     #       with torch and CUDA.   
         print(f'LoopDetectorVprBase: global_descriptor_name: {global_descriptor_name}')            
 
 
     def using_torch_mp(self):
         return self._using_torch_mp
+    
+    def reset(self):
+        LoopDetectorBase.reset(self)
+        del self.global_feature_extractor
+        del self.global_db
+        self.global_feature_extractor = None
+        self.global_db = None
     
     def init(self):
         try:
@@ -226,24 +234,39 @@ class LoopDetectorVprBase(LoopDetectorBase):
         if keyframe.g_des is None:
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get global descriptor
         
-        # add image descriptors to global descriptor database
-        self.global_db.add(keyframe.g_des)
-        
-        # the img_ids are mapped to img_counts (entry ids) inside the database management
-        self.map_img_count_to_kf_img_id[self.img_count] = img_id        
-        #print(f'LoopDetectorVprBase: mapping img_id: {img_id} to img_count: {self.img_count}')
+        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:        
+            # add image descriptors to global descriptor database
+            # NOTE: relocalization works on frames (not keyframes) and we don't need to add them to the database
+            self.global_db.add(keyframe.g_des)
+            
+            # the img_ids are mapped to img_counts (entry ids) inside the database management
+            self.map_img_count_to_kf_img_id[self.img_count] = img_id        
+            #print(f'LoopDetectorVprBase: mapping img_id: {img_id} to img_count: {self.img_count}')
                     
         detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=keyframe.g_des, img_id=img_id, img=keyframe.img)
         
-        if task.task_type == LoopDetectorTaskType.LOOP_CLOSURE:
+        candidate_idxs = []
+        candidate_scores = []
+                    
+        if task.task_type == LoopDetectorTaskType.RELOCALIZATION:         
+            if self.img_count >= 1:
+                best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to img_id
+                print(f'LoopDetectorVprBase: Relocalization: frame: {img_id}, candidate keyframes: {best_idxs}')
+                for idx, score in zip(best_idxs, best_scores):
+                    other_img_count = idx
+                    other_img_id = self.map_img_count_to_kf_img_id[idx] # get the image id of the keyframe from it's internal image count                
+                    candidate_idxs.append(other_img_id)
+                    candidate_scores.append(score)
+                
+            detection_output.candidate_idxs = candidate_idxs
+            detection_output.candidate_scores = candidate_scores 
+                                
+        elif task.task_type == LoopDetectorTaskType.LOOP_CLOSURE:
                             
             # Compute reference BoW similarity score as the lowest score to a connected keyframe in the covisibility graph.
             min_score = self.compute_reference_similarity_score(task, type(keyframe.g_des), score_fun=self.score)
             print(f'{self.name}: min_score = {min_score}')
-                            
-            candidate_idxs = []
-            candidate_scores = []
-                                        
+                                                                    
             if self.img_count >= 1:
                 best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to img_id
 
@@ -269,18 +292,21 @@ class LoopDetectorVprBase(LoopDetectorBase):
             # if we just wanted to compute the global descriptor (LoopDetectorTaskType.COMPUTE_GLOBAL_DES), we don't have to do anything
             pass
         
-        self.img_count += 1        
+        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
+            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
+            self.img_count += 1 
+                 
         return detection_output  
             
-     
-# Table of models:
-# global_descriptor_name = 'HDC-DELF'    # Slow (local DELF descriptor + Hyperdimensional Computing (HDC))
-# global_descriptor_name = 'SAD'         # Fast (Sum of Absolute Differences (SAD) [Milford and Wyeth (2012). "SeqSLAM: Visual Route-Based Navigation for Sunny Summer Days and Stormy Winter Nights". ICRA.])
-# global_descriptor_name = 'AlexNet'     # Slow (AlexNetConv3Extractor)
-# global_descriptor_name = 'NetVLAD'     # Decently fast (PatchNetVLADFeatureExtractor)
-# global_descriptor_name = 'CosPlace'    # Decently fast (CosPlaceFeatureExtractor model)
-# global_descriptor_name = 'EigenPlaces' # Decently fast (EigenPlacesFeatureExtractor model)   
-#                    
+#    
+# Table of models covered by LoopDetectorVprBase:
+# global_descriptor_name = 'HDC-DELF'    # Slow. local DELF descriptor + Hyperdimensional Computing (HDC)), https://www.tu-chemnitz.de/etit/proaut/hdc_desc
+# global_descriptor_name = 'SAD'         # Decently fast. Sum of Absolute Differences as an holistic descriptor (SAD). Milford and Wyeth (2012). "SeqSLAM: Visual Route-Based Navigation for Sunny Summer Days and Stormy Winter Nights".
+# global_descriptor_name = 'AlexNet'     # Slow. AlexNetConv3Extractor https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet
+# global_descriptor_name = 'NetVLAD'     # Decently fast. PatchNetVLADFeatureExtractor model. https://www.di.ens.fr/willow/research/netvlad/
+# global_descriptor_name = 'CosPlace'    # Decently fast. CosPlaceFeatureExtractor model. https://github.com/gmberton/CosPlace
+# global_descriptor_name = 'EigenPlaces' # Decently fast. EigenPlacesFeatureExtractor model. https://github.com/gmberton/EigenPlaces                    
+#
 class LoopDetectorHdcDelf(LoopDetectorVprBase): 
     def __init__(self, global_descriptor_name= 'HDC-DELF', local_feature_manager=None, name='LoopDetectorHdcDelf'):
         super().__init__(global_descriptor_name, local_feature_manager, name)

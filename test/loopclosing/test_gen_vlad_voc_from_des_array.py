@@ -41,6 +41,8 @@ def main(input_file, output_file):
     voc = VLAD(desc_dim=desc_dim,num_clusters=num_clusters)
     print(f'generating vocabulary...')
     used_descriptors = extract_random(descriptors,kMaxNumDescriptors)
+    print(f'used descriptors array of shape {used_descriptors.shape}')
+        
     voc.fit(used_descriptors)
     print(f'saving vocabulary to {output_file} ...')
     voc.save(output_file)

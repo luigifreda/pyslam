@@ -23,6 +23,7 @@ import time
 import math 
 import numpy as np
 import cv2
+import sys
 from enum import Enum
 
 from utils_sys import getchar, Printer 
@@ -58,18 +59,21 @@ class SCoreType(Enum):
     COSINE = 0
     SAD = 1
 
+
 class ScoreBase:
-    def __init__(self, type, best_score):
+    def __init__(self, type, worst_score, best_score):
         self.type = type
+        self.worst_score = worst_score
         self.best_score = best_score
     
     # g_des1 is [1, D], g_des2 is [M, D]
     def __call__(self, g_des1, g_des2):
         pass
 
+
 class ScoreSad(ScoreBase):
     def __init__(self):
-        super().__init__(SCoreType.SAD, best_score=0.0)
+        super().__init__(SCoreType.SAD, worst_score=-sys.float_info.max, best_score=0.0)
         
     @staticmethod
     def score(g_des1, g_des2):
@@ -79,7 +83,7 @@ class ScoreSad(ScoreBase):
         dim = diff.shape[1] - nan_count_per_row
         #print(f'dim: {dim}, diff.shape: {diff.shape}')
         diff[is_nan_diff] = 0
-        return -np.sum(np.abs(diff),axis=1) / dim  
+        return -np.sum(np.abs(diff),axis=1) / dim   # invert the sign of the standard SAD score
         
     # g_des1 is [1, D], g_des2 is [M, D]
     def __call__(self, g_des1, g_des2):
@@ -88,7 +92,7 @@ class ScoreSad(ScoreBase):
 
 class ScoreCosine(ScoreBase):
     def __init__(self):
-        super().__init__(SCoreType.COSINE, best_score=1.0)
+        super().__init__(SCoreType.COSINE, worst_score=-1.0, best_score=1.0)
   
     @staticmethod
     def score(g_des1, g_des2):
@@ -105,7 +109,7 @@ class ScoreCosine(ScoreBase):
 
 class ScoreTorchCosine(ScoreBase):
     def __init__(self):
-        super().__init__(SCoreType.COSINE, best_score=1.0)
+        super().__init__(SCoreType.COSINE, worst_score=-1.0, best_score=1.0)
   
     @staticmethod
     def score(g_des1, g_des2):
@@ -128,7 +132,8 @@ class ScoreTorchCosine(ScoreBase):
     def __call__(self, g_des1, g_des2):
         return self.score(g_des1, g_des2)
     
-    
+
+
 # abstract class
 class Database:
     def __init__(self, score=ScoreCosine()):
@@ -141,6 +146,9 @@ class Database:
     # add image descriptors to global_des_database
     def add(self, g_des): 
         raise NotImplementedError
+    
+    def reset(self):
+        pass
     
 
 # Simple database implementation with numpy entries
@@ -162,6 +170,9 @@ class SimpleDatabase(Database):
     # add image descriptors to global_des_database
     def add(self, g_des): 
         self.global_des_database.append(g_des)
+        
+    def reset(self):
+        self.global_des_database.clear()
 
 
 # Similar to SimpleDatabase but with torch entries
@@ -198,6 +209,9 @@ class SimpleTorchDatabase(Database):
         else:
             raise TypeError("Descriptor must be a PyTorch tensor")
         
+    def reset(self):
+        self.global_des_database.clear()
+        
 
 class FlannDatabase(Database):
     def __init__(self, score=ScoreCosine(), rebuild_threshold=100): 
@@ -211,6 +225,13 @@ class FlannDatabase(Database):
         self.des_dim = None
         self.num_trees = None
 
+    def reset(self):
+        self.global_des_database.clear()
+        self.recent_descriptors.clear()
+        self.flann = FLANN()
+        self.flann_index = None
+        self.index_built = False
+    
     def build_index(self):
         assert(self.num_trees is not None)        
         assert(self.des_dim is not None)
@@ -311,6 +332,12 @@ class FaissDatabase(Database):
         self.rebuild_threshold = rebuild_threshold
         self.des_dim = None
 
+    def reset(self):
+        self.global_des_database.clear()
+        self.recent_descriptors.clear()
+        self.index = None
+        self.index_built = False
+
     def build_index(self):
         assert self.des_dim is not None
         if len(self.global_des_database) > 0:
@@ -388,35 +415,3 @@ class FaissDatabase(Database):
         best_scores = best_scores[:max_num_results]
 
         return np.array(best_idxs), np.array(best_scores)
-    
-    
-
-# import config
-# config.cfg.set_lib('pydbow3')
-# import pydbow3 as dbow3
-# class BowDatabase(Database): 
-#     def __init__(self, score=ScoreCosine()):
-#         self.global_des_database = dbow3.Database(use_di=False)
-#         self.score = score
-#         if score.type == SCoreType.COSINE:
-#             self.global_des_database.setScoring(dbow3.ScoringType.DOT_PRODUCT)
-#         elif score.type == SCoreType.SAD:
-#             self.global_des_database.setScoring(dbow3.ScoringType.L1_NORM)
-
-#     def query(self, g_des, max_num_results=kMaxResultsForLoopClosure):
-#         if not isinstance(g_des, dbow3.BowVector):
-#             g_des = dbow3.BowVector(g_des.ravel())
-#         results = self.global_des_database.query(g_des, max_results=max_num_results+1) # we need plus one to eliminate the best trivial equal to img_id
-#         best_idxs = []
-#         best_scores = []
-#         for result in results:
-#             best_idxs.append(result.id)
-#             best_scores.append(result.score)
-#         return np.array(best_idxs), np.array(best_scores)
-    
-#     # add image descriptors to global_des_database
-#     def add(self, g_des): 
-#         if not isinstance(g_des, dbow3.BowVector):
-#             print(f'g_des.shape: {g_des.shape}')
-#             g_des = dbow3.BowVector(g_des.ravel())     
-#         self.global_des_database.addBowVector(g_des)

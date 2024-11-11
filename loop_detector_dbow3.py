@@ -21,7 +21,6 @@
 import os
 import time
 import math 
-from multiprocessing import Process, Manager, Value, Condition
 import numpy as np
 import cv2
 from enum import Enum
@@ -58,7 +57,6 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder
 kDataFolder = kRootFolder + '/data'
-kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
 
 
 if Parameters.kLoopClosingDebugAndPrintToFile:
@@ -75,6 +73,10 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         print(f'...done')
         self.db = dbow3.Database()
         self.db.setVocabulary(self.voc)      
+        
+    def reset(self): 
+        LoopDetectorBase.reset(self)
+        self.db.clear()
         
     def compute_global_des(self, local_des, img):  
         #print(f'computing global descriptors... voc empty: {self.voc.empty()}')     
@@ -105,25 +107,39 @@ class LoopDetectorDBoW3(LoopDetectorBase):
             if not isinstance(keyframe.g_des, dbow3.BowVector):
                 g_des_vec = keyframe.g_des
                 keyframe.g_des = dbow3.BowVector(keyframe.g_des) # transform back from vec to bow vector
+                
+        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
+            # add image descriptors to global_des_database
+            # NOTE: relocalization works on frames (not keyframes) and we don't need to add them to the database
+            self.db.addBowVector(keyframe.g_des)
         
-        # add image descriptors to global_des_database
-        self.db.addBowVector(keyframe.g_des)
-        
-        # the img_ids are mapped to img_counts (entry ids) inside the database management
-        self.map_img_count_to_kf_img_id[self.img_count] = img_id        
-        #print(f'LoopDetectorDBoW3: mapping img_id: {img_id} to img_count: {self.img_count}')
+            # the img_ids are mapped to img_counts (entry ids) inside the database management
+            self.map_img_count_to_kf_img_id[self.img_count] = img_id        
+            #print(f'LoopDetectorDBoW3: mapping img_id: {img_id} to img_count: {self.img_count}')
                     
         detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des_vec, img_id=img_id, img=keyframe.img)
         
-        if task.task_type == LoopDetectorTaskType.LOOP_CLOSURE:
+        candidate_idxs = []
+        candidate_scores = []
+            
+        if task.task_type == LoopDetectorTaskType.RELOCALIZATION:         
+            if self.img_count >= 1:
+                results = self.db_query(keyframe.g_des, img_id, max_num_results=kMaxResultsForLoopClosure) 
+                print(f'LoopDetectorDBoW3: Relocalization: frame: {img_id}, candidate keyframes: {[r.id for r in results]}')
+                for r in results:
+                    r_img_id = self.map_img_count_to_kf_img_id[r.id] # get the image id of the keyframe from it's internal image count
+                    candidate_idxs.append(r_img_id)
+                    candidate_scores.append(r.score)
+                
+            detection_output.candidate_idxs = candidate_idxs
+            detection_output.candidate_scores = candidate_scores 
+        
+        elif task.task_type == LoopDetectorTaskType.LOOP_CLOSURE:
                             
             # Compute reference BoW similarity score as the lowest score to a connected keyframe in the covisibility graph.
             min_score = self.compute_reference_similarity_score(task, dbow3.BowVector, score_fun=self.voc.score)
             print(f'LoopDetectorDBoW3: min_score = {min_score}')
-                            
-            candidate_idxs = []
-            candidate_scores = []
-                                        
+                                                                    
             if self.img_count >= 1:
                 results = self.db_query(keyframe.g_des, img_id, max_num_results=kMaxResultsForLoopClosure) 
                 #print(f'connected keyframes: {[kf_id for kf_id in task.connected_keyframes_ids]}')
@@ -149,5 +165,8 @@ class LoopDetectorDBoW3(LoopDetectorBase):
             # if we just wanted to compute the global descriptor (LoopDetectorTaskType.COMPUTE_GLOBAL_DES), we don't have to do anything
             pass
         
-        self.img_count += 1        
+        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
+            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
+            self.img_count += 1        
+            
         return detection_output

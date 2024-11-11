@@ -29,8 +29,8 @@ import traceback
 import g2o
 
 from utils_geom import poseRt, Sim3Pose
+from utils_sys import Printer, MultiprocessingManager
 from frame import FrameShared
-from utils_sys import Printer
 from map_point import MapPoint
 from keyframe import KeyFrame
 
@@ -269,7 +269,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     num_active_edges = num_edges-num_bad_edges            
     mean_squared_error = opt.active_chi2()/max(num_active_edges,1)
     
-    print(f'bundle_adjustment: mean_squared_error: {mean_squared_error}, initial_mean_squared_error: {initial_mean_squared_error}, num_edges: {num_edges},  num_bad_edges: {num_bad_edges} (perc: {num_bad_edges/num_edges*100}%)')
+    print(f'bundle_adjustment: mean_squared_error: {mean_squared_error}, initial_mean_squared_error: {initial_mean_squared_error}, num_edges: {num_edges},  num_bad_edges: {num_bad_edges} (perc: {num_bad_edges/num_edges*100:.2f}%)')
     
     if result_dict is not None:
         result_dict['keyframe_updates'] = keyframe_updates
@@ -652,7 +652,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
 # - frames_ref are fixed 
 # This function will handle the multiprocessing part of the optimization. 
 # it is launched by local_bundle_adjustment_parallel()
-def lba_optimization_process(result_dict, queue, good_keyframes, keyframes_ref, good_points, fixed_points, verbose, rounds, mp_abort_flag):
+def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes_ref, good_points, fixed_points, verbose, rounds, mp_abort_flag):
     from local_mapping import print
     try:
         print('lba_optimization_process: starting...')
@@ -752,10 +752,11 @@ def lba_optimization_process(result_dict, queue, good_keyframes, keyframes_ref, 
 
         print('lba_optimization_process: created opt...')
         
+        result_dict = {'mean_squared_error': -1, 'perc_bad_observations': 0}
+        
         if abort_flag.value:
             print('lba_optimization_process - aborting optimization')
-            result_dict['mean_squared_error'] = -1
-            result_dict['perc_bad_observations'] = 0        
+            result_dict_queue.put(result_dict)     
             queue.put("aborted")
             return
         
@@ -854,6 +855,7 @@ def lba_optimization_process(result_dict, queue, good_keyframes, keyframes_ref, 
         result_dict['mean_squared_error'] = mean_squared_error
         result_dict['perc_bad_observations'] = num_bad_observations/max(num_edges,1)
         
+        result_dict_queue.put(result_dict)
         queue.put("finished")
         print('lba_optimization_process: completed')
         
@@ -863,8 +865,7 @@ def lba_optimization_process(result_dict, queue, good_keyframes, keyframes_ref, 
         print(f'lba_optimization_process: EXCEPTION: {e} !!!')
         traceback_details = traceback.format_exc()
         print(f'\t traceback details: {traceback_details}')         
-        result_dict['mean_squared_error'] = -1
-        result_dict['perc_bad_observations'] = 0   
+        result_dict_queue.put(result_dict)  
         
 
 def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_points=False, verbose=False, rounds=10, abort_flag=g2o.Flag(), mp_abort_flag=None, map_lock=None):
@@ -876,16 +877,13 @@ def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_
 
     good_points = [p for p in points if p is not None and not p.is_bad] # and any(f in keyframes for f in p.keyframes())]
     
-    # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing      
-    # Use Manager to store the results from the subprocess
-    # manager = mp.Manager()
-    # result_dict = manager.dict()
-    # queue = manager.Queue()
-    result_dict = {}
-    queue = mp.Queue()
+    # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
+    mp_manager = MultiprocessingManager()
+    queue = mp_manager.Queue()
+    result_dict_queue = mp_manager.Queue()   
 
     # Start the optimization process in parallel 
-    p = mp.Process(target=lba_optimization_process, args=(result_dict, queue, good_keyframes, keyframes_ref, good_points, fixed_points, verbose, rounds, mp_abort_flag))
+    p = mp.Process(target=lba_optimization_process, args=(result_dict_queue, queue, good_keyframes, keyframes_ref, good_points, fixed_points, verbose, rounds, mp_abort_flag))
     #p.daemon = True
     
     p.start()
@@ -899,55 +897,68 @@ def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_
 
     print('local_bundle_adjustment_parallel - joined')
     
-    if result_dict['mean_squared_error'] != -1:
-        # Extract the keyframe poses and point positions
-        keyframe_poses = result_dict['keyframe_poses']
-        point_positions = result_dict['point_positions']
-        outliers_edge_data_out = result_dict['outliers_edge_data_out']
+    try: 
+        if result_dict_queue.qsize() == 0:
+            print('local_bundle_adjustment_parallel - result_dict_queue is empty')
+            result_dict = {'mean_squared_error': -1, 'perc_bad_observations': 0}
+        else:
+            result_dict = result_dict_queue.get()
+        
+        if result_dict['mean_squared_error'] != -1:
+            # Extract the keyframe poses and point positions
+            keyframe_poses = result_dict['keyframe_poses']
+            point_positions = result_dict['point_positions']
+            outliers_edge_data_out = result_dict['outliers_edge_data_out']
 
-        # Update the main process map with the new poses and point positions
-        if map_lock is None:
-            map_lock = threading.RLock()
+            # Update the main process map with the new poses and point positions
+            if map_lock is None:
+                map_lock = threading.RLock()
 
-        with map_lock:
-            
-            # remove outlier observations 
-            for p_idx, kf_kid in outliers_edge_data_out:
-                kf = good_keyframes[kf_kid]
-                p_f = kf.get_point_match(p_idx)
-                if p_f is not None:
-                    assert(p_f.id == p_idx)
-                    p_f.remove_observation(kf,p_idx)
-                    # the following instruction is now included in p.remove_observation()
-                    #f.remove_point(p)   # it removes multiple point instances (if these are present)   
-                    #f.remove_point_match(p_idx) # this does not remove multiple point instances, but now there cannot be multiple instances any more
-            
-            # put frames back        
-            for kf in good_keyframes.values():
-                # if kf.kid in keyframe_poses:
-                #     kf.update_pose(keyframe_poses[kf.kid])
-                try: 
-                    kf.update_pose(keyframe_poses[kf.kid])
-                except: 
-                    pass # kf.kid is not in keyframe_poses
+            with map_lock:
+                
+                # remove outlier observations 
+                for p_idx, kf_kid in outliers_edge_data_out:
+                    kf = good_keyframes[kf_kid]
+                    p_f = kf.get_point_match(p_idx)
+                    if p_f is not None:
+                        assert(p_f.id == p_idx)
+                        p_f.remove_observation(kf,p_idx)
+                        # the following instruction is now included in p.remove_observation()
+                        #f.remove_point(p)   # it removes multiple point instances (if these are present)   
+                        #f.remove_point_match(p_idx) # this does not remove multiple point instances, but now there cannot be multiple instances any more
+                
+                # put frames back        
+                for kf in good_keyframes.values():
+                    # if kf.kid in keyframe_poses:
+                    #     kf.update_pose(keyframe_poses[kf.kid])
+                    try: 
+                        kf.update_pose(keyframe_poses[kf.kid])
+                    except: 
+                        pass # kf.kid is not in keyframe_poses
 
-            # put points back
-            if not fixed_points:
-                for p in good_points:
-                    if p is not None:
-                        # if p.id in point_positions:
-                        #     p.update_position(np.array(point_positions[p.id]))
-                        #     p.update_normal_and_depth(force=True)
-                        try: 
-                            p.update_position(np.array(point_positions[p.id]))
-                            p.update_normal_and_depth(force=True)
-                        except: 
-                            pass # p.id is not in point_positions
+                # put points back
+                if not fixed_points:
+                    for p in good_points:
+                        if p is not None:
+                            # if p.id in point_positions:
+                            #     p.update_position(np.array(point_positions[p.id]))
+                            #     p.update_normal_and_depth(force=True)
+                            try: 
+                                p.update_position(np.array(point_positions[p.id]))
+                                p.update_normal_and_depth(force=True)
+                            except: 
+                                pass # p.id is not in point_positions
 
-        # Return success indicator
-        return result_dict['mean_squared_error'], result_dict['perc_bad_observations']
-    else: 
-        Printer.red(f'local_bundle_adjustment_parallel - error: {result_dict}')
+            # Return success indicator
+            return result_dict['mean_squared_error'], result_dict['perc_bad_observations']
+        else: 
+            Printer.red(f'local_bundle_adjustment_parallel - error: {result_dict}')
+            return -1, 0
+        
+    except Exception as e:
+        print(f'local_bundle_adjustment_parallel - EXCEPTION: {e}')
+        traceback_details = traceback.format_exc()
+        print(f'\t traceback details: {traceback_details}')
         return -1, 0
 
 

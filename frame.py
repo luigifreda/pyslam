@@ -1063,5 +1063,36 @@ def prepare_input_data_for_sim3solver(f1: Frame, f2: Frame, idxs1, idxs2):
         idxs1_out.append(i1)
         idxs2_out.append(i2)
     return np.array(points_3d_1), np.array(points_3d_2), \
-            np.array(sigmas2_1), np.array(sigmas2_2), \
-            np.array(idxs1_out), np.array(idxs2_out) 
+           np.array(sigmas2_1), np.array(sigmas2_2), \
+           np.array(idxs1_out), np.array(idxs2_out) 
+            
+            
+# prepare input data for pnp solver
+# in: 
+#   f1, f2: two frames
+#   idxs1, idxs2: indices of matches between f1 and f2
+# out:
+#   points_3d: 3D points in f2
+#   points_2d: 2D points in f1
+#   sigmas2, feature sigmas in f1
+#   idxs1_out, idxs2_out: indices of good point matches in f1 and f2
+def prepare_input_data_for_pnpsolver(f1: Frame, f2: Frame, idxs1, idxs2, print=print):
+    level_sigmas2 = FrameShared.feature_manager.level_sigmas2        
+    points_3d = []
+    points_2d = []    
+    sigmas2 = []
+    idxs1_out = []
+    idxs2_out = []
+    
+    # get matches for current keyframe and candidate keyframes
+    for i1,i2 in zip(idxs1,idxs2):
+        p2 = f2.get_point_match(i2)
+        if p2 is None or p2.is_bad:
+            continue 
+        points_3d.append(p2.pt)
+        points_2d.append(f1.kps[i1])
+        sigmas2.append(level_sigmas2[f1.octaves[i1]])
+        idxs1_out.append(i1)
+        idxs2_out.append(i2)
+    return np.array(points_3d), np.array(points_2d), \
+           np.array(sigmas2), np.array(idxs1_out), np.array(idxs2_out) 

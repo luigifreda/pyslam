@@ -84,5 +84,6 @@ PYBIND11_MODULE(pyobindex2, m)
 			}, py::arg("query_kps"), py::arg("matches"))
         .def("numImages", &ImageIndex::numImages)
         .def("numDescriptors", &ImageIndex::numDescriptors)
-        .def("rebuild", &ImageIndex::rebuild);
+        .def("rebuild", &ImageIndex::rebuild)
+		.def("clear", &ImageIndex::clear);
 }

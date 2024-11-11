@@ -28,7 +28,7 @@ from enum import Enum
 
 from collections import defaultdict 
 
-from threading import RLock, Lock, Thread, Condition, current_thread
+from threading import RLock, Thread, Condition
 from queue import Queue 
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
@@ -48,11 +48,11 @@ from loop_closing import LoopClosing
 from timer import Timer, TimerFps
 import optimizer_g2o
 
-from utils_sys import Printer
+from utils_sys import Printer, MultiprocessingManager
 from utils_geom import triangulate_normalized_points
 from utils_data import AtomicCounter, empty_queue
 
-import multiprocessing
+import multiprocessing as mp
 
 
 kVerbose=True     
@@ -126,11 +126,14 @@ class LocalMapping:
         
         # use self.set_opt_abort_flag() to manage the following two guys
         self.opt_abort_flag = g2o.Flag(False)                      # for multi-threading
-        self.mp_opt_abort_flag = multiprocessing.Value('i',False)  # for multi-processing (when used)
+        self.mp_opt_abort_flag = mp.Value('i',False)  # for multi-processing (when used)
                                               
         self.stop_requested = False
         self.stopped = False
         self.stop_mutex = RLock()
+        
+        self.reset_requested = False
+        self.reset_mutex = RLock()
          
         self.log_file = None 
         self.thread_large_BA = None 
@@ -141,7 +144,27 @@ class LocalMapping:
         self.last_num_culled_points = None
         self.last_num_culled_keyframes = None
         
-        
+    def request_reset(self):
+        print('LocalMapping: Requesting reset...')
+        with self.reset_mutex:
+            self.reset_requested = True
+        while True:
+            with self.queue_condition:
+                self.queue_condition.notifyAll() # to unblock self.pop_keyframe()              
+            with self.reset_mutex:
+                if not self.reset_requested:
+                    break
+            time.sleep(0.1)
+        print('LocalMapping: ...Reset done.')            
+            
+    def reset_if_requested(self):
+        with self.reset_mutex:
+            if self.reset_requested:
+                print('LocalMapping: reset_if_requested()...')            
+                empty_queue(self.queue)
+                self.recently_added_points.clear()
+                self.reset_requested = False
+                
     def set_loop_closing(self, loop_closing):
         self.loop_closing = loop_closing
         
@@ -276,11 +299,11 @@ class LocalMapping:
                 self.set_idle(True)
                 while self.is_stopped():
                     print(f'LocalMapping: stopped, idle: {self._is_idle} ...')
-                    time.sleep(kLocalMappingSleepTime) 
-                
+                    time.sleep(kLocalMappingSleepTime)              
         else: 
             #Printer.red('[local mapping] local map is empty')
             time.sleep(kLocalMappingSleepTime)
+        self.reset_if_requested()
         
     def do_local_mapping(self):
         print('local mapping: starting...')                        
@@ -540,7 +563,8 @@ class LocalMapping:
                             
         tasks = []
         processes = []
-        result_queue = multiprocessing.Queue()
+        mp_manager = MultiprocessingManager()
+        result_queue = mp_manager.Queue()
         
         for kf_idx,kf in enumerate(local_keyframes):
             if kf is self.kf_cur or kf.is_bad:
@@ -551,7 +575,7 @@ class LocalMapping:
 
             idxs_kf_cur, idxs_kf = match_idxs[(self.kf_cur, kf)]
             kfs_data = (self.kf_cur, kf, kf_idx, idxs_kf_cur, idxs_kf, 0.5*self.descriptor_distance_sigma, self.sensor_type == SensorType.MONOCULAR,result_queue)
-            process = multiprocessing.Process(target=kf_search_frame_for_triangulation, args=kfs_data) 
+            process = mp.Process(target=kf_search_frame_for_triangulation, args=kfs_data) 
             processes.append(process)
             process.start()
         

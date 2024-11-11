@@ -98,6 +98,7 @@ class SlamState(Enum):
     NOT_INITIALIZED=1,
     OK=2,
     LOST=3
+    RELOCALIZE=4
 
 
 class TrackingHistory(object):
@@ -106,6 +107,12 @@ class TrackingHistory(object):
         self.kf_references = []         # list of reference keyframes  
         self.timestamps = []            # list of frame timestamps 
         self.slam_states = []           # list of slam states 
+
+    def reset(self):
+        self.relative_frame_poses.clear()
+        self.kf_references.clear()
+        self.timestamps.clear()
+        self.slam_states.clear()
 
 
 # main slam class containing all the required modules 
@@ -119,6 +126,7 @@ class Slam(object):
         self.local_mapping = LocalMapping(self)        
         self.loop_closing = None
         self.GBA = None
+        self.reset_requested = False
         
         if Parameters.kUseLoopClosing and loop_detector_config is not None:  
             self.loop_closing = LoopClosing(self, loop_detector_config)
@@ -133,6 +141,14 @@ class Slam(object):
         self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
         self.tracking = Tracking(self) # after all the other initializations
 
+    def request_reset(self):
+        self.reset_requested = True
+
+    def reset(self):
+        self.local_mapping.request_reset()
+        self.loop_closing.request_reset()
+        self.tracking.reset()
+        self.map.reset()
         
     def quit(self):
         print('SLAM: quitting ...')
@@ -174,7 +190,8 @@ class Slam(object):
     def viewer_scale(self):
         return self.map.viewer_scale
 
-class Tracking(object):
+
+class Tracking:
     def __init__(self, system: Slam):
         
         if kShowFeatureMatches: 
@@ -247,7 +264,7 @@ class Tracking(object):
         
         self.time_track = None  
         
-        self.init_history = True 
+        self.init_history = True     # need to init history?
         self.poses = []              # history of poses
         self.pose_timestamps = []    # history of pose timestamps        
         self.t0_est = None           # history of estimated translations      
@@ -263,6 +280,57 @@ class Tracking(object):
         if kLogKFinfoToFile:
             self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', 'kf_info.log',formatter=Logging.simple_log_formatter)
                  
+
+    def reset(self):
+        print('Tracking: reset...')           
+
+        self.intializer.reset()
+
+        self.motion_model.reset()
+                        
+        self.state = SlamState.NO_IMAGES_YET
+        
+        self.num_matched_kps = None           # current number of matched keypoints 
+        self.num_inliers = None               # current number of matched points 
+        self.num_matched_map_points = None         # current number of matched map points (matched and found valid in current pose optimization)     
+        self.num_kf_ref_tracked_points = None # number of tracked points in k_ref (considering a minimum number of observations)      
+        
+        self.last_num_static_stereo_map_points = None
+        
+        self.mask_match = None 
+
+        self.pose_is_ok = False 
+        self.mean_pose_opt_chi2_error = None
+        self.predicted_pose = None 
+        self.velocity = None 
+                        
+        self.f_cur = None 
+        self.idxs_cur = None 
+        self.f_ref = None 
+        self.idxs_ref = None 
+                
+        self.kf_ref = None    # reference keyframe (in general, different from last keyframe depending on the used approach)
+        self.kf_last = None   # last keyframe  
+        self.kid_last_BA = -1 # last keyframe id when performed BA 
+                
+        self.local_keyframes.clear()
+        self.local_points.clear()
+        self.vo_points.clear()
+        
+        self.tracking_history.reset()
+                
+        self.init_history = True        
+        self.poses.clear()
+        self.pose_timestamps.clear()
+        self.t0_est = None           # history of estimated translations      
+        self.t0_gt = None            # history of ground truth translations (if available)        
+        self.traj3d_est.clear()
+        self.traj3d_gt.clear()
+        
+        self.cur_R = None # current rotation w.r.t. world frame  
+        self.cur_t = None # current translation w.r.t. world frame 
+        self.trueX, self.trueY, self.trueZ = None, None, None
+                
 
     # estimate a pose from a fitted essential mat; 
     # since we do not have an interframe translation scale, this fitting can be used to detect outliers, estimate interframe orientation and translation direction 
@@ -374,7 +442,7 @@ class Tracking(object):
             else:   
                 # search frame by projection was successful 
                 if kUseDynamicDesDistanceTh: 
-                    self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stat(f_ref, f_cur, idxs_ref, idxs_cur)         
+                    self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(f_ref, f_cur, idxs_ref, idxs_cur)         
                               
                 # store tracking info (for possible reuse)                                                    
                 self.idxs_ref = idxs_ref 
@@ -415,7 +483,7 @@ class Tracking(object):
             idxs_ref, idxs_cur = self.estimate_pose_by_fitting_ess_mat(f_ref, f_cur, idxs_ref, idxs_cur)      
         
         if kUseDynamicDesDistanceTh: 
-            self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stat(f_ref, f_cur, idxs_ref, idxs_cur)        
+            self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(f_ref, f_cur, idxs_ref, idxs_cur)        
                                
         # propagate map point matches from kf_ref to f_cur  (do not override idxs_ref, idxs_cur)
         num_found_map_pts_inter_frame, idx_ref_prop, idx_cur_prop = propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur, 
@@ -496,7 +564,7 @@ class Tracking(object):
             self.pose_is_ok = False                                        
         
         #if kUseDynamicDesDistanceTh: 
-        #    self.reproj_err_frame_map_sigma = self.dyn_config.update_reproj_err_map_stat(reproj_err_frame_map_sigma)                         
+        #    self.reproj_err_frame_map_sigma = self.dyn_config.update_reproj_err_map_stats(reproj_err_frame_map_sigma)                         
 
 
     # store frame history in order to retrieve the complete camera trajectory 
@@ -594,7 +662,7 @@ class Tracking(object):
         # condition 3: few tracked features compared to reference keyframe 
         cond3 = (num_f_cur_tracked_points < num_kf_ref_tracked_points * thRefRatio) and (num_f_cur_tracked_points > Parameters.kNumMinPointsForNewKf)
         
-        #print('KF conditions: %d %d %d' % (cond1, cond2, cond3) )
+        #print(f'KF conditions: cond1: {cond1}, cond2a: {cond2a}, cond2b: {cond2b}, cond2c: {cond2c}, cond3: {cond3}')
         ret = (cond1 or cond2a or cond2b or cond2c) and cond3    
                                                         
         if ret:
@@ -634,6 +702,9 @@ class Tracking(object):
         
         self.local_mapping.set_not_stop(False)
 
+    def relocalize(self, f_cur: Frame, img):
+        Printer.green(f'Relocalizing frame id: {f_cur.id}...')
+        return self.system.loop_closing.relocalize(f_cur, img)
 
     # @ main track method @
     def track(self, img, img_right, depth, frame_id, timestamp=None):
@@ -716,7 +787,7 @@ class Tracking(object):
                 self.intializer.reset()
                 
                 if kUseDynamicDesDistanceTh: 
-                    self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stat(kf_ref, kf_cur, initializer_output.idxs_ref, initializer_output.idxs_cur)                     
+                    self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(kf_ref, kf_cur, initializer_output.idxs_ref, initializer_output.idxs_cur)                     
             return # EXIT (jump to next frame)
         
         # get previous frame in map as reference        
@@ -742,54 +813,68 @@ class Tracking(object):
         self.wait_for_local_mapping()  # N.B.: this must be outside the `with self.map.update_lock:` block
                                     
         with self.map.update_lock:
-            # check for map point replacements in previous frame f_ref (some points might have been replaced by local mapping during point fusion)
-            self.f_ref.check_replaced_map_points()
-                                                  
-            if kUseDynamicDesDistanceTh:         
-                print('descriptor_distance_sigma: ', self.descriptor_distance_sigma)
-                self.local_mapping.descriptor_distance_sigma = self.descriptor_distance_sigma
-                    
-            # udpdate (velocity) old motion model                                             # c1=ref_ref, c2=ref, c3=cur;  c=cur, r=ref
-            #self.velocity = np.dot(f_ref.pose, inv_T(f_ref_2.pose))                          # Tc2c1 = Tc2w * Twc1   (predicted Tcr)
-            #self.predicted_pose = g2o.Isometry3d(np.dot(self.velocity, f_ref.pose))          # Tc3w = Tc2c1 * Tc2w   (predicted Tcw)        
-                                                    
-            # set intial guess for current pose optimization                         
-            if kUseMotionModel and self.motion_model.is_ok:
-                print('using motion model for next pose prediction')                   
-                # update f_ref pose according to its reference keyframe (the pose of the reference keyframe could be updated by local mapping)
-                self.f_ref.update_pose(self.tracking_history.relative_frame_poses[-1] * self.f_ref.kf_ref.isometry3d)         
-                if Parameters.kUseVisualOdometryPoints:                         
-                    self.create_vo_points_on_last_frame()
-                # predict pose by using motion model 
-                self.predicted_pose,_ = self.motion_model.predict_pose(timestamp, self.f_ref.position, self.f_ref.orientation)            
-                f_cur.update_pose(self.predicted_pose)
-            else:
-                print('setting f_cur.pose <-- f_ref.pose')
-                # use reference frame pose as initial guess 
-                f_cur.update_pose(f_ref.pose)
-                                                    
-            # track camera motion from f_ref to f_cur
-            self.track_previous_frame(f_ref, f_cur)
             
-            if not self.pose_is_ok:
-                # if previous track didn't go well then track the camera motion from kf_ref to f_cur 
-                self.track_keyframe(self.kf_ref, f_cur) 
+            # if frame_id == 50:
+            # # if self.map.num_keyframes() > 150: # for ibow 
+            #     self.state = SlamState.LOST # force to lost state for testing relocalization
+            
+            if self.state == SlamState.OK:
+                
+                # check for map point replacements in previous frame f_ref (some points might have been replaced by local mapping during point fusion)
+                self.f_ref.check_replaced_map_points()
+                                                    
+                if kUseDynamicDesDistanceTh:         
+                    print('descriptor_distance_sigma: ', self.descriptor_distance_sigma)
+                    self.local_mapping.descriptor_distance_sigma = self.descriptor_distance_sigma
+                        
+                # udpdate (velocity) old motion model                                             # c1=ref_ref, c2=ref, c3=cur;  c=cur, r=ref
+                #self.velocity = np.dot(f_ref.pose, inv_T(f_ref_2.pose))                          # Tc2c1 = Tc2w * Twc1   (predicted Tcr)
+                #self.predicted_pose = g2o.Isometry3d(np.dot(self.velocity, f_ref.pose))          # Tc3w = Tc2c1 * Tc2w   (predicted Tcw)        
+                                                        
+                # set intial guess for current pose optimization                         
+                if kUseMotionModel and self.motion_model.is_ok:
+                    print('using motion model for next pose prediction')                   
+                    # update f_ref pose according to its reference keyframe (the pose of the reference keyframe could be updated by local mapping)
+                    self.f_ref.update_pose(self.tracking_history.relative_frame_poses[-1] * self.f_ref.kf_ref.isometry3d)         
+                    if Parameters.kUseVisualOdometryPoints:                         
+                        self.create_vo_points_on_last_frame()
+                    # predict pose by using motion model 
+                    self.predicted_pose,_ = self.motion_model.predict_pose(timestamp, self.f_ref.position, self.f_ref.orientation)            
+                    f_cur.update_pose(self.predicted_pose)
+                else:
+                    print('setting f_cur.pose <-- f_ref.pose')
+                    # use reference frame pose as initial guess 
+                    f_cur.update_pose(f_ref.pose)
+                                                        
+                # track camera motion from f_ref to f_cur
+                self.track_previous_frame(f_ref, f_cur)
+                
+                if not self.pose_is_ok:
+                    # if previous track didn't go well then track the camera motion from kf_ref to f_cur 
+                    self.track_keyframe(self.kf_ref, f_cur)
+                    
+            else: 
+                self.state = SlamState.RELOCALIZE
+                if self.relocalize(f_cur, img):
+                    self.state = SlamState.OK
+                    self.pose_is_ok = True
+                    Printer.green('Relocalization successful')
+                else: 
+                    Printer.red('Relocalization failed')
                                             
             # now, having a better estimate of f_cur pose, we can find more map point matches: 
             # find matches between {local map points} (points in the local map) and {unmatched keypoints of f_cur}
             if self.pose_is_ok: 
                 self.track_local_map(f_cur)
-                
-        
-            # TODO: add relocalization 
             
             # update slam state 
             if self.pose_is_ok:
                 self.state=SlamState.OK          
-            else:                
-                self.state=SlamState.LOST
-                Printer.red('tracking failure')
-                
+            else:
+                if self.state==SlamState.OK:               
+                    self.state=SlamState.LOST
+                    Printer.red('tracking failure')
+                                
             # update motion model state     
             self.motion_model.is_ok = self.pose_is_ok                    
                                 
@@ -823,7 +908,15 @@ class Tracking(object):
                 
                                   
         # end block {with self.map.update_lock:}  
-                                                      
+                                             
+        # NOTE: this reset must be outside the block {with self.map.update_lock:}  
+        need_reset = self.system.reset_requested or (self.state == SlamState.LOST and self.map.num_keyframes() <= 5)                  
+        if need_reset: 
+            Printer.yellow('\nTracking: SLAM resetting...\n')                
+            self.system.reset()
+            Printer.yellow('\nTracking: SLAM reset done\n')
+            return
+                                                                  
         if self.f_cur.kf_ref is None:
             self.f_cur.kf_ref = self.kf_ref  
                                 
@@ -836,6 +929,7 @@ class Tracking(object):
         elapsed_time = time.time() - time_start
         self.time_track = elapsed_time
         print('Tracking: elapsed_time: ', elapsed_time)      
+                  
                   
         
     

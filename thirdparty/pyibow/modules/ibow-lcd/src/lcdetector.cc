@@ -51,18 +51,32 @@ LCDetector::~LCDetector() {}
 void LCDetector::process(const unsigned image_id,
                          const std::vector<cv::KeyPoint>& kps,
                          const cv::Mat& descs,
+                         LCDetectorResult* result){
+
+  process(image_id, kps, descs, true/*add_to_index*/, result);
+}
+
+void LCDetector::process(const unsigned image_id,
+                         const std::vector<cv::KeyPoint>& kps,
+                         const cv::Mat& descs,
+                         const bool add_to_index,
                          LCDetectorResult* result) {
   result->query_id = image_id;
 
-  // Storing the keypoints and descriptors
-  prev_kps_.push_back(kps);
-  prev_descs_.push_back(descs);
+  if(add_to_index) {
+    // Storing the keypoints and descriptors
+    prev_kps_.push_back(kps);
+    prev_descs_.push_back(descs);
 
-  // Adding the current image to the queue to be added in the future
-  queue_ids_.push(image_id);
+    // Adding the current image to the queue to be added in the future
+    queue_ids_.push(image_id);
+
+    num_pushed_images++;
+  }
 
   // Assessing if, at least, p images have arrived
-  if (queue_ids_.size() < p_) {
+  //if (queue_ids_.size() < p_) {
+  if(num_pushed_images < p_) {
     result->status = LC_NOT_ENOUGH_IMAGES;
     result->train_id = 0;
     result->inliers = 0;
@@ -284,6 +298,13 @@ void LCDetector::debug(const unsigned image_id,
   out_file << index_->numDescriptors() << "\t";   // Voc. Size
   out_file << std::chrono::duration<double, std::milli>(diff).count() << "\t";  // Time
   out_file << std::endl;
+}
+
+void LCDetector::clear() {
+  index_->clear();
+  last_lc_result_.status = LC_NOT_DETECTED;
+  consecutive_loops_ = 0;
+  num_pushed_images = 0;
 }
 
 void LCDetector::addImage(const unsigned image_id,

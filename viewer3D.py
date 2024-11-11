@@ -21,7 +21,7 @@ import config
 
 import time
 import math 
-import multiprocessing as mp 
+import torch.multiprocessing as mp 
 
 import pypangolin as pangolin
 import OpenGL.GL as gl
@@ -31,7 +31,7 @@ from slam import Slam
 from map import Map
 
 from utils_geom import inv_T, align_trajs_with_svd
-from utils_sys import Printer
+from utils_sys import MultiprocessingManager, Printer
 from utils_data import empty_queue
 
 kUiWidth = 180
@@ -89,21 +89,19 @@ class Viewer3D(object):
         self.estimated_trajectory = None
         self.estimated_trajectory_timestamps = None
 
-        # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing  
-        # self.manager = mp.Manager()
-        # self.qmap = self.manager.Queue()        
-        # self.qvo = self.manager.Queue()        
-
-        self.qmap = mp.Queue()
-        self.qvo = mp.Queue()
+        # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
+        self.mp_manager = MultiprocessingManager()
+        self.qmap = self.mp_manager.Queue()
+        self.qvo = self.mp_manager.Queue()
                 
         self._is_running  = mp.Value('i',1)
         self._is_paused = mp.Value('i',0)
         self._is_map_save = mp.Value('i',0)
         self._do_step = mp.Value('i',0)
+        self._do_reset = mp.Value('i',0)
         self._is_gt_set = mp.Value('i',0)
         self.vp = mp.Process(target=self.viewer_run,
-                          args=(self.qmap, self.qvo,self._is_running,self._is_paused,self._is_map_save, self._do_step, self._is_gt_set))
+                          args=(self.qmap, self.qvo,self._is_running,self._is_paused,self._is_map_save, self._do_step, self._do_reset, self._is_gt_set))
         self.vp.daemon = True
         self.vp.start()
         
@@ -136,8 +134,14 @@ class Viewer3D(object):
         if do_step:
             self._do_step.value = 0
         return do_step   
+    
+    def reset(self):
+        do_reset = (self._do_reset.value == 1)
+        if do_reset:
+            self._do_reset.value = 0
+        return do_reset       
 
-    def viewer_run(self, qmap, qvo, is_running, is_paused, is_map_save, do_step, is_gt_set):
+    def viewer_run(self, qmap, qvo, is_running, is_paused, is_map_save, do_step, do_reset, is_gt_set):
         self.viewer_init(kViewportWidth, kViewportHeight)
         # init local vars for the the process 
         self.thread_gt_trajectory = None
@@ -148,7 +152,7 @@ class Viewer3D(object):
         self.thread_last_frame_id_gt_was_aligned = 0
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
-            self.viewer_refresh(qmap, qvo, is_paused, is_map_save, do_step, is_gt_set)
+            self.viewer_refresh(qmap, qvo, is_paused, is_map_save, do_step, do_reset, is_gt_set)
             sleep = (time.time() - ts) - kRefreshDurationTime         
             if sleep > 0:
                 time.sleep(sleep)     
@@ -202,7 +206,8 @@ class Viewer3D(object):
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
         self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
         self.buttonSave = pangolin.VarBool('ui.Save', value=False, toggle=False)   
-        self.buttonStep = pangolin.VarBool('ui.Step', value=False, toggle=False)                      
+        self.buttonStep = pangolin.VarBool('ui.Step', value=False, toggle=False)
+        self.buttonReset = pangolin.VarBool('ui.Reset', value=False, toggle=False)                      
         #self.float_slider = pangolin.VarFloat('ui.Float', value=3, min=0, max=5)
         #self.float_log_slider = pangolin.VarFloat('ui.Log_scale var', value=3, min=1, max=1e4, logscale=True)
         self.int_slider = pangolin.VarInt('ui.Point Size', value=kDefaultPointSize, min=1, max=10)  
@@ -214,7 +219,7 @@ class Viewer3D(object):
         # print("self.Twc.m",self.Twc.m)
 
 
-    def viewer_refresh(self, qmap, qvo, is_paused, is_map_save, do_step, is_gt_set):
+    def viewer_refresh(self, qmap, qvo, is_paused, is_map_save, do_step, do_reset, is_gt_set):
 
         while not qmap.empty():
             self.map_state = qmap.get()
@@ -250,6 +255,12 @@ class Viewer3D(object):
                 self.checkboxPause.SetVal(True)
                 is_paused.value = 1            
             do_step.value = 1 
+            
+        if pangolin.Pushed(self.buttonReset):
+            # if not is_paused.value:
+            #     self.checkboxPause.SetVal(True)
+            #     is_paused.value = 1            
+            do_reset.value = 1
                     
         # self.int_slider.SetVal(int(self.float_slider))
         self.pointSize = self.int_slider.Get()

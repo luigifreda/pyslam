@@ -60,6 +60,14 @@ class MotionModelBase(object):
     def apply_correction(self, correction):     # corr: g2o.Isometry3d or matrix44
         return None 
 
+    def reset(self):
+        self.timestamp = None
+        self.position = np.zeros(3)
+        self.orientation = g2o.Quaternion()
+        self.covariance = None
+        self.is_ok = False
+        self.initialized = False
+
 
 # simple kinematic motion model without damping (does not actually use timestamps)
 class MotionModel(MotionModelBase):

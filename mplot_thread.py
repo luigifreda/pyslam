@@ -30,6 +30,8 @@ import matplotlib.pyplot as plt
 
 #import multiprocessing as mp 
 import torch.multiprocessing as mp
+from utils_sys import MultiprocessingManager
+
 
 kPlotSleep = 0.04
 kVerbose = False 
@@ -112,12 +114,10 @@ class Mplot2d:
         self.key = mp.Value('i',0)
         self.is_running = mp.Value('i',1)
 
-        # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing 
-        # self.manager = mp.Manager()
-        # self.queue = self.manager.Queue()
-        # self.key_queue = self.manager.Queue()
-        self.queue = mp.Queue()
-        self.key_queue = mp.Queue()
+        # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
+        self.mp_manager = MultiprocessingManager()
+        self.queue = self.mp_manager.Queue()
+        self.key_queue = self.mp_manager.Queue()
         
         self.figure_num = mp.Value('i', int(FigureNum.getFigureNum()))
         print(f'Mplot2d: starting the process on figure: {self.figure_num}')
@@ -282,12 +282,10 @@ class Mplot3d:
         self.key = mp.Value('i',0)
         self.is_running = mp.Value('i',1)         
 
-        # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing 
-        # self.manager = mp.Manager()
-        # self.queue = self.manager.Queue()
-        # self.key_queue = self.manager.Queue()
-        self.queue = mp.Queue()
-        self.key_queue = mp.Queue()
+        # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
+        self.mp_manager = MultiprocessingManager()
+        self.queue = self.mp_manager.Queue()
+        self.key_queue = self.mp_manager.Queue()        
         
         self.lock = SharedSingletonLock().get_lock 
         

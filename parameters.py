@@ -151,6 +151,17 @@ class Parameters:
     kLoopClosingMaxReprojectionDistanceFuse = 4              # [pixels]    o:4
     kLoopClosingFeatureMatchRatioTest = 0.75                 # TODO: put it in an table and make it configurable per descriptor
 
+    # Relocatization 
+    kRelocalizationDebugAndPrintToFile = False
+    kRelocalizationMinKpsMatches = 15                       # o:15
+    kRelocalizationParallelKpsMatching=True    
+    kRelocalizationParallelKpsMatchingNumWorkers = 6    
+    kRelocalizationFeatureMatchRatioTest = 0.75                   # TODO: put it in an table and make it configurable per descriptor
+    kRelocalizationFeatureMatchRatioTestLarge = 0.9              # o:0.9
+    kRelocalizationPoseOpt1MinMatches = 10                        # o:10
+    kRelocalizationDoPoseOpt2NumInliers = 50                      # o:50
+    kRelocalizationMaxReprojectionDistanceMapSearchCoarse = 10    # [pixels]    o:10 
+    kRelocalizationMaxReprojectionDistanceMapSearchFine = 3       # [pixels]    o:3       
     
     # Global Bundle Adjustment (GBA)
     kUseGBA = True                      # Activated by loop closing

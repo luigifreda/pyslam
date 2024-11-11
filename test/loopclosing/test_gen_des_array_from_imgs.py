@@ -9,6 +9,7 @@ sys.path.append("../../")
 from config import Config
 config = Config()
 
+from frame import Frame
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
@@ -26,25 +27,30 @@ def load_json_config(json_path):
     return config
 
 
-def get_image_paths(paths, extensions, filter_out, recursive):
-    """Get a list of image paths in alphabetical order based on the configuration, ensuring unique paths."""
+def get_image_paths(paths, extensions, frame_step, filter_out, recursive):
     image_paths = []
     
-    paths = set(paths)
+    paths = set(paths)  # Ensure paths are unique to begin with
     
     for path in paths:
         if recursive:
             for root, dirs, files in os.walk(path):
                 dirs.sort()  # Sort directories to ensure a consistent traversal order
                 files = sorted(f for f in files if f.endswith(tuple(extensions)) and (filter_out not in f or filter_out == ""))
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    image_paths.append(file_path)
+                
+                # Use frame_step independently per directory
+                for i, file in enumerate(files):
+                    if i % frame_step == 0:  # Include only every frame_step-th frame per directory
+                        file_path = os.path.join(root, file)
+                        image_paths.append(file_path)
         else:
             files = sorted(f for f in os.listdir(path) if f.endswith(tuple(extensions)) and (filter_out not in f or filter_out == ""))
-            for file in files:
-                file_path = os.path.join(path, file)
-                image_paths.append(file_path)
+            
+            # Use frame_step for the non-recursive case
+            for i, file in enumerate(files):
+                if i % frame_step == 0:  # Include only every frame_step-th frame
+                    file_path = os.path.join(path, file)
+                    image_paths.append(file_path)
 
     # Ensure paths are unique and sorted
     return sorted(set(image_paths))
@@ -90,9 +96,10 @@ def main(json_path, output_path, feature_tracker):
     extensions = config["extensions"]
     recursive = config.get("recursive", False)
     filter_out = config.get("filter_out", "")
+    frame_step = config.get("frame_step", 1) # if set to N, extract descriptors from every Nth frame in each folder
 
     # Get image paths and extract descriptors
-    image_paths = get_image_paths(paths, extensions, filter_out, recursive)
+    image_paths = get_image_paths(paths, extensions, frame_step, filter_out, recursive)
     descriptors = extract_descriptors(image_paths, feature_tracker)
 
     # Save descriptors
@@ -105,6 +112,7 @@ def main(json_path, output_path, feature_tracker):
 #     "paths": ["/home/luigi/Work/slam_wss/pyslam-master-new/data/images/GardensPoint"],
 #     "extensions": [".jpg", ".png"],
 #     "filter_out": "",
+#     "frame_step": 5,
 #     "recursive": true 
 # }
 if __name__ == "__main__":
@@ -119,5 +127,8 @@ if __name__ == "__main__":
     tracker_config['num_features'] = 2000
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
+    
+    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FrameShared. 
+    Frame.set_tracker(feature_tracker)     
     
     main(args.json_config_path, args.output_file, feature_tracker)

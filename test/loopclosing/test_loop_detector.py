@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 
 from dataset import dataset_factory
+from frame import Frame
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
@@ -37,9 +38,12 @@ if __name__ == '__main__':
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
     
+    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FrameShared. 
+    Frame.set_tracker(feature_tracker)     
+    
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.VLAD  
+    loop_detection_config = LoopDetectorConfigs.IBOW  
     Printer.green('loop_detection_config: ',loop_detection_config)
     loop_detector = loop_detector_factory(**loop_detection_config)
     

@@ -22,7 +22,7 @@ class SLAMDynamicConfig:
         self.reproj_err_frame_map_alpha=0.9  
         self.reproj_err_frame_map_factor=3                
         
-    def update_descriptor_stat(self, f_ref, f_cur, idxs_ref, idxs_cur):  
+    def update_descriptor_stats(self, f_ref, f_cur, idxs_ref, idxs_cur):  
         if len(idxs_cur)>0:
             des_cur = f_cur.des[idxs_cur]
             des_ref = f_ref.des[idxs_ref]
@@ -41,7 +41,7 @@ class SLAMDynamicConfig:
             self.descriptor_distance_sigma = None
         return self.descriptor_distance_sigma
     
-    def update_reproj_err_map_stat(self, value):
+    def update_reproj_err_map_stats(self, value):
         self.reproj_err_frame_map_sigma = self.reproj_err_frame_map_alpha*self.reproj_err_frame_map_sigma + (1.-self.reproj_err_frame_map_alpha)*value
         self.reproj_err_frame_map_sigma = max(1., self.reproj_err_frame_map_sigma)
         return self.reproj_err_frame_map_sigma

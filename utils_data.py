@@ -1,11 +1,12 @@
-import multiprocessing as mp
+import torch.multiprocessing as mp
 import threading as th    
 import numpy as np
 
+from utils_sys import MultiprocessingManager
 
 # empty a queue before exiting from the consumer thread/process for safety
 def empty_queue(queue):
-    while not queue.empty():
+    while queue.qsize()>0:
         try:
             queue.get(timeout=0.001)
         except:
@@ -30,7 +31,8 @@ class SingletonMeta(type):
     
 class FixedSizeQueue:
     def __init__(self, maxsize):
-        self.queue = mp.Queue() 
+        self.mp_manager = MultiprocessingManager()
+        self.queue = self.mp_manager.Queue() 
         self.maxsize = maxsize
         self.size = mp.Value('i', 0) 
 

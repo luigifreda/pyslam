@@ -23,6 +23,21 @@ index 7578bec..0a59216 100644
    ENDIF()
  
    IF(G2O_FAST_MATH)
+diff --git a/EXTERNAL/pybind11/CMakeLists.txt b/EXTERNAL/pybind11/CMakeLists.txt
+index 4280ba7..9f023b4 100644
+--- a/EXTERNAL/pybind11/CMakeLists.txt
++++ b/EXTERNAL/pybind11/CMakeLists.txt
+@@ -7,6 +7,10 @@
+ 
+ cmake_minimum_required(VERSION 2.8.12)
+ 
++IF(NOT CMAKE_BUILD_TYPE)
++  SET(CMAKE_BUILD_TYPE Release)
++ENDIF()
++
+ if (POLICY CMP0048)
+   # cmake warns if loaded from a min-3.0-required parent dir, so silence the warning:
+   cmake_policy(SET CMP0048 NEW)
 diff --git a/EXTERNAL/pybind11/include/pybind11/attr.h b/EXTERNAL/pybind11/include/pybind11/attr.h
 index dce875a..e904cb2 100644
 --- a/EXTERNAL/pybind11/include/pybind11/attr.h

@@ -19,10 +19,12 @@
 
 
 
-from threading import Thread, Condition
+from threading import Thread, Condition, RLock
 import numpy as np
 import cv2
 from collections import defaultdict 
+
+import time
 
 from utils_sys import Printer 
 from utils_img import LoopCandidateImgs
@@ -35,23 +37,26 @@ from timer import TimerFps
 from loop_detector_configs import LoopDetectorConfigs
 
 from keyframe import KeyFrame
-from frame import Frame, FrameShared, compute_frame_matches, prepare_input_data_for_sim3solver
+from frame import Frame, FrameShared, compute_frame_matches, prepare_input_data_for_sim3solver, prepare_input_data_for_pnpsolver
 from map import Map
 from global_bundle_adjustment import GlobalBundleAdjustment
 from dataset import SensorType
 from rotation_histogram import filter_matches_with_histogram_orientation
 
-from search_points import search_by_sim3, search_map_points_by_projection, search_and_fuse_for_loop_correction
+from search_points import search_by_sim3, search_more_map_points_by_projection, search_and_fuse_for_loop_correction, search_frame_by_projection
 
-from optimizer_g2o import optimize_sim3, optimize_essential_graph
+from optimizer_g2o import optimize_sim3, optimize_essential_graph, pose_optimization
 
 from loop_detecting_process import LoopDetectingProcess
 from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorOutput
 from parameters import Parameters
 
+from relocalizer import Relocalizer
+
 import traceback
 
 import sim3solver
+import pnpsolver
 
 
 kVerbose = True
@@ -323,8 +328,8 @@ class LoopGeometryChecker:
                 success_covisible_group.append(self.success_loop_kf)
                 self.success_loop_map_points = set().union(*(kf.get_matched_good_points() for kf in success_covisible_group))
 
-                # Find more matches projecting the found map points with the updated Sim3 pose
-                num_new_found_points, self.success_map_point_matches = search_map_points_by_projection(self.success_loop_map_points, \
+                # Find more matches projecting the above found map points with the updated Sim3 pose
+                num_new_found_points, self.success_map_point_matches = search_more_map_points_by_projection(self.success_loop_map_points, \
                                                                                                 current_keyframe, \
                                                                                                 self.success_map_point_matches, \
                                                                                                 self.success_loop_kf_sim3_pose,
@@ -332,7 +337,7 @@ class LoopGeometryChecker:
                                                                                                 print_fun=print)            
                 num_matched_map_points = sum(match is not None for match in self.success_map_point_matches)
                 
-                print(f'LoopGeometryChecker: num_matched_map_points: {num_matched_map_points}, num_new_found_points by search_map_points_by_projection(): {num_new_found_points}')            
+                print(f'LoopGeometryChecker: num_matched_map_points: {num_matched_map_points}, num_new_found_points by search_more_map_points_by_projection(): {num_new_found_points}')            
                 
                 if num_matched_map_points < Parameters.kLoopClosingMinNumMatchedMapPoints:
                     self.success_loop_kf = None
@@ -601,14 +606,40 @@ class LoopClosing:
         self.loop_geometry_checker = LoopGeometryChecker(self.is_monocular, self.map_kf_id_to_img)
         self.loop_corrector = LoopCorrector(slam, self.is_monocular, self.loop_geometry_checker, self.GBA)
         
+        self.relocalizer = Relocalizer()
+        
         self.mean_graph_chi2_error = None
         
         self.is_running = False
         self.stop = False    
         self.work_thread = Thread(target=self.run)
         
+        self.reset_mutex = RLock()
+        self.reset_requested = False
+        
         self._is_closing = False 
         self.is_closing_codition = Condition()
+
+    def request_reset(self):
+        print('LoopClosing: Requesting reset...')        
+        self.GBA.quit()
+        with self.reset_mutex:
+            self.reset_requested = True
+        while True:
+            with self.loop_detecting_process.q_in_condition: # to unblock self.loop_detecting_process.pop_output() in run() method
+                self.loop_detecting_process.q_in_condition.notify_all()
+            with self.reset_mutex:
+                if not self.reset_requested:
+                    break
+            time.sleep(0.1)
+        print('LoopClosing: ...Reset done.')                  
+            
+    def reset_if_requested(self):
+        with self.reset_mutex:
+            if self.reset_requested:                    
+                print('LoopClosing: reset_if_requested()...')                
+                self.loop_detecting_process.request_reset()
+                self.reset_requested = False
 
     def set_map(self, map):
         self.loop_corrector.set_map(map)
@@ -673,11 +704,13 @@ class LoopClosing:
         self.is_running = True
         while not self.stop:
             # Steps:
-            # - Loop detection: get loop detection candidates from LoopDetectingProcess process
+            # - Loop detection: get loop detection candidates from LoopDetectingProcess process (parallel process)
             # - Loop consistency verification: extract consistent candidates from LoopGroupConsistencyChecker (same thread)
             # - Loop geometry verification: extract geometry-verified candidates from LoopGeometryChecker (same thread)
             # - Loop correction: correct loop (same thread)
             try:
+                
+                self.reset_if_requested()
                 
                 # check if we have a new result from parallel GBA process and apply it
                 self.GBA.check_GBA_has_finished_and_correct_if_needed()
@@ -750,11 +783,11 @@ class LoopClosing:
                          
                     if got_loop:
                         # correct the loop
-                        self.set_is_closing(True) # to communicate tracker to pause
+                        self.set_is_closing(True) # communicate tracker to pause
                         self.loop_corrector.correct_loop(keyframe)
                         self.mean_graph_chi2_error = self.loop_corrector.mean_graph_chi2_error
                         self.last_loop_kf_id = keyframe.kid
-                        self.set_is_closing(False) # to communicate tracker to restart                        
+                        self.set_is_closing(False) # communicate tracker to restart                        
                     else:
                         keyframe.set_erase()
                     
@@ -824,3 +857,14 @@ class LoopClosing:
             
         if draw:
             cv2.waitKey(1)        
+            
+            
+    def relocalize(self, frame: Frame, img):
+        task_type = LoopDetectorTaskType.RELOCALIZATION
+        task = LoopDetectorTask(frame, img, task_type, covisible_keyframes=[], connected_keyframes=[])
+        print(f'Relocalization: Starting on frame id: {frame.id}...')
+        detection_output = self.loop_detecting_process.relocalize(task)     
+        
+        res = self.relocalizer.relocalize(frame, detection_output, self.keyframes_map)
+        print(f'Relocalization: {"Success" if res else "Failed"} on frame id: {frame.id}...')
+        return res

@@ -114,10 +114,20 @@ class LCDetector {
                const std::vector<cv::KeyPoint>& kps,
                const cv::Mat& descs,
                LCDetectorResult* result);
+
+  void process(const unsigned image_id,
+               const std::vector<cv::KeyPoint>& kps,
+               const cv::Mat& descs,
+               const bool add_to_index,
+               LCDetectorResult* result);
+
   void debug(const unsigned image_id,
              const std::vector<cv::KeyPoint>& kps,
              const cv::Mat& descs,
              std::ofstream& out_file);
+
+  size_t numPushedImages() const { return num_pushed_images; }
+  void clear();
 
  private:
   // Parameters
@@ -137,6 +147,8 @@ class LCDetector {
   Island last_lc_island_;
   int min_consecutive_loops_;
   int consecutive_loops_;
+
+  int num_pushed_images = 0;
 
   // Image Index
   std::shared_ptr<obindex2::ImageIndex> index_;

@@ -61,11 +61,16 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
 
 
 class LoopDetectorOBIndex2(LoopDetectorBase): 
-    def __init__(self, local_feature_manager=None):
+    def __init__(self, local_feature_manager=None, match_ratio=0.8):
         super().__init__()
+        self.match_ratio = match_ratio
         self.local_feature_manager = local_feature_manager        
         # Creating a new index of images
         self.index = obindex2.ImageIndex(16, 150, 4, obindex2.MERGE_POLICY_AND, True)               
+        
+    def reset(self):
+        LoopDetectorBase.reset(self)
+        self.index.clear()
         
     def run_task(self, task: LoopDetectorTask):
         print(f'LoopDetectorOBIndex2: running task {task.keyframe_data.id}, img_count = {self.img_count}, task_type = {task.task_type.name}')              
@@ -79,9 +84,13 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         self.resize_similary_matrix_if_needed()            
         
         kps, des = keyframe.kps, keyframe.des 
-        # kp.response is not actually used
-        #kps_ = [(kp.pt[0], kp.pt[1], kp.size, kp.angle, kp.response, kp.octave) for kp in kps]  # tuple_x_y_size_angle_response_octave
-        kps_ = [(kp[0], kp[1], keyframe.sizes[i], keyframe.angles[i], 1, keyframe.octaves[i]) for i,kp in enumerate(kps)]  # tuple_x_y_size_angle_response_octave
+        #print(f'LoopDetectorOBIndex2: kps = {len(kps)}, des = {des.shape}')
+        if len(kps)>0 and len(kps[0])>2:
+            kps_ = [(kp[0], kp[1], kp[2], kp[3], kp[4], kp[5]) for kp in kps]  # tuple_x_y_size_angle_response_octave
+        else:
+            # kp.response is not actually used
+            #kps_ = [(kp.pt[0], kp.pt[1], kp.size, kp.angle, kp.response, kp.octave) for kp in kps]  # tuple_x_y_size_angle_response_octave            
+            kps_ = [(kp[0], kp[1], keyframe.sizes[i], keyframe.angles[i], 1, keyframe.octaves[i]) for i,kp in enumerate(kps)]  # tuple_x_y_size_angle_response_octave
         des_ = des
         
         # if we are not using a binary descriptr then we conver the float descriptors to binary
@@ -96,15 +105,43 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         self.map_img_count_to_kf_img_id[self.img_count] = img_id      
                                      
         detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des, img_id=img_id, img=keyframe.img)                                              
-                                                                         
-        if task.task_type == LoopDetectorTaskType.LOOP_CLOSURE and self.img_count >= 1:
+                                
+        if task.task_type == LoopDetectorTaskType.RELOCALIZATION:
             # Search the query descriptors against the features in the index
             matches_feats = self.index.searchDescriptors(des_,2, 64)
         
             # Filter matches according to the ratio test
             matches = []
             for m in matches_feats: # vector of pairs of tuples (queryIdx, trainIdx, imgIdx, distance)
-                if m[0][3] < m[1][3] * 0.8:
+                if m[0][3] < m[1][3] * self.match_ratio:
+                    matches.append(m[0])
+                    
+            if len(matches)>0:
+                #  Look for similar images according to the good matches found
+                image_matches = self.index.searchImages(des_, matches, True)
+                count_valid_candidates = 0
+                for i,m in enumerate(image_matches):
+                    other_img_id = self.map_img_count_to_kf_img_id[m.image_id]
+                    other_img_count=m.image_id   
+                    candidate_idxs.append(other_img_id)
+                    candidate_scores.append(m.score)
+                    count_valid_candidates += 1                                                             
+                    if count_valid_candidates >= kMaxResultsForLoopClosure: 
+                        break                                                               
+                                  
+            detection_output.candidate_idxs = candidate_idxs
+            detection_output.candidate_scores = candidate_scores 
+            
+            # NOTE: we do not push the relocalization frames into the database, only the keyframes
+                                                                                     
+        elif task.task_type == LoopDetectorTaskType.LOOP_CLOSURE and self.img_count >= 1:
+            # Search the query descriptors against the features in the index
+            matches_feats = self.index.searchDescriptors(des_,2, 64)
+        
+            # Filter matches according to the ratio test
+            matches = []
+            for m in matches_feats: # vector of pairs of tuples (queryIdx, trainIdx, imgIdx, distance)
+                if m[0][3] < m[1][3] * self.match_ratio:
                     matches.append(m[0])
                     
             if len(matches)>0:
@@ -144,6 +181,12 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
             print("------ Rebuilding indices ------")
             self.index.rebuild() 
         
-        self.img_count += 1      
+        if len(candidate_idxs)>0:
+            print(f'LoopDetectorOBIndex2: candidate_idxs: {candidate_idxs}')
+        
+        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
+            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
+            self.img_count += 1
+            
         return detection_output          
             

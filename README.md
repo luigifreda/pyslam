@@ -5,33 +5,33 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.2.5](#pyslam-v225)
-    - [1. Install](#1-install)
-        - [1.1. Requirements](#11-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
-    - [2. Usage](#2-usage)
-        - [2.1. Feature tracking](#21-feature-tracking)
-        - [2.2. Loop closing](#22-loop-closing)
-        - [2.3. Save and reload a map](#23-save-and-reload-a-map)
-        - [2.4. Trajectory saving](#24-trajectory-saving)
-        - [2.5. SLAM GUI](#25-slam-gui)
-        - [2.6. Watch the logs of tracking, local mapping and loop closing in parallel](#26-watch-the-logs-of-tracking-local-mapping-and-loop-closing-in-parallel)
-    - [3. Supported local features](#3-supported-local-features)
-    - [4. Supported matchers](#4-supported-matchers)
-    - [5. Supported global descriptors and local descriptor aggregation methods](#5-supported-global-descriptors-and-local-descriptor-aggregation-methods)
-    - [6. Datasets](#6-datasets)
-        - [6.1. KITTI Datasets](#61-kitti-datasets)
-        - [6.2. TUM Datasets](#62-tum-datasets)
-        - [6.3. EuRoC Dataset](#63-euroc-dataset)
-    - [7. Camera Settings](#7-camera-settings)
-    - [8. Comparison pySLAM vs ORB-SLAM3](#8-comparison-pyslam-vs-orb-slam3)
-    - [9. Contributing to pySLAM](#9-contributing-to-pyslam)
-    - [10. References](#10-references)
-    - [11. Credits](#11-credits)
-    - [12. TODOs](#12-todos)
+  - [Install](#install)
+    - [Requirements](#requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
+  - [Usage](#usage)
+    - [Feature tracking](#feature-tracking)
+    - [Loop closing](#loop-closing)
+    - [Save and reload a map](#save-and-reload-a-map)
+    - [Trajectory saving](#trajectory-saving)
+    - [SLAM GUI](#slam-gui)
+    - [Watch the logs of tracking, local mapping and loop closing in parallel](#watch-the-logs-of-tracking-local-mapping-and-loop-closing-in-parallel)
+  - [Supported local features](#supported-local-features)
+  - [Supported matchers](#supported-matchers)
+  - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+    - [EuRoC Dataset](#euroc-dataset)
+  - [Camera Settings](#camera-settings)
+  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
 
@@ -128,7 +128,7 @@ If you run into issues or errors during the installation process or at run-time,
 
 Once you have run the script `install_all_venv.sh` (follow the instructions above according to your OS), you can open a new terminal and run:
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py
 ```
 This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. 
@@ -142,7 +142,7 @@ In order to process a different **dataset**, you need to set the file `config.ya
 
 Similarly, you can test `main_slam.py` by running:
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_slam.py
 ```
 
@@ -151,9 +151,9 @@ This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_o
 
 ### Feature tracking
 
-If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a tast of the different available local features, run
+If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a taste of the different available local features, run
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_feature_matching.py
 ```
 
@@ -167,14 +167,22 @@ Loop closing is enabled by default. You can disable it by setting `kUseLoopClosi
 
 Some **example files** are available in the subfolder `test/loopclosing`.  In particular, as for loop closure, you may want to take a look at [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
 
+**Generate the array descriptors to train a vocabulary (DBoW, VLAD)**
+Generate the array of descriptors to train the vocabulary by using the script `test/loopclosing/test_gen_des_array_from_imgs.py`. Select your desired descriptor type by using the tracker configuration. 
 
+**DBOW vocabulary generation** 
+Train the vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_from_des_array.py`
+
+**VLAD vocabulary generation**
+Train the vocabulary by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`
+   
 ### Save and reload a map
 
 When you run the script `main_slam.py`:
 - The current map can be saved into the file `map.json` by pressing the button `Save` on the GUI. 
 - The saved map can be reloaded and visualized into the GUI by running: 
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_map_viewer.py
 ```
 Relocalization in a loaded map is a WIP.
@@ -194,6 +202,7 @@ SAVE_TRAJECTORY:
 Some quick information about the non-trivial GUI buttons of `main_slam.py`: 
 - `Step`: Enter in the *Step by step mode*. Press the button `Step` a first time to pause. Then, press it again to make the pipeline process a single new frame.
 - `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `/main_map_viewer.py` (as explained above). 
+- `Reset`: Reset SLAM system. 
 - `Draw Grount Truth`: In the case a groundtruth is loaded (e.g. with *KITTI*, *TUM*, *EUROC* datasets), you can visualize it by pressing this button. The groundtruth trajectory will be visualized and progressively aligned to the estimated trajectory: The more the number of samples in the estimated trajectory the better the computed alignment.  
 
 
@@ -287,7 +296,7 @@ Check the file `feature_matcher.py`.
 **Local descriptor aggregation methods**
 
 * Bag of Words (BoW): [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3)
-* Vector of Locally Aggregated Descriptors: [VLAD](http://www.vlfeat.org/) 
+* Vector of Locally Aggregated Descriptors: [VLAD](https://www.vlfeat.org/api/vlad.html) 
 * Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: [iBoW](https://github.com/emiliofidalgo/ibow-lcd), [OBIndex2](https://github.com/emiliofidalgo/obindex2)
 * Hyperdimensional Computing: [HDC](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)
 
@@ -296,6 +305,7 @@ Check the file `feature_matcher.py`.
 
 Also referred to as *holistic descriptors*:
 
+* [SAD](https://ieeexplore.ieee.org/document/6224623)
 * [AlexNet](https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet)
 * [NetVLAD](https://www.di.ens.fr/willow/research/netvlad/)
 * [HDC-DELF](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)

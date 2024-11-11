@@ -13,6 +13,8 @@ import math
 import cv2 
 import numpy as np
 
+from frame import Frame
+
 from dataset import dataset_factory
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
@@ -42,9 +44,12 @@ if __name__ == '__main__':
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
     
+    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FrameShared. 
+    Frame.set_tracker(feature_tracker) 
+    
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.VLAD  
+    loop_detection_config = LoopDetectorConfigs.OBINDEX2 
     Printer.green('loop_detection_config: ',loop_detection_config)
     loop_detecting_process = LoopDetectingProcess(slam=None,loop_detector_config=loop_detection_config)
     
@@ -68,6 +73,10 @@ if __name__ == '__main__':
             kps_ = [(kp.pt[0], kp.pt[1], kp.size, kp.angle, kp.response, kp.octave) for kp in kps]  # tuple_x_y_size_angle_response_octave
             
             task_type = LoopDetectorTaskType.LOOP_CLOSURE
+            
+            if img_id > 0 and img_id % 50 == 0:
+                task_type = LoopDetectorTaskType.RELOCALIZATION
+            
             covisible_keyframes = []
             connected_keyframes = []
             keyframe = LoopDetectKeyframeData()

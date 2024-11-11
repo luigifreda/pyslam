@@ -20,7 +20,7 @@ import g2o
 from optimizer_g2o import global_bundle_adjustment
 
 from keyframe_data import KeyFrameData
-from utils_sys import Printer
+from utils_sys import Printer, MultiprocessingManager
 from utils_data import empty_queue, Value
 
 kVerbose = True
@@ -64,12 +64,10 @@ class GlobalBundleAdjustment:
             self.time_GBA = mp.Value('d',-1)
             self.mean_squared_error = mp.Value('d',-1)
             self._is_running  = mp.Value('i',0)       # True if the child process is running                     
-            # NOTE: the usage of the multiprocessing Manager() generates pickling problems when using torch.multiprocessing  
-            #self.manager = mp.Manager()   
-            #self.q_message = self.manager.Queue()  # message queue to receive task-completed messages from the child process 
-            self.q_message = mp.Queue()
-            #self.result_dict = self.manager.dict()  # as for the usage of the multiprocessing Manager() see the comment above
-            self.result_dict_queue = mp.Queue() # we share the dictionary by using a dedicated multiprocessing queue        
+            # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
+            self.mp_manager = MultiprocessingManager()
+            self.q_message = self.mp_manager.Queue()
+            self.result_dict_queue = self.mp_manager.Queue() # we share the dictionary result as an entry of this dedicated multiprocessing queue        
         else:
             self.opt_abort_flag = g2o.Flag(False)
             self.mp_opt_abort_flag = None

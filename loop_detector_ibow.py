@@ -66,8 +66,13 @@ class LoopDetectorIBow(LoopDetectorBase):
         super().__init__()
         self.local_feature_manager = local_feature_manager        
         self.lc_detector_parameters = ibow.LCDetectorParams()
+        self.lc_detector_parameters.p = 100 # default in ibow: 250
+        print(f'LoopDetectorIBow: min number of images to start detecting loops: {self.lc_detector_parameters.p}')    
         self.lc_detector = ibow.LCDetector(self.lc_detector_parameters)
-        print(f'LoopDetectorIBow: min number of images to start detecting loops: {self.lc_detector_parameters.p}') # by default 250    
+        
+    def reset(self):
+        LoopDetectorBase.reset(self)
+        self.lc_detector.clear()
         
     def run_task(self, task: LoopDetectorTask):
         print(f'LoopDetectorIBow: running task {task.keyframe_data.id}, img_count = {self.img_count}, task_type = {task.task_type.name}')              
@@ -81,9 +86,13 @@ class LoopDetectorIBow(LoopDetectorBase):
         self.resize_similary_matrix_if_needed()            
         
         kps, des = keyframe.kps, keyframe.des 
-        # kp.response is not actually used
-        #kps_ = [(kp.pt[0], kp.pt[1], kp.size, kp.angle, kp.response, kp.octave) for kp in kps]  # tuple_x_y_size_angle_response_octave
-        kps_ = [(kp[0], kp[1], keyframe.sizes[i], keyframe.angles[i], 1, keyframe.octaves[i]) for i,kp in enumerate(kps)]  # tuple_x_y_size_angle_response_octave
+        #print(f'LoopDetectorIBow: kps = {len(kps)}, des = {des.shape}')
+        if len(kps)>0 and len(kps[0])>2:
+            kps_ = [(kp[0], kp[1], kp[2], kp[3], kp[4], kp[5]) for kp in kps]  # tuple_x_y_size_angle_response_octave
+        else:
+            # kp.response is not actually used
+            #kps_ = [(kp.pt[0], kp.pt[1], kp.size, kp.angle, kp.response, kp.octave) for kp in kps]  # tuple_x_y_size_angle_response_octave            
+            kps_ = [(kp[0], kp[1], keyframe.sizes[i], keyframe.angles[i], 1, keyframe.octaves[i]) for i,kp in enumerate(kps)]  # tuple_x_y_size_angle_response_octave
         des_ = des
         
         # if we are not using a binary descriptr then we conver the float descriptors to binary        
@@ -98,20 +107,41 @@ class LoopDetectorIBow(LoopDetectorBase):
         self.map_img_count_to_kf_img_id[self.img_count] = img_id      
                                      
         detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des, img_id=img_id, img=keyframe.img)                                              
-                                                                         
-        result = self.lc_detector.process(self.img_count, kps_, des_)
-        other_img_count = result.train_id
-        other_img_id = self.map_img_count_to_kf_img_id[other_img_count]
-            
-        self.update_similarity_matrix(score=result.score, img_count=self.img_count, other_img_count=other_img_count)
-
-        if result.isLoop():
-            if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
-                other_img_id not in task.connected_keyframes_ids: 
+                          
+        if task.task_type == LoopDetectorTaskType.RELOCALIZATION:
+            result = self.lc_detector.process_without_pushing(self.img_count, kps_, des_)
+            other_img_count = result.train_id
+            other_img_id = self.map_img_count_to_kf_img_id[other_img_count]
+                
+            if result.isLoop():
                 candidate_idxs.append(other_img_id)
-                candidate_scores.append(result.score)                                                        
-                self.update_loop_closure_imgs(score=result.score, other_img_id = other_img_id)                 
+                candidate_scores.append(result.score)                                       
+                                  
+            detection_output.candidate_idxs = candidate_idxs
+            detection_output.candidate_scores = candidate_scores 
+                                              
+        else:                                                                         
+            result = self.lc_detector.process(self.img_count, kps_, des_)
+            other_img_count = result.train_id
+            other_img_id = self.map_img_count_to_kf_img_id[other_img_count]
+                
+            self.update_similarity_matrix(score=result.score, img_count=self.img_count, other_img_count=other_img_count)
 
+            if result.isLoop():
+                if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
+                    other_img_id not in task.connected_keyframes_ids: 
+                    candidate_idxs.append(other_img_id)
+                    candidate_scores.append(result.score)                                                        
+                    self.update_loop_closure_imgs(score=result.score, other_img_id = other_img_id)                 
+
+            self.draw_loop_detection_imgs(keyframe.img, img_id, detection_output)  
+                
+            detection_output.candidate_idxs = candidate_idxs
+            detection_output.candidate_scores = candidate_scores 
+            detection_output.covisible_ids = [cov_kf.id for cov_kf in task.covisible_keyframes_data]
+            detection_output.covisible_gdes_vecs = [cov_kf.g_des.toVec() if cov_kf.g_des is not None else None for cov_kf in task.covisible_keyframes_data]
+            
+        
         if result.status == ibow.LCDetectorStatus.LC_DETECTED:
             # NOTE: it's normal to get zero inliers in some cases where the loop is detected, for instance: 
             #       consecutive_loops_ > min_consecutive_loops_ and island.overlaps(last_lc_island_)
@@ -119,7 +149,7 @@ class LoopDetectorIBow(LoopDetectorBase):
         elif result.status == ibow.LCDetectorStatus.LC_NOT_DETECTED:
             print('LoopDetectorIBow: No loop found')
         elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_IMAGES:
-            print('LoopDetectorIBow: Not enough images to found a loop')
+            print(f'LoopDetectorIBow: Not enough images to found a loop, min number of processed images for loop: {self.lc_detector_parameters.p}, num_pushed_images: {self.lc_detector.num_pushed_images()}')
         elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_ISLANDS:
             print('LoopDetectorIBow: Not enough islands to found a loop')
         elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_INLIERS:
@@ -129,13 +159,10 @@ class LoopDetectorIBow(LoopDetectorBase):
         else:
             print('LoopDetectorIBow: No status information')
                          
-        self.draw_loop_detection_imgs(keyframe.img, img_id, detection_output)  
-            
-        detection_output.candidate_idxs = candidate_idxs
-        detection_output.candidate_scores = candidate_scores 
-        detection_output.covisible_ids = [cov_kf.id for cov_kf in task.covisible_keyframes_data]
-        detection_output.covisible_gdes_vecs = [cov_kf.g_des.toVec() if cov_kf.g_des is not None else None for cov_kf in task.covisible_keyframes_data]
-        
-        self.img_count += 1      
+
+        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
+            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
+            self.img_count += 1       
+              
         return detection_output   
             

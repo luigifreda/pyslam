@@ -448,4 +448,4 @@ void Sim3Solver::FromCameraToImage(const vector<Eigen::Vector3f> &vP3Dc, const E
     }
 }
 
-} //namespace ORB_SLAM
+} //namespace 
