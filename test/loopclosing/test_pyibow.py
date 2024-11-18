@@ -58,7 +58,7 @@ if __name__ == '__main__':
     
     cv2.namedWindow('S', cv2.WINDOW_NORMAL)
         
-    img_count = 0
+    entry_id = 0
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
     while dataset.isOk():
 
@@ -125,4 +125,4 @@ if __name__ == '__main__':
             getchar()
             
         img_id += 1
-        img_count += 1
+        entry_id += 1

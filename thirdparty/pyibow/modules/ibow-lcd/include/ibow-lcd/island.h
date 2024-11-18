@@ -23,6 +23,8 @@
 #include <string>
 #include <sstream>
 
+#include "obindex2/BoostArchiver.h"
+
 namespace ibow_lcd {
 
 // Island
@@ -92,6 +94,16 @@ struct Island {
   unsigned max_img_id;
   unsigned img_id;
   double score;
+
+protected: 
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive & ar, const unsigned int version) {
+    ar & min_img_id;
+    ar & max_img_id;
+    ar & img_id;
+    ar & score;
+  }
 };
 
 }  // namespace ibow_lcd

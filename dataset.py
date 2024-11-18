@@ -30,6 +30,8 @@ import datetime
 from multiprocessing import Process, Queue, Value 
 from utils_sys import Printer 
 
+import ujson as json
+
 
 class DatasetType(Enum):
     NONE = 1
@@ -183,7 +185,23 @@ class Dataset(object):
                     timestamps.append(timestamp)
         except FileNotFoundError:
             print('Timestamps file not found:', timestamps_file)
-        return timestamps   
+        return timestamps
+    
+    def to_json(self):
+        return {
+            'type': self.type.name,            
+            'name': self.name,
+            'sensor_type': self.sensor_type.name,
+            'path': self.path,            
+            'start_frame_id': self.start_frame_id,
+            'fps': self.fps,
+            'num_frames': self.num_frames
+        }
+        
+    def save_info(self, path):
+        filename = path + '/dataset_info.json'
+        with open(filename, 'w') as f:
+            json.dump(self.to_json(), f, indent=4)
 
 
 class VideoDataset(Dataset): 

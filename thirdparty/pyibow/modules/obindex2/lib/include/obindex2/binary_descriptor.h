@@ -30,9 +30,34 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/hal/hal.hpp>
 
+#include "obindex2/BoostArchiver.h"
+
 namespace obindex2 {
 
 class BinaryDescriptor {
+
+ protected:
+
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive& ar, const unsigned int version) {
+      ar & size_in_bits_;
+      ar & size_in_bytes_;
+
+      if (Archive::is_loading::value) {
+          // Allocate memory for bits_ if loading
+          if (bits_ != nullptr) {
+              delete[] bits_;
+          }
+          bits_ = new unsigned char[size_in_bytes_];
+      }
+
+      // Serialize the raw data
+      for (unsigned i = 0; i < size_in_bytes_; ++i) {
+          ar & bits_[i];
+      }
+  }
+
  public:
   // Constructors
   explicit BinaryDescriptor(const unsigned nbits = 256);
@@ -119,9 +144,9 @@ class BinaryDescriptor {
   std::string toString();
 
   // For simplicity, we made it public, but you should use the public methods
-  unsigned char* bits_;
-  unsigned size_in_bytes_;
-  unsigned size_in_bits_;
+  unsigned char* bits_ = nullptr;
+  unsigned size_in_bytes_ = 0;
+  unsigned size_in_bits_ = 0;
 };
 
 typedef std::shared_ptr<BinaryDescriptor> BinaryDescriptorPtr;

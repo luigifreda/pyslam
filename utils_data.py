@@ -1,16 +1,23 @@
 import torch.multiprocessing as mp
 import threading as th    
-import numpy as np
 
-from utils_sys import MultiprocessingManager
+import traceback
+
+from utils_sys import MultiprocessingManager, Printer
+
+
+kPrintTrackebackDetails = True
 
 # empty a queue before exiting from the consumer thread/process for safety
 def empty_queue(queue):
-    while queue.qsize()>0:
-        try:
+    try:
+        while queue.qsize()>0:
             queue.get(timeout=0.001)
-        except:
-            pass
+    except Exception as e:
+        Printer.red(f'EXCEPTION in empty_queue: {e}')
+        if kPrintTrackebackDetails:
+            traceback_details = traceback.format_exc()
+            print(f'\t traceback details: {traceback_details}')
 
 class Value:
     def __init__(self, type, value):
@@ -76,3 +83,5 @@ class AtomicCounter:
         with self._lock:
             self.value += 1
             return self.value
+    
+    

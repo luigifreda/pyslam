@@ -36,9 +36,9 @@ kMaxResultsForLoopClosure = 5
 
 class LoopCloserBase:
     def __init__(self):
-        self.img_count = 0
-        self.map_img_count_to_kf_id = {}
-        self.map_kf_id_to_img = {}
+        self.entry_id = 0
+        self.map_entry_id_to_frame_id = {}
+        self.map_frame_id_to_img = {}
                 
         # init the similarity matrix        
         if Parameters.kLoopClosingDebugWithSimmetryMatrix:
@@ -56,7 +56,7 @@ class LoopCloserBase:
     def resize_similary_matrix_if_needed(self):
         if self.S_float is None:
             return
-        if self.img_count >= self.max_num_kfs:
+        if self.entry_id >= self.max_num_kfs:
             self.max_num_kfs += 100
             # self.S_float.resize([self.max_num_kfs, self.max_num_kfs])
             # self.S_color.resize([self.max_num_kfs, self.max_num_kfs, 3])
@@ -70,21 +70,21 @@ class LoopCloserBase:
                                             mode='constant', constant_values=0)
             self.S_color = S_color
     
-    def update_similarity_matrix_and_loop_closure_imgs(self, score, img_count, img_id, other_img_count, other_img_id): 
+    def update_similarity_matrix_and_loop_closure_imgs(self, score, entry_id, img_id, other_entry_id, other_frame_id): 
         color_value = float_to_color(score)
         if self.S_float is not None:
-            self.S_float[img_count, other_img_count] = score
-            self.S_float[other_img_count, img_count] = score
+            self.S_float[entry_id, other_entry_id] = score
+            self.S_float[other_entry_id, entry_id] = score
         if self.S_color is not None:                     
-            self.S_color[img_count, other_img_count] = color_value
-            self.S_color[other_img_count, img_count] = color_value
+            self.S_color[entry_id, other_entry_id] = color_value
+            self.S_color[other_entry_id, entry_id] = color_value
 
         # visualize non-trivial loop closures: we check the query results are not too close to the current image
         if self.loop_closure_imgs is not None:
-            if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
-                print(f'result - best id: {other_img_id}, score: {score}')
-                loop_img = self.map_kf_id_to_img[other_img_id]
-                self.loop_closure_imgs.add(loop_img.copy(), other_img_id, score) 
+            if abs(other_frame_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure: 
+                print(f'result - best id: {other_frame_id}, score: {score}')
+                loop_img = self.map_frame_id_to_img[other_frame_id]
+                self.loop_closure_imgs.add(loop_img.copy(), other_frame_id, score) 
                             
     def draw_loop_closure_imgs(self, img_cur, img_id):
         if self.S_color is not None or self.loop_closure_imgs.candidates is not None:
@@ -135,9 +135,9 @@ class LoopCloserDBoW3(LoopCloserBase):
         
         use_local_des = False
                 
-        print(f'LoopCloserDBoW3: adding frame {img_id}, img_count = {self.img_count}')        
-        self.map_img_count_to_kf_id[self.img_count] = img_id        
-        self.map_kf_id_to_img[img_id] = img
+        print(f'LoopCloserDBoW3: adding frame {img_id}, entry_id = {self.entry_id}')        
+        self.map_entry_id_to_frame_id[self.entry_id] = img_id        
+        self.map_frame_id_to_img[img_id] = img
         
         # add image descriptors to database
         if use_local_des:
@@ -152,21 +152,21 @@ class LoopCloserDBoW3(LoopCloserBase):
             
         self.resize_similary_matrix_if_needed()
                             
-        if self.img_count >= 1:
+        if self.entry_id >= 1:
             if use_local_des:            
                 results = self.db_query(des, img_id, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
             else:
                 results = self.db_query(g_des, img_id, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
             for r in results:
-                r_img_id = self.map_img_count_to_kf_id[r.id]
+                r_frame_id = self.map_entry_id_to_frame_id[r.id]
                 self.update_similarity_matrix_and_loop_closure_imgs(score=r.score, \
-                                                                    img_count=self.img_count, \
+                                                                    entry_id=self.entry_id, \
                                                                     img_id=img_id, \
-                                                                    other_img_count=r.id, \
-                                                                    other_img_id = r_img_id)                 
+                                                                    other_entry_id=r.id, \
+                                                                    other_frame_id = r_frame_id)                 
         if self.loop_closure_imgs: 
             self.draw_loop_closure_imgs(img, img_id)       
-        self.img_count += 1   
+        self.entry_id += 1   
 
 
 # online loop closure detection by using DBoW3        
@@ -204,7 +204,7 @@ if __name__ == '__main__':
     
     # cv2.namedWindow('S', cv2.WINDOW_NORMAL)
         
-    #img_count = 0
+    #entry_id = 0
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
     while dataset.isOk():
 
@@ -230,7 +230,7 @@ if __name__ == '__main__':
             # # add image descriptors to database
             # db.add(des)
                        
-        #     if img_count >= 1:
+        #     if entry_id >= 1:
         #         results = db.query(des, max_results=kMaxResultsForLoopClosure+1) # we need plus one to eliminate the best trivial equal to img_id
         #         for r in results:
         #             float_value = r.score * 255
@@ -262,4 +262,4 @@ if __name__ == '__main__':
             getchar()
             
         # img_id += 1
-        # img_count += 1
+        # entry_id += 1

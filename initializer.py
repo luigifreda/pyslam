@@ -183,7 +183,7 @@ class Initializer(object):
 
         # if the current frames do no have enough features exit 
         if len(f_ref.kps) < self.num_min_features or len(f_cur.kps) < self.num_min_features:
-            Printer.yellow('Inializer: ko - not enough features!') 
+            Printer.yellow('Initializer: ko - not enough features!') 
             self.num_failures += 1
             return out, is_ok
 
@@ -205,7 +205,7 @@ class Initializer(object):
       
         #print('deque ids: ', [f.id for f in self.frames])
         #print('initializing frames ', f_cur.id, ', ', f_ref.id)
-        print("# keypoint matches: ", len(idxs_cur))  
+        print("Initializer: # keypoint matches: ", len(idxs_cur))  
                 
         Trc = self.estimatePose(f_ref.kpsn[idxs_ref], f_cur.kpsn[idxs_cur])
         Tcr = inv_T(Trc)  # Tcr w.r.t. ref frame 
@@ -215,7 +215,7 @@ class Initializer(object):
         # remove outliers from keypoint matches by using the mask computed with inter frame pose estimation        
         mask_idxs = (self.mask_match.ravel() == 1)
         self.num_inliers = sum(mask_idxs)
-        print('# keypoint inliers: ', self.num_inliers )
+        print('Initializer: # keypoint inliers: ', self.num_inliers )
         idxs_ref_inliers = idxs_ref[mask_idxs]        
         idxs_cur_inliers = idxs_cur[mask_idxs]
 
@@ -246,14 +246,14 @@ class Initializer(object):
             
             # solve pnp to get a pose of the current frame w.r.t. the reference frame (the scale is defined by the depths of the reference frame)
             mask_pts3d = mask_pts3d.flatten()
-            print(f'init PnP - #pts3d: {len(pts3d)}, #mask_pts3d: {sum(mask_pts3d)}')
+            print(f'Initializer: init PnP - #pts3d: {len(pts3d)}, #mask_pts3d: {sum(mask_pts3d)}')
             success, rvec_rc, tvec_rc = cv2.solvePnP(pts3d[mask_pts3d], kf_cur.kps[idxs_cur_inliers[mask_pts3d]], kf_cur.camera.K, kf_cur.camera.D, flags=cv2.SOLVEPNP_EPNP)
             if success:
                 rot_matrix_rc, _ = cv2.Rodrigues(rvec_rc)
                 Trc = poseRt(rot_matrix_rc, tvec_rc.flatten())
             else: 
                 Trc = np.eye(4)
-            print(f'init PnP - success: {success}') #, Trc: {Trc}')                
+            print(f'Initializer: init PnP - success: {success}') #, Trc: {Trc}')                
             kf_cur.update_pose(Trc)
             f_cur.update_pose(Trc)
                 
@@ -262,18 +262,18 @@ class Initializer(object):
             pts3d, mask_pts3d = triangulate_normalized_points(kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idxs_cur_inliers], kf_ref.kpsn[idxs_ref_inliers])
 
         new_pts_count, mask_points, added_map_points = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idxs_cur_inliers, idxs_ref_inliers, img_cur, do_check=do_check, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
-        print("# triangulated points: ", new_pts_count)   
+        print("Initializer: # triangulated points: ", new_pts_count)   
                         
         if new_pts_count > self.num_min_triangulated_points:   
             
             reproj_error_before = map.compute_mean_reproj_error()
-            print(f'reprojection error before: {reproj_error_before}')
+            print(f'Initializer: reprojection error before: {reproj_error_before}')
                                
             reproj_error_after, _ = map.optimize(verbose=False, rounds=20, use_robust_kernel=True)
-            print(f'init optimization error^2: {reproj_error_after}')        
+            print(f'Initializer: init optimization error^2: {reproj_error_after}')        
             
             num_map_points = len(map.points)
-            print(f"# map points: {num_map_points} , # min triangulated points: {self.num_min_triangulated_points} ")   
+            print(f"Initializer: # map points: {num_map_points} , # min triangulated points: {self.num_min_triangulated_points} ")   
                             
             is_ok = reproj_error_after < reproj_error_before and  num_map_points > self.num_min_triangulated_points        
 
@@ -298,7 +298,7 @@ class Initializer(object):
                 
             if is_ok and self.is_monocular:    
                 ratioDepthBaseline = median_depth/baseline                       
-                print(f'ratioDepthBaseline: {ratioDepthBaseline}, median_depth: {median_depth}, baseline: {baseline}') 
+                print(f'Initializer: ratioDepthBaseline: {ratioDepthBaseline}, median_depth: {median_depth}, baseline: {baseline}') 
                 if ratioDepthBaseline > Parameters.kInitializerMinRatioDepthBaseline:
                     is_ok = False     
                 
@@ -306,7 +306,7 @@ class Initializer(object):
                 # set scene median depth to equal desired_median_depth'                
                 desired_median_depth = Parameters.kInitializerDesiredMedianDepth
                 depth_scale = desired_median_depth/median_depth 
-                print(f'forcing current median depth {median_depth} to {desired_median_depth}, depth_scale: {depth_scale}') 
+                print(f'Initializer: forcing current median depth {median_depth} to {desired_median_depth}, depth_scale: {depth_scale}') 
                 out.pts[:,:3] = out.pts[:,:3] * depth_scale  # scale points 
                 tcw = kf_cur.tcw * depth_scale  # scale initial baseline    
                 kf_cur.update_translation(tcw)                
@@ -326,9 +326,9 @@ class Initializer(object):
         map.delete()
   
         if is_ok:
-            Printer.green('Inializer: ok!')    
+            Printer.green('Initializer: ok!')    
         else:
             self.num_failures += 1            
-            Printer.yellow('Inializer: ko!')                         
+            Printer.yellow('Initializer: ko!')                         
         #print('|------------')               
         return out, is_ok

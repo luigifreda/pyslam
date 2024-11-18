@@ -120,7 +120,7 @@ class Mplot2d:
         self.key_queue = self.mp_manager.Queue()
         
         self.figure_num = mp.Value('i', int(FigureNum.getFigureNum()))
-        print(f'Mplot2d: starting the process on figure: {self.figure_num}')
+        print(f'Mplot2d: starting the process on figure: {self.figure_num.value}')
         
         self.lock = SharedSingletonLock().get_lock
         
@@ -290,7 +290,7 @@ class Mplot3d:
         self.lock = SharedSingletonLock().get_lock 
         
         self.figure_num = mp.Value('i', int(FigureNum.getFigureNum()))
-        print(f'Mplot3d: starting the process on figure: {self.figure_num}')
+        print(f'Mplot3d: starting the process on figure: {self.figure_num.value}')
         
         args=(self.figure_num, self.queue, self.lock, self.key, self.is_running, self.key_queue,)        
         self.process = mp.Process(target=self.run, args=args)

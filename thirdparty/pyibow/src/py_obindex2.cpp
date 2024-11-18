@@ -85,5 +85,8 @@ PYBIND11_MODULE(pyobindex2, m)
         .def("numImages", &ImageIndex::numImages)
         .def("numDescriptors", &ImageIndex::numDescriptors)
         .def("rebuild", &ImageIndex::rebuild)
-		.def("clear", &ImageIndex::clear);
+		.def("clear", &ImageIndex::clear)
+		.def("save", &ImageIndex::save, py::arg("filename"))
+		.def("load", &ImageIndex::load, py::arg("filename"))
+		.def("print_status", &ImageIndex::printStatus);
 }

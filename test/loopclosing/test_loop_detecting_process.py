@@ -25,7 +25,7 @@ Parameters.kLoopClosingDebugWithSimmetryMatrix = True
 Parameters.kLoopClosingDebugWithLoopDetectionImages = True
 
 from loop_detector_dbow2 import LoopDetectorDBoW2
-from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_check
+from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check
 from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorOutput, LoopDetectKeyframeData
 from loop_detecting_process import LoopDetectingProcess
 

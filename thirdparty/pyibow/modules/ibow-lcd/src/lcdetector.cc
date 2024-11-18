@@ -19,6 +19,10 @@
 
 #include "ibow-lcd/lcdetector.h"
 
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/filesystem.hpp>
+
 namespace ibow_lcd {
 
 LCDetector::LCDetector(const LCDetectorParams& params) :
@@ -85,10 +89,17 @@ void LCDetector::process(const unsigned image_id,
   }
 
   // Adding new hypothesis
-  unsigned newimg_id = queue_ids_.front();
-  queue_ids_.pop();
+  if(!queue_ids_.empty())
+  {
+    unsigned newimg_id = queue_ids_.front();
+    queue_ids_.pop();
 
-  addImage(newimg_id, prev_kps_[newimg_id], prev_descs_[newimg_id]);
+    addImage(newimg_id, prev_kps_[newimg_id], prev_descs_[newimg_id]);
+  }
+  else
+  {
+    std::cout << "LCDetector::process(): Queue is empty" << std::endl;
+  }
 
   // Searching similar images in the index
   // Matching the descriptors agains the current visual words
@@ -111,7 +122,7 @@ void LCDetector::process(const unsigned image_id,
   filterCandidates(image_matches, &image_matches_filt);
 
   std::vector<Island> islands;
-  buildIslands(image_matches_filt, &islands);
+  buildIslands(image_matches_filt, &islands); 
 
   if (!islands.size()) {
     // No resulting islands
@@ -144,7 +155,7 @@ void LCDetector::process(const unsigned image_id,
   //   consecutive_loops_ = 1;
   // }
 
-  unsigned best_img = island.img_id;
+  unsigned best_img = island.img_id; 
 
   // Assessing the loop
   if (consecutive_loops_ > min_consecutive_loops_ && overlap) {
@@ -491,6 +502,52 @@ void LCDetector::convertPoints(const std::vector<cv::KeyPoint>& query_kps,
     y = train_kps[it->trainIdx].pt.y;
     train->push_back(cv::Point2f(x, y));
   }
+}
+
+void LCDetector::save(const std::string& filename) const
+{
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs) throw std::runtime_error("Could not open file for writing: " + filename);
+
+    boost::archive::binary_oarchive oa(ofs);
+    oa << *this;
+    std::cout << "ibow_lcd::LCDetector saved to " << filename;
+    if(index_) std::cout << "\t num pushed images: " << num_pushed_images << " (Index with: " << index_->numImages() << " images, " << index_->numDescriptors() << " descriptors)" << std::endl;
+
+}
+
+void LCDetector::load(const std::string& filename)
+{
+if (!boost::filesystem::exists(filename))
+        throw std::runtime_error("File does not exist: " + filename);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs) throw std::runtime_error("Could not open file for reading: " + filename);
+
+    boost::archive::binary_iarchive ia(ifs);
+    ia >> *this;
+
+    // Reset variables
+    last_lc_result_.status = LC_NOT_DETECTED;
+    consecutive_loops_ = 0;
+
+    std::cout << "ibow_lcd::LCDetector loaded from " << filename;
+    if(index_) std::cout << "\t num pushed images: " << num_pushed_images << " (Index with: " << index_->numImages() << " images, " << index_->numDescriptors() << " descriptors)" << std::endl;    
+
+}
+
+
+void LCDetector::printStatus() const
+{
+  std::cout << *this << std::endl;
+}
+
+std::ostream& operator<<(std::ostream &os, const LCDetector &db)
+{
+  os << "ibow_lcd::LCDetector: num pushed images: " << db.numPushedImages();
+  if(db.index_) os << ", Index with: " << db.index_->numImages() << " images, " << db.index_->numDescriptors() << " descriptors";
+  else os << "No index";
+  return os;
 }
 
 }  // namespace ibow_lcd

@@ -16,30 +16,12 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 */
-/**
-* This file is part of ORB-SLAM2.
-*
-* Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
-* For more information see <https://github.com/raulmur/ORB_SLAM2>
-*
-* ORB-SLAM2 is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* ORB-SLAM2 is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
-*/
 
 #include "KeyFrameOrbDatabase.h"
 
 #include "BowVector.h"
 
+#include <filesystem>
 #include<mutex>
 
 using namespace std;
@@ -58,10 +40,19 @@ namespace
 namespace DBoW2
 {
 
-KeyFrameOrbDatabase::KeyFrameOrbDatabase(const ORBVocabulary &voc):
+KeyFrameOrbDatabase::KeyFrameOrbDatabase(): mpVoc(nullptr) {}
+
+KeyFrameOrbDatabase::KeyFrameOrbDatabase(ORBVocabulary &voc):
     mpVoc(&voc)
 {
     mvInvertedFile.resize(voc.size());
+}
+
+void KeyFrameOrbDatabase::setVocabulary(ORBVocabulary &voc)
+{
+    mpVoc = &voc;
+    mvInvertedFile.clear();
+    mvInvertedFile.resize(voc.size());    
 }
 
 
@@ -72,6 +63,8 @@ void KeyFrameOrbDatabase::add(const FrameId& id, const BowVector& bowVector)
     for(DBoW2::BowVector::const_iterator vit=bowVector.begin(), vend=bowVector.end(); vit!=vend; vit++)
         mvInvertedFile[vit->first].push_back(id);
     mmapFrameIdToBowVector[id]=bowVector;
+
+    mNumEntries++;
 }
 
 void KeyFrameOrbDatabase::erase(const FrameId& id, const BowVector& bowVector)
@@ -98,6 +91,8 @@ void KeyFrameOrbDatabase::erase(const FrameId& id, const BowVector& bowVector)
         }
     }
     mmapFrameIdToBowVector.erase(id);
+
+    mNumEntries--;
 }
 
 void KeyFrameOrbDatabase::clear()
@@ -107,8 +102,42 @@ void KeyFrameOrbDatabase::clear()
     mvInvertedFile.resize(mpVoc->size());
 
     mmapFrameIdToBowVector.clear();
+
+    mNumEntries = 0;
 }
 
+
+void KeyFrameOrbDatabase::save(const std::string& filename) 
+{
+    unique_lock<mutex> lock(mMutex); 
+
+    std::cout << "Saving KeyFrameOrbDatabase to " << filename << " (" << size() << " entries)" << std::endl;
+
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs) throw std::runtime_error("Could not open file for writing: " + filename);
+
+    boost::archive::binary_oarchive oa(ofs);
+    oa << *this;
+    std::cout << "KeyFrameOrbDatabase saved to " << filename << " (" << size() << " entries)" << std::endl;
+}
+
+void KeyFrameOrbDatabase::load(const std::string& filename)
+{
+    unique_lock<mutex> lock(mMutex); 
+
+    std::cout << "Loading KeyFrameOrbDatabase from " << filename << std::endl;
+
+    if (!boost::filesystem::exists(filename))
+        throw std::runtime_error("File does not exist: " + filename);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs) throw std::runtime_error("Could not open file for reading: " + filename);
+
+    boost::archive::binary_iarchive ia(ifs);
+    ia >> *this;
+    std::cout << "KeyFrameOrbDatabase loaded from " << filename << " (" << size() << " entries)" << std::endl;    
+    
+}
 
 QueryResult KeyFrameOrbDatabase::detectLoopCandidates(const FrameId& id, const BowVector& bowVector,
                                                        const set<FrameId>& spConnectedKeyFrames,
@@ -401,4 +430,16 @@ QueryResult KeyFrameOrbDatabase::detectRelocalizationCandidates(const FrameId& i
 #endif     
 }
 
-} //namespace ORB_SLAM
+void KeyFrameOrbDatabase::printStatus() const
+{
+  std::cout << *this << std::endl;
+}
+
+std::ostream& operator<<(std::ostream &os, const KeyFrameOrbDatabase &db)
+{
+  os << "KeyFrameOrbDatabase: #Entries = " << db.size();
+  return os;
+}
+
+
+} //namespace 

@@ -66,7 +66,7 @@ class LoopDetectorIBow(LoopDetectorBase):
         super().__init__()
         self.local_feature_manager = local_feature_manager        
         self.lc_detector_parameters = ibow.LCDetectorParams()
-        self.lc_detector_parameters.p = 100 # default in ibow: 250
+        self.lc_detector_parameters.p = 50 # default in ibow: 250
         print(f'LoopDetectorIBow: min number of images to start detecting loops: {self.lc_detector_parameters.p}')    
         self.lc_detector = ibow.LCDetector(self.lc_detector_parameters)
         
@@ -74,13 +74,30 @@ class LoopDetectorIBow(LoopDetectorBase):
         LoopDetectorBase.reset(self)
         self.lc_detector.clear()
         
+    def save(self, path):
+        if self.lc_detector.num_pushed_images() < self.lc_detector_parameters.p:
+            Printer.red(f'LoopDetectorIBow: not enough keyframes ({self.lc_detector.num_pushed_images()}) to save the database. Need at least {self.lc_detector_parameters.p}')
+            Printer.red(f'\t You wont be able to relocalize in the saved map!!!')
+            return        
+        filepath = path + '/loop_closing.db'
+        print(f'LoopDetectorIBow: saving database to {filepath}...')
+        self.lc_detector.print_status()     
+        self.lc_detector.save(filepath)
+        
+    def load(self, path): 
+        filepath = path + '/loop_closing.db'        
+        print(f'LoopDetectorIBow: loading database from {filepath}...')
+        self.lc_detector.load(filepath)
+        self.lc_detector.print_status()      
+        print(f'LoopDetectorIBow: ...done')
+                
     def run_task(self, task: LoopDetectorTask):
-        print(f'LoopDetectorIBow: running task {task.keyframe_data.id}, img_count = {self.img_count}, task_type = {task.task_type.name}')              
+        print(f'LoopDetectorIBow: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')              
         keyframe = task.keyframe_data     
-        img_id = keyframe.id
+        frame_id = keyframe.id
         
         if self.loop_detection_imgs is not None:       
-            self.map_kf_img_id_to_img[keyframe.id] = keyframe.img
+            self.map_frame_id_to_img[keyframe.id] = keyframe.img
             self.loop_detection_imgs.reset()
             
         self.resize_similary_matrix_if_needed()            
@@ -103,66 +120,74 @@ class LoopDetectorIBow(LoopDetectorBase):
         candidate_scores = []
         g_des = None
                      
-        # the img_ids are mapped to img_counts (entry ids) inside the database management
-        self.map_img_count_to_kf_img_id[self.img_count] = img_id      
+        # the img_ids are mapped to entry_ids (entry ids) inside the database management
+        self.map_entry_id_to_frame_id[self.entry_id] = frame_id      
                                      
-        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des, img_id=img_id, img=keyframe.img)                                              
-                          
+        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des, frame_id=frame_id, img=keyframe.img)                                              
+                 
+        result = None
+                 
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:
-            result = self.lc_detector.process_without_pushing(self.img_count, kps_, des_)
-            other_img_count = result.train_id
-            other_img_id = self.map_img_count_to_kf_img_id[other_img_count]
+            print(f'LoopDetectorIBow: relocalization task')
+            if kps_ is None or len(kps_) == 0:
+                print(f'LoopDetectorIBow: relocalization task: no keypoints')
+            if des_ is None or des_.shape[0] == 0:
+                print(f'LoopDetectorIBow: relocalization task: no descriptors')
+            result = self.lc_detector.process_without_pushing(self.entry_id, kps_, des_)
+            other_entry_id = result.train_id
+            other_frame_id = self.map_entry_id_to_frame_id[other_entry_id]
                 
             if result.isLoop():
-                candidate_idxs.append(other_img_id)
+                candidate_idxs.append(other_frame_id)
                 candidate_scores.append(result.score)                                       
                                   
             detection_output.candidate_idxs = candidate_idxs
             detection_output.candidate_scores = candidate_scores 
                                               
-        else:                                                                         
-            result = self.lc_detector.process(self.img_count, kps_, des_)
-            other_img_count = result.train_id
-            other_img_id = self.map_img_count_to_kf_img_id[other_img_count]
+        else:
+            print(f'LoopDetectorIBow: loop closure task: {task.task_type.name}')                                                                     
+            result = self.lc_detector.process(self.entry_id, kps_, des_)
+            other_entry_id = result.train_id
+            other_frame_id = self.map_entry_id_to_frame_id[other_entry_id]
                 
-            self.update_similarity_matrix(score=result.score, img_count=self.img_count, other_img_count=other_img_count)
+            self.update_similarity_matrix(score=result.score, entry_id=self.entry_id, other_entry_id=other_entry_id)
 
             if result.isLoop():
-                if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
-                    other_img_id not in task.connected_keyframes_ids: 
-                    candidate_idxs.append(other_img_id)
+                if abs(other_frame_id - frame_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
+                    other_frame_id not in task.connected_keyframes_ids: 
+                    candidate_idxs.append(other_frame_id)
                     candidate_scores.append(result.score)                                                        
-                    self.update_loop_closure_imgs(score=result.score, other_img_id = other_img_id)                 
+                    self.update_loop_closure_imgs(score=result.score, other_frame_id = other_frame_id)                 
 
-            self.draw_loop_detection_imgs(keyframe.img, img_id, detection_output)  
+            self.draw_loop_detection_imgs(keyframe.img, frame_id, detection_output)  
                 
             detection_output.candidate_idxs = candidate_idxs
             detection_output.candidate_scores = candidate_scores 
             detection_output.covisible_ids = [cov_kf.id for cov_kf in task.covisible_keyframes_data]
             detection_output.covisible_gdes_vecs = [cov_kf.g_des.toVec() if cov_kf.g_des is not None else None for cov_kf in task.covisible_keyframes_data]
             
-        
-        if result.status == ibow.LCDetectorStatus.LC_DETECTED:
-            # NOTE: it's normal to get zero inliers in some cases where the loop is detected, for instance: 
-            #       consecutive_loops_ > min_consecutive_loops_ and island.overlaps(last_lc_island_)
-            print(f'LoopDetectorIBow: Loop detected: {result.train_id}, #inliers: {result.inliers}, score: {result.score}')
-        elif result.status == ibow.LCDetectorStatus.LC_NOT_DETECTED:
-            print('LoopDetectorIBow: No loop found')
-        elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_IMAGES:
-            print(f'LoopDetectorIBow: Not enough images to found a loop, min number of processed images for loop: {self.lc_detector_parameters.p}, num_pushed_images: {self.lc_detector.num_pushed_images()}')
-        elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_ISLANDS:
-            print('LoopDetectorIBow: Not enough islands to found a loop')
-        elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_INLIERS:
-            print('LoopDetectorIBow: Not enough inliers')
-        elif result.status == ibow.LCDetectorStatus.LC_TRANSITION:
-            print('LoopDetectorIBow: Transitional loop closure')
-        else:
-            print('LoopDetectorIBow: No status information')
+        if result is not None:
+            if result.status == ibow.LCDetectorStatus.LC_DETECTED:
+                # NOTE: it's normal to get zero inliers in some cases where the loop is detected, for instance: 
+                #       consecutive_loops_ > min_consecutive_loops_ and island.overlaps(last_lc_island_)
+                print(f'LoopDetectorIBow: Loop detected: {result.train_id}, #inliers: {result.inliers}, score: {result.score}')
+            elif result.status == ibow.LCDetectorStatus.LC_NOT_DETECTED:
+                print('LoopDetectorIBow: No loop found')
+            elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_IMAGES:
+                print(f'LoopDetectorIBow: Not enough images to found a loop, min number of processed images for loop: {self.lc_detector_parameters.p}, number of pushed images: {self.lc_detector.num_pushed_images()}')
+            elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_ISLANDS:
+                print('LoopDetectorIBow: Not enough islands to found a loop')
+            elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_INLIERS:
+                print('LoopDetectorIBow: Not enough inliers')
+            elif result.status == ibow.LCDetectorStatus.LC_TRANSITION:
+                print('LoopDetectorIBow: Transitional loop closure')
+            else:
+                print('LoopDetectorIBow: No status information')
                          
 
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
-            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
-            self.img_count += 1       
+            # NOTE: with relocalization we don't need to increment the entry_id since we don't add frames to database        
+            self.entry_id += 1       
               
         return detection_output   
             

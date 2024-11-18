@@ -84,6 +84,21 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         self.kf_database.clear()
         self.global_des_database.clear()
         
+    def save(self, path):
+        filepath = path + '/loop_closing.db'
+        print(f'LoopDetectorDBoW2: saving database to {filepath}...')
+        print(f'\t Dabased size: {self.kf_database.size()}')        
+        self.kf_database.save(filepath)
+        
+    def load(self, path): 
+        filepath = path + '/loop_closing.db'        
+        print(f'LoopDetectorDBoW2: loading database from {filepath}...')
+        self.kf_database.set_vocabulary(self.voc)
+        self.kf_database.load(filepath)
+        self.kf_database.print_status()
+        print(f'\t Dabased size: {self.kf_database.size()}')         
+        print(f'LoopDetectorDBoW2: ...done')
+                
     def compute_global_des(self, local_des, img):
         # Feature vector associate features with nodes in the 4th level (from leaves up)
         # We assume the vocabulary tree has 6 levels, change the 4 otherwise        
@@ -92,11 +107,11 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         # at present, we don't use the featureVector des_transform_result.featureVector
         return global_des
 
-    def db_query(self, global_des, img_id, connected_keyframes_ids, min_score, max_num_results=5): 
+    def db_query(self, global_des, frame_id, connected_keyframes_ids, min_score, max_num_results=5): 
         scores = []
         idxs = []
         if self.use_kf_database:
-            query_result = self.kf_database.detect_loop_candidates(img_id, global_des, set(connected_keyframes_ids), min_score)
+            query_result = self.kf_database.detect_loop_candidates(frame_id, global_des, set(connected_keyframes_ids), min_score)
             #print(f'query_result: {query_result}') 
             for result in query_result:
                 scores.append(result[0])            
@@ -112,17 +127,17 @@ class LoopDetectorDBoW2(LoopDetectorBase):
                 scores.append(self.voc.score(global_des, global_des_i))           
             scores = np.array(scores, 'float32')
             # here we get the img counts as best idxs
-            best_idxs = np.argsort(-scores)[:max_num_results+1] # we need plus one since we eliminate the best trivial equal to img_id        
+            best_idxs = np.argsort(-scores)[:max_num_results+1] # we need plus one since we eliminate the best trivial equal to frame_id        
             best_scores = scores[best_idxs]              
         return best_idxs, best_scores
                 
     def run_task(self, task: LoopDetectorTask):    
-        print(f'LoopDetectorDBoW2: running task {task.keyframe_data.id}, img_count = {self.img_count}, task_type = {task.task_type.name}')            
+        print(f'LoopDetectorDBoW2: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')            
         keyframe = task.keyframe_data          
-        img_id = keyframe.id
+        frame_id = keyframe.id
         
         if self.loop_detection_imgs is not None:
-            self.map_kf_img_id_to_img[keyframe.id] = keyframe.img            
+            self.map_frame_id_to_img[keyframe.id] = keyframe.img            
             self.loop_detection_imgs.reset()      
         
         self.resize_similary_matrix_if_needed()
@@ -144,29 +159,29 @@ class LoopDetectorDBoW2(LoopDetectorBase):
             else:
                 self.global_des_database.append(keyframe.g_des)
             
-            # the img_ids are mapped to img_counts (entry ids) inside the database management
-            self.map_img_count_to_kf_img_id[self.img_count] = img_id     
-            self.map_kf_img_id_to_img_count[keyframe.id] = self.img_count   # used with KeyFrameDatabase
-            #print(f'LoopDetectorDBoW2: mapping img_id: {img_id} to img_count: {self.img_count}')
+            # the img_ids are mapped to entry_ids (entry ids) inside the database management
+            self.map_entry_id_to_frame_id[self.entry_id] = frame_id     
+            self.map_frame_id_to_entry_id[keyframe.id] = self.entry_id   # used with KeyFrameDatabase
+            #print(f'LoopDetectorDBoW2: mapping frame_id: {frame_id} to entry_id: {self.entry_id}')
                     
-        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des_vec, img_id=img_id, img=keyframe.img)
+        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des_vec, frame_id=frame_id, img=keyframe.img)
 
         candidate_idxs = []
         candidate_scores = []
             
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:         
-            if self.img_count >= 1:
+            if self.entry_id >= 1:
                 min_score = -sys.float_info.max
                 connected_keyframes_ids = []
-                best_idxs, best_scores = self.db_query(keyframe.g_des, img_id, connected_keyframes_ids, min_score, max_num_results=kMaxResultsForLoopClosure) 
-                print(f'LoopDetectorDBoW2: Relocalization: frame: {img_id}, candidate keyframes: {[idx for idx in best_idxs]}')
-                for other_img_id, score in zip(best_idxs, best_scores):  
+                best_idxs, best_scores = self.db_query(keyframe.g_des, frame_id, connected_keyframes_ids, min_score, max_num_results=kMaxResultsForLoopClosure) 
+                print(f'LoopDetectorDBoW2: Relocalization: frame: {frame_id}, candidate keyframes: {[idx for idx in best_idxs]}')
+                for other_frame_id, score in zip(best_idxs, best_scores):  
                     if self.use_kf_database: 
-                        other_img_count = self.map_kf_img_id_to_img_count[other_img_id]
+                        other_entry_id = self.map_frame_id_to_entry_id[other_frame_id]
                     else: 
-                        other_img_count = other_img_id
-                        other_img_id = self.map_img_count_to_kf_img_id[other_img_count]
-                    candidate_idxs.append(other_img_id)
+                        other_entry_id = other_frame_id
+                        other_frame_id = self.map_entry_id_to_frame_id[other_entry_id]
+                    candidate_idxs.append(other_frame_id)
                     candidate_scores.append(score)
                 
             detection_output.candidate_idxs = candidate_idxs
@@ -178,25 +193,25 @@ class LoopDetectorDBoW2(LoopDetectorBase):
             min_score = self.compute_reference_similarity_score(task, dbow2.BowVector, score_fun=self.voc.score)
             print(f'LoopDetectorDBoW2: min_score = {min_score}')
                                     
-            if self.img_count >= 1:
-                best_idxs, best_scores = self.db_query(keyframe.g_des, img_id, task.connected_keyframes_ids, min_score, max_num_results=kMaxResultsForLoopClosure)
+            if self.entry_id >= 1:
+                best_idxs, best_scores = self.db_query(keyframe.g_des, frame_id, task.connected_keyframes_ids, min_score, max_num_results=kMaxResultsForLoopClosure)
                 #print(f'LoopDetectorDBoW2: best_idxs = {best_idxs}, best_scores = {best_scores}')
-                self.update_similarity_matrix(1.0, img_count=self.img_count, other_img_count=self.img_count)
-                for other_img_id, score in zip(best_idxs, best_scores):  
+                self.update_similarity_matrix(1.0, entry_id=self.entry_id, other_entry_id=self.entry_id)
+                for other_frame_id, score in zip(best_idxs, best_scores):  
                     if self.use_kf_database: 
-                        other_img_count = self.map_kf_img_id_to_img_count[other_img_id]
+                        other_entry_id = self.map_frame_id_to_entry_id[other_frame_id]
                     else: 
-                        other_img_count = other_img_id
-                        other_img_id = self.map_img_count_to_kf_img_id[other_img_count]
-                    self.update_similarity_matrix(score, img_count=self.img_count, other_img_count=other_img_count)
-                    if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
+                        other_entry_id = other_frame_id
+                        other_frame_id = self.map_entry_id_to_frame_id[other_entry_id]
+                    self.update_similarity_matrix(score, entry_id=self.entry_id, other_entry_id=other_entry_id)
+                    if abs(other_frame_id - frame_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
                        score > min_score and \
-                       other_img_id not in task.connected_keyframes_ids:
-                        candidate_idxs.append(other_img_id)
+                       other_frame_id not in task.connected_keyframes_ids:
+                        candidate_idxs.append(other_frame_id)
                         candidate_scores.append(score)
-                        self.update_loop_closure_imgs(score, other_img_id = other_img_id)
+                        self.update_loop_closure_imgs(score, other_frame_id = other_frame_id)
                         
-            self.draw_loop_detection_imgs(keyframe.img, img_id, detection_output)  
+            self.draw_loop_detection_imgs(keyframe.img, frame_id, detection_output)  
                 
             detection_output.candidate_idxs = candidate_idxs
             detection_output.candidate_scores = candidate_scores 
@@ -208,8 +223,8 @@ class LoopDetectorDBoW2(LoopDetectorBase):
             pass 
            
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
-            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
-            self.img_count += 1  
+            # NOTE: with relocalization we don't need to increment the entry_id since we don't add frames to database        
+            self.entry_id += 1  
             
         return detection_output    
     

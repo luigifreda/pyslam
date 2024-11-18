@@ -127,7 +127,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
         self.global_feature_extractor = None
         self.global_db = None
         
-        # NOTE: the following set_start_method() is needed by multiprocessing for using CUDA acceleration.
+        # NOTE: the following set_start_method() is needed by multiprocessing for using CUDA acceleration (with torch).
         self._using_torch_mp = False
         if global_descriptor_name == 'CosPlace' or \
             global_descriptor_name == 'AlexNet' or \
@@ -153,6 +153,19 @@ class LoopDetectorVprBase(LoopDetectorBase):
         del self.global_db
         self.global_feature_extractor = None
         self.global_db = None
+        
+    def save(self, path):
+        filepath = path + '/loop_closing.db'
+        print(f'LoopDetectorVprBase: saving database to {filepath}...')
+        print(f'\t Dabased size: {self.global_db.size()}')        
+        self.global_db.save(filepath)
+        
+    def load(self, path): 
+        filepath = path + '/loop_closing.db'        
+        print(f'LoopDetectorVprBase: loading database from {filepath}...')
+        self.global_db.load(filepath)
+        print(f'\t Dabased size: {self.global_db.size()}')             
+        print(f'LoopDetectorVprBase: ...done')        
     
     def init(self):
         try:
@@ -207,6 +220,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
         
     def compute_global_des(self, local_des, img):
         if img is not None:
+            #print(f'LoopDetectorVprBase.compute_global_des: img.shape: {img.shape}, img.dtype: {img.dtype}, type(img): {type(img)}')
             g_des = self.global_feature_extractor.compute_features_step(img)
             #print(f'LoopDetectorVprBase.compute_global_des: g_des.shape: {g_des.shape}, g_des.dtype: {g_des.dtype}, type(g_des): {type(g_des)}')            
             return g_des
@@ -217,14 +231,14 @@ class LoopDetectorVprBase(LoopDetectorBase):
             return None   
             
     def run_task(self, task: LoopDetectorTask):
-        print(f'{self.name}: running task {task.keyframe_data.id}, img_count = {self.img_count}, task_type = {task.task_type.name}')   
+        print(f'{self.name}: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')   
                 
         self.init()  # initialize from the potentially launched parallel process or thread at the first run_task() call
                    
         keyframe = task.keyframe_data     
-        img_id = keyframe.id
+        frame_id = keyframe.id
         
-        self.map_kf_img_id_to_img[keyframe.id] = keyframe.img        
+        self.map_frame_id_to_img[keyframe.id] = keyframe.img        
         if self.loop_detection_imgs is not None:       
             self.loop_detection_imgs.reset()
             
@@ -234,28 +248,32 @@ class LoopDetectorVprBase(LoopDetectorBase):
         if keyframe.g_des is None:
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get global descriptor
         
-        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:        
-            # add image descriptors to global descriptor database
-            # NOTE: relocalization works on frames (not keyframes) and we don't need to add them to the database
-            self.global_db.add(keyframe.g_des)
-            
-            # the img_ids are mapped to img_counts (entry ids) inside the database management
-            self.map_img_count_to_kf_img_id[self.img_count] = img_id        
-            #print(f'LoopDetectorVprBase: mapping img_id: {img_id} to img_count: {self.img_count}')
+        if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
+            if keyframe.g_des is not None:
+                # add image descriptors to global descriptor database
+                # NOTE: relocalization works on frames (not keyframes) and we don't need to add them to the database
+                self.global_db.add(keyframe.g_des)
+                
+                # the img_ids are mapped to entry_ids (entry ids) inside the database management
+                self.map_entry_id_to_frame_id[self.entry_id] = frame_id        
+                #print(f'LoopDetectorVprBase: mapping frame_id: {frame_id} to entry_id: {self.entry_id}')
                     
-        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=keyframe.g_des, img_id=img_id, img=keyframe.img)
+        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=keyframe.g_des, frame_id=frame_id, img=keyframe.img)
+        
+        if keyframe.g_des is None:
+            return detection_output
         
         candidate_idxs = []
         candidate_scores = []
                     
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:         
-            if self.img_count >= 1:
-                best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to img_id
-                print(f'LoopDetectorVprBase: Relocalization: frame: {img_id}, candidate keyframes: {best_idxs}')
+            if self.entry_id >= 1:
+                best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to frame_id
+                print(f'LoopDetectorVprBase: Relocalization: frame: {frame_id}, candidate keyframes: {best_idxs}')
                 for idx, score in zip(best_idxs, best_scores):
-                    other_img_count = idx
-                    other_img_id = self.map_img_count_to_kf_img_id[idx] # get the image id of the keyframe from it's internal image count                
-                    candidate_idxs.append(other_img_id)
+                    other_entry_id = idx
+                    other_frame_id = self.map_entry_id_to_frame_id[idx] # get the image id of the keyframe from it's internal image count                
+                    candidate_idxs.append(other_frame_id)
                     candidate_scores.append(score)
                 
             detection_output.candidate_idxs = candidate_idxs
@@ -267,21 +285,21 @@ class LoopDetectorVprBase(LoopDetectorBase):
             min_score = self.compute_reference_similarity_score(task, type(keyframe.g_des), score_fun=self.score)
             print(f'{self.name}: min_score = {min_score}')
                                                                     
-            if self.img_count >= 1:
-                best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to img_id
+            if self.entry_id >= 1:
+                best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to frame_id
 
                 for idx, score in zip(best_idxs, best_scores):
-                    other_img_count = idx
-                    other_img_id = self.map_img_count_to_kf_img_id[idx] # get the image id of the keyframe from it's internal image count
-                    self.update_similarity_matrix(score=score, img_count=self.img_count, other_img_count=other_img_count)                    
-                    if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
+                    other_entry_id = idx
+                    other_frame_id = self.map_entry_id_to_frame_id[idx] # get the image id of the keyframe from it's internal image count
+                    self.update_similarity_matrix(score=score, entry_id=self.entry_id, other_entry_id=other_entry_id)                    
+                    if abs(other_frame_id - frame_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
                         score >= min_score and \
-                        other_img_id not in task.connected_keyframes_ids: 
-                        candidate_idxs.append(other_img_id)
+                        other_frame_id not in task.connected_keyframes_ids: 
+                        candidate_idxs.append(other_frame_id)
                         candidate_scores.append(score)
-                        self.update_loop_closure_imgs(score=score, other_img_id = other_img_id)
+                        self.update_loop_closure_imgs(score=score, other_frame_id = other_frame_id)
               
-            self.draw_loop_detection_imgs(keyframe.img, img_id, detection_output)  
+            self.draw_loop_detection_imgs(keyframe.img, frame_id, detection_output)  
                 
             detection_output.candidate_idxs = candidate_idxs
             detection_output.candidate_scores = candidate_scores 
@@ -293,8 +311,8 @@ class LoopDetectorVprBase(LoopDetectorBase):
             pass
         
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
-            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
-            self.img_count += 1 
+            # NOTE: with relocalization we don't need to increment the entry_id since we don't add frames to database        
+            self.entry_id += 1 
                  
         return detection_output  
             

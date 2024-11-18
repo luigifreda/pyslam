@@ -53,7 +53,7 @@ class FeatureManagerConfigs(object):
     # The following configurations were manually extracted from the corresponding tracker configs in feature_tracker_configs.py.
     # These are just examples. 
     # Normally, you should use the FeatureManagerConfigs.extract_from() method instead of manually specifying these configurations. 
-    # See for instance the file test_feature_manager.py. 
+    # See the comments/notes above and for instance the file test_feature_manager.py. 
     ORB2 = dict(num_features=kNumFeatures, 
                 num_levels = 8, 
                 scale_factor = 1.2, 

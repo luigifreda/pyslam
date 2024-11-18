@@ -43,7 +43,7 @@ class MapPointBase(object):
         self._lock_pos = RLock() 
         self._lock_features = RLock()         
         
-        self.map = None  # this is used by the object for automatically removing itself from the map when it becomes bas (see below)         
+        self.map = None  # this is used by the object for automatically removing itself from the map when it becomes bad (see below)         
         
         self._observations = dict() # keyframe observations (used by mapping methods)
                                     # for kf, kidx in self._observations.items(): kf.points[kidx] = this point
@@ -373,7 +373,7 @@ class MapPoint(MapPointBase):
             actual_frame_views = {get_object_with_id(fid, frames):idx for fid,idx in self._frame_views}
             self._frame_views = actual_frame_views
         # get actual kf_ref 
-        if self.kf_ref is not None:
+        if self.kf_ref is not None: # NOTE: here kf_ref is still an id to be replaced with an object
             self.kf_ref = get_object_with_id(self.kf_ref, keyframes)
                     
     @property  

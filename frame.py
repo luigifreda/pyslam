@@ -41,9 +41,18 @@ from feature_types import FeatureInfo
 from concurrent.futures import ThreadPoolExecutor
 
 from utils_draw import draw_feature_matches
-from utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad
+from utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad, stereo_match_subpixel_correlation
+from utils_serialization import NumpyJson, NumpyB64Json
 
 import rerun as rr              # pip install rerun-sdk
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from feature_tracker import FeatureTracker  
+    from feature_matcher import FeatureMatcher
+    from feature_manager import FeatureManager
+
 
 kDrawFeatureRadius = [r*5 for r in range(1,100)]
 kDrawOctaveColor = np.linspace(0, 255, 12)
@@ -67,7 +76,7 @@ class FrameBase(object):
             self._pose = CameraPose()      
         else: 
             self._pose = CameraPose(pose) 
-        # frame id            
+        # frame id management            
         if id is not None: 
             self.id = id 
         else: 
@@ -103,6 +112,11 @@ class FrameBase(object):
      
     def __le__(self, rhs):
         return self.id <= rhs.id         
+    
+    @staticmethod
+    def next_id():  
+        with FrameBase._id_lock:
+            return FrameBase._id
         
     @property
     def width(self):
@@ -273,31 +287,31 @@ class FrameBase(object):
 
 
 
-# Shared frame stuff
+# Shared frame stuff. Normally, this information is exclusively used by SLAM.
 class FrameShared:
-    tracker              = None      # type: FeatureTracker
-    feature_manager      = None
-    feature_matcher      = None 
+    feature_tracker      = None      # type: FeatureTracker
+    feature_manager      = None      # type: FeatureManager
+    feature_matcher      = None      # type: FeatureMatcher
     descriptor_distance  = None
     descriptor_distances = None
     oriented_features    = False     
-    is_store_imgs        = False  
+    is_store_imgs        = False     # used by Frame to store images when needed for debugging or processing purposes
                 
     @staticmethod
-    def set_tracker(tracker):
-        if FrameShared.tracker is not None:
-            raise Exception("FrameShared.tracker is not None")
-        FrameShared.tracker = tracker
-        FrameShared.feature_manager = tracker.feature_manager
-        FrameShared.feature_matcher = tracker.matcher
-        FrameShared.descriptor_distance = tracker.feature_manager.descriptor_distance
-        FrameShared.descriptor_distances = tracker.feature_manager.descriptor_distances
-        FrameShared.oriented_features = tracker.feature_manager.oriented_features
+    def set_tracker(feature_tracker, force=False):
+        if not force and FrameShared.feature_tracker is not None:
+            raise Exception("FrameShared: Tracker is already set!")
+        FrameShared.feature_tracker = feature_tracker
+        FrameShared.feature_manager = feature_tracker.feature_manager
+        FrameShared.feature_matcher = feature_tracker.matcher
+        FrameShared.descriptor_distance = feature_tracker.feature_manager.descriptor_distance
+        FrameShared.descriptor_distances = feature_tracker.feature_manager.descriptor_distances
+        FrameShared.oriented_features = feature_tracker.feature_manager.oriented_features
     
 
 # for parallel stereo processing
 def detect_and_compute(img):
-    return FrameShared.tracker.detectAndCompute(img)
+    return FrameShared.feature_tracker.detectAndCompute(img)
      
             
 # A Frame mainly collects keypoints, descriptors and their corresponding 3D points 
@@ -363,7 +377,7 @@ class Frame(FrameBase):
                     self.kps_r, self.des_r = future_r.result()
                     #print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
             else: 
-                self.kps, self.des = FrameShared.tracker.detectAndCompute(img)  
+                self.kps, self.des = FrameShared.feature_tracker.detectAndCompute(img)  
                                                                                 
             # convert from a list of keypoints to arrays of points, octaves, sizes  
             if self.kps is not None:    
@@ -419,25 +433,28 @@ class Frame(FrameBase):
                 
                 'is_keyframe': bool(self.is_keyframe),
                 
-                'kps': json.dumps(self.kps.astype(float).tolist()),
+                'kps': json.dumps(self.kps.astype(float).tolist()) if self.kps is not None else None,
                 'kps_r': json.dumps(self.kps_r.astype(float).tolist() if self.kps_r is not None else None),
-                'kpsu': json.dumps(self.kpsu.astype(float).tolist()),
-                'kpsn': json.dumps(self.kpsn.astype(float).tolist()),
-                'octaves': json.dumps(self.octaves.tolist()),
+                'kpsu': json.dumps(self.kpsu.astype(float).tolist()) if self.kpsu is not None else None,
+                'kpsn': json.dumps(self.kpsn.astype(float).tolist()) if self.kpsn is not None else None,
+                'octaves': json.dumps(self.octaves.tolist()) if self.octaves is not None else None,
                 'octaves_r': json.dumps(self.octaves_r.tolist() if self.octaves_r is not None else None),
-                'sizes': json.dumps(self.sizes.tolist()),
-                'angles': json.dumps(self.angles.astype(float).tolist()),
-                'des': json.dumps(self.des.tolist()),
-                'des_r': json.dumps(self.des_r.astype(float).tolist()) if self.des_r is not None else None,
+                'sizes': json.dumps(self.sizes.tolist()) if self.sizes is not None else None,
+                'angles': json.dumps(self.angles.astype(float).tolist()) if self.angles is not None else None,
+
+                'des': json.dumps(NumpyB64Json.numpy_to_json(self.des)) if self.des is not None else None,
+                'des_r': json.dumps(NumpyB64Json.numpy_to_json(self.des_r)) if self.des_r is not None else None,
+                
                 'depths': json.dumps(self.depths.astype(float).tolist()) if self.depths is not None else None,
                 'kps_ur': json.dumps(self.kps_ur.astype(float).tolist()) if self.kps_ur is not None else None,
                 
-                'points': json.dumps([p.id if p is not None else None for p in self.points]),
-                'outliers': json.dumps(self.outliers.astype(bool).tolist()) if self.outliers is not None else None, 
+                'points': json.dumps([p.id if p is not None else None for p in self.points]) if self.points is not None else None,
                 
+                'outliers': json.dumps(self.outliers.astype(bool).tolist()) if self.outliers is not None else None, 
                 'kf_ref': self.kf_ref.id if self.kf_ref is not None else None,
-                'img': json.dumps(self.img.tolist()) if self.img is not None else None,
-                'depth_img': json.dumps(self.depth_img.tolist()) if self.depth_img is not None else None        
+                
+                'img': json.dumps(NumpyB64Json.numpy_to_json(self.img)) if self.img is not None else None,
+                'depth_img': json.dumps(NumpyB64Json.numpy_to_json(self.depth_img)) if self.depth_img is not None else None        
                 }
         return ret
         
@@ -453,9 +470,7 @@ class Frame(FrameBase):
         
         f.is_keyframe = json_str['is_keyframe']
         
-        f.kps = np.array(json.loads(json_str['kps'])) if json_str['kps'] is not None else None
-        len_kps = len(f.kps) if f.kps is not None else 1
-        
+        f.kps = np.array(json.loads(json_str['kps'])) if json_str['kps'] is not None else None        
         f.kps_r = np.array(json.loads(json_str['kps_r'])) if json_str['kps_r'] is not None else None
         f.kpsu = np.array(json.loads(json_str['kpsu'])) if json_str['kpsu'] is not None else None
         f.kpsn = np.array(json.loads(json_str['kpsn'])) if json_str['kpsn'] is not None else None
@@ -463,8 +478,10 @@ class Frame(FrameBase):
         f.octaves_r = np.array(json.loads(json_str['octaves_r'])) if json_str['octaves_r'] is not None else None
         f.sizes = np.array(json.loads(json_str['sizes'])) if json_str['sizes'] is not None else None
         f.angles = np.array(json.loads(json_str['angles'])) if json_str['angles'] is not None else None
-        f.des = np.array(json.loads(json_str['des'])) if json_str['des'] is not None else None
-        f.des_r = np.array(json.loads(json_str['des_r'])) if json_str['des_r'] is not None else None
+        
+        f.des = NumpyB64Json.json_to_numpy(json.loads(json_str['des'])) if json_str['des'] is not None else None
+        f.des_r = NumpyB64Json.json_to_numpy(json.loads(json_str['des_r'])) if json_str['des_r'] is not None else None    
+            
         f.depths = np.array(json.loads(json_str['depths'])) if json_str['depths'] is not None else None
         f.kps_ur = np.array(json.loads(json_str['kps_ur'])) if json_str['kps_ur'] is not None else None
         
@@ -472,8 +489,9 @@ class Frame(FrameBase):
         
         f.outliers = np.array(json.loads(json_str['outliers'])) if json_str['outliers'] is not None else None
         f.kf_ref = json_str['kf_ref'] if json_str['kf_ref'] is not None else None
-        f.img = np.array(json.loads(json_str['img'])) if json_str['img'] is not None else None
-        f.depth_img = np.array(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
+        
+        f.img = NumpyB64Json.json_to_numpy(json.loads(json_str['img'])) if json_str['img'] is not None else None
+        f.depth_img = NumpyB64Json.json_to_numpy(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
         
         if f.kps is not None and f.points is not None:
             #print(f'f.kps.shape = {f.kps.shape}, f.points.shape = {f.points.shape}')        
@@ -494,13 +512,13 @@ class Frame(FrameBase):
             actual_points = np.array([get_object_with_id(id, points) for id in self.points])
             self.points = actual_points
         # get actual kf_ref 
-        if self.kf_ref is not None:
+        if self.kf_ref is not None:  # NOTE: here kf_ref is still an id to be replaced with an object
             self.kf_ref = get_object_with_id(self.kf_ref, keyframes)
         
                 
     @staticmethod
-    def set_tracker(tracker):
-        FrameShared.set_tracker(tracker)
+    def set_tracker(feature_tracker, force=False):
+        FrameShared.set_tracker(feature_tracker, force)
         Frame._id = 0           
      
     # KD tree of undistorted keypoints
@@ -606,28 +624,22 @@ class Frame(FrameBase):
         
     # update found count for map points        
     def update_map_points_statistics(self, sensor_type=SensorType.MONOCULAR):
+        num_matched_inlier_points = 0        
         with self._lock_features:           
-            num_matched_points = 0
             for i,p in enumerate(self.points):
-                if p is not None and not self.outliers[i]: 
+                if p is not None:
+                    if not self.outliers[i]: 
                         p.increase_found() # update point statistics 
                         if p.num_observations > 0:
-                            num_matched_points +=1
-                elif sensor_type == SensorType.STEREO: 
-                    self.points[i] = None
-                    
-            # for p, is_outlier in zip(self.points, self.outliers):
-            #     if p is not None and not is_outlier:
-            #         p.increase_found()  # Update point statistics
-            #         if p.num_observations > 0:
-            #             num_matched_points += 1                    
-                    
-            return num_matched_points            
+                            num_matched_inlier_points +=1
+                    elif sensor_type == SensorType.STEREO: 
+                        self.points[i] = None              
+        return num_matched_inlier_points            
            
     # reset outliers detected in last pose optimization       
     def clean_outlier_map_points(self):
+        num_matched_points = 0        
         with self._lock_features:          
-            num_matched_points = 0
             for i,p in enumerate(self.points):
                 if p is not None:
                     if self.outliers[i]: 
@@ -638,7 +650,7 @@ class Frame(FrameBase):
                     else:
                         if p.num_observations > 0:
                             num_matched_points +=1
-            return num_matched_points           
+        return num_matched_points           
                     
     # reset bad map points and update visibility count          
     def clean_bad_map_points(self):
@@ -691,7 +703,7 @@ class Frame(FrameBase):
         max_disparity = self.camera.bf/min_z
         # we enforce matching on the same row here by using the flag row_matching (epipolar constraint)
         row_matching = True
-        ratio_test = 0.8
+        ratio_test = 0.9
         stereo_matching_result = FrameShared.feature_matcher.match(img, img_right, self.des, self.des_r, self.kps, self.kps_r, \
                                                                   ratio_test=ratio_test, row_matching=row_matching, max_disparity=max_disparity)
         matched_kps_l = np.array(self.kps[stereo_matching_result.idxs1])
@@ -726,16 +738,37 @@ class Frame(FrameBase):
             good_disparities = good_disparities[mask_inliers]         
             good_matched_idxs1 = good_matched_idxs1[mask_inliers]
             good_matched_idxs2 = good_matched_idxs2[mask_inliers]   
-                                
-        # check normalized sum of absolute differences at matched points (at level 0)
-        do_check_sads = True 
-        if do_check_sads:
-            window_size = 5
-            # TODO: optimize this conversions (probably we can store them in the class if this has been done before)
+                       
+        img_bw_ = None 
+        img_right_ = None
+            
+        # subpixel stereo matching
+        do_subpixel_stereo_matching = True
+        if do_subpixel_stereo_matching:
             if img.ndim>2:
-                img_bw_ = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                img_bw_ = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if img_bw_ is None else img_bw_
             if img_right.ndim>2:
-                img_right_ = cv2.cvtColor(img_right, cv2.COLOR_RGB2GRAY)             
+                img_right_ = cv2.cvtColor(img_right, cv2.COLOR_RGB2GRAY) if img_right_ is None else img_right_               
+            disparities, us_right, valid_idxs = stereo_match_subpixel_correlation(
+                self.kps[good_matched_idxs1], self.kps_r[good_matched_idxs2],
+                min_disparity=min_disparity, max_disparity=max_disparity,
+                bf=self.camera.bf, 
+                image_left=img_bw_, image_right=img_right_
+            ) 
+            good_disparities = disparities[valid_idxs]
+            self.kps_ur[valid_idxs] = us_right[valid_idxs]
+            good_matched_idxs1 = good_matched_idxs1[valid_idxs]
+            good_matched_idxs2 = good_matched_idxs2[valid_idxs]       
+                                                    
+        # check normalized sum of absolute differences at matched points (at level 0)
+        do_check_sads = False 
+        if do_check_sads and not do_subpixel_stereo_matching:  # this is redundant if we did subpixel stereo matching
+            window_size = 5
+            # TODO: optimize this conversions (probably we can store them in the class if this has not been done before)
+            if img.ndim>2:
+                img_bw_ = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if img_bw_ is None else img_bw_
+            if img_right.ndim>2:
+                img_right_ = cv2.cvtColor(img_right, cv2.COLOR_RGB2GRAY) if img_right_ is None else img_right_              
             sads = compute_NSAD_between_matched_keypoints(img_bw_, img_right_, self.kps[good_matched_idxs1], self.kps_r[good_matched_idxs2], window_size)
             #print(f'sads: {sads}')
             sads_median = np.median(sads)     # MAD, approximating dists_median=0 
@@ -744,8 +777,8 @@ class Frame(FrameBase):
             print(f'[compute_stereo_matches] perc good sads: {100 * np.sum(good_sads_mask) / len(sads)}')
             good_disparities = good_disparities[good_sads_mask]
             good_matched_idxs1 = good_matched_idxs1[good_sads_mask]
-            good_matched_idxs2 = good_matched_idxs2[good_sads_mask]           
-            
+            good_matched_idxs2 = good_matched_idxs2[good_sads_mask]
+                        
         # check chi2 of reprojections errors, just for the hell of it (debugging)
         do_chi2_check = False
         if do_chi2_check:          
@@ -875,21 +908,24 @@ class Frame(FrameBase):
                 point = self.points[kp_idx]
                 if point is not None and not point.is_bad:
                     p_frame_views = point.frame_views()
-                    # there's a corresponding 3D map point
-                    color = (0, 255, 0) if len(p_frame_views) > 2 else (255, 0, 0)
-                    cv2.circle(img, uv, color=color, radius=radius, thickness=1)  # draw keypoint size as a circle  
-                    # draw the trail (for each keypoint, its trail_max_length corresponding points in previous frames)
-                    pts = []
-                    lfid = None  # last frame id
-                    for f, idx in reversed(p_frame_views[-trail_max_length:]):
-                        if lfid is not None and lfid-1 != f.id:
-                            # stop when there is a jump in the ids of frame observations
-                            break
-                        pts.append(tuple(map(int,np.round(f.kps[idx]))))
-                        lfid = f.id                    
-                    if len(pts) > 1:
-                        color = myjet[len(pts)] * 255
-                        cv2.polylines(img, np.array([pts], dtype=np.int32), False, color, thickness=1, lineType=16)
+                    if p_frame_views:
+                        # there's a corresponding 3D map point
+                        color = (0, 255, 0) if len(p_frame_views) > 2 else (255, 0, 0)
+                        cv2.circle(img, uv, color=color, radius=radius, thickness=1)  # draw keypoint size as a circle  
+                        # draw the trail (for each keypoint, its trail_max_length corresponding points in previous frames)
+                        pts = []
+                        lfid = None  # last frame id
+                        for f, idx in reversed(p_frame_views[-trail_max_length:]):
+                            if f is None:
+                                continue
+                            if lfid is not None and lfid-1 != f.id:
+                                # stop when there is a jump in the ids of frame observations
+                                break
+                            pts.append(tuple(map(int,np.round(f.kps[idx]))))
+                            lfid = f.id                    
+                        if len(pts) > 1:
+                            color = myjet[len(pts)] * 255
+                            cv2.polylines(img, np.array([pts], dtype=np.int32), False, color, thickness=1, lineType=16)
                 else:
                     # no corresponding 3D point
                     cv2.circle(img, uv, color=(0, 0, 0), radius=2) #radius=radius)

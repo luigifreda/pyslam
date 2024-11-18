@@ -16,12 +16,15 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [Feature tracking](#feature-tracking)
     - [Loop closing](#loop-closing)
     - [Save and reload a map](#save-and-reload-a-map)
+    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
     - [Trajectory saving](#trajectory-saving)
     - [SLAM GUI](#slam-gui)
-    - [Watch the logs of tracking, local mapping and loop closing in parallel](#watch-the-logs-of-tracking-local-mapping-and-loop-closing-in-parallel)
+    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
   - [Supported local features](#supported-local-features)
   - [Supported matchers](#supported-matchers)
   - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
+      - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
+      - [Global descriptors](#global-descriptors)
   - [Datasets](#datasets)
     - [KITTI Datasets](#kitti-datasets)
     - [TUM Datasets](#tum-datasets)
@@ -37,8 +40,8 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 **pySLAM** is a python implementation of a *Visual Odometry (VO)* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
 - It supports many classical and modern **[local features](#supported-local-features)** and it offers a convenient interface for them.
-- It implements loop-closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise). 
-- It collects other useful VO and SLAM tools. 
+- It implements loop closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (aka image-wise descriptors). 
+- It collects many other useful VO and SLAM tools. 
 
 **Main Scripts**:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
@@ -47,9 +50,9 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. Further details [here](./docs/basic_architecture.md).
 
-* `main_map_viewer.py` allows to reload a saved map and visualize it.  
+* `main_map_viewer.py` allows to reload a saved map and visualize it. Further details [here](#relocalization-in-a-loaded-map).
 
-You can use this framework as a baseline to play with [local features](#supported-local-features), *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When you work with it, consider that's a work in progress, a research framework written in Python, without any pretence of having state-of-the-art localization accuracy or real-time performances.   
+You can use the pySLAM framework as a baseline to play with [local features](#supported-local-features), *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When working with it, please keep in mind this is a research framework written in Python, a work in progress not intended to deliver real-time performances.   
 
 **Enjoy it!**
 
@@ -179,18 +182,29 @@ Train the vocabulary by using the script `test/loopclosing/test_gen_vlad_voc_fro
 ### Save and reload a map
 
 When you run the script `main_slam.py`:
-- The current map can be saved into the file `map.json` by pressing the button `Save` on the GUI. 
+- The current map can be saved into the file `data/slam_state/map.json` by pressing the button `Save` on the GUI. 
 - The saved map can be reloaded and visualized into the GUI by running: 
+  ```bash
+  $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+  $ ./main_map_viewer.py
+  ```
+
+### Relocalization in a loaded map 
+
+To enable map reloading and relocalization in it, open `config.yaml` and set 
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
-$ ./main_map_viewer.py
+SYSTEM_STATE:
+  load_state: True               # flag to enable SLAM state reloading (map state + loop closing state)
+  folder_path: data/slam_state   # folder path relative to root of this repository
 ```
-Relocalization in a loaded map is a WIP.
+
+Pressing the `Save` button saves the current map, frontend, and backend configurations. Reloading a saved map overwrites the current system configurations to ensure descriptor compatibility.  
+
 
 ### Trajectory saving
 
 Estimated trajectories can be saved in three different formats: *TUM* (The Open Mapping format), *KITTI* (KITTI Odometry format), and *EuRoC* (EuRoC MAV format). To enable trajectory saving, open `config.yaml` and search for the `SAVE_TRAJECTORY`: set `save_trajectory: True`, select your `format_type` (`tum`, `kitti`, `euroc`), and the output filename. For instance for a `tum` format output:   
-```
+```bash
 SAVE_TRAJECTORY:
   save_trajectory: True
   format_type: tum
@@ -206,9 +220,9 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 - `Draw Grount Truth`: In the case a groundtruth is loaded (e.g. with *KITTI*, *TUM*, *EUROC* datasets), you can visualize it by pressing this button. The groundtruth trajectory will be visualized and progressively aligned to the estimated trajectory: The more the number of samples in the estimated trajectory the better the computed alignment.  
 
 
-### Watch the logs of tracking, local mapping and loop closing in parallel
+### Monitor the logs for tracking, local mapping, and loop closing simultaneously
 
-The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, respectively. For fun/debugging, you can watch their parallel flows by running the command `tail -f <log file name>` in a separate shell. Otherwise, just run the script `./scripts/launch_tmux_slam.sh` from the repo root folder. 
+The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, respectively. For fun/debugging, you can monitor their parallel flows by running the command `tail -f <log file name>` in separate shells. Otherwise, just run the script `./scripts/launch_tmux_slam.sh` from the repo root folder. 
 
 ---
 ## Supported local features
@@ -281,27 +295,27 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
 ---
 ## Supported matchers 
 
-* *BF*: Brute force matcher on descriptors (with KNN)
+* *BF*: Brute force matcher on descriptors (with KNN).
 * *[FLANN](https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350)* 
 * *[XFeat](https://arxiv.org/abs/2404.19174)*      
 * *[LightGlue](https://arxiv.org/abs/2306.13643)*
 * *[LoFTR](https://arxiv.org/abs/2104.00680)*
   
-Check the file `feature_matcher.py`.
+See the file `feature_matcher.py` for further details.
 
 ---
 ## Supported global descriptors and local descriptor aggregation methods
 
 
-**Local descriptor aggregation methods**
+#### Local descriptor aggregation methods
 
-* Bag of Words (BoW): [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3)
-* Vector of Locally Aggregated Descriptors: [VLAD](https://www.vlfeat.org/api/vlad.html) 
-* Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: [iBoW](https://github.com/emiliofidalgo/ibow-lcd), [OBIndex2](https://github.com/emiliofidalgo/obindex2)
-* Hyperdimensional Computing: [HDC](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)
+* Bag of Words (BoW): [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3).  [[paper](https://doi.org/10.1109/TRO.2012.2197158)]
+* Vector of Locally Aggregated Descriptors: [VLAD](https://www.vlfeat.org/api/vlad.html).  [[paper](https://doi.org/10.1109/CVPR.2010.5540039)] 
+* Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: [iBoW](https://github.com/emiliofidalgo/ibow-lcd), [OBIndex2](https://github.com/emiliofidalgo/obindex2).  [[paper](https://doi.org/10.1109/LRA.2018.2849609)]
+* Hyperdimensional Computing: [HDC](https://www.tu-chemnitz.de/etit/proaut/hdc_desc).  [[paper](https://openaccess.thecvf.com/content/CVPR2021/html/Neubert_Hyperdimensional_Computing_as_a_Framework_for_Systematic_Aggregation_of_Image_CVPR_2021_paper.html)]
 
 
-**Global descriptors**
+#### Global descriptors
 
 Also referred to as *holistic descriptors*:
 
@@ -313,7 +327,7 @@ Also referred to as *holistic descriptors*:
 * [EigenPlaces](https://github.com/gmberton/EigenPlaces)
 
 
-Check the file `loop_detector_configs.py`.
+See the file `loop_detector_configs.py` for further details.
 
 --- 
 ## Datasets
@@ -457,7 +471,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 Many improvements and additional features are currently under development: 
 
 - [x] loop closing
-- [ ] relocalization 
+- [x] relocalization 
 - [x] stereo and RGBD support
 - [x] map saving/loading 
 - [x] modern DL matching algorithms 
@@ -465,4 +479,5 @@ Many improvements and additional features are currently under development:
 - [ ] 3D dense reconstruction 
 - [x] unified install procedure (single branch) for all OSs 
 - [x] trajectory saving 
+- [ ] depth estimation integration
 

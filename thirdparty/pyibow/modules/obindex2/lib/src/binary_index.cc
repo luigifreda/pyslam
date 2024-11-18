@@ -19,8 +19,15 @@
 
 #include "obindex2/binary_index.h"
 
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/filesystem.hpp>
+
 namespace obindex2 {
 
+// ImageIndex::ImageIndex()
+// {}
+  
 ImageIndex::ImageIndex(const unsigned k,
                        const unsigned s,
                        const unsigned t,
@@ -416,6 +423,42 @@ void ImageIndex::purgeDescriptors(const unsigned curr_img) {
       it++;
     }
   }
+}
+
+void ImageIndex::save(const std::string& filename)
+{
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs) throw std::runtime_error("Could not open file for writing: " + filename);
+
+    boost::archive::binary_oarchive oa(ofs);
+    oa << *this;
+    std::cout << "obindex2::ImageIndex saved to " << filename << " (" << numImages() << " images, " << numDescriptors() << " descriptors)" << std::endl;
+
+}
+
+void ImageIndex::load(const std::string& filename)
+{
+if (!boost::filesystem::exists(filename))
+        throw std::runtime_error("File does not exist: " + filename);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs) throw std::runtime_error("Could not open file for reading: " + filename);
+
+    boost::archive::binary_iarchive ia(ifs);
+    ia >> *this;
+    std::cout << "obindex2::ImageIndex loaded from " << filename << " (" << numImages() << " images, " << numDescriptors() << " descriptors)" << std::endl;    
+
+}
+
+void ImageIndex::printStatus() const
+{
+  std::cout << *this << std::endl;
+}
+
+std::ostream& operator<<(std::ostream &os, const ImageIndex &db)
+{
+  os << "obindex2::ImageIndex: " << db.numImages() << " images, " << db.numDescriptors() << " descriptors";
+  return os;
 }
 
 }  // namespace obindex2

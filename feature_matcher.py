@@ -24,9 +24,9 @@ import torch
 
 from utils_sys import Printer, import_from
 from utils_data import AtomicCounter
-
+from utils_serialization import SerializableEnum, register_class
 from parameters import Parameters  
-from enum import Enum
+
 from collections import defaultdict
 
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
@@ -52,13 +52,15 @@ def print_to_file(*args, **kwargs):
 kRatioTest = Parameters.kFeatureMatchRatioTest
 kVerbose = False
 
-class FeatureMatcherTypes(Enum):
+
+@register_class
+class FeatureMatcherTypes(SerializableEnum):
     NONE      = 0
     BF        = 1      # Brute force
     FLANN     = 2      # FLANN-based 
     XFEAT     = 3      # "XFeat: Accelerated Features for Lightweight Image Matching"
     LIGHTGLUE = 4      # "LightGlue: Local Feature Matching at Light Speed"
-    LOFTR     = 5      # [kornia-based] "LoFTR: Efficient Local Feature Matching with Transformers"
+    LOFTR     = 5      # "LoFTR: Efficient Local Feature Matching with Transformers" (based on kornia)
 
 
 def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, 
@@ -167,7 +169,7 @@ class MatcherUtils:
             pt2 = kps2[m.trainIdx]
             if (m.distance < max_matching_distance and 
                 abs(pt1[1] - pt2[1]) < max_row_distance and 
-                abs(pt1[0] - pt2[0]) < max_disparity):   # epipolar constraint + max disparity check
+                abs(pt1[0] - pt2[0]) < max_disparity):        # epipolar constraint + max disparity check
                 idxs1.append(m.queryIdx)
                 idxs2.append(m.trainIdx)   
         return np.array(idxs1), np.array(idxs2) 
@@ -182,7 +184,7 @@ class MatcherUtils:
             pt2 = kps2[m.trainIdx]
             if (m.distance < max_matching_distance and 
                 abs(pt1[1] - pt2[1]) < max_row_distance and 
-                abs(pt1[0] - pt2[0]) < max_disparity):   # epipolar constraint + max disparity check
+                abs(pt1[0] - pt2[0]) < max_disparity):         # epipolar constraint + max disparity check
                 if m.distance < ratio_test * n.distance:                
                     idxs1.append(m.queryIdx)
                     idxs2.append(m.trainIdx)   

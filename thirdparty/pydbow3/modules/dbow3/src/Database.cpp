@@ -1,4 +1,7 @@
 #include "Database.h"
+#include <filesystem>
+
+#define SAVE_LOAD_WITH_CV_FILESTORAGE 0   // save/load with cv::FileStorage seems to be broken or super slow
 
 namespace DBoW3{
 
@@ -825,20 +828,21 @@ const FeatureVector& Database::retrieveFeatures
 
 // --------------------------------------------------------------------------
 
-
-void Database::save(const std::string &filename) const
+#if SAVE_LOAD_WITH_CV_FILESTORAGE
+void Database::save(const std::string &filename, bool save_voc) const
 {
   cv::FileStorage fs(filename.c_str(), cv::FileStorage::WRITE);
   if(!fs.isOpened()) throw std::string("Could not open file ") + filename;
 
-  save(fs);
+  const std::string name = "database";
+  save(fs, name, save_voc);
 }
 
 // --------------------------------------------------------------------------
 
 
 void Database::save(cv::FileStorage &fs,
-  const std::string &name) const
+  const std::string &name, bool save_voc) const
 {
   // Format YAML:
   // vocabulary { ... see TemplatedVocabulary::save }
@@ -873,7 +877,7 @@ void Database::save(cv::FileStorage &fs,
   // imageId's and nodeId's must be stored in ascending order
   // (according to the construction of the indexes)
 
-  if(m_voc)
+  if(save_voc && m_voc)
     m_voc->save(fs);
 
   fs << name << "{";
@@ -931,28 +935,43 @@ void Database::save(cv::FileStorage &fs,
 // --------------------------------------------------------------------------
 
 
-void Database::load(const std::string &filename)
+void Database::load(const std::string &filename, bool load_voc)
 {
+  // check filename exists 
+  std::filesystem::path path(filename);
+  if(!std::filesystem::exists(path)) 
+  {
+    const std::string msg = "File " + filename + " does not exist";
+    throw msg;
+    return;
+  }
+
   cv::FileStorage fs(filename.c_str(), cv::FileStorage::READ);
   if(!fs.isOpened()) throw std::string("Could not open file ") + filename;
 
-  load(fs);
+  const std::string name = "database";
+  load(fs, name, load_voc);
 }
 
 // --------------------------------------------------------------------------
 
 
 void Database::load(const cv::FileStorage &fs,
-  const std::string &name)
+  const std::string &name, bool load_voc)
 {
   // load voc first
   // subclasses must instantiate m_voc before calling this ::load
-  if(!m_voc) m_voc = new Vocabulary;
+  if(load_voc)
+  {
+    if(!m_voc) m_voc = new Vocabulary;
 
-  m_voc->load(fs);
+    std::cout << "Loading vocabulary...";
+    m_voc->load(fs);
+    std::cout << "...done" << std::endl;
 
-  // load database now
-  clear(); // resizes inverted file
+    // load database now
+    clear(); // resizes inverted file
+  }
 
   cv::FileNode fdb = fs[name];
 
@@ -961,14 +980,18 @@ void Database::load(const cv::FileStorage &fs,
   m_dilevels = (int)fdb["diLevels"];
 
   cv::FileNode fn = fdb["invertedIndex"];
-  for(WordId wid = 0; wid < fn.size(); ++wid)
+  const size_t fn_size = fn.size();
+  for(WordId wid = 0; wid < fn_size; ++wid)
   {
-    cv::FileNode fw = fn[wid];
+    if(wid % 100 == 0) std::cout << "\rWord %: " << float(wid)/fn_size*100;
+    const cv::FileNode& fw = fn[wid];
 
-    for(unsigned int i = 0; i < fw.size(); ++i)
+    const size_t fw_size = fw.size();
+    for(unsigned int i = 0; i < fw_size; ++i)
     {
-      EntryId eid = (int)fw[i]["imageId"];
-      WordValue v = fw[i]["weight"];
+      const auto& fwi = fw[i];
+      const EntryId& eid = (int)fwi["imageId"];
+      const WordValue& v = fwi["weight"];
 
       m_ifile[wid].push_back(IFPair(eid, v));
     }
@@ -984,12 +1007,13 @@ void Database::load(const cv::FileStorage &fs,
     FeatureVector::iterator dit;
     for(EntryId eid = 0; eid < fn.size(); ++eid)
     {
+      if(eid % 100 == 0) std::cout << "\rEntryId %: " << float(eid)/fn.size()*100;      
       cv::FileNode fe = fn[eid];
 
       m_dfile[eid].clear();
       for(unsigned int i = 0; i < fe.size(); ++i)
       {
-        NodeId nid = (int)fe[i]["nodeId"];
+        const NodeId& nid = (int)fe[i]["nodeId"];
 
         dit = m_dfile[eid].insert(m_dfile[eid].end(),
           make_pair(nid, std::vector<unsigned int>() ));
@@ -1003,7 +1027,7 @@ void Database::load(const cv::FileStorage &fs,
         //dit->second.resize(aux.size());
         //std::copy(aux.begin(), aux.end(), dit->second.begin());
 
-        cv::FileNode ff = fe[i]["features"][0];
+        const cv::FileNode& ff = fe[i]["features"][0];
         dit->second.reserve(ff.size());
 
         cv::FileNodeIterator ffit;
@@ -1017,17 +1041,62 @@ void Database::load(const cv::FileStorage &fs,
 
 }
 
+#else 
+
+void Database::save(const std::string &filename, bool save_voc) const {
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs) throw std::runtime_error("Could not open file for writing: " + filename);
+
+    boost::archive::binary_oarchive oa(ofs);
+    oa << *this;
+    std::cout << "DBoW3::Database saved to " << filename << " (" << size() << " entries)" << std::endl;
+}
+
+void Database::load(const std::string &filename, bool load_voc) {
+    if (!boost::filesystem::exists(filename))
+        throw std::runtime_error("File does not exist: " + filename);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs) throw std::runtime_error("Could not open file for reading: " + filename);
+
+    boost::archive::binary_iarchive ia(ifs);
+    ia >> *this;
+    std::cout << "DBoW3::Database loaded from " << filename << " (" << size() << " entries)" << std::endl;    
+}
+
+
+// not needed here 
+void Database::save(cv::FileStorage &fs,
+  const std::string &name, bool save_voc) const
+{}
+
+// not needed here
+void Database::load(const cv::FileStorage &fs,
+  const std::string &name, bool load_voc)
+{}
+
+
+#endif 
+
+void Database::print_status() const
+{
+  std::cout << *this << std::endl;
+}
 
 std::ostream& operator<<(std::ostream &os,
   const Database &db)
 {
-  os << "Database: Entries = " << db.size() << ", "
+  os << "DBoW3 Database: Entries = " << db.size() << ", "
     "Using direct index = " << (db.usingDirectIndex() ? "yes" : "no");
 
   if(db.usingDirectIndex())
     os << ", Direct index levels = " << db.getDirectIndexLevels();
 
-  os << ". " << *db.getVocabulary();
+  const Vocabulary* voc = db.getVocabulary();
+  if(voc)
+    os << ". " << *voc;
+  else
+    os << ". No vocabulary";
   return os;
 }
 

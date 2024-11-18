@@ -259,7 +259,7 @@ if mask is not None:
         
     if des1_matched_inliers is not None and des2_matched_inliers is not None: 
         sigma_mad_inliers, dists = descriptor_sigma_mad(des1_matched_inliers,des2_matched_inliers,descriptor_distances=feature_tracker.descriptor_distances)
-        print('3 x sigma-MAD of descriptor distances (inliers): ', 3 * sigma_mad)  
+        print('3 x sigma-MAD of descriptor distances (inliers): ', 3 * sigma_mad)  # This value can be used as an initial reasonable max descriptor distance (provided the matched images are not too similar). 
     #print('distances: ', dists)
     if not show_kps_size:
         kps1_size_inliers, kps2_size_inliers = None, None

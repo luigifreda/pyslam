@@ -122,10 +122,15 @@ PYBIND11_MODULE(pydbow2, m)
 			"features"_a, "levelsup"_a);		
 
 	py::class_<DBoW2::KeyFrameOrbDatabase>(m, "KeyFrameOrbDatabase")
-		.def(py::init<const DBoW2::ORBVocabulary &>())
+		.def(py::init<DBoW2::ORBVocabulary &>())
+		.def("set_vocabulary", &DBoW2::KeyFrameOrbDatabase::setVocabulary)
 		.def("add", &DBoW2::KeyFrameOrbDatabase::add)
 		.def("erase", &DBoW2::KeyFrameOrbDatabase::erase)
 		.def("clear", &DBoW2::KeyFrameOrbDatabase::clear)
+		.def("save", &DBoW2::KeyFrameOrbDatabase::save)
+		.def("load", &DBoW2::KeyFrameOrbDatabase::load)
+		.def("size", &DBoW2::KeyFrameOrbDatabase::size)
 		.def("detect_loop_candidates", &DBoW2::KeyFrameOrbDatabase::detectLoopCandidates)
-		.def("detect_relocalization_candidates", &DBoW2::KeyFrameOrbDatabase::detectRelocalizationCandidates);
+		.def("detect_relocalization_candidates", &DBoW2::KeyFrameOrbDatabase::detectRelocalizationCandidates)
+		.def("print_status", &DBoW2::KeyFrameOrbDatabase::printStatus);
 }

@@ -277,7 +277,7 @@ def set_rlimit():
     import resource
     # Check the current soft and hard limits
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    print(f"Current soft limit: {soft_limit}, hard limit: {hard_limit}")
+    print(f"set_rlimit(): Current soft limit: {soft_limit}, hard limit: {hard_limit}")
 
     # Set the new limit
     new_soft_limit = 4096
@@ -285,7 +285,7 @@ def set_rlimit():
 
     # Confirm the change
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    print(f"Updated soft limit: {soft_limit}, hard limit: {hard_limit}")
+    print(f"set_rlimit(): Updated soft limit: {soft_limit}, hard limit: {hard_limit}")
 
 
 class MultiprocessingManager:

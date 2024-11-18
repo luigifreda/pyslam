@@ -28,6 +28,7 @@ from enum import Enum
 
 from utils_sys import getchar, Printer 
 from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs
+from utils_serialization import NumpyB64Json
 
 from parameters import Parameters
 from feature_types import FeatureInfo
@@ -43,6 +44,8 @@ import logging
 import sys
 from utils_sys import Printer, getchar, Logging
 
+#import json
+import ujson as json
 
 
 kVerbose = True
@@ -75,6 +78,8 @@ class LoopDetectorTaskType(Enum):
     COMPUTE_GLOBAL_DES = 2
     LOOP_CLOSURE = 3
     RELOCALIZATION = 4
+    SAVE = 5
+    LOAD = 6
 
 
 # keyframe (pickable) data that are needed for loop detection
@@ -100,11 +105,12 @@ class LoopDetectKeyframeData:
 
 
 class LoopDetectorTask: 
-    def __init__(self, keyframe: KeyFrame, img, task_type=LoopDetectorTaskType.NONE, covisible_keyframes = [], connected_keyframes = []):
+    def __init__(self, keyframe: KeyFrame, img, task_type=LoopDetectorTaskType.NONE, covisible_keyframes=[], connected_keyframes=[], load_save_path=None):
         self.task_type = task_type
         self.keyframe_data = LoopDetectKeyframeData(keyframe, img)
         self.covisible_keyframes_data = [LoopDetectKeyframeData(kf) for kf in covisible_keyframes if not kf.is_bad] 
         self.connected_keyframes_ids =  [kf.id for kf in connected_keyframes]
+        self.load_save_path = load_save_path            
         # # for loop closing 
         # self.loop_query_id = None
         # self.num_loop_words = 0
@@ -112,20 +118,20 @@ class LoopDetectorTask:
         # # for relocalization 
         # self.reloc_query_id = None
         # self.num_reloc_words = 0
-        # self.reloc_score = None             
-        
+        # self.reloc_score = None        
+ 
     def __str__(self) -> str:
         return f'LoopDetectorTask: img id = {self.keyframe_data.id}, kid = {self.keyframe_data.kid}, task_type = {self.task_type.name}'
         
         
 class LoopDetectorOutput: 
-    def __init__(self, task_type, candidate_idxs=[], candidate_scores=[], g_des_vec=None, img_id=None, img=None, covisible_ids=[], covisible_gdes_vecs=[]):
+    def __init__(self, task_type, candidate_idxs=[], candidate_scores=[], g_des_vec=None, frame_id=None, img=None, covisible_ids=[], covisible_gdes_vecs=[]):
         self.task_type = task_type
         # candidates information + input keyframe data
         self.candidate_idxs = candidate_idxs
         self.candidate_scores = candidate_scores
         self.g_des_vec = g_des_vec  # we use g_des_vec instead of g_des since the first can be used with multiprocessing and transported in the queue
-        self.img_id = img_id
+        self.frame_id = frame_id
         self.img = img   # for debugging 
         # potential g_des updates/computations for covisible keyframes
         self.covisible_ids = covisible_ids
@@ -136,16 +142,16 @@ class LoopDetectorOutput:
         
          
     def __str__(self) -> str:
-        return f'LoopDetectorOutput: task_type = {self.task_type.name}, candidate_idxs = {self.candidate_idxs}, candidate_scores = {self.candidate_scores}, img_id = {self.img_id}'
+        return f'LoopDetectorOutput: task_type = {self.task_type.name}, candidate_idxs = {self.candidate_idxs}, candidate_scores = {self.candidate_scores}, frame_id = {self.frame_id}'
         
         
 # Base class for loop detectors
 class LoopDetectorBase:
     def __init__(self):
-        self.img_count = 0 # this corresponds to the internal detector counter (incremented only when a new keyframe is added to the detector database)
-        self.map_img_count_to_kf_img_id = {}
-        self.map_kf_img_id_to_img = {}
-        self.map_kf_img_id_to_img_count = {} # not always used
+        self.entry_id = 0 # this corresponds to the internal detector entry counter (incremented only when a new keyframe is added to the detector database)
+        self.map_entry_id_to_frame_id = {}
+        self.map_frame_id_to_img = {}
+        self.map_frame_id_to_entry_id = {} # not always used
         
         self.global_descriptor_type = None              # to be set by loop_detector_factory
         self.local_descriptor_aggregation_type = None   # to be set by loop_detector_factory
@@ -167,23 +173,60 @@ class LoopDetectorBase:
         # to nicely visualize current loop candidates in a single image
         self.loop_detection_imgs = LoopCandidateImgs() if Parameters.kLoopClosingDebugWithLoopDetectionImages else None 
         
+    # Are we using torch multiprocessing?
     def using_torch_mp(self):
         return False
         
+    def save(self, path):
+        pass
+    
+    def load(self, path):
+        pass
+    
+    def init(self):
+        pass
+    
+    # Load the maps used by the loop detector database 
+    def load_db_maps(self, path):
+        load_path = path + '/loop_closing_db_maps.json'
+        print(f'LoopDetectorBase: loading database maps from {load_path}...')        
+        with open(load_path, 'rb') as f:
+            output = json.load(f)
+        self.entry_id = output['entry_id']
+        def convert_dict(d):
+            # Convert keys back to integers (they are trasformed to strings by json when saving to a file)
+            return {int(k): v for k, v in d.items()}
+        self.map_entry_id_to_frame_id = convert_dict(output['map_entry_id_to_frame_id'])
+        self.map_frame_id_to_img = NumpyB64Json.map_id2img_from_json(output['map_frame_id_to_img'])
+        self.map_frame_id_to_entry_id = convert_dict(output['map_frame_id_to_entry_id'])
+        # for k, v in self.map_frame_id_to_img.items():
+        #     print(f'LoopDetectorBase: loaded img id: {k}, shape: {v.shape}, dtype: {v.dtype}')       
+        print(f'LoopDetectorBase: ...database maps successfully loaded from: {load_path}')
+        
+    # Save the maps used by the loop detector database
+    def save_db_maps(self, path):
+        save_path = path + '/loop_closing_db_maps.json'
+        print(f'LoopDetectorBase: saving database maps to {save_path}...')        
+        output = {}
+        output['entry_id'] = self.entry_id
+        output['map_entry_id_to_frame_id'] = self.map_entry_id_to_frame_id
+        output['map_frame_id_to_img'] = NumpyB64Json.map_id2img_to_json(self.map_frame_id_to_img)
+        output['map_frame_id_to_entry_id'] = self.map_frame_id_to_entry_id
+        with open(save_path, 'w') as f:
+            f.write(json.dumps(output))
+        print(f'LoopDetectorBase: ...database maps successfully saved to: {save_path}')     
+        
     def reset(self):
-        self.img_count = 0
-        self.map_img_count_to_kf_img_id.clear()
-        self.map_kf_img_id_to_img.clear()
-        self.map_kf_img_id_to_img_count.clear()
+        self.entry_id = 0
+        self.map_entry_id_to_frame_id.clear()
+        self.map_frame_id_to_img.clear()
+        self.map_frame_id_to_entry_id.clear()
         if self.S_float is not None:
             self.S_float.fill(0)
             self.S_color.fill(0)
         if self.loop_detection_imgs is not None:
             self.loop_detection_imgs.reset()
-        
-    def init(self):
-        pass
-        
+                
     # Check and compute if requested the image local descriptors by using the potentially allocated independent local feature manager.
     # This feature manager may have be allocated since we want to use different local descriptors in the loop detector (different from the extracted ones in the frontend).
     # If the local feature manager is allocated then compute the local descriptors and replace the "keyframe_data.des" field in the task data structure.
@@ -193,9 +236,11 @@ class LoopDetectorBase:
             task.keyframe_data.des = des
             print(f'LoopDetectorBase: re-computed {des.shape[0]} local descriptors ({self.local_feature_manager.descriptor_type.name}) for keyframe {task.keyframe_data.id}')
    
+    # Compute global descriptors from local descriptors and input image
     def compute_global_des(self, local_des, img): 
         return None
                             
+    # Run the loop detector task
     def run_task(self, task: LoopDetectorTask):
         return None
     
@@ -205,31 +250,39 @@ class LoopDetectorBase:
         # Loop candidates must have a higher similarity than this
         keyframe = task.keyframe_data 
         min_score = 1
-        #print(f'LoopDetectorBase: computing reference similarity score for keyframe {keyframe.id} with covisible keyframes {[cov_kf.id for cov_kf in task.covisible_keyframes_data]}')
+        #print(f'LoopDetectorBase: computing reference similarity score for keyframe {keyframe.id} with covisible keyframes {[cov_kf.id for cov_kf in task.covisible_keyframes_data]}')        
         if len(task.covisible_keyframes_data) == 0:
             return -sys.float_info.max
         for cov_kf in task.covisible_keyframes_data:
             if cov_kf.g_des is None:
                 try:
                     if cov_kf.img is None: 
-                        cov_kf.img = self.map_kf_img_id_to_img[cov_kf.id]
+                        cov_kf.img = self.map_frame_id_to_img[cov_kf.id]
+                        #print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no img, loaded from map: shape: {cov_kf.img.shape}, dtype: {cov_kf.img.dtype}')
                 except:
                     print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no img')
-                # if we don't have the global descriptor yet, we need to compute it
+                # if we don't have the global descriptor yet, we need to compute it    
+                if cov_kf.img is not None:
+                    #print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no g_des, computing on img shape: {cov_kf.img.shape}, dtype: {cov_kf.img.dtype}')
+                    if cov_kf.img.dtype != np.uint8:                    
+                        print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has img dtype: {cov_kf.img.dtype}, converting to uint8')
+                        cov_kf.img = cov_kf.img.astype(np.uint8)            
                 cov_kf.g_des = self.compute_global_des(cov_kf.des, cov_kf.img)
             if cov_kf.g_des is not None:             
                 if not isinstance(cov_kf.g_des, vector_type):
-                    cov_kf.g_des = vector_type(cov_kf.g_des) # transform back from vec to specialized vector (this is used for bow vector) 
+                    #print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} converting g_des from {type(cov_kf.g_des)} to type {vector_type}')                    
+                    cov_kf.g_des = vector_type(cov_kf.g_des) # transform back from vec to specialized vector (this is used for DBOW vectors)
                 score = score_fun(cov_kf.g_des, keyframe.g_des)
                 min_score = min(min_score, score)
             else: 
                 print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no g_des')
+                                            
         return min_score      
     
     def resize_similary_matrix_if_needed(self):
         if self.S_float is None:
             return
-        if self.img_count >= self.max_num_kfs:
+        if self.entry_id >= self.max_num_kfs:
             self.max_num_kfs += 100
             # self.S_float.resize([self.max_num_kfs, self.max_num_kfs])
             # self.S_color.resize([self.max_num_kfs, self.max_num_kfs, 3])
@@ -243,21 +296,21 @@ class LoopDetectorBase:
                                             mode='constant', constant_values=0)
             self.S_color = S_color
                 
-    def update_similarity_matrix(self, score, img_count, other_img_count): 
+    def update_similarity_matrix(self, score, entry_id, other_entry_id): 
         color_value = float_to_color(score)
         if self.S_float is not None:
-            self.S_float[img_count, other_img_count] = score
-            self.S_float[other_img_count, img_count] = score
+            self.S_float[entry_id, other_entry_id] = score
+            self.S_float[other_entry_id, entry_id] = score
         if self.S_color is not None:                     
-            self.S_color[img_count, other_img_count] = color_value
-            self.S_color[other_img_count, img_count] = color_value
+            self.S_color[entry_id, other_entry_id] = color_value
+            self.S_color[other_entry_id, entry_id] = color_value
             
-    def update_loop_closure_imgs(self, score, other_img_id): 
+    def update_loop_closure_imgs(self, score, other_frame_id): 
         if self.loop_detection_imgs is not None:
-            loop_img = self.map_kf_img_id_to_img[other_img_id]
-            self.loop_detection_imgs.add(loop_img.copy(), other_img_id, score)             
+            loop_img = self.map_frame_id_to_img[other_frame_id]
+            self.loop_detection_imgs.add(loop_img.copy(), other_frame_id, score)             
                             
-    def draw_loop_detection_imgs(self, img_cur, img_id, detection_output: LoopDetectorOutput):          
+    def draw_loop_detection_imgs(self, img_cur, frame_id, detection_output: LoopDetectorOutput):          
         if self.S_color is not None:
             detection_output.similarity_matrix = self.S_color#.copy()
         

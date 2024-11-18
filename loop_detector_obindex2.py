@@ -72,13 +72,26 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         LoopDetectorBase.reset(self)
         self.index.clear()
         
+    def save(self, path):
+        filepath = path + '/loop_closing.db'
+        print(f'LoopDetectorOBIndex2: saving database to {filepath}...')
+        self.index.print_status()     
+        self.index.save(filepath)
+        
+    def load(self, path): 
+        filepath = path + '/loop_closing.db'        
+        print(f'LoopDetectorOBIndex2: loading database from {filepath}...')
+        self.index.load(filepath)
+        self.index.print_status()      
+        print(f'LoopDetectorOBIndex2: ...done')
+                
     def run_task(self, task: LoopDetectorTask):
-        print(f'LoopDetectorOBIndex2: running task {task.keyframe_data.id}, img_count = {self.img_count}, task_type = {task.task_type.name}')              
+        print(f'LoopDetectorOBIndex2: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')              
         keyframe = task.keyframe_data     
-        img_id = keyframe.id
+        frame_id = keyframe.id
         
         if self.loop_detection_imgs is not None:       
-            self.map_kf_img_id_to_img[keyframe.id] = keyframe.img
+            self.map_frame_id_to_img[keyframe.id] = keyframe.img
             self.loop_detection_imgs.reset()
             
         self.resize_similary_matrix_if_needed()            
@@ -101,12 +114,13 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         candidate_scores = []
         g_des = None
                      
-        # the img_ids are mapped to img_counts (entry ids) inside the database management
-        self.map_img_count_to_kf_img_id[self.img_count] = img_id      
+        # the img_ids are mapped to entry_ids (entry ids) inside the database management
+        self.map_entry_id_to_frame_id[self.entry_id] = frame_id      
                                      
-        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des, img_id=img_id, img=keyframe.img)                                              
+        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des, frame_id=frame_id, img=keyframe.img)                                              
                                 
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:
+            print(f'LoopDetectorOBIndex2: relocalization task')            
             # Search the query descriptors against the features in the index
             matches_feats = self.index.searchDescriptors(des_,2, 64)
         
@@ -117,13 +131,13 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
                     matches.append(m[0])
                     
             if len(matches)>0:
-                #  Look for similar images according to the good matches found
+                # Look for similar images according to the good matches found
                 image_matches = self.index.searchImages(des_, matches, True)
                 count_valid_candidates = 0
                 for i,m in enumerate(image_matches):
-                    other_img_id = self.map_img_count_to_kf_img_id[m.image_id]
-                    other_img_count=m.image_id   
-                    candidate_idxs.append(other_img_id)
+                    other_frame_id = self.map_entry_id_to_frame_id[m.image_id]
+                    other_entry_id=m.image_id   
+                    candidate_idxs.append(other_frame_id)
                     candidate_scores.append(m.score)
                     count_valid_candidates += 1                                                             
                     if count_valid_candidates >= kMaxResultsForLoopClosure: 
@@ -134,7 +148,8 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
             
             # NOTE: we do not push the relocalization frames into the database, only the keyframes
                                                                                      
-        elif task.task_type == LoopDetectorTaskType.LOOP_CLOSURE and self.img_count >= 1:
+        elif task.task_type == LoopDetectorTaskType.LOOP_CLOSURE and self.entry_id >= 1:
+            print(f'LoopDetectorOBIndex2: loop closure task: {task.task_type.name}')               
             # Search the query descriptors against the features in the index
             matches_feats = self.index.searchDescriptors(des_,2, 64)
         
@@ -145,23 +160,23 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
                     matches.append(m[0])
                     
             if len(matches)>0:
-                #  Look for similar images according to the good matches found
+                # Look for similar images according to the good matches found
                 image_matches = self.index.searchImages(des_, matches, True)
                 count_valid_candidates = 0
                 for i,m in enumerate(image_matches):
-                    other_img_id = self.map_img_count_to_kf_img_id[m.image_id]
-                    other_img_count=m.image_id   
-                    self.update_similarity_matrix(score=m.score, img_count=self.img_count, other_img_count=other_img_count)                     
-                    if abs(other_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
-                        other_img_id not in task.connected_keyframes_ids:
-                        candidate_idxs.append(other_img_id)
+                    other_frame_id = self.map_entry_id_to_frame_id[m.image_id]
+                    other_entry_id=m.image_id   
+                    self.update_similarity_matrix(score=m.score, entry_id=self.entry_id, other_entry_id=other_entry_id)                     
+                    if abs(other_frame_id - frame_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
+                        other_frame_id not in task.connected_keyframes_ids:
+                        candidate_idxs.append(other_frame_id)
                         candidate_scores.append(m.score)
                         count_valid_candidates += 1                                                             
-                        self.update_loop_closure_imgs(score=m.score, other_img_id = other_img_id) 
+                        self.update_loop_closure_imgs(score=m.score, other_frame_id = other_frame_id) 
                         if count_valid_candidates >= kMaxResultsForLoopClosure: 
                             break                             
                     
-            self.draw_loop_detection_imgs(keyframe.img, img_id, detection_output)  
+            self.draw_loop_detection_imgs(keyframe.img, frame_id, detection_output)  
                 
             detection_output.candidate_idxs = candidate_idxs
             detection_output.candidate_scores = candidate_scores 
@@ -170,14 +185,15 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         
             # Add the image to the index. Matched descriptors are used 
             # to update the index and the remaining ones are added as new visual words
-            self.index.addImage(self.img_count, kps_, des_, matches)
+            self.index.addImage(self.entry_id, kps_, des_, matches)
             
         else: 
+            print(f'LoopDetectorOBIndex2: loop closure task: {task.task_type.name}')              
             # if we just wanted to compute the global descriptor (LoopDetectorTaskType.COMPUTE_GLOBAL_DES), we don't have to do anything            
-            self.index.addImage(self.img_count, kps_, des_)              
+            self.index.addImage(self.entry_id, kps_, des_)              
                                         
         # Reindex features every 500 images
-        if self.img_count % 250 == 0 and self.img_count>0:
+        if self.entry_id % 250 == 0 and self.entry_id>0:
             print("------ Rebuilding indices ------")
             self.index.rebuild() 
         
@@ -185,8 +201,8 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
             print(f'LoopDetectorOBIndex2: candidate_idxs: {candidate_idxs}')
         
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
-            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
-            self.img_count += 1
+            # NOTE: with relocalization we don't need to increment the entry_id since we don't add frames to database        
+            self.entry_id += 1
             
         return detection_output          
             

@@ -139,7 +139,7 @@ if __name__ == "__main__":
     
     cv2.namedWindow('S', cv2.WINDOW_NORMAL)
     
-    img_count = 0
+    entry_id = 0
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
     while dataset.isOk():
 
@@ -155,7 +155,7 @@ if __name__ == "__main__":
             g_des = global_des_database.compute_global_des(img)
             global_des_database.add(g_des) # add image descriptors to database after having computed the scores
                         
-            if img_count > 1:            
+            if entry_id > 1:            
                 best_idxs, best_scores = global_des_database.get_max_score(g_des, img_id, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to img_id
 
                 # visualize non-trivial loop closures: we check the query results are not too close to the current image
@@ -179,4 +179,4 @@ if __name__ == "__main__":
             getchar()
             
         img_id += 1
-        img_count += 1
+        entry_id += 1

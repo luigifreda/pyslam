@@ -1,7 +1,6 @@
-# Comments are denoted by #
 
 CORE_LIB_PATHS:
-  # core libs are automatically imported by using: 
+  # Core libs are automatically imported by using: 
   # import config 
   g2o: thirdparty/g2opy/lib
   pangolin: thirdparty/pangolin
@@ -10,7 +9,7 @@ CORE_LIB_PATHS:
   thirdparty: thirdparty  # considering the folders in thirdparty as modules
 
 LIB_PATHS:
-  # the following libs are explicitely imported on demand by using, for instance:
+  # The following libs are explicitely imported on demand by using, for instance:
   # import config \ config.cfg.set_lib('tfeat')
   lightglue: thirdparty/LightGlue
   xfeat: thirdparty/accelerated_features
@@ -40,7 +39,7 @@ LIB_PATHS:
 
 
 DATASET:
-  # select your dataset (decomment only one of the following lines!) 
+  # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
   #type: KITTI_DATASET
   #type: TUM_DATASET
@@ -51,14 +50,14 @@ DATASET:
 
 KITTI_DATASET:
   type: kitti
-  sensor_type: stereo # here, sensor_type can be 'mono' or 'stereo'
+  sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset
   #
   name: '06'
-  settings: settings/KITTI04-12.yaml # do not forget to set the corresponding camera settings file 
+  settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   # name: '00'
-  # settings: settings/KITTI00-02.yaml # do not forget to set the corresponding camera settings file 
+  # settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   is_color: True # do you have the color images for the kitti dataset? (image2 and image3 folders)
   groundtruth_file: auto
@@ -66,14 +65,14 @@ KITTI_DATASET:
 
 TUM_DATASET:
   type: tum
-  sensor_type: rgbd # here, sensor_type can be 'mono' or 'rgbd'
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
   #name: rgbd_dataset_freiburg3_long_office_household
-  #settings: settings/TUM3.yaml # do not forget to set the corresponding camera settings file    
+  #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   #name: rgbd_dataset_freiburg1_xyz 
-  #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file
+  #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
   name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
   settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
@@ -84,7 +83,7 @@ TUM_DATASET:
 
 EUROC_DATASET:
   type: euroc
-  sensor_type: stereo # here, sensor_type can be 'mono' or 'stereo'
+  sensor_type: stereo # Here, sensor_type can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/euroc
   #name: MH01
   #name: MH02  
@@ -104,8 +103,7 @@ EUROC_DATASET:
 
 VIDEO_DATASET:
   type: video
-  # here, sensor_type can be only 'mono' 
-  sensor_type: mono
+  sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 
   #
   #base_path: ./videos/kitti00
   #settings: settings/KITTI00-02.yaml
@@ -125,30 +123,35 @@ VIDEO_DATASET:
 
 FOLDER_DATASET:
   type: folder 
-  # here, sensor_type can be only 'mono'
-  sensor_type: mono 
+  sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 
   base_path: /home/luigi/Work/rgbd_datasets2/kitti/dataset/sequences/00/image_0/
-  # name is used for specifying a glob pattern, e.g. *png, *jpeg, etc...
+  # 'name' is used for specifying a glob pattern, e.g. *png, *jpeg, etc...
   name: '*png'  
   settings: settings/KITTI00-02.yaml
   groundtruth_file: groundtruth.txt
   fps: 20 
 
 
+SYSTEM_STATE: 
+  # This section is used for saving and re-loading the system state: Map + Loop closing state  
+  load_state: False              # flag to enable SLAM state reloading (map state + loop closing state) and relocalization
+  folder_path: data/slam_state   # folder path relative to root of this repository
+ 
+
+SAVE_TRAJECTORY:
+  save_trajectory: True
+  format_type: kitti    # supported formats: `tum`, `kitti`, `euroc`
+  filename: kitti_trajectory.txt
+
+
 # DO NOT USE [LIVE_DATASET]! This section is here for future developments. 
 # At the present time (see the README file):
 # - main_vo.py cannot be used with your webcam since it requires a grountruth for recovering a correct inter-frame scale (see the README file) 
-# - main_slam.py does NOT have REAL-TIME processing capabilities yet (even if it does not need grountruth data)
-# If you want to use your webcam, please, record a video by using calibration/save_video.py and then use it as a VIDEO_DATASET
+# - main_slam.py does NOT have REAL-TIME processing capabilities yet (even if it does NOT need grountruth data)
+# If you want to use your webcam, please, record a video by using calibration/save_video.py and then use it as a VIDEO_DATASET.
 LIVE_DATASET: 
   type: live 
   base_path: 
   name: /dev/video2
   settings: settings/WEBCAM.yaml 
   groundtruth_file: auto
-
-
-SAVE_TRAJECTORY:
-  save_trajectory: True
-  format_type: kitti    # supported formats: `tum`, `kitti`, `euroc`
-  filename: kitti_trajectory.txt

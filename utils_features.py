@@ -515,6 +515,114 @@ def compute_NSAD_between_matched_keypoints(img1, img2, kps1, kps2, window_size=5
 
 
 
+# Perform subpixel matching by correlation using the base resolution images.
+# input: 
+#   kps_left: keypoints of the left image
+#   kps_right: keypoints of the right image
+#   min_disparity: minimum disparity value
+#   max_disparity: maximum disparity value
+#   bf: baseline * focal_length of the stereo camera
+#   image_left: left image
+#   image_right: right image
+# output: 
+#   disparities: disparity values of the left image
+#   us_right: u values of the right image
+#   valid_idxs: valid indexes of the left image
+def stereo_match_subpixel_correlation(kps_left, kps_right, 
+                                      min_disparity, max_disparity, 
+                                      bf, image_left, image_right):
+    
+    # we avoid converting images to float and instead use int16
+    # as it is more efficient
+    processing_type = np.int16
+    
+    num_keypoints = len(kps_left)
+    us_right = np.full(num_keypoints, -1, dtype=np.float32)
+    disparities = np.full(num_keypoints, -1, dtype=np.float32)
+    dist_idx = []
+
+    w = 5  # Window size
+    l = 5  # Half window size for disparity search
+
+    # Process all keypoints
+    for i, kp_left in enumerate(kps_left):
+        u_r0 = round(kps_right[i][0])  # x-coordinate of the right keypoint
+        u_l = round(kp_left[0])
+        v_l = round(kp_left[1])
+
+        # Check if the patch exceeds image bounds
+        if (v_l - w < 0 or v_l + w >= image_left.shape[0] or 
+            u_l - w < 0 or u_l + w >= image_left.shape[1]):
+            continue
+
+        # Extract left patch and normalize
+        left_patch = image_left[v_l - w:v_l + w + 1, u_l - w:u_l + w + 1].astype(processing_type)
+        left_patch -= left_patch[w, w]
+
+        best_dist = np.inf
+        best_inc_r = 0
+        dists = np.zeros(2 * l + 1, dtype=np.float32)
+
+        for inc_r in range(-l, l + 1):
+            start_u_r = u_r0 + inc_r - w
+            end_u_r = u_r0 + inc_r + w + 1
+
+            if start_u_r < 0 or end_u_r >= image_right.shape[1]:
+                continue
+
+            # Extract right patch and normalize
+            right_patch = image_right[v_l - w:v_l + w + 1, start_u_r:end_u_r].astype(processing_type)
+            right_patch -= right_patch[w, w]
+
+            # Compute distance
+            dist = np.sum(np.abs(left_patch - right_patch))
+            dists[l + inc_r] = dist
+
+            if dist < best_dist:
+                best_dist = dist
+                best_inc_r = inc_r
+
+        if best_inc_r in [-l, l]:
+            continue
+
+        # Sub-pixel match with parabola fitting
+        dist1, dist2, dist3 = dists[l + best_inc_r - 1], dists[l + best_inc_r], dists[l + best_inc_r + 1]
+        delta_r = (dist1 - dist3) / (2.0 * (dist1 + dist3 - 2.0 * dist2))
+
+        if not (-1 <= delta_r <= 1):
+            continue
+
+        # Re-scaled coordinate
+        best_u_r = u_r0 + best_inc_r + delta_r
+        disparity = kp_left[0] - best_u_r
+
+        if min_disparity <= disparity < max_disparity:
+            if disparity <= 0:
+                disparity = 0.01
+                best_u_r = kp_left[0] - 0.01
+
+            disparities[i] = disparity
+            us_right[i] = best_u_r
+            dist_idx.append((best_dist, i))
+
+    # Sort by distance and apply threshold
+    dist_idx.sort()
+    if dist_idx:
+        median_dist = dist_idx[len(dist_idx) // 2][0]
+        threshold_dist = 1.5 * 1.4826 * median_dist
+
+        # Filter out invalid matches
+        valid_idxs = [idx for dist, idx in dist_idx if dist < threshold_dist]
+        invalid_idxs = [idx for dist, idx in dist_idx if dist >= threshold_dist]
+
+        us_right[invalid_idxs] = -1
+        disparities[invalid_idxs] = -1
+    else:
+        valid_idxs = []
+
+    return disparities, us_right, np.array(valid_idxs, dtype=np.int32)
+
+
 # extract/rectify patches around openCV keypoints, and returns patches tensor
 # out: patches as a numpy array of size (len(kps), 1, patch_size, patch_size)
 def extract_patches_tensor(img, kps, patch_size=32, mag_factor=1.0, warp_flags=cv2.WARP_INVERSE_MAP + cv2.INTER_CUBIC + cv2.WARP_FILL_OUTLIERS):

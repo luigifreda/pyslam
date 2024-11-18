@@ -19,11 +19,11 @@
 
 
 
-from threading import Thread, Condition, RLock
+from threading import Thread, Condition, RLock, Lock
 import numpy as np
 import cv2
 from collections import defaultdict 
-
+import os
 import time
 
 from utils_sys import Printer 
@@ -55,8 +55,14 @@ from relocalizer import Relocalizer
 
 import traceback
 
+import pickle
+
 import sim3solver
 import pnpsolver
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from slam import Slam # Only imported when type checking, not at runtime
 
 
 kVerbose = True
@@ -166,13 +172,13 @@ class LoopGroupConsistencyChecker:
         
         
 class LoopGeometryChecker:
-    def __init__(self, is_monocular=False, map_kf_id_to_img=None):
+    def __init__(self, is_monocular=False, map_frame_id_to_img=None):
         self.is_monocular = is_monocular
         self.success_loop_kf = None
         self.success_loop_kf_sim3_pose = None
         self.success_map_point_matches = None        
         self.success_loop_map_points = set()
-        self.map_kf_id_to_img = map_kf_id_to_img
+        self.map_frame_id_to_img = map_frame_id_to_img
         
         self.timer = TimerFps('LoopGeometryChecker', is_verbose = kTimerVerbose)         
         
@@ -301,8 +307,8 @@ class LoopGeometryChecker:
                         # draw loop image matching for debug
                         if Parameters.kLoopClosingDebugShowLoopMatchedPoints: 
                             try:
-                                cur_kf_img = current_keyframe.img if current_keyframe.img is not None else self.map_kf_id_to_img[current_keyframe.id]
-                                kf_img = kf.img if kf.img is not None else self.map_kf_id_to_img[kf.id]
+                                cur_kf_img = current_keyframe.img if current_keyframe.img is not None else self.map_frame_id_to_img[current_keyframe.id]
+                                kf_img = kf.img if kf.img is not None else self.map_frame_id_to_img[kf.id]
                                 loop_img_matches = draw_feature_matches(cur_kf_img, kf_img, current_keyframe.kps[idxs1], kf.kps[idxs2], horizontal=False)
                                 #cv2.namedWindow('loop_img_matches', cv2.WINDOW_NORMAL)
                                 cv2.imshow('loop_img_matches', loop_img_matches)
@@ -362,15 +368,8 @@ class LoopGeometryChecker:
 
 
 class LoopCorrector: 
-    def __init__(self, slam, is_monocular, loop_geometry_checker: LoopGeometryChecker, GBA: GlobalBundleAdjustment):
-        if hasattr(slam, 'local_mapping'):
-            self.local_mapping = slam.local_mapping 
-        else:
-            self.local_mapping = None
-        if hasattr(slam, 'map'):
-            self.map = slam.map # type: Map
-        else:
-            self.map = None
+    def __init__(self, slam: 'Slam', is_monocular, loop_geometry_checker: LoopGeometryChecker, GBA: GlobalBundleAdjustment):
+        self.slam = slam
         self.loop_geometry_checker = loop_geometry_checker # type: LoopGeometryChecker
         self.fix_scale = not is_monocular
         
@@ -385,13 +384,13 @@ class LoopCorrector:
         
         self.timer = TimerFps('LoopCorrector', is_verbose = kTimerVerbose) 
         
+    @property
+    def local_mapping(self):
+        return self.slam.local_mapping      
         
-    def set_local_mapping(self, local_mapping):
-        self.local_mapping = local_mapping
-        
-    def set_map(self, map):
-        self.map = map
-        
+    @property
+    def map(self):
+        return self.slam.map
         
     def search_and_fuse(self):
         # Project MapPoints observed in the neighborhood of the loop keyframe
@@ -574,14 +573,14 @@ class LoopCorrector:
 # (3) verifying them by checking their geometry consistency => LoopGeometryChecker
 # (4) finally correcting the loop => LoopCorrector
 class LoopClosing:
-    def __init__(self, slam, loop_detector_config=LoopDetectorConfigs.DBOW3):
+    def __init__(self, slam: 'Slam', loop_detector_config=LoopDetectorConfigs.DBOW3):
         self.slam = slam
         self.sensor_type = slam.sensor_type
         self.is_monocular = (self.sensor_type == SensorType.MONOCULAR)
         
         self.timer = TimerFps('LoopClosing', is_verbose = kTimerVerbose)         
         
-        self.keyframes_map = slam.map.keyframes_map
+        #self.keyframes_map = slam.map.keyframes_map
         self.last_loop_kf_id = 0
         
         # to nicely visualize loop candidates in a single image
@@ -591,7 +590,8 @@ class LoopClosing:
         self.draw_similarity_matrix_init = False
         
         self.store_kf_imgs = Parameters.kLoopClosingDebugWithLoopConsistencyCheckImages or Parameters.kLoopClosingDebugShowLoopMatchedPoints
-        self.map_kf_id_to_img = {}
+        self.map_frame_id_to_img = {}
+        self.map_frame_id_to_img_lock = Lock()
         
         self.loop_detecting_process = LoopDetectingProcess(slam, loop_detector_config)    # launched as a parallel process
         self.time_loop_detection = self.loop_detecting_process.time_loop_detection
@@ -603,7 +603,7 @@ class LoopClosing:
         self.GBA = GlobalBundleAdjustment(slam, use_multiprocessing=use_multiprocessing)        
         
         self.loop_consistency_checker = LoopGroupConsistencyChecker()
-        self.loop_geometry_checker = LoopGeometryChecker(self.is_monocular, self.map_kf_id_to_img)
+        self.loop_geometry_checker = LoopGeometryChecker(self.is_monocular, self.map_frame_id_to_img)
         self.loop_corrector = LoopCorrector(slam, self.is_monocular, self.loop_geometry_checker, self.GBA)
         
         self.relocalizer = Relocalizer()
@@ -619,7 +619,44 @@ class LoopClosing:
         
         self._is_closing = False 
         self.is_closing_codition = Condition()
-
+        
+    
+    @property
+    def map(self):
+        return self.slam.map
+        
+    @property
+    def keyframes_map(self):
+        return self.slam.map.keyframes_map
+    
+    def save(self, path):   
+        print(f'LoopClosing: saving the loop closing state into {path}...')
+        self.save_image_map_(path)
+        self.loop_detecting_process.save(path)
+        print(f'LoopClosing: ...loop closing state successfully saved to: {path}')
+        
+    def load(self, path):     
+        print(f'LoopClosing: loading the loop closing state from {path}...')
+        self.load_image_map_(path)
+        self.loop_detecting_process.load(path)
+        print(f'LoopClosing: ...loop closing state successfully loaded from: {path}')
+            
+    def save_image_map_(self, path):
+        filepath = path + '/kf_image_map.pkl'
+        print(f'LoopClosing: saving KF image map to {filepath}...')
+        # Save the dictionary to a file
+        with self.map_frame_id_to_img_lock:
+            with open(filepath, "wb") as file:
+                pickle.dump(self.map_frame_id_to_img, file)
+            
+    def load_image_map_(self, path):
+        filepath = path + '/kf_image_map.pkl'
+        print(f'LoopClosing: loading KF image map from {filepath}...')
+        # Load the dictionary from a file
+        with self.map_frame_id_to_img_lock:  
+            with open(filepath, "rb") as file:
+                self.map_frame_id_to_img = pickle.load(file)
+        
     def request_reset(self):
         print('LoopClosing: Requesting reset...')        
         self.GBA.quit()
@@ -641,9 +678,6 @@ class LoopClosing:
                 self.loop_detecting_process.request_reset()
                 self.reset_requested = False
 
-    def set_map(self, map):
-        self.loop_corrector.set_map(map)
-
     def start(self):    
         self.work_thread.start()
 
@@ -661,7 +695,7 @@ class LoopClosing:
             return
         with self.is_closing_codition:
             while self._is_closing and self.is_running:
-                Printer.cyan('LoopClosing: waiting for loop-closing to finish...')                
+                Printer.cyan('LoopClosing: waiting for loop closing to finish...')                
                 self.is_closing_codition.wait()
         
     def quit(self):
@@ -724,7 +758,7 @@ class LoopClosing:
 
                     print('..................................')
                     # retrieve the keyframe corresponding to the output img_id
-                    keyframe = self.keyframes_map[detection_output.img_id]
+                    keyframe = self.keyframes_map[detection_output.frame_id]
                     
                     print(f'LoopClosing: processing KF: {keyframe.id}, detection: qin size: {self.loop_detecting_process.q_in.qsize()}, qout size: {self.loop_detecting_process.q_out.qsize()}')       
                                         
@@ -733,7 +767,8 @@ class LoopClosing:
   
                     # for viz debugging
                     if self.store_kf_imgs:
-                        self.map_kf_id_to_img[keyframe.id] = detection_output.img
+                        with self.map_frame_id_to_img_lock: # we lock in case we want to save the dictionary and we need to avoid increasing its size at the same time
+                            self.map_frame_id_to_img[keyframe.id] = detection_output.img
   
                     # for viz debugging
                     if self.loop_consistent_candidate_imgs is not None:     
@@ -757,16 +792,16 @@ class LoopClosing:
                     if len(detection_output.candidate_idxs) == 0:
                         keyframe.set_erase()
                         self.loop_consistency_checker.clear_consistency_groups()
-                        print(f'LoopClosing: No loop candidates detected')
+                        print(f'LoopClosing: KF: {keyframe.id}, no loop candidates detected')
                     else:
-                        print(f'LoopClosing: Detected loop candidates: {keyframe.id} with {detection_output.candidate_idxs}')
-                        loop_candidate_kfs = [self.keyframes_map[idx] for idx in detection_output.candidate_idxs if idx in self.keyframes_map] # get back the keyframes from their ids
+                        print(f'LoopClosing: KF: {keyframe.id}, detected loop candidates: {detection_output.candidate_idxs}')
+                        loop_candidate_kfs = [self.keyframes_map[idx] for idx in detection_output.candidate_idxs if idx in self.keyframes_map and not self.keyframes_map[idx].is_bad] # get back the keyframes from their ids
 
                         # verify group-consistency 
                         got_consistent_candidates = self.loop_consistency_checker.check_candidates(keyframe, loop_candidate_kfs)
                       
                         if(got_consistent_candidates):
-                            print(f'LoopClosing: Got consistent loop candidates: {keyframe.id} with {[kf.id for kf in self.loop_consistency_checker.enough_consistent_candidates]}')
+                            print(f'LoopClosing: KF: {keyframe.id}, got consistent loop candidates: {[kf.id for kf in self.loop_consistency_checker.enough_consistent_candidates]}')
     
                             consistent_candidates = [kf for kf in self.loop_consistency_checker.enough_consistent_candidates if not kf.is_bad]
                             for kf in consistent_candidates:
@@ -779,7 +814,7 @@ class LoopClosing:
                                 print(f'[[[ LoopClosing: Got loop: {keyframe.id} with {self.loop_geometry_checker.success_loop_kf.id}!! ]]]')
                                 print()
                             else:
-                                print(f'LoopClosing: geometry verification failed for loop candidates: {keyframe.id} with {[kf.id for kf in consistent_candidates]}')                          
+                                print(f'LoopClosing: KF: {keyframe.id}, geometry verification failed for loop candidates: {[kf.id for kf in consistent_candidates]}')                          
                          
                     if got_loop:
                         # correct the loop
@@ -810,7 +845,7 @@ class LoopClosing:
                     traceback_details = traceback.format_exc()
                     print(f'\t traceback details: {traceback_details}')    
 
-            print(f'LoopClosing: loop-closing thread elapsed time: {self.timer.last_elapsed}')
+            print(f'LoopClosing: loop closing thread elapsed time: {self.timer.last_elapsed}')
         
         # end of the while loop 
         
@@ -822,12 +857,12 @@ class LoopClosing:
     def update_loop_consistent_candidate_imgs(self, loop_img_id, loop_img_score=None): 
         if self.loop_consistent_candidate_imgs is not None:
             assert(self.store_kf_imgs)
-            if loop_img_id not in self.map_kf_id_to_img:
-                print(f'ERROR: loop image id {loop_img_id} not in map_kf_id_to_img. This is not expected !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            if loop_img_id not in self.map_frame_id_to_img:
+                print(f'LoopClosing: ERROR: loop image id {loop_img_id} not in map_frame_id_to_img. This is not expected !!!!!!!!')
                 return
-            loop_img = self.map_kf_id_to_img[loop_img_id]
+            loop_img = self.map_frame_id_to_img[loop_img_id]
             if loop_img is None:
-                print(f'ERROR: loop image is None. This is not expected !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')            
+                print(f'LoopClosing: ERROR: loop image is None. This is not expected !!!!!!!!')            
             self.loop_consistent_candidate_imgs.add(loop_img.copy(), loop_img_id, loop_img_score) 
                      
                             
@@ -835,18 +870,18 @@ class LoopClosing:
         draw = False
         if self.loop_consistent_candidate_imgs is not None:
             if not self.draw_loop_consistent_candidate_imgs_init:
-                cv2.namedWindow('loop-closing: consistent candidates', cv2.WINDOW_NORMAL) # to get a resizable window
+                cv2.namedWindow('loop closing: consistent candidates', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_loop_consistent_candidate_imgs_init = True
             if self.loop_consistent_candidate_imgs.candidates is not None:
                 draw = True
-                cv2.imshow('loop-closing: consistent candidates', self.loop_consistent_candidate_imgs.candidates)
+                cv2.imshow('loop closing: consistent candidates', self.loop_consistent_candidate_imgs.candidates)
     
         if detection_output.similarity_matrix is not None:
             if not self.draw_similarity_matrix_init:
-                cv2.namedWindow('loop-closing: similarity matrix', cv2.WINDOW_NORMAL) # to get a resizable window
+                cv2.namedWindow('loop closing: similarity matrix', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_similarity_matrix_init = True
             draw = True
-            cv2.imshow('loop-closing: similarity matrix', detection_output.similarity_matrix)            
+            cv2.imshow('loop closing: similarity matrix', detection_output.similarity_matrix)            
         
         if detection_output.loop_detection_img_candidates is not None:
             if not self.draw_loop_detection_imgs_init:
@@ -865,6 +900,7 @@ class LoopClosing:
         print(f'Relocalization: Starting on frame id: {frame.id}...')
         detection_output = self.loop_detecting_process.relocalize(task)     
         
+        # process the candidates with the relocalizer (geometry verification and estimation)
         res = self.relocalizer.relocalize(frame, detection_output, self.keyframes_map)
         print(f'Relocalization: {"Success" if res else "Failed"} on frame id: {frame.id}...')
         return res

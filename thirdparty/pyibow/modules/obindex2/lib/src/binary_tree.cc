@@ -21,6 +21,9 @@
 
 namespace obindex2 {
 
+  BinaryTree::BinaryTree()
+  {}
+
   BinaryTree::BinaryTree(BinaryDescriptorSetPtr dset,
                          const unsigned tree_id,
                          const unsigned k,

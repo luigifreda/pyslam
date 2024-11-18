@@ -55,7 +55,8 @@ message(STATUS "opencv include: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "opencv lib dirs: ${OpenCV_INSTALL_PATH}")
 message(STATUS "opencv libs: ${OpenCV_LIBS}")
 
-#find_package(Boost REQUIRED COMPONENTS serialization)
+find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+include_directories(${Boost_INCLUDE_DIRS})
 
 set(EXTERNAL_CORE_LIBS   # core external libs 
 ${OpenCV_LIBS}

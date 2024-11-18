@@ -54,7 +54,7 @@ if(APPLE)
   set(OpenMP_libomp_LIBRARY "omp")
 endif()
 
-find_package(Boost REQUIRED COMPONENTS system filesystem)
+find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
 # Find OpenMP
 find_package(OpenMP REQUIRED) # OpenMP
 if (OPENMP_FOUND)

@@ -155,7 +155,7 @@ index fe24051..6e1febc 100644
 +        return image_encoding.cpu().numpy()
 \ No newline at end of file
 diff --git a/feature_extraction/feature_extractor_eigenplaces.py b/feature_extraction/feature_extractor_eigenplaces.py
-index 5471cff..6a32d4c 100644
+index 5471cff..c507811 100644
 --- a/feature_extraction/feature_extractor_eigenplaces.py
 +++ b/feature_extraction/feature_extractor_eigenplaces.py
 @@ -3,6 +3,7 @@ import torch
@@ -182,13 +182,13 @@ index 5471cff..6a32d4c 100644
 -            self.device = torch.device("mps")
 +        if device is None:
 +            if torch.cuda.is_available():
-+                print('CosPlaceFeatureExtractor - Using GPU')
++                print('EigenPlacesFeatureExtractor - Using GPU')
 +                self.device = torch.device("cuda")
 +            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-+                print('CosPlaceFeatureExtractor - Using MPS')
++                print('EigenPlacesFeatureExtractor - Using MPS')
 +                self.device = torch.device("mps")
 +            else:
-+                print('CosPlaceFeatureExtractor - Using CPU')
++                print('EigenPlacesFeatureExtractor - Using CPU')
 +                self.device = torch.device("cpu")
          else:
 -            print('Using CPU')

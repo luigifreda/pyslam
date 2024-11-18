@@ -23,7 +23,6 @@ import time
 import math 
 import numpy as np
 import cv2
-from enum import Enum
 
 from utils_sys import getchar, Printer 
 
@@ -32,6 +31,7 @@ from parameters import Parameters
 from utils_files import gdrive_download_lambda 
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes
 
+from utils_serialization import Serializable, register_class
 
 kVerbose = True
 
@@ -45,13 +45,14 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
     from loop_detector_base import print
     
 
-class VocabularyData:
+@register_class
+class VocabularyData(Serializable):
     def __init__(self, vocab_file_path=None, descriptor_type=None, descriptor_dimension=None, url_vocabulary=None, url_type=None):
         self.vocab_file_path = vocab_file_path
         self.descriptor_type = descriptor_type
+        self.descriptor_dimension=descriptor_dimension        
         self.url_vocabulary = url_vocabulary
         self.url_type = url_type
-        self.descriptor_dimension=descriptor_dimension
         
     def check_download(self):
         if self.url_vocabulary is not None and not os.path.exists(self.vocab_file_path):
@@ -61,9 +62,10 @@ class VocabularyData:
                 gdrive_download_lambda(url=gdrive_url, path=self.vocab_file_path)  
         if self.vocab_file_path is not None and not os.path.exists(self.vocab_file_path):
             Printer.red(f'VocabularyData: cannot find vocabulary file: {self.vocab_file_path}')
-            raise FileNotFoundError      
-        
+            raise FileNotFoundError
 
+
+@register_class
 class OrbVocabularyData(VocabularyData):
     kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
     def __init__(self, vocab_file_path=kOrbVocabFile,
@@ -74,7 +76,7 @@ class OrbVocabularyData(VocabularyData):
         super().__init__(vocab_file_path, descriptor_type, descriptor_dimension, url_vocabulary, url_type)
         
 
-    
+@register_class
 class VladVocabularyData(VocabularyData):
     kVladVocabFile = kDataFolder + '/VLADvoc_orb.txt'
     def __init__(self, vocab_file_path=kVladVocabFile,

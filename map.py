@@ -22,7 +22,6 @@ import numpy as np
 import math 
 import cv2
 
-#import json
 import ujson as json
 
 from collections import Counter, deque
@@ -52,8 +51,17 @@ kMaxLenFrameDeque = 20
 if not kVerbose:
     def print(*args, **kwargs):
         pass 
-         
-        
+    
+             
+class ReloadedSessionMapInfo:
+    def __init__(self, num_keyframes, num_points, max_point_id, max_frame_id, max_keyframe_id):
+        self.num_keyframes = num_keyframes
+        self.num_points = num_points
+        self.max_point_id = max_point_id
+        self.max_frame_id = max_frame_id
+        self.max_keyframe_id = max_keyframe_id
+
+                 
 class Map(object):
     def __init__(self):
         self._lock = RLock()   
@@ -70,12 +78,17 @@ class Map(object):
         self.max_point_id = 0     # 0 is the first point id
         self.max_frame_id = 0     # 0 is the first frame id        
         self.max_keyframe_id = 0  # 0 is the first keyframe id (kid)
+        
+        self.reloaded_session_map_info = None  # type: ReloadedSessionMapInfo
 
         # local map 
         #self.local_map = LocalWindowMap(map=self)
         self.local_map = LocalCovisibilityMap(map=self)
         
         self.viewer_scale = -1
+        
+    def is_reloaded(self):
+        return self.reloaded_session_map_info is not None
         
     def reset(self):
         print('Map: reset...')        
@@ -90,6 +103,35 @@ class Map(object):
                 self.keyframes_map.clear()
                 
                 self.local_map.reset()
+                
+    def reset_session(self):
+        print('Map: reset_session...')        
+        with self._lock:
+            with self._update_lock:
+                if self.reloaded_session_map_info is None:
+                    self.reset()
+                else:
+                    # First, collect keyframes to remove
+                    keyframes_to_remove = [kf for kf in self.keyframes if kf.kid >= self.reloaded_session_map_info.max_keyframe_id]
+                    for kf in keyframes_to_remove:
+                        kf.set_bad()
+                        self.keyframes.discard(kf)  # Discard instead of remove to avoid KeyError
+                        self.keyframe_origins.discard(kf)  # Safe discard
+                        self.keyframes_map.pop(kf.id, None)  # Use pop() to avoid KeyError
+                    
+                    # Similarly for points
+                    points_to_remove = [p for p in self.points if p.id >= self.reloaded_session_map_info.max_point_id]
+                    for p in points_to_remove:
+                        p.set_bad()
+                        self.points.discard(p)  # Safe discard
+                    
+                    # Similarly for frames
+                    frames_to_remove = [f for f in self.frames if f.id >= self.reloaded_session_map_info.max_frame_id]
+                    for f in frames_to_remove:
+                        self.frames.remove(f)  # Since deque is not a set, use remove here
+
+                    # Reset the session of the local map
+                    self.local_map.reset_session(keyframes_to_remove, points_to_remove)
 
 
     def __getstate__(self):
@@ -127,8 +169,11 @@ class Map(object):
             return len(self.points)                
      
     def get_frame(self,idx): 
-        with self._lock:       
-            return self.frames[idx] 
+        with self._lock:
+            try:       
+                return self.frames[idx]
+            except:
+                return None 
                 
     def get_frames(self): 
         with self._lock:       
@@ -151,11 +196,18 @@ class Map(object):
         with self._lock:         
             return OrderedSet(self.keyframes.copy()[-local_window:])                     
     
-                    
+    # return the total number of keyframes
     def num_keyframes(self):
         with self._lock: 
             return len(self.keyframes)             
     
+    # return the number of keyframes of this session
+    def num_keyframes_session(self):
+        with self._lock: 
+            if self.reloaded_session_map_info is not None:
+                return len(self.keyframes) - self.reloaded_session_map_info.num_keyframes
+            else:
+                return len(self.keyframes)
     
     def delete(self):
         with self._lock:          
@@ -191,7 +243,9 @@ class Map(object):
             if ovverride_id: 
                 ret = self.max_frame_id
                 frame.id = ret # override original id    
-                self.max_frame_id += 1        
+                self.max_frame_id += 1
+            else: 
+                self.max_frame_id = max(self.max_frame_id, frame.id+1)       
             self.frames.append(frame)     
             return ret
         
@@ -557,64 +611,80 @@ class Map(object):
             print(f'\t traceback details: {traceback_details}')                        
             return -1 
 
-
+    def to_json(self, out_json={}):
+        with self._lock:          
+            with self.update_lock:  
+                # static stuff
+                out_json['FrameBase._id'] = FrameBase._id
+                out_json['MapPointBase._id'] = MapPointBase._id
+                
+                # non-static stuff
+                out_json['frames'] = [f.to_json() for f in self.frames]
+                out_json['keyframes'] = [kf.to_json() for kf in self.keyframes if not kf.is_bad]
+                out_json['points'] = [p.to_json() for p in self.points if not p.is_bad]
+                out_json['keyframe_origins'] = [kf.to_json() for kf in self.keyframe_origins]
+                        
+                out_json['max_frame_id'] = self.max_frame_id
+                out_json['max_point_id'] = self.max_point_id
+                out_json['max_keyframe_id'] = self.max_keyframe_id
+                
+                out_json['viewer_scale'] = self.viewer_scale
+        return out_json 
+    
     # NOTE: keep this updated according to new data structure changes
     def serialize(self):
-        ret = {}
-        
-        # static stuff
-        ret['FrameBase._id'] = FrameBase._id
-        ret['MapPointBase._id'] = MapPointBase._id
-        
-        # non-static stuff
-        ret['frames'] = [f.to_json() for f in self.frames]
-        ret['keyframes'] = [kf.to_json() for kf in self.keyframes if not kf.is_bad]
-        ret['points'] = [p.to_json() for p in self.points if not p.is_bad]
-        ret['keyframe_origins'] = [kf.to_json() for kf in self.keyframe_origins]
-                
-        ret['max_frame_id'] = self.max_frame_id
-        ret['max_point_id'] = self.max_point_id
-        ret['max_keyframe_id'] = self.max_keyframe_id
-        
-        ret['viewer_scale'] = self.viewer_scale
-        
-        return json.dumps(ret)
+        ret_json  = self.to_json()
+        return json.dumps(ret_json)
 
     # NOTE: keep this updated according to new data structure changes
+    def from_json(self, loaded_json):
+        # static stuff        
+        FrameBase._id = loaded_json['FrameBase._id']
+        MapPointBase._id = loaded_json['MapPointBase._id']
+        
+        with self._lock:          
+            with self.update_lock:          
+                # non-static stuff 
+                self.frames = [KeyFrame.from_json(f) if bool(f['is_keyframe']) else Frame.from_json(f) for f in loaded_json['frames']]
+                self.keyframes = [KeyFrame.from_json(kf) for kf in loaded_json['keyframes']]
+                self.points = [MapPoint.from_json(p) for p in loaded_json['points']]
+                                
+                self.max_frame_id = loaded_json['max_frame_id']
+                self.max_point_id = loaded_json['max_point_id']
+                self.max_keyframe_id = loaded_json['max_keyframe_id']
+                
+                self.viewer_scale = loaded_json['viewer_scale']
+                        
+                # now replace ids with actual objects in the map assets
+                for f in self.frames: 
+                    f.replace_ids_with_objects(self.points, self.frames, self.keyframes)
+                for kf in self.keyframes: 
+                    kf.replace_ids_with_objects(self.points, self.frames, self.keyframes)
+                    kf.map = self # set the map
+                for p in self.points: 
+                    p.replace_ids_with_objects(self.points, self.frames, self.keyframes)
+                    p.map = self # set the map        
+                    
+                # reconstruct the keyframes_map
+                self.keyframes_map = {}
+                for kf in self.keyframes:
+                    self.keyframes_map[kf.id] = kf   
+                                
+                # recover keyframe origins from keyframe map                
+                self.keyframe_origins = [self.keyframes_map[kfjson['id']] for kfjson in loaded_json['keyframe_origins']]            
+
+                self.frames = deque(self.frames, maxlen=kMaxLenFrameDeque) 
+                self.keyframes = OrderedSet(self.keyframes)  
+                self.points = set(self.points)
+                self.keyframe_origins = OrderedSet(self.keyframe_origins)
+                
+                self.reloaded_session_map_info = ReloadedSessionMapInfo(len(self.keyframes), len(self.points), self.max_point_id, self.max_frame_id, self.max_keyframe_id)
+        
+     
     def deserialize(self, s):
         ret = json.loads(s)
-        
-        # static stuff        
-        FrameBase._id = ret['FrameBase._id']
-        MapPointBase._id = ret['MapPointBase._id']
-        
-        # non-static stuff 
-        self.frames = [KeyFrame.from_json(f) if bool(f['is_keyframe']) else Frame.from_json(f) for f in ret['frames']]
-        self.keyframes = [KeyFrame.from_json(f) for f in ret['keyframes']]
-        self.points = [MapPoint.from_json(p) for p in ret['points']]
-        self.keyframe_origins = [KeyFrame.from_json(kf) for kf in ret['keyframe_origins']]
-                        
-        self.max_frame_id = ret['max_frame_id']
-        self.max_point_id = ret['max_point_id']
-        self.max_keyframe_id = ret['max_keyframe_id']
-        
-        self.viewer_scale = ret['viewer_scale']
-        
-        # now replace ids with actual objects
-        for f in self.frames: 
-            f.replace_ids_with_objects(self.points, self.frames, self.keyframes)
-        for kf in self.keyframes: 
-            kf.replace_ids_with_objects(self.points, self.frames, self.keyframes)
-        for p in self.points: 
-            p.replace_ids_with_objects(self.points, self.frames, self.keyframes)
-        for kf in self.keyframe_origins: 
-            kf.replace_ids_with_objects(self.points, self.frames, self.keyframes)            
-
-        self.frames = deque(self.frames, maxlen=kMaxLenFrameDeque) 
-        self.keyframes = OrderedSet(self.keyframes)  
-        self.points = set(self.points)
-        self.keyframe_origins = OrderedSet(self.keyframe_origins)
-        
+        self.from_json(ret)
+                
     def save(self, filename):
         with open(filename, 'w') as f:
             f.write(self.serialize())
@@ -625,11 +695,12 @@ class Map(object):
             self.deserialize(f.read())
         Printer.green('\t ...map loaded from: ', filename)
 
+
 # Local map base class 
 class LocalMapBase(object):
     def __init__(self, map=None):
         self._lock = RLock()          
-        self.map = map   
+        self.map = map     # type: Map
         self.keyframes     = OrderedSet() # collection of local keyframes 
         self.points        = set() # points visible in 'keyframes'  
         self.ref_keyframes = set() # collection of 'covisible' keyframes not in self.keyframes that see at least one point in self.points   
@@ -640,7 +711,18 @@ class LocalMapBase(object):
             self.keyframes.clear()
             self.points.clear()
             self.ref_keyframes.clear()
-
+            
+    def reset_session(self, keyframes_to_remove=None, points_to_remove=None):     
+        with self._lock:
+                if keyframes_to_remove is None and points_to_remove is None:
+                    self.reset()
+                else:
+                    for kf in keyframes_to_remove:
+                            self.keyframes.discard(kf)
+                            self.ref_keyframes.discard(kf)
+                    for p in points_to_remove:
+                            self.points.discard(p)
+         
     @property    
     def lock(self):  
         return self._lock 
@@ -698,19 +780,21 @@ class LocalMapBase(object):
     # - the reference keyframe (the keyframe that sees most map points of the frame)
     # - the local keyframes 
     # - the local points  
-    def get_frame_covisibles(self, frame):
+    def get_frame_covisibles(self, frame: Frame):
         points = frame.get_matched_good_points()
         #keyframes = self.get_local_keyframes()
         #assert len(points) > 0
         if len(points) == 0:
-            Printer.red('get_frame_covisibles - frame without points')
+            Printer.red('LocalMapBase: get_frame_covisibles - frame without points')
         
         # for all map points in frame check in which other keyframes are they seen
         # increase counter for those keyframes            
         viewing_keyframes = [kf for p in points for kf in p.keyframes() if not kf.is_bad]# if kf in keyframes]
         viewing_keyframes = Counter(viewing_keyframes)
         if len(viewing_keyframes) == 0:
-            Printer.red('get_frame_covisibles - no viewing keyframes')        
+            Printer.red('LocalMapBase: get_frame_covisibles - no viewing keyframes')
+            return None, None, None     
+        
         kf_ref = viewing_keyframes.most_common(1)[0][0]          
         #local_keyframes = viewing_keyframes.keys()
     
@@ -736,7 +820,7 @@ class LocalMapBase(object):
 class LocalWindowMap(LocalMapBase):
     def __init__(self, map=None, local_window=Parameters.kLocalBAWindow):
         super().__init__(map)
-        self.local_window = local_window
+        self.local_window = local_window  # length of the local window
               
     def update_keyframes(self, kf_ref=None): 
         with self._lock:         

@@ -16,6 +16,12 @@
 #if _WIN32
 #include <cstdint>
 #endif
+
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/utility.hpp>
+
 namespace DBoW3 {
 
 /// Id of words
@@ -125,6 +131,13 @@ public:
     //serialization
     void toStream(std::ostream &str)const;
     void fromStream(std::istream &str);	
+
+
+	friend class boost::serialization::access;
+	template <class Archive>
+	void serialize(Archive & ar, const unsigned int version) {
+		ar & boost::serialization::base_object<std::map<WordId, WordValue>>(*this);
+	}
 };
 
 } // namespace DBoW3

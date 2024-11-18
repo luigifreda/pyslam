@@ -29,15 +29,18 @@
 #include "obindex2/binary_descriptor.h"
 #include "obindex2/priority_queues.h"
 
+#include "obindex2/BoostArchiver.h"
+
 namespace obindex2 {
 
 class BinaryTree {
  public:
   // Constructors
-  explicit BinaryTree(BinaryDescriptorSetPtr dset,
-                      const unsigned tree_id = 0,
-                      const unsigned k = 16,
-                      const unsigned s = 150);
+  BinaryTree();
+  BinaryTree(BinaryDescriptorSetPtr dset,
+             const unsigned tree_id = 0,
+             const unsigned k = 16,
+             const unsigned s = 150);
   virtual ~BinaryTree();
 
   // Methods
@@ -62,6 +65,24 @@ class BinaryTree {
 
   inline unsigned numNodes() {
     return nset_.size();
+  }
+
+ protected: 
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive & ar, const unsigned int version) {
+    ar & dset_;
+    ar & tree_id_;
+    ar & root_;
+    ar & k_;
+    ar & s_;
+    ar & k_2_;
+    ar & nset_;
+    ar & desc_to_node_;
+
+    // Tree statistics
+    ar & degraded_nodes_;
+    ar & nvisited_nodes_;
   }
 
  private:

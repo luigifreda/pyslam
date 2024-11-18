@@ -135,14 +135,14 @@ public:
 		database->clear();
 	}
 
-	void save(const std::string &filename) const
+	void save(const std::string &filename, bool save_voc=true) const
 	{
-		database->save(filename);
+		database->save(filename, save_voc);
 	}
 
-	void load(const std::string &filename)
+	void load(const std::string &filename, bool load_voc = true)
 	{
-		database->load(filename);
+		database->load(filename, load_voc);
 	}
 
 	void loadVocabulary(const std::string &filename, bool use_di, int di_levels = 0)
@@ -150,6 +150,16 @@ public:
 		DBoW3::Vocabulary voc;
 		voc.load(filename);
 		database->setVocabulary(voc, use_di, di_levels);
+	}
+
+	void printStatus() const
+	{
+		database->print_status();
+	}
+
+	size_t size() const
+	{
+		return database->size();
 	}
 
 private:
@@ -235,8 +245,8 @@ PYBIND11_MODULE(pydbow3, m)
 		.def("setScoring", &Database::setScoring, py::arg("scoring"))
 		.def("setWeighting", &Database::setWeighting, py::arg("weighting"))
 		.def("clear", &Database::clear)
-		.def("save", &Database::save)
-		.def("load", &Database::load)
+		.def("save", &Database::save, py::arg("filename"), py::arg("save_voc") = true)
+		.def("load", &Database::load, py::arg("filename"), py::arg("load_voc") = true)
 		.def("loadVocabulary", &Database::loadVocabulary, py::arg("filename"), py::arg("use_di") = false, py::arg("di_levels") = 0)
 		.def("addFeatures", 
 			(unsigned int (Database::*)(const cv::Mat &)) &Database::addFeatures,
@@ -244,12 +254,14 @@ PYBIND11_MODULE(pydbow3, m)
 		.def("addBowVector",
 			(unsigned int (Database::*)(const DBoW3::BowVector &)) &Database::addBowVector,
 			py::arg("vec"))
-		.def("query", 
-			(std::vector<DBoW3::Result> (Database::*)(const cv::Mat&,int,int)) &Database::query, 
-			py::return_value_policy::copy, 
-			py::arg("features"), py::arg("max_results") = 1, py::arg("max_id") = -1)
 		.def("query",
 			(std::vector<DBoW3::Result> (Database::*)(const DBoW3::BowVector&,int,int)) &Database::query,
 			py::return_value_policy::copy,
-			py::arg("vec"), py::arg("max_results") = 1, py::arg("max_id") = -1);
+			py::arg("vec"), py::arg("max_results") = 1, py::arg("max_id") = -1)
+		.def("query_local_des", 
+			(std::vector<DBoW3::Result> (Database::*)(const cv::Mat&,int,int)) &Database::query, 
+			py::return_value_policy::copy, 
+			py::arg("features"), py::arg("max_results") = 1, py::arg("max_id") = -1)
+		.def("print_status", &Database::printStatus)
+		.def("size", &Database::size);	
 }

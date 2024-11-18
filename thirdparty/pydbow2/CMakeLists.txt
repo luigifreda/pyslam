@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.4...3.18)
 project(pydbow2)
 
+set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
+
+# Set the C++ standard 
+set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING
       "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
@@ -26,6 +33,8 @@ add_subdirectory(modules/pybind11)
 
 find_package(OpenCV REQUIRED)
 
+find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+
 set(DBOW2_DIR ${PROJECT_SOURCE_DIR}/modules/dbow2)
 set(DBoW2_INCLUDE_DIRS ${DBOW2_DIR}/)
 if(APPLE)
@@ -37,6 +46,7 @@ endif()
 include_directories(
     ${DBoW2_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
 )
 link_directories( 
     ${DBoW2_LIB}
@@ -54,6 +64,7 @@ pybind11_add_module(pydbow2
 target_link_libraries(pydbow2
 PRIVATE
     ${OpenCV_LIBS}
+    ${Boost_LIBRARIES}
     ${DBoW2_LIB}
     ${PYTHON_LIBRARIES} Python3::NumPy
 )

@@ -41,17 +41,17 @@ class Relocalizer:
         
                  
     def relocalize(self, frame: Frame, detection_output: LoopDetectorOutput, keyframes_map: dict): 
-        
-        if detection_output is None or len(detection_output.candidate_idxs) == 0:
-            msg = 'None output' if detection_output is None else 'No candidates'
-            print(f'Relocalizer: {msg} with frame {frame.id}')
-            return False 
-        
-        print(f'Relocalizer: Detected candidates: {frame.id} with {detection_output.candidate_idxs}')
-        reloc_candidate_kfs = [keyframes_map[idx] for idx in detection_output.candidate_idxs if idx in keyframes_map] # get back the keyframes from their ids
+        try:        
+            if detection_output is None or len(detection_output.candidate_idxs) == 0:
+                msg = 'None output' if detection_output is None else 'No candidates'
+                print(f'Relocalizer: {msg} with frame {frame.id}')
+                return False 
+            
+            print(f'Relocalizer: Detected candidates: {frame.id} with {detection_output.candidate_idxs}')
+            reloc_candidate_kfs = [keyframes_map[idx] for idx in detection_output.candidate_idxs if idx in keyframes_map] # get back the keyframes from their ids
+            
+            kp_match_idxs = defaultdict(lambda: (None,None))   # dictionary of keypointmatches  (kf_i, kf_j) -> (idxs_i,idxs_j)              
 
-        kp_match_idxs = defaultdict(lambda: (None,None))   # dictionary of keypointmatches  (kf_i, kf_j) -> (idxs_i,idxs_j)              
-        try:
             self.timer.start()
             kp_match_idxs = compute_frame_matches(frame, reloc_candidate_kfs, kp_match_idxs, 
                                                   do_parallel=Parameters.kRelocalizationParallelKpsMatching, \
@@ -203,8 +203,9 @@ class Relocalizer:
             if success_relocalization_kf is None:
                 print('Relocalizer: failed')
                 res = False
-            else: 
-                print('Relocalizer: success')
+            else:
+                frame.kf_ref = success_relocalization_kf
+                print(f'Relocalizer: success: connected frame id: {frame.id} to keyframe id: {frame.kf_ref.id}')
                 res = True                                                       
                 
             self.timer.refresh()

@@ -10,8 +10,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 message(STATUS "Build type: " ${CMAKE_BUILD_TYPE})
 
-set(CMAKE_BUILD_TYPE Debug)
-
 # Setting the flags for profiling information or not
 if(CMAKE_BUILD_TYPE MATCHES Release)
   message(STATUS "Setting Release options")
@@ -28,7 +26,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON) # CMake will generate an error if it is unab
 
 # Packages required to work with the library
 find_package(OpenCV REQUIRED) # OpenCV
-find_package(Boost REQUIRED COMPONENTS system filesystem)
+find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
 
 if(APPLE)
   set(OpenMP_C "${CMAKE_C_COMPILER}")

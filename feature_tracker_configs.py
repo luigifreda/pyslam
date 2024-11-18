@@ -39,6 +39,16 @@ A collection of ready-to-used feature tracker configurations
 """
 class FeatureTrackerConfigs(object):   
     
+    @staticmethod
+    def get_config_from_name(config_name):
+        config_dict = getattr(FeatureTrackerConfigs, config_name, None)
+        if config_dict is not None:
+            print("FeatureTrackerConfigs: Configuration loaded:", config_dict)
+        else:
+            print(f"FeatureTrackerConfigs: No configuration found for '{config_name}'")
+        return config_dict
+        
+        
     # Test/Template configuration: you can use this to quickly test 
     # - your custom parameters and 
     # - favourite descriptor and detector (check the file feature_types.py)

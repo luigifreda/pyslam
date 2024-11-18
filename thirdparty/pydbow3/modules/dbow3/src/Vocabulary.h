@@ -24,6 +24,18 @@
 #include "BowVector.h"
 #include "ScoringObject.h"
 #include <limits>
+
+#include "BoostArchiver.h"
+
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/list.hpp>  // Add this include
+#include <boost/serialization/utility.hpp>
+#include <boost/filesystem.hpp>
+
+
 namespace DBoW3 {
 ///   Vocabulary
 class DBOW_API Vocabulary
@@ -302,6 +314,7 @@ public:
   void toStream(  std::ostream &str, bool compressed=true) const;
   void fromStream(  std::istream &str );
 
+
  protected:
 
   ///  reference to descriptor
@@ -340,6 +353,18 @@ public:
      * @return true iff the node is a leaf
      */
     inline bool isLeaf() const { return children.empty(); }
+
+    friend class boost::serialization::access;
+
+    template <class Archive>
+    void serialize(Archive & ar, const unsigned int version) {
+      ar & id;
+      ar & weight;
+      ar & children;
+      ar & parent;
+      ar & descriptor;
+      ar & word_id;
+    }    
   };
 
 protected:
@@ -436,6 +461,22 @@ protected:
    /**Loads from ORBSLAM txt files
     */
    void load_fromtxt(const std::string &filename);
+
+
+protected: 
+
+  friend class boost::serialization::access;
+
+  template <class Archive>
+  void serialize(Archive & ar, const unsigned int version) {
+    ar & m_k;
+    ar & m_L;
+    ar & m_weighting;
+    ar & m_scoring;
+    ar & m_scoring_object;
+    ar & m_nodes;
+    ar & m_words;
+  }
 
 protected:
 

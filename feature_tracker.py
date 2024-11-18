@@ -19,22 +19,30 @@
 
 import numpy as np 
 import cv2
-from enum import Enum
 
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
+from utils_serialization import SerializableEnum, register_class
 from utils_sys import Printer, import_from
 from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
 from parameters import Parameters 
 
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from feature_tracker import FeatureTracker  
+    from feature_matcher import FeatureMatcher
+    from feature_manager import FeatureManager
+    
+    
 kMinNumFeatureDefault = 2000
 kLkPyrOpticFlowNumLevelsMin = 3   # maximal pyramid level number for LK optic flow 
 kRatioTest = Parameters.kFeatureMatchRatioTest
 
-class FeatureTrackerTypes(Enum):
+@register_class
+class FeatureTrackerTypes(SerializableEnum):
     LK        = 0   # Lucas Kanade pyramid optic flow (use pixel patch as "descriptor" and matching by optimization)
     DES_BF    = 1   # descriptor-based, brute force matching with knn 
     DES_FLANN = 2   # descriptor-based, FLANN-based matching
@@ -109,8 +117,10 @@ class FeatureTracker(object):
         self.tracker_type = tracker_type
         self.matcher_type = FeatureMatcherTypes.NONE
 
-        self.feature_manager = None      # it contains both detector and descriptor  
-        self.matcher = None              # it contain descriptors matching methods based on BF, FLANN, etc.
+        # FeatureManager contains both detector and descriptor  
+        self.feature_manager = None      #type: FeatureManager 
+        # FeatureMatcher contains descriptors matching methods based on BF, FLANN, etc.
+        self.matcher = None              #type: FeatureMatcher 
                 
     @property
     def num_features(self):

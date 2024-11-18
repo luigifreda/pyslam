@@ -58,7 +58,7 @@ if __name__ == '__main__':
     
     cv2.namedWindow('S', cv2.WINDOW_NORMAL)
         
-    img_count = 0
+    entry_id = 0
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
     while dataset.isOk():
 
@@ -80,9 +80,9 @@ if __name__ == '__main__':
                 des_ = transform_float_to_binary_descriptor(des)
                         
             
-            if img_count == 0:
+            if entry_id == 0:
                 index.addImage(img_id, kps_, des_)            
-            elif img_count >= 1:
+            elif entry_id >= 1:
                 matches_feats = index.searchDescriptors(des_,2, 64)
             
                 # Filter matches according to the ratio test
@@ -113,7 +113,7 @@ if __name__ == '__main__':
                 index.addImage(img_id, kps_, des_, matches)
                                 
             # Reindex features every 500 images
-            if img_count % 250 == 0 and img_count>0:
+            if entry_id % 250 == 0 and entry_id>0:
                 print("------ Rebuilding indices ------")
                 index.rebuild()
                                                 
@@ -133,4 +133,4 @@ if __name__ == '__main__':
             getchar()
             
         img_id += 1
-        img_count += 1
+        entry_id += 1

@@ -1479,7 +1479,7 @@ void Vocabulary::load(const cv::FileStorage &fs,
 std::ostream& operator<<(std::ostream &os,
   const Vocabulary &voc)
 {
-  os << "Vocabulary: k = " << voc.getBranchingFactor()
+  os << "DBoW3::Vocabulary: k = " << voc.getBranchingFactor()
     << ", L = " << voc.getDepthLevels()
     << ", Weighting = ";
 

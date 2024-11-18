@@ -70,7 +70,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         print(f'LoopDetectorDBoW3: loading vocabulary...')
         vocabulary_data.check_download()
         self.voc.load(vocabulary_data.vocab_file_path)
-        print(f'...done')
+        print(f'LoopDetectorDBoW3: ...done')
         self.db = dbow3.Database()
         self.db.setVocabulary(self.voc)      
         
@@ -78,23 +78,38 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         LoopDetectorBase.reset(self)
         self.db.clear()
         
+    def save(self, path):
+        filepath = path + '/loop_closing.db'
+        print(f'LoopDetectorDBoW3: saving database to {filepath}...')
+        print(f'\t Dabased size: {self.db.size()}')        
+        self.db.save(filepath, save_voc=False)
+        
+    def load(self, path): 
+        filepath = path + '/loop_closing.db'        
+        print(f'LoopDetectorDBoW3: loading database from {filepath}...')
+        self.db.setVocabulary(self.voc)
+        self.db.load(filepath, load_voc=False)
+        self.db.print_status()
+        print(f'LoopDetectorDBoW3: ...done')
+        
     def compute_global_des(self, local_des, img):  
         #print(f'computing global descriptors... voc empty: {self.voc.empty()}')     
         global_des = self.voc.transform(local_des) # this returns a bow vector
         return global_des
     
     # query with global descriptors
-    def db_query(self, global_des: dbow3.BowVector, img_id, max_num_results=5): 
-        results = self.db.query(global_des, max_results=max_num_results+1) # we need plus one to eliminate the best trivial equal to img_id
+    def db_query(self, global_des: dbow3.BowVector, frame_id, max_num_results=5): 
+        #print(f'LoopDetectorDBoW3: db_query(frame_id={frame_id}, global_des={global_des})')
+        results = self.db.query(global_des, max_results=max_num_results+1) # we need plus one to eliminate the best trivial equal to frame_id
         return results    
                 
     def run_task(self, task: LoopDetectorTask):                        
-        print(f'LoopDetectorDBoW3: running task {task.keyframe_data.id}, img_count = {self.img_count}, task_type = {task.task_type.name}')      
+        print(f'LoopDetectorDBoW3: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')      
         keyframe = task.keyframe_data             
-        img_id = keyframe.id
+        frame_id = keyframe.id
         
         if self.loop_detection_imgs is not None:        
-            self.map_kf_img_id_to_img[keyframe.id] = keyframe.img
+            self.map_frame_id_to_img[keyframe.id] = keyframe.img
             self.loop_detection_imgs.reset()
             
         self.resize_similary_matrix_if_needed()
@@ -113,22 +128,23 @@ class LoopDetectorDBoW3(LoopDetectorBase):
             # NOTE: relocalization works on frames (not keyframes) and we don't need to add them to the database
             self.db.addBowVector(keyframe.g_des)
         
-            # the img_ids are mapped to img_counts (entry ids) inside the database management
-            self.map_img_count_to_kf_img_id[self.img_count] = img_id        
-            #print(f'LoopDetectorDBoW3: mapping img_id: {img_id} to img_count: {self.img_count}')
-                    
-        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des_vec, img_id=img_id, img=keyframe.img)
+            # the img_ids are mapped to entry_ids (entry ids) inside the database management
+            self.map_entry_id_to_frame_id[self.entry_id] = frame_id        
+            #print(f'LoopDetectorDBoW3: mapping frame_id: {frame_id} to entry_id: {self.entry_id}')
+            
+                            
+        detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des_vec, frame_id=frame_id, img=keyframe.img)
         
         candidate_idxs = []
         candidate_scores = []
             
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:         
-            if self.img_count >= 1:
-                results = self.db_query(keyframe.g_des, img_id, max_num_results=kMaxResultsForLoopClosure) 
-                print(f'LoopDetectorDBoW3: Relocalization: frame: {img_id}, candidate keyframes: {[r.id for r in results]}')
+            if self.entry_id >= 1:
+                results = self.db_query(keyframe.g_des, frame_id, max_num_results=kMaxResultsForLoopClosure) 
+                print(f'LoopDetectorDBoW3: Relocalization: frame: {frame_id}, candidate keyframes: {[r.id for r in results]}')
                 for r in results:
-                    r_img_id = self.map_img_count_to_kf_img_id[r.id] # get the image id of the keyframe from it's internal image count
-                    candidate_idxs.append(r_img_id)
+                    r_frame_id = self.map_entry_id_to_frame_id[r.id] # get the image id of the keyframe from it's internal image count
+                    candidate_idxs.append(r_frame_id)
                     candidate_scores.append(r.score)
                 
             detection_output.candidate_idxs = candidate_idxs
@@ -140,21 +156,21 @@ class LoopDetectorDBoW3(LoopDetectorBase):
             min_score = self.compute_reference_similarity_score(task, dbow3.BowVector, score_fun=self.voc.score)
             print(f'LoopDetectorDBoW3: min_score = {min_score}')
                                                                     
-            if self.img_count >= 1:
-                results = self.db_query(keyframe.g_des, img_id, max_num_results=kMaxResultsForLoopClosure) 
-                #print(f'connected keyframes: {[kf_id for kf_id in task.connected_keyframes_ids]}')
+            if self.entry_id >= 1:
+                results = self.db_query(keyframe.g_des, frame_id, max_num_results=kMaxResultsForLoopClosure) 
+                #print(f'connected keyframes: {[frame_id for frame_id in task.connected_keyframes_ids]}')
                 for r in results:
-                    r_img_id = self.map_img_count_to_kf_img_id[r.id] # get the image id of the keyframe from it's internal image count
-                    #print(f'r_img_id = {r_img_id}, r.id = {r.id}')
-                    self.update_similarity_matrix(score=r.score, img_count=self.img_count, other_img_count=r.id)
-                    if abs(r_img_id - img_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
+                    r_frame_id = self.map_entry_id_to_frame_id[r.id] # get the image id of the keyframe from it's internal image count
+                    #print(f'r_frame_id = {r_frame_id}, r.id = {r.id}')
+                    self.update_similarity_matrix(score=r.score, entry_id=self.entry_id, other_entry_id=r.id)
+                    if abs(r_frame_id - frame_id) > kMinDeltaFrameForMeaningfulLoopClosure and \
                         r.score >= min_score and \
-                        r_img_id not in task.connected_keyframes_ids:
-                        candidate_idxs.append(r_img_id)
+                        r_frame_id not in task.connected_keyframes_ids:
+                        candidate_idxs.append(r_frame_id)
                         candidate_scores.append(r.score)
-                        self.update_loop_closure_imgs(score=r.score, other_img_id = r_img_id)
+                        self.update_loop_closure_imgs(score=r.score, other_frame_id = r_frame_id)
               
-            self.draw_loop_detection_imgs(keyframe.img, img_id, detection_output)  
+            self.draw_loop_detection_imgs(keyframe.img, frame_id, detection_output)  
                 
             detection_output.candidate_idxs = candidate_idxs
             detection_output.candidate_scores = candidate_scores 
@@ -166,7 +182,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
             pass
         
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
-            # NOTE: with relocalization we don't need to increment the img_count since we don't add frames to database        
-            self.img_count += 1        
+            # NOTE: with relocalization we don't need to increment the entry_id since we don't add frames to database        
+            self.entry_id += 1        
             
         return detection_output

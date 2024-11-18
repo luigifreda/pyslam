@@ -25,6 +25,16 @@
 #include "FeatureVector.h"
 #include "exports.h"
 
+
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/list.hpp>  // Add this include
+#include <boost/serialization/utility.hpp>
+#include <boost/filesystem.hpp>
+
+
 namespace DBoW3 {
 
 // For query functions
@@ -227,13 +237,13 @@ public:
    * Stores the database in a file
    * @param filename
    */
-  void save(const std::string &filename) const;
+  void save(const std::string &filename, bool save_voc = true) const;
   
   /**
    * Loads the database from a file
    * @param filename
    */
-  void load(const std::string &filename);
+  void load(const std::string &filename, bool load_voc = true);
   
   /** 
    * Stores the database in the given file storage structure
@@ -241,7 +251,7 @@ public:
    * @param name node name
    */
   virtual void save(cv::FileStorage &fs, 
-    const std::string &name = "database") const;
+    const std::string &name = "database", bool save_voc = true) const;
   
   /** 
    * Loads the database from the given file storage structure
@@ -249,7 +259,10 @@ public:
    * @param name node name
    */
   virtual void load(const cv::FileStorage &fs, 
-    const std::string &name = "database");
+    const std::string &name = "database", bool load_voc = true);
+
+
+  virtual void print_status() const;
 
   // --------------------------------------------------------------------------
 
@@ -262,6 +275,25 @@ public:
                                     const Database &db);
 
 
+protected:
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & m_nentries;
+        ar & m_use_di;
+        ar & m_dilevels;
+        ar & m_ifile;
+        ar & m_dfile;
+
+        /*
+        Let's save and reload vocabulary independently        
+        if (m_voc && save_voc) {
+            ar & *m_voc;
+        }
+        */
+    }
 
 protected:
   
@@ -320,6 +352,15 @@ protected:
      * @return true iff this entry id is the same as eid
      */
     inline bool operator==(EntryId eid) const { return entry_id == eid; }
+    
+    /// Serialization
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & entry_id;
+        ar & word_weight;
+    }
   };
   
   /// Row of InvertedFile

@@ -103,6 +103,16 @@ struct LCDetectorResult {
   unsigned train_id;
   unsigned inliers;
   double score;  
+
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive & ar, const unsigned int version) {
+    ar & status;
+    ar & query_id;
+    ar & train_id;
+    ar & inliers;
+    ar & score;
+  }
 };
 
 class LCDetector {
@@ -126,10 +136,25 @@ class LCDetector {
              const cv::Mat& descs,
              std::ofstream& out_file);
 
+  // Number of images pushed to the LCDetector 
   size_t numPushedImages() const { return num_pushed_images; }
+
+  // Number of images in the index 
+  size_t numImages() const { return (index_? index_->numImages(): 0); }
+  // Number of descriptors in the index
+  size_t numDescriptors() const { return (index_? index_->numDescriptors(): 0); }
+
   void clear();
 
- private:
+  void save(const std::string& filename) const;
+  void load(const std::string& filename);
+
+  void printStatus() const;
+
+  friend std::ostream& operator<<(std::ostream &os, const LCDetector &db);
+
+private:
+
   // Parameters
   unsigned p_;
   float nndr_;
@@ -146,7 +171,7 @@ class LCDetector {
   LCDetectorResult last_lc_result_;
   Island last_lc_island_;
   int min_consecutive_loops_;
-  int consecutive_loops_;
+  int consecutive_loops_ = 0;
 
   int num_pushed_images = 0;
 
@@ -160,6 +185,8 @@ class LCDetector {
 
   std::vector<std::vector<cv::KeyPoint> > prev_kps_;
   std::vector<cv::Mat> prev_descs_;
+
+private: 
 
   void addImage(const unsigned image_id,
                 const std::vector<cv::KeyPoint>& kps,
@@ -188,6 +215,40 @@ class LCDetector {
                      const std::vector<cv::DMatch>& matches,
                      std::vector<cv::Point2f>* query,
                      std::vector<cv::Point2f>* train);
+
+
+protected:
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive & ar, const unsigned int version) {
+    ar & p_;
+    ar & nndr_;
+    ar & nndr_bf_;
+    ar & ep_dist_;
+    ar & conf_prob_;
+    ar & min_score_;
+    ar & island_size_;
+    ar & island_offset_;
+    ar & min_inliers_;
+    ar & nframes_after_lc_;
+
+    ar & last_lc_result_;
+    ar & last_lc_island_;
+    ar & min_consecutive_loops_;
+    ar & consecutive_loops_;
+
+    ar & num_pushed_images;
+
+    ar & index_;
+
+    ar & queue_ids_;
+    ar & queue_kps_;
+    ar & queue_descs_;
+
+    ar & prev_kps_;
+    ar & prev_descs_;
+  }
+
 };
 
 }  // namespace ibow_lcd

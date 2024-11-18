@@ -53,10 +53,11 @@ class Config(object):
         self.dataset_settings = None
         self.dataset_type = None
         self.sensor_type = None
+        self.system_state_settings = None
+        self.system_state_folder_path = None
+        self.system_state_load = False
         self.trajectory_settings = None
         self.start_frame_id = 0  
-        #self.current_path = os.getcwd()
-        #print('current path: ', self.current_path)
 
         self.set_core_lib_paths()
         self.read_lib_paths()
@@ -64,6 +65,7 @@ class Config(object):
         self.get_dataset_settings()
         self.get_cam_settings()
         self.get_feature_manager_settings()
+        self.get_system_state_settings()
         self.get_trajectory_settings()
 
 
@@ -106,14 +108,14 @@ class Config(object):
     # get camera settings
     def get_cam_settings(self):
         self.cam_settings = None
-        self.cam_settings_doc = __location__ + '/' + self.config[self.dataset_type]['settings']
+        self.cam_settings_filepath = __location__ + '/' + self.config[self.dataset_type]['settings']
         if self.sensor_type == 'stereo':
             if 'settings_stereo' in self.config[self.dataset_type]:
-                self.cam_settings_doc = __location__ + '/' + self.config[self.dataset_type]['settings_stereo']
-                Printer.orange('Using stereo settings file: ' + self.cam_settings_doc)
+                self.cam_settings_filepath = __location__ + '/' + self.config[self.dataset_type]['settings_stereo']
+                Printer.orange('Using stereo settings file: ' + self.cam_settings_filepath)
                 print('------------------------------------')            
-        if(self.cam_settings_doc is not None):
-            with open(self.cam_settings_doc, 'r') as stream:
+        if(self.cam_settings_filepath is not None):
+            with open(self.cam_settings_filepath, 'r') as stream:
                 try:
                     self.cam_settings = yaml.load(stream, Loader=yaml.FullLoader)
                 except yaml.YAMLError as exc:
@@ -122,13 +124,23 @@ class Config(object):
     # get feature manager settings
     def get_feature_manager_settings(self):
         self.feature_manager_settings = None
-        self.feature_manager_settings_doc = __location__ + '/' + self.config[self.dataset_type]['settings']
-        if(self.feature_manager_settings_doc is not None):
-            with open(self.feature_manager_settings_doc, 'r') as stream:
+        self.feature_manager_settings_filepath = __location__ + '/' + self.config[self.dataset_type]['settings']
+        if(self.feature_manager_settings_filepath is not None):
+            with open(self.feature_manager_settings_filepath, 'r') as stream:
                 try:
                     self.feature_manager_settings = yaml.load(stream, Loader=yaml.FullLoader)
                 except yaml.YAMLError as exc:
                     print(exc)                    
+
+    def get_system_state_settings(self):
+        self.system_state_settings = self.config['SYSTEM_STATE']
+        self.system_state_load = self.system_state_settings['load_state']
+        self.system_state_folder_path = __location__ + '/' + self.system_state_settings['folder_path']
+        folder_path_exists = os.path.exists(self.system_state_folder_path)
+        folder_path_is_not_empty = os.path.getsize(self.system_state_folder_path) > 0 if folder_path_exists else False
+        if self.system_state_load and not(folder_path_exists and folder_path_is_not_empty):
+            Printer.red('System state folder does not exist or is empty: ' + self.system_state_folder_path)
+            self.system_state_load = False
 
     # get trajectory save settings
     def get_trajectory_settings(self):

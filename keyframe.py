@@ -96,7 +96,7 @@ class KeyFrameGraph(object):
             #print(f'found_objs = {found_objs}, id = {id}, objs = {[o.id for o in objs]}')
             return found_objs[0] if len(found_objs) > 0 else None
         # get actual parent 
-        if self.parent is not None:
+        if self.parent is not None:  # NOTE: here parent is still an id to be replaced with an object
             self.parent = get_object_with_id(self.parent, keyframes)        
         # get actual children
         if self.children is not None: 

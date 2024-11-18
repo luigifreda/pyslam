@@ -67,7 +67,12 @@ ENDIF()
 
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-SET(REQUIRED_LIBRARIES ${REQUIRED_LIBRARIES} ${OpenCV_LIBS})
+
+find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+include_directories(${Boost_INCLUDE_DIRS})
+
+
+SET(REQUIRED_LIBRARIES ${REQUIRED_LIBRARIES} ${OpenCV_LIBS} ${Boost_LIBRARIES})
 
 # ----------------------------------------------------------------------------
 #   PROJECT CONFIGURATION

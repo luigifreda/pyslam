@@ -25,6 +25,8 @@
 
 #include "obindex2/binary_descriptor.h"
 
+#include "obindex2/BoostArchiver.h"
+
 namespace obindex2 {
 
 class BinaryTreeNode;
@@ -110,6 +112,18 @@ class BinaryTreeNode {
   inline void selectNewCenter() {
     desc_ = *std::next(ch_descs_.begin(), rand() % ch_descs_.size());
   }
+
+  protected:
+    friend class boost::serialization::access;
+    template <class Archive>
+    void serialize(Archive & ar, const unsigned int version) {
+      ar & is_leaf_;
+      ar & is_bad_;
+      ar & desc_;
+      ar & root_;
+      ar & ch_nodes_;
+      ar & ch_descs_;
+    }
 
  private:
   bool is_leaf_;

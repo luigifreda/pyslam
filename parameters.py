@@ -87,7 +87,7 @@ class Parameters:
     kThNewKfRefRatio = 0.9                                   # for determining if a new KF must be spawned, condition 3
     kThNewKfRefRatioStereo = 0.75                            # for determining if a new KF must be spawned, condition 3, in the case non-monocular
     kThNewKfRefRatioNonMonocualar = 0.25                     # for determining if a new KF must be spawned in case the system is not monocular, condition 2b
-    kUseFeatureCoverageControlForNewKf = False               # check if all the matched map points in the current frame well cover the image (by using an image grid check)
+    kUseFeatureCoverageControlForNewKf = False               # [experimental] check if all the matched map points in the current frame well cover the image (by using an image grid check)
     
     # Keyframe culling
     kKeyframeCullingRedundantObsRatio = 0.9  
@@ -95,7 +95,7 @@ class Parameters:
     kKeyframeCullingMinNumPoints = 50 
 
     # Stereo matching 
-    kStereoMatchingMaxRowDistance = 1.5       # [pixels] 
+    kStereoMatchingMaxRowDistance = 1.1       # [pixels] 
     kStereoMatchingShowMatchedPoints = False   # show the frame stereo matches (debug stereo matching)
 
     # Search matches by projection 

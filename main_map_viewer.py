@@ -30,24 +30,11 @@ from config import Config
 
 from slam import Slam, SlamState
 from camera  import PinholeCamera
-from ground_truth import groundtruth_factory
 from dataset import dataset_factory, SensorType
-from trajectory_writer import TrajectoryWriter
 
-#from mplot3d import Mplot3d
-#from mplot2d import Mplot2d
-from mplot_thread import Mplot2d, Mplot3d
-
-if platform.system()  == 'Linux':     
-    from display2D import Display2D  #  !NOTE: pygame generate troubles under macOS!
 
 from viewer3D import Viewer3D
 from utils_sys import getchar, Printer 
-
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_manager import feature_manager_factory
-from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from feature_matcher import FeatureMatcherTypes
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
@@ -57,7 +44,7 @@ from parameters import Parameters
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--filename', type=str, default='map.json', help='saved map name')
+    parser.add_argument('-p', '--path', type=str, default='data/slam_state', help='path where we have saved the system state')
     args = parser.parse_args()
 
     config = Config()
@@ -69,13 +56,12 @@ if __name__ == "__main__":
     slam = Slam(cam, feature_tracker_config)
     time.sleep(1) # to show initial messages 
 
-    slam.load_map(args.filename)
+    slam.load_system_state(args.path)
     viewer_scale = slam.viewer_scale() if slam.viewer_scale()>0 else 0.1  # 0.1 is the default viewer scale
     print(f'viewer_scale: {viewer_scale}')
         
     viewer3D = Viewer3D(viewer_scale)
             
-    img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
     while True:            
         # 3D display (map display)
         if viewer3D is not None:

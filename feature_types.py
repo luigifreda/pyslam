@@ -17,10 +17,11 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-from enum import Enum
+from utils_serialization import SerializableEnum, register_class
 import cv2 
 
 
+    
 '''
 NOTES: 
 In order to add a new DETECTOR:
@@ -33,7 +34,8 @@ In order to add a new DESCRIPTOR:
 - manage its 'case' in the descriptor inialization in feature_manager.py 
 '''
 
-class FeatureDetectorTypes(Enum):   
+@register_class
+class FeatureDetectorTypes(SerializableEnum):   
     NONE                = 0 
     SHI_TOMASI          = 1   # "Good Features To Track"
     FAST                = 2   # "Faster and better: a machine learning approachto corner detection" 
@@ -64,7 +66,8 @@ class FeatureDetectorTypes(Enum):
     XFEAT               = 27  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
     KEYNETAFFNETHARDNET = 28  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
 
-class FeatureDescriptorTypes(Enum):
+@register_class
+class FeatureDescriptorTypes(SerializableEnum):
     NONE                = 0   # Used for LK tracker (in main_vo.py)
     SIFT                = 1   # "Object Recognition from Local Scale-Invariant Features"
     ROOT_SIFT           = 2   # "Three things everyone should know to improve object retrieval"
@@ -105,8 +108,8 @@ class FeatureInfo(object):
     norm_type = dict() 
     max_descriptor_distance = dict()   # Reference max descriptor distances used by SLAM for locally searching matches around frame keypoints. 
                                        # These reference distances are used as initial values at init time and are then online updated by using standard deviation robust estimation (MAD) and exponential smoothing. 
-                                       # N.B.: These reference distances can be easily estimated by using main_feature_matching.py: 
-                                       #       Use as reference max descriptor distance the computed (3 x sigma_mad).  
+                                       # N.B.: These reference distances can be easily estimated by using the script main_feature_matching.py: 
+                                       #       Use as reference max descriptor distance the computed value: 3 * sigma_mad (see main_feature_matching.py code, this value is dumped out).  
     # 
     norm_type[FeatureDescriptorTypes.NONE] = cv2.NORM_L2
     max_descriptor_distance[FeatureDescriptorTypes.NONE] = float('inf')            
@@ -124,7 +127,7 @@ class FeatureInfo(object):
     max_descriptor_distance[FeatureDescriptorTypes.ORB] = 100                   # ORB    
     #       
     norm_type[FeatureDescriptorTypes.ORB2] = cv2.NORM_HAMMING       
-    max_descriptor_distance[FeatureDescriptorTypes.ORB2] = 100                  # ORB                   
+    max_descriptor_distance[FeatureDescriptorTypes.ORB2] = 100                  # ORB2                  
     #       
     norm_type[FeatureDescriptorTypes.BRISK] = cv2.NORM_HAMMING          
     max_descriptor_distance[FeatureDescriptorTypes.BRISK] = 200                 # BRISK             
@@ -141,8 +144,8 @@ class FeatureInfo(object):
     norm_type[FeatureDescriptorTypes.SUPERPOINT] = cv2.NORM_L2          
     max_descriptor_distance[FeatureDescriptorTypes.SUPERPOINT] = 1.30           # SUPERPOINT  
     #       
-    norm_type[FeatureDescriptorTypes.XFEAT] = cv2.NORM_L2                       # XFEAT   
-    max_descriptor_distance[FeatureDescriptorTypes.XFEAT] = 1.9877      
+    norm_type[FeatureDescriptorTypes.XFEAT] = cv2.NORM_L2                          
+    max_descriptor_distance[FeatureDescriptorTypes.XFEAT] = 1.9877              # XFEAT
     #       
     norm_type[FeatureDescriptorTypes.TFEAT] = cv2.NORM_L2           
     max_descriptor_distance[FeatureDescriptorTypes.TFEAT] = 11                  # TFEAT          
@@ -208,4 +211,4 @@ class FeatureInfo(object):
     max_descriptor_distance[FeatureDescriptorTypes.LIGHTGLUESIFT] = 1.0         # LIGHTGLUESIFT        
     #       
     norm_type[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = cv2.NORM_L2           
-    max_descriptor_distance[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = 2.40   # KEYNETAFFNETHARDNET      
+    max_descriptor_distance[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = 2.40  # KEYNETAFFNETHARDNET      

@@ -14,6 +14,12 @@
 #include <map>
 #include <vector>
 #include "exports.h"
+
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/utility.hpp>
+
 namespace DBoW3 {
 
 /// Vector of nodes with indexes of local features
@@ -46,6 +52,13 @@ public:
    * @param v feature vector
    */
   friend std::ostream& operator<<(std::ostream &out, const FeatureVector &v);
+
+
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive & ar, const unsigned int version) {
+    ar & boost::serialization::base_object<std::map<NodeId, std::vector<unsigned int> > >(*this);
+  }
     
 };
 

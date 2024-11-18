@@ -30,12 +30,8 @@ from collections import defaultdict
 
 from threading import RLock, Thread, Condition
 from queue import Queue 
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 from parameters import Parameters  
-
-from feature_manager import FeatureManager
-from feature_tracker import FeatureTracker
 
 from dataset import SensorType
 from keyframe import KeyFrame
@@ -46,13 +42,16 @@ from map import Map
 from loop_closing import LoopClosing
 
 from timer import Timer, TimerFps
-import optimizer_g2o
 
 from utils_sys import Printer, MultiprocessingManager
 from utils_geom import triangulate_normalized_points
 from utils_data import AtomicCounter, empty_queue
 
 import multiprocessing as mp
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from slam import Slam # Only imported when type checking, not at runtime
 
 
 kVerbose=True     
@@ -90,22 +89,15 @@ def kf_search_frame_for_triangulation(kf1, kf2, kf2_idx, idxs1, idxs2, max_descr
                 
     
 class LocalMapping:
-    def __init__(self, slam):
-        self.feature_tracker = slam.feature_tracker # type: FeatureTracker
-        self.map = slam.map  # type: Map
-        self.sensor_type = slam.sensor_type
+    def __init__(self, slam: 'Slam'):
+        self.slam = slam
         self.recently_added_points = set()
-        
-        if hasattr(slam, 'loop_closing'):
-            self.loop_closing = slam.loop_closing # type: LoopClosing
         
         self.mean_ba_chi2_error = None
         self.time_local_mapping = None
         
         self.kf_cur = None   # current processed keyframe  
-        self.kid_last_BA = -1 # last keyframe id when performed BA  
-        
-        self.descriptor_distance_sigma = self.feature_tracker.feature_manager.max_descriptor_distance            
+        self.kid_last_BA = -1 # last keyframe id when performed BA           
 
         self.timer_verbose = kTimerVerbose  # set this to True if you want to print timings  
         self.timer_triangulation = TimerFps('Triangulation', is_verbose = self.timer_verbose)    
@@ -118,7 +110,7 @@ class LocalMapping:
         
         self.queue = Queue()
         self.queue_condition = Condition()
-        self.work_thread = Thread(target=self.run)
+        self.work_thread = None #Thread(target=self.run)
         self.is_running = False
         
         self._is_idle = True 
@@ -144,6 +136,18 @@ class LocalMapping:
         self.last_num_culled_points = None
         self.last_num_culled_keyframes = None
         
+    @property
+    def map(self):
+        return self.slam.map
+        
+    @property
+    def sensor_type(self):
+        return self.slam.sensor_type
+    
+    @property
+    def descriptor_distance_sigma(self):
+        return self.slam.tracking.descriptor_distance_sigma
+    
     def request_reset(self):
         print('LocalMapping: Requesting reset...')
         with self.reset_mutex:
@@ -155,25 +159,26 @@ class LocalMapping:
                 if not self.reset_requested:
                     break
             time.sleep(0.1)
+            print('LocalMapping: waiting for reset...')
         print('LocalMapping: ...Reset done.')            
             
     def reset_if_requested(self):
         with self.reset_mutex:
             if self.reset_requested:
-                print('LocalMapping: reset_if_requested()...')            
+                print('LocalMapping: reset_if_requested() starting...')            
                 empty_queue(self.queue)
                 self.recently_added_points.clear()
                 self.reset_requested = False
-                
-    def set_loop_closing(self, loop_closing):
-        self.loop_closing = loop_closing
+                print('LocalMapping: reset_if_requested() ...done')                   
         
-    def start(self):    
+    def start(self):
+        print(f'LocalMapping: starting...')
+        self.work_thread = Thread(target=self.run)
         self.work_thread.start()
 
     def quit(self):
         print('LocalMapping: quitting...')
-        if self.is_running:
+        if self.is_running and self.work_thread is not None:
             self.is_running = False
             self.set_opt_abort_flag(True)      
             self.work_thread.join(timeout=5)
@@ -192,17 +197,18 @@ class LocalMapping:
             self.set_opt_abort_flag(True)              
         
     # blocking call
-    def pop_keyframe(self):
+    def pop_keyframe(self, timeout=Parameters.kLocalMappingTimeoutPopKeyframe):
         with self.queue_condition:        
             if self.queue.empty():
-                while self.queue.empty() and not self.stop_requested:
-                    ok = self.queue_condition.wait(timeout=Parameters.kLocalMappingTimeoutPopKeyframe)
+                while self.queue.empty() and not self.stop_requested and not self.reset_requested:
+                    ok = self.queue_condition.wait(timeout=timeout)
                     if not ok: 
                         break # Timeout occurred
+                    #print('LocalMapping: waiting for keyframe...')
         if self.queue.empty() or self.stop_requested:
             return None
         try:
-            return self.queue.get(timeout=Parameters.kLocalMappingTimeoutPopKeyframe)
+            return self.queue.get(timeout=timeout)
         except Exception as e:
             print(f'LocalMapping: pop_keyframe: encountered exception: {e}')
             return None
@@ -246,7 +252,7 @@ class LocalMapping:
         with self.stop_mutex:         
             return self.stop_requested    
     
-    def stop(self):
+    def stop_if_requested(self):
         with self.stop_mutex:        
             if self.stop_requested and not self.stopped:
                 self.stopped = True
@@ -284,7 +290,8 @@ class LocalMapping:
         print('LocalMapping: loop exit...')
         
     def step(self):
-        if not self.map.local_map.is_empty():
+        #if not self.map.local_map.is_empty():
+        if self.map.num_keyframes() > 0:            
             if not self.stop_requested:              
                 ret = self.pop_keyframe() # blocking call
                 if ret is not None: 
@@ -295,13 +302,15 @@ class LocalMapping:
                         self.set_idle(False) 
                         self.do_local_mapping()    
                         self.set_idle(True)
-            elif self.stop():
+            elif self.stop_if_requested():
                 self.set_idle(True)
                 while self.is_stopped():
                     print(f'LocalMapping: stopped, idle: {self._is_idle} ...')
                     time.sleep(kLocalMappingSleepTime)              
-        else: 
-            #Printer.red('[local mapping] local map is empty')
+        else:
+            msg = 'LocalMapping: waiting for keyframes...'
+            #Printer.red(msg)
+            #print(msg)
             time.sleep(kLocalMappingSleepTime)
         self.reset_if_requested()
         
@@ -374,9 +383,9 @@ class LocalMapping:
             self.timer_kf_culling.refresh() 
             print(f'\t #culled keyframes: {num_culled_keyframes}, timing: {self.timer_kf_culling.last_elapsed}')                       
             
-        if self.loop_closing is not None and self.kf_cur is not None:
+        if self.slam.loop_closing is not None and self.kf_cur is not None:
             print('pushing new keyframe to loop closing...')
-            self.loop_closing.add_keyframe(self.kf_cur, self.img_cur)  
+            self.slam.loop_closing.add_keyframe(self.kf_cur, self.img_cur)  
                                     
         elapsed_time = time.time() - time_start
         self.time_local_mapping = elapsed_time

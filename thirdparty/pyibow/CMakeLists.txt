@@ -27,7 +27,7 @@ endif()
 add_subdirectory(modules/pybind11)
 
 find_package(OpenCV REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system filesystem)
+find_package(Boost REQUIRED COMPONENTS system filesystem serialization)
 
 set(OBINDEX2_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/modules/obindex2/lib/include/)
 set(OBINDEX2_LIB_DIR ${PROJECT_SOURCE_DIR}/modules/obindex2/lib/build/)
@@ -76,6 +76,7 @@ target_link_libraries(pyobindex2
 PRIVATE
     ${OpenCV_LIBS}
     ${IBOW_LCD_LIBS}
+    ${Boost_LIBRARIES}    
     ${PYTHON_LIBRARIES} Python3::NumPy
 )
 target_compile_definitions(pyobindex2 

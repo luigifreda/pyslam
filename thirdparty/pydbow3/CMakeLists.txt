@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.4...3.18)
 project(pydbow3)
 
+set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 
+
+# Set the C++ standard 
+set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING
       "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
@@ -27,6 +33,8 @@ add_subdirectory(modules/pybind11)
 
 find_package(OpenCV REQUIRED)
 
+find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+
 set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/modules/dbow3/install/lib/cmake/)
 find_package(DBoW3 REQUIRED)
 
@@ -42,6 +50,7 @@ pybind11_add_module(pydbow3
 target_link_libraries(pydbow3
 PRIVATE
     ${OpenCV_LIBS}
+    ${Boost_LIBRARIES}
     ${DBoW3_LIBS}
     ${PYTHON_LIBRARIES} Python3::NumPy
 )

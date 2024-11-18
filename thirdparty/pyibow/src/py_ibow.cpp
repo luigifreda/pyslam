@@ -71,6 +71,11 @@ PYBIND11_MODULE(pyibow, m)
 				d.process(image_id, kps, descs, false/*add_to_index*/, &result);
 				return result;
 			}, "image_id"_a, "kps"_a, "descs"_a)		
-		.def("num_pushed_images", &LCDetector::numPushedImages)	
-		.def("clear", &LCDetector::clear);
+		.def("clear", &LCDetector::clear)
+		.def("save", &LCDetector::save)
+		.def("load", &LCDetector::load)
+		.def("num_images", &LCDetector::numImages)
+		.def("num_descriptors", &LCDetector::numDescriptors)
+		.def("num_pushed_images", &LCDetector::numPushedImages)		
+		.def("print_status", &LCDetector::printStatus);
 }
