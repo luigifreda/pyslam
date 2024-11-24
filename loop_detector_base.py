@@ -26,7 +26,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from utils_sys import getchar, Printer 
+from utils_sys import getchar, Printer, MultiprocessingManager, Logging
 from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs
 from utils_serialization import NumpyB64Json
 
@@ -57,17 +57,20 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder
 kDataFolder = kRootFolder + '/data'
+kLogsFolder = kRootFolder + '/logs'
 
 
 if kVerbose:
     if Parameters.kLoopClosingDebugAndPrintToFile:
-        # redirect the prints of local mapping to the file local_mapping.log 
+        # redirect the prints of local mapping to the file logs/loop_detecting.log 
         # you can watch the output in separate shell by running:
-        # $ tail -f loop_detecting.log 
-        import builtins as __builtin__
-        logging_file=open('loop_detecting.log','w')
+        # $ tail -f logs/loop_detecting.log 
+
+        logging_file=kLogsFolder + '/loop_detecting.log'
+        local_logger = Logging.setup_file_logger('loop_detecting_logger', logging_file, formatter=Logging.simple_log_formatter)
         def print(*args, **kwargs):
-            return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+            message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+            return local_logger.info(message, **kwargs)  
 else:
     def print(*args, **kwargs):
         return
@@ -172,11 +175,7 @@ class LoopDetectorBase:
             
         # to nicely visualize current loop candidates in a single image
         self.loop_detection_imgs = LoopCandidateImgs() if Parameters.kLoopClosingDebugWithLoopDetectionImages else None 
-        
-    # Are we using torch multiprocessing?
-    def using_torch_mp(self):
-        return False
-        
+                
     def save(self, path):
         pass
     

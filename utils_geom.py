@@ -352,43 +352,53 @@ def roll_matrix(roll):
     [0, math.sin(roll),  math.cos(roll)]
     ])    
 
+
 # from quaternion vector to rotation matrix
+# input: qvec = [qx, qy, qz, qw]
 def qvec2rotmat(qvec):
+    qx, qy, qz, qw = qvec
     return np.array([
         [
-            1 - 2 * qvec[2] ** 2 - 2 * qvec[3] ** 2,
-            2 * qvec[1] * qvec[2] - 2 * qvec[0] * qvec[3],
-            2 * qvec[3] * qvec[1] + 2 * qvec[0] * qvec[2],
+            1 - 2 * (qy**2 + qz**2),
+            2 * (qx * qy - qw * qz),
+            2 * (qx * qz + qw * qy),
         ],
         [
-            2 * qvec[1] * qvec[2] + 2 * qvec[0] * qvec[3],
-            1 - 2 * qvec[1] ** 2 - 2 * qvec[3] ** 2,
-            2 * qvec[2] * qvec[3] - 2 * qvec[0] * qvec[1],
+            2 * (qx * qy + qw * qz),
+            1 - 2 * (qx**2 + qz**2),
+            2 * (qy * qz - qw * qx),
         ],
         [
-            2 * qvec[3] * qvec[1] - 2 * qvec[0] * qvec[2],
-            2 * qvec[2] * qvec[3] + 2 * qvec[0] * qvec[1],
-            1 - 2 * qvec[1] ** 2 - 2 * qvec[2] ** 2,
+            2 * (qx * qz - qw * qy),
+            2 * (qy * qz + qw * qx),
+            1 - 2 * (qx**2 + qy**2),
         ],
     ])
 
 # from rotation matrix to quaternion vector
+# input: R is a 3x3 rotation matrix
+# output: qvec = [qx, qy, qz, qw]
+# implements the eigenvalue decomposition approach using the matrix K (the Shepperd method).
 def rotmat2qvec(R):
-    Rxx, Ryx, Rzx, Rxy, Ryy, Rzy, Rxz, Ryz, Rzz = R.flat
-    K = (
-        np.array([
-            [Rxx - Ryy - Rzz, 0, 0, 0],
-            [Ryx + Rxy, Ryy - Rxx - Rzz, 0, 0],
-            [Rzx + Rxz, Rzy + Ryz, Rzz - Rxx - Ryy, 0],
-            [Ryz - Rzy, Rzx - Rxz, Rxy - Ryx, Rxx + Ryy + Rzz],
-        ])
-        / 3.0
-    )
+    Rxx, Ryx, Rzx, Rxy, Ryy, Rzy, Rxz, Ryz, Rzz = R.ravel()
+    K = np.array([
+        [Rxx - Ryy - Rzz, Ryx + Rxy, Rzx + Rxz, Ryz - Rzy],
+        [Ryx + Rxy, Ryy - Rxx - Rzz, Rzy + Ryz, Rzx - Rxz],
+        [Rzx + Rxz, Rzy + Ryz, Rzz - Rxx - Ryy, Rxy - Ryx],
+        [Ryz - Rzy, Rzx - Rxz, Rxy - Ryx, Rxx + Ryy + Rzz],
+    ]) / 3.0
     eigvals, eigvecs = np.linalg.eigh(K)
-    qvec = eigvecs[[3, 0, 1, 2], np.argmax(eigvals)]
-    if qvec[0] < 0:
+    qvec = eigvecs[:, np.argmax(eigvals)]  # Eigenvector corresponding to largest eigenvalue
+    if qvec[3] < 0:  # Ensure consistent quaternion sign
         qvec *= -1
-    return qvec
+    return qvec[[0, 1, 2, 3]]  # Return as [qx, qy, qz, qw]
+
+# input: x,y,z,qx,qy,qz,qw
+# output: 4x4 transformation matrix
+def xyzq2Tmat(x,y,z,qx,qy,qz,qw):
+    R = qvec2rotmat([qx,qy,qz,qw])
+    return np.array([[R[0,0],R[0,1],R[0,2],x],[R[1,0],R[1,1],R[1,2],y],[R[2,0],R[2,1],R[2,2],z],[0,0,0,1]])
+
 
 # we compute H = K*(R-t*n'/d)*Kinv  with n=(0,0,1)' and d=1  <-- Hartley-Zisserman pag 327  
 # => the plane containing `img` is on the optical axis (i.e. along z=(0,0,1)) at a distance d=1, i.e. the plane is Z=1

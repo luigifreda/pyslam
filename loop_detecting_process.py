@@ -42,8 +42,9 @@ from frame import Frame
 
 from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check
 from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorBase, LoopDetectorOutput
+
 import traceback
-import resource
+
 
 kVerbose = True
 kPrintTrackebackDetails = True 
@@ -67,10 +68,15 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
 class LoopDetectingProcess:
     def __init__(self, slam, loop_detector_config = LoopDetectorConfigs.DBOW3):
         set_rlimit()          
-        self.loop_detector = loop_detector_factory(**loop_detector_config)
-        if slam is not None:
-            loop_detector_config_check(self.loop_detector, slam.feature_tracker.feature_manager.descriptor_type)
-           
+        
+        # NOTE: We must initialze in the launched process in order to avoid pickling problems.
+        # self.loop_detector = loop_detector_factory(**loop_detector_config)
+        # if slam is not None:
+        #     loop_detector_config_check(self.loop_detector, slam.feature_tracker.feature_manager.descriptor_type)
+        
+        self.loop_detector_config = loop_detector_config
+        self.slam_feature_descriptor_type = slam.feature_tracker.feature_manager.descriptor_type if slam is not None else None
+        
         self.time_loop_detection = mp.Value('d',0.0)       
         
         self.last_input_task = None
@@ -100,7 +106,7 @@ class LoopDetectingProcess:
     def start(self):
         self.is_running.value = 1
         self.process = mp.Process(target=self.run,
-                          args=(self.loop_detector, \
+                          args=(self.loop_detector_config, self.slam_feature_descriptor_type, \
                                 self.q_in, self.q_in_condition, \
                                 self.q_out, self.q_out_condition, \
                                 self.q_out_reloc, self.q_out_reloc_condition, \
@@ -112,11 +118,8 @@ class LoopDetectingProcess:
         #self.process.daemon = True
         self.process.start()
         
-        if self.loop_detector.using_torch_mp():
+        if MultiprocessingManager.is_start_method_spawn():
             time.sleep(3) # give a bit of time for the process to start and initialize
-        
-    def using_torch_mp(self):
-        return self.loop_detector.using_torch_mp()
 
     def save(self, path):
         task_type = LoopDetectorTaskType.SAVE
@@ -193,8 +196,14 @@ class LoopDetectingProcess:
                 self.process.terminate()      
             print('LoopDetectingProcess: done')   
     
+    def init(self, loop_detector_config, slam_feature_descriptor_type):
+        self.loop_detector = loop_detector_factory(**loop_detector_config)
+        if slam_feature_descriptor_type is not None:
+            loop_detector_config_check(self.loop_detector, slam_feature_descriptor_type)
+        self.loop_detector.init()        
+    
     # main loop of the loop detection process
-    def run(self, loop_detector: LoopDetectorBase, \
+    def run(self, loop_detector_config, slam_feature_descriptor_type,\
             q_in, q_in_condition, \
             q_out, q_out_condition, \
             q_out_reloc, q_out_reloc_condition, \
@@ -203,7 +212,7 @@ class LoopDetectingProcess:
             save_request_completed, save_request_condition, \
             time_loop_detection):
         print('LoopDetectingProcess: starting...')
-        loop_detector.init()
+        self.init(loop_detector_config, slam_feature_descriptor_type)
         # main loop
         while is_running.value == 1:
             with q_in_condition:
@@ -211,11 +220,11 @@ class LoopDetectingProcess:
                     print('LoopDetectingProcess: waiting for new task...')
                     q_in_condition.wait()
             if not q_in.empty():            
-                self.loop_detecting(loop_detector, q_in, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition, is_running, \
+                self.loop_detecting(self.loop_detector, q_in, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition, is_running, \
                                     load_request_completed, load_request_condition, save_request_completed, save_request_condition, time_loop_detection)
             else: 
                 print('LoopDetectingProcess: q_in is empty...')
-            self.reset_if_requested(reset_mutex, reset_requested, loop_detector, q_in, q_in_condition, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition)
+            self.reset_if_requested(reset_mutex, reset_requested, self.loop_detector, q_in, q_in_condition, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition)
 
         empty_queue(q_in) # empty the queue before exiting         
         print('LoopDetectingProcess: loop exit...')         

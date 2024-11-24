@@ -19,6 +19,8 @@
 
 #include "obindex2/binary_index.h"
 
+#include <fstream>
+
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/filesystem.hpp>

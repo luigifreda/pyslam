@@ -631,6 +631,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
             R = est.rotation().matrix()
             t = est.translation()
             kf.update_pose(poseRt(R, t))
+            kf.lba_count += 1
             #kf.update_pose(g2o.Isometry3d(est.orientation(), est.position()))
 
         # put points back
@@ -933,6 +934,7 @@ def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_
                     #     kf.update_pose(keyframe_poses[kf.kid])
                     try: 
                         kf.update_pose(keyframe_poses[kf.kid])
+                        kf.lba_count += 1
                     except: 
                         pass # kf.kid is not in keyframe_poses
 

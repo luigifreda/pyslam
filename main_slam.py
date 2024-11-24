@@ -95,12 +95,13 @@ if __name__ == "__main__":
         slam.load_system_state(config.system_state_folder_path)
         viewer_scale = slam.viewer_scale() if slam.viewer_scale()>0 else 0.1  # 0.1 is the default viewer scale
         print(f'viewer_scale: {viewer_scale}')
-        slam.set_state(SlamState.INIT_RELOCALIZE)
+        slam.set_tracking_state(SlamState.INIT_RELOCALIZE)
 
     viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
     if groundtruth is not None:
         gt_traj3d, gt_timestamps = groundtruth.getFull3dTrajectory()
-        viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=dataset.sensor_type==SensorType.MONOCULAR)
+        if viewer3D is not None:
+            viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=dataset.sensor_type==SensorType.MONOCULAR)
     
     if platform.system()  == 'Linux':    
         display2d = Display2D(cam.width, cam.height)  # pygame interface 
@@ -119,8 +120,10 @@ if __name__ == "__main__":
     key_cv = None
             
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
-    while dataset.isOk():
-            
+    while True:
+        
+        img, img_right, depth = None, None, None    
+        
         if do_step:
             Printer.orange('do step: ', do_step)
             
@@ -128,51 +131,58 @@ if __name__ == "__main__":
             Printer.yellow('do reset: ', do_reset)
             slam.reset()
                
-        if not is_paused or do_step: 
-            print('..................................')               
-            img = dataset.getImageColor(img_id)
-            depth = dataset.getDepth(img_id)
-            img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
+        if not is_paused or do_step:
+        
+            if dataset.isOk():
+                print('..................................')               
+                img = dataset.getImageColor(img_id)
+                depth = dataset.getDepth(img_id)
+                img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
             
-            if img is None:
-                print('image is empty')
-                getchar()
-            timestamp = dataset.getTimestamp()          # get current timestamp 
-            next_timestamp = dataset.getNextTimestamp() # get next timestamp 
-            frame_duration = next_timestamp-timestamp if (timestamp is not None and next_timestamp is not None) else -1
-
-            print(f'image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}') 
-            
-            time_start = None 
             if img is not None:
-                time_start = time.time()                  
-                slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
-                                
-                # 3D display (map display)
-                if viewer3D is not None:
-                    viewer3D.draw_map(slam)
+                timestamp = dataset.getTimestamp()          # get current timestamp 
+                next_timestamp = dataset.getNextTimestamp() # get next timestamp 
+                frame_duration = next_timestamp-timestamp if (timestamp is not None and next_timestamp is not None) else -1
 
-                img_draw = slam.map.draw_feature_trails(img)
-                img_writer.write(img_draw, f'id: {img_id}', (30, 30))
+                print(f'image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}') 
                 
-                # 2D display (image display)
-                if display2d is not None:
-                    display2d.draw(img_draw)
-                else: 
-                    cv2.imshow('Camera', img_draw)
+                time_start = None 
+                if img is not None:
+                    time_start = time.time()                  
+                    slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
+                                    
+                    # 3D display (map display)
+                    if viewer3D is not None:
+                        viewer3D.draw_map(slam)
+
+                    img_draw = slam.map.draw_feature_trails(img)
+                    img_writer.write(img_draw, f'id: {img_id}', (30, 30))
+                    
+                    # 2D display (image display)
+                    if display2d is not None:
+                        display2d.draw(img_draw)
+                    else: 
+                        cv2.imshow('Camera', img_draw)
+                    
+                    # draw 2d plots
+                    plot_drawer.draw(img_id)
+                        
+                if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
+                    trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
+                    
+                if time_start is not None: 
+                    duration = time.time()-time_start
+                    if(frame_duration > duration):
+                        time.sleep(frame_duration-duration) 
+                    
+                img_id += 1 
+            else: 
+                time.sleep(0.1) 
                 
-                # draw 2d plots
-                plot_drawer.draw(img_id)
-                       
-            if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
-                trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
-                
-            if time_start is not None: 
-                duration = time.time()-time_start
-                if(frame_duration > duration):
-                    time.sleep(frame_duration-duration) 
-                
-            img_id += 1  
+            # 3D display (map display)
+            if viewer3D is not None:
+                viewer3D.draw_dense_map(slam)  
+                              
         else:
             time.sleep(0.1)                                 
         

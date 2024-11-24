@@ -1,16 +1,19 @@
 from collections import defaultdict 
 
+import os
 import numpy as np
 
 from frame import Frame, FrameShared, compute_frame_matches, prepare_input_data_for_pnpsolver
 from rotation_histogram import filter_matches_with_histogram_orientation
 from optimizer_g2o import pose_optimization
-from utils_sys import Printer
+from utils_sys import Printer, Logging
 from loop_detector_base import LoopDetectorOutput
 from search_points import search_frame_by_projection
 
 from timer import TimerFps
 from parameters import Parameters
+
+import logging
 
 import traceback
 import pnpsolver
@@ -20,16 +23,21 @@ kVerbose = True
 kTimerVerbose = False # set this to True if you want to print timings 
 kPrintTrackebackDetails = True
 
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
 
 if kVerbose:
     if Parameters.kRelocalizationDebugAndPrintToFile:
-        # redirect the prints of local mapping to the file local_mapping.log 
+        # redirect the prints of local mapping to the file logs/relocalization.log 
         # you can watch the output in separate shell by running:
-        # $ tail -f loop_closing.log 
-        import builtins as __builtin__
-        logging_file=open('relocalization.log','w')
+        # $ tail -f logs/relocalization.log 
+        
+        logging_file=kLogsFolder + '/relocalization.log'
+        local_logger = Logging.setup_file_logger('relocalization_logger', logging_file, formatter=Logging.simple_log_formatter)
         def print(*args, **kwargs):
-            return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+            return local_logger.info(*args, **kwargs)  
 else:
     def print(*args, **kwargs):
         return

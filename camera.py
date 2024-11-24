@@ -85,7 +85,7 @@ class Camera(CameraBase):
             self.b = self.bf/self.fx
         if config.sensor_type == 'stereo' and self.bf is None:
             raise ValueError('Expecting the field Camera.bf in the camera config file')
-        self.depth_factor = 1.0 # Deptmap values factor 
+        self.depth_factor = 1.0 # Depthmap values factor 
         if 'DepthMapFactor' in config.cam_settings:
             self.depth_factor = 1.0/float(config.cam_settings['DepthMapFactor'])
             print('Using DepthMapFactor = %f' % self.depth_factor)

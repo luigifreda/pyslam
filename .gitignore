@@ -32,10 +32,16 @@ map.json
 
 data/ORBvoc.txt
 data/orbvoc.dbow3
+data/ORBvoc_test.txt 
+data/VLADvoc_orb.txt
 data/images/GardensPoint
 data/images/StLucia_small
 data/images/SFU
+data/orb_descriptors_kitti.npy
+data/slam_state
 
 thirdparty/pydbow3/ORBvoc.txt
 
 thirdparty/protoc 
+
+logs/*.log

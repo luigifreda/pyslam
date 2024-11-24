@@ -128,24 +128,20 @@ class LoopDetectorVprBase(LoopDetectorBase):
         self.global_db = None
         
         # NOTE: the following set_start_method() is needed by multiprocessing for using CUDA acceleration (with torch).
-        self._using_torch_mp = False
         if global_descriptor_name == 'CosPlace' or \
             global_descriptor_name == 'AlexNet' or \
             global_descriptor_name == 'NetVLAD' or \
             global_descriptor_name == 'EigenPlaces':
             import torch.multiprocessing as mp
-            mp.set_start_method('spawn', force=True)
-            self._using_torch_mp = True
+            mp.set_start_method('spawn', force=True) # NOTE: This generates some pickling problems with multiprocessing 
+                                                     #       in combination with torch and we need to check it in other places.
+                                                     #       This set start method will be checked with MultiprocessingManager.is_start_method_spawn()
     
         #self.init() # NOTE: We call init() in the run_task() method at its first call to 
                      #       initialize the global feature extractor in the potentially launched parallel process.
                      #       This is required to avoid pickling problem when multiprocessing is used in combination 
                      #       with torch and CUDA.   
         print(f'LoopDetectorVprBase: global_descriptor_name: {global_descriptor_name}')            
-
-
-    def using_torch_mp(self):
-        return self._using_torch_mp
     
     def reset(self):
         LoopDetectorBase.reset(self)

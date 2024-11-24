@@ -30,10 +30,11 @@ from rerun_interface import Rerun
 
 import traceback
 
+from slam import Slam
 
 
 class SlamPlotDrawer:
-    def __init__(self, slam):
+    def __init__(self, slam: Slam):
         self.slam = slam
         
         self.matched_points_plt = None
@@ -154,6 +155,10 @@ class SlamPlotDrawer:
                     if self.slam.loop_closing.time_loop_detection.value:
                         time_loop_detection_signal = [img_id, self.slam.loop_closing.time_loop_detection.value]
                         self.timing_plt.draw(time_loop_detection_signal,'loop detection',color=mcolors.CSS4_COLORS['slategrey'], marker='+')
+                if self.slam.volumetric_integrator is not None:
+                    if self.slam.volumetric_integrator.time_volumetric_integration.value:
+                        time_volumetric_integration_signal = [img_id, self.slam.volumetric_integrator.time_volumetric_integration.value]
+                        self.timing_plt.draw(time_volumetric_integration_signal,'volumetric integration',color=mcolors.CSS4_COLORS['darkviolet'], marker='+')
                 
         except Exception as e:
             Printer.red(f'SlamPlotDrawer: draw: encountered exception: {e}')

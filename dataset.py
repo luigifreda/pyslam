@@ -150,7 +150,8 @@ class Dataset(object):
             else:
                 return img             
         except:
-            img = None  
+            img = None
+            self.is_ok = False
             #raise IOError('Cannot open dataset: ', self.name, ', path: ', self.path)        
             Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}')
             return img    

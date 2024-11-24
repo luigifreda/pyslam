@@ -18,7 +18,7 @@ install_package rsync
 install_package unzip 
 
 # system packages 
-install_package build-essential cmake
+install_packages build-essential cmake
 install_package python3-sdl2 
 install_package python3-tk
 
@@ -26,8 +26,8 @@ install_package libsuitesparse-dev
 
 install_package libprotobuf-dev 
 
-install_package libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev
-install_package libglew-dev 
+install_packages libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev
+install_package  libglew-dev 
 
 install_package libeigen3-dev # pangolin installation 
 install_package libopencv-dev # orbslam2_features compilation
@@ -38,9 +38,10 @@ install_package python3-gi
 install_package cmake 
 install_package build-essential 
 
-install_package liblz4-dev libzstd-dev
-install_package libhdf5-dev    # needed when building h5py wheel from src is required (arm64)
+install_packages liblz4-dev libzstd-dev
+install_package  libhdf5-dev    # needed when building h5py wheel from src is required (arm64)
 
-install_package libboost-serialization-dev 
+install_packages libboost-serialization-dev libboost-system-dev libboost-filesystem-dev
+install_package  tmux # for launching tmux sessions
 
-echo "... Done!"
+echo "... Done!" 

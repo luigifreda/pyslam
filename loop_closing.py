@@ -26,7 +26,7 @@ from collections import defaultdict
 import os
 import time
 
-from utils_sys import Printer 
+from utils_sys import Printer, MultiprocessingManager, Logging
 from utils_img import LoopCandidateImgs
 from utils_features import transform_float_to_binary_descriptor
 from utils_data import empty_queue
@@ -56,6 +56,7 @@ from relocalizer import Relocalizer
 import traceback
 
 import pickle
+import logging 
 
 import sim3solver
 import pnpsolver
@@ -69,16 +70,23 @@ kVerbose = True
 kTimerVerbose = False # set this to True if you want to print timings 
 kPrintTrackebackDetails = True
         
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
+
             
 if kVerbose:
     if Parameters.kLoopClosingDebugAndPrintToFile:
-        # redirect the prints of local mapping to the file local_mapping.log 
+        # redirect the prints of loop closing to the file logs/loop_closing.log 
         # you can watch the output in separate shell by running:
-        # $ tail -f loop_closing.log 
-        import builtins as __builtin__
-        logging_file=open('loop_closing.log','w')
+        # $ tail -f logs/loop_closing.log 
+
+        logging_file=kLogsFolder + '/loop_closing.log'
+        local_logger = Logging.setup_file_logger('loop_closing_logger', logging_file, formatter=Logging.simple_log_formatter)
         def print(*args, **kwargs):
-            return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+            message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+            return local_logger.info(message, **kwargs)    
 else:
     def print(*args, **kwargs):
         return
@@ -596,10 +604,10 @@ class LoopClosing:
         self.loop_detecting_process = LoopDetectingProcess(slam, loop_detector_config)    # launched as a parallel process
         self.time_loop_detection = self.loop_detecting_process.time_loop_detection
         
-        # NOTE: When using torch.multiprocessing a lot of issues come with data pickling in the GBA object.
+        # NOTE: When using torch.multiprocessing with spawn start method, a lot of issues come with data pickling in the GBA object.
         #       In order to avoid that, we use a parallel thread (same CPU core set by GIL) instead of a parallel process (different CPU core).
-        #       Unfortunately, this makes things much slower. 
-        use_multiprocessing = not self.loop_detecting_process.using_torch_mp()
+        #       Unfortunately, this makes things a bit slower. 
+        use_multiprocessing = not MultiprocessingManager.is_start_method_spawn() 
         self.GBA = GlobalBundleAdjustment(slam, use_multiprocessing=use_multiprocessing)        
         
         self.loop_consistency_checker = LoopGroupConsistencyChecker()
@@ -732,6 +740,7 @@ class LoopClosing:
         self.loop_detecting_process.add_task(task)
         
 
+    # main loop in LoopClosing thread
     def run(self):
         # thread execution
         print('LoopClosing: starting...')
@@ -747,7 +756,9 @@ class LoopClosing:
                 self.reset_if_requested()
                 
                 # check if we have a new result from parallel GBA process and apply it
-                self.GBA.check_GBA_has_finished_and_correct_if_needed()
+                if self.GBA.check_GBA_has_finished_and_correct_if_needed():
+                    if self.slam.volumetric_integrator is not None:
+                        self.slam.volumetric_integrator.rebuild(self.slam.map)
                 
                 # wait until we get loop-detection candidates from parallel LoopDetectingProcess
                 print('LoopClosing: waiting for loop-detection output...')
@@ -810,9 +821,9 @@ class LoopClosing:
                             # verify geometry consistency
                             got_loop = self.loop_geometry_checker.check_candidates(keyframe, consistent_candidates)
                             if got_loop:
-                                print()
+                                print('')
                                 print(f'[[[ LoopClosing: Got loop: {keyframe.id} with {self.loop_geometry_checker.success_loop_kf.id}!! ]]]')
-                                print()
+                                print('')
                             else:
                                 print(f'LoopClosing: KF: {keyframe.id}, geometry verification failed for loop candidates: {[kf.id for kf in consistent_candidates]}')                          
                          

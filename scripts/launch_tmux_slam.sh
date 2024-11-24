@@ -5,24 +5,24 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR="$SCRIPT_DIR/.."
 ROOT_DIR=$(realpath $ROOT_DIR)
+LOGS_DIR="$ROOT_DIR"/logs
 
 . "$ROOT_DIR"/pyenv-activate.sh 
 
-
-if ! -f "$ROOT_DIR/local_mapping.log"; then 
-    touch "$ROOT_DIR/local_mapping.log"
+if ! -f "$LOGS_DIR/local_mapping.log"; then 
+    touch "$LOGS_DIR/local_mapping.log"
 fi 
-if ! -f "$ROOT_DIR/loop_closing.log"; then 
-    touch "$ROOT_DIR/loop_closing.log"
+if ! -f "$LOGS_DIR/loop_closing.log"; then 
+    touch "$LOGS_DIR/loop_closing.log"
 fi
-if ! -f "$ROOT_DIR/loop_detecting.log"; then 
-    touch "$ROOT_DIR/loop_detecting.log"
+if ! -f "$LOGS_DIR/loop_detecting.log"; then 
+    touch "$LOGS_DIR/loop_detecting.log"
 fi
-if ! -f "$ROOT_DIR/gba.log"; then 
-    touch "$ROOT_DIR/gba.log"
+if ! -f "$LOGS_DIR/gba.log"; then 
+    touch "$LOGS_DIR/gba.log"
 fi
 
-COMMAND_STRING='["'$ROOT_DIR'/main_slam.py", "tail -f '$ROOT_DIR'/local_mapping.log", "tail -f '$ROOT_DIR'/loop_closing.log loop_detecting.log", "tail -f '$ROOT_DIR'/gba.log"]'
+COMMAND_STRING='["'$ROOT_DIR'/main_slam.py", "tail -f '$LOGS_DIR'/local_mapping.log", "tail -f '$LOGS_DIR'/loop_closing.log '$LOGS_DIR'/loop_detecting.log", "tail -f '$LOGS_DIR'/gba.log", "tail -f '$LOGS_DIR'/volumetric_integrator.log"]'
 echo COMMAND_STRING: $COMMAND_STRING
 
 #set -x 

@@ -25,6 +25,11 @@ from termcolor import colored
 import cv2
 
 import threading
+import logging
+from logging.handlers import QueueHandler, QueueListener
+import multiprocessing
+import atexit
+
 
 # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
 myjet = np.array([[0.        , 0.        , 0.5       ],
@@ -215,6 +220,115 @@ class Logging(object):
         return logger        
 
 
+class SingletonBase:
+    _instances = {}
+
+    @classmethod
+    def get_instance(cls, *args):
+        # Create a key from the arguments passed to the constructor
+        key = tuple(args)
+        if key not in cls._instances:
+            # If no instance exists with these arguments, create one
+            instance = cls(*args)
+            cls._instances[key] = instance
+        return cls._instances[key]
+    
+    
+class LoggerQueue(SingletonBase):        
+    """
+    A class to manage process-safe logging using a shared Queue and QueueListener.
+    Automatically starts the listener on initialization and stops it cleanly on exit.
+    """
+    def __init__(self, log_file, level=logging.INFO, 
+                 formatter=Logging.simple_log_formatter, datefmt=''):
+        
+        # Reset the log file (clear its contents) before initializing the logger
+        self.reset_log_file(log_file)
+        
+        self.log_file = log_file
+        self.level = level
+        self.formatter = formatter or logging.Formatter(
+            '%(asctime)s [%(levelname)s] (%(processName)s) %(message)s',
+            datefmt=datefmt,
+        )
+        
+        # Shared log queue
+        self.log_queue = multiprocessing.Queue()
+
+        # File handler for the listener
+        self.file_handler = logging.FileHandler(log_file)
+        self.file_handler.setFormatter(self.formatter)
+
+        # Queue listener
+        self.listener = QueueListener(self.log_queue, self.file_handler)
+
+        # Start the listener
+        self.listener.start()
+        print(f"LoggerQueue[{self.log_file}]: initialized and started.")
+
+        self.is_closing = False
+
+        # Register stop_listener to be called at program exit
+        atexit.register(self.stop_listener)
+
+    def reset_log_file(self, log_file):
+        """
+        Clears the contents of the log file to reset it at the beginning.
+        """
+        try:
+            with open(log_file, 'w'):  # Open the file in write mode, which clears it
+                pass
+            print(f"LoggerQueue[{log_file}]: Log file reset.")
+        except Exception as e:
+            print(f"LoggerQueue[{log_file}]: Error resetting log file: {e}")
+            
+    def __del__(self):
+        """
+        Destructor to stop the logging listener safely.
+        """
+        self.stop_listener()
+
+    def stop_listener(self):
+        """
+        Stops the QueueListener and flushes the log queue.
+        Ensures the resources are properly released.
+        """
+        if self.is_closing:
+            return
+        self.is_closing = True
+        process_name = multiprocessing.current_process().name
+        print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopping ...")
+        try:
+            if hasattr(self, "listener") and self.listener:
+                self.listener.stop()  # Stop listener thread
+                self.listener = None
+                print(f"LoggerQueue[{self.log_file}]: process: {process_name}, listener stopped.")
+            if hasattr(self, "log_queue"):
+                self.log_queue.close()  # Close the queue
+                print(f"LoggerQueue[{self.log_file}]: process: {process_name}, queue closed.")
+            if hasattr(self, "file_handler"):
+                self.file_handler.close()  # Close the file handler
+                print(f"LoggerQueue[{self.log_file}]: process: {process_name}, file handler closed.")
+        except Exception as e:
+            print(f"LoggerQueue[{self.log_file}]: process: {process_name}, Exception during stop: {e}")
+
+    def get_logger(self, name=None):
+        """
+        Create and return a logger configured to use the shared Queue.
+        
+        :param name: Optional logger name.
+        :return: Logger instance.
+        """
+        logger = logging.getLogger(name)
+        logger.setLevel(self.level)
+
+        # Attach a QueueHandler to direct logs to the shared queue
+        if not any(isinstance(h, QueueHandler) for h in logger.handlers):
+            logger.addHandler(QueueHandler(self.log_queue))
+
+        return logger
+    
+
 # This function check and exec 'from module import name' and directly return the 'name'.'method'.
 # The method is used to directly return a 'method' of 'name' (i.e. 'module'.'name'.'method')
 # N.B.: if a method is needed you CAN'T
@@ -291,7 +405,7 @@ def set_rlimit():
 class MultiprocessingManager:
     # NOTE: The usage of the multiprocessing Manager().Queue() generates pickling problems 
     #       when we use set_start_method('spawn') with torch.multiprocessing (which is needed by torch with CUDA).
-    #       Thereofore, we use the MultiprocessingManager to manage queues.
+    #       Thereofore, we use this MultiprocessingManager to manage queues in slightly different way.
     #       In general, the usage of the multiprocessing Manager() seem to return smoother interactions. For this
     #       reason, we use it by default. 
     def __init__(self, use_manager=True):
@@ -302,12 +416,18 @@ class MultiprocessingManager:
         if use_manager and self.start_method != 'spawn':
             self.manager = mp.Manager() # use a memory manager when start method is not 'spawn'
             
+    @staticmethod
+    def is_start_method_spawn():
+        import torch.multiprocessing as mp
+        return mp.get_start_method() == 'spawn'
+            
     def Queue(self, maxsize=0):
         import torch.multiprocessing as mp
         if self.manager is not None:
-            # the start method is not 'spawn'
+            # the start method is not 'spawn' => we prefer to use the multiprocessing manager
             return self.manager.Queue(maxsize=maxsize)
         else:
+            # the start method is 'spawn' => we prefer to use standard multiprocessing Queue
             return mp.Queue()
                     
     def Value(self, typecode_or_type, *args, lock=True):

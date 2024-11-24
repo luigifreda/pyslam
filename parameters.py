@@ -123,6 +123,8 @@ class Parameters:
     # Covisibility graph 
     kMinNumOfCovisiblePointsForCreatingConnection=15 
     
+    # Sparse map visualization 
+    kSparseImageColorPatchDelta=1  # center +- delta
     
     # Bundle Adjustment (BA)
     kLocalBAWindow=20                 #  [# frames]   
@@ -133,7 +135,7 @@ class Parameters:
         
     
     # Loop closing
-    kUseLoopClosing = True
+    kUseLoopClosing = True                                  # To enable/disable loop closing.
     kMinDeltaFrameForMeaningfulLoopClosure = 10
     kMaxResultsForLoopClosure = 5
     kLoopDetectingTimeoutPopKeyframe=0.5 # [s]
@@ -168,10 +170,14 @@ class Parameters:
     kGBADebugAndPrintToFile = True
     kGBAUseRobustKernel = True
     
-        
-    # Pointcloud 
-    kColorPatchDelta=1  # center +- delta
-
+    # Volume Integration
+    kUseVolumetricIntegration = False                    # To enable/disable volumetric integration (dense mapping)  
+    kVolumetricIntegrationDebugAndPrintToFile = True
+    kVolumetricIntegrationExtractMesh = False            # Extract mesh or point cloud
+    kVolumetricIntegrationVoxelLength = 0.015  # [m]
+    kVolumetricIntegrationSdfTrunc = 0.04      # [m]
+    kVolumetricIntegrationDepthTrunc = 4.0     # [m]
+    kVolumetricIntegrationOutputInterval = 1.0 # [s]
 
     # other parameters 
     kChi2Mono = 5.991 # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

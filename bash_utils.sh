@@ -46,6 +46,12 @@ function install_package(){
     fi 
 }
 
+function install_packages(){
+    for var in "$@"; do
+        install_package "$var"
+    done
+}
+
 function check_pip_package(){
     package_name=$1
     PKG_OK=$(python3 -m pip list |grep $package_name)

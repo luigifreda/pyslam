@@ -18,7 +18,7 @@
 """
 
 import time 
-import sys 
+import os 
 import numpy as np
 
 import platform 
@@ -28,9 +28,11 @@ import matplotlib
 
 import matplotlib.pyplot as plt
 
+import logging 
+
 #import multiprocessing as mp 
 import torch.multiprocessing as mp
-from utils_sys import MultiprocessingManager
+from utils_sys import MultiprocessingManager, Logging
 
 
 kPlotSleep = 0.04
@@ -43,14 +45,20 @@ kSetDaemon = True   # from https://docs.python.org/3/library/threading.html#thre
 kUseFigCanvasDrawIdle = True  
 
 
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
+
+
 if kVerbose and kDebugAndPrintToFile:
-    # redirect the prints of local mapping to the file local_mapping.log 
+    # redirect the prints of local mapping to the file logs/local_mapping.log 
     # you can watch the output in separate shell by running:
-    # $ tail -f mplot_thread.log 
-    import builtins as __builtin__
-    logging_file=open('mplot_thread.log','w')
+    # $ tail -f logs/mplot_thread.log 
+    logging_file=kLogsFolder + '/mplot_thread.log'
+    local_logger = Logging.setup_file_logger('mplot_thread_logger', logging_file, formatter=Logging.simple_log_formatter)
     def print(*args, **kwargs):
-        return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+        return local_logger.info(*args, **kwargs)  
 
 
 kUsePlotPause = not kUseFigCanvasDrawIdle # this should be set True under macOS   

@@ -99,6 +99,12 @@ kUseEssentialMatrixFitting = Parameters.kUseEssentialMatrixFitting
 kNumMinObsForKeyFrameDefault = 3
 
 
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
+
+
 if not kVerbose:
     def print(*args, **kwargs):
         pass 
@@ -207,7 +213,7 @@ class Tracking:
         #self.groundtruth = slam.groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
         
         if kLogKFinfoToFile:
-            self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', 'kf_info.log',formatter=Logging.simple_log_formatter)
+            self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', kLogsFolder + '/kf_info.log', formatter=Logging.simple_log_formatter)
                  
                  
     @property
@@ -644,7 +650,7 @@ class Tracking:
         else: 
             return False 
 
-    def create_new_keyframe(self, f_cur: Frame, img):
+    def create_new_keyframe(self, f_cur: Frame, img,  img_right=None, depth=None):
         if not self.local_mapping.set_not_stop(True):
             return
             
@@ -662,7 +668,7 @@ class Tracking:
         if self.sensor_type != SensorType.MONOCULAR:
             self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
         
-        self.local_mapping.push_keyframe(kf_new, img)         
+        self.local_mapping.push_keyframe(kf_new, img, img_right, depth)         
         
         self.local_mapping.set_not_stop(False)
 
@@ -989,10 +995,10 @@ class Tracking:
                 need_new_kf = self.need_new_keyframe(f_cur)
                                     
                 if need_new_kf:
-                    self.create_new_keyframe(f_cur, img)
+                    self.create_new_keyframe(f_cur, img, img_right, depth)
                                         
                     if not kLocalMappingOnSeparateThread:
-                        self.local_mapping.step()  
+                        self.local_mapping.step()
                                                                                
                 else: 
                     Printer.yellow('NOT KF')      

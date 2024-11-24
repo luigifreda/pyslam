@@ -5,48 +5,48 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.2.5](#pyslam-v225)
-  - [Install](#install)
-    - [Requirements](#requirements)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
-  - [Usage](#usage)
-    - [Feature tracking](#feature-tracking)
-    - [Loop closing](#loop-closing)
-    - [Save and reload a map](#save-and-reload-a-map)
-    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
-    - [Trajectory saving](#trajectory-saving)
-    - [SLAM GUI](#slam-gui)
-    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-  - [Supported local features](#supported-local-features)
-  - [Supported matchers](#supported-matchers)
-  - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
-      - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
-      - [Global descriptors](#global-descriptors)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-    - [EuRoC Dataset](#euroc-dataset)
-  - [Camera Settings](#camera-settings)
-  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+    - [1. Install](#1-install)
+        - [1.1. Requirements](#11-requirements)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
+    - [2. Usage](#2-usage)
+        - [2.1. Feature tracking](#21-feature-tracking)
+        - [2.2. Loop closing](#22-loop-closing)
+        - [2.3. Save and reload a map](#23-save-and-reload-a-map)
+        - [2.4. Relocalization in a loaded map](#24-relocalization-in-a-loaded-map)
+        - [2.5. Trajectory saving](#25-trajectory-saving)
+        - [2.6. SLAM GUI](#26-slam-gui)
+        - [2.7. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#27-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+    - [3. Supported local features](#3-supported-local-features)
+    - [4. Supported matchers](#4-supported-matchers)
+    - [5. Supported global descriptors and local descriptor aggregation methods](#5-supported-global-descriptors-and-local-descriptor-aggregation-methods)
+            - [5.1. Local descriptor aggregation methods](#51-local-descriptor-aggregation-methods)
+            - [5.2. Global descriptors](#52-global-descriptors)
+    - [6. Datasets](#6-datasets)
+        - [6.1. KITTI Datasets](#61-kitti-datasets)
+        - [6.2. TUM Datasets](#62-tum-datasets)
+        - [6.3. EuRoC Dataset](#63-euroc-dataset)
+    - [7. Camera Settings](#7-camera-settings)
+    - [8. Comparison pySLAM vs ORB-SLAM3](#8-comparison-pyslam-vs-orb-slam3)
+    - [9. Contributing to pySLAM](#9-contributing-to-pyslam)
+    - [10. References](#10-references)
+    - [11. Credits](#11-credits)
+    - [12. TODOs](#12-todos)
 
 <!-- /TOC -->
 
-**pySLAM** is a python implementation of a *Visual Odometry (VO)* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
+**pySLAM** is a python implementation of a *Visual SLAM* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
 - It supports many classical and modern **[local features](#supported-local-features)** and it offers a convenient interface for them.
-- It implements loop closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (aka image-wise descriptors). 
+- It implements loop closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and other modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors). 
 - It collects many other useful VO and SLAM tools. 
 
 **Main Scripts**:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
-* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management and bundle adjustment in order to estimate the camera trajectory up-to-scale and build a map. It's still a VO pipeline but it shows some basic blocks which are necessary to develop a real visual SLAM pipeline. 
+* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing and dense mapping in order to estimate the camera trajectory up-to-scale and build a map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline. 
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. Further details [here](./docs/basic_architecture.md).
 
@@ -89,7 +89,7 @@ Then, use the available specific install procedure according to your OS. The pro
 * Kornia 0.7.3
 * Rerun
 
-If you run into troubles or performance issues, check this [TROUBLESHOOTING](./TROUBLESHOOTING.md) file.
+If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for assistance.
 
 
 ### Ubuntu 
@@ -113,9 +113,9 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 ### How to install non-free OpenCV modules
 
-The provided install scripts take care of installing a recent opencv version (>=**4.8**) with its non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
+The provided install scripts will install a recent opencv version (>=**4.8**) with non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
 
-How to check your installed OpenCV version:      
+To verify your installed OpenCV version, use the following command:      
 `$ python3 -c "import cv2; print(cv2.__version__)"`
 
 How to check if you have non-free OpenCV module support (no errors imply success):       
@@ -222,7 +222,7 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 
 ### Monitor the logs for tracking, local mapping, and loop closing simultaneously
 
-The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, respectively. For fun/debugging, you can monitor their parallel flows by running the command `tail -f <log file name>` in separate shells. Otherwise, just run the script `./scripts/launch_tmux_slam.sh` from the repo root folder. 
+The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, respectively stored in the folder `logs`. For fun/debugging, you can monitor their parallel flows by running the command `tail -f logs/<log file name>` in separate shells. Otherwise, just run the script `./scripts/launch_tmux_slam.sh` from the repo root folder: Use `CTRL+A` and then `CTRL+Q` to exit.
 
 ---
 ## Supported local features
@@ -284,9 +284,9 @@ The following feature **descriptors** are supported:
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
   
-You can find further information in the file [feature_types.py](./feature_types.py). Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
+For more information, refer to [feature_types.py](./feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
 
-In both the scripts `main_vo.py` and `main_slam.py`, you can create your favourite detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
+In both the scripts `main_vo.py` and `main_slam.py`, you can create your preferred detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
 
 The function `feature_tracker_factory()` can be found in the file `feature_tracker.py`. Take a look at the file `feature_manager.py` for further details.
 
@@ -391,7 +391,7 @@ In order to calibrate your camera, you can use the scripts in the folder `calibr
 1. use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size therein, you can use the calibration pattern `calib_pattern.pdf` in the same folder) 
 2. use the script `calibrate.py` to process the collected images and compute the calibration parameters (set the chessboard size therein)
 
-For further information about the calibration process, you may want to have a look [here](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html). 
+For more information on the calibration process, see the tutorial [here](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html). 
 
 If you want to **use your camera**, you have to:
 * calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly

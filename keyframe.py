@@ -209,7 +209,7 @@ class KeyFrameGraph(object):
                             
 
 class KeyFrame(Frame,KeyFrameGraph):
-    def __init__(self, frame: Frame, img=None):
+    def __init__(self, frame: Frame, img=None, img_right=None, depth=None):
         KeyFrameGraph.__init__(self)
         Frame.__init__(self, img=None, camera=frame.camera, pose=frame.pose, id=frame.id, timestamp=frame.timestamp, img_id=frame.img_id)   # here we MUST have img=None in order to avoid recomputing keypoint info
                 
@@ -217,12 +217,19 @@ class KeyFrame(Frame,KeyFrameGraph):
             self.img = frame.img  # this is already a copy of an image 
         else:
             if img is not None: 
-                self.img = img.copy()
+                self.img = img #.copy()
+                
+        if frame.img_right is not None: 
+            self.img_right = frame.img_right
+        else:
+            if img_right is not None:
+                self.img_right = img_right #.copy()
                 
         if frame.depth_img is not None: 
             self.depth_img = frame.depth_img
         else:
-            self.depth_img = None
+            if depth is not None:
+                self.depth_img = depth #.copy()
                 
         self.map = None 
                 
@@ -231,6 +238,8 @@ class KeyFrame(Frame,KeyFrameGraph):
         
         self._is_bad = False 
         self.to_be_erased = False 
+        
+        self.lba_count = 0       # how many time this keyframe has adjusted by LBA
         
         # pose relative to parent (this is computed when bad flag is activated)
         self._pose_Tcp = CameraPose() 

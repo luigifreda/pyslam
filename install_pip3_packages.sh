@@ -88,3 +88,5 @@ pip install pyflann-py3 # for loop closure database
 pip install faiss-cpu   # for loop closure database (there is also faiss-gpu)
 
 pip install joblib
+
+pip install open3d

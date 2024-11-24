@@ -25,15 +25,19 @@ class Value:
         self.value = value
 
 
-class SingletonMeta(type):
-    def __init__(cls, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        cls._instance = None
+# Base class to inherit to get singleton at each constructor call
+class SingletonBase:
+    _instances = {}
 
-    def __call__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super().__call__(*args, **kwargs)
-        return cls._instance
+    @classmethod
+    def get_instance(cls, *args):
+        # Create a key from the arguments passed to the constructor
+        key = tuple(args)
+        if key not in cls._instances:
+            # If no instance exists with these arguments, create one
+            instance = cls(*args)
+            cls._instances[key] = instance
+        return cls._instances[key]
     
     
 class FixedSizeQueue:

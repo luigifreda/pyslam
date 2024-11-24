@@ -44,6 +44,5 @@ cd thirdparty/pyibow
 cd $SCRIPT_DIR
 
 
-# TODO
-# clean downloaded models 
+# clean downloaded models and reset submodules
 # git submodule foreach 'git reset --hard; git clean -xfd'

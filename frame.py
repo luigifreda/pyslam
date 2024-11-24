@@ -344,29 +344,25 @@ class Frame(FrameBase):
         self.outliers = None     # outliers flags for map points (reset and set by pose_optimization())
         
         self.kf_ref = None       # reference keyframe 
+        
         self.img = None          # image (copy of img if available)
+        self.img_right = None          
         self.depth_img = None    # depth (copy of depth if available)
-                                
+                                                        
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
             if FrameShared.is_store_imgs: 
                 self.img = img.copy()  
-            else: 
-                self.img = None    
 
         if img_right is not None:
             if FrameShared.is_store_imgs: 
-                self.img_r = img_right.copy()  
-            else: 
-                self.img_r = None                                        
+                self.img_right = img_right.copy()                                        
 
         if depth is not None:
             if self.camera is not None and self.camera.depth_factor != 1.0:
                 depth = depth * self.camera.depth_factor             
             if FrameShared.is_store_imgs: 
-                self.depth_img = depth.copy()  
-            else: 
-                self.depth_img = None   
+                self.depth_img = depth.copy()
                                 
         if img is not None:                  
             if img_right is not None:
@@ -454,7 +450,8 @@ class Frame(FrameBase):
                 'kf_ref': self.kf_ref.id if self.kf_ref is not None else None,
                 
                 'img': json.dumps(NumpyB64Json.numpy_to_json(self.img)) if self.img is not None else None,
-                'depth_img': json.dumps(NumpyB64Json.numpy_to_json(self.depth_img)) if self.depth_img is not None else None        
+                'depth_img': json.dumps(NumpyB64Json.numpy_to_json(self.depth_img)) if self.depth_img is not None else None,
+                'img_right': json.dumps(NumpyB64Json.numpy_to_json(self.img_right)) if self.img_right is not None else None
                 }
         return ret
         
@@ -492,6 +489,7 @@ class Frame(FrameBase):
         
         f.img = NumpyB64Json.json_to_numpy(json.loads(json_str['img'])) if json_str['img'] is not None else None
         f.depth_img = NumpyB64Json.json_to_numpy(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
+        f.img_right = NumpyB64Json.json_to_numpy(json.loads(json_str['img_right'])) if json_str['img_right'] is not None else None
         
         if f.kps is not None and f.points is not None:
             #print(f'f.kps.shape = {f.kps.shape}, f.points.shape = {f.points.shape}')        

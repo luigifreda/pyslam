@@ -43,10 +43,12 @@ config.cfg.set_lib('lightglue')
 XFeat = import_from('modules.xfeat', 'XFeat')
 LightGlue = import_from('lightglue', 'LightGlue')
 
-import builtins as __builtin__
-logging_file=open('matcher.log','w')
-def print_to_file(*args, **kwargs):
-    return __builtin__.print(*args, **kwargs,file=logging_file,flush=True)
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
+
 
 
 kRatioTest = Parameters.kFeatureMatchRatioTest

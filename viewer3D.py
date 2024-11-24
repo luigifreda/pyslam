@@ -27,6 +27,8 @@ import pypangolin as pangolin
 import OpenGL.GL as gl
 import numpy as np
 
+import open3d as o3d
+
 from slam import Slam
 from map import Map
 
@@ -35,10 +37,13 @@ from utils_sys import MultiprocessingManager, Printer
 from utils_data import empty_queue
 
 kUiWidth = 180
-kDefaultPointSize = 2
+
+kDefaultSparsePointSize = 2
+kDefaultDensePointSize = 2
+
 kViewportWidth = 1024
-#kViewportHeight = 768
-kViewportHeight = 550   
+kViewportHeight = 550
+   
 kDrawReferenceCamera = True   
 
 kMinWeightForDrawingCovisibilityEdge=100
@@ -50,7 +55,7 @@ kRefreshDurationTime = 0.03 # [s]
 
 
 
-class Viewer3DMapElement(object): 
+class Viewer3DMapInput(object): 
     def __init__(self):
         self.cur_frame_id = None
         self.cur_pose = None
@@ -68,8 +73,14 @@ class Viewer3DMapElement(object):
         self.gt_timestamps = None    
         self.align_gt_with_scale = False 
         
+        
+class Viewer3DDenseInput(object): 
+    def __init__(self):
+        self.point_cloud = None
+        self.mesh = None
+        
               
-class Viewer3DVoElement(object): 
+class Viewer3DVoInput(object): 
     def __init__(self):
         self.poses = [] 
         self.pose_timestamps = []        
@@ -80,8 +91,10 @@ class Viewer3DVoElement(object):
 class Viewer3D(object):
     def __init__(self, scale=0.1):
         self.scale = scale
-        self.map_state = None
-        self.vo_state = None
+        
+        self.map_state = None      # type: Viewer3DMapInput
+        self.vo_state = None       # type: Viewer3DVoInput
+        self.dense_state = None    # type: Viewer3DDenseInput
                 
         self.gt_trajectory = None
         self.gt_timestamps = None
@@ -93,6 +106,7 @@ class Viewer3D(object):
         self.mp_manager = MultiprocessingManager()
         self.qmap = self.mp_manager.Queue()
         self.qvo = self.mp_manager.Queue()
+        self.qdense = self.mp_manager.Queue()
                 
         self._is_running  = mp.Value('i',1)
         self._is_paused = mp.Value('i',0)
@@ -101,7 +115,8 @@ class Viewer3D(object):
         self._do_reset = mp.Value('i',0)
         self._is_gt_set = mp.Value('i',0)
         self.vp = mp.Process(target=self.viewer_run,
-                          args=(self.qmap, self.qvo,self._is_running,self._is_paused,self._is_map_save, self._do_step, self._do_reset, self._is_gt_set))
+                          args=(self.qmap, self.qvo, self.qdense,
+                                self._is_running,self._is_paused,self._is_map_save, self._do_step, self._do_reset, self._is_gt_set))
         self.vp.daemon = True
         self.vp.start()
         
@@ -141,7 +156,7 @@ class Viewer3D(object):
             self._do_reset.value = 0
         return do_reset       
 
-    def viewer_run(self, qmap, qvo, is_running, is_paused, is_map_save, do_step, do_reset, is_gt_set):
+    def viewer_run(self, qmap, qvo, qdense, is_running, is_paused, is_map_save, do_step, do_reset, is_gt_set):
         self.viewer_init(kViewportWidth, kViewportHeight)
         # init local vars for the the process 
         self.thread_gt_trajectory = None
@@ -152,14 +167,14 @@ class Viewer3D(object):
         self.thread_last_frame_id_gt_was_aligned = 0
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
-            self.viewer_refresh(qmap, qvo, is_paused, is_map_save, do_step, do_reset, is_gt_set)
+            self.viewer_refresh(qmap, qvo, qdense, is_paused, is_map_save, do_step, do_reset, is_gt_set)
             sleep = (time.time() - ts) - kRefreshDurationTime         
             if sleep > 0:
                 time.sleep(sleep)     
                 
-        empty_queue(qmap)  # empty the queue before exiting
-        empty_queue(qvo)   # empty the queue before exiting
-                                                       
+        empty_queue(qmap)   # empty the queue before exiting
+        empty_queue(qvo)    # empty the queue before exiting
+        empty_queue(qdense) # empty the queue before exiting                                  
         print('Viewer3D: loop exit...')    
 
     def viewer_init(self, w, h):
@@ -192,7 +207,10 @@ class Viewer3D(object):
         self.draw_cameras = True
         self.draw_covisibility = True        
         self.draw_spanning_tree = True           
-        self.draw_loops = True                
+        self.draw_loops = True   
+        self.draw_dense = True
+        
+        self.draw_wireframe = False             
 
         #self.button = pangolin.VarBool('ui.Button', value=False, toggle=False)
         
@@ -202,7 +220,8 @@ class Viewer3D(object):
         self.checkboxSpanningTree = pangolin.VarBool('ui.Draw Tree', value=True, toggle=True)    
         self.checkboxLoops = pangolin.VarBool('ui.Draw Loops', value=True, toggle=True)           
         self.checkboxGT = pangolin.VarBool('ui.Draw Ground Truth', value=False, toggle=True)    
-        self.checkboxPredicted = pangolin.VarBool('ui.Draw Predicted', value=False, toggle=True)                       
+        self.checkboxPredicted = pangolin.VarBool('ui.Draw Predicted', value=False, toggle=True)
+        self.checkboxDrawPointCloud = pangolin.VarBool('ui.Draw Dense Map', value=True, toggle=True)                               
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
         self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
         self.buttonSave = pangolin.VarBool('ui.Save', value=False, toggle=False)   
@@ -210,22 +229,30 @@ class Viewer3D(object):
         self.buttonReset = pangolin.VarBool('ui.Reset', value=False, toggle=False)                      
         #self.float_slider = pangolin.VarFloat('ui.Float', value=3, min=0, max=5)
         #self.float_log_slider = pangolin.VarFloat('ui.Log_scale var', value=3, min=1, max=1e4, logscale=True)
-        self.int_slider = pangolin.VarInt('ui.Point Size', value=kDefaultPointSize, min=1, max=10)  
+        self.sparsePointSizeSlider = pangolin.VarInt('ui.Sparse Point Size', value=kDefaultSparsePointSize, min=1, max=10)
+        self.densePointSizeSlider = pangolin.VarInt('ui.Dense Point Size', value=kDefaultDensePointSize, min=1, max=10)
+        self.checkboxWireframe = pangolin.VarBool('ui.Mesh Wireframe', value=False, toggle=True)
 
-        self.pointSize = self.int_slider.Get()
+        self.sparsePointSize = self.sparsePointSizeSlider.Get()
+        self.densePointSize = self.densePointSizeSlider.Get()
 
         self.Twc = pangolin.OpenGlMatrix()
         self.Twc.SetIdentity()
         # print("self.Twc.m",self.Twc.m)
 
 
-    def viewer_refresh(self, qmap, qvo, is_paused, is_map_save, do_step, do_reset, is_gt_set):
+    def viewer_refresh(self, qmap, qvo, qdense, is_paused, is_map_save, do_step, do_reset, is_gt_set):
 
+        # NOTE: take the last elements in the queues
+        
         while not qmap.empty():
             self.map_state = qmap.get()
 
         while not qvo.empty():
             self.vo_state = qvo.get()
+            
+        while not qdense.empty():
+            self.dense_state = qdense.get()
 
         # if pangolin.Pushed(self.button):
         #    print('You Pushed a button!')
@@ -238,6 +265,8 @@ class Viewer3D(object):
         self.draw_loops = self.checkboxLoops.Get()
         self.draw_gt = self.checkboxGT.Get()
         self.draw_predicted = self.checkboxPredicted.Get()
+        self.draw_wireframe = self.checkboxWireframe.Get()
+        self.draw_dense = self.checkboxDrawPointCloud.Get()
         
         #if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
@@ -261,9 +290,10 @@ class Viewer3D(object):
             #     self.checkboxPause.SetVal(True)
             #     is_paused.value = 1            
             do_reset.value = 1
-                    
-        # self.int_slider.SetVal(int(self.float_slider))
-        self.pointSize = self.int_slider.Get()
+                                
+        # self.sparsePointSizeSlider.SetVal(int(self.float_slider))
+        self.sparsePointSize = self.sparsePointSizeSlider.Get()
+        self.densePointSize = self.densePointSizeSlider.Get()
             
         if self.do_follow and self.is_following:
             self.scam.Follow(self.Twc, True)
@@ -334,7 +364,7 @@ class Viewer3D(object):
 
             if len(self.map_state.points)>0:
                 # draw keypoints with their color
-                gl.glPointSize(self.pointSize)
+                gl.glPointSize(self.sparsePointSize)
                 #gl.glColor3f(1.0, 0.0, 0.0)
                 pangolin.DrawPoints(self.map_state.points, self.map_state.colors)    
                 
@@ -364,6 +394,23 @@ class Viewer3D(object):
                     pangolin.DrawLines(self.map_state.loops,3)        
                     gl.glLineWidth(1)                                               
 
+
+        # ==============================
+        # draw dense stuff 
+        if self.dense_state is not None:
+            if self.draw_dense:
+                if self.dense_state.mesh is not None:
+                    vertices = self.dense_state.mesh[0]
+                    triangles = self.dense_state.mesh[1]
+                    colors = self.dense_state.mesh[2]
+                    pangolin.DrawMesh(vertices, triangles, colors, self.draw_wireframe)    
+                elif self.dense_state.point_cloud is not None: 
+                    pc_points = self.dense_state.point_cloud[0]
+                    pc_colors = self.dense_state.point_cloud[1]
+                    gl.glPointSize(self.densePointSize)
+                    pangolin.DrawPoints(pc_points, pc_colors)
+            
+            
         # ==============================
         # draw vo 
         if self.vo_state is not None:
@@ -382,13 +429,13 @@ class Viewer3D(object):
 
             if self.vo_state.traj3d_est.shape[0] != 0:
                 # draw blue estimated trajectory 
-                gl.glPointSize(self.pointSize)
+                gl.glPointSize(self.sparsePointSize)
                 gl.glColor3f(0.0, 0.0, 1.0)
                 pangolin.DrawLine(self.vo_state.traj3d_est)
 
             if self.vo_state.traj3d_gt.shape[0] != 0:
                 # draw red ground-truth trajectory 
-                gl.glPointSize(self.pointSize)
+                gl.glPointSize(self.sparsePointSize)
                 gl.glColor3f(1.0, 0.0, 0.0)
                 pangolin.DrawLine(self.vo_state.traj3d_gt)                
 
@@ -396,11 +443,12 @@ class Viewer3D(object):
         pangolin.FinishFrame()
 
 
+    # draw sparse map
     def draw_map(self, slam: Slam):
         if self.qmap is None:
             return
         map = slam.map                     # type: Map
-        map_state = Viewer3DMapElement()    
+        map_state = Viewer3DMapInput()    
         
         map_state.cur_frame_id = slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
         
@@ -453,18 +501,42 @@ class Viewer3D(object):
                              
         self.qmap.put(map_state)
 
+    def draw_dense_map(self, slam: Slam):
+        if self.qdense is None:
+            return
+        dense_map_output = slam.get_dense_map()
+        if dense_map_output is not None:
+            self.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
+
+    # inputs: 
+    #   point_cloud: o3d.geometry.PointCloud or VolumeIntegratorPointCloud (see the file volumetric_integrator.py)
+    #   mesh: o3d.geometry.TriangleMesh or VolumeIntegrationMesh (see the file volumetric_integrator.py)
+    def draw_dense_geometry(self, point_cloud=None, mesh=None):
+        if self.qdense is None:
+            return
+        dense_state = Viewer3DDenseInput()
+        if mesh is not None:
+            dense_state.mesh = (np.array(mesh.vertices), np.array(mesh.triangles), np.array(mesh.vertex_colors)) #,np.array(mesh.vertex_normals))
+        else:
+            if point_cloud is not None:            
+                dense_state.point_cloud = (np.array(point_cloud.points), np.array(point_cloud.colors))
+            else:
+                Printer.orange('WARNING: both point_cloud and mesh are None')
+
+        self.qdense.put(dense_state)
+
 
     def draw_vo(self, vo):
         if self.qvo is None:
             return
-        vo_state = Viewer3DVoElement()
+        vo_state = Viewer3DVoInput()
         vo_state.poses = np.array(vo.poses)
         vo_state.pose_timestamps = np.array(vo.pose_timestamps, dtype=np.float64)
         vo_state.traj3d_est = np.array(vo.traj3d_est).reshape(-1,3)
         vo_state.traj3d_gt = np.array(vo.traj3d_gt).reshape(-1,3)        
         
         self.qvo.put(vo_state)
-
+        
 
     def updateTwc(self, pose):
         self.Twc.m = pose

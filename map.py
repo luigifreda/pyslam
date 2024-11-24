@@ -425,7 +425,7 @@ class Map(object):
             # get color patches
             img_coords = np.rint(kf1.kps[idxs1]).astype(np.intp) # image keypoints coordinates 
             # build img patches coordinates 
-            delta = Parameters.kColorPatchDelta    
+            delta = Parameters.kSparseImageColorPatchDelta    
             patch_extension = 1 + 2*delta   # patch_extension x patch_extension
             img_pts_start = img_coords - delta           
             img_pts_end   = img_coords + delta
@@ -495,7 +495,7 @@ class Map(object):
                             
             img_coords = np.rint(kf.kps[idxs]).astype(np.intp) # image keypoints coordinates 
             # build img patches coordinates 
-            delta = Parameters.kColorPatchDelta    
+            delta = Parameters.kSparseImageColorPatchDelta    
             patch_extension = 1 + 2*delta   # patch_extension x patch_extension
             img_pts_start = img_coords - delta           
             img_pts_end   = img_coords + delta

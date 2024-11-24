@@ -31,6 +31,7 @@ from frame import Frame, FrameShared, match_frames
 from keyframe import KeyFrame
 from map_point import MapPoint
 from map import Map
+from camera import Camera
 
 from search_points import propagate_map_point_matches
 from search_points import search_map_by_projection, search_frame_by_projection
@@ -54,6 +55,8 @@ from utils_features import ImageGrid
 from slam_commons import SlamState
 from tracking import Tracking
 
+from volumetric_integrator import VolumetricIntegrator, VolumetricIntegratorOutput
+
 kVerbose = True     
 
 kLocalMappingOnSeparateThread = Parameters.kLocalMappingOnSeparateThread 
@@ -71,7 +74,7 @@ if not kVerbose:
 
 # Main slam system class containing all the required modules. 
 class Slam(object):
-    def __init__(self, camera, feature_tracker_config: dict, loop_detector_config=None, sensor_type=SensorType.MONOCULAR, groundtruth=None):
+    def __init__(self, camera: Camera, feature_tracker_config: dict, loop_detector_config=None, sensor_type=SensorType.MONOCULAR, groundtruth=None):
         self.camera = camera 
         self.feature_tracker_config = feature_tracker_config
         self.loop_detector_config = loop_detector_config
@@ -81,10 +84,12 @@ class Slam(object):
         self.local_mapping = LocalMapping(self)        
         self.loop_closing = None
         self.GBA = None
+        self.volumetric_integrator = None
         self.reset_requested = False
-        
-        self.init_loop_closing(loop_detector_config)    
-        
+  
+        self.init_volumetric_integrator() 
+        self.init_loop_closing(loop_detector_config)     
+                
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
         self.tracking = Tracking(self) # after all the other initializations
@@ -96,13 +101,19 @@ class Slam(object):
 
     def reset(self):
         self.local_mapping.request_reset()
-        self.loop_closing.request_reset()
+        if self.loop_closing is not None:
+            self.loop_closing.request_reset()
+        if self.volumetric_integrator is not None:
+            self.volumetric_integrator.request_reset()        
         self.tracking.reset()
         self.map.reset()
         
     def reset_session(self):
         self.local_mapping.request_reset()
-        self.loop_closing.request_reset()
+        if self.loop_closing is not None:
+            self.loop_closing.request_reset()
+        if self.volumetric_integrator is not None:
+            self.volumetric_integrator.request_reset()  
         self.tracking.reset()
         self.map.reset_session()        
         
@@ -111,7 +122,9 @@ class Slam(object):
         if kLocalMappingOnSeparateThread:
             self.local_mapping.quit()  
         if self.loop_closing is not None:
-            self.loop_closing.quit()                   
+            self.loop_closing.quit()
+        if self.volumetric_integrator is not None:
+            self.volumetric_integrator.quit()                               
         print('SLAM: done')
 
     def init_feature_tracker(self, feature_tracker_config):
@@ -135,13 +148,25 @@ class Slam(object):
             self.loop_closing.start()
             time.sleep(1)             
         
+    def init_volumetric_integrator(self):
+        if Parameters.kUseVolumetricIntegration:
+            self.volumetric_integrator = VolumetricIntegrator(self)
+        
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None):
         return self.tracking.track(img, img_right, depth, img_id, timestamp)
     
-    def set_state(self, state: SlamState):
+    def set_tracking_state(self, state: SlamState):
         self.tracking.state = state
         
+    def get_dense_map(self) -> VolumetricIntegratorOutput:
+        if self.volumetric_integrator is not None:
+            q_out_size = self.volumetric_integrator.q_out.qsize()
+            if q_out_size > 0:
+                print(f'VolumetricIntegrator: getting dense map ... q_out size: {q_out_size} ')                
+                return self.volumetric_integrator.pop_output()    
+        return None 
+    
     def save_system_state(self, path):
         Printer.green(f'\nSLAM: saving the system state into {path}...')
         if not os.path.exists(path):
@@ -171,6 +196,10 @@ class Slam(object):
             
         if self.loop_closing is not None:
             self.loop_closing.save(path)
+            
+        if self.volumetric_integrator is not None:
+            self.volumetric_integrator.save(path)
+            
         Printer.green(f'SLAM: ...system state successfully saved to: {path}')        
     
     def load_system_state(self, path):

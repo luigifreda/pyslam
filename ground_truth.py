@@ -24,8 +24,7 @@ import json
 import numpy as np 
 from enum import Enum
 from utils_sys import Printer 
-import decimal
-
+from utils_geom import rotmat2qvec, xyzq2Tmat
 
 class GroundTruthType(Enum):
     NONE = 1
@@ -35,10 +34,10 @@ class GroundTruthType(Enum):
     SIMPLE = 5
 
 
-kScaleSimple = 1 
-kScaleKitti = 1   
-kScaleTum = 1    
-kScaleEuroc = 1  
+kScaleSimple = 1.0
+kScaleKitti = 1.0  
+kScaleTum = 1.0    
+kScaleEuroc = 1.0  
 
 
 def groundtruth_factory(settings):
@@ -88,26 +87,33 @@ class GroundTruth(object):
         
         self.trajectory = None 
         self.timestamps = None
+        self.poses = None 
 
     def getDataLine(self, frame_id):
         frame_id+=self.start_frame_id
         return self.data[frame_id].strip().split()
  
     # return timestamp,x,y,z,scale
-    def getTimePoseAndAbsoluteScale(self, frame_id):
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
         frame_id+=self.start_frame_id
-        return 1,0,0,0,1
+        return 1, 0,0,0, 1
 
-    # convert the dataset into 'Simple' format  [x,y,z,scale]
-    def convertToSimpleXYZ(self, filename='groundtruth.txt'):
+    # return timestamp,x,y,z,qx,qy,qz,qw,scale
+    # NOTE: Keep in mind that datasets may not have orientation information!
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        return 1, 0,0,0, 0,0,0,1, 1
+    
+    # convert the dataset into 'Simple' format [timestamp, x,y,z, qx,qy,qz,qw, scale]
+    def convertToSimpleDataset(self, filename='groundtruth.txt'):
         out_file = open(filename,"w")
         num_lines = len(self.data)
         for ii in range(num_lines):
-            timestamp,x,y,z,scale = self.getTimePoseAndAbsoluteScale(ii)
+            timestamp,x,y,z, qx,qy,qz,qw, scale = self.getTimestampPoseAndAbsoluteScale(ii)
             if ii == 0:
                 scale = 1 # first sample: we do not have a relative 
-            print(f'writing timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {scale:.15f}')
-            out_file.write( f"{timestamp:.15f} {x:.15f} {y:.15f} {z:.15f} {scale:.15f}\n" ) # (timestamp,x,y,z,scale) )
+            print(f'writing timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, qx: {qx:.15f}, qy: {qy:.15f}, qz: {qz:.15f}, qw: {qw:.15f}, scale: {scale:.15f}')
+            out_file.write( f"{timestamp:.15f} {x:.15f} {y:.15f} {z:.15f} {qx:.15f} {qy:.15f} {qz:.15f} {qw:.15f} {scale:.15f}\n" ) # (timestamp,x,y,z,scale) )
         out_file.close()
 
     def getNumSamples(self): 
@@ -116,16 +122,31 @@ class GroundTruth(object):
     
     def getClosestTimestamp(self, timestamp): 
         if self.timestamps is None:
-            self.getFull3dTrajectory() 
+            Printer.red('ERROR: GroundTruth: getClosestTimestamp() called setting the timestamps!')
+            return None 
         return self.timestamps[np.argmin(np.abs(self.timestamps - timestamp))]
 
+    def getClosestPosition(self,timestamp):
+        if self.trajectory is None:
+            Printer.red('ERROR: GroundTruth: getClosestPose() called setting the trajectory!')
+            return None 
+        return self.trajectory[np.argmin(np.abs(self.timestamps - timestamp))]
+    
+    def getClosestPose(self,timestamp):
+        if self.poses is None:
+            Printer.red('ERROR: GroundTruth: getClosestPose() called setting the poses!')
+            return None 
+        idx = np.argmin(np.abs(self.timestamps - timestamp))
+        #print(f'getClosestPose(): idx: {idx}, timestamp: {self.timestamps[idx]}')
+        return self.poses[idx]
+    
     def getFull3dTrajectory(self):
         num_lines = len(self.data)
         self.trajectory = []
         self.timestamps = []
         for ii in range(1,num_lines-1):
             try: 
-                timestamp,x,y,z,scale = self.getTimePoseAndAbsoluteScale(ii)
+                timestamp,x,y,z,scale = self.getTimestampPositionAndAbsoluteScale(ii)
                 #print(f'timestamp: {timestamp}, x: {x}, y: {y}, z: {z}, scale: {scale}')
                 self.timestamps.append(timestamp)
                 self.trajectory.append([x,y,z])
@@ -134,9 +155,29 @@ class GroundTruth(object):
         self.timestamps = np.array(self.timestamps, dtype=np.float64)
         self.trajectory = np.array(self.trajectory, dtype=np.float32)
         return self.trajectory, self.timestamps
-        
+    
+    def getFull6dTrajectory(self):
+        num_lines = len(self.data)
+        self.trajectory = []
+        self.poses = []
+        self.timestamps = []
+        for ii in range(1,num_lines-1):
+            try: 
+                timestamp,x,y,z, qx,qy,qz,qw, scale = self.getTimestampPoseAndAbsoluteScale(ii)
+                #print(f'timestamp: {timestamp}, x: {x}, y: {y}, z: {z}, scale: {scale}')
+                self.timestamps.append(timestamp)
+                self.trajectory.append([x,y,z])
+                self.poses.append(xyzq2Tmat(x,y,z,qx,qy,qz,qw))
+            except:
+                pass
+        self.timestamps = np.array(self.timestamps, dtype=np.float64)
+        self.trajectory = np.array(self.trajectory, dtype=np.float32)
+        self.poses = np.array(self.poses, dtype=np.float32)
+        return self.trajectory, self.poses, self.timestamps    
+    
 
-# read the ground truth from a simple file containining [x,y,z,scale,timestamp] lines
+# Read the ground truth from a simple file containining [timestamp, x,y,z, qx, qy, qz, qw, scale] lines
+# Use the file convert_groundtruth.py to convert a dataset into this format.
 class SimpleGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.KITTI): 
         super().__init__(path, name, associations, start_frame_id, type)
@@ -149,26 +190,57 @@ class SimpleGroundTruth(GroundTruth):
             sys.exit('ERROR while reading groundtruth file: please, check how you deployed the files and if the code is consistent with this!') 
 
     # return timestamp,x,y,z,scale
-    def getTimePoseAndAbsoluteScale(self, frame_id):
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
         frame_id+=self.start_frame_id
-        ss = self.getDataLine(frame_id-1)
-        x_prev = self.scale*float(ss[1])
-        y_prev = self.scale*float(ss[2])
-        z_prev = self.scale*float(ss[3])     
+        try:
+            ss = self.getDataLine(frame_id-1)
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3])
+        except:
+            x_prev, y_prev, z_prev = None, None, None
         ss = self.getDataLine(frame_id)
         timestamp = float(ss[0]) 
         x = self.scale*float(ss[1])
         y = self.scale*float(ss[2])
         z = self.scale*float(ss[3])
-        abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
         return timestamp,x,y,z,abs_scale 
+    
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1)
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3])
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        ss = self.getDataLine(frame_id)
+        timestamp = float(ss[0]) 
+        x = self.scale*float(ss[1])
+        y = self.scale*float(ss[2])
+        z = self.scale*float(ss[3])
+        qx = float(ss[4])
+        qy = float(ss[5])
+        qz = float(ss[6])
+        qw = float(ss[7])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        return timestamp, x,y,z, qx,qy,qz,qw, abs_scale     
 
 
 class KittiGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.KITTI): 
         super().__init__(path, name, associations, start_frame_id, type)
         self.scale = kScaleKitti
-        self.filename=path + '/poses/' + name + '.txt'   # N.B.: this may depend on how you deployed the groundtruth files 
+        self.filename = path + '/poses/' + name + '.txt'   # N.B.: this may depend on how you deployed the groundtruth files 
         self.filename_timestamps = path + '/sequences/' + name + '/times.txt'
         with open(self.filename) as f:
             self.data = f.readlines()
@@ -184,22 +256,59 @@ class KittiGroundTruth(GroundTruth):
 
 
     # return timestamp,x,y,z,scale
-    def getTimePoseAndAbsoluteScale(self, frame_id):
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
         frame_id+=self.start_frame_id
-        ss = self.getDataLine(frame_id-1)
-        x_prev = self.scale*float(ss[3])
-        y_prev = self.scale*float(ss[7])
-        z_prev = self.scale*float(ss[11])     
+        try:
+            ss = self.getDataLine(frame_id-1)
+            x_prev = self.scale*float(ss[3])
+            y_prev = self.scale*float(ss[7])
+            z_prev = self.scale*float(ss[11])
+        except:
+            x_prev, y_prev, z_prev = None, None, None    
         ss = self.getDataLine(frame_id) 
         x = self.scale*float(ss[3])
         y = self.scale*float(ss[7])
         z = self.scale*float(ss[11])
-        abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
-
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
         timestamp = float(self.data_timestamps[frame_id].strip())
-        
         #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z,abs_scale 
+    
+    # return timestamp,x,y,z,qx,qy,qz,qw,scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1)
+            x_prev = self.scale*float(ss[3])
+            y_prev = self.scale*float(ss[7])
+            z_prev = self.scale*float(ss[11])
+        except:
+            x_prev, y_prev, z_prev = None, None, None    
+        ss = self.getDataLine(frame_id) 
+        x = self.scale*float(ss[3])
+        y = self.scale*float(ss[7])
+        z = self.scale*float(ss[11])
+        r11 = float(ss[0])
+        r12 = float(ss[1])
+        r13 = float(ss[2])
+        r21 = float(ss[4])
+        r22 = float(ss[5])
+        r23 = float(ss[6])
+        r31 = float(ss[8])
+        r32 = float(ss[9])
+        r33 = float(ss[10])
+        R = np.array([[r11,r12,r13],[r21,r22,r23],[r31,r32,r33]])
+        q  = rotmat2qvec(R)  # [qx, qy, qz, qw]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        timestamp = float(self.data_timestamps[frame_id].strip())
+        #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
+        return timestamp,x,y,z, q[0],q[1],q[2],q[3], abs_scale     
 
 
 class TumGroundTruth(GroundTruth):
@@ -241,20 +350,50 @@ class TumGroundTruth(GroundTruth):
         return self.data[self.association_matches[frame_id][0]]
 
     # return timestamp,x,y,z,scale
-    def getTimePoseAndAbsoluteScale(self, frame_id):
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
         frame_id+=self.start_frame_id
-        ss = self.getDataLine(frame_id-1) 
-        x_prev = self.scale*float(ss[1])
-        y_prev = self.scale*float(ss[2])
-        z_prev = self.scale*float(ss[3])     
+        try:
+            ss = self.getDataLine(frame_id-1) 
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3])     
+        except:
+            x_prev, y_prev, z_prev = None, None, None
         ss = self.getDataLine(frame_id)
         timestamp = float(ss[0]) 
         x = self.scale*float(ss[1])
         y = self.scale*float(ss[2])
         z = self.scale*float(ss[3])
-        abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
         return timestamp,x,y,z,abs_scale 
-        #return timestamp,-x,-y,-z,abs_scale
+        
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1) 
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3])
+        except:
+            x_prev, y_prev, z_prev = None, None, None     
+        ss = self.getDataLine(frame_id)
+        timestamp = float(ss[0]) 
+        x = self.scale*float(ss[1])
+        y = self.scale*float(ss[2])
+        z = self.scale*float(ss[3])
+        qx = float(ss[4])
+        qy = float(ss[5])
+        qz = float(ss[6])
+        qw = float(ss[7])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        return timestamp,x,y,z, qx,qy,qz,qw,abs_scale    
     
     @staticmethod
     def associate(first_list, second_list, offset=0, max_difference=0.025*(10**9)):
@@ -298,7 +437,7 @@ class EurocGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.EUROC): 
         super().__init__(path, name, associations, start_frame_id, type)
         self.scale = kScaleEuroc
-        self.filename = path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'   # N.B.: Use the script groundtruth/generate_euroc_groundtruths_as_tum.sh to generate these groundtruth files
+        self.filename = path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'   # NOTE: Use the script groundtruth/generate_euroc_groundtruths_as_tum.sh to generate these groundtruth files
         
         base_path = os.path.dirname(self.filename)
         print('base_path: ', base_path)
@@ -402,22 +541,51 @@ class EurocGroundTruth(GroundTruth):
     def getDataLine(self, frame_id):
         return self.data[self.association_matches[frame_id][0]]
     
-    def getTimePoseAndAbsoluteScale(self, frame_id):
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
         frame_id+=self.start_frame_id
-        ss = self.getDataLine(frame_id-1) 
-        #print(f'ss[{frame_id-1}]: {ss}')
-        x_prev = self.scale*float(ss[1])
-        y_prev = self.scale*float(ss[2])
-        z_prev = self.scale*float(ss[3])     
+        try:
+            ss = self.getDataLine(frame_id-1) 
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3]) 
+        except:
+            x_prev, y_prev, z_prev = None, None, None
         ss = self.getDataLine(frame_id) 
         #print(f'ss[{frame_id}]: {ss}')  
         timestamp = float(ss[0])      
         x = self.scale*float(ss[1])
         y = self.scale*float(ss[2])
         z = self.scale*float(ss[3])
-        abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        if x_prev is None:
+            abs_scale = 1
+        else: 
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
         #print(f'abs_scale: {abs_scale}')
         # from https://www.researchgate.net/profile/Michael-Burri/publication/291954561_The_EuRoC_micro_aerial_vehicle_datasets/links/56af0c6008ae19a38516937c/The-EuRoC-micro-aerial-vehicle-datasets.pdf
-        # WIP - not sure this is correct
-        #return timestamp, y,z,-x, abs_scale   
         return timestamp, x,y,z, abs_scale
+    
+    
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1) 
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3])
+        except:
+            x_prev, y_prev, z_prev = None, None, None     
+        ss = self.getDataLine(frame_id)
+        timestamp = float(ss[0]) 
+        x = self.scale*float(ss[1])
+        y = self.scale*float(ss[2])
+        z = self.scale*float(ss[3])
+        qx = float(ss[4])
+        qy = float(ss[5])
+        qz = float(ss[6])
+        qw = float(ss[7])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        return timestamp,x,y,z, qx,qy,qz,qw,abs_scale        

@@ -19,10 +19,9 @@
 
 from __future__ import print_function # This must be the first statement before other statements 
 
-import sys
+import os
 import time
 import numpy as np
-import cv2
 import g2o
 from enum import Enum
 
@@ -34,24 +33,22 @@ from queue import Queue
 from parameters import Parameters  
 
 from dataset import SensorType
-from keyframe import KeyFrame
-from frame import Frame, compute_frame_matches
+from frame import compute_frame_matches
 from search_points import search_frame_for_triangulation, search_and_fuse
-from map_point import MapPoint
-from map import Map
-from loop_closing import LoopClosing
 
-from timer import Timer, TimerFps
+from timer import TimerFps
 
-from utils_sys import Printer, MultiprocessingManager
+from utils_sys import Printer, MultiprocessingManager, Logging
 from utils_geom import triangulate_normalized_points
-from utils_data import AtomicCounter, empty_queue
+from utils_data import empty_queue
 
 import multiprocessing as mp
+import logging
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from slam import Slam # Only imported when type checking, not at runtime
+    from keyframe import KeyFrame
 
 
 kVerbose=True     
@@ -67,16 +64,24 @@ kNumMinObsForKeyFrameDefault = 3
 kLocalMappingSleepTime = 5e-3  # [s]
 
 
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
+
+
 if kVerbose:
     if kLocalMappingOnSeparateThread: 
         if kLocalMappingDebugAndPrintToFile:
-            # redirect the prints of local mapping to the file local_mapping.log
+            # redirect the prints of local mapping to the file logs/local_mapping.log
             # you can watch the output in separate shell by is_running:
-            # $ tail -f local_mapping.log 
-            import builtins as __builtin__
-            logging_file=open('local_mapping.log','w')
+            # $ tail -f logs/local_mapping.log 
+                        
+            logging_file=kLogsFolder + '/local_mapping.log'
+            local_logger = Logging.setup_file_logger('local_mapping_logger', logging_file, formatter=Logging.simple_log_formatter)
             def print(*args, **kwargs):
-                return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+                message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                return local_logger.info(message, **kwargs)            
 else:
     def print(*args, **kwargs):
         return
@@ -96,7 +101,7 @@ class LocalMapping:
         self.mean_ba_chi2_error = None
         self.time_local_mapping = None
         
-        self.kf_cur = None   # current processed keyframe  
+        self.kf_cur = None    # type: KeyFrame      #current processed keyframe  
         self.kid_last_BA = -1 # last keyframe id when performed BA           
 
         self.timer_verbose = kTimerVerbose  # set this to True if you want to print timings  
@@ -190,9 +195,9 @@ class LocalMapping:
             self.mp_opt_abort_flag.value = value  # for multi-processing  (when used)      
         
     # push the new keyframe and its image into the queue
-    def push_keyframe(self, keyframe, img=None):
+    def push_keyframe(self, keyframe, img=None, img_right=None, depth=None):
         with self.queue_condition:
-            self.queue.put((keyframe,img))      
+            self.queue.put((keyframe,img,img_right, depth))      
             self.queue_condition.notifyAll() 
             self.set_opt_abort_flag(True)              
         
@@ -295,7 +300,7 @@ class LocalMapping:
             if not self.stop_requested:              
                 ret = self.pop_keyframe() # blocking call
                 if ret is not None: 
-                    self.kf_cur, self.img_cur = ret
+                    self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur = ret
                     if self.kf_cur is not None:
                         self.last_processed_kf_img_id = self.kf_cur.img_id
                                                                                     
@@ -386,6 +391,16 @@ class LocalMapping:
         if self.slam.loop_closing is not None and self.kf_cur is not None:
             print('pushing new keyframe to loop closing...')
             self.slam.loop_closing.add_keyframe(self.kf_cur, self.img_cur)  
+            
+        if self.slam.volumetric_integrator is not None: 
+            print('pushing new keyframe to volumetric integrator...')
+            if self.kf_cur.img is None: 
+                self.kf_cur.img = self.img_cur
+            if self.kf_cur.img_right is None:
+                self.kf_cur.img_right = self.img_cur_right
+            if self.kf_cur.depth_img is None:
+                self.kf_cur.depth_img = self.depth_cur            
+            self.slam.volumetric_integrator.add_keyframe(self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur)
                                     
         elapsed_time = time.time() - time_start
         self.time_local_mapping = elapsed_time

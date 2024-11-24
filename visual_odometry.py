@@ -99,7 +99,7 @@ class VisualOdometry(object):
     # get current translation scale from ground-truth if groundtruth is not None 
     def getAbsoluteScale(self, frame_id):  
         if self.groundtruth is not None and kUseGroundTruthScale:
-            timestamp, self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getTimePoseAndAbsoluteScale(frame_id)
+            timestamp, self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getTimestampPositionAndAbsoluteScale(frame_id)
             return scale
         else:
             self.trueX = 0 

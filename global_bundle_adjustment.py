@@ -20,32 +20,46 @@ import g2o
 from optimizer_g2o import global_bundle_adjustment
 
 from keyframe_data import KeyFrameData
-from utils_sys import Printer, MultiprocessingManager
+from utils_sys import Printer, MultiprocessingManager, Logging
 from utils_data import empty_queue, Value
+
+import logging
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from slam import Slam # Only imported when type checking, not at runtime
+
 
 kVerbose = True
 kTimerVerbose = False
 kPrintTrackebackDetails = True
 
 
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
+
+
 if kVerbose:
     if Parameters.kGBADebugAndPrintToFile:
-        # redirect the prints of GBA to the file gba.log
+        # redirect the prints of GBA to the file logs/gba.log
         # you can watch the output in separate shell by running:
-        # $ tail -f gba.log 
-        import builtins as __builtin__
-        logging_file=open('gba.log','w')
+        # $ tail -f logs/gba.log 
+        
+        logging_file=kLogsFolder + '/gba.log'
+        local_logger = Logging.setup_file_logger('gba_logger', logging_file, formatter=Logging.simple_log_formatter)
         def print(*args, **kwargs):
-            return __builtin__.print(*args,**kwargs,file=logging_file,flush=True)
+            return local_logger.info(*args, **kwargs)
 else:
     def print(*args, **kwargs):
         return
     
     
 class GlobalBundleAdjustment:
-    def __init__(self, slam, use_multiprocessing=True):
+    def __init__(self, slam: 'Slam', use_multiprocessing=True):
         print(f'GlobalBundleAdjustment: starting with use_multiprocessing: {use_multiprocessing}')
-        self.slam = slam
+        #self.slam = slam
         self.map = slam.map    # type: Map
         self.local_mapping = slam.local_mapping
         
@@ -150,12 +164,13 @@ class GlobalBundleAdjustment:
         if not self.is_running() and (self.q_message.qsize() if self.use_multiprocessing else len(self.q_message)) > 0:
             output = self.q_message.get() if self.use_multiprocessing else self.q_message.pop(0)
             try: 
-                self.correct_after_GBA()
+                return self.correct_after_GBA()
             except Exception as e:
                 print(f'GlobalBundleAdjustment: check_GBA_has_finished_and_correct_if_needed: encountered exception: {e}')
                 if kPrintTrackebackDetails:
                     traceback_details = traceback.format_exc()
-                    print(f'\t traceback details: {traceback_details}')                            
+                    print(f'\t traceback details: {traceback_details}')
+        return False                       
             
     def correct_after_GBA(self):
         print(f'GlobalBundleAdjustment: correct after GBA...')
@@ -275,11 +290,15 @@ class GlobalBundleAdjustment:
                 self.local_mapping.release()
 
                 print(f'GlobalBundleAdjustment: map updated!')
+                return True
+            
         except Exception as e:
             print(f'GlobalBundleAdjustment: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
                 print(f'\t traceback details: {traceback_details}')
+                
+        return False
           
                     
     def run(self, keyframes, points, loop_kf_id, rounds, use_robust_kernel, 
