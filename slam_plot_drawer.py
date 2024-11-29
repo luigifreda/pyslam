@@ -19,20 +19,29 @@
 """
 
 
-from mplot_thread import Mplot2d
-import matplotlib.colors as mcolors
-
 from utils_sys import getchar, Printer 
 
-from parameters import Parameters  
-
-from rerun_interface import Rerun
-
+import platform
 import traceback
 
 from slam import Slam
 
+from mplot_thread import Mplot2d
+from qtplot_thread import Qplot2d
+import matplotlib.colors as mcolors
 
+kUseQtplot2d = False
+if platform.system() == 'Darwin':
+    kUseQtplot2d = True # Under mac force the usage of Qtplot2d: It is smoother 
+
+
+def factory_plot2d(*args,**kwargs):
+    if kUseQtplot2d:
+        return Qplot2d(*args,**kwargs)
+    else:
+        return Mplot2d(*args,**kwargs)
+    
+    
 class SlamPlotDrawer:
     def __init__(self, slam: Slam):
         self.slam = slam
@@ -43,10 +52,10 @@ class SlamPlotDrawer:
         self.timing_plt = None
         
         # To disable one of them just comment it out
-        self.matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')  
-        #self.info_3dpoints_plt = Mplot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
-        self.chi2_error_plt = Mplot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
-        self.timing_plt = Mplot2d(xlabel='img id', ylabel='s',title='timing')        
+        self.matched_points_plt = factory_plot2d(xlabel='img id', ylabel='# matches',title='# matches')  
+        #self.info_3dpoints_plt = factory_plot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
+        self.chi2_error_plt = factory_plot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
+        self.timing_plt = factory_plot2d(xlabel='img id', ylabel='s',title='timing')        
         
         self.last_processed_kf_img_id = -1
         
@@ -151,10 +160,10 @@ class SlamPlotDrawer:
                 if self.slam.loop_closing is not None:
                     if self.slam.loop_closing.timer.last_elapsed:
                         time_loop_closing_signal = [img_id, self.slam.loop_closing.timer.last_elapsed]
-                        self.timing_plt.draw(time_loop_closing_signal,'loop closing',color=mcolors.CSS4_COLORS['darkgoldenrod'], marker='+')
+                        self.timing_plt.draw(time_loop_closing_signal,'loop closing',color=mcolors.CSS4_COLORS['darkgoldenrod'])
                     if self.slam.loop_closing.time_loop_detection.value:
                         time_loop_detection_signal = [img_id, self.slam.loop_closing.time_loop_detection.value]
-                        self.timing_plt.draw(time_loop_detection_signal,'loop detection',color=mcolors.CSS4_COLORS['slategrey'], marker='+')
+                        self.timing_plt.draw(time_loop_detection_signal,'loop detection',color=mcolors.CSS4_COLORS['slategrey'])
                 if self.slam.volumetric_integrator is not None:
                     if self.slam.volumetric_integrator.time_volumetric_integration.value:
                         time_volumetric_integration_signal = [img_id, self.slam.volumetric_integrator.time_volumetric_integration.value]

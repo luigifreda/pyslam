@@ -25,15 +25,15 @@ import numpy as np
 import cv2
 
 from utils_serialization import SerializableEnum, register_class
-from utils_sys import getchar, Printer 
+from utils_sys import Printer 
 
 from parameters import Parameters
 
 from feature_manager import feature_manager_factory
 from feature_manager_configs import FeatureManagerConfigs
-from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes
+from feature_types import FeatureDescriptorTypes
 
-from loop_detector_base import LoopDetectorTaskType, LoopDetectKeyframeData, LoopDetectorTask, LoopDetectorOutput, LoopDetectorBase
+from loop_detector_base import LoopDetectorBase
 from loop_detector_dbow3 import LoopDetectorDBoW3
 from loop_detector_dbow2 import LoopDetectorDBoW2
 from loop_detector_obindex2 import LoopDetectorOBIndex2
@@ -42,6 +42,11 @@ from loop_detector_vpr import LoopDetectorHdcDelf, LoopDetectorEigenPlaces, Loop
 from loop_detector_vlad import LoopDetectorVlad
 
 from loop_detector_vocabulary import OrbVocabularyData, VocabularyData, VladVocabularyData
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from slam import Slam  # Only imported when type checking, not at runtime
+    from feature_manager import FeatureManager
 
 
 kVerbose = True
@@ -214,11 +219,27 @@ class LoopDetectorConfigs(object):
     
 
 
+
+class SlamFeatureManagerInfo:
+    def __init__(self, slam: 'Slam'=None, feature_manager: 'FeatureManager'=None):
+        self.feature_descriptor_type = None
+        self.feature_descriptor_norm_type = None
+        if slam is not None:
+            assert(slam.feature_tracker is not None)
+            assert(slam.feature_tracker.feature_manager is not None)
+            self.feature_descriptor_type = slam.feature_tracker.feature_manager.descriptor_type 
+            self.feature_descriptor_norm_type = slam.feature_tracker.feature_manager.norm_type
+        elif feature_manager is not None:
+            self.feature_descriptor_type = feature_manager.descriptor_type 
+            self.feature_descriptor_norm_type = feature_manager.norm_type 
+        
+
 def loop_detector_factory(
         global_descriptor_type = GlobalDescriptorType.DBOW3,
         local_feature_manager_config = None,                                      # If None the frontend local descriptors will be re-used (depending on the used descriptor aggregator and vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.DBOW3,
-        vocabulary_data = OrbVocabularyData()):
+        vocabulary_data = OrbVocabularyData(),
+        slam_info=SlamFeatureManagerInfo()):
     
     if vocabulary_data is not None:
         vocabulary_data.check_download() # check if the vocabulary exists or we need to download it    
@@ -240,9 +261,9 @@ def loop_detector_factory(
     elif global_descriptor_type == GlobalDescriptorType.VLAD:
         loop_detector = LoopDetectorVlad(vocabulary_data=vocabulary_data, local_feature_manager=local_feature_manager)        
     elif global_descriptor_type == GlobalDescriptorType.OBINDEX2:
-        loop_detector = LoopDetectorOBIndex2(local_feature_manager=local_feature_manager)
+        loop_detector = LoopDetectorOBIndex2(local_feature_manager=local_feature_manager, slam_info=slam_info)
     elif global_descriptor_type == GlobalDescriptorType.IBOW:
-        loop_detector = LoopDetectorIBow(local_feature_manager=local_feature_manager)
+        loop_detector = LoopDetectorIBow(local_feature_manager=local_feature_manager, slam_info=slam_info)
     elif global_descriptor_type == GlobalDescriptorType.HDC_DELF:
         loop_detector = LoopDetectorHdcDelf(local_feature_manager=local_feature_manager)
     elif global_descriptor_type == GlobalDescriptorType.SAD:

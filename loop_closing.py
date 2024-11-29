@@ -26,13 +26,16 @@ from collections import defaultdict
 import os
 import time
 
-from utils_sys import Printer, MultiprocessingManager, Logging
+from utils_sys import Printer, Logging
+from utils_mp import MultiprocessingManager
 from utils_img import LoopCandidateImgs
 from utils_features import transform_float_to_binary_descriptor
 from utils_data import empty_queue
 from utils_geom import Sim3Pose
 from utils_draw import draw_feature_matches
 from timer import TimerFps
+
+from qimage_thread import QimageViewer
 
 from loop_detector_configs import LoopDetectorConfigs
 
@@ -54,7 +57,7 @@ from parameters import Parameters
 from relocalizer import Relocalizer
 
 import traceback
-
+import platform
 import pickle
 import logging 
 
@@ -722,22 +725,30 @@ class LoopClosing:
       
 
     def add_keyframe(self, keyframe: KeyFrame, img, print=print):
-        print(f'LoopClosing: Adding keyframe with img id: {keyframe.id} (kid: {keyframe.kid})')
-        keyframe.set_not_erase()
-        task_type = LoopDetectorTaskType.LOOP_CLOSURE
-        # If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
-        if keyframe.kid < self.last_loop_kf_id + 10:
-            task_type = LoopDetectorTaskType.COMPUTE_GLOBAL_DES # just compute the global descriptor for this keyframe
+        try:
+            
+            print(f'LoopClosing: Adding keyframe with img id: {keyframe.id} (kid: {keyframe.kid})')
+            keyframe.set_not_erase()
+            task_type = LoopDetectorTaskType.LOOP_CLOSURE
+            # If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
+            if keyframe.kid < self.last_loop_kf_id + 10:
+                task_type = LoopDetectorTaskType.COMPUTE_GLOBAL_DES # just compute the global descriptor for this keyframe
 
-        if task_type == LoopDetectorTaskType.LOOP_CLOSURE:
-            covisible_keyframes = keyframe.get_covisible_keyframes()
-            connected_keyframes = keyframe.get_connected_keyframes()
-        else: 
-            covisible_keyframes = []
-            connected_keyframes = []
-        task = LoopDetectorTask(keyframe, img, task_type, covisible_keyframes=covisible_keyframes, connected_keyframes=connected_keyframes)        
-        
-        self.loop_detecting_process.add_task(task)
+            if task_type == LoopDetectorTaskType.LOOP_CLOSURE:
+                covisible_keyframes = keyframe.get_covisible_keyframes()
+                connected_keyframes = keyframe.get_connected_keyframes()
+            else: 
+                covisible_keyframes = []
+                connected_keyframes = []
+            task = LoopDetectorTask(keyframe, img, task_type, covisible_keyframes=covisible_keyframes, connected_keyframes=connected_keyframes)        
+            
+            self.loop_detecting_process.add_task(task)
+            
+        except Exception as e:
+            print(f'LoopClosing: add_keyframe: EXCEPTION: {e}!!!')
+            if kPrintTrackebackDetails:
+                traceback_details = traceback.format_exc()
+                print(f'\t traceback details: {traceback_details}')
         
 
     # main loop in LoopClosing thread
@@ -881,28 +892,41 @@ class LoopClosing:
         draw = False
         if self.loop_consistent_candidate_imgs is not None:
             if not self.draw_loop_consistent_candidate_imgs_init:
-                cv2.namedWindow('loop closing: consistent candidates', cv2.WINDOW_NORMAL) # to get a resizable window
+                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                    cv2.namedWindow('loop closing: consistent candidates', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_loop_consistent_candidate_imgs_init = True
             if self.loop_consistent_candidate_imgs.candidates is not None:
                 draw = True
-                cv2.imshow('loop closing: consistent candidates', self.loop_consistent_candidate_imgs.candidates)
+                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                    cv2.imshow('loop closing: consistent candidates', self.loop_consistent_candidate_imgs.candidates)
+                else: 
+                    QimageViewer.get_instance().draw(self.loop_consistent_candidate_imgs.candidates, 'loop closing: consistent candidates')
     
         if detection_output.similarity_matrix is not None:
             if not self.draw_similarity_matrix_init:
-                cv2.namedWindow('loop closing: similarity matrix', cv2.WINDOW_NORMAL) # to get a resizable window
+                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                    cv2.namedWindow('loop closing: similarity matrix', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_similarity_matrix_init = True
             draw = True
-            cv2.imshow('loop closing: similarity matrix', detection_output.similarity_matrix)            
+            if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                cv2.imshow('loop closing: similarity matrix', detection_output.similarity_matrix)
+            else: 
+                QimageViewer.get_instance().draw(detection_output.similarity_matrix, 'loop closing: similarity matrix')            
         
         if detection_output.loop_detection_img_candidates is not None:
             if not self.draw_loop_detection_imgs_init:
-                cv2.namedWindow('loop-detection: candidates', cv2.WINDOW_NORMAL) # to get a resizable window
+                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                    cv2.namedWindow('loop-detection: candidates', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_loop_detection_imgs_init = True
             draw = True
-            cv2.imshow('loop-detection: candidates', detection_output.loop_detection_img_candidates)
+            if platform.system() != 'Darwin': # under mac we can use cv2 imshow here            
+                cv2.imshow('loop-detection: candidates', detection_output.loop_detection_img_candidates)
+            else: 
+                QimageViewer.get_instance().draw(detection_output.loop_detection_img_candidates, 'loop-detection: candidates')               
             
         if draw:
-            cv2.waitKey(1)        
+            if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                cv2.waitKey(1)        
             
             
     def relocalize(self, frame: Frame, img):

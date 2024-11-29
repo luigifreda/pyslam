@@ -20,7 +20,8 @@ import g2o
 from optimizer_g2o import global_bundle_adjustment
 
 from keyframe_data import KeyFrameData
-from utils_sys import Printer, MultiprocessingManager, Logging
+from utils_sys import Printer, Logging
+from utils_mp import MultiprocessingManager
 from utils_data import empty_queue, Value
 
 import logging

@@ -17,6 +17,8 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import platform 
+
 import config
 
 import time
@@ -27,14 +29,19 @@ import pypangolin as pangolin
 import OpenGL.GL as gl
 import numpy as np
 
-import open3d as o3d
+#import open3d as o3d # apparently, this generates issues under mac
 
-from slam import Slam
 from map import Map
 
 from utils_geom import inv_T, align_trajs_with_svd
-from utils_sys import MultiprocessingManager, Printer
+from utils_sys import Printer
+from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from slam import Slam  # Only imported when type checking, not at runtime
+    
 
 kUiWidth = 180
 
@@ -444,7 +451,7 @@ class Viewer3D(object):
 
 
     # draw sparse map
-    def draw_map(self, slam: Slam):
+    def draw_map(self, slam: 'Slam'):
         if self.qmap is None:
             return
         map = slam.map                     # type: Map
@@ -501,7 +508,7 @@ class Viewer3D(object):
                              
         self.qmap.put(map_state)
 
-    def draw_dense_map(self, slam: Slam):
+    def draw_dense_map(self, slam: 'Slam'):
         if self.qdense is None:
             return
         dense_map_output = slam.get_dense_map()

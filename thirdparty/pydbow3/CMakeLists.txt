@@ -47,6 +47,8 @@ pybind11_add_module(pydbow3
     src/ndarray_converter.cpp
 )
 
+message(STATUS "DBoW3_LIBS: ${DBoW3_LIBS}")
+
 target_link_libraries(pydbow3
 PRIVATE
     ${OpenCV_LIBS}

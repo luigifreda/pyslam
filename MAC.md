@@ -1,7 +1,21 @@
 
 # Install pyslam under macOS 
 
-The following procedure has been tested under *Sonoma 14.5* and *Xcode 15.4*. 
+<!-- TOC -->
+
+- [Install pyslam under macOS](#install-pyslam-under-macos)
+  - [Install steps](#install-steps)
+  - [Notes about macOS](#notes-about-macos)
+    - [Install homebrew](#install-homebrew)
+    - [Issues found with dynamic matlplotlib](#issues-found-with-dynamic-matlplotlib)
+    - [Issues found with OpenCV and pyenv](#issues-found-with-opencv-and-pyenv)
+
+<!-- /TOC -->
+
+
+The following procedure has been tested under *Sequoia 15.1.1* and *Xcode 16.1*. 
+
+## Install steps
 
 Please, follow these install steps: 
 
@@ -23,24 +37,24 @@ Please, follow these install steps:
 5. in order to run `main_vo.py` run 
    ```bash
    $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
-   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_vo.py 
+   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_vo.py  # Deprecated: Not needed anymore. 
    ```
 6. in order to run `main_slam.py` run 
    ```bash
    $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal. 
-   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_slam.py
+   $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./main_slam.py  # Deprecated: Not needed anymore. 
    ```
 
 **NOTE 1**: the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
-```
+```bash
 $ . pyenv-activate.sh 
 ```
 (do not forget the dot! without '/' ! )
 You can find further details about python virtual environments [here](./PYTHON-VIRTUAL-ENVS.md).
 
 **NOTE 2**: the launch scripts `./scripts/launch_main_xxx.sh ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary environment variable setting (explained below):
-```
-$ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py
+```bash
+$ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES python3 main_xxx.py  # Deprecated: Not needed anymore. 
 ```
 
  **NOTE 3**: In order to make things running under macOS, I had to use some tricks (for matplotlib processes in particular, further details below). Please, consider that pyslam has been designed under Linux (Ubuntu 18.04), where you can get it in its 'best shape'. 
@@ -55,12 +69,14 @@ $ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/inst
 ```
 
 You may also need to install gcc by using XCode Command Line Tools. Run 
-```
+```bash
 $ xcode-select --install
 ```
 
 
-### Issues found with matlplotlib 
+### Issues found with dynamic matlplotlib 
+
+**NEWS**: Under mac, the old classes `Mplot2d` and `Mplot3d` (based on `matplotlib`) are automatically replaced by `Qplot2d` and `Qplot3d` (based on `pyqtgraph`), which do not present the problems reported below. 
 
 I found the following problems with python multi-processing (see https://stackoverflow.com/questions/50168647/multiprocessing-causes-python-to-crash-and-gives-an-error-may-have-been-in-progr). The proposed solution to run this command in the open shell 
 ```

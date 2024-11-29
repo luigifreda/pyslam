@@ -43,6 +43,10 @@ import config
 config.cfg.set_lib('pyibow')
 import pyibow as ibow
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from loop_detector_configs import SlamFeatureManagerInfo  # Only imported when type checking, not at runtime
+
 
 kVerbose = True
 
@@ -62,9 +66,10 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
 
 
 class LoopDetectorIBow(LoopDetectorBase): 
-    def __init__(self, local_feature_manager=None):
+    def __init__(self, local_feature_manager=None, slam_info: 'SlamFeatureManagerInfo'=None):
         super().__init__()
-        self.local_feature_manager = local_feature_manager        
+        self.local_feature_manager = local_feature_manager
+        self.slam_info = slam_info          
         self.lc_detector_parameters = ibow.LCDetectorParams()
         self.lc_detector_parameters.p = 50 # default in ibow: 250
         print(f'LoopDetectorIBow: min number of images to start detecting loops: {self.lc_detector_parameters.p}')    
@@ -113,7 +118,7 @@ class LoopDetectorIBow(LoopDetectorBase):
         des_ = des
         
         # if we are not using a binary descriptr then we conver the float descriptors to binary        
-        if FeatureInfo.norm_type[FrameShared.feature_manager.descriptor_type] != cv2.NORM_HAMMING:
+        if self.slam_info.feature_descriptor_norm_type != cv2.NORM_HAMMING:
             des_ = transform_float_to_binary_descriptor(des)
                                     
         candidate_idxs = []

@@ -31,6 +31,11 @@ if [ -d "thirdparty/opencv-python" ]; then
     rm -Rf thirdparty/opencv-python
 fi
 
+if [ -d "thirdparty/open3d" ]; then
+    rm -Rf thirdparty/open3d
+fi
+
+
 cd thirdparty/pydbow3
 ./clean.sh
 cd $SCRIPT_DIR

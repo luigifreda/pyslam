@@ -29,7 +29,8 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from utils_sys import Printer, set_rlimit, MultiprocessingManager
+from utils_sys import Printer, set_rlimit
+from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
 
 from parameters import Parameters
@@ -40,10 +41,16 @@ from timer import TimerFps
 from keyframe import KeyFrame
 from frame import Frame
 
-from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check
+from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check, SlamFeatureManagerInfo
 from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorBase, LoopDetectorOutput
 
 import traceback
+
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from slam import Slam  # Only imported when type checking, not at runtime
+
 
 
 kVerbose = True
@@ -66,17 +73,17 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
 # This wouldn't be possible with python multithreading that runs threads on the same CPU core (due to the GIL).
 # A LoopDetectingProcess instance is owned by LoopClosing. The latter does the full job of managing (1) detection, (2) consistency verification, (3) geometry verification and (4) correction.  
 class LoopDetectingProcess:
-    def __init__(self, slam, loop_detector_config = LoopDetectorConfigs.DBOW3):
+    def __init__(self, slam: 'Slam', loop_detector_config = LoopDetectorConfigs.DBOW3):
         set_rlimit()          
+                
+        self.loop_detector_config = loop_detector_config
+        self.slam_info = SlamFeatureManagerInfo(slam=slam)
         
         # NOTE: We must initialze in the launched process in order to avoid pickling problems.
-        # self.loop_detector = loop_detector_factory(**loop_detector_config)
+        # self.loop_detector = loop_detector_factory(**loop_detector_config, slam_info=self.slam_info)
         # if slam is not None:
         #     loop_detector_config_check(self.loop_detector, slam.feature_tracker.feature_manager.descriptor_type)
-        
-        self.loop_detector_config = loop_detector_config
-        self.slam_feature_descriptor_type = slam.feature_tracker.feature_manager.descriptor_type if slam is not None else None
-        
+                
         self.time_loop_detection = mp.Value('d',0.0)       
         
         self.last_input_task = None
@@ -106,7 +113,7 @@ class LoopDetectingProcess:
     def start(self):
         self.is_running.value = 1
         self.process = mp.Process(target=self.run,
-                          args=(self.loop_detector_config, self.slam_feature_descriptor_type, \
+                          args=(self.loop_detector_config, self.slam_info, \
                                 self.q_in, self.q_in_condition, \
                                 self.q_out, self.q_out_condition, \
                                 self.q_out_reloc, self.q_out_reloc_condition, \
@@ -196,14 +203,14 @@ class LoopDetectingProcess:
                 self.process.terminate()      
             print('LoopDetectingProcess: done')   
     
-    def init(self, loop_detector_config, slam_feature_descriptor_type):
-        self.loop_detector = loop_detector_factory(**loop_detector_config)
-        if slam_feature_descriptor_type is not None:
-            loop_detector_config_check(self.loop_detector, slam_feature_descriptor_type)
+    def init(self, loop_detector_config, slam_info: SlamFeatureManagerInfo):
+        self.loop_detector = loop_detector_factory(**loop_detector_config, slam_info=slam_info)
+        if slam_info.feature_descriptor_type is not None:
+            loop_detector_config_check(self.loop_detector, slam_info.feature_descriptor_type)
         self.loop_detector.init()        
     
     # main loop of the loop detection process
-    def run(self, loop_detector_config, slam_feature_descriptor_type,\
+    def run(self, loop_detector_config, slam_info,\
             q_in, q_in_condition, \
             q_out, q_out_condition, \
             q_out_reloc, q_out_reloc_condition, \
@@ -212,7 +219,7 @@ class LoopDetectingProcess:
             save_request_completed, save_request_condition, \
             time_loop_detection):
         print('LoopDetectingProcess: starting...')
-        self.init(loop_detector_config, slam_feature_descriptor_type)
+        self.init(loop_detector_config, slam_info)
         # main loop
         while is_running.value == 1:
             with q_in_condition:

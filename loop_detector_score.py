@@ -32,8 +32,6 @@ from typing import List
 
 from parameters import Parameters
 import torch
-from pyflann import FLANN
-import faiss
 
 import traceback
 

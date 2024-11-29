@@ -40,7 +40,6 @@ from local_mapping import LocalMapping
 
 from loop_closing import LoopClosing
 
-
 from dataset import SensorType
 
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo

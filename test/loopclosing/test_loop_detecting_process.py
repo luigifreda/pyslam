@@ -24,9 +24,8 @@ Parameters.kLoopClosingDebugAndPrintToFile = False
 Parameters.kLoopClosingDebugWithSimmetryMatrix = True
 Parameters.kLoopClosingDebugWithLoopDetectionImages = True
 
-from loop_detector_dbow2 import LoopDetectorDBoW2
-from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check
-from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorOutput, LoopDetectKeyframeData
+from loop_detector_configs import LoopDetectorConfigs
+from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectKeyframeData
 from loop_detecting_process import LoopDetectingProcess
 
 
@@ -44,12 +43,14 @@ if __name__ == '__main__':
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
     
+    print(f'feature tracker manager: {feature_tracker.feature_manager}')
+    
     # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FrameShared. 
     Frame.set_tracker(feature_tracker) 
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.OBINDEX2 
+    loop_detection_config = LoopDetectorConfigs.DBOW3 
     Printer.green('loop_detection_config: ',loop_detection_config)
     loop_detecting_process = LoopDetectingProcess(slam=None,loop_detector_config=loop_detection_config)
     

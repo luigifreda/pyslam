@@ -2,6 +2,9 @@
 .*.swo
 *.pyo 
 __pycache__
+
+.DS_Store
+
 tmp
 build
 debug.txt
@@ -12,6 +15,7 @@ config.pyc
 thirdparty/g2opy
 thirdparty/pangolin
 thirdparty/opencv-python
+thirdparty/open3d
 thirdparty/contextdesc/pretrained 
 matches.txt 
 map.png

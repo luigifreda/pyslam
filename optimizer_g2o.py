@@ -29,7 +29,8 @@ import traceback
 import g2o
 
 from utils_geom import poseRt, Sim3Pose
-from utils_sys import Printer, MultiprocessingManager
+from utils_sys import Printer
+from utils_mp import MultiprocessingManager
 from frame import FrameShared
 from map_point import MapPoint
 from keyframe import KeyFrame

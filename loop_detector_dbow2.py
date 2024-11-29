@@ -70,8 +70,9 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         super().__init__()
         self.local_feature_manager = local_feature_manager        
         self.voc = dbow2.BinaryVocabulary()
-        print(f'LoopDetectorDBoW2: loading vocabulary...')
+        print(f'LoopDetectorDBoW2: downloading vocabulary...')
         vocabulary_data.check_download()
+        print(f'LoopDetectorDBoW2: loading vocabulary...')        
         self.voc.load(vocabulary_data.vocab_file_path)
         print(f'...done')
         

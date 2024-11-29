@@ -31,9 +31,8 @@ from camera  import PinholeCamera
 from ground_truth import groundtruth_factory
 from dataset import dataset_factory
 
-#from mplot3d import Mplot3d
-#from mplot2d import Mplot2d
 from mplot_thread import Mplot2d, Mplot3d
+from qtplot_thread import Qplot2d
 
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
@@ -42,7 +41,7 @@ from rerun_interface import Rerun
 
 
 
-kUseRerun = True
+kUseRerun = False
 # check rerun does not have issues 
 if kUseRerun and not Rerun.is_ok():
     kUseRerun = False
@@ -52,11 +51,20 @@ use or not pangolin (if you want to use it then you need to install it by using 
 """
 kUsePangolin = True  
 if platform.system() == 'Darwin':
-    kUsePangolin = True # Under mac force pangolin to be used since Mplot3d() has some reliability issues
-                
+    kUsePangolin = True # Under mac force pangolin to be used since Mplot3d() has some reliability issues                
 if kUsePangolin:
     from viewer3D import Viewer3D
 
+kUseQplot2d = False
+if platform.system() == 'Darwin':
+    kUseQplot2d = True # Under mac force the usage of Qtplot2d: It is smoother 
+
+def factory_plot2d(*args,**kwargs):
+    if kUseQplot2d:
+        return Qplot2d(*args,**kwargs)
+    else:
+        return Mplot2d(*args,**kwargs)
+    
 
 if __name__ == "__main__":
 
@@ -101,17 +109,20 @@ if __name__ == "__main__":
             plt3d = Mplot3d(title='3D trajectory')
 
     is_draw_err = True 
-    err_plt = Mplot2d(xlabel='img id', ylabel='m',title='error')
+    err_plt = factory_plot2d(xlabel='img id', ylabel='m',title='error')
     
     is_draw_matched_points = True 
-    matched_points_plt = Mplot2d(xlabel='img id', ylabel='# matches',title='# matches')
+    matched_points_plt = factory_plot2d(xlabel='img id', ylabel='# matches',title='# matches')
 
     
     img_id = 0
-    while dataset.isOk():
+    while True:
+        
+        img = None
 
-        timestamp = dataset.getTimestamp()          # get current timestamp 
-        img = dataset.getImageColor(img_id)
+        if dataset.isOk():
+            timestamp = dataset.getTimestamp()          # get current timestamp 
+            img = dataset.getImageColor(img_id)
 
         if img is not None:
 
@@ -155,8 +166,8 @@ if __name__ == "__main__":
                         if kUsePangolin:
                             viewer3D.draw_vo(vo)   
                         else:
-                            plt3d.drawTraj(vo.traj3d_gt,'ground truth',color='r',marker='.')
-                            plt3d.drawTraj(vo.traj3d_est,'estimated',color='g',marker='.')
+                            plt3d.draw(vo.traj3d_gt,'ground truth',color='r',marker='.')
+                            plt3d.draw(vo.traj3d_est,'estimated',color='g',marker='.')
 
                     if is_draw_err:         # draw error signals 
                         errx = [img_id, math.fabs(x_true-x)]
@@ -176,6 +187,9 @@ if __name__ == "__main__":
             if not is_draw_with_rerun:
                 cv2.imshow('Camera', vo.draw_img)				
 
+        else: 
+            time.sleep(0.1) 
+                
         # get keys 
         key = matched_points_plt.get_key() if matched_points_plt is not None else None
         if key == '' or key is None:

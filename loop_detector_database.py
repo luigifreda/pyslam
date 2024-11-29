@@ -24,6 +24,8 @@ import math
 import numpy as np
 import cv2
 import sys
+import platform
+
 from enum import Enum
 
 from utils_sys import getchar, Printer 
@@ -32,7 +34,10 @@ from typing import List
 
 from parameters import Parameters
 import torch
-from pyflann import FLANN
+
+if platform.system() != 'Darwin':
+    from pyflann import FLANN
+
 import faiss
 
 import pickle
@@ -169,7 +174,9 @@ class FlannDatabase(Database):
         self.global_des_database = []
         self.recent_descriptors = []
         self.score = score
-        self.flann = FLANN()
+        self.flann = None
+        if platform.system() != 'Darwin':
+            self.flann = FLANN()
         self.flann_index = None
         self.index_built = False
         self.rebuild_threshold = rebuild_threshold

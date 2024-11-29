@@ -67,8 +67,9 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         super().__init__()
         self.local_feature_manager = local_feature_manager              
         self.voc = dbow3.Vocabulary()  
-        print(f'LoopDetectorDBoW3: loading vocabulary...')
+        print(f'LoopDetectorDBoW3: downloading vocabulary...')
         vocabulary_data.check_download()
+        print(f'LoopDetectorDBoW3: loading vocabulary...')        
         self.voc.load(vocabulary_data.vocab_file_path)
         print(f'LoopDetectorDBoW3: ...done')
         self.db = dbow3.Database()

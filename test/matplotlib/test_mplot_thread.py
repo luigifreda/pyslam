@@ -62,8 +62,8 @@ if __name__ == "__main__":
         if is_draw_3d:           # draw 3d trajectory 
             traj3d_gt.append((img_id,img_id,img_id))
             traj3d_est.append((2*img_id,2*img_id,2*img_id))
-            plt3d.drawTraj(traj3d_gt,'ground truth',color='r',marker='.')
-            plt3d.drawTraj(traj3d_est,'estimated',color='g',marker='.')
+            plt3d.draw(traj3d_gt,'ground truth',color='r',marker='.')
+            plt3d.draw(traj3d_est,'estimated',color='g',marker='.')
 
         if is_draw_err:         # draw error signals 
             errx = [img_id, img_id]
@@ -80,8 +80,14 @@ if __name__ == "__main__":
             matched_points_plt.draw(inliers_signal,'# inliers',color='g')                          
     
 
+        key = None
         if err_plt:
             key = err_plt.get_key()
+        if not key and plt3d:
+            key = plt3d.get_key()
+        if not key and matched_points_plt:
+            key = matched_points_plt.get_key()
+            
         if key and key != chr(0):
             print('key: ', err_plt.get_key())
             if key == 'q':

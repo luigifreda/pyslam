@@ -42,6 +42,10 @@ import config
 config.cfg.set_lib('pyobindex2')
 import pyobindex2 as obindex2
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from loop_detector_configs import SlamFeatureManagerInfo  # Only imported when type checking, not at runtime
+
 
 kVerbose = True
 
@@ -61,10 +65,11 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
 
 
 class LoopDetectorOBIndex2(LoopDetectorBase): 
-    def __init__(self, local_feature_manager=None, match_ratio=0.8):
+    def __init__(self, local_feature_manager=None, slam_info:'SlamFeatureManagerInfo'=None, match_ratio=0.8):
         super().__init__()
         self.match_ratio = match_ratio
-        self.local_feature_manager = local_feature_manager        
+        self.local_feature_manager = local_feature_manager
+        self.slam_info = slam_info  
         # Creating a new index of images
         self.index = obindex2.ImageIndex(16, 150, 4, obindex2.MERGE_POLICY_AND, True)               
         
@@ -107,7 +112,7 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         des_ = des
         
         # if we are not using a binary descriptr then we conver the float descriptors to binary
-        if FeatureInfo.norm_type[FrameShared.feature_manager.descriptor_type] != cv2.NORM_HAMMING:
+        if self.slam_info.feature_descriptor_norm_type != cv2.NORM_HAMMING:
             des_ = transform_float_to_binary_descriptor(des)
                                     
         candidate_idxs = []

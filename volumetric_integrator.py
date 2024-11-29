@@ -29,7 +29,8 @@ from camera import Camera
 from map import Map
 
 from utils_geom import inv_T, align_trajs_with_svd
-from utils_sys import Printer, set_rlimit, MultiprocessingManager, LoggerQueue
+from utils_sys import Printer, set_rlimit, LoggerQueue
+from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
 
 from timer import TimerFps

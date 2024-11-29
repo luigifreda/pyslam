@@ -30,8 +30,9 @@ from mpl_toolkits.mplot3d import Axes3D
 if __name__ == "__main__":
 
     fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    #ax.set_aspect('equal')
+    ax = fig.add_subplot(111, projection='3d')
+    #ax = fig.gca(projection='3d')
+    ax.set_aspect('equal')
 
     X = np.random.rand(100)*10+5
     Y = np.random.rand(100)*5+2.5

@@ -81,12 +81,17 @@ fi
 pip install protobuf==3.20.*    # for delf NN
 pip install ujson
 
-pip install einops                     # for VLAD
-pip install fast-pytorch-kmeans==0.1.6 # for VLAD
+pip install einops                       # for VLAD
+pip install fast-pytorch-kmeans #==0.1.6 # for VLAD
  
 pip install pyflann-py3 # for loop closure database
 pip install faiss-cpu   # for loop closure database (there is also faiss-gpu)
 
 pip install joblib
 
-pip install open3d
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    pip install open3d
+fi
+
+pip install pyqtgraph pyqt5 
+pip install gdown 

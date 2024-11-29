@@ -34,8 +34,6 @@ from ground_truth import groundtruth_factory
 from dataset import dataset_factory, SensorType
 from trajectory_writer import TrajectoryWriter
 
-from mplot_thread import Mplot2d
-import matplotlib.colors as mcolors
 
 if platform.system()  == 'Linux':     
     from display2D import Display2D  #  !NOTE: pygame generate troubles under macOS!
@@ -83,7 +81,7 @@ if __name__ == "__main__":
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.DBOW3
+    loop_detection_config = LoopDetectorConfigs.OBINDEX2
     Printer.green('loop_detection_config: ',loop_detection_config)
         
     # create SLAM object 
@@ -103,7 +101,7 @@ if __name__ == "__main__":
         if viewer3D is not None:
             viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=dataset.sensor_type==SensorType.MONOCULAR)
     
-    if platform.system()  == 'Linux':    
+    if platform.system() == 'Linux':    
         display2d = Display2D(cam.width, cam.height)  # pygame interface 
     else: 
         display2d = None  # enable this if you want to use opencv window
@@ -198,7 +196,8 @@ if __name__ == "__main__":
         
         if slam.tracking.state==SlamState.LOST:
             if display2d is None:  
-                key_cv = cv2.waitKey(0) & 0xFF   # useful when drawing stuff for debugging                                 
+                #key_cv = cv2.waitKey(0) & 0xFF   # useful when drawing stuff for debugging
+                key_cv = cv2.waitKey(500) & 0xFF                                 
             else: 
                 #getchar()
                 time.sleep(0.5)

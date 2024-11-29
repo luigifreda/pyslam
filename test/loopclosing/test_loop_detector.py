@@ -24,8 +24,8 @@ Parameters.kLoopClosingDebugWithSimmetryMatrix = True
 Parameters.kLoopClosingDebugWithLoopDetectionImages = True
 
 from loop_detector_dbow2 import LoopDetectorDBoW2
-from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check
-from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorOutput, LoopDetectKeyframeData
+from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, SlamFeatureManagerInfo
+from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectKeyframeData
 
 
 # online loop closure detection by using DBoW3        
@@ -43,9 +43,9 @@ if __name__ == '__main__':
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.IBOW  
+    loop_detection_config = LoopDetectorConfigs.DBOW3  
     Printer.green('loop_detection_config: ',loop_detection_config)
-    loop_detector = loop_detector_factory(**loop_detection_config)
+    loop_detector = loop_detector_factory(**loop_detection_config, slam_info=SlamFeatureManagerInfo(feature_manager=feature_tracker.feature_manager))
     
     img_writer = ImgWriter(font_scale=0.7)    
     

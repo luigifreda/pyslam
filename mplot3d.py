@@ -50,7 +50,7 @@ class Mplot3d:
             self.ax.set_zlim(self.zlim)                             
         self.ax.legend()
 
-    def drawTraj(self, traj, name, color='r', marker='.'):
+    def draw(self, traj, name, color='r', marker='.'):
         np_traj = np.asarray(traj)        
         if name in self.handle_map:
             handle = self.handle_map[name]

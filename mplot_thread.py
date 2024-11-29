@@ -32,8 +32,8 @@ import logging
 
 #import multiprocessing as mp 
 import torch.multiprocessing as mp
-from utils_sys import MultiprocessingManager, Logging
-
+from utils_sys import Logging
+from utils_mp import MultiprocessingManager
 
 kPlotSleep = 0.04
 kVerbose = False 
@@ -118,6 +118,10 @@ class Mplot2d:
         self.axis_computed = False 
         self.xlim = [float("inf"),float("-inf")]
         self.ylim = [float("inf"),float("-inf")]    
+        self.xmin = float("inf")
+        self.xmax = float("-inf")
+        self.ymin = float("inf")
+        self.ymax = float("-inf")        
 
         self.key = mp.Value('i',0)
         self.is_running = mp.Value('i',1)
@@ -146,6 +150,28 @@ class Mplot2d:
         self.process.terminate()
         print(f'Mplot2d \"{self.title}\" closed')
 
+    def init(self, figure_num, lock):    
+        lock.acquire()      
+        if kVerbose:
+            print(mp.current_process().name,"initializing...") 
+        self.fig = plt.figure(figure_num)
+        if kUseFigCanvasDrawIdle:
+            self.fig.canvas.draw_idle() 
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)       
+        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)       
+        self.fig.canvas.mpl_connect('close_event', self.on_close)                
+        #self.ax = self.fig.gca(projection='3d')
+        #self.ax = self.fig.gca()
+        self.ax = self.fig.add_subplot(111)   
+        if self.title != '':
+            self.ax.set_title(self.title) 
+        self.ax.set_xlabel(self.xlabel)
+        self.ax.set_ylabel(self.ylabel)	   
+        self.ax.grid()		
+        #Autoscale on unknown axis and known lims on the other
+        self.ax.set_autoscaley_on(True)   
+        lock.release()
+        
     def run(self, figure_num, queue, lock, key, is_running, key_queue):  
         if kVerbose:
             print('Mplot2d: starting run on figure ', figure_num.value)
@@ -196,28 +222,6 @@ class Mplot2d:
             return chr(self.key_queue.get())                
         else:
             return ''
-
-    def init(self, figure_num, lock):    
-        lock.acquire()      
-        if kVerbose:
-            print(mp.current_process().name,"initializing...") 
-        self.fig = plt.figure(figure_num)
-        if kUseFigCanvasDrawIdle:
-            self.fig.canvas.draw_idle() 
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)       
-        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)       
-        self.fig.canvas.mpl_connect('close_event', self.on_close)                
-        #self.ax = self.fig.gca(projection='3d')
-        #self.ax = self.fig.gca()
-        self.ax = self.fig.add_subplot(111)   
-        if self.title != '':
-            self.ax.set_title(self.title) 
-        self.ax.set_xlabel(self.xlabel)
-        self.ax.set_ylabel(self.ylabel)	   
-        self.ax.grid()		
-        #Autoscale on unknown axis and known lims on the other
-        self.ax.set_autoscaley_on(True)   
-        lock.release()
 
     def setAxis(self):		                     
         self.ax.legend()
@@ -283,7 +287,13 @@ class Mplot3d:
         self.axis_computed = False 
         self.xlim = [float("inf"),float("-inf")]
         self.ylim = [float("inf"),float("-inf")]
-        self.zlim = [float("inf"),float("-inf")]        
+        self.zlim = [float("inf"),float("-inf")] 
+        self.xmin = float("inf")
+        self.xmax = float("-inf")
+        self.ymin = float("inf")
+        self.ymax = float("-inf")
+        self.zmin = float("inf")
+        self.zmax = float("-inf")            
 
         self.handle_map = {}     
         
@@ -313,6 +323,27 @@ class Mplot3d:
             print("Warning: Mplot3d \"{self.title}\" process did not terminate in time, forced kill.")          
         self.process.terminate()        
         
+
+    def init(self, figure_num, lock):
+        lock.acquire()
+        if kVerbose:
+            print(mp.current_process().name, "initializing...")
+        self.fig = plt.figure(figure_num)
+        if kUseFigCanvasDrawIdle:
+            self.fig.canvas.draw_idle()
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
+        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
+        self.fig.canvas.mpl_connect('close_event', self.on_close)          
+        self.ax = self.fig.add_subplot(111, projection='3d')  # Adjusted line
+        #self.ax = self.fig.gca(projection='3d')
+        if self.title != '':
+            self.ax.set_title(self.title)
+        self.ax.set_xlabel('X axis')
+        self.ax.set_ylabel('Y axis')
+        self.ax.set_zlabel('Z axis')
+        self.setAxis()
+        lock.release()
+                
     def run(self, figure_num, queue, lock, key, is_running, key_queue):  
         if kVerbose:
             print('Mplot3d: starting run on figure ', figure_num.value)        
@@ -336,7 +367,7 @@ class Mplot3d:
             if name in self.handle_map:
                 handle = self.handle_map[name]
                 does_label_exist = True
-            self.updateMinMax(np_traj)
+            self.updateMinMax(np_traj[-1,:])
             handle = self.ax.scatter3D(np_traj[:, 0], np_traj[:, 1], np_traj[:, 2], c=color, marker=marker)
             if not does_label_exist:
                 handle.set_label(name)
@@ -362,26 +393,6 @@ class Mplot3d:
             return chr(self.key_queue.get())                
         else:
             return ''
-    
-    def init(self, figure_num, lock):
-        lock.acquire()
-        if kVerbose:
-            print(mp.current_process().name, "initializing...")
-        self.fig = plt.figure(figure_num)
-        if kUseFigCanvasDrawIdle:
-            self.fig.canvas.draw_idle()
-        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
-        self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
-        self.fig.canvas.mpl_connect('close_event', self.on_close)          
-        self.ax = self.fig.add_subplot(111, projection='3d')  # Adjusted line
-        #self.ax = self.fig.gca(projection='3d')
-        if self.title != '':
-            self.ax.set_title(self.title)
-        self.ax.set_xlabel('X axis')
-        self.ax.set_ylabel('Y axis')
-        self.ax.set_zlabel('Z axis')
-        self.setAxis()
-        lock.release()
         
     def setAxis(self):		
         #self.ax.axis('equal')   # this does not work with the new matplotlib 3    
@@ -395,17 +406,38 @@ class Mplot3d:
             self.fig.canvas.draw()
         self.fig.canvas.flush_events()            
 
-    def drawTraj(self, traj, name, color='r', marker='.'):
+    def draw(self, traj, name, color='r', marker='.'):
         if self.queue is None:
             return
         self.queue.put((traj, name, color, marker))
 
     def updateMinMax(self, np_traj):
-        xmax,ymax,zmax = np.amax(np_traj,axis=0)
-        xmin,ymin,zmin = np.amin(np_traj,axis=0)        
-        cx = 0.5*(xmax+xmin)
-        cy = 0.5*(ymax+ymin)
-        cz = 0.5*(zmax+zmin) 
+        # xmax,ymax,zmax = np.amax(np_traj,axis=0)
+        # xmin,ymin,zmin = np.amin(np_traj,axis=0)
+        x,y,z = np_traj[0], np_traj[1], np_traj[2]
+        if self.xmin == float("inf"):
+            self.xmin = x
+        if self.xmax == float("-inf"):
+            self.xmax = x
+        if self.ymin == float("inf"):
+            self.ymin = y
+        if self.ymax == float("-inf"):
+            self.ymax = y
+        if self.zmin == float("inf"):
+            self.zmin = z
+        if self.zmax == float("-inf"):
+            self.zmax = z
+            
+        self.xmin = min(self.xmin, x)
+        self.xmax = max(self.xmax, x)
+        self.ymin = min(self.ymin, y)
+        self.ymax = max(self.ymax, y)
+        self.zmin = min(self.zmin, z)
+        self.zmax = max(self.zmax, z)
+                        
+        cx = 0.5*(self.xmax+self.xmin)
+        cy = 0.5*(self.ymax+self.ymin)
+        cz = 0.5*(self.zmax+self.zmin) 
         if False: 
             # update maxs       
             if xmax > self.xlim[1]:
@@ -425,8 +457,8 @@ class Mplot3d:
         if True:
             #smin = min(self.xlim[0],self.ylim[0],self.zlim[0])                                            
             #smax = max(self.xlim[1],self.ylim[1],self.zlim[1])
-            smin = min(xmin,ymin,zmin)                                            
-            smax = max(xmax,ymax,zmax)            
+            smin = min(self.xmin,self.ymin,self.zmin)                                            
+            smax = max(self.xmax,self.ymax,self.zmax)            
             delta = 0.5*(smax - smin)
             self.xlim = [cx-delta,cx+delta]
             self.ylim = [cy-delta,cy+delta]

@@ -38,7 +38,8 @@ from search_points import search_frame_for_triangulation, search_and_fuse
 
 from timer import TimerFps
 
-from utils_sys import Printer, MultiprocessingManager, Logging
+from utils_sys import Printer, Logging
+from utils_mp import MultiprocessingManager
 from utils_geom import triangulate_normalized_points
 from utils_data import empty_queue
 
