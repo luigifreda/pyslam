@@ -23,6 +23,10 @@ message("LIB_INSTALL_DIR: ${LIB_INSTALL_DIR}")
 # Build type
 #------------------------------------------------------
 
+# Generate file compile_commands.json in our build folder: it contains the full command line to compile individual source files
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+
 IF(NOT CMAKE_BUILD_TYPE )
    SET( CMAKE_BUILD_TYPE "Release" )
 ENDIF()
@@ -117,6 +121,17 @@ set(EXTRA_C_FLAGS_DEBUG "")
 set(EXTRA_EXE_LINKER_FLAGS "")
 set(EXTRA_EXE_LINKER_FLAGS_RELEASE "")
 set(EXTRA_EXE_LINKER_FLAGS_DEBUG "")
+
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+
+if(USE_MARCH_NATIVE AND NOT "${ARCH}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+    message(STATUS "Build with -march=native")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -O3")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -O3")
+endif()
+
 
 IF(CMAKE_COMPILER_IS_GNUCXX OR MINGW)
     set(ENABLE_PROFILING 		OFF CACHE BOOL "Enable profiling in the GCC compiler (Add flags: -g -pg)")
@@ -214,8 +229,10 @@ ELSE()  # MSVC
 
 
 ENDIF()#END OF COMPILER SPECIFIC OPTIONS
+
 SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} ${EXTRA_C_FLAGS_RELEASE}")
 SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS}  ${EXTRA_C_FLAGS_DEBUG}")
+
 # SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -std=c++11")
 # SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -std=c++11")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELEASE} ${CMAKE_C_FLAGS_DEBUG}")

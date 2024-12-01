@@ -5,42 +5,44 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.2.5](#pyslam-v225)
-    - [1. Install](#1-install)
-        - [1.1. Requirements](#11-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
-    - [2. Usage](#2-usage)
-        - [2.1. Feature tracking](#21-feature-tracking)
-        - [2.2. Loop closing](#22-loop-closing)
-        - [2.3. Save and reload a map](#23-save-and-reload-a-map)
-        - [2.4. Relocalization in a loaded map](#24-relocalization-in-a-loaded-map)
-        - [2.5. Trajectory saving](#25-trajectory-saving)
-        - [2.6. SLAM GUI](#26-slam-gui)
-        - [2.7. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#27-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-    - [3. Supported local features](#3-supported-local-features)
-    - [4. Supported matchers](#4-supported-matchers)
-    - [5. Supported global descriptors and local descriptor aggregation methods](#5-supported-global-descriptors-and-local-descriptor-aggregation-methods)
-            - [5.1. Local descriptor aggregation methods](#51-local-descriptor-aggregation-methods)
-            - [5.2. Global descriptors](#52-global-descriptors)
-    - [6. Datasets](#6-datasets)
-        - [6.1. KITTI Datasets](#61-kitti-datasets)
-        - [6.2. TUM Datasets](#62-tum-datasets)
-        - [6.3. EuRoC Dataset](#63-euroc-dataset)
-    - [7. Camera Settings](#7-camera-settings)
-    - [8. Comparison pySLAM vs ORB-SLAM3](#8-comparison-pyslam-vs-orb-slam3)
-    - [9. Contributing to pySLAM](#9-contributing-to-pyslam)
-    - [10. References](#10-references)
-    - [11. Credits](#11-credits)
-    - [12. TODOs](#12-todos)
+  - [Install](#install)
+    - [Requirements](#requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
+  - [Usage](#usage)
+    - [Feature tracking](#feature-tracking)
+    - [Loop closing](#loop-closing)
+    - [Dense reconstruction pipeline](#dense-reconstruction-pipeline)
+    - [Save and reload a map](#save-and-reload-a-map)
+    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
+    - [Trajectory saving](#trajectory-saving)
+    - [SLAM GUI](#slam-gui)
+    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+  - [Supported local features](#supported-local-features)
+  - [Supported matchers](#supported-matchers)
+  - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
+      - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
+      - [Global descriptors](#global-descriptors)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+    - [EuRoC Dataset](#euroc-dataset)
+  - [Camera Settings](#camera-settings)
+  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
 
 **pySLAM** is a python implementation of a *Visual SLAM* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
 - It supports many classical and modern **[local features](#supported-local-features)** and it offers a convenient interface for them.
-- It implements loop closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and other modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors). 
+- It implements loop closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and other modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
+- It provides a **[dense reconstruction pipeline](#dense-reconstruction-pipeline)** when depth images are provided.  
 - It collects many other useful VO and SLAM tools. 
 
 **Main Scripts**:
@@ -178,6 +180,10 @@ Train the vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_fro
 
 **VLAD vocabulary generation**
 Train the vocabulary by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`
+
+### Dense reconstruction pipeline
+
+Dense reconstruction is disabled by default. You can disable it by setting `kUseVolumetricIntegration=False` in `parameters.py`. At present, it works with RGBD datasets or when a depth image is available at each frame. 
    
 ### Save and reload a map
 

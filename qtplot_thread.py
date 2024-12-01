@@ -35,6 +35,8 @@ sys.path.append("../../")
 import torch.multiprocessing as mp
 from utils_mp import MultiprocessingManager
 
+from utils_sys import locally_configure_qt_environment
+
 class FigureNum: 
     figure_num = 0
     
@@ -117,7 +119,7 @@ class Qplot2d:
 
     def init(self, figure_num, lock):    
         lock.acquire()      
-        
+        locally_configure_qt_environment()
         self.app = pg.mkQApp()  # Create a PyQtGraph application
         self.win = pg.PlotWidget(title=self.title)  # Create a plot widget
         self.legend = pg.LegendItem()
@@ -250,11 +252,12 @@ class Qplot2d:
                 xmajor = 10**(log)
                 return xminor, xmajor
             
-            xminor, xmajor = get_values(deltax)
-            yminor, ymajor = get_values(deltay)
-            
-            self.win.getAxis('left').setTickSpacing(ymajor, yminor)  # Y-axis: major and minor ticks
-            self.win.getAxis('bottom').setTickSpacing(xmajor, xminor)  # X-axis: major and minor ticks        
+            if deltax > 0 and deltay > 0:
+                xminor, xmajor = get_values(deltax)
+                yminor, ymajor = get_values(deltay)
+                
+                self.win.getAxis('left').setTickSpacing(ymajor, yminor)  # Y-axis: major and minor ticks
+                self.win.getAxis('bottom').setTickSpacing(xmajor, xminor)  # X-axis: major and minor ticks        
 
     def setAxis(self):
         if self.axis_computed:	        
@@ -440,7 +443,7 @@ class Qplot3d:
 
     def init(self, figure_num, lock):
         lock.acquire()
-
+        locally_configure_qt_environment()
         self.app = pg.mkQApp()  # Create a PyQtGraph application
         #self.win = gl.GLViewWidget()
         self.win = CustomGLViewWidget()

@@ -17,6 +17,7 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import sys
 import time 
 import os 
 import numpy as np
@@ -32,9 +33,10 @@ import logging
 
 #import multiprocessing as mp 
 import torch.multiprocessing as mp
-from utils_sys import Logging
+from utils_sys import Logging, locally_configure_qt_environment
 from utils_mp import MultiprocessingManager
-
+    
+    
 kPlotSleep = 0.04
 kVerbose = False 
 kDebugAndPrintToFile = True
@@ -152,6 +154,7 @@ class Mplot2d:
 
     def init(self, figure_num, lock):    
         lock.acquire()      
+        locally_configure_qt_environment()
         if kVerbose:
             print(mp.current_process().name,"initializing...") 
         self.fig = plt.figure(figure_num)
@@ -326,6 +329,7 @@ class Mplot3d:
 
     def init(self, figure_num, lock):
         lock.acquire()
+        locally_configure_qt_environment()
         if kVerbose:
             print(mp.current_process().name, "initializing...")
         self.fig = plt.figure(figure_num)

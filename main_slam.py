@@ -81,7 +81,7 @@ if __name__ == "__main__":
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.OBINDEX2
+    loop_detection_config = LoopDetectorConfigs.DBOW3
     Printer.green('loop_detection_config: ',loop_detection_config)
         
     # create SLAM object 

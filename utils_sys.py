@@ -400,3 +400,17 @@ def set_rlimit():
     # Confirm the change
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
     print(f"set_rlimit(): Updated soft limit: {soft_limit}, hard limit: {hard_limit}")
+
+
+# To fix this issue under linux: https://forum.qt.io/topic/119109/using-pyqt5-with-opencv-python-cv2-causes-error-could-not-load-qt-platform-plugin-xcb-even-though-it-was-found
+def locally_configure_qt_environment():
+    ci_and_not_headless = False  # Default value in case the import fails
+    try:
+        from cv2.version import ci_build, headless
+        ci_and_not_headless = ci_build and not headless
+    except ImportError:
+        pass  # Handle the case where cv2.version does not exist
+
+    if sys.platform.startswith("linux") and ci_and_not_headless:
+        os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)  # Remove if exists
+        os.environ.pop("QT_QPA_FONTDIR", None)  # Remove if exists

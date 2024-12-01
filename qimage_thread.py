@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 import time
 
+from utils_sys import Logging, locally_configure_qt_environment
 
 class Resizer:
     def __init__(self, window, name):
@@ -65,6 +66,7 @@ class QimageViewer:
         print(f'QimageViewer closed')
 
     def init(self):
+        locally_configure_qt_environment()
         self.app = QApplication([])  # Initialize the application
         self.image_map = {}  # name -> (label,window)
         self.key 

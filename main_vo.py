@@ -41,7 +41,7 @@ from rerun_interface import Rerun
 
 
 
-kUseRerun = False
+kUseRerun = True
 # check rerun does not have issues 
 if kUseRerun and not Rerun.is_ok():
     kUseRerun = False
