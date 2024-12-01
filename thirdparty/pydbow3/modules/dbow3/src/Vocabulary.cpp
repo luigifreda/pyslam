@@ -1070,8 +1070,14 @@ int Vocabulary::stopWords(double minWeight)
 // --------------------------------------------------------------------------
 
 
-void Vocabulary::save(const std::string &filename,  bool binary_compressed) const
+void Vocabulary::save(const std::string &filename,  bool binary_compressed, bool useBoost) const
 {
+
+    if (useBoost)
+    {
+        saveWithBoost(filename);
+        return;
+    }
 
     if ( filename.find(".yml")==std::string::npos){
         std::ofstream file_out(filename,std::ios::binary);
@@ -1085,11 +1091,28 @@ void Vocabulary::save(const std::string &filename,  bool binary_compressed) cons
     }
 }
 
+
+void Vocabulary::saveWithBoost(const std::string &filename) const {
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs) throw std::runtime_error("Could not open file for writing: " + filename);
+
+    boost::archive::binary_oarchive oa(ofs);
+    oa << *this;
+    std::cout << "DBoW3::Vocabulary saved to " << filename << " (" << size() << " entries)" << std::endl;
+}
+
 // --------------------------------------------------------------------------
 
 
-void Vocabulary::load(const std::string &filename)
+void Vocabulary::load(const std::string &filename, bool useBoost)
 {
+
+    if (useBoost)
+    {
+        loadWithBoost(filename);
+        return;
+    }
+    
     //check first if it is a binary file
     std::ifstream ifile(filename,std::ios::binary);
     if (!ifile) throw std::runtime_error("Vocabulary::load Could not open file :"+filename+" for reading");
@@ -1102,6 +1125,19 @@ void Vocabulary::load(const std::string &filename)
 	    load(fs);
 	}
     }
+}
+
+void Vocabulary::loadWithBoost(const std::string &filename)
+{
+    if (!boost::filesystem::exists(filename))
+        throw std::runtime_error("File does not exist: " + filename);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs) throw std::runtime_error("Could not open file for reading: " + filename);
+
+    boost::archive::binary_iarchive ia(ifs);
+    ia >> *this;
+    std::cout << "DBoW3::Vocabulary loaded from " << filename << " (" << size() << " entries)" << std::endl;    
 }
 
 

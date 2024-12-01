@@ -33,6 +33,18 @@
 
 #include "../DUtils/Random.h"
 
+
+#include "BoostArchiver.h"
+
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/list.hpp>  // Add this include
+#include <boost/serialization/utility.hpp>
+#include <boost/filesystem.hpp>
+
+
 using namespace std;
 
 namespace DBoW2 {
@@ -263,14 +275,18 @@ public:
    * Saves the vocabulary into a file
    * @param filename
    */
-  void save(const std::string &filename) const;
+  void save(const std::string &filename, const bool useBoost=false) const;
+
+  void saveWithBoost(const std::string &filename) const;
   
   /**
    * Loads the vocabulary from a file
    * @param filename
    */
-  void load(const std::string &filename);
+  void load(const std::string &filename, const bool useBoost=false);
   
+  void loadWithBoost(const std::string &filename);
+
   /** 
    * Saves the vocabulary to a file storage structure
    * @param fn node in file storage
@@ -339,6 +355,18 @@ protected:
      * @return true iff the node is a leaf
      */
     inline bool isLeaf() const { return children.empty(); }
+
+    friend class boost::serialization::access;
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version)
+    {
+      ar & id;
+      ar & weight;
+      ar & children;
+      ar & parent;
+      ar & descriptor;
+      ar & word_id;
+    }
   };
 
 protected:
@@ -416,6 +444,22 @@ protected:
   void setNodeWeights(const vector<vector<TDescriptor> > &features);
   
 protected:
+
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive & ar, const unsigned int version)
+  {
+    ar & m_k;
+    ar & m_L;
+    ar & m_weighting;
+    ar & m_scoring;
+    ar & m_nodes;
+    ar & m_words;
+
+    createScoringObject();
+  }
+
+protected: 
 
   /// Branching factor
   int m_k;
@@ -1573,7 +1617,7 @@ void TemplatedVocabulary<TDescriptor,F>::saveToBinaryFile(const std::string &fil
 // --------------------------------------------------------------------------
 
 template<class TDescriptor, class F>
-void TemplatedVocabulary<TDescriptor,F>::save(const std::string &filename) const
+void TemplatedVocabulary<TDescriptor,F>::save(const std::string &filename, const bool useBoost) const
 {
   cv::FileStorage fs(filename.c_str(), cv::FileStorage::WRITE);
   if(!fs.isOpened()) throw string("Could not open file ") + filename;
@@ -1581,15 +1625,41 @@ void TemplatedVocabulary<TDescriptor,F>::save(const std::string &filename) const
   save(fs);
 }
 
+
+template<class TDescriptor, class F>
+void TemplatedVocabulary<TDescriptor,F>::saveWithBoost(const std::string &filename) const {
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs) throw std::runtime_error("Could not open file for writing: " + filename);
+
+    boost::archive::binary_oarchive oa(ofs);
+    oa << *this;
+    std::cout << "DBoW2::TemplatedVocabulary saved to " << filename << " (" << size() << " entries)" << std::endl;
+}
+
 // --------------------------------------------------------------------------
 
 template<class TDescriptor, class F>
-void TemplatedVocabulary<TDescriptor,F>::load(const std::string &filename)
+void TemplatedVocabulary<TDescriptor,F>::load(const std::string &filename, const bool useBoost)
 {
   cv::FileStorage fs(filename.c_str(), cv::FileStorage::READ);
   if(!fs.isOpened()) throw string("Could not open file ") + filename;
   
   this->load(fs);
+}
+
+
+template<class TDescriptor, class F>
+void TemplatedVocabulary<TDescriptor,F>::loadWithBoost(const std::string &filename)
+{
+    if (!boost::filesystem::exists(filename))
+        throw std::runtime_error("File does not exist: " + filename);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs) throw std::runtime_error("Could not open file for reading: " + filename);
+
+    boost::archive::binary_iarchive ia(ifs);
+    ia >> *this;
+    std::cout << "DBoW2::TemplatedVocabulary loaded from " << filename << " (" << size() << " entries)" << std::endl;    
 }
 
 // --------------------------------------------------------------------------

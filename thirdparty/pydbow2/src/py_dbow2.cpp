@@ -86,7 +86,12 @@ PYBIND11_MODULE(pydbow2, m)
 		.def(py::init<int, int, DBoW2::WeightingType, DBoW2::ScoringType>(),
 			 py::arg("k") = 10, py::arg("L") = 5,
 			 py::arg("weighting") = DBoW2::TF_IDF, py::arg("scoring") = DBoW2::L1_NORM)
-		.def("load", &BinaryVocabulary::loadFromTextFile)
+		.def("load", [](BinaryVocabulary& o, const std::string& filename, const bool use_boost) {
+			if (use_boost)
+				o.loadWithBoost(filename);
+			else
+				o.loadFromTextFile(filename);
+		}, py::arg("filename"), py::arg("use_boost") = false)
 		.def("create",[](BinaryVocabulary& o, std::vector<DBoW2::FORB::TDescriptor>& features) {
 		#if 1
 			std::vector<std::vector<DBoW2::FORB::TDescriptor>> vtf(features.size());
@@ -103,12 +108,16 @@ PYBIND11_MODULE(pydbow2, m)
 			o.create(vtf);			
 			})
 		.def("save", [](BinaryVocabulary& o, 
-			const std::string& filename, const bool compressed) {
-			if (compressed)
-				o.saveToBinaryFile(filename);
-			else 
-				o.saveToTextFile(filename); 
-			})			 
+			const std::string& filename, const bool compressed, const bool use_boost) {
+			if (use_boost){
+				o.saveWithBoost(filename);
+			}else {
+				if (compressed)
+					o.saveToBinaryFile(filename);
+				else 
+					o.saveToTextFile(filename);
+			} 
+			}, py::arg("filename"), py::arg("compressed") = false, py::arg("use_boost") = false)			 
 		.def("size", &BinaryVocabulary::size)
 		.def("score", &BinaryVocabulary::score) 
 		.def("transform", [](BinaryVocabulary& o,

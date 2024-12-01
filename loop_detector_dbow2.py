@@ -73,7 +73,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         print(f'LoopDetectorDBoW2: downloading vocabulary...')
         vocabulary_data.check_download()
         print(f'LoopDetectorDBoW2: loading vocabulary...')        
-        self.voc.load(vocabulary_data.vocab_file_path)
+        self.voc.load(vocabulary_data.vocab_file_path, use_boost=True)
         print(f'...done')
         
         self.use_kf_database = True     # use dbow2.KeyFrameDatabase() or a simple database implementation (as a simple list of bow vectors)

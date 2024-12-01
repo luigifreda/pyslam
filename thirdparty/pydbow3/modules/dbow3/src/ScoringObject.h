@@ -12,6 +12,12 @@
 
 #include "BowVector.h"
 #include "exports.h"
+
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/map.hpp>
+#include <boost/serialization/utility.hpp>
+
 namespace  DBoW3 {
 
 /// Base class of scoring functions
@@ -41,6 +47,13 @@ public:
 	// epsilon value (this is needed by the KL method)
 	
   virtual ~GeneralScoring() {} //!< Required for virtual base classes	
+
+protected:
+  friend class boost::serialization::access;
+  template<typename Archive>
+  void serialize(Archive & ar, const unsigned int version)
+  {}
+
 };
 
 /** 
@@ -67,6 +80,11 @@ public:
      */ \
     virtual inline bool mustNormalize(LNorm &norm) const  \
       { norm = NORM; return MUSTNORMALIZE; } \
+    \
+    friend class boost::serialization::access; \
+    template<typename Archive> \
+    void serialize(Archive & ar, const unsigned int version) \
+    {} \
   }
   
 /// L1 Scoring object

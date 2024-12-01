@@ -59,14 +59,18 @@ class VocabularyData(Serializable):
             if self.url_type == 'gdrive':
                 gdrive_url = self.url_vocabulary
                 Printer.blue(f'VocabularyData: downloading vocabulary {self.descriptor_type.name} from: {gdrive_url}')
-                gdrive_download_lambda(url=gdrive_url, path=self.vocab_file_path)  
+                try:
+                    gdrive_download_lambda(url=gdrive_url, path=self.vocab_file_path)
+                except Exception as e:
+                    Printer.red(f'VocabularyData: cannot download vocabulary from {gdrive_url}')
+                    raise e
         if self.vocab_file_path is not None and not os.path.exists(self.vocab_file_path):
             Printer.red(f'VocabularyData: cannot find vocabulary file: {self.vocab_file_path}')
             raise FileNotFoundError
 
 
 @register_class
-class OrbVocabularyData(VocabularyData):
+class DBowOrbVocabularyDataTxt(VocabularyData):
     kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
     def __init__(self, vocab_file_path=kOrbVocabFile,
                        descriptor_type=FeatureDescriptorTypes.ORB2,
@@ -75,9 +79,30 @@ class OrbVocabularyData(VocabularyData):
                        url_type='gdrive'):  # download it from gdrive
         super().__init__(vocab_file_path, descriptor_type, descriptor_dimension, url_vocabulary, url_type)
         
+        
+@register_class
+class DBow2OrbVocabularyData(VocabularyData):
+    kOrbVocabFile = kDataFolder + '/ORBvoc.dbow2'
+    def __init__(self, vocab_file_path=kOrbVocabFile,
+                       descriptor_type=FeatureDescriptorTypes.ORB2,
+                       descriptor_dimension=32,
+                       url_vocabulary='https://drive.google.com/uc?id=1pvBERLLSUV4IcaInNJMURTb8p-r9-5Xf',
+                       url_type='gdrive'):  # download it from gdrive
+        super().__init__(vocab_file_path, descriptor_type, descriptor_dimension, url_vocabulary, url_type)
+                
+@register_class
+class DBow3OrbVocabularyData(VocabularyData):
+    kOrbVocabFile = kDataFolder + '/ORBvoc.dbow3'
+    def __init__(self, vocab_file_path=kOrbVocabFile,
+                       descriptor_type=FeatureDescriptorTypes.ORB2,
+                       descriptor_dimension=32,
+                       url_vocabulary='https://drive.google.com/uc?id=13xmRtop_ow3aPtv3qCT5beG19_mlogqI',
+                       url_type='gdrive'):  # download it from gdrive
+        super().__init__(vocab_file_path, descriptor_type, descriptor_dimension, url_vocabulary, url_type)
+                
 
 @register_class
-class VladVocabularyData(VocabularyData):
+class VladOrbVocabularyData(VocabularyData):
     kVladVocabFile = kDataFolder + '/VLADvoc_orb.txt'
     def __init__(self, vocab_file_path=kVladVocabFile,
                        descriptor_type=FeatureDescriptorTypes.ORB2,

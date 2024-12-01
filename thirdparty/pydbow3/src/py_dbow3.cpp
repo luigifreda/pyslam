@@ -37,14 +37,14 @@ public:
 		vocabulary->clear();
 	}
 
-	void load(const std::string &path)
+	void load(const std::string &path, bool use_boost=false)
 	{
-		vocabulary->load(path);
+		vocabulary->load(path, use_boost);
 	}
 
-	void save(const std::string &path, bool binary_compressed = true)
+	void save(const std::string &path, bool binary_compressed = true, bool use_boost=false)
 	{
-		vocabulary->save(path, binary_compressed);
+		vocabulary->save(path, binary_compressed, use_boost);
 	}
 
 	DBoW3::BowVector transform(const cv::Mat &features)
@@ -229,8 +229,8 @@ PYBIND11_MODULE(pydbow3, m)
 		.def(py::init<const std::string &, int, int, DBoW3::WeightingType, DBoW3::ScoringType>(),
 			 py::arg("path") = std::string(), py::arg("k") = 10, py::arg("L") = 5,
 			 py::arg("weighting") = DBoW3::TF_IDF, py::arg("scoring") = DBoW3::L1_NORM)
-		.def("load", &Vocabulary::load)
-		.def("save", &Vocabulary::save)
+		.def("load", &Vocabulary::load, py::arg("path"), py::arg("use_boost") = false)
+		.def("save", &Vocabulary::save, py::arg("path"), py::arg("binary_compressed") = true, py::arg("use_boost") = false)
 		.def("create", &Vocabulary::create)
 		.def("transform", &Vocabulary::transform)
 		.def("score", &Vocabulary::score)

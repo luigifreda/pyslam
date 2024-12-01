@@ -259,13 +259,18 @@ public:
    * Saves the vocabulary into a file. If filename extension contains .yml, opencv YALM format is used. Otherwise, binary format is employed
    * @param filename
    */
-  void save(const std::string &filename, bool binary_compressed=true) const;
+  void save(const std::string &filename, bool binary_compressed=true, bool useBoost = false) const;
+
+  void saveWithBoost(const std::string &filename) const;
 
   /**
    * Loads the vocabulary from a file created with save
    * @param filename.
    */
-  void load(const std::string &filename);
+  void load(const std::string &filename, bool useBoost = false);
+
+
+  void loadWithBoost(const std::string &filename);
 
   /**
    * Loads the vocabulary from an input stream created with save
@@ -473,9 +478,10 @@ protected:
     ar & m_L;
     ar & m_weighting;
     ar & m_scoring;
-    ar & m_scoring_object;
     ar & m_nodes;
     ar & m_words;
+
+    createScoringObject();
   }
 
 protected:
