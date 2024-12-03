@@ -64,7 +64,7 @@ kDataFolder = kRootFolder + '/data'
 if Parameters.kLoopClosingDebugAndPrintToFile:
     from loop_detector_base import print
 
-
+# NOTE: It does not need any prebuilt vocubulary. It works with non-binary descriptors by internally converting them to binary ones.
 class LoopDetectorIBow(LoopDetectorBase): 
     def __init__(self, local_feature_manager=None, slam_info: 'SlamFeatureManagerInfo'=None):
         super().__init__()

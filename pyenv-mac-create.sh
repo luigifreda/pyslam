@@ -57,7 +57,7 @@ export PYTHONPATH=""   # clean python path => for me, remove ROS stuff
 
 pip3 install --upgrade pip
 
-print_blue "installing opencv"
+#print_blue "installing opencv"
 
 MAKEFLAGS_OPTION="-j$(nproc)" 
 # PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
@@ -77,6 +77,11 @@ MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
 
 # install opencv python from source with non-free modules enabled (installation order does matter here!)
 . install_opencv_python.sh
+
+# NOTE: This another way of installing opencv and it solves some dynamic linking issues. Unfortunately, it generates other ones that are more critical with multiple intercepted QT versions. 
+# pip3 install numpy
+# . install_opencv_local.sh
+
 
 # To activate the virtual environment run: 
 #   $ source pyenv-activate.sh 

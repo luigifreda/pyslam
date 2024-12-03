@@ -64,6 +64,7 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
     from loop_detector_base import print  
 
 
+# NOTE: It does not need any prebuilt vocubulary. It works with non-binary descriptors by internally converting them to binary ones.
 class LoopDetectorOBIndex2(LoopDetectorBase): 
     def __init__(self, local_feature_manager=None, slam_info:'SlamFeatureManagerInfo'=None, match_ratio=0.8):
         super().__init__()

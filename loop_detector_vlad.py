@@ -63,6 +63,7 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
     from loop_detector_base import print        
 
 
+# NOTE: Check in the README how to generate an array of descriptors and train your vocabulary.
 class LoopDetectorVlad(LoopDetectorBase): 
     def __init__(self, vocabulary_data: VocabularyData, local_feature_manager=None):
         super().__init__()

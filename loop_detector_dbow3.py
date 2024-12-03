@@ -62,6 +62,10 @@ kDataFolder = kRootFolder + '/data'
 if Parameters.kLoopClosingDebugAndPrintToFile:
     from loop_detector_base import print   
                  
+                 
+# At present just working with ORB local features.
+# NOTE: Under mac, loading the vocabulary is very slow (both from text and from boost archive).
+# NOTE: Check in the README how to generate an array of descriptors and train your vocabulary.
 class LoopDetectorDBoW3(LoopDetectorBase): 
     def __init__(self, vocabulary_data: VocabularyData, local_feature_manager=None):
         super().__init__()
@@ -69,8 +73,9 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         self.voc = dbow3.Vocabulary()  
         print(f'LoopDetectorDBoW3: downloading vocabulary...')
         vocabulary_data.check_download()
-        print(f'LoopDetectorDBoW3: loading vocabulary {vocabulary_data.vocab_file_path}...')        
-        self.voc.load(vocabulary_data.vocab_file_path, use_boost=True)
+        print(f'LoopDetectorDBoW3: loading vocabulary {vocabulary_data.vocab_file_path}...')
+        use_boost = True if vocabulary_data.vocab_file_path.endswith('.dbow2') else False        
+        self.voc.load(vocabulary_data.vocab_file_path, use_boost=use_boost)
         print(f'LoopDetectorDBoW3: ...done')
         self.db = dbow3.Database()
         self.db.setVocabulary(self.voc)      

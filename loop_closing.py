@@ -721,6 +721,8 @@ class LoopClosing:
         self.GBA.quit()  
         if self.loop_consistent_candidate_imgs.candidates is not None:
             cv2.destroyAllWindows()
+        if QimageViewer.is_running():
+            QimageViewer.get_instance().quit()
         print('LoopClosing: done')             
       
 

@@ -12,19 +12,30 @@
 
 #set -e
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 
 # ====================================================
 # check if we have external options
-EXTERNAL_OPTION=$1
-if [[ -n "$EXTERNAL_OPTION" ]]; then
-    echo "external option: $EXTERNAL_OPTION" 
+EXTERNAL_OPTIONS=$@
+if [[ -n "$EXTERNAL_OPTIONS" ]]; then
+    echo "external option: $EXTERNAL_OPTIONS" 
 fi
 
 # check if we want to add a python interpreter check
 if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
     echo "WITH_PYTHON_INTERP_CHECK: $WITH_PYTHON_INTERP_CHECK " 
-    EXTERNAL_OPTION="$EXTERNAL_OPTION -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
 fi
+
+
+OpenCV_DIR="$SCRIPT_DIR/thirdparty/opencv/install/lib/cmake/opencv4"
+if [[ -d "$OpenCV_DIR" ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
+fi 
+
+echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
+
 # ====================================================
 # check if want to use conda or venv
 if [ -z $USING_CONDA_PYSLAM ]; then
@@ -49,7 +60,7 @@ cd cpp
 
 # build utils 
 cd utils 
-. build.sh $EXTERNAL_OPTION       # use . in order to inherit python env configuration 
+. build.sh $EXTERNAL_OPTIONS       # use . in order to inherit python env configuration 
 cd ..
 
 cd .. 

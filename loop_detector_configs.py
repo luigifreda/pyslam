@@ -41,7 +41,7 @@ from loop_detector_ibow import LoopDetectorIBow
 from loop_detector_vpr import LoopDetectorHdcDelf, LoopDetectorEigenPlaces, LoopDetectorNetVLAD, LoopDetectorSad, LoopDetectorAlexNet, LoopDetectorCosPlace
 from loop_detector_vlad import LoopDetectorVlad
 
-from loop_detector_vocabulary import DBow3OrbVocabularyData, DBow2OrbVocabularyData, VladOrbVocabularyData
+from loop_detector_vocabulary import DBow3OrbVocabularyData, DBow2OrbVocabularyData, VladOrbVocabularyData, dbow2_orb_vocabulary_factory, dbow3_orb_vocabulary_factory
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -66,9 +66,9 @@ class GlobalDescriptorType(SerializableEnum):
     DBOW2       = 0     # Bags of Words (BoW). This implementation only works with ORB local features. It needs an ORB vocabulary (available).
                         # Reference: "Bags of Binary Words for Fast Place Recognition in Image Sequences"
     DBOW3       = 1     # Bags of Words (BoW). It needs a vocabulary (available for ORB).
-    OBINDEX2    = 2     # Hierarchical indexing scheme. Incremental Bags of binary Words. Incrementally builds a vocabulary. If needed transform the non-binary local descriptors into binary descriptors for better performance.
+    OBINDEX2    = 2     # Hierarchical indexing scheme. Incremental Bags of binary Words. Incrementally builds a vocabulary. If needed, it transforms the input non-binary local descriptors into binary descriptors.
                         # Reference: "iBoW-LCD: An Appearance-based Loop Closure Detection Approach using Incremental Bags of Binary Words"
-    IBOW        = 3     # Incremental Bags of binary Words (iBoW). Built on the top of OBINDEX2. It incrementally builds a vocabulary. If needed transform the non-binary local descriptors into binary descriptors for better performance.
+    IBOW        = 3     # Incremental Bags of binary Words (iBoW). Built on the top of OBINDEX2. It incrementally builds a vocabulary. If needed, it transforms input non-binary local descriptors into binary descriptors.
                         # Reference: "iBoW-LCD: An Appearance-based Loop Closure Detection Approach using Incremental Bags of Binary Words"
     HDC_DELF    = 4     # Local DELF descriptor + Hyperdimensional Computing (HDC).
                         # Reference: "Large-Scale Image Retrieval with Attentive Deep Local Features", "Hyperdimensional Computing as a Framework for Systematic Aggregation of Image Descriptors"
@@ -121,29 +121,31 @@ Template configuration:
 """
 class LoopDetectorConfigs(object):
     
+    # NOTE: Under mac, loading the DBOW2 vocabulary may be very slow (both from text and from boost archive).
     DBOW2 = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW2,
         local_feature_manager_config = None,                                       # If None the frontend local descriptors will be re-used (must be compatible with the used descriptor aggregator and loaded vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.DBOW2,
-        vocabulary_data = DBow2OrbVocabularyData())                                # Must be a vocabulary built with the frontend local descriptor type
+        vocabulary_data = dbow2_orb_vocabulary_factory())                          # Must be a vocabulary built with the frontend local descriptor type
 
     DBOW2_INDEPENDENT = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW2,
         local_feature_manager_config = FeatureManagerConfigs.ORB2,                 # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and loaded vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.DBOW2,
-        vocabulary_data = DBow2OrbVocabularyData())                                # Must be a vocabulary built with the frontend local descriptor type  
+        vocabulary_data = dbow2_orb_vocabulary_factory())                          # Must be a vocabulary built with the frontend local descriptor type  
         
+    # NOTE: Under mac, loading the DBOW2 vocabulary may be very slow (both from text and from boost archive).        
     DBOW3 = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW3,
         local_feature_manager_config = None,                                       # If None the frontend local descriptors will be re-used (must be compatible with the used descriptor aggregator and loaded vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.DBOW3,
-        vocabulary_data = DBow3OrbVocabularyData())                                # Must be a vocabulary built with the frontend local descriptor type
+        vocabulary_data = dbow3_orb_vocabulary_factory())                          # Must be a vocabulary built with the frontend local descriptor type
 
     DBOW3_INDEPENDENT = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW3,
         local_feature_manager_config = FeatureManagerConfigs.ORB2,                 # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and loaded vocabulary)
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.VLAD,
-        vocabulary_data = DBow3OrbVocabularyData())                                # Must be a vocabulary built with the adopted local descriptor type                       
+        vocabulary_data = dbow3_orb_vocabulary_factory())                          # Must be a vocabulary built with the adopted local descriptor type                       
 
     VLAD = dict(
         global_descriptor_type = GlobalDescriptorType.VLAD,
@@ -159,15 +161,15 @@ class LoopDetectorConfigs(object):
 
     OBINDEX2 = dict(
         global_descriptor_type = GlobalDescriptorType.OBINDEX2,
-        local_feature_manager_config = None,                                        # If None the frontend local descriptors will be re-used. If they are non-binary, they will be converted to binary.
+        local_feature_manager_config = None,                                         # If None the frontend local descriptors will be re-used. If they are non-binary, they will be converted to binary.
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.OBINDEX2,
-        vocabulary_data = None)                                                     # OBIndex2 does not need a vocabulary. It incrementally builds it.
+        vocabulary_data = None)                                                      # OBIndex2 does not need a vocabulary. It incrementally builds it.
 
     IBOW = dict(
         global_descriptor_type = GlobalDescriptorType.IBOW,
-        local_feature_manager_config = None,                                     # If None the frontend local descriptors will be re-used. If they are non-binary, they will be converted to binary. 
+        local_feature_manager_config = None,                                      # If None the frontend local descriptors will be re-used. If they are non-binary, they will be converted to binary. 
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.IBOW,
-        vocabulary_data = None)                                                  # IBow does not need a vocabulary. It incrementally builds it.
+        vocabulary_data = None)                                                   # IBow does not need a vocabulary. It incrementally builds it.
     
     IBOW_INDEPENDENT = dict(
         global_descriptor_type = GlobalDescriptorType.IBOW,

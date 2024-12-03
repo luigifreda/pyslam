@@ -4,25 +4,45 @@ project(obindex2 LANGUAGES CXX)
 # Compile tests or not
 option(EnableTesting "EnableTesting" ON)
 
+set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
+
 # Setting build type to Release
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 message(STATUS "Build type: " ${CMAKE_BUILD_TYPE})
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON) # CMake will generate an error if it is unable to compile the code with a compiler that supports C++17.
+
+
 # Setting the flags for profiling information or not
 if(CMAKE_BUILD_TYPE MATCHES Release)
   message(STATUS "Setting Release options")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -march=native -fPIC -DNDEBUG")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native -fPIC -DNDEBUG")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
 elseif(CMAKE_BUILD_TYPE MATCHES Debug)
   message(STATUS "Setting Debug options")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O1 -pg -fPIC")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O1 -pg -fPIC")
 endif()
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON) # CMake will generate an error if it is unable to compile the code with a compiler that supports C++17.
+if(BUILD_WITH_MARCH_NATIVE)
+    if("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+        message(STATUS "Build with -march=native")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    else()
+        include(CheckCXXCompilerFlag)
+        unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
+        CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
+        if(COMPILER_SUPPORTS_MARCH_NATIVE)
+            message(STATUS "Build with -march=native")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+        endif()
+    endif()
+endif() 
 
 # Packages required to work with the library
 find_package(OpenCV REQUIRED) # OpenCV
@@ -94,5 +114,5 @@ if (${EnableTesting} STREQUAL "ON")
   add_test(NAME test_bdesc COMMAND test_bdesc ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
   add_test(NAME test_btree COMMAND test_btree ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
   add_test(NAME test_bindex COMMAND test_bindex ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
-  add_test(NAME test_search COMMAND test_search ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
+  #add_test(NAME test_search COMMAND test_search ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
 endif()

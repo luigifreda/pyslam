@@ -5,7 +5,6 @@ import time
 import cv2
 from matplotlib import pyplot as plt
 
-
 sys.path.append("./lib/")
 from orbslam2_features import ORBextractor
 

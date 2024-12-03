@@ -11,25 +11,27 @@ kPrintTrackebackDetails = True
 
 
 # empty a queue before exiting from the consumer thread/process for safety
-def empty_queue(queue):
+def empty_queue(queue, verbose=True):
     if platform.system() == 'Darwin':
         try:             
             while not queue.empty():
                 queue.get(timeout=0.001) 
         except Exception as e:
-            Printer.red(f'EXCEPTION in empty_queue: {e}')
-            if kPrintTrackebackDetails:
-                traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+            if verbose:
+                Printer.red(f'EXCEPTION in empty_queue: {e}')
+                if kPrintTrackebackDetails:
+                    traceback_details = traceback.format_exc()
+                    print(f'\t traceback details: {traceback_details}')
     else:
         try:
             while queue.qsize()>0:
                 queue.get(timeout=0.001)
         except Exception as e:
-            Printer.red(f'EXCEPTION in empty_queue: {e}')
-            if kPrintTrackebackDetails:
-                traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+            if verbose:
+                Printer.red(f'EXCEPTION in empty_queue: {e}')
+                if kPrintTrackebackDetails:
+                    traceback_details = traceback.format_exc()
+                    print(f'\t traceback details: {traceback_details}')
 
 class Value:
     def __init__(self, type, value):

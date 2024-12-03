@@ -23,7 +23,7 @@ brew update
 brew install wget 
 brew install doxygen 
 brew install eigen 
-brew install opencv 
+#brew install opencv 
 brew install glew 
 brew install pkg-config 
 brew install suite-sparse 
@@ -36,7 +36,9 @@ brew install libomp   # need to add -L/opt/homebrew/opt/libomp/lib -I/opt/homebr
 brew install boost    # for serialization
 brew install tmux
 brew install flann
-#brew install open3d
+brew install catch2
+brew install numpy
+#brew install open3d     # built from source for different issues 
 
 # create a pyslam environment within pyenv and activate it 
 ./pyenv-mac-create.sh  # NOTE: the use of ./ seems crucial for the correct identification of the python libs for C++ projects 

@@ -7,7 +7,6 @@ set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version")
 set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING
       "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
@@ -23,16 +22,29 @@ LIST(APPEND CMAKE_MODULE_PATH
 # Generate file compile_commands.json in our build folder: it contains the full command line to compile individual source files
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(BUILD_WITH_MARCH_NATIVE AND NOT "${ARCH}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
-    message(STATUS "Build with -march=native")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -O3")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+
+if(BUILD_WITH_MARCH_NATIVE)
+    if("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+        message(STATUS "Build with -march=native")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    else()
+        include(CheckCXXCompilerFlag)
+        unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
+        CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
+        if(COMPILER_SUPPORTS_MARCH_NATIVE)
+            message(STATUS "Build with -march=native")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+        endif()
+    endif()
 endif() 
 
 add_subdirectory(modules/pybind11)
 
 find_package(OpenCV REQUIRED)
-
 find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
 
 set(DBOW2_DIR ${PROJECT_SOURCE_DIR}/modules/dbow2)

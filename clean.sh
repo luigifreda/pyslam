@@ -35,6 +35,9 @@ if [ -d "thirdparty/open3d" ]; then
     rm -Rf thirdparty/open3d
 fi
 
+if [ -d "thirdparty/opencv" ]; then
+    rm -Rf thirdparty/opencv
+fi
 
 cd thirdparty/pydbow3
 ./clean.sh

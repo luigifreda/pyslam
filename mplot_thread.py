@@ -149,7 +149,7 @@ class Mplot2d:
         self.process.join(timeout=5)     
         if self.process.is_alive():
             print("Warning: Mplot2d \"{self.title}\" process did not terminate in time, forced kill.")         
-        self.process.terminate()
+            self.process.terminate()
         print(f'Mplot2d \"{self.title}\" closed')
 
     def init(self, figure_num, lock):    
@@ -324,7 +324,7 @@ class Mplot3d:
         self.process.join(timeout=5)     
         if self.process.is_alive():
             print("Warning: Mplot3d \"{self.title}\" process did not terminate in time, forced kill.")          
-        self.process.terminate()        
+            self.process.terminate()        
         
 
     def init(self, figure_num, lock):

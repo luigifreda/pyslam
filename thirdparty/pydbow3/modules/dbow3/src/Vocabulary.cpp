@@ -3,6 +3,9 @@
 #include "quicklz.h"
 #include <sstream>
 #include "timers.h"
+#include <chrono>
+
+
 namespace DBoW3{
 // --------------------------------------------------------------------------
 
@@ -1115,15 +1118,15 @@ void Vocabulary::load(const std::string &filename, bool useBoost)
     
     //check first if it is a binary file
     std::ifstream ifile(filename,std::ios::binary);
-    if (!ifile) throw std::runtime_error("Vocabulary::load Could not open file :"+filename+" for reading");
+    if (!ifile) throw std::runtime_error("Vocabulary::load Could not open file: "+filename+" for reading");
     if(!load(ifile)) {
-        if ( filename.find(".txt")!=std::string::npos) {
-	    load_fromtxt(filename);
-	} else {
-	    cv::FileStorage fs(filename.c_str(), cv::FileStorage::READ);
-	    if(!fs.isOpened()) throw std::string("Could not open file ") + filename;
-	    load(fs);
-	}
+      if (filename.find(".txt")!=std::string::npos) {
+	      load_fromtxt(filename);
+      } else {
+          cv::FileStorage fs(filename.c_str(), cv::FileStorage::READ);
+          if(!fs.isOpened()) throw std::string("Could not open file ") + filename;
+          load(fs);
+      }
     }
 }
 
@@ -1132,11 +1135,22 @@ void Vocabulary::loadWithBoost(const std::string &filename)
     if (!boost::filesystem::exists(filename))
         throw std::runtime_error("File does not exist: " + filename);
 
+    //std::ios_base::sync_with_stdio (false);
+
+    auto start = std::chrono::high_resolution_clock::now(); 
     std::ifstream ifs(filename, std::ios::binary);
     if (!ifs) throw std::runtime_error("Could not open file for reading: " + filename);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    //std::cout << "Time to open file: " << duration.count() << " seconds\n";
 
+    start = std::chrono::high_resolution_clock::now(); 
     boost::archive::binary_iarchive ia(ifs);
     ia >> *this;
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    //std::cout << "Time to deserialize: " << duration.count() << " seconds\n";
+
     std::cout << "DBoW3::Vocabulary loaded from " << filename << " (" << size() << " entries)" << std::endl;    
 }
 

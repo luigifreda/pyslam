@@ -22,18 +22,33 @@ LIST(APPEND CMAKE_MODULE_PATH
 # Generate file compile_commands.json in our build folder: it contains the full command line to compile individual source files
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(BUILD_WITH_MARCH_NATIVE AND NOT "${ARCH}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
-    message(STATUS "Build with -march=native")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -O3")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -O3")
-endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 
+if(BUILD_WITH_MARCH_NATIVE)
+    if("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+        message(STATUS "Build with -march=native")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    else()
+        include(CheckCXXCompilerFlag)
+        unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
+        CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
+        if(COMPILER_SUPPORTS_MARCH_NATIVE)
+            message(STATUS "Build with -march=native")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+        endif()
+    endif()
+endif() 
 
 add_subdirectory(modules/pybind11)
 
 find_package(OpenCV REQUIRED)
 
 find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+message(STATUS "Boost_VERSION: ${Boost_VERSION}")
+message(STATUS "Boost includes: ${Boost_INCLUDE_DIRS}")
 
 set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/modules/dbow3/install/lib/cmake/)
 find_package(DBoW3 REQUIRED)

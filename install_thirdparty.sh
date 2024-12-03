@@ -15,11 +15,10 @@ print_blue '================================================'
 print_blue "Building Thirdparty"
 print_blue '================================================'
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+cd $SCRIPT_DIR
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
-
-# ====================================================
-# N.B.: this script requires that you have first run:
-#./install_basic.sh 
 
 # ====================================================
 # check if want to use conda or venv
@@ -37,16 +36,24 @@ fi
 
 # ====================================================
 # check if we have external options
-EXTERNAL_OPTION=$1
-if [[ -n "$EXTERNAL_OPTION" ]]; then
-    echo "external option: $EXTERNAL_OPTION" 
+EXTERNAL_OPTIONS=$@
+if [[ -n "$EXTERNAL_OPTIONS" ]]; then
+    echo "external option: $EXTERNAL_OPTIONS" 
 fi
 
 # check if we want to add a python interpreter check
 if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
     echo "WITH_PYTHON_INTERP_CHECK: $WITH_PYTHON_INTERP_CHECK " 
-    EXTERNAL_OPTION="$EXTERNAL_OPTION -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
 fi
+
+OpenCV_DIR="$SCRIPT_DIR/thirdparty/opencv/install/lib/cmake/opencv4"
+if [[ -d "$OpenCV_DIR" ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
+fi 
+
+echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
+
 # ====================================================
 
 CURRENT_USED_PYENV=$(get_virtualenv_name)
@@ -55,9 +62,8 @@ print_blue "currently used pyenv: $CURRENT_USED_PYENV"
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features
-. build.sh $EXTERNAL_OPTION
+. build.sh $EXTERNAL_OPTIONS
 cd $STARTING_DIR
-
 
 print_blue '================================================'
 print_blue "Configuring and building thirdparty/Pangolin ..."
@@ -81,7 +87,7 @@ if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
     make_dir build 
     if [ ! -f build/src/libpangolin.so ]; then
         cd build
-        cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON $EXTERNAL_OPTION
+        cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON $EXTERNAL_OPTIONS
         make -j8
         cd build/src
         ln -s pypangolin.*-linux-gnu.so  pangolin.linux-gnu.so
@@ -111,7 +117,7 @@ else
     if [ ! -f pangolin.cpython-*.so ]; then   
         make_dir build   
         cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_FFMPEG=OFF $EXTERNAL_OPTION # disable realsense 
+        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_FFMPEG=OFF $EXTERNAL_OPTIONS # disable realsense 
         make -j8
         cd ..
         #python setup.py install
@@ -139,7 +145,7 @@ cd g2opy
 if [ ! -f lib/g2o.cpython-*.so ]; then  
     make_buid_dir
     cd build
-    cmake .. $EXTERNAL_OPTION
+    cmake .. $EXTERNAL_OPTIONS
     make -j8
     cd ..
     #python3 setup.py install --user
@@ -150,7 +156,7 @@ print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pydbow3 ..."
 
 cd thirdparty/pydbow3
-./build.sh
+./build.sh $EXTERNAL_OPTIONS
 
 cd $STARTING_DIR
 
@@ -158,7 +164,7 @@ print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pydbow2 ..."
 
 cd thirdparty/pydbow2
-./build.sh
+./build.sh $EXTERNAL_OPTIONS
 
 cd $STARTING_DIR
 
@@ -167,7 +173,7 @@ print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pyibow ..."
 
 cd thirdparty/pyibow
-./build.sh
+./build.sh $EXTERNAL_OPTIONS
 
 cd $STARTING_DIR
 

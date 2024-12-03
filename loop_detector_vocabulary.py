@@ -22,7 +22,7 @@ import os
 import time
 import math 
 import numpy as np
-import cv2
+import platform
 
 from utils_sys import getchar, Printer 
 
@@ -44,6 +44,21 @@ kDataFolder = kRootFolder + '/data'
 if Parameters.kLoopClosingDebugAndPrintToFile:
     from loop_detector_base import print
     
+    
+# NOTE: At present, under mac, boost serialization is very slow, we use txt files instead.
+def dbow2_orb_vocabulary_factory(*args, **kwargs):
+    if platform.system() != 'Darwin':
+        return DBow2OrbVocabularyData(*args, **kwargs)
+    else:
+        return DBowOrbVocabularyDataTxt(*args, **kwargs)
+    
+# NOTE: at present, under mac, boost serialization is very slow, we use txt files instead.
+def dbow3_orb_vocabulary_factory(*args, **kwargs):
+    if platform.system() != 'Darwin':
+        return DBow3OrbVocabularyData(*args, **kwargs)
+    else:
+        return DBowOrbVocabularyDataTxt(*args, **kwargs)
+
 
 @register_class
 class VocabularyData(Serializable):
@@ -69,6 +84,7 @@ class VocabularyData(Serializable):
             raise FileNotFoundError
 
 
+# NOTE: Under mac, loading the DBOW2 vocabulary is very slow (both from text and from boost archive).
 @register_class
 class DBowOrbVocabularyDataTxt(VocabularyData):
     kOrbVocabFile = kDataFolder + '/ORBvoc.txt'
@@ -80,6 +96,7 @@ class DBowOrbVocabularyDataTxt(VocabularyData):
         super().__init__(vocab_file_path, descriptor_type, descriptor_dimension, url_vocabulary, url_type)
         
         
+# NOTE: Under mac, loading the DBOW2 vocabulary is very slow (both from text and from boost archive).
 @register_class
 class DBow2OrbVocabularyData(VocabularyData):
     kOrbVocabFile = kDataFolder + '/ORBvoc.dbow2'
@@ -90,6 +107,8 @@ class DBow2OrbVocabularyData(VocabularyData):
                        url_type='gdrive'):  # download it from gdrive
         super().__init__(vocab_file_path, descriptor_type, descriptor_dimension, url_vocabulary, url_type)
                 
+
+# NOTE: Under mac, loading the DBOW2 vocabulary is very slow (both from text and from boost archive).
 @register_class
 class DBow3OrbVocabularyData(VocabularyData):
     kOrbVocabFile = kDataFolder + '/ORBvoc.dbow3'

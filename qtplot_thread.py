@@ -89,6 +89,9 @@ class Qplot2d:
         self.xmax = float("-inf")
         self.ymin = float("inf")
         self.ymax = float("-inf")
+        
+        self.screen_width = None
+        self.screen_height = None        
 
         self.key = mp.Value('i', 0)
         self.is_running = mp.Value('i', 1)
@@ -113,7 +116,7 @@ class Qplot2d:
         self.process.join(timeout=5)     
         if self.process.is_alive():
             print(f"Warning: Qplot2d \"{self.title}\" process did not terminate in time, forced kill.")         
-        self.process.terminate()
+            self.process.terminate()
         print(f'Qplot2d "{self.title}" closed')
 
 
@@ -121,6 +124,13 @@ class Qplot2d:
         lock.acquire()      
         locally_configure_qt_environment()
         self.app = pg.mkQApp()  # Create a PyQtGraph application
+        
+        # Fetch desktop dimensions
+        desktop = self.app.desktop()
+        screen_rect = desktop.screenGeometry()
+        self.screen_width = screen_rect.width()
+        self.screen_height = screen_rect.height()
+    
         self.win = pg.PlotWidget(title=self.title)  # Create a plot widget
         self.legend = pg.LegendItem()
         self.win.setLabel('left', self.ylabel)  # Set the y-axis label
@@ -129,6 +139,13 @@ class Qplot2d:
         
         self.win.showGrid(x=True, y=True, alpha=0.5)  # Show grid
         
+        # # Define maximum size for the window (e.g., half the screen size)
+        # max_width = int(self.screen_width * 3.0/4)
+        # max_height = int(self.screen_height * 3.0/4)
+
+        # # Set maximum size constraints
+        # self.win.setMaximumSize(max_width, max_height)
+    
         offset = (figure_num-1)*100
         current_position = self.win.frameGeometry().topLeft()
         self.win.setGeometry(current_position.x()+offset, current_position.y()+offset, self.win.width(), self.win.height())  # Set a default size        
@@ -438,7 +455,7 @@ class Qplot3d:
         self.process.join(timeout=5)
         if self.process.is_alive():
             print(f"Warning: Qplot3d \"{self.title}\" process did not terminate in time, forced kill.")
-        self.process.terminate()
+            self.process.terminate()
         print(f"Qplot3d \"{self.title}\" closed")
 
     def init(self, figure_num, lock):

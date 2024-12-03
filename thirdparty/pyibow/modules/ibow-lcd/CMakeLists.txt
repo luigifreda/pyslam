@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 project(ibow-lcd LANGUAGES CXX)
 
 set(OPENCV_VERSION          "4" CACHE STRING "Desired OpenCV version") # this is the first target version that is searched for 
+set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON) # CMake will generate an error if it is unable to compile the code with a compiler that supports C++17.
+
+# Generate file compile_commands.json in our build folder: it contains the full command line to compile individual source files
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Setting build type to Release
 if(NOT CMAKE_BUILD_TYPE)
@@ -12,17 +19,30 @@ message(STATUS "Build type: " ${CMAKE_BUILD_TYPE})
 # Setting the flags for profiling information or not
 if(CMAKE_BUILD_TYPE MATCHES Release)
   message(STATUS "Setting Release options")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -march=native -fPIC -DNDEBUG")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -march=native -fPIC -DNDEBUG")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3-fPIC -DNDEBUG")
 elseif(CMAKE_BUILD_TYPE MATCHES Debug)
   message(STATUS "Setting Debug options")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O1 -pg -march=native -fPIC")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O1 -pg -march=native -fPIC")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O1 -pg -fPIC")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O1 -pg -fPIC")
 endif()
 
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON) # CMake will generate an error if it is unable to compile the code with a compiler that supports C++17.
+if(BUILD_WITH_MARCH_NATIVE)
+    if("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+        message(STATUS "Build with -march=native")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    else()
+        include(CheckCXXCompilerFlag)
+        unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
+        CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
+        if(COMPILER_SUPPORTS_MARCH_NATIVE)
+            message(STATUS "Build with -march=native")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+        endif()
+    endif()
+endif() 
 
 # Printing the compiling flags
 message(STATUS "Compiler flags: ${CMAKE_CXX_FLAGS}")

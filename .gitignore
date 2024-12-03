@@ -15,6 +15,7 @@ config.pyc
 thirdparty/g2opy
 thirdparty/pangolin
 thirdparty/opencv-python
+thirdparty/opencv
 thirdparty/open3d
 thirdparty/contextdesc/pretrained 
 matches.txt 

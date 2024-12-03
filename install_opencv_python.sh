@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
 
 #set -e
 

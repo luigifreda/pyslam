@@ -71,8 +71,9 @@ ENDIF()
 
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-
 find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+message(STATUS "Boost_VERSION: ${Boost_VERSION}")
+message(STATUS "Boost includes: ${Boost_INCLUDE_DIRS}")
 include_directories(${Boost_INCLUDE_DIRS})
 
 
@@ -126,11 +127,28 @@ set(EXTRA_EXE_LINKER_FLAGS_DEBUG "")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 
-if(USE_MARCH_NATIVE AND NOT "${ARCH}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
-    message(STATUS "Build with -march=native")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -O3")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -O3")
-endif()
+# Generate file compile_commands.json in our build folder: it contains the full command line to compile individual source files
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+
+if(USE_MARCH_NATIVE)
+    if("${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+        message(STATUS "Build with -march=native")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    else()
+        include(CheckCXXCompilerFlag)
+        unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
+        CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
+        if(COMPILER_SUPPORTS_MARCH_NATIVE)
+            message(STATUS "Build with -march=native")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+        endif()
+    endif()
+endif() 
 
 
 IF(CMAKE_COMPILER_IS_GNUCXX OR MINGW)
