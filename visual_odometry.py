@@ -267,6 +267,6 @@ class VisualOdometry(object):
             self.traj3d_est.append(p)
             pg = [self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]]  # the groudtruth traj starts at 0  
             self.traj3d_gt.append(pg)     
-            self.poses.append(poseRt(self.cur_R, p))  
+            self.poses.append(poseRt(self.cur_R, np.array(p).ravel())) 
             self.pose_timestamps.append(self.cur_timestamp)
             #self.poses.append(poseRt(self.cur_R, p[0])) 

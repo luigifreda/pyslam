@@ -171,9 +171,9 @@ class Parameters:
     kGBAUseRobustKernel = True
     
     # Volume Integration
-    kUseVolumetricIntegration = False                    # To enable/disable volumetric integration (dense mapping)  
+    kUseVolumetricIntegration = False                   # To enable/disable volumetric integration (dense mapping)  
     kVolumetricIntegrationDebugAndPrintToFile = True
-    kVolumetricIntegrationExtractMesh = False            # Extract mesh or point cloud
+    kVolumetricIntegrationExtractMesh = False           # Extract mesh or point cloud as output
     kVolumetricIntegrationVoxelLength = 0.015  # [m]
     kVolumetricIntegrationSdfTrunc = 0.04      # [m]
     kVolumetricIntegrationDepthTrunc = 4.0     # [m]

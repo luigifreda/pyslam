@@ -19,6 +19,8 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 # ====================================================
 
+echo ""
+echo "Configuring and building thirdparty/pyibow/obindex2 ..."
 cd modules/obindex2/lib
 if [ ! -d build ]; then
     mkdir build
@@ -28,6 +30,8 @@ cmake .. -DCMAKE_BUILD_TYPE=Release $EXTERNAL_OPTIONS
 make -j8
 
 
+echo ""
+echo "Configuring and building thirdparty/pyibow/ibow-lcd ..." 
 cd ${SCRIPT_DIR}
 cd modules/ibow-lcd
 if [ ! -d build ]; then

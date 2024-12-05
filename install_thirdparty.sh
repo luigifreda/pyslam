@@ -117,7 +117,9 @@ else
     if [ ! -f pangolin.cpython-*.so ]; then   
         make_dir build   
         cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_FFMPEG=OFF $EXTERNAL_OPTIONS # disable realsense 
+        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
+                 -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
+                 -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF $EXTERNAL_OPTIONS # disable realsense 
         make -j8
         cd ..
         #python setup.py install

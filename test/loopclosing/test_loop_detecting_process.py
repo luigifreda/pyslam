@@ -60,10 +60,14 @@ if __name__ == '__main__':
     cv2.namedWindow('loop detection candidates', cv2.WINDOW_NORMAL) # to get a resizable window
         
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
-    while dataset.isOk():
+    while True:
 
-        timestamp = dataset.getTimestamp()          # get current timestamp 
-        img = dataset.getImageColor(img_id)
+        timestamp, img = None, None 
+        
+        if dataset.isOk():
+            timestamp = dataset.getTimestamp()          # get current timestamp 
+            img = dataset.getImageColor(img_id)
+
 
         if img is not None:
             print('----------------------------------------')
@@ -105,6 +109,6 @@ if __name__ == '__main__':
                         
             cv2.waitKey(1)
         else: 
-            getchar()
+            cv2.waitKey(100)
             
         img_id += 1

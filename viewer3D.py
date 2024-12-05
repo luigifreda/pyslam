@@ -216,6 +216,7 @@ class Viewer3D(object):
         self.draw_spanning_tree = True           
         self.draw_loops = True   
         self.draw_dense = True
+        self.draw_sparse = True
         
         self.draw_wireframe = False             
 
@@ -228,7 +229,8 @@ class Viewer3D(object):
         self.checkboxLoops = pangolin.VarBool('ui.Draw Loops', value=True, toggle=True)           
         self.checkboxGT = pangolin.VarBool('ui.Draw Ground Truth', value=False, toggle=True)    
         self.checkboxPredicted = pangolin.VarBool('ui.Draw Predicted', value=False, toggle=True)
-        self.checkboxDrawPointCloud = pangolin.VarBool('ui.Draw Dense Map', value=True, toggle=True)                               
+        self.checkboxDrawSparseCloud = pangolin.VarBool('ui.Draw Sparse Map', value=True, toggle=True)        
+        self.checkboxDrawDenseCloud = pangolin.VarBool('ui.Draw Dense Map', value=True, toggle=True)                               
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
         self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
         self.buttonSave = pangolin.VarBool('ui.Save', value=False, toggle=False)   
@@ -273,7 +275,8 @@ class Viewer3D(object):
         self.draw_gt = self.checkboxGT.Get()
         self.draw_predicted = self.checkboxPredicted.Get()
         self.draw_wireframe = self.checkboxWireframe.Get()
-        self.draw_dense = self.checkboxDrawPointCloud.Get()
+        self.draw_dense = self.checkboxDrawDenseCloud.Get()
+        self.draw_sparse = self.checkboxDrawSparseCloud.Get()
         
         #if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
@@ -369,7 +372,7 @@ class Viewer3D(object):
                     gl.glColor3f(0.0, 1.0, 0.0)
                     pangolin.DrawCameras(self.map_state.poses[:], self.scale)
 
-            if len(self.map_state.points)>0:
+            if self.draw_sparse and len(self.map_state.points)>0:
                 # draw keypoints with their color
                 gl.glPointSize(self.sparsePointSize)
                 #gl.glColor3f(1.0, 0.0, 0.0)

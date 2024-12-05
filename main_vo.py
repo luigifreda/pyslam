@@ -60,6 +60,8 @@ if platform.system() == 'Darwin':
     kUseQplot2d = True # Under mac force the usage of Qtplot2d: It is smoother 
 
 def factory_plot2d(*args,**kwargs):
+    if kUseRerun:
+        return None
     if kUseQplot2d:
         return Qplot2d(*args,**kwargs)
     else:

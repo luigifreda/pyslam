@@ -6,7 +6,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 - [pySLAM v2.2.5](#pyslam-v225)
   - [Install](#install)
-    - [Requirements](#requirements)
+    - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
     - [MacOS](#macos)
     - [Docker](#docker)
@@ -15,7 +15,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [Usage](#usage)
     - [Feature tracking](#feature-tracking)
     - [Loop closing](#loop-closing)
-    - [Dense reconstruction pipeline](#dense-reconstruction-pipeline)
+    - [Volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)
     - [Save and reload a map](#save-and-reload-a-map)
     - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
     - [Trajectory saving](#trajectory-saving)
@@ -38,17 +38,17 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [TODOs](#todos)
 
 <!-- /TOC -->
-
+ 
 **pySLAM** is a python implementation of a *Visual SLAM* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
 - It supports many classical and modern **[local features](#supported-local-features)** and it offers a convenient interface for them.
-- It implements loop closing via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and other modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
-- It provides a **[dense reconstruction pipeline](#dense-reconstruction-pipeline)** when depth images are provided.  
-- It collects many other useful VO and SLAM tools. 
+- It implements different loop closing methods via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
+- It provides a **[volumetric reconstruction pipeline](#dense-reconstruction-pipeline)** with RGBD cameras.  
+- It collects many other useful VO and SLAM tools.
 
 **Main Scripts**:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
-* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing and dense mapping in order to estimate the camera trajectory up-to-scale and build a map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline. 
+* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing and dense mapping in order to estimate the camera trajectory and build a map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline. Further details [here](./docs/basic_architecture.md).
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. Further details [here](./docs/basic_architecture.md).
 
@@ -58,7 +58,11 @@ You can use the pySLAM framework as a baseline to play with [local features](#su
 
 **Enjoy it!**
 
-<img src="images/STEREO.png" alt="Visual Odometry" height="160" border="0" /> <img src="images/feature-matching.png" alt="Feature Matching" height="160" border="0" /> <img src="images/RGBD2.png" alt="SLAM" height="160" border="0" /> <img src="images/main-rerun-vo-and-matching.png" alt="Feature matching and Visual Odometry" height="160" border="0" />  
+<p align="center" style="margin:0">
+<img src="images/STEREO.png" alt="Visual Odometry" height="160" border="0" /> <img src="images/feature-matching.png" alt="Feature Matching" height="160" border="0" /> <img src="images/RGBD2.png" alt="SLAM" height="160" border="0" /> <img src="images/main-rerun-vo-and-matching.png" alt="Feature matching and Visual Odometry" height="160" border="0" />
+<img src="images/loop-detection2.png" alt="Loop detection" height="160" border="0" /> <img src="images/kitti-stereo.png" alt="Stereo SLAM" height="160" border="0" />
+ <img src="images/dense-reconstruction2.png" alt="Dense Reconstruction" height="160" border="0" />
+</p>
 
 --- 
 ## Install 
@@ -77,7 +81,7 @@ Then, use the available specific install procedure according to your OS. The pro
 - **Docker** [=>](#docker)
 
 
-### Requirements
+### Main requirements
 
 * Python 3.8.10
 * OpenCV >=4.8.1 (see [below](#how-to-install-non-free-opencv-modules))
@@ -98,7 +102,7 @@ If you prefer **conda**, run the scripts described in this other [file](./CONDA.
 
 ### MacOS
 
-Follow the instructions in this [file](./MAC.md). The reported procedure was tested under *Sonoma 14.5* and *Xcode 15.4*.
+Follow the instructions in this [file](./MAC.md). The reported procedure was tested under *Sequoia 15.1.1* and *Xcode 16.1*.
 
 
 ### Docker
@@ -110,7 +114,7 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 ### How to install non-free OpenCV modules
 
-The provided install scripts will install a recent opencv version (>=**4.8**) with non-free modules enabled (see for instance [install_pip3_packages.sh](./install_pip3_packages.sh), which is used with venv under Ubuntu, or the [install_opencv_python.sh](./install_opencv_python.sh) under mac).
+The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)).
 
 To verify your installed OpenCV version, use the following command:      
 `$ python3 -c "import cv2; print(cv2.__version__)"`
@@ -159,13 +163,14 @@ $ ./main_feature_matching.py
 
 In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
-Some basic **example files** are available in the subfolder `test`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
+Some basic examples are available in the subfolder `test/loopclosing`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
 
 ### Loop closing
 
-Loop closing is enabled by default. You can disable it by setting `kUseLoopClosing=False` in `parameters.py`. 
+Different [loop closing methods](#loop-closing) are available. These combines the available [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
+Loop closing is enabled by default. You can disable it by setting `kUseLoopClosing=False` in `parameters.py`. See the file [loop_detector_configs.py](loop_detector_configs.py) for the different available configs.
 
-Some **example files** are available in the subfolder `test/loopclosing`.  In particular, as for loop closure, you may want to take a look at [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
+Some **example files** are available in the subfolder `test/loopclosing`.  In particular, you may want to start from [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
 
 **How to generate the array descriptors to train a vocabulary (DBoW, VLAD)**
 Generate the array of descriptors to train the vocabulary by using the script `test/loopclosing/test_gen_des_array_from_imgs.py`. Select your desired descriptor type by using the tracker configuration. 
@@ -176,9 +181,11 @@ Train the vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_fro
 **VLAD vocabulary generation**
 Train the vocabulary by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`
 
-### Dense reconstruction pipeline
+### Volumetric reconstruction pipeline
 
-Dense reconstruction is disabled by default. You can disable it by setting `kUseVolumetricIntegration=False` in `parameters.py`. At present, it works with RGBD datasets or when a depth image is available at each frame. 
+Volumetric reconstruction is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` in `parameters.py`. At present, it works with RGBD datasets or when a depth image is available at each frame. 
+
+If you want a mesh as output set `kVolumetricIntegrationExtractMesh=True` in `parameters.py`.
    
 ### Save and reload a map
 
@@ -223,11 +230,11 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 
 ### Monitor the logs for tracking, local mapping, and loop closing simultaneously
 
-The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, respectively stored in the folder `logs`. For fun/debugging, you can monitor their parallel flows by running the command:    
+The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, which are all stored in the folder `logs`. For fun/debugging, you can monitor each parallel flow by running the following command in a separate shell:    
 `$ tail -f logs/<log file name>`     
-in separate shells. Otherwise, just run the script:       
+Otherwise, just run the script:       
 `$ ./scripts/launch_tmux_slam.sh`      
-from the repo root folder. Use `CTRL+A` and then `CTRL+Q` to exit from `tmux`.
+from the repo root folder. Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 ---
 ## Supported local features
@@ -334,7 +341,8 @@ Also referred to as *holistic descriptors*:
 * [EigenPlaces](https://github.com/gmberton/EigenPlaces)
 
 
-See the file `loop_detector_configs.py` for further details.
+Different [loop closing methods](#loop-closing) are available. These combines the above aggregation methods and global descriptors.
+See the file [loop_detector_configs.py](loop_detector_configs.py) for further details.
 
 --- 
 ## Datasets

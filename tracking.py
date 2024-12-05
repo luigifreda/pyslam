@@ -696,7 +696,7 @@ class Tracking:
         # create new map points where the depth is smaller than the prefixed depth threshold 
         #        or at least N new points with the closest depths
         mask_depths_smaller_than_th = sorted_z_values < self.f_ref.camera.depth_threshold
-        mask_first_N_points = np.zeros(len(sorted_z_values), dtype=np.bool)[:min(N, len(sorted_z_values))] = True
+        mask_first_N_points = np.zeros(len(sorted_z_values), dtype=bool)[:min(N, len(sorted_z_values))] = True
         mask_first_selection = np.logical_or(mask_depths_smaller_than_th, mask_first_N_points)
         
         sorted_z_values = sorted_z_values[mask_first_selection]
@@ -739,7 +739,7 @@ class Tracking:
             # create new map points where the depth is smaller than the prefixed depth threshold 
             #        or at least N new points with the closest depths
             mask_depths_smaller_than_th = sorted_z_values < kf.camera.depth_threshold
-            mask_first_N_points = np.zeros(len(sorted_z_values), dtype=np.bool)
+            mask_first_N_points = np.zeros(len(sorted_z_values), dtype=bool)
             mask_first_N_points[:min(N, len(sorted_z_values))] = True  # set True for the first N points otherwise set all True if len(sorted_z_values) < N
             mask_first_selection = np.logical_or(mask_depths_smaller_than_th, mask_first_N_points)
             

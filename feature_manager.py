@@ -774,6 +774,7 @@ class FeatureManager:
             # Initialze the global max descriptor distance if it was not initialized
             if Parameters.kMaxDescriptorDistance == 0:
                 Parameters.kMaxDescriptorDistance = FeatureInfo.max_descriptor_distance[self.descriptor_type]
+                #Printer.green('Set the global max descriptor distance to: ', Parameters.kMaxDescriptorDistance)
         except: 
             Printer.red('You did not set the reference max descriptor distance for: ', self.descriptor_type.name)                                                         
             raise ValueError("Unmanaged max descriptor distance for feature descriptor %s" % self.descriptor_type.name)              

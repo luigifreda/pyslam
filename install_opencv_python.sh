@@ -15,9 +15,13 @@ print_blue '================================================'
 
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
+PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
+
 #pip install --upgrade pip
 pip uninstall -y opencv-python
 pip uninstall -y opencv-contrib-python
+
+pip install --upgrade numpy
 
 cd thirdparty
 if [ ! -d opencv-python ]; then
@@ -37,17 +41,19 @@ export CPATH+=""
 export CPP_INCLUDE_PATH+=""
 export C_INCLUDE_PATH+=""
 if [ -z $USING_CONDA_PYSLAM ]; then
-    CPPFLAGS="-I$HOME/.python/venvs/pyslam/lib/python3.8/site-packages/numpy/core/include/:$CPPFLAGS" 
-    CPATH="$HOME/.python/venvs/pyslam/lib/python3.8/site-packages/numpy/core/include/":$CPATH
-    C_INCLUDE_PATH="$HOME/.python/venvs/pyslam/lib/python3.8/site-packages/numpy/core/include/":$C_INCLUDE_PATH
-    CPP_INCLUDE_PATH="$HOME/.python/venvs/pyslam/lib/python3.8/site-packages/numpy/core/include/":$CPP_INCLUDE_PATH
+    PYSLAM_VENV_PATH=$HOME/.python/venvs/pyslam
+    CPPFLAGS="-I$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/:$CPPFLAGS" 
+    CPATH="$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPATH
+    C_INCLUDE_PATH="$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$C_INCLUDE_PATH
+    CPP_INCLUDE_PATH="$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPP_INCLUDE_PATH
 else
     echo "Using conda pyslam..."
-    # we want to use conda environment 
-    CPPFLAGS="-I$HOME/miniconda3/envs/pyslam/lib/python3.8/site-packages/numpy/core/include/:$CPPFLAGS"
-    CPATH="$HOME/miniconda3/envs/pyslam/lib/python3.8/site-packages/numpy/core/include/":$CPATH
-    C_INCLUDE_PATH="$HOME/miniconda3/envs/pyslam/lib/python3.8/site-packages/numpy/core/include/":$C_INCLUDE_PATH
-    CPP_INCLUDE_PATH="$HOME/miniconda3/envs/pyslam/lib/python3.8/site-packages/numpy/core/include/":$CPP_INCLUDE_PATH
+    # we want to use conda environment
+    CONDA_BASE_FOLDER="$(conda info --base)"
+    CPPFLAGS="-I$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/:$CPPFLAGS"
+    CPATH="$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPATH
+    C_INCLUDE_PATH="$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$C_INCLUDE_PATH
+    CPP_INCLUDE_PATH="$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPP_INCLUDE_PATH
 fi
 
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \

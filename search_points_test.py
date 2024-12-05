@@ -82,8 +82,12 @@ def epiline_to_end_points(line, e, xinf, cols):
 # overlap_ratio must be in [0,1]
 def find_matches_along_line(f, e, line, descriptor, 
                             radius = Parameters.kMaxReprojectionDistanceFrame,
-                            max_descriptor_distance = 0.5*Parameters.kMaxDescriptorDistance, 
-                            overlap_ratio = 0.5):    
+                            max_descriptor_distance = None, 
+                            overlap_ratio = 0.5):
+    
+    if max_descriptor_distance is None:
+        max_descriptor_distance = 0.5*Parameters.kMaxDescriptorDistance
+     
     #print('line: ', line[0], ", ", line[1])    
     step = radius*(1-overlap_ratio)
     delta = line[1].ravel() - line[0].ravel()
@@ -128,7 +132,7 @@ def find_matches_along_line(f, e, line, descriptor,
 # search for matches between unmatched keypoints (without a corresponding map point)
 # in input we have already some pose estimates for f1 and f2
 # N.B.: experimental version, just for testing 
-def search_frame_for_triangulation_test(f1, f2, img2, img1 = None):   
+def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1 = None):   
 
     idxs2_out = []
     idxs1_out = []
@@ -188,6 +192,7 @@ def search_frame_for_triangulation_test(f1, f2, img2, img1 = None):
     xs2_inf = xs2_inf[:, 0:2] / xs2_inf[:, 2:]  
     line_edges = [ epiline_to_end_points(line, e2, x2_inf, f2.width) for line, x2_inf in zip(lines2, xs2_inf) ] 
     #print("line_edges: ", line_edges)
+    print(f'Number of epipolar lines: {len(line_edges)}')
 
     if __debug__:
         print('search_frame_for_triangulation - timer3: ', timer.elapsed())

@@ -74,7 +74,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         print(f'LoopDetectorDBoW3: downloading vocabulary...')
         vocabulary_data.check_download()
         print(f'LoopDetectorDBoW3: loading vocabulary {vocabulary_data.vocab_file_path}...')
-        use_boost = True if vocabulary_data.vocab_file_path.endswith('.dbow2') else False        
+        use_boost = True if vocabulary_data.vocab_file_path.endswith('.dbow3') else False        
         self.voc.load(vocabulary_data.vocab_file_path, use_boost=use_boost)
         print(f'LoopDetectorDBoW3: ...done')
         self.db = dbow3.Database()

@@ -20,7 +20,7 @@ message(STATUS "Build type: " ${CMAKE_BUILD_TYPE})
 if(CMAKE_BUILD_TYPE MATCHES Release)
   message(STATUS "Setting Release options")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3-fPIC -DNDEBUG")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -fPIC -DNDEBUG")
 elseif(CMAKE_BUILD_TYPE MATCHES Debug)
   message(STATUS "Setting Debug options")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O1 -pg -fPIC")
@@ -75,11 +75,15 @@ if(APPLE)
 endif()
 
 find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+
 # Find OpenMP
-find_package(OpenMP REQUIRED) # OpenMP
+find_package(OpenMP) # OpenMP
 if (OPENMP_FOUND)
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+else()
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 endif()
 
 # Defining the package

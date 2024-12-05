@@ -1,26 +1,20 @@
-graph TD;
-    %% Main Slam System
-    A[Slam]
-
-    %% Submodules
-    A --> B[Tracking]
-    A --> C[Map]
-    A --> D[LocalMapping]
-    A --> E[FeatureTracker]
-    A --> F[Camera]
-
-    %% Tracking History
-    B --> G[TrackingHistory]
+graph LR
+    Slam["Slam<br>_SLAM System_"] --> Tracking
+    Slam --> FeatureTracker
+    Slam --> LocalMapping["LocalMapping<br>[Thread]"]
+    Slam --> LoopClosing["LoopClosing<br>[Thread]"]
+    Slam --> Map
+    Slam --> Camera
+    Slam --> GlobalBundleAdjustment
+    Slam --> VolumetricIntegrator["VolumetricIntegrator<br>_3D Volumetric Map_<br>[Process]"]
     
-    %% Groundtruth (optional)
-    A --> H[Groundtruth]
-
-    %% Tracking Dependencies
-    B --> I[Initializer]
-    B --> J[MotionModel]
-    B --> K[SLAMDynamicConfig]
-    B --> L[Pose Optimization]
+    Tracking --> Initializer
+    Tracking --> SLAMDynamicConfig
+    Tracking --> MotionModel["MotionModel<br>_Pose Prediction_"]
     
-    %% Map Points Search
-    A --> M[MapPoint]
-    A --> N[KeyFrame]
+    LoopClosing --> LoopDetectingProcess["LoopDetectingProcess<br>[Process]"]
+    LoopClosing --> LoopGroupConsistencyChecker["LoopGroupConsistencyChecker<br>_Loop Cluster Verification_"]
+    LoopClosing --> LoopGeometryChecker["LoopGeometryChecker<br>_Geometric Validation_"]
+    LoopClosing --> LoopCorrector["LoopCorrector<br>_Apply Corrections_"]
+    LoopClosing --> GlobalBundleAdjustment["GlobalBundleAdjustment<br>[Process/Thread]"]
+    LoopClosing --> Relocalizer

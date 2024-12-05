@@ -47,17 +47,19 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
     
 # NOTE: At present, under mac, boost serialization is very slow, we use txt files instead.
 def dbow2_orb_vocabulary_factory(*args, **kwargs):
-    if platform.system() != 'Darwin':
-        return DBow2OrbVocabularyData(*args, **kwargs)
-    else:
+    use_text_vocabulary = platform.system() == 'Darwin'
+    if use_text_vocabulary:
         return DBowOrbVocabularyDataTxt(*args, **kwargs)
+    else:
+        return DBow2OrbVocabularyData(*args, **kwargs)
     
 # NOTE: at present, under mac, boost serialization is very slow, we use txt files instead.
 def dbow3_orb_vocabulary_factory(*args, **kwargs):
-    if platform.system() != 'Darwin':
-        return DBow3OrbVocabularyData(*args, **kwargs)
-    else:
+    use_text_vocabulary = platform.system() == 'Darwin'
+    if use_text_vocabulary:
         return DBowOrbVocabularyDataTxt(*args, **kwargs)
+    else:
+        return DBow3OrbVocabularyData(*args, **kwargs)
 
 
 @register_class

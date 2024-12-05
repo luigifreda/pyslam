@@ -82,10 +82,10 @@ if __name__ == "__main__":
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, IBOW, OBINDEX2, VLAD, HDC_DELF, SAD, ALEXNET, NETVLAD, COSPLACE, EIGENPLACES  etc.
     # NOTE: under mac, the boost/text deserialization used by DBOW2 and DBOW3 may be very slow.
-    loop_detection_config = LoopDetectorConfigs.DBOW3  
+    loop_detection_config = LoopDetectorConfigs.DBOW3
     Printer.green('loop_detection_config: ',loop_detection_config)
         
-    # create SLAM object 
+    # create SLAM object
     slam = Slam(cam, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None) # groundtruth not actually used by Slam class
     slam.set_viewer_scale(dataset.scale_viewer_3d)
     time.sleep(1) # to show initial messages 

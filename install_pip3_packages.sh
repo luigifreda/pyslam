@@ -14,7 +14,8 @@ print_blue "Configuring and installing python packages ..."
 
 # N.B.: python3 is required!
 
-pip3 install --upgrade pip setuptools wheel
+pip3 install --upgrade pip 
+pip3 install --upgrade setuptools wheel
 
 
 # PIP_MAC_OPTIONS=""
@@ -39,13 +40,25 @@ install_pip_package ordered-set==4.1.0 # from https://pypi.org/project/ordered-s
 install_pip_package numpy-quaternion==2023.0.4
 install_pip_package psutil
 
-# Install opencv_python from source with non-free modules enabled 
-PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
-MAKEFLAGS_OPTION="-j$(nproc)"
-CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
+install_pip_package PyQt5-sip==12.15.0    # NOTE: This is required by pyqt5. The the next versions of PyQt5-sip require python 3.9.
+install_pip_package pyqt5==5.15.11        # version 5.15.11 working under mac
+install_pip_package pyqtgraph==0.13.3  
 
-MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
-MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
+INSTALL_OPENCV_FROM_SOURCE=1
+
+# Install opencv_python from source with non-free modules enabled 
+if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
+    #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
+    echo "Installing opencv_python from source with non-free modules enabled"
+    ./install_opencv_python.sh
+else
+    PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
+    MAKEFLAGS_OPTION="-j$(nproc)"
+    CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
+
+    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
+    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
+fi
 
 install_pip_package tqdm==4.66.4 
 install_pip_package scipy==1.10.1
@@ -93,5 +106,4 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     pip install open3d
 fi
 
-pip install pyqtgraph pyqt5 
 pip install gdown 

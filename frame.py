@@ -397,8 +397,8 @@ class Frame(FrameBase):
                 if depth is not None: 
                     self.compute_stereo_from_rgbd(kps_data, depth)
                 if img_right is not None:
-                    self.depths = np.full(len(self.kps), -1, dtype=np.float)     
-                    self.kps_ur = np.full(len(self.kps), -1, dtype=np.float)
+                    self.depths = np.full(len(self.kps), -1, dtype=float)     
+                    self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
            
             

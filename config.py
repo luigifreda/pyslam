@@ -25,7 +25,7 @@ if sys.version_info[0] != 3:
 import os
 import yaml
 import numpy as np
-from utils_sys import Printer
+from utils_sys import Printer, locally_configure_qt_environment
 import math
 
 
@@ -58,6 +58,8 @@ class Config(object):
         self.system_state_load = False
         self.trajectory_settings = None
         self.start_frame_id = 0  
+        
+        #locally_configure_qt_environment()
 
         self.set_core_lib_paths()
         self.read_lib_paths()

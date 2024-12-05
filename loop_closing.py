@@ -26,7 +26,7 @@ from collections import defaultdict
 import os
 import time
 
-from utils_sys import Printer, Logging
+from utils_sys import Printer, Logging, locally_configure_qt_environment
 from utils_mp import MultiprocessingManager
 from utils_img import LoopCandidateImgs
 from utils_features import transform_float_to_binary_descriptor
@@ -851,7 +851,7 @@ class LoopClosing:
                         keyframe.set_erase()
                     
                     try: 
-                        self.draw_loop_detection_output_imgs(keyframe.img, keyframe.id, detection_output)                       
+                        self.draw_loop_detection_output_imgs(keyframe.img, keyframe.id, detection_output)               
                     except Exception as e:
                         print(f'LoopClosing: draw_loop_detection_output_imgs EXCEPTION: {e} !!!')
                         if kPrintTrackebackDetails:
@@ -892,42 +892,43 @@ class LoopClosing:
                             
     def draw_loop_detection_output_imgs(self, img_cur, img_id, detection_output: LoopDetectorOutput):
         draw = False
+        use_cv2_for_drawing = platform.system() != 'Darwin' # under mac we can't use cv2 imshow here
         if self.loop_consistent_candidate_imgs is not None:
             if not self.draw_loop_consistent_candidate_imgs_init:
-                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                if use_cv2_for_drawing: 
                     cv2.namedWindow('loop closing: consistent candidates', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_loop_consistent_candidate_imgs_init = True
             if self.loop_consistent_candidate_imgs.candidates is not None:
                 draw = True
-                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                if use_cv2_for_drawing: 
                     cv2.imshow('loop closing: consistent candidates', self.loop_consistent_candidate_imgs.candidates)
                 else: 
                     QimageViewer.get_instance().draw(self.loop_consistent_candidate_imgs.candidates, 'loop closing: consistent candidates')
     
         if detection_output.similarity_matrix is not None:
             if not self.draw_similarity_matrix_init:
-                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                if use_cv2_for_drawing: 
                     cv2.namedWindow('loop closing: similarity matrix', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_similarity_matrix_init = True
             draw = True
-            if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+            if use_cv2_for_drawing: 
                 cv2.imshow('loop closing: similarity matrix', detection_output.similarity_matrix)
             else: 
                 QimageViewer.get_instance().draw(detection_output.similarity_matrix, 'loop closing: similarity matrix')            
         
         if detection_output.loop_detection_img_candidates is not None:
             if not self.draw_loop_detection_imgs_init:
-                if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+                if use_cv2_for_drawing: 
                     cv2.namedWindow('loop-detection: candidates', cv2.WINDOW_NORMAL) # to get a resizable window
                 self.draw_loop_detection_imgs_init = True
             draw = True
-            if platform.system() != 'Darwin': # under mac we can use cv2 imshow here            
+            if use_cv2_for_drawing:             
                 cv2.imshow('loop-detection: candidates', detection_output.loop_detection_img_candidates)
             else: 
                 QimageViewer.get_instance().draw(detection_output.loop_detection_img_candidates, 'loop-detection: candidates')               
             
         if draw:
-            if platform.system() != 'Darwin': # under mac we can use cv2 imshow here
+            if use_cv2_for_drawing: 
                 cv2.waitKey(1)        
             
             

@@ -9,6 +9,7 @@
 # ====================================================
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+cd $SCRIPT_DIR
 
 set -e
 
@@ -28,7 +29,7 @@ rm -Rf cpp/utils/build
 rm -Rf cpp/utils/lib 
 
 if [ -d "thirdparty/opencv-python" ]; then
-    rm -Rf thirdparty/opencv-python
+    rm -Rf "thirdparty/opencv-python"
 fi
 
 if [ -d "thirdparty/open3d" ]; then
