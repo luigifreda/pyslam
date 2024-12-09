@@ -36,6 +36,8 @@ LIB_PATHS:
   pyibow: thirdparty/pyibow/lib
   pyobindex2: thirdparty/pyibow/lib
   vpr: thirdparty/vpr, thirdparty/patch_netvlad
+  depth_pro: thirdparty/ml_depth_pro/src
+  depth_anything_v2: thirdparty/depth_anything_v2/metric_depth
 
 
 DATASET:
@@ -53,11 +55,11 @@ KITTI_DATASET:
   sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset
   #
-  name: '06'
-  settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
+  #name: '06'
+  #settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
   #
-  # name: '00'
-  # settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
+  name: '00'
+  settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   is_color: True # do you have the color images for the kitti dataset? (image2 and image3 folders)
   groundtruth_file: auto

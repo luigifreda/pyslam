@@ -28,12 +28,13 @@ import csv
 import re 
 import datetime
 from multiprocessing import Process, Queue, Value 
-from utils_sys import Printer 
+from utils_sys import Printer
+from utils_serialization import SerializableEnum, register_class
 
 import ujson as json
 
-
-class DatasetType(Enum):
+@register_class
+class DatasetType(SerializableEnum):
     NONE = 1
     KITTI = 2
     TUM = 3
@@ -42,10 +43,19 @@ class DatasetType(Enum):
     FOLDER = 6  # generic folder of pics 
     LIVE = 7
 
-class SensorType(Enum):
+    
+@register_class
+class DatasetEnvironmentType(SerializableEnum):
+    INDOOR = 1
+    OUTDOOR = 2
+
+
+@register_class
+class SensorType(SerializableEnum):
     MONOCULAR=0,
     STEREO=1,
     RGBD=2
+
 
 def dataset_factory(config):
     dataset_settings = config.dataset_settings
@@ -106,11 +116,13 @@ def dataset_factory(config):
 
 
 class Dataset(object):
-    def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, fps=None, associations=None, start_frame_id=0, type=DatasetType.NONE):
+    def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, fps=None, associations=None, start_frame_id=0, 
+                 type=DatasetType.NONE, environment_type=DatasetEnvironmentType.OUTDOOR):
         self.path = path 
         self.name = name 
         self.type = type    
         self.sensor_type = sensor_type
+        self.environment_type = environment_type
         self.scale_viewer_3d = 0.1 
         self.is_ok = True
         self.fps = fps   
@@ -130,6 +142,9 @@ class Dataset(object):
     
     def sensorType(self):
         return self.sensor_type
+    
+    def environmentType(self):
+        return self.environment_type
 
     def getImage(self, frame_id):
         return None 
@@ -456,6 +471,7 @@ class Webcam(object):
 class KittiDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.KITTI): 
         super().__init__(path, name, sensor_type, 10, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.OUTDOOR
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.STEREO:
             raise ValueError('Video dataset only supports MONOCULAR and STEREO sensor types')        
         self.fps = 10
@@ -510,6 +526,7 @@ class KittiDataset(Dataset):
 class TumDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.TUM): 
         super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
             raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
         self.fps = 30
@@ -565,6 +582,8 @@ class TumDataset(Dataset):
 class EurocDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.EUROC, config=None): 
         super().__init__(path, name, sensor_type, 20, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR 
+        # TODO: may be we can better distinguish the dataset type from path name       
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.STEREO:
             raise ValueError('Video dataset only supports MONOCULAR and STEREO sensor types')           
         self.fps = 20

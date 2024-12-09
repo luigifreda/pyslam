@@ -73,6 +73,13 @@ install_pip_package kornia==0.7.3
 install_pip_package kornia_moons==0.2.9
 install_pip_package importlib_metadata==8.0.0
 
+install_pip_package timm        # ml-depth-pro
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    pip install pillow_heif==0.17.0 # ml-depth-pro
+else
+    install_pip_package pillow_heif # ml-depth-pro
+fi
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
     install_pip_package torch==2.1           # torch==2.2.0 causes some segmentation faults on mac
     install_pip_package torchvision==0.16         
@@ -106,4 +113,4 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     pip install open3d
 fi
 
-pip install gdown 
+pip install gdown  # to download from google drive

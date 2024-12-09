@@ -16,6 +16,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [Feature tracking](#feature-tracking)
     - [Loop closing](#loop-closing)
     - [Volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)
+    - [Depth prediction](#depth-prediction)
     - [Save and reload a map](#save-and-reload-a-map)
     - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
     - [Trajectory saving](#trajectory-saving)
@@ -26,6 +27,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
       - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
       - [Global descriptors](#global-descriptors)
+  - [Supported depth prediction models](#supported-depth-prediction-models)
   - [Datasets](#datasets)
     - [KITTI Datasets](#kitti-datasets)
     - [TUM Datasets](#tum-datasets)
@@ -39,22 +41,25 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- /TOC -->
  
-**pySLAM** is a python implementation of a *Visual SLAM* pipeline for **monocular**, **stereo** and **RGBD** cameras. 
-- It supports many classical and modern **[local features](#supported-local-features)** and it offers a convenient interface for them.
-- It implements different loop closing methods via **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
-- It provides a **[volumetric reconstruction pipeline](#dense-reconstruction-pipeline)** with RGBD cameras.  
-- It collects many other useful VO and SLAM tools.
+**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features:
+- A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
+- Various loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
+- A **[volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)** that processes available depth and color images.
+- Integration of **[depth prediction models](#depth-prediction)**, including DepthPro and DepthAnythingV2, within the SLAM pipeline.  
+- A collection of other useful tools for VO and SLAM.
 
 **Main Scripts**:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
-* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing and dense mapping in order to estimate the camera trajectory and build a map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline. Further details [here](./docs/basic_architecture.md).
+* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline. Further details [here](./docs/basic_architecture.md).
 
 * `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. Further details [here](./docs/basic_architecture.md).
 
+* `main_depth_prediction.py` shows how to use the available depth inference models to get depth estimations from input color images.
+  
 * `main_map_viewer.py` allows to reload a saved map and visualize it. Further details [here](#relocalization-in-a-loaded-map).
 
-You can use the pySLAM framework as a baseline to play with [local features](#supported-local-features), *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, VO techniques and create your own (proof of concept) VO/SLAM pipeline in python. When working with it, please keep in mind this is a research framework written in Python, a work in progress not intended to deliver real-time performances.   
+You can use the pySLAM framework as a baseline to experiment with VO techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)*, and create your own (proof of concept) VO/SLAM pipeline in python. When working with it, please keep in mind this is a research framework written in Python and a work in progress. It is not designed for real-time performances.   
 
 **Enjoy it!**
 
@@ -62,6 +67,8 @@ You can use the pySLAM framework as a baseline to play with [local features](#su
 <img src="images/STEREO.png" alt="Visual Odometry" height="160" border="0" /> <img src="images/feature-matching.png" alt="Feature Matching" height="160" border="0" /> <img src="images/RGBD2.png" alt="SLAM" height="160" border="0" /> <img src="images/main-rerun-vo-and-matching.png" alt="Feature matching and Visual Odometry" height="160" border="0" />
 <img src="images/loop-detection2.png" alt="Loop detection" height="160" border="0" /> <img src="images/kitti-stereo.png" alt="Stereo SLAM" height="160" border="0" />
  <img src="images/dense-reconstruction2.png" alt="Dense Reconstruction" height="160" border="0" />
+  <img src="images/depth-prediction.png" alt="Depth Prediction" height="160" border="0" />
+ <img src="images/dense-reconstruction-with-depth-prediction.png" alt="Dense Reconstruction with Depth Prediction" height="160" border="0" />
 </p>
 
 --- 
@@ -172,21 +179,31 @@ Loop closing is enabled by default. You can disable it by setting `kUseLoopClosi
 
 Some **example files** are available in the subfolder `test/loopclosing`.  In particular, you may want to start from [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
 
-**How to generate the array descriptors to train a vocabulary (DBoW, VLAD)**
-Generate the array of descriptors to train the vocabulary by using the script `test/loopclosing/test_gen_des_array_from_imgs.py`. Select your desired descriptor type by using the tracker configuration. 
+**How to generate the array descriptors to train a vocabulary (DBoW, VLAD)**     
+Generate the array of descriptors to train your target vocabulary by using the script `test/loopclosing/test_gen_des_array_from_imgs.py`. Select your desired descriptor type by using the tracker configuration. 
 
-**DBOW vocabulary generation** 
-Train the vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_from_des_array.py`
+**DBOW vocabulary generation**      
+Train your target vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_from_des_array.py`.
 
-**VLAD vocabulary generation**
-Train the vocabulary by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`
+**VLAD vocabulary generation**     
+Train your target VLAD "vocabulary" by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`.
 
 ### Volumetric reconstruction pipeline
 
-Volumetric reconstruction is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` in `parameters.py`. At present, it works with RGBD datasets or when a depth image is available at each frame. 
+The volumetric reconstruction pipeline is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` in `parameters.py`. This runs in the back-end. At present, it works with RGBD datasets or when a depth image is available at each frame. 
 
 If you want a mesh as output set `kVolumetricIntegrationExtractMesh=True` in `parameters.py`.
    
+### Depth prediction
+
+The available depth prediction models can be utilized both in the SLAM back-end and front-end. 
+- Back-end: Depth prediction can be enabled in the volumetric reconstruction pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator` in `parameters.py`. However, this must be NOT be used in a monocular SLAM configuration as the SLAM (fake) scale will conflict with the absolute metric scale of depth predictions.
+- Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still very *experimental* [WIP].   
+
+Refer to the file `depth_estimator.py` for further details.
+
+Note that since the depth inference is very slow (with DepthPro it takes ~1s per image on my machine), the resulting volumetric reconstruction pipeline is very slow.
+
 ### Save and reload a map
 
 When you run the script `main_slam.py`:
@@ -206,7 +223,7 @@ SYSTEM_STATE:
   folder_path: data/slam_state   # folder path relative to root of this repository
 ```
 
-Pressing the `Save` button saves the current map, frontend, and backend configurations. Reloading a saved map overwrites the current system configurations to ensure descriptor compatibility.  
+Pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map overwrites the current system configurations to ensure descriptor compatibility.  
 
 
 ### Trajectory saving
@@ -344,6 +361,12 @@ Also referred to as *holistic descriptors*:
 Different [loop closing methods](#loop-closing) are available. These combines the above aggregation methods and global descriptors.
 See the file [loop_detector_configs.py](loop_detector_configs.py) for further details.
 
+---
+## Supported depth prediction models
+
+* [Depth-Pro](https://arxiv.org/abs/2410.02073)
+* [DepthAnythingV2](https://arxiv.org/abs/2406.09414)
+
 --- 
 ## Datasets
 
@@ -478,6 +501,8 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [Twitchslam](https://github.com/geohot/twitchslam)
 * [MonoVO](https://github.com/uoip/monoVO-python)
 * [VPR_Tutorial](https://github.com/stschubert/VPR_Tutorial.git)
+* [DepthAnythingV2](https://github.com/DepthAnything/Depth-Anything-V2)
+* [DepthPro](https://github.com/apple/ml-depth-pro)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 
 ---
@@ -494,5 +519,5 @@ Many improvements and additional features are currently under development:
 - [x] 3D dense reconstruction 
 - [x] unified install procedure (single branch) for all OSs 
 - [x] trajectory saving 
-- [ ] depth estimation integration
+- [x] depth prediction integration
 

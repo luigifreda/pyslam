@@ -1,5 +1,26 @@
 # pySLAM2 Virtual Environment 
 
+<!-- TOC -->
+
+- [pySLAM2 Virtual Environment](#pyslam2-virtual-environment)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Create a `pyslam` python virtual environment](#create-a-pyslam-python-virtual-environment)
+  - [Activate the created `pyslam` environment](#activate-the-created-pyslam-environment)
+  - [Deactivate `pyslam` environment](#deactivate-pyslam-environment)
+  - [Delete `pyslam` environment](#delete-pyslam-environment)
+- [General Notes About Python Virtual Environments](#general-notes-about-python-virtual-environments)
+  - [Install virtualenv package](#install-virtualenv-package)
+  - [Where to create a new virtual environment](#where-to-create-a-new-virtual-environment)
+  - [Activate the environment](#activate-the-environment)
+  - [Deactivate the environment](#deactivate-the-environment)
+  - [Install packages from requirements.txt](#install-packages-from-requirementstxt)
+  - [Check if you are in an activated virtual environment](#check-if-you-are-in-an-activated-virtual-environment)
+  - [Links](#links)
+
+<!-- /TOC -->
+
+
 The following instructions allow you to create a custom `pyslam` virtual environment by using the package `python3-venv`. You will be able to run pyslam scripts within such environment. 
 
 If you are under **macOS**, please check this other [document](./MAC.md).
@@ -12,7 +33,7 @@ $ ./install_all_venv.sh
 ```
 This will compile all the required thirdparty packages and create a `pyslam` python virtual environment. 
 
-## Run
+## Usage
 
 Now, you can run: 
 ```bash
@@ -29,7 +50,8 @@ If you want to use a new terminal, recall that you need to activate the `pyslam`
 
 ## Create a `pyslam` python virtual environment 
 
-You already see this above. In order to create a custom `pyslam` python virtual environment, get in the root of this repository and run the following command: 
+You don't need this if you already launched the main install script `install_all_venvsh` (see above). 
+In order to create a custom `pyslam` python virtual environment, get in the root of this repository and run the following command: 
 ```bash
 $ . pyenv-create.sh 
 ```

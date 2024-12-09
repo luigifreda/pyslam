@@ -46,6 +46,9 @@ from feature_tracker_configs import FeatureTrackerConfigs
 
 from loop_detector_configs import LoopDetectorConfigs
 
+from depth_estimator import depth_estimator_factory, DepthEstimatorType
+from utils_depth import img_from_depth, filter_shadow_points
+
 from parameters import Parameters  
 
 from rerun_interface import Rerun
@@ -86,10 +89,19 @@ if __name__ == "__main__":
     Printer.green('loop_detection_config: ',loop_detection_config)
         
     # create SLAM object
-    slam = Slam(cam, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None) # groundtruth not actually used by Slam class
+    slam = Slam(cam, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None, environment_type=dataset.environmentType()) # groundtruth not actually used by Slam class
     slam.set_viewer_scale(dataset.scale_viewer_3d)
     time.sleep(1) # to show initial messages 
     
+    # EXPERIMENTAL usage of depth estimator in the front-end (WIP)
+    depth_estimator = None
+    if Parameters.kUseDepthEstimatorInFrontEnd:
+        Parameters.kVolumetricIntegrationUseDepthEstimator = False
+        depth_estimator_type = DepthEstimatorType.DEPTH_PRO
+        max_depth = 20
+        depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, max_depth=max_depth,
+                                                  dataset_env_type=dataset.environmentType(), camera=cam)        
+        
     if config.system_state_load: 
         slam.load_system_state(config.system_state_folder_path)
         viewer_scale = slam.viewer_scale() if slam.viewer_scale()>0 else 0.1  # 0.1 is the default viewer scale
@@ -147,7 +159,17 @@ if __name__ == "__main__":
                 
                 time_start = None 
                 if img is not None:
-                    time_start = time.time()                  
+                    time_start = time.time()    
+                    
+                    if depth is None and depth_estimator is not None:
+                        depth_prediction = depth_estimator.infer(img)
+                        if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
+                            depth = filter_shadow_points(depth_prediction)
+                        else: 
+                            depth = depth_prediction
+                        depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
+                        cv2.imshow("depth prediction", depth_img)
+                                  
                     slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
                                     
                     # 3D display (map display)

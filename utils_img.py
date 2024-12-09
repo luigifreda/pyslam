@@ -265,17 +265,19 @@ def proc_clahe(img):
 
 
 # create a scaled image of uint8 from a image of floats 
-def img_from_floats(img_flt, eps=1e-9):
-    assert(img_flt.dtype in [np.float32, np.float64, np.double, np.single])
-    img_max = np.amax(img_flt)
-    img_min = np.amin(img_flt)
+def img_from_floats(img_flt, img_max=None, img_min=None, eps=1e-9):
+    assert(img_flt.dtype in [np.float32, np.float64, np.float16, np.double, np.single])
+    img_max = np.max(img_flt) if img_max is None else img_max
+    img_min = np.min(img_flt) if img_min is None else img_min
+    if img_max is not None or img is not None:
+        img_flt = np.clip(img_flt, img_min, img_max) 
     img_range = img_max - img_min
     if img_range < eps:
         img_range = 1
-    img = ((img_flt-img_min)*255/img_range).astype(np.uint8)    
-    return img 
+    img = (img_flt-img_min)/img_range * 255   
+    return img.astype(np.uint8) 
 
-
+            
 # remove borders from img 
 def remove_borders(image, borders):
     shape = image.shape
@@ -403,3 +405,4 @@ class LoopCandidateImgs:
                     self.candidates[i*img_rows:(i+1)*img_rows, :] = get_dark_gray_image(temp)
                     self.map_color[i] = False
         self.current_count = 0
+        

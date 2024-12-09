@@ -1,0 +1,34 @@
+diff --git a/src/depth_pro/depth_pro.py b/src/depth_pro/depth_pro.py
+index f31b4e1..c38ba89 100644
+--- a/src/depth_pro/depth_pro.py
++++ b/src/depth_pro/depth_pro.py
+@@ -4,6 +4,8 @@
+ 
+ from __future__ import annotations
+ 
++import os
++
+ from dataclasses import dataclass
+ from typing import Mapping, Optional, Tuple, Union
+ 
+@@ -23,6 +25,11 @@ from .network.fov import FOVNetwork
+ from .network.vit_factory import VIT_CONFIG_DICT, ViTPreset, create_vit
+ 
+ 
++# current file location 
++__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
++ROOT_PATH = os.path.join(__location__, "../..")
++
++
+ @dataclass
+ class DepthProConfig:
+     """Configuration for DepthPro."""
+@@ -39,7 +46,7 @@ class DepthProConfig:
+ DEFAULT_MONODEPTH_CONFIG_DICT = DepthProConfig(
+     patch_encoder_preset="dinov2l16_384",
+     image_encoder_preset="dinov2l16_384",
+-    checkpoint_uri="./checkpoints/depth_pro.pt",
++    checkpoint_uri=ROOT_PATH + "/checkpoints/depth_pro.pt",
+     decoder_features=256,
+     use_fov_head=True,
+     fov_encoder_preset="dinov2l16_384",

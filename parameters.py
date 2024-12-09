@@ -171,13 +171,23 @@ class Parameters:
     kGBAUseRobustKernel = True
     
     # Volume Integration
-    kUseVolumetricIntegration = False                   # To enable/disable volumetric integration (dense mapping)  
+    kUseVolumetricIntegration = False                  # To enable/disable volumetric integration (dense mapping)  
     kVolumetricIntegrationDebugAndPrintToFile = True
-    kVolumetricIntegrationExtractMesh = False           # Extract mesh or point cloud as output
-    kVolumetricIntegrationVoxelLength = 0.015  # [m]
-    kVolumetricIntegrationSdfTrunc = 0.04      # [m]
-    kVolumetricIntegrationDepthTrunc = 4.0     # [m]
-    kVolumetricIntegrationOutputInterval = 1.0 # [s]
+    kVolumetricIntegrationExtractMesh = False          # Extract mesh or point cloud as output
+    kVolumetricIntegrationVoxelLength = 0.015          # [m]
+    kVolumetricIntegrationSdfTrunc = 0.04              # [m]
+    kVolumetricIntegrationDepthTruncIndoor = 4.0       # [m] 
+    kVolumetricIntegrationDepthTruncOutdoor = 10.0     # [m]
+    kVolumetricIntegrationMinNumLBATimes = 1           # We integrate only the keyframes that have been processed by LBA at least kVolumetricIntegrationMinNumLBATimes times.
+    kVolumetricIntegrationOutputTimeInterval = 1.0         # [s]
+    kVolumetricIntegrationUseDepthEstimator = False    # Use depth estimator for volumetric integration in the back-end. 
+                                                       # Since the depth inference time is above 1 second, this is very slow.
+                                                       # NOTE: the depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM map scale will be not consistent.
+
+
+    # Depth estimator (experimental usage in the front-end, WIP)
+    kUseDepthEstimatorInFrontEnd = False                # To enable/disable depth estimation with monocular front-end.
+    kDepthEstimatorRemoveShadowPointsInFrontEnd = True
 
     # other parameters 
     kChi2Mono = 5.991 # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

@@ -37,8 +37,9 @@ brew install boost    # for serialization
 brew install tmux
 brew install flann
 brew install catch2
-brew install numpy
+#brew install numpy
 #brew install open3d     # built from source for different issues 
+brew install x265 libjpeg libde265 libheif   # for pillow-heif
 
 # create a pyslam environment within pyenv and activate it 
 ./pyenv-mac-create.sh  # NOTE: the use of ./ seems crucial for the correct identification of the python libs for C++ projects 

@@ -192,6 +192,40 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 fi 
 
 
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/ml_depth_pro ..."
+
+cd thirdparty
+if [ ! -d ml_depth_pro ]; then
+    git clone https://github.com/apple/ml-depth-pro.git ml_depth_pro
+    cd ml_depth_pro
+    #git checkout b2cd0d51daa95e49277a9f642f7fd736b7f9e91d # use this commit if you hit any problems
+
+    git apply ../ml_depth_pro.patch
+
+    source get_pretrained_models.sh   # Files will be downloaded to `ml_depth_pro/checkpoints` directory. 
+fi
+
+cd $STARTING_DIR
+
+
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/depth_anything_v2 ..."
+
+cd thirdparty
+if [ ! -d depth_anything_v2 ]; then
+    git clone https://github.com/DepthAnything/Depth-Anything-V2.git depth_anything_v2
+    cd depth_anything_v2
+    #git checkout 31dc97708961675ce6b3a8d8ffa729170a4aa273 # use this commit if you hit any problems
+
+    git apply ../depth_anything_v2.patch
+
+    ./download_metric_models.py
+fi
+
+cd $STARTING_DIR
+
 
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
 # export WITH_PYTHON_INTERP_CHECK=ON

@@ -4,13 +4,14 @@
 <!-- TOC -->
 
 - [Install pyslam under macOS](#install-pyslam-under-macos)
-    - [1. Install steps](#1-install-steps)
-    - [2. Notes about macOS](#2-notes-about-macos)
-        - [2.1. Install homebrew](#21-install-homebrew)
-    - [3. Known issues](#3-known-issues)
-        - [3.1. First run](#31-first-run)
-        - [3.2. Issues found with OpenCV and pyenv](#32-issues-found-with-opencv-and-pyenv)
-        - [3.3. Issues found with boost serialization](#33-issues-found-with-boost-serialization)
+  - [Install steps](#install-steps)
+  - [Usage](#usage)
+  - [Notes about macOS](#notes-about-macos)
+    - [Install homebrew](#install-homebrew)
+  - [Known issues](#known-issues)
+    - [First run of the scripts](#first-run-of-the-scripts)
+    - [Issues found with OpenCV and pyenv](#issues-found-with-opencv-and-pyenv)
+    - [Issues found with boost serialization](#issues-found-with-boost-serialization)
 
 <!-- /TOC -->
 
@@ -21,36 +22,41 @@ The following procedure has been tested under *Sequoia 15.1.1* and *Xcode 16.1*.
 
 Please, follow these install steps: 
 
-1. first you need to install homebrew and Xcode CLT (check the [section below](#notes-about-macos))
-2. download this repo: 
+1. First you need to install homebrew and Xcode CLT (check the [section below](#notes-about-macos))
+2. Download this repo: 
    ```bash
    $ git clone --recursive https://github.com/luigifreda/pyslam.git 
    $ cd pyslam 
    ```
-3. change your default shell type to `bash`: 
+3. Change your default shell type to `bash`: 
    ```bash
    $ chsh -s /bin/bash 
    ```
    (if you want to set `zsh` back then run: `$ chsh -s /bin/zsh`)
-4. launch the macOS install script
+4. Launch the macOS install script
    ```bash
    $ ./install_all_venv.sh
    ```
-5. in order to run `main_vo.py` run 
-   ```bash
-   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
-   ```
-6. in order to run `main_slam.py` run 
-   ```bash
-   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal. 
-   ```
 
-**NOTE 1**: the above procedure will install a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
+**NOTE**: The above install procedure (step 4) installs a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 
 ```bash
 $ . pyenv-activate.sh 
 ```
 (do not forget the dot! without '/' ! )
 You can find further details about python virtual environments [here](./PYTHON-VIRTUAL-ENVS.md).
+
+## Usage 
+   
+- To test the basic visual odometry run 
+   ```bash
+   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
+   $ ./main_vo.py
+   ```
+- To test the full SLAM system run 
+   ```bash
+   $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
+   $ ./main_slam.py
+   ```
 
 <!-- **NOTE 2**: the launch scripts `./scripts/launch_main_xxx.sh ` will automatically activate the `pyslam` virtual enviroment for you and launch the scripts with the necessary environment variable setting (explained below):
 ```bash
@@ -76,7 +82,7 @@ $ xcode-select --install
 ## Known issues
 
 
-### First run
+### First run of the scripts
 
 On my machine, I've noticed that, the first time one of main scripts is run, it takes a while before it actually starts.  
 

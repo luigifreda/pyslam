@@ -28,10 +28,13 @@ import numpy as np
 from camera import Camera
 from map import Map
 
+from dataset import DatasetEnvironmentType
+
 from utils_geom import inv_T, align_trajs_with_svd
 from utils_sys import Printer, set_rlimit, LoggerQueue
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
+from utils_depth import filter_shadow_points
 
 from timer import TimerFps
 
@@ -165,6 +168,7 @@ class VolumetricIntegrator:
         set_rlimit()
          
         self.camera = slam.camera
+        self.environment_type = slam.environment_type
         
         self.keyframe_queue = deque() # We use a deque to accumulate keyframes for volumetric integration. 
                                       # We integrate only the keyframes that have been processed by LBA at least once. 
@@ -175,6 +179,9 @@ class VolumetricIntegrator:
         
         self.last_input_task = None
         self.last_output = None
+        
+        self.depth_estimator = None
+        self.img_id_to_depth = None
         
         self.reset_mutex = mp.Lock()
         self.reset_requested = mp.Value('i',0)
@@ -199,7 +206,7 @@ class VolumetricIntegrator:
     def start(self):
         self.is_running.value = 1
         self.process = mp.Process(target=self.run,
-                          args=(self.camera, \
+                          args=(self.camera, self.environment_type, \
                                 self.q_in, self.q_in_condition, \
                                 self.q_out, self.q_out_condition, \
                                 self.is_running, self.reset_mutex, self.reset_requested,
@@ -242,6 +249,7 @@ class VolumetricIntegrator:
                 if self.reset_requested.value == 0:
                     break
             time.sleep(0.1)
+        self.keyframe_queue.clear()
         print('VolumetricIntegrator: ...Reset done.')
             
     def reset_if_requested(self, reset_mutex, reset_requested, volume, \
@@ -282,11 +290,13 @@ class VolumetricIntegrator:
                 self.process.terminate()      
             print('VolumetricIntegrator: done')   
     
-    def init(self, camera: Camera):
+    def init(self, camera: Camera, environment_type: DatasetEnvironmentType):
         
         self.last_output = None
         self.depth_factor = 1.0/camera.depth_factor
-        
+        self.environment_type = environment_type    
+        self.volumetric_integration_depth_trunc = Parameters.kVolumetricIntegrationDepthTruncIndoor if environment_type == DatasetEnvironmentType.INDOOR else Parameters.kVolumetricIntegrationDepthTruncOutdoor
+    
         self.volume = o3d.pipelines.integration.ScalableTSDFVolume(
             voxel_length=Parameters.kVolumetricIntegrationVoxelLength,
             sdf_trunc=Parameters.kVolumetricIntegrationSdfTrunc,
@@ -294,15 +304,35 @@ class VolumetricIntegrator:
                 
         self.o3d_camera = o3d.camera.PinholeCameraIntrinsic(width=camera.width, height=camera.height, fx=camera.fx, fy=camera.fy, cx=camera.cx, cy=camera.cy)     
         
+        # pip install flash_attn
+        self.img_id_to_depth = {}
+        import torch
+        from depth_estimator import depth_estimator_factory, DepthEstimatorType
+        if Parameters.kVolumetricIntegrationUseDepthEstimator:
+            depth_estimator_type = DepthEstimatorType.DEPTH_PRO
+            min_depth = 0
+            max_depth = 50 if environment_type == DatasetEnvironmentType.OUTDOOR else 10 
+            precision = torch.float16  # for depth_pro
+            self.depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, 
+                                                    min_depth=min_depth, max_depth=max_depth,
+                                                    dataset_env_type=environment_type, precision=precision,
+                                                    camera=camera)
+        
         # Prepare maps to undistort color and depth images
         h, w = camera.height, camera.width
         D = camera.D
         K = camera.K
-        self.new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), 1, (w, h))
-        self.calib_map1, self.calib_map2 = cv2.initUndistortRectifyMap(K, D, None, self.new_K, (w, h), cv2.CV_32FC1)
+        #Printer.green(f'VolumetricIntegrator: init: h={h}, w={w}, D={D}, K={K}')
+        if np.linalg.norm(np.array(D, dtype=float)) <= 1e-10:
+            self.new_K = K
+            self.calib_map1 = None
+            self.calib_map2 = None
+        else:
+            self.new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), 1, (w, h))
+            self.calib_map1, self.calib_map2 = cv2.initUndistortRectifyMap(K, D, None, self.new_K, (w, h), cv2.CV_32FC1)
     
     # main loop of the volume integration process
-    def run(self, camera, \
+    def run(self, camera, environment_type, \
             q_in, q_in_condition, \
             q_out, q_out_condition, \
             is_running, reset_mutex, reset_requested, \
@@ -310,7 +340,7 @@ class VolumetricIntegrator:
             save_request_completed, save_request_condition, \
             time_volumetric_integration):
         print('VolumetricIntegrator: starting...')
-        self.init(camera)
+        self.init(camera, environment_type)
         # main loop
         while is_running.value == 1:
             with q_in_condition:
@@ -352,29 +382,53 @@ class VolumetricIntegrator:
                         keyframe_data = self.last_input_task.keyframe_data
                         color = keyframe_data.img
                         depth = keyframe_data.depth
+                        if depth is None: 
+                            if self.depth_estimator is None:
+                                Printer.yellow('VolumetricIntegrator: depth is None')
+                                return # skip this keyframe
+                            else:
+                                inference_start_time = time.time()
+                                if keyframe_data.id in self.img_id_to_depth:
+                                    depth = self.img_id_to_depth[keyframe_data.id]
+                                else:
+                                    depth = self.depth_estimator.infer(color)
+                                    print(f'VolumetricIntegrator: depth inference time: {time.time() - inference_start_time}')
+                                    depth = filter_shadow_points(depth, delta_depth=None)
+                                    
+                        if not depth.dtype in [np.uint8, np.uint16, float]:
+                            depth = depth.astype(np.float32)
                         
-                        color_undistorted = cv2.remap(color, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_LINEAR)
-                        depth_undistorted = cv2.remap(depth, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_NEAREST)
+                        if self.calib_map1 is not None and self.calib_map2 is not None:
+                            color_undistorted = cv2.remap(color, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_LINEAR)
+                            depth_undistorted = cv2.remap(depth, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_NEAREST)
+                        else: 
+                            color_undistorted = color
+                            depth_undistorted = depth
+                            
+                        if self.depth_estimator is not None:
+                            if not keyframe_data.id in self.img_id_to_depth:
+                                self.img_id_to_depth[keyframe_data.id] = depth_undistorted
                                                 
                         color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
                                                                         
                         pose = keyframe_data.pose # Tcw
                         #inv_pose = inv_T(pose)   # Twc
+                                                
+                        print(f'VolumetricIntegrator: depth: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}')
                                                     
                         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
                             o3d.geometry.Image(color_undistorted), 
                             o3d.geometry.Image(depth_undistorted), 
                             depth_scale=self.depth_factor,
-                            depth_trunc=Parameters.kVolumetricIntegrationDepthTrunc, 
+                            depth_trunc=self.volumetric_integration_depth_trunc, 
                             convert_rgb_to_intensity=False)
                         
                         volume.integrate(rgbd, self.o3d_camera, pose)
                         
-                        
                         do_output = True
                         if self.last_output is not None:
                             elapsed_time = time.perf_counter() - self.last_output.timestamp
-                            if elapsed_time < Parameters.kVolumetricIntegrationOutputInterval:
+                            if elapsed_time < Parameters.kVolumetricIntegrationOutputTimeInterval:
                                 do_output = False
                         
                         if do_output:
@@ -443,12 +497,14 @@ class VolumetricIntegrator:
         print(f'VolumetricIntegrator: {id_info} q_in size: {q_in.qsize()}, q_out size: {q_out.qsize()}, volume-integration-process elapsed time: {time_volumetric_integration.value}')
 
 
+    # TODO: Add a timer and a mutex to call this periodically
     def flush_keyframe_queue(self):
         # iterate over the keyframe queue
         i = 0  
         while i < len(self.keyframe_queue):
             kf_to_process = self.keyframe_queue[i]
-            if kf_to_process.lba_count > 0:
+            # We integrate only the keyframes that have been processed by LBA at least once.
+            if kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes:
                 self.keyframe_queue.remove(kf_to_process)  # Remove item
                 print(f'VolumetricIntegrator: Adding keyframe with img id: {kf_to_process.id} (kid: {kf_to_process.kid})')
                 task_type = VolumetricIntegratorTaskType.INTEGRATE
@@ -458,7 +514,7 @@ class VolumetricIntegrator:
                 i += 1  # Only move forward if no removal to avoid skipping   
 
     def add_keyframe(self, keyframe: KeyFrame, img, img_right, depth, print=print):
-        if depth is None:
+        if depth is None and not Parameters.kVolumetricIntegrationUseDepthEstimator:
             print(f'VolumetricIntegrator: add_keyframe: depth is None -> skipping frame {keyframe.id}')
             return
         try:

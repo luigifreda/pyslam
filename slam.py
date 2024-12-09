@@ -40,7 +40,7 @@ from local_mapping import LocalMapping
 
 from loop_closing import LoopClosing
 
-from dataset import SensorType
+from dataset import SensorType, DatasetEnvironmentType
 
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from feature_tracker import feature_tracker_factory, FeatureTracker, FeatureTrackerTypes 
@@ -73,11 +73,13 @@ if not kVerbose:
 
 # Main slam system class containing all the required modules. 
 class Slam(object):
-    def __init__(self, camera: Camera, feature_tracker_config: dict, loop_detector_config=None, sensor_type=SensorType.MONOCULAR, groundtruth=None):
+    def __init__(self, camera: Camera, feature_tracker_config: dict, loop_detector_config=None, 
+                 sensor_type=SensorType.MONOCULAR, groundtruth=None, environment_type=DatasetEnvironmentType.OUTDOOR):
         self.camera = camera 
         self.feature_tracker_config = feature_tracker_config
         self.loop_detector_config = loop_detector_config
         self.sensor_type = sensor_type  
+        self.environment_type = environment_type   
         self.init_feature_tracker(feature_tracker_config)
         self.map = Map()
         self.local_mapping = LocalMapping(self)        

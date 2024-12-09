@@ -1,0 +1,208 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..d6ed931
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,5 @@
++
++
++__pycache__
++
++*.pth
+\ No newline at end of file
+diff --git a/download_metric_models.py b/download_metric_models.py
+new file mode 100755
+index 0000000..2855a99
+--- /dev/null
++++ b/download_metric_models.py
+@@ -0,0 +1,100 @@
++#!/usr/bin/env python
++
++import os
++import argparse
++import multiprocessing
++
++import requests  # Use requests for general HTTP downloads
++import gdown
++from tqdm import tqdm  # Import tqdm for progress bars
++
++
++# folder of this script 
++SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
++TARGET_DIR = os.path.join(SCRIPT_DIR, "metric_depth/checkpoints")
++
++
++download_json = {
++    # small
++    "depth_anything_v2_metric_hypersim_vits.pth": "https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Hypersim-Small/resolve/main/depth_anything_v2_metric_hypersim_vits.pth?download=true",
++    "depth_anything_v2_metric_vkitti_vits.pth": "https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-VKITTI-Small/resolve/main/depth_anything_v2_metric_vkitti_vits.pth?download=true",        
++    # base
++    "depth_anything_v2_metric_hypersim_vitb.pth": "https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Hypersim-Base/resolve/main/depth_anything_v2_metric_hypersim_vitb.pth?download=true",
++    "depth_anything_v2_metric_vkitti_vitb.pth": "https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-VKITTI-Base/resolve/main/depth_anything_v2_metric_vkitti_vitb.pth?download=true",
++
++    # large
++    "depth_anything_v2_metric_hypersim_vitl.pth": "https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Hypersim-Large/resolve/main/depth_anything_v2_metric_hypersim_vitl.pth?download=true",
++    "depth_anything_v2_metric_vkitti_vitl.pth": "https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-VKITTI-Large/resolve/main/depth_anything_v2_metric_vkitti_vitl.pth?download=true"   
++}
++
++def gdrive_download(*args, **kwargs):
++    url = kwargs["url"]
++    output = kwargs["path"]
++    # check if outfolder exists or create it
++    output_folder = os.path.dirname(output)
++    if not os.path.exists(output_folder):
++        os.makedirs(output_folder)
++    if not os.path.exists(output):
++        print(f'downloading {url} to {output}')
++        gdown.download(url, output)
++    else: 
++        print(f'file already exists: {output}')
++
++def http_download(*args, **kwargs):
++    url = kwargs["url"]
++    output = kwargs["path"]
++    # check if outfolder exists or create it
++    output_folder = os.path.dirname(output)
++    if not os.path.exists(output_folder):
++        os.makedirs(output_folder)
++    if not os.path.exists(output):
++        print(f'downloading {url} to {output}')
++        try:
++            response = requests.get(url, stream=True)
++            response.raise_for_status()
++
++            total_size_in_bytes = int(response.headers.get('content-length', 0))
++            block_size = 1024  # 1 Kibibyte
++            progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True)
++
++            with open(output, 'wb') as f:
++                for data in response.iter_content(block_size):
++                    progress_bar.update(len(data))
++                    f.write(data)
++
++            progress_bar.close()
++        except requests.exceptions.RequestException as e:
++            print(f"Error downloading {url}: {e}")
++    else:
++        print(f'file already exists: {output}')
++        
++def download_data(*args, **kwargs):
++    p = multiprocessing.Process(target=http_download, args=args, kwargs=kwargs)
++    p.start()
++    return p
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("-v", "--verbose", dest="quiet", action="store_false")
++    args = parser.parse_args()
++    args.quiet
++    
++    processes = []
++
++    # download the large models that we want to use
++    print("downloading DepthAnything v2 pth models...")
++
++    for pth, url in download_json.items():
++        p = download_data(
++            path=TARGET_DIR + "/" + pth,
++            url=url,
++        )
++        processes.append(p)
++    
++    for p in processes:
++        p.join()
++        
++    print("download of pth files completed!")
++    
++if __name__ == "__main__":
++    main()
+\ No newline at end of file
+diff --git a/metric_depth/depth_anything_v2/dinov2_layers/attention.py b/metric_depth/depth_anything_v2/dinov2_layers/attention.py
+index 815a2bf..95ffff8 100644
+--- a/metric_depth/depth_anything_v2/dinov2_layers/attention.py
++++ b/metric_depth/depth_anything_v2/dinov2_layers/attention.py
+@@ -17,13 +17,13 @@ from torch import nn
+ logger = logging.getLogger("dinov2")
+ 
+ 
+-try:
+-    from xformers.ops import memory_efficient_attention, unbind, fmha
++# try:
++#     from xformers.ops import memory_efficient_attention, unbind, fmha
+ 
+-    XFORMERS_AVAILABLE = True
+-except ImportError:
+-    logger.warning("xFormers not available")
+-    XFORMERS_AVAILABLE = False
++#     XFORMERS_AVAILABLE = True
++# except ImportError:
++#     logger.warning("xFormers not available")
++XFORMERS_AVAILABLE = False
+ 
+ 
+ class Attention(nn.Module):
+diff --git a/metric_depth/depth_anything_v2/dinov2_layers/block.py b/metric_depth/depth_anything_v2/dinov2_layers/block.py
+index 25488f5..548e1d1 100644
+--- a/metric_depth/depth_anything_v2/dinov2_layers/block.py
++++ b/metric_depth/depth_anything_v2/dinov2_layers/block.py
+@@ -23,14 +23,14 @@ from .mlp import Mlp
+ logger = logging.getLogger("dinov2")
+ 
+ 
+-try:
+-    from xformers.ops import fmha
+-    from xformers.ops import scaled_index_add, index_select_cat
+-
+-    XFORMERS_AVAILABLE = True
+-except ImportError:
+-    logger.warning("xFormers not available")
+-    XFORMERS_AVAILABLE = False
++# try:
++#     from xformers.ops import fmha
++#     from xformers.ops import scaled_index_add, index_select_cat
++
++#     XFORMERS_AVAILABLE = True
++# except ImportError:
++#     logger.warning("xFormers not available")
++XFORMERS_AVAILABLE = False
+ 
+ 
+ class Block(nn.Module):
+diff --git a/metric_depth/depth_anything_v2/dinov2_layers/swiglu_ffn.py b/metric_depth/depth_anything_v2/dinov2_layers/swiglu_ffn.py
+index b3324b2..4e18088 100644
+--- a/metric_depth/depth_anything_v2/dinov2_layers/swiglu_ffn.py
++++ b/metric_depth/depth_anything_v2/dinov2_layers/swiglu_ffn.py
+@@ -33,13 +33,13 @@ class SwiGLUFFN(nn.Module):
+         return self.w3(hidden)
+ 
+ 
+-try:
+-    from xformers.ops import SwiGLU
++# try:
++#     from xformers.ops import SwiGLU
+ 
+-    XFORMERS_AVAILABLE = True
+-except ImportError:
+-    SwiGLU = SwiGLUFFN
+-    XFORMERS_AVAILABLE = False
++#     XFORMERS_AVAILABLE = True
++# except ImportError:
++SwiGLU = SwiGLUFFN
++XFORMERS_AVAILABLE = False
+ 
+ 
+ class SwiGLUFFNFused(SwiGLU):
+diff --git a/metric_depth/run.py b/metric_depth/run.py
+index 63d46f5..81194cf 100644
+--- a/metric_depth/run.py
++++ b/metric_depth/run.py
+@@ -31,8 +31,7 @@ if __name__ == '__main__':
+     model_configs = {
+         'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+         'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+-        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+-        'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
++        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]}
+     }
+     
+     depth_anything = DepthAnythingV2(**{**model_configs[args.encoder], 'max_depth': args.max_depth})
