@@ -443,7 +443,9 @@ class EurocGroundTruth(GroundTruth):
         print('base_path: ', base_path)
         
         if not os.path.isfile(self.filename):
-            Printer.red(f'Groundtruth file not found: {self.filename}')
+            error_message = f'ERROR: Groundtruth file not found: {self.filename}'
+            Printer.red(error_message)
+            sys.exit(error_message)
                                     
         with open(self.filename) as f:
             self.data = f.readlines()

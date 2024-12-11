@@ -51,13 +51,15 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 **Main Scripts**:
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
-* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline. Further details [here](./docs/basic_architecture.md).
+* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
 
-* `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. Further details [here](./docs/basic_architecture.md).
+* `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. 
 
 * `main_depth_prediction.py` shows how to use the available depth inference models to get depth estimations from input color images.
   
 * `main_map_viewer.py` allows to reload a saved map and visualize it. Further details [here](#relocalization-in-a-loaded-map).
+
+You can find a couple of diagram sketches [here](./docs/basic_architecture.md), designed to provide an overview of the **main classes' architecture**.
 
 You can use the pySLAM framework as a baseline to experiment with VO techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)*, and create your own (proof of concept) VO/SLAM pipeline in python. When working with it, please keep in mind this is a research framework written in Python and a work in progress. It is not designed for real-time performances.   
 
@@ -197,12 +199,14 @@ If you want a mesh as output set `kVolumetricIntegrationExtractMesh=True` in `pa
 ### Depth prediction
 
 The available depth prediction models can be utilized both in the SLAM back-end and front-end. 
-- Back-end: Depth prediction can be enabled in the volumetric reconstruction pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator` in `parameters.py`. However, this must be NOT be used in a monocular SLAM configuration as the SLAM (fake) scale will conflict with the absolute metric scale of depth predictions.
-- Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still very *experimental* [WIP].   
+- Back-end: Depth prediction can be enabled in the volumetric reconstruction pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator` in `parameters.py`. 
+- Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still very *experimental* at present time [WIP].   
 
-Refer to the file `depth_estimator.py` for further details.
+Refer to the file `depth_estimator.py` for further details. You can test it by using the script `main_depth_prediction.py`.
 
-Note that since the depth inference is very slow (with DepthPro it takes ~1s per image on my machine), the resulting volumetric reconstruction pipeline is very slow.
+**Notes**: 
+* In the case of a monocular SLAM configuration, do NOT use depth prediction in the back-end: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. In such a configuration, enable depth prediction in the front-end.
+- The depth inference is very slow (with DepthPro it takes ~1s per image on my machine). Therefore, the resulting volumetric reconstruction pipeline is very slow.
 
 ### Save and reload a map
 
@@ -405,20 +409,18 @@ pySLAM code expects the following structure in the specified KITTI path folder (
 pySLAM code expects a file `associations.txt` in each TUM dataset folder (specified in the section `TUM_DATASET:` of the file `config.yaml`). 
 
 1. Download a sequence from http://vision.in.tum.de/data/datasets/rgbd-dataset/download and uncompress it.
-
 2. Associate RGB images and depth images using the python script [associate.py](http://vision.in.tum.de/data/datasets/rgbd-dataset/tools). You can generate your `associations.txt` file by executing:
-
-```
+```bash
 $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt
 ```
-3. Select the corresponding calibration settings file (parameter `TUM_DATASET: cam_settings:` in the file `config.yaml`)
+3. Select the corresponding calibration settings file (parameter `TUM_DATASET: cam_settings:` in the file `config.yaml`).
 
 
 ### EuRoC Dataset
 
 1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
-
-2. Select the corresponding calibration settings file (parameter `EUROC_DATASET: cam_settings:` in the file `config.yaml`)
+2. Use the script `groundtruth/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
+3. Select the corresponding calibration settings file (parameter `EUROC_DATASET: cam_settings:` in the file `config.yaml`).
 
 --- 
 ## Camera Settings
@@ -429,7 +431,7 @@ In order to calibrate your camera, you can use the scripts in the folder `calibr
 1. use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size therein, you can use the calibration pattern `calib_pattern.pdf` in the same folder) 
 2. use the script `calibrate.py` to process the collected images and compute the calibration parameters (set the chessboard size therein)
 
-For more information on the calibration process, see the tutorial [here](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html). 
+For more information on the calibration process, see this [tutorial](https://learnopencv.com/camera-calibration-using-opencv/) or this other [link](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html). 
 
 If you want to **use your camera**, you have to:
 * calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly
@@ -520,4 +522,5 @@ Many improvements and additional features are currently under development:
 - [x] unified install procedure (single branch) for all OSs 
 - [x] trajectory saving 
 - [x] depth prediction integration
+- [ ] ROS support
 

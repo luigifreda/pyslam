@@ -48,7 +48,7 @@ class FeatureTrackerTypes(SerializableEnum):
     DES_FLANN = 2   # descriptor-based, FLANN-based matching
     XFEAT     = 3   # based on XFEAT, "XFeat: Accelerated Features for Lightweight Image Matching"
     LIGHTGLUE = 4   # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
-    LOFTR     = 5   # [kornia-based] "LoFTR: Efficient Local Feature Matching with Transformers"
+    LOFTR     = 5   # "LoFTR: Efficient Local Feature Matching with Transformers" [kornia-based] 
 
 
 def feature_tracker_factory(num_features=kMinNumFeatureDefault, 

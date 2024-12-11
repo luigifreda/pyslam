@@ -46,7 +46,7 @@ do
 		cd $DATASET_PATH
 		evo_traj euroc data.csv --save_as_tum
 		# multiply the timestamps for a scale factor
-		$SCRIPT_DIR/multiply_timestamps.py data.tum data_t2.tum $TIME_SCALE_FACTOR 
+		#$SCRIPT_DIR/multiply_timestamps.py data.tum data_t2.tum $TIME_SCALE_FACTOR 
 	else
 		echo "dataset not found"
 	fi
