@@ -21,8 +21,8 @@ graph LR;
     depth_estimator_factory -->|*depth_estimator_type*| DEPTH_PRO;    
 
 
-    DEPTH_ANYTHING_V2 --> DepthEstimatorDepthAnythingV2;
-    DEPTH_PRO --> DepthEstimatorDepthPro;
+    DEPTH_ANYTHING_V2 -->|*_creates_*| DepthEstimatorDepthAnythingV2;
+    DEPTH_PRO -->|*_creates_*| DepthEstimatorDepthPro;
 
     %% DepthEstimator classes
     classDef depthEstimator fill:#f9f,stroke:#333,stroke-width:2px;

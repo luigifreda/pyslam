@@ -63,12 +63,16 @@ kDataFolder = kRootFolder + '/data'
 @register_class
 class GlobalDescriptorType(SerializableEnum):
     # These types take the name from the adopted aggregation type and underlying local descriptor type. 
-    DBOW2       = 0     # Bags of Words (BoW). This implementation only works with ORB local features. It needs an ORB vocabulary (available).
+    DBOW2       = 0     # Bags of Words (BoW). This implementation only works with ORB local features. 
+                        # It needs an ORB vocabulary (available).
                         # Reference: "Bags of Binary Words for Fast Place Recognition in Image Sequences"
-    DBOW3       = 1     # Bags of Words (BoW). It needs a vocabulary (available for ORB).
-    OBINDEX2    = 2     # Hierarchical indexing scheme. Incremental Bags of binary Words. Incrementally builds a vocabulary. If needed, it transforms the input non-binary local descriptors into binary descriptors.
+    DBOW3       = 1     # Bags of Words (BoW).
+                        # It needs a vocabulary (available for ORB).
+    OBINDEX2    = 2     # Hierarchical indexing scheme. Incremental Bags of binary Words. 
+                        # Incrementally builds a vocabulary. If needed, it transforms the input non-binary local descriptors into binary descriptors.
                         # Reference: "iBoW-LCD: An Appearance-based Loop Closure Detection Approach using Incremental Bags of Binary Words"
-    IBOW        = 3     # Incremental Bags of binary Words (iBoW). Built on the top of OBINDEX2. It incrementally builds a vocabulary. If needed, it transforms input non-binary local descriptors into binary descriptors.
+    IBOW        = 3     # Incremental Bags of binary Words (iBoW). Built on the top of OBINDEX2. 
+                        # It incrementally builds a vocabulary. If needed, it transforms input non-binary local descriptors into binary descriptors.
                         # Reference: "iBoW-LCD: An Appearance-based Loop Closure Detection Approach using Incremental Bags of Binary Words"
     HDC_DELF    = 4     # Local DELF descriptor + Hyperdimensional Computing (HDC).
                         # Reference: "Large-Scale Image Retrieval with Attentive Deep Local Features", "Hyperdimensional Computing as a Framework for Systematic Aggregation of Image Descriptors"

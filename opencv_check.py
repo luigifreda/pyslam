@@ -37,3 +37,13 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Exception: {e}")
             print(f'Could not find linked OpenCV library details')
+            
+            
+    if True: 
+        try: 
+            detector = cv2.xfeatures2d.SURF_create()
+            print(f"Detector: {detector} created")
+            print(f'You have non-free OpenCV support!')
+        except Exception as e:
+            print(f"Exception: {e}")
+            print(f'Could not create SURF detector: You dont have non-free OpenCV support!')

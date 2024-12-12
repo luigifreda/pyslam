@@ -38,18 +38,18 @@ graph LR;
     class LoopDetectorBase loopDetectorBase;
     class LoopDetectorVprBase loopDetectorVprBase;
 
-    DBOW2 --> LoopDetectorDBoW2;
-    DBOW3 --> LoopDetectorDBoW3;
-    VLAD --> LoopDetectorVlad;
-    OBINDEX2 --> LoopDetectorOBIndex2;
-    IBOW --> LoopDetectorIBow;
+    DBOW2 -->|*creates*| LoopDetectorDBoW2;
+    DBOW3 -->|*creates*| LoopDetectorDBoW3;
+    VLAD -->|*creates*| LoopDetectorVlad;
+    OBINDEX2 -->|*creates*| LoopDetectorOBIndex2;
+    IBOW -->|*creates*| LoopDetectorIBow;
 
-    HDC_DELF --> LoopDetectorHdcDelf;
-    SAD --> LoopDetectorSad;
-    ALEXNET --> LoopDetectorAlexNet;
-    NETVLAD --> LoopDetectorNetVLAD;
-    COSPLACE --> LoopDetectorCosPlace;
-    EIGENPLACES --> LoopDetectorEigenPlaces;
+    HDC_DELF -->|*creates*| LoopDetectorHdcDelf;
+    SAD -->|*creates*| LoopDetectorSad;
+    ALEXNET -->|*creates*| LoopDetectorAlexNet;
+    NETVLAD -->|*creates*| LoopDetectorNetVLAD;
+    COSPLACE -->|*creates*| LoopDetectorCosPlace;
+    EIGENPLACES -->|*creates*| LoopDetectorEigenPlaces;
 
     %% Hierarchical relationships
     LoopDetectorDBoW2 -->|*_is-a_*| LoopDetectorBase;

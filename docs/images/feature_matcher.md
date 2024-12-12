@@ -28,11 +28,11 @@ graph LR;
     class LightGlueMatcher singleMatcher;
     class LoFTRMatcher singleMatcher;
     
-    BF --> BfFeatureMatcher;
-    FLANN --> FlannFeatureMatcher;
-    XFEAT --> XFeatMatcher;
-    LIGHTGLUE --> LightGlueMatcher;
-    LOFTR --> LoFTRMatcher
+    BF -->|*creates*| BfFeatureMatcher;
+    FLANN -->|*creates*| FlannFeatureMatcher;
+    XFEAT -->|*creates*| XFeatMatcher;
+    LIGHTGLUE -->|*creates*| LightGlueMatcher;
+    LOFTR -->|*creates*| LoFTRMatcher
     
     BfFeatureMatcher -->|*_is-a_*| FeatureMatcher;
     FlannFeatureMatcher -->|*_is-a_*| FeatureMatcher;

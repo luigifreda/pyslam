@@ -5,50 +5,52 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.2.5](#pyslam-v225)
-  - [Install](#install)
-    - [Main requirements](#main-requirements)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
-  - [Usage](#usage)
-    - [Feature tracking](#feature-tracking)
-    - [Loop closing](#loop-closing)
-    - [Volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)
-    - [Depth prediction](#depth-prediction)
-    - [Save and reload a map](#save-and-reload-a-map)
-    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
-    - [Trajectory saving](#trajectory-saving)
-    - [SLAM GUI](#slam-gui)
-    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-  - [Supported local features](#supported-local-features)
-  - [Supported matchers](#supported-matchers)
-  - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
-      - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
-      - [Global descriptors](#global-descriptors)
-  - [Supported depth prediction models](#supported-depth-prediction-models)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-    - [EuRoC Dataset](#euroc-dataset)
-  - [Camera Settings](#camera-settings)
-  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+    - [1. Install](#1-install)
+        - [1.1. Main requirements](#11-main-requirements)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
+    - [2. Usage](#2-usage)
+        - [2.1. Feature tracking](#21-feature-tracking)
+        - [2.2. Loop closing](#22-loop-closing)
+            - [2.2.1. Vocabulary management for DBoW and VLAD](#221-vocabulary-management-for-dbow-and-vlad)
+            - [2.2.2. Vocabulary-free loop closing](#222-vocabulary-free-loop-closing)
+        - [2.3. Volumetric reconstruction pipeline](#23-volumetric-reconstruction-pipeline)
+        - [2.4. Depth prediction](#24-depth-prediction)
+        - [2.5. Save and reload a map](#25-save-and-reload-a-map)
+        - [2.6. Relocalization in a loaded map](#26-relocalization-in-a-loaded-map)
+        - [2.7. Trajectory saving](#27-trajectory-saving)
+        - [2.8. SLAM GUI](#28-slam-gui)
+        - [2.9. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#29-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+    - [3. Supported local features](#3-supported-local-features)
+    - [4. Supported matchers](#4-supported-matchers)
+    - [5. Supported global descriptors and local descriptor aggregation methods](#5-supported-global-descriptors-and-local-descriptor-aggregation-methods)
+            - [5.1. Local descriptor aggregation methods](#51-local-descriptor-aggregation-methods)
+            - [5.2. Global descriptors](#52-global-descriptors)
+    - [6. Supported depth prediction models](#6-supported-depth-prediction-models)
+    - [7. Datasets](#7-datasets)
+        - [7.1. KITTI Datasets](#71-kitti-datasets)
+        - [7.2. TUM Datasets](#72-tum-datasets)
+        - [7.3. EuRoC Dataset](#73-euroc-dataset)
+    - [8. Camera Settings](#8-camera-settings)
+    - [9. Comparison pySLAM vs ORB-SLAM3](#9-comparison-pyslam-vs-orb-slam3)
+    - [10. Contributing to pySLAM](#10-contributing-to-pyslam)
+    - [11. References](#11-references)
+    - [12. Credits](#12-credits)
+    - [13. TODOs](#13-todos)
 
 <!-- /TOC -->
  
-**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features:
+**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following **features**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
 - Various loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)** that processes available depth and color images.
 - Integration of **[depth prediction models](#depth-prediction)**, including DepthPro and DepthAnythingV2, within the SLAM pipeline.  
 - A collection of other useful tools for VO and SLAM.
 
-**Main Scripts**:
+**Main Scripts**
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
@@ -59,7 +61,8 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   
 * `main_map_viewer.py` allows to reload a saved map and visualize it. Further details [here](#relocalization-in-a-loaded-map).
 
-You can find a couple of diagram sketches [here](./docs/basic_architecture.md), designed to provide an overview of the **main classes' architecture**.
+**System architecture overview**      
+[Here](./docs/basic_architecture.md) you can find a couple of diagram sketches that provide an overview of the main system components, and classes relationships and dependencies.
 
 You can use the pySLAM framework as a baseline to experiment with VO techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)*, and create your own (proof of concept) VO/SLAM pipeline in python. When working with it, please keep in mind this is a research framework written in Python and a work in progress. It is not designed for real-time performances.   
 
@@ -93,7 +96,7 @@ Then, use the available specific install procedure according to your OS. The pro
 ### Main requirements
 
 * Python 3.8.10
-* OpenCV >=4.8.1 (see [below](#how-to-install-non-free-opencv-modules))
+* OpenCV >=4.10 (see [below](#how-to-install-non-free-opencv-modules))
 * PyTorch 2.3.1
 * Tensorflow 2.13.1
 * Kornia 0.7.3
@@ -123,13 +126,13 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 ### How to install non-free OpenCV modules
 
-The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)).
-
-To verify your installed OpenCV version, use the following command:      
-`$ python3 -c "import cv2; print(cv2.__version__)"`
-
-How to check if you have non-free OpenCV module support (no errors imply success):       
-`$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"` 
+The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:       
+`$ . pyenv-activate.sh `        
+`$ ./opencv_check.py`       
+or use the following command:        
+`$ python3 -c "import cv2; print(cv2.__version__)"`      
+How to check if you have non-free OpenCV module support (no errors imply success):          
+`$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"`    
 
 
 ### Troubleshooting and performance issues
@@ -176,19 +179,27 @@ Some basic examples are available in the subfolder `test/loopclosing`. In partic
 
 ### Loop closing
 
-Different [loop closing methods](#loop-closing) are available. These combines the available [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
-Loop closing is enabled by default. You can disable it by setting `kUseLoopClosing=False` in `parameters.py`. See the file [loop_detector_configs.py](loop_detector_configs.py) for the different available configs.
+Different [loop closing methods](#loop-closing) are available, combining [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
+Loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `parameters.py`. Configuration options can be found in [loop_detector_configs.py](loop_detector_configs.py).
 
-Some **example files** are available in the subfolder `test/loopclosing`.  In particular, you may want to start from [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
+**Examples**: Start with the examples in `test/loopclosing`, such as [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
 
-**How to generate the array descriptors to train a vocabulary (DBoW, VLAD)**     
-Generate the array of descriptors to train your target vocabulary by using the script `test/loopclosing/test_gen_des_array_from_imgs.py`. Select your desired descriptor type by using the tracker configuration. 
 
-**DBOW vocabulary generation**      
-Train your target vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_from_des_array.py`.
+#### Vocabulary management for DBoW and VLAD
 
-**VLAD vocabulary generation**     
-Train your target VLAD "vocabulary" by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`.
+- **Generate descriptors array**: Use `test/loopclosing/test_gen_des_array_from_imgs.py` to generate the array of descriptors for training a vocabulary. Select your desired descriptor type via the tracker configuration. 
+
+- **DBOW vocabulary generation**: Train your target vocabulary by using the script `test/loopclosing/test_gen_dbow_voc_from_des_array.py`.
+
+- **VLAD vocabulary generation**: Train your target VLAD "vocabulary" by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`.
+
+#### Vocabulary-free loop closing
+
+Most methods do not require pre-trained vocabularies. Specifically:
+- `iBoW` and `OBindex2`: These methods incrementally build bags of binary words and, if needed, convert (front-end) non-binary descriptors into binary ones. 
+- Others: Methods like HDC_DELF, SAD, AlexNet, NetVLAD, CosPlace, and EigenPlaces directly extract global descriptors and process them using dedicated aggregators.
+
+Only DBoW2, DBoW3, and VLAD require pre-trained vocabularies.
 
 ### Volumetric reconstruction pipeline
 

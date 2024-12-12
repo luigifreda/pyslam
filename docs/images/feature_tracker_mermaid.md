@@ -30,12 +30,12 @@ graph LR;
     class LightGlueFeatureTracker singleTracker;
     class LoFTRFeatureTracker singleTracker;
     
-    LK --> LKFeatureTracker;
-    DES_BF --> DescriptorFeatureTracker;
-    DES_FLANN --> DescriptorFeatureTracker;
-    XFEAT --> XFeatureTracker;
-    LIGHTGLUE --> LightGlueFeatureTracker;
-    LOFTR --> LoFTRFeatureTracker;
+    LK -->|*creates*| LKFeatureTracker;
+    DES_BF -->|*creates*| DescriptorFeatureTracker;
+    DES_FLANN -->|*creates*| DescriptorFeatureTracker;
+    XFEAT -->|*creates*| XFeatureTracker;
+    LIGHTGLUE -->|*creates*| LightGlueFeatureTracker;
+    LOFTR -->|*creates*| LoFTRFeatureTracker;
     
     LKFeatureTracker -->|*_is-a_*| FeatureTracker;
     DescriptorFeatureTracker -->|*_is-a_*| FeatureTracker;
