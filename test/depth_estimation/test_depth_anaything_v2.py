@@ -1,7 +1,6 @@
 import sys 
 sys.path.append("../../")
 import config
-import config
 config.cfg.set_lib('depth_anything_v2') 
 
 import torch

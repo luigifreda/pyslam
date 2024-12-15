@@ -1,0 +1,110 @@
+diff --git a/download_models.py b/download_models.py
+new file mode 100755
+index 0000000..53d512c
+--- /dev/null
++++ b/download_models.py
+@@ -0,0 +1,90 @@
++#!/usr/bin/env python
++
++import os
++import argparse
++import multiprocessing
++
++import requests  # Use requests for general HTTP downloads
++import gdown
++from tqdm import tqdm  # Import tqdm for progress bars
++
++
++# folder of this script 
++SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
++TARGET_DIR = SCRIPT_DIR
++
++
++download_json = {
++    "crestereo_eth3d.mge": "https://drive.google.com/uc?id=1DITumQP1c-P4NF1puXgRvuylZkOIStQ1"}
++
++def gdrive_download(*args, **kwargs):
++    url = kwargs["url"]
++    output = kwargs["path"]
++    # check if outfolder exists or create it
++    output_folder = os.path.dirname(output)
++    if not os.path.exists(output_folder):
++        os.makedirs(output_folder)
++    if not os.path.exists(output):
++        print(f'downloading {url} to {output}')
++        gdown.download(url, output)
++    else: 
++        print(f'file already exists: {output}')
++
++def http_download(*args, **kwargs):
++    url = kwargs["url"]
++    output = kwargs["path"]
++    # check if outfolder exists or create it
++    output_folder = os.path.dirname(output)
++    if not os.path.exists(output_folder):
++        os.makedirs(output_folder)
++    if not os.path.exists(output):
++        print(f'downloading {url} to {output}')
++        try:
++            response = requests.get(url, stream=True)
++            response.raise_for_status()
++
++            total_size_in_bytes = int(response.headers.get('content-length', 0))
++            block_size = 1024  # 1 Kibibyte
++            progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True)
++
++            with open(output, 'wb') as f:
++                for data in response.iter_content(block_size):
++                    progress_bar.update(len(data))
++                    f.write(data)
++
++            progress_bar.close()
++        except requests.exceptions.RequestException as e:
++            print(f"Error downloading {url}: {e}")
++    else:
++        print(f'file already exists: {output}')
++        
++def download_data(*args, **kwargs):
++    p = multiprocessing.Process(target=gdrive_download, args=args, kwargs=kwargs)
++    p.start()
++    return p
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("-v", "--verbose", dest="quiet", action="store_false")
++    args = parser.parse_args()
++    args.quiet
++    
++    processes = []
++
++    # download the large models that we want to use
++    print("downloading crestereo models...")
++
++    for pth, url in download_json.items():
++        p = download_data(
++            path=TARGET_DIR + "/" + pth,
++            url=url,
++        )
++        processes.append(p)
++    
++    for p in processes:
++        p.join()
++        
++    print("download of pth files completed!")
++    
++if __name__ == "__main__":
++    main()
+\ No newline at end of file
+diff --git a/nets/corr.py b/nets/corr.py
+index 446500a..15df9d2 100644
+--- a/nets/corr.py
++++ b/nets/corr.py
+@@ -36,7 +36,7 @@ class AGCL:
+         di_y, di_x = dilate[0], dilate[1]
+         pady, padx = psize[0] // 2 * di_y, psize[1] // 2 * di_x
+ 
+-        right_pad = F.pad(right_feature, pad_witdth=(
++        right_pad = F.pad(right_feature, pad_width=(
+             (0, 0), (0, 0), (pady, pady), (padx, padx)), mode="replicate")
+ 
+         right_slid = F.sliding_window(

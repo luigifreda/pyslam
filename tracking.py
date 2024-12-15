@@ -566,7 +566,7 @@ class Tracking:
             nMinObs = 2  # if just two keyframes then we can have just two observations 
         num_kf_ref_tracked_points = self.kf_ref.num_tracked_points(nMinObs)  # number of tracked points in k_ref
         #num_f_cur_tracked_points = f_cur.num_matched_inlier_map_points()     # number of inliers in f_cur
-        num_f_cur_tracked_points = self.num_matched_map_points  # updated in the last self.track_local_map()
+        num_f_cur_tracked_points = self.num_matched_map_points if self.num_matched_map_points is not None else 0 # updated in the last self.track_local_map()
         tracking_info_message = f'F({f_cur.id}) #matched points: {num_f_cur_tracked_points}, KF({self.kf_ref.id}) #matched points: {num_kf_ref_tracked_points}'
         Printer.green(tracking_info_message)
         

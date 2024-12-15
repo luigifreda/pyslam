@@ -46,7 +46,7 @@ from feature_tracker_configs import FeatureTrackerConfigs
 
 from loop_detector_configs import LoopDetectorConfigs
 
-from depth_estimator import depth_estimator_factory, DepthEstimatorType
+from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 from utils_depth import img_from_depth, filter_shadow_points
 
 from parameters import Parameters  
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     
     groundtruth = groundtruth_factory(config.dataset_settings)
 
-    cam = PinholeCamera(config)
+    camera = PinholeCamera(config)
     
     num_features=2000 
     if config.num_features_to_extract > 0:  # override the number of features to extract if we set something in the settings file
@@ -88,20 +88,24 @@ if __name__ == "__main__":
     loop_detection_config = LoopDetectorConfigs.DBOW3
     Printer.green('loop_detection_config: ',loop_detection_config)
         
-    # create SLAM object
-    slam = Slam(cam, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None, environment_type=dataset.environmentType()) # groundtruth not actually used by Slam class
-    slam.set_viewer_scale(dataset.scale_viewer_3d)
-    time.sleep(1) # to show initial messages 
-    
-    # EXPERIMENTAL usage of depth estimator in the front-end (WIP)
+    # Select your depth estimator in the front-end (EXPERIMENTAL, WIP)
     depth_estimator = None
     if Parameters.kUseDepthEstimatorInFrontEnd:
-        Parameters.kVolumetricIntegrationUseDepthEstimator = False
+        Parameters.kVolumetricIntegrationUseDepthEstimator = False  # Just use this depth estimator in the front-end
+        # Select your depth estimator (see the file depth_estimator_factory.py)
+        # DEPTH_ANYTHING_V2, DEPTH_PRO, DEPTH_RAFT_STEREO, DEPTH_SGBM, etc.
         depth_estimator_type = DepthEstimatorType.DEPTH_PRO
         max_depth = 20
         depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, max_depth=max_depth,
-                                                  dataset_env_type=dataset.environmentType(), camera=cam)        
-        
+                                                  dataset_env_type=dataset.environmentType(), camera=camera) 
+        Printer.green(f'Depth_estimator_type: {depth_estimator_type.name}, max_depth: {max_depth}')       
+                
+    # create SLAM object
+    slam = Slam(camera, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None, environment_type=dataset.environmentType()) # groundtruth not actually used by Slam class
+    slam.set_viewer_scale(dataset.scale_viewer_3d)
+    time.sleep(1) # to show initial messages 
+    
+    # load system state if requested         
     if config.system_state_load: 
         slam.load_system_state(config.system_state_folder_path)
         viewer_scale = slam.viewer_scale() if slam.viewer_scale()>0 else 0.1  # 0.1 is the default viewer scale
@@ -115,7 +119,7 @@ if __name__ == "__main__":
             viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=dataset.sensor_type==SensorType.MONOCULAR)
     
     if platform.system() == 'Linux':    
-        display2d = Display2D(cam.width, cam.height)  # pygame interface 
+        display2d = Display2D(camera.width, camera.height)  # pygame interface 
     else: 
         display2d = None  # enable this if you want to use opencv window
 
@@ -162,7 +166,7 @@ if __name__ == "__main__":
                     time_start = time.time()    
                     
                     if depth is None and depth_estimator is not None:
-                        depth_prediction = depth_estimator.infer(img)
+                        depth_prediction = depth_estimator.infer(img, img_right)
                         if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
                             depth = filter_shadow_points(depth_prediction)
                         else: 

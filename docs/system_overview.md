@@ -1,4 +1,4 @@
-# Architecture
+# System Overview
 
 Here you can find a couple of diagram sketches that provide an overview of the main system components, and classes relationships and dependencies. **[WIP]** 
 

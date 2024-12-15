@@ -30,6 +30,14 @@ from logging.handlers import QueueHandler, QueueListener
 import multiprocessing
 import atexit
 
+from pathlib import Path
+import gdown
+import requests  # Use requests for general HTTP downloads
+from tqdm import tqdm  # Import tqdm for progress bars
+
+import shutil
+import tempfile
+
 
 # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
 myjet = np.array([[0.        , 0.        , 0.5       ],
@@ -414,3 +422,96 @@ def locally_configure_qt_environment():
     if sys.platform.startswith("linux") and ci_and_not_headless:
         os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)  # Remove if exists
         os.environ.pop("QT_QPA_FONTDIR", None)  # Remove if exists
+
+
+
+def gdrive_download(url, output, position=0):
+    # Check if output folder exists or create it
+    output_folder = os.path.dirname(output)
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    if not os.path.exists(output):
+        print(f'downloading {url} to {output}')
+        gdown.download(url, output)
+    else:
+        print(f'file already exists: {output}')
+
+
+def http_download(url, output, position=0):
+    # Create a temporary file in the same directory as the destination output
+    temp_dir = tempfile.mkdtemp()
+    temp_output = os.path.join(temp_dir, os.path.basename(output))
+
+    # Check if output folder exists or create it
+    output_folder = os.path.dirname(output)
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    if not os.path.exists(output):
+        print(f" Downloading {position}: url: {url}, temporary location: {temp_output}")
+
+        try:
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+
+            total_size_in_bytes = int(response.headers.get('content-length', 0))
+            block_size = 1024  # 1 KiB
+
+            # Use tqdm with dynamic_ncols to adjust the progress bar size dynamically
+            progress_bar = tqdm(
+                total=total_size_in_bytes,
+                unit="iB",
+                unit_scale=True, #position=position, # TODO: position does not seem to work as expected
+                leave=False,  # Prevent the progress bar from leaving a line after finishing
+                ncols=100,  # Set a fixed width for the progress bar
+                dynamic_ncols=True,  # Allow dynamic width adjustment
+            )
+
+            with open(temp_output, "wb") as f:
+                for data in response.iter_content(block_size):
+                    progress_bar.update(len(data))
+                    f.write(data)
+
+            progress_bar.close()
+
+            # Move the downloaded file to the destination output
+            shutil.move(temp_output, output)
+            print(f" Download {position} complete, file moved to {output}")
+
+        except requests.exceptions.RequestException as e:
+            print(f" Error downloading {url}: {e}")
+
+        finally:
+            # Clean up temporary directory
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+
+    else:
+        print(f" File already exists: {output}")
+
+
+class DataDownloader:
+    def __init__(self, download_json):
+        self.download_json = download_json
+
+    def download_process(self, url, path, type, position=0):
+        p = None
+        if type == "http":
+            p = multiprocessing.Process(target=http_download, args=(url, path, position))
+        elif type == "gdrive":
+            p = multiprocessing.Process(target=gdrive_download, args=(url, path, position))
+        else:
+            raise NotImplementedError(f"Download type '{type}' is not implemented")
+        return p
+
+    def start(self):
+        processes = []
+        position = 0  # Start progress bars at position 1
+        for pth, (url, type) in self.download_json.items():
+            p = self.download_process(url=url, path=pth, type=type, position=position)
+            position += 1  
+            processes.append(p)
+            p.start()
+
+        for p in processes:
+            p.join()

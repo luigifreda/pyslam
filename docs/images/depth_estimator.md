@@ -18,11 +18,19 @@ graph LR;
     class DEPTH_PRO estimator;
 
     depth_estimator_factory -->|*depth_estimator_type*| DEPTH_ANYTHING_V2;
-    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_PRO;    
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_PRO;
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_SGBM;
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_RAFT_STEREO;
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_CRESTEREO;    
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_CRESTEREO_PYTORCH;    
 
 
     DEPTH_ANYTHING_V2 -->|*_creates_*| DepthEstimatorDepthAnythingV2;
     DEPTH_PRO -->|*_creates_*| DepthEstimatorDepthPro;
+    DEPTH_SGBM -->|*_creates_*| DepthEstimatorSgbm;
+    DEPTH_RAFT_STEREO -->|*_creates_*| DepthEstimatorRaftStereo;
+    DEPTH_CRESTEREO -->|*_creates_*| DepthEstimatorCrestereo;  
+    DEPTH_CRESTEREO_PYTORCH -->|*_creates_*| DepthEstimatorCrestereoPytorch;            
 
     %% DepthEstimator classes
     classDef depthEstimator fill:#f9f,stroke:#333,stroke-width:2px;
@@ -34,10 +42,13 @@ graph LR;
 
     DepthEstimatorDepthAnythingV2 -->|*_is-a_*| DepthEstimator;
     DepthEstimatorDepthPro -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorSgbm -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorRaftStereo -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorCrestereo -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorCrestereoPytorch -->|*_is-a_*| DepthEstimator;
 
     %% DepthEstimator dependencies
     classDef dependencies fill:#ddf,stroke:#333,stroke-width:2px;
     class Camera dependencies;
 
     camera -->|*_is-a_*| Camera;
-

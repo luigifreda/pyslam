@@ -22,6 +22,22 @@ rm -Rf thirdparty/g2opy
 
 rm -Rf thirdparty/protoc                   # set by install_delf.sh 
 
+if [ -d "thirdparty/raft_stereo" ]; then
+    rm -Rf thirdparty/raft_stereo
+fi 
+if [ -d "thirdparty/ml_depth_pro" ]; then
+    rm -Rf thirdparty/ml_depth_pro
+fi 
+if [ -d "thirdparty/depth_anything_v2" ]; then
+    rm -Rf thirdparty/depth_anything_v2
+fi
+if [ -d "thirdparty/crestereo" ]; then
+    rm -Rf thirdparty/crestereo
+fi
+if [ -d "thirdparty/crestereo_pytorch" ]; then
+    rm -Rf thirdparty/crestereo_pytorch
+fi
+
 rm -Rf thirdparty/orbslam2_features/build
 rm -Rf thirdparty/orbslam2_features/lib
 

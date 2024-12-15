@@ -28,7 +28,7 @@ import numpy as np
 from camera import Camera
 from map import Map
 
-from dataset import DatasetEnvironmentType
+from dataset import DatasetEnvironmentType, SensorType
 
 from utils_geom import inv_T, align_trajs_with_svd
 from utils_sys import Printer, set_rlimit, LoggerQueue
@@ -162,13 +162,14 @@ class VolumetricIntegrator:
     def __init__(self, slam: 'Slam'):        
         import torch.multiprocessing as mp
         mp.set_start_method('spawn', force=True) # NOTE: This generates some pickling problems with multiprocessing 
-                                                    #       in combination with torch and we need to check it in other places.
-                                                    #       This set start method will be checked with MultiprocessingManager.is_start_method_spawn()
+                                                    #    in combination with torch and we need to check it in other places.
+                                                    #    This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
     
         set_rlimit()
          
         self.camera = slam.camera
         self.environment_type = slam.environment_type
+        self.sensor_type = slam.sensor_type
         
         self.keyframe_queue = deque() # We use a deque to accumulate keyframes for volumetric integration. 
                                       # We integrate only the keyframes that have been processed by LBA at least once. 
@@ -206,7 +207,7 @@ class VolumetricIntegrator:
     def start(self):
         self.is_running.value = 1
         self.process = mp.Process(target=self.run,
-                          args=(self.camera, self.environment_type, \
+                          args=(self.camera, self.environment_type, self.sensor_type, \
                                 self.q_in, self.q_in_condition, \
                                 self.q_out, self.q_out_condition, \
                                 self.is_running, self.reset_mutex, self.reset_requested,
@@ -290,7 +291,7 @@ class VolumetricIntegrator:
                 self.process.terminate()      
             print('VolumetricIntegrator: done')   
     
-    def init(self, camera: Camera, environment_type: DatasetEnvironmentType):
+    def init(self, camera: Camera, environment_type: DatasetEnvironmentType, sensor_type: SensorType):
         
         self.last_output = None
         self.depth_factor = 1.0/camera.depth_factor
@@ -307,12 +308,17 @@ class VolumetricIntegrator:
         # pip install flash_attn
         self.img_id_to_depth = {}
         import torch
-        from depth_estimator import depth_estimator_factory, DepthEstimatorType
+        from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
         if Parameters.kVolumetricIntegrationUseDepthEstimator:
-            depth_estimator_type = DepthEstimatorType.DEPTH_PRO
+            depth_estimator_type = DepthEstimatorType.from_string(Parameters.kVolumetricIntegrationDepthEstimatorType)
             min_depth = 0
             max_depth = 50 if environment_type == DatasetEnvironmentType.OUTDOOR else 10 
             precision = torch.float16  # for depth_pro
+            if sensor_type == SensorType.MONOCULAR:
+                Printer.red("*************************************************************************************")
+                Printer.error('VolumetricIntegrator: You cannot use a MONOCULAR depth estimator with a MONOCULAR SLAM system!')
+                Printer.red('The scale of the metric depth estimator will conflict with the scale of the SLAM system!')
+                Printer.red("*************************************************************************************")
             self.depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, 
                                                     min_depth=min_depth, max_depth=max_depth,
                                                     dataset_env_type=environment_type, precision=precision,
@@ -332,7 +338,7 @@ class VolumetricIntegrator:
             self.calib_map1, self.calib_map2 = cv2.initUndistortRectifyMap(K, D, None, self.new_K, (w, h), cv2.CV_32FC1)
     
     # main loop of the volume integration process
-    def run(self, camera, environment_type, \
+    def run(self, camera, environment_type, sensor_type, \
             q_in, q_in_condition, \
             q_out, q_out_condition, \
             is_running, reset_mutex, reset_requested, \
@@ -340,7 +346,8 @@ class VolumetricIntegrator:
             save_request_completed, save_request_condition, \
             time_volumetric_integration):
         print('VolumetricIntegrator: starting...')
-        self.init(camera, environment_type)
+        self.init(camera, environment_type, sensor_type)
+        self.sensor_type = sensor_type
         # main loop
         while is_running.value == 1:
             with q_in_condition:
@@ -381,21 +388,25 @@ class VolumetricIntegrator:
                     if self.last_input_task.task_type == VolumetricIntegratorTaskType.INTEGRATE:
                         keyframe_data = self.last_input_task.keyframe_data
                         color = keyframe_data.img
+                        color_right = keyframe_data.img_right
                         depth = keyframe_data.depth
                         if depth is None: 
                             if self.depth_estimator is None:
-                                Printer.yellow('VolumetricIntegrator: depth is None')
+                                Printer.yellow('VolumetricIntegrator: depth is None, skipping the keyframe...')
                                 return # skip this keyframe
                             else:
                                 inference_start_time = time.time()
                                 if keyframe_data.id in self.img_id_to_depth:
                                     depth = self.img_id_to_depth[keyframe_data.id]
                                 else:
-                                    depth = self.depth_estimator.infer(color)
+                                    if self.sensor_type == SensorType.MONOCULAR:
+                                        Printer.error('VolumetricIntegrator: You cannot use a MONOCULAR depth estimator with a MONOCULAR SLAM system!')                                    
+                                    depth = self.depth_estimator.infer(color, color_right)
                                     print(f'VolumetricIntegrator: depth inference time: {time.time() - inference_start_time}')
-                                    depth = filter_shadow_points(depth, delta_depth=None)
+                                    if Parameters.kVolumetricIntegrationDepthEstimationFilterShadowPoints:
+                                        depth = filter_shadow_points(depth, delta_depth=None)
                                     
-                        if not depth.dtype in [np.uint8, np.uint16, float]:
+                        if not depth.dtype in [np.uint8, np.uint16, np.float32]:
                             depth = depth.astype(np.float32)
                         
                         if self.calib_map1 is not None and self.calib_map2 is not None:
@@ -413,9 +424,9 @@ class VolumetricIntegrator:
                                                                         
                         pose = keyframe_data.pose # Tcw
                         #inv_pose = inv_T(pose)   # Twc
-                                                
-                        print(f'VolumetricIntegrator: depth: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}')
-                                                    
+                        
+                        print(f'VolumetricIntegrator: depth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}')
+                                                                                
                         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
                             o3d.geometry.Image(color_undistorted), 
                             o3d.geometry.Image(depth_undistorted), 

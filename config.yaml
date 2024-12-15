@@ -38,6 +38,10 @@ LIB_PATHS:
   vpr: thirdparty/vpr, thirdparty/patch_netvlad
   depth_pro: thirdparty/ml_depth_pro/src
   depth_anything_v2: thirdparty/depth_anything_v2/metric_depth
+  raft_stereo: thirdparty/raft_stereo, thirdparty/raft_stereo/core
+  crestereo: thirdparty/crestereo
+  crestereo_pytorch: thirdparty/crestereo_pytorch 
+  #crestereo_onnx: thirdparty/crestereo_onnx
 
 
 DATASET:
@@ -55,8 +59,8 @@ KITTI_DATASET:
   sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset
   #
-  #name: '06'
-  #settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
+  # name: '06'
+  # settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   name: '00'
   settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 

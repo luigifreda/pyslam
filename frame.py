@@ -346,7 +346,7 @@ class Frame(FrameBase):
         self.kf_ref = None       # reference keyframe 
         
         self.img = None          # image (copy of img if available)
-        self.img_right = None          
+        self.img_right = None    # right image (copy of img_right if available)       
         self.depth_img = None    # depth (copy of depth if available)
                                                         
         if img is not None:

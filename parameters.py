@@ -183,11 +183,15 @@ class Parameters:
     kVolumetricIntegrationUseDepthEstimator = False    # Use depth estimator for volumetric integration in the back-end. 
                                                        # Since the depth inference time is above 1 second, this is very slow.
                                                        # NOTE: the depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM map scale will be not consistent.
+    kVolumetricIntegrationDepthEstimatorType = "DEPTH_CRESTEREO_PYTORCH"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
+    kVolumetricIntegrationDepthEstimationFilterShadowPoints = True
 
 
     # Depth estimator (experimental usage in the front-end, WIP)
     kUseDepthEstimatorInFrontEnd = False                # To enable/disable depth estimation with monocular front-end.
+                                                        # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
+    
 
     # other parameters 
     kChi2Mono = 5.991 # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

@@ -135,7 +135,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
             import torch.multiprocessing as mp
             mp.set_start_method('spawn', force=True) # NOTE: This generates some pickling problems with multiprocessing 
                                                      #       in combination with torch and we need to check it in other places.
-                                                     #       This set start method will be checked with MultiprocessingManager.is_start_method_spawn()
+                                                     #       This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
     
         #self.init() # NOTE: We call init() in the run_task() method at its first call to 
                      #       initialize the global feature extractor in the potentially launched parallel process.

@@ -113,4 +113,10 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     pip install open3d
 fi
 
+
+# crestereo
+pip install --upgrade cryptography pyOpenSSL
+python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
+#pip install megengine  # This brings issues with non-supported CUDA architecture
+
 pip install gdown  # to download from google drive

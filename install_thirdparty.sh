@@ -226,6 +226,54 @@ fi
 
 cd $STARTING_DIR
 
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/raft_stereo ..."
+
+cd thirdparty
+if [ ! -d raft_stereo ]; then
+    git clone https://github.com/princeton-vl/RAFT-Stereo.git raft_stereo
+    cd raft_stereo
+    #git checkout 6068c1a26f84f8132de10f60b2bc0ce61568e085 # use this commit if you hit any problems
+
+    ./download_models.sh
+fi
+
+cd $STARTING_DIR
+
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/crestereo ..."
+
+cd thirdparty
+if [ ! -d crestereo ]; then
+    git clone https://github.com/megvii-research/CREStereo.git crestereo
+    cd crestereo
+    #git checkout ad3a1613bdedd88b93247e5f002cb7c80799762d # use this commit if you hit any problems
+
+    git apply ../crestereo.patch
+    
+    ./download_models.py
+fi
+
+cd $STARTING_DIR
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/crestereo_pytorch ..."
+
+cd thirdparty
+if [ ! -d crestereo_pytorch ]; then
+    git clone https://github.com/ibaiGorordo/CREStereo-Pytorch.git crestereo_pytorch
+    cd crestereo_pytorch
+    #git checkout b6c7a9fe8dc2e9e56ba7b96f4677312309282d15 # use this commit if you hit any problems
+
+    git apply ../crestereo_pytorch.patch
+    
+    ./download_models.py
+fi
+
+cd $STARTING_DIR
+echo "...done with thirdparty"
+
 
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
 # export WITH_PYTHON_INTERP_CHECK=ON
