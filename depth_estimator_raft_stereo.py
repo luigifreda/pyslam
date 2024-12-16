@@ -114,7 +114,7 @@ class DepthEstimatorRaftStereo(DepthEstimator):
             raise ValueError(f'Model {restore_ckpt} does not exist')
                 
         self.model = torch.nn.DataParallel(RAFTStereo(self.model_config), device_ids=[0])
-        self.model.load_state_dict(torch.load(restore_ckpt))      
+        self.model.load_state_dict(torch.load(restore_ckpt, map_location='cpu'))      
         self.module = self.model.module
         self.module.to(device)
         self.module.eval()          

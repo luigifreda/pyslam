@@ -235,6 +235,8 @@ if [ ! -d raft_stereo ]; then
     cd raft_stereo
     #git checkout 6068c1a26f84f8132de10f60b2bc0ce61568e085 # use this commit if you hit any problems
 
+    git apply ../raft_stereo.patch
+    
     ./download_models.sh
 fi
 

@@ -25,6 +25,7 @@ from enum import Enum
 from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
 from utils_geom import poseRt, is_rotation_matrix, closest_rotation_matrix
 from timer import TimerFps
+from ground_truth import GroundTruth
 
 class VoStage(Enum):
     NO_IMAGES_YET   = 0     # no image received 
@@ -32,14 +33,14 @@ class VoStage(Enum):
     
 kVerbose=True     
 kMinNumFeature = 2000
-kRansacThresholdNormalized = 0.0004  # metric threshold used for normalized image coordinates (originally 0.0003)
-kRansacThresholdPixels = 0.1         # pixel threshold used for image coordinates 
-kAbsoluteScaleThresholdKitti = 0.1        # absolute translation scale; it is also the minimum translation norm for an accepted motion 
-kAbsoluteScaleThresholdIndoor = 0.01       # absolute translation scale; it is also the minimum translation norm for an accepted motion
-kUseEssentialMatrixEstimation = True # using the essential matrix fitting algorithm is more robust RANSAC given five-point algorithm solver 
-kRansacProb = 0.999                  # (originally 0.999)
+kRansacThresholdNormalized = 0.0004            # metric threshold used for normalized image coordinates (originally 0.0003)
+kRansacThresholdPixels = 0.1                   # pixel threshold used for image coordinates 
+kAbsoluteScaleThresholdKitti = 0.1             # absolute translation scale; it is also the minimum translation norm for an accepted motion 
+kAbsoluteScaleThresholdIndoor = 0.01           # absolute translation scale; it is also the minimum translation norm for an accepted motion
+kUseEssentialMatrixEstimation = True           # using the essential matrix fitting algorithm is more robust RANSAC given five-point algorithm solver 
+kRansacProb = 0.999                            # (originally 0.999)
+kMinAveragePixelShiftForMotionEstimation = 1.5 # if the average pixel shift is below this threshold, motion is considered to be small enough to be ignored
 kUseGroundTruthScale = True 
-
 
 # This class is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
 # It combines the simplest VO ingredients without performing any image point triangulation or 
@@ -48,7 +49,7 @@ kUseGroundTruthScale = True
 # With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a 
 # valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. 
 class VisualOdometry(object):
-    def __init__(self, cam, groundtruth, feature_tracker : FeatureTracker):
+    def __init__(self, cam, groundtruth: GroundTruth, feature_tracker: FeatureTracker):
         self.stage = VoStage.NO_IMAGES_YET
         self.cam = cam
         
@@ -189,7 +190,7 @@ class VisualOdometry(object):
         # t is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
         absolute_scale = self.getAbsoluteScale(frame_id)
         # NOTE: This simplistic estimation approach provide reasonable results with Kitti where a good ground velocity provides a decent interframe parallax. It does not work with indoor datasets. 
-        if(absolute_scale > self.absolute_scale_threshold and self.average_pixel_shift > 1):
+        if absolute_scale > self.absolute_scale_threshold and self.average_pixel_shift > kMinAveragePixelShiftForMotionEstimation:
             # compose absolute motion [Rwa,twa] with estimated relative motion [Rab,s*tab] (s is the scale extracted from the ground truth)
             # [Rwb,twb] = [Rwa,twa]*[Rab,tab] = [Rwa*Rab|twa + Rwa*tab]
             print('estimated t with norm |t|: ', np.linalg.norm(t), ' (just for sake of clarity)')

@@ -115,8 +115,11 @@ fi
 
 
 # crestereo
-pip install --upgrade cryptography pyOpenSSL
-python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
-#pip install megengine  # This brings issues with non-supported CUDA architecture
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    # Unfortunately, megengine is not supported on macOS with arm architecture
+    pip install --upgrade cryptography pyOpenSSL
+    python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
+    #pip install megengine  # This brings issues with non-supported CUDA architecture on my machine
+fi
 
 pip install gdown  # to download from google drive

@@ -17,3 +17,9 @@ export PYTHONPATH=""   # clean python path => for me, remove ROS stuff
 
 # N.B.: in order to deactivate the virtual environment run: 
 # $ deactivate 
+
+# Check if the operating system is Darwin (macOS)
+if [[ $OSTYPE == 'darwin'* ]]; then
+    export PYTORCH_ENABLE_MPS_FALLBACK=1
+    echo "setting PYTORCH_ENABLE_MPS_FALLBACK: $PYTORCH_ENABLE_MPS_FALLBACK"
+fi

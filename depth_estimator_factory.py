@@ -25,6 +25,7 @@ import sys
 
 import config
 import torch
+import platform
 
 from camera import Camera
 from dataset import DatasetEnvironmentType
@@ -48,9 +49,9 @@ class DepthEstimatorType(SerializableEnum):
     DEPTH_SGBM                 = 0    # Depth SGBM from OpenCV [Stereo, it requires a stereo dataset]    
     DEPTH_ANYTHING_V2          = 1    # "Depth Anything V2" [Monocular]
     DEPTH_PRO                  = 2    # "Depth Pro: Sharp Monocular Metric Depth in Less Than a Second" [Monocular]
-    DEPTH_RAFT_STEREO                 = 3    # "RAFT-Stereo: Multilevel Recurrent Field Transforms for Stereo Matching" [Stereo, it requires a stereo dataset]
+    DEPTH_RAFT_STEREO          = 3    # "RAFT-Stereo: Multilevel Recurrent Field Transforms for Stereo Matching" [Stereo, it requires a stereo dataset]
     DEPTH_CRESTEREO            = 4    # "Practical Stereo Matching via Cascaded Recurrent Network with Adaptive Correlation" [Stereo, it requires a stereo dataset]
-                                      # Note: Unstable and with linking problems [WIP] => use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH
+                                      # Note: Unstable and with linking problems under Linux, not supported under mac [WIP] => use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH
     DEPTH_CRESTEREO_PYTORCH    = 5    # "Practical Stereo Matching via Cascaded Recurrent Network with Adaptive Correlation", pytorch implementation [Stereo, it requires a stereo dataset]
  
 
@@ -86,6 +87,8 @@ def depth_estimator_factory(depth_estimator_type=DepthEstimatorType.DEPTH_ANYTHI
                                   min_depth=min_depth, max_depth=max_depth, 
                                   dataset_env_type=dataset_env_type)
     elif depth_estimator_type == DepthEstimatorType.DEPTH_CRESTEREO:
+        if platform.system() == 'Darwin':
+            raise ValueError('DepthEstimatorType.DEPTH_CRESTEREO is not supported on macOS. Use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH instead!')
         return DepthEstimatorCrestereo(device=device, camera=camera, 
                                        min_depth=min_depth, max_depth=max_depth, 
                                        dataset_env_type=dataset_env_type)

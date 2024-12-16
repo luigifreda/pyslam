@@ -208,6 +208,7 @@ class SimpleGroundTruth(GroundTruth):
             abs_scale = 1
         else:
             abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z,abs_scale 
     
     # return timestamp, x,y,z, qx,qy,qz,qw, scale
@@ -443,7 +444,7 @@ class EurocGroundTruth(GroundTruth):
         print('base_path: ', base_path)
         
         if not os.path.isfile(self.filename):
-            error_message = f'ERROR: Groundtruth file not found: {self.filename}'
+            error_message = f'ERROR: Groundtruth file not found: {self.filename}. Use the script groundtruth/generate_euroc_groundtruths_as_tum.sh to generate these groundtruth files!'
             Printer.red(error_message)
             sys.exit(error_message)
                                     

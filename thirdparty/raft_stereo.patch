@@ -1,0 +1,13 @@
+diff --git a/download_models.sh b/download_models.sh
+index 81582c2..489ba6a 100755
+--- a/download_models.sh
++++ b/download_models.sh
+@@ -3,4 +3,6 @@ mkdir models -p
+ cd models
+ wget https://www.dropbox.com/s/ftveifyqcomiwaq/models.zip
+ unzip models.zip
+-rm models.zip -f
++if [ -f models.zip ]; then
++    rm -f models.zip
++fi
+\ No newline at end of file

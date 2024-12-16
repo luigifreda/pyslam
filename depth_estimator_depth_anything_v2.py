@@ -22,6 +22,7 @@ import cv2
 import numpy as np
 import os
 import sys
+import platform 
 
 import config
 config.cfg.set_lib('depth_anything_v2')
@@ -58,10 +59,16 @@ class DepthEstimatorDepthAnythingV2(DepthEstimator):
                  encoder_name='vitl', precision=None):  # or 'vits', 'vitb'   we use the largest by default
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            if device.type != 'cuda':
+                device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
         if device.type == 'cuda':
             print('DepthEstimatorDepthPro: Using CUDA')
+        elif device.type == 'mps':
+            if not torch.backends.mps.is_available():  # Should return True for MPS availability        
+                raise Exception('DepthEstimatorDepthPro: MPS is not available')
+            print('DepthEstimatorDepthPro: Using MPS')
         else:
-            print('DepthEstimatorDepthPro: Using CPU')   
+            print('DepthEstimatorDepthPro: Using CPU') 
         transform = None
         model = DepthAnythingV2(**{**DepthEstimatorDepthAnythingV2.model_configs[encoder_name], 'max_depth': max_depth})
         dataset_name = 'vkitti' if dataset_env_type == DatasetEnvironmentType.OUTDOOR else 'hypersim'
