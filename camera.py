@@ -74,7 +74,7 @@ class Camera(CameraBase):
         self.cx = cx
         self.cy = cy
     
-        self.D = np.array(D,dtype=np.float32) # np.array([k1, k2, p1, p2, k3])  distortion coefficients 
+        self.D = np.array(D,dtype=float) # np.array([k1, k2, p1, p2, k3])  distortion coefficients 
         self.is_distorted = np.linalg.norm(self.D) > 1e-10
             
         self.fps = fps 

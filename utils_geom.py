@@ -98,8 +98,10 @@ class Sim3Pose:
     
     def from_matrix(self, T):
         if isinstance(T, np.ndarray):
-            self.s = np.trace(T[:3, :3])/3.0        
-            self.R = T[:3, :3]/self.s
+            R = T[:3, :3]
+            # Compute scale as the average norm of the rows of the rotation matrix
+            self.s = np.mean([np.linalg.norm(R[i, :]) for i in range(3)])     
+            self.R = R/self.s
             self.t = T[:3, 3].reshape(3,1)
         else:
             raise ValueError(f"Input T is not a numpy array. T={T}")
@@ -126,7 +128,7 @@ class Sim3Pose:
             self._inv_T = np.eye(4)
             sR_inv = 1.0/self.s * self.R.T
             self._inv_T[:3, :3] = sR_inv
-            self._inv_T[:3, 3] = -sR_inv @ self.t
+            self._inv_T[:3, 3] = -sR_inv @ self.t.ravel()
         return self._inv_T
 
     def to_se3_matrix(self):
@@ -451,6 +453,24 @@ def closest_rotation_matrix(A):
   return Q
 
 
+class AlignmentGroundTruthData:
+    def __init__(self, timestamps_associations=[], filter_t_w_i=[], gt_t_w_i=[], T_gt_est=None, error=-1.0, is_aligned=False):
+        self.timestamps_associations = timestamps_associations
+        self.filter_t_w_i = filter_t_w_i
+        self.gt_t_w_i = gt_t_w_i
+        self.T_gt_est = T_gt_est
+        self.error = error
+        self.is_aligned = is_aligned
+        
+    def copyTo(self, other):
+        other.timestamps_associations = self.timestamps_associations
+        other.filter_t_w_i = self.filter_t_w_i
+        other.gt_t_w_i = self.gt_t_w_i
+        other.T_gt_est = self.T_gt_est
+        other.error = self.error
+        other.is_aligned = self.is_aligned
+
+
 # align filter trajectory with ground truth trajectory by computing the SE(3) transformation between the two
 # - filter_timestamps [Nx1]
 # - filter_t_w_i [Nx3]
@@ -460,6 +480,7 @@ def closest_rotation_matrix(A):
 def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_i, align_gt=True, compute_align_error=True, find_scale=False, verbose=False):
     est_associations = []
     gt_associations = []
+    timestamps_associations = []
 
     if verbose:
         print(f'filter_timestamps: {filter_timestamps.shape}')
@@ -496,19 +517,21 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
 
         assert 0 <= ratio < 1
 
+        #t_gt = (1 - ratio) * gt_timestamps[j] + ratio * gt_timestamps[j + 1]
         gt = (1 - ratio) * gt_t_w_i[j] + ratio * gt_t_w_i[j + 1]
 
+        timestamps_associations.append(timestamp)
         gt_associations.append(gt)
         est_associations.append(filter_t_w_i[i])
 
-    num_kfs = len(est_associations)
+    num_samples = len(est_associations)
     if verbose: 
-        print(f'num associations: {num_kfs}')
+        print(f'num associations: {num_samples}')
 
-    gt = np.zeros((3, num_kfs))
-    est = np.zeros((3, num_kfs))
+    gt = np.zeros((3, num_samples))
+    est = np.zeros((3, num_samples))
 
-    for i in range(num_kfs):
+    for i in range(num_samples):
         gt[:, i] = gt_associations[i]
         est[:, i] = est_associations[i]
 
@@ -528,7 +551,7 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
         U, D, Vt = np.linalg.svd(cov)
     except: 
         Printer.red('[align_trajs_with_svd] SVD failed!!!\n')
-        return np.eye(4), -1
+        return np.eye(4), -1, AlignmentGroundTruthData()
 
     c = 1
     S = np.eye(3)
@@ -545,8 +568,21 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
     T_gt_est[:3, :3] = c * rot_gt_est
     T_gt_est[:3, 3] = trans
 
-    T_est_gt = np.linalg.inv(T_gt_est)
-
+    #T_est_gt = np.linalg.inv(T_gt_est)
+    T_est_gt = np.eye(4)  # Identity matrix initialization
+    R_gt_est = T_gt_est[:3, :3]
+    t_gt_est = T_gt_est[:3, 3]
+    if find_scale:
+        # Compute scale as the average norm of the rows of the rotation matrix
+        s = np.mean([np.linalg.norm(R_gt_est[i, :]) for i in range(3)])
+        R = R_gt_est / s
+        sR_inv = (1.0 / s) * R.T
+        T_est_gt[:3, :3] = sR_inv
+        T_est_gt[:3, 3] = -sR_inv @ t_gt_est.ravel()
+    else:
+        T_est_gt[:3, :3] = R_gt_est.T
+        T_est_gt[:3, 3] = -R_gt_est.T @ t_gt_est.ravel()  
+        
     # Update gt_t_w_i with transformation
     if align_gt:
         for i in range(len(gt_t_w_i)):
@@ -556,11 +592,12 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
     error = 0
     if compute_align_error:
         for i in range(len(est_associations)):
-            est_associations[i] = np.dot(T_gt_est[:3, :3], est_associations[i]) + T_gt_est[:3, 3]
-            res = est_associations[i] - gt_associations[i]
+            res = (np.dot(T_gt_est[:3, :3], est_associations[i]) + T_gt_est[:3, 3]) - gt_associations[i]
             error += np.dot(res.T, res)
 
         error /= len(est_associations)
         error = np.sqrt(error)
 
-    return T_gt_est, error
+    aligned_gt_data = AlignmentGroundTruthData(timestamps_associations, est_associations, gt_associations, T_gt_est, error, is_aligned=align_gt)
+
+    return T_gt_est, error, aligned_gt_data

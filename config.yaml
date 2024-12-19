@@ -49,6 +49,7 @@ DATASET:
   #type: EUROC_DATASET  
   #type: KITTI_DATASET
   #type: TUM_DATASET
+  #type: REPLICA_DATASET
   type: VIDEO_DATASET
   #type: FOLDER_DATASET
   #type: LIVE_DATASET  # Not recommended for current development stage
@@ -100,11 +101,20 @@ EUROC_DATASET:
   #name: V203   
   # 'settings' will be used when sensor_type: : 'mono'
   settings: settings/EuRoC_mono.yaml
-  # 'settings_stereo' will be used when sensor_type: : 'stereo' (if available)
+  # 'settings_stereo' will be used when sensor_type: 'stereo' (if available)
   settings_stereo: settings/EuRoC_stereo.yaml
   associations: associations.txt
   groundtruth_file: auto
   start_frame_id: 0
+
+
+REPLICA_DATASET:
+  type: replica
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: /home/luigi/Work/datasets/rgbd_datasets/replica
+  name: 'room2'
+  settings: settings/REPLICA.yaml # do not forget to correctly set the corresponding camera settings file
+  groundtruth_file: auto
 
 
 VIDEO_DATASET:

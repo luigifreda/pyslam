@@ -159,7 +159,7 @@ class Parameters:
     kRelocalizationParallelKpsMatching=True    
     kRelocalizationParallelKpsMatchingNumWorkers = 6    
     kRelocalizationFeatureMatchRatioTest = 0.75                   # TODO: put it in an table and make it configurable per descriptor
-    kRelocalizationFeatureMatchRatioTestLarge = 0.9              # o:0.9
+    kRelocalizationFeatureMatchRatioTestLarge = 0.9               # o:0.9
     kRelocalizationPoseOpt1MinMatches = 10                        # o:10
     kRelocalizationDoPoseOpt2NumInliers = 50                      # o:50
     kRelocalizationMaxReprojectionDistanceMapSearchCoarse = 10    # [pixels]    o:10 
@@ -183,7 +183,7 @@ class Parameters:
     kVolumetricIntegrationUseDepthEstimator = False    # Use depth estimator for volumetric integration in the back-end. 
                                                        # Since the depth inference time is above 1 second, this is very slow.
                                                        # NOTE: the depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM map scale will be not consistent.
-    kVolumetricIntegrationDepthEstimatorType = "DEPTH_CRESTEREO_PYTORCH"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
+    kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
     kVolumetricIntegrationDepthEstimationFilterShadowPoints = True
 
 

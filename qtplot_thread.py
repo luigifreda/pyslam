@@ -27,6 +27,9 @@ from PyQt5.QtGui import QFont, QColor, QPainter, QVector3D
 import numpy as np
 import time
 import math
+import os
+import logging 
+
 
 import sys
 sys.path.append("../../")
@@ -34,8 +37,28 @@ sys.path.append("../../")
 #import multiprocessing as mp 
 import torch.multiprocessing as mp
 from utils_mp import MultiprocessingManager
+from utils_sys import Logging, locally_configure_qt_environment
 
-from utils_sys import locally_configure_qt_environment
+
+kVerbose = False 
+kDebugAndPrintToFile = True
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kLogsFolder = kRootFolder + '/logs'
+
+
+if kVerbose and kDebugAndPrintToFile:
+    # redirect the prints of local mapping to the file logs/local_mapping.log 
+    # you can watch the output in separate shell by running:
+    # $ tail -f logs/mplot_thread.log 
+    logging_file=kLogsFolder + '/qplot_thread.log'
+    local_logger = Logging.setup_file_logger('qplot_thread_logger', logging_file, formatter=Logging.simple_log_formatter)
+    def print(*args, **kwargs):
+        message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+        return local_logger.info(message, **kwargs)  
+    
 
 class FigureNum: 
     figure_num = 0
@@ -102,10 +125,12 @@ class Qplot2d:
         self.key_queue = self.mp_manager.Queue()
 
         self.figure_num = mp.Value('i', int(FigureNum.getFigureNum()))
-        print(f'Qplot2d: starting the process on figure: {self.figure_num.value}')
+        #print(f'Qplot2d: starting the process on figure: {self.figure_num.value}')
         
         self.lock = SharedSingletonLock().get_lock
         
+        self.initialized = False  # New flag to track figure initialization
+                
         args = (self.figure_num, self.queue, self.lock, self.key, self.is_running, self.key_queue,)
         self.process = mp.Process(target=self.run, args=args)
         self.process.start()
@@ -155,7 +180,7 @@ class Qplot2d:
         #grid_pen = pg.mkPen(color=grid_color, width=0.3)  # Grid pen with width 2
 
         # Set the grid with the custom color and style
-        self.win.showGrid(x=True, y=True, alpha=0.8)  # Show grid and adjust alpha transparency
+        self.win.showGrid(x=True, y=True, alpha=0.6)  # Show grid and adjust alpha transparency
         
         #self.win.getAxis('left').setPen(grid_pen)  # Set the grid color for the Y-axis
         #self.win.getAxis('bottom').setPen(grid_pen)  # Set the grid color for the X-axis
@@ -177,13 +202,16 @@ class Qplot2d:
         # Display the window
         self.win.show()
         lock.release()
+        self.initialized = True  # Set the flag to True after initialization        
         
     def run(self, figure_num, queue, lock, key, is_running, key_queue):
+        if kVerbose:
+            print(f'Qplot2d {self.title}: starting run on figure ', figure_num.value)        
         self.key = key  
         self.key_queue_thread = key_queue        
-        self.init(figure_num.value, lock) 
+        #self.init(figure_num.value, lock) 
         while is_running.value == 1:
-            self.drawer_refresh(queue, lock)                                    
+            self.drawer_refresh(queue, lock, figure_num)                                    
             if True:  # Adjust condition if needed
                 time.sleep(0.02)  # Slow the loop down for real-time effect
 
@@ -191,27 +219,40 @@ class Qplot2d:
         print(f"{mp.current_process().name} - Qplot2d '{self.title}': closing plot")  
         self.win.close()  # Close the PyQtGraph window              
 
-    def drawer_refresh(self, queue, lock):            
+    def drawer_refresh(self, queue, lock, figure_num):            
         while not queue.empty():      
             self.got_data = True           
             self.data = queue.get()          
-            xy_signal, name, color, marker, style = self.data 
+            xy_signal, name, color, marker, linestyle, append = self.data 
             
+            # Initialize figure upon receiving the first data
+            if not self.initialized:
+                self.init(figure_num.value, lock)
+                            
             if name in self.handle_map:
                 handle = self.handle_map[name]
-                x_data, y_data = self.handle_data_map[name]
-                
-                x_data.append(xy_signal[0])
-                y_data.append(xy_signal[1])
-                self.updateMinMax(xy_signal[0], xy_signal[1])   
-                                
-                self.handle_data_map[name] = (x_data, y_data)
-                handle.setData(x=x_data, y=y_data)       
+                if append:
+                    x_data, y_data = self.handle_data_map[name]
+                    x_data.append(xy_signal[0])
+                    y_data.append(xy_signal[1])
+                    self.updateMinMax(xy_signal[0], xy_signal[1])
+                    self.handle_data_map[name] = (x_data, y_data)
+                    handle.setData(x=x_data, y=y_data)
+                else:
+                    handle_data = (xy_signal[0], xy_signal[1])
+                    self.updateMinMax(xy_signal[0], xy_signal[1])
+                    self.handle_data_map[name] = handle_data
+                    handle.setData(x=xy_signal[0], y=xy_signal[1])
             else: 
-                handle_data = ([xy_signal[0]], [xy_signal[1]])
-                kwargs = {'x': [xy_signal[0]], 'y': [xy_signal[1]], 'pen': color, 'name': name}
-                if style != '':
-                    kwargs['style'] = style
+                if append:
+                    handle_data = ([xy_signal[0]], [xy_signal[1]]) # append the first sample
+                    kwargs = {'x': [xy_signal[0]], 'y': [xy_signal[1]], 'pen': color, 'name': name}
+                else:
+                    handle_data = (xy_signal[0], xy_signal[1])
+                    kwargs = {'x': xy_signal[0], 'y': xy_signal[1], 'pen': color, 'name': name}
+                    self.updateMinMax(xy_signal[0], xy_signal[1])                    
+                if linestyle != '':
+                    kwargs['style'] = linestyle
                 if marker != '':
                     kwargs['symbol'] = marker
                 handle = self.win.plot(**kwargs)              
@@ -254,21 +295,40 @@ class Qplot2d:
         else:
             return ''
 
-
     def setGridAxis(self):
             deltax = (self.xlim[1]-self.xlim[0])
             deltay = (self.ylim[1]-self.ylim[0])
             #self.win.getAxis('left').setTickSpacing(10, 100)  # Y-axis: major and minor ticks
             
-            def get_values(delta):
-                # xminor = (delta/10)
-                # xmajor = max(delta,10)
-                # if delta > 10: 
-                log = int(math.log10(delta))
-                xminor = 10**(log)/5
-                xmajor = 10**(log)
-                return xminor, xmajor
+            # def get_values(delta):
+            #     # xminor = (delta/10)
+            #     # xmajor = max(delta,10)
+            #     # if delta > 10: 
+            #     log = int(math.log10(delta))
+            #     xminor = 10**(log)/5
+            #     xmajor = 10**(log)
+            #     return xminor, xmajor
             
+            def get_values(delta):
+                if delta <= 0:
+                    return 1, 5  # Default spacing if delta is invalid
+                # Calculate major tick spacing to ensure at least 5 ticks
+                major = delta / 5
+                # Round to a nice value for readability
+                magnitude = 10 ** int(math.floor(math.log10(major)))
+                normalized = major / magnitude
+                if normalized < 1.5:
+                    major = 1 * magnitude
+                elif normalized < 3:
+                    major = 2 * magnitude
+                elif normalized < 7:
+                    major = 5 * magnitude
+                else:
+                    major = 10 * magnitude
+                # Minor ticks are 1/5th of major ticks
+                minor = major / 5
+                return minor, major
+                
             if deltax > 0 and deltay > 0:
                 xminor, xmajor = get_values(deltax)
                 yminor, ymajor = get_values(deltay)
@@ -287,54 +347,64 @@ class Qplot2d:
             self.setGridAxis()
         
     def updateMinMax(self, x, y):
-        if self.xmin == float("inf"):
-            self.xmin = x
-        if self.xmax == float("-inf"):
-            self.xmax = x
-        if self.ymin == float("inf"):
-            self.ymin = y
-        if self.ymax == float("-inf"):
-            self.ymax = y
+        if isinstance(x, np.ndarray) or isinstance(y, np.ndarray):
+            self.xmin = np.amin(x)
+            self.xmax = np.amax(x)
+            self.ymin = np.amin(y)
+            self.ymax = np.amax(y)
             
-        self.xmin = min(self.xmin, x)
-        self.xmax = max(self.xmax, x)
-        self.ymin = min(self.ymin, y)
-        self.ymax = max(self.ymax, y)
+            self.xlim = [self.xmin, self.xmax]
+            self.ylim = [self.ymin, self.ymax]
+        else: 
+            # incremental update
+            if self.xmin == float("inf"):
+                self.xmin = x
+            if self.xmax == float("-inf"):
+                self.xmax = x
+            if self.ymin == float("inf"):
+                self.ymin = y
+            if self.ymax == float("-inf"):
+                self.ymax = y
+                
+            self.xmin = min(self.xmin, x)
+            self.xmax = max(self.xmax, x)
+            self.ymin = min(self.ymin, y)
+            self.ymax = max(self.ymax, y)
         
-        # update mins and maxs          
-        if True:                           
-            if self.xmax > self.xlim[1]:
-                self.xlim[1] = self.xmax 
-            if self.xmin < self.xlim[0]:
-                self.xlim[0] = self.xmin   
-            cx = 0.5*(self.xlim[1]+self.xlim[0])
-                                                             
-            if self.ymax > self.ylim[1]:
-                self.ylim[1] = self.ymax                   
-            if self.ymin < self.ylim[0]:
-                self.ylim[0] = self.ymin    
-            cy = 0.5*(self.ylim[1]+self.ylim[0]) 
-              
-            deltay = 0.5*(self.ylim[1]-self.ylim[0])
-            #self.ylim = [cy-deltay,cy+deltay]                                 
-                          
-        # make axis actually squared
-        if False:
-            cx = 0.5*(xmax+xmin)
-            cy = 0.5*(ymax+ymin)             
-            smin = min(xmin,ymin)                                            
-            smax = max(xmax,ymax)            
-            delta = 0.9*(smax - smin)
-            self.xlim = [cx-delta,cx+delta]
-            self.ylim = [cy-delta,cy+delta]   
+            # update mins and maxs          
+            if True:                           
+                if self.xmax > self.xlim[1]:
+                    self.xlim[1] = self.xmax 
+                if self.xmin < self.xlim[0]:
+                    self.xlim[0] = self.xmin   
+                #cx = 0.5*(self.xlim[1]+self.xlim[0])
+                                                                
+                if self.ymax > self.ylim[1]:
+                    self.ylim[1] = self.ymax                   
+                if self.ymin < self.ylim[0]:
+                    self.ylim[0] = self.ymin    
+                #cy = 0.5*(self.ylim[1]+self.ylim[0]) 
+                
+                #deltay = 0.5*(self.ylim[1]-self.ylim[0])
+                #self.ylim = [cy-deltay,cy+deltay]                                 
+                            
+            # make axis actually squared
+            if False:
+                cx = 0.5*(xmax+xmin)
+                cy = 0.5*(ymax+ymin)             
+                smin = min(xmin,ymin)                                            
+                smax = max(xmax,ymax)            
+                delta = 0.9*(smax - smin)
+                self.xlim = [cx-delta,cx+delta]
+                self.ylim = [cy-delta,cy+delta]   
             
         self.axis_computed = True   
 
     # NOTE: Qt's line styles: Qt.SolidLine, Qt.DotLine, Qt.DashDotLine, and Qt.DashDotDotLine
-    def draw(self, xy_signal, name, color='r', marker='', style=''):    
+    def draw(self, xy_signal, name, color='r', marker='', linestyle='', append=True):    
         if self.queue is None:
             return
-        self.queue.put((xy_signal, name, color, marker, style))
+        self.queue.put((xy_signal, name, color, marker, linestyle, append))
 
     def plot_refresh(self, lock):
         lock.acquire()

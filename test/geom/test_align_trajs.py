@@ -54,21 +54,21 @@ class TestAlignSVD():
         self.t_ns = self.t_s * 1e9
         
         self.gt_x = self.t_s * vel
-        self.gt_y = np.sin(omega*self.t_s)
+        self.gt_y = 2*np.sin(omega*self.t_s)
         self.gt_z = np.zeros_like(self.t_s)
         
         self.gt_t_w_i = np.stack((self.gt_x, self.gt_y, self.gt_z), axis=1)
         self.gt_t_ns = self.t_ns
         
         # subsample and add noise 
-        decimation_factor = 2
-        noise_mean = 1e-3
-        noise_std = 0.1
+        self.decimation_factor = 2
+        self.noise_mean = 1e-3
+        self.noise_std = 0.01
         
-        self.filter_t_ns =  self.gt_t_ns[::decimation_factor].copy() # select every decimation_factor-th timestamp    
-        self.filter_t_w_i = self.gt_t_w_i[::decimation_factor].copy()
+        self.filter_t_ns =  self.gt_t_ns[::self.decimation_factor].copy() # select every decimation_factor-th timestamp    
+        self.filter_t_w_i = self.gt_t_w_i[::self.decimation_factor].copy()
         
-        noise = np.random.normal(noise_mean, noise_std, self.filter_t_w_i.shape)
+        noise = np.random.normal(self.noise_mean, self.noise_std, self.filter_t_w_i.shape)
         self.filter_t_w_i = self.filter_t_w_i + noise
         
         # transform the estimated traj
@@ -78,25 +78,33 @@ class TestAlignSVD():
         roll = math.pi/3
         Rwc = scale*(yaw_matrix(yaw) @ pitch_matrix(pitch) @ roll_matrix(roll))
         twc = np.array([0.4, 0.1, -0.1])
+        self.Twc = poseRt(Rwc, twc)
         
         self.filter_t_w_i = (Rwc @ self.filter_t_w_i.T + twc.reshape(3,1)).T
         
         self.find_scale = scale != 1.0
+        print("find_scale:", self.find_scale)
     
     def test_align_svd(self):
         
-        align_gt = True
+        align_to_gt = True
 
-        T_gt_est, error = align_trajs_with_svd(self.filter_t_ns, self.filter_t_w_i, self.gt_t_ns, self.gt_t_w_i, \
-            align_gt=align_gt, compute_align_error=True, find_scale=self.find_scale)
+        T_gt_est, error, _ = align_trajs_with_svd(self.filter_t_ns, self.filter_t_w_i, self.gt_t_ns, self.gt_t_w_i, \
+            align_gt=False, compute_align_error=True, find_scale=self.find_scale)
         
-        if align_gt: 
-            self.aligned_t_w_i = self.filter_t_w_i # no need to align
-        else:
+        if align_to_gt: 
             self.aligned_t_w_i = (T_gt_est[:3,:3] @ self.filter_t_w_i.T + T_gt_est[:3,3].reshape(3,1)).T
-
+        else:
+            self.aligned_t_w_i = self.filter_t_w_i # no need to align
+            
+        print("alignment error:", error)
+                    
         print("T_align:\n", T_gt_est)
-        print("error:", error)
+        print("T_gt:\n", np.linalg.inv(self.Twc))
+        
+        T_err = T_gt_est @ self.Twc - np.eye(4)
+        print(f"T_err norm: {np.linalg.norm(T_err)}")
+        print(f'noise mean: {self.noise_mean}, noise std: {self.noise_std}')
         
         # plot ground truth and estimated trajectories
         figure = plt.figure()

@@ -258,36 +258,36 @@ class Config(object):
             left, right = {}, {}
             if 'LEFT.D' in self.cam_settings:
                 left_D = self.cam_settings['LEFT.D']
-                left_D = np.array(left_D['data'],dtype=np.float).reshape(left_D['rows'], left_D['cols'])
+                left_D = np.array(left_D['data'],dtype=float).reshape(left_D['rows'], left_D['cols'])
                 left['D'] = left_D
             if 'LEFT.K' in self.cam_settings:
                 left_K = self.cam_settings['LEFT.K']
-                left_K = np.array(left_K['data'],dtype=np.float).reshape(left_K['rows'], left_K['cols'])
+                left_K = np.array(left_K['data'],dtype=float).reshape(left_K['rows'], left_K['cols'])
                 left['K'] = left_K
             if 'LEFT.R' in self.cam_settings:
                 left_R = self.cam_settings['LEFT.R']
-                left_R = np.array(left_R['data'],dtype=np.float).reshape(left_R['rows'], left_R['cols'])
+                left_R = np.array(left_R['data'],dtype=float).reshape(left_R['rows'], left_R['cols'])
                 left['R'] = left_R
             if 'LEFT.P' in self.cam_settings:
                 left_P = self.cam_settings['LEFT.P']
-                left_P = np.array(left_P['data'],dtype=np.float).reshape(left_P['rows'], left_P['cols'])
+                left_P = np.array(left_P['data'],dtype=float).reshape(left_P['rows'], left_P['cols'])
                 left['P'] = left_P
                 
             if 'RIGHT.D' in self.cam_settings:
                 right_D = self.cam_settings['RIGHT.D']
-                right_D = np.array(right_D['data'],dtype=np.float).reshape(right_D['rows'], right_D['cols'])
+                right_D = np.array(right_D['data'],dtype=float).reshape(right_D['rows'], right_D['cols'])
                 right['D'] = right_D
             if 'RIGHT.K' in self.cam_settings:
                 right_K = self.cam_settings['RIGHT.K']
-                right_K = np.array(right_K['data'],dtype=np.float).reshape(right_K['rows'], right_K['cols'])
+                right_K = np.array(right_K['data'],dtype=float).reshape(right_K['rows'], right_K['cols'])
                 right['K'] = right_K
             if 'RIGHT.R' in self.cam_settings:
                 right_R = self.cam_settings['RIGHT.R']
-                right_R = np.array(right_R['data'],dtype=np.float).reshape(right_R['rows'], right_R['cols'])
+                right_R = np.array(right_R['data'],dtype=float).reshape(right_R['rows'], right_R['cols'])
                 right['R'] = right_R 
             if 'RIGHT.P' in self.cam_settings:
                 right_P = self.cam_settings['RIGHT.P']
-                right_P = np.array(right_P['data'],dtype=np.float).reshape(right_P['rows'], right_P['cols'])
+                right_P = np.array(right_P['data'],dtype=float).reshape(right_P['rows'], right_P['cols'])
                 right['P'] = right_P         
                    
             if len(left) > 0 and len(right) > 0:

@@ -123,7 +123,7 @@ if __name__ == "__main__":
     else: 
         display2d = None  # enable this if you want to use opencv window
 
-    plot_drawer = SlamPlotDrawer(slam)
+    plot_drawer = SlamPlotDrawer(slam, viewer3D)
     
     img_writer = ImgWriter(font_scale=0.7)
 

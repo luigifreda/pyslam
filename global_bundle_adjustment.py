@@ -70,7 +70,8 @@ if kVerbose:
         logging_file=kLogsFolder + '/gba.log'
         local_logger = Logging.setup_file_logger('gba_logger', logging_file, formatter=Logging.simple_log_formatter)
         def print(*args, **kwargs):
-            return local_logger.info(*args, **kwargs)
+            message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+            return local_logger.info(message, **kwargs)  
 else:
     def print(*args, **kwargs):
         return

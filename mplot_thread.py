@@ -60,7 +60,8 @@ if kVerbose and kDebugAndPrintToFile:
     logging_file=kLogsFolder + '/mplot_thread.log'
     local_logger = Logging.setup_file_logger('mplot_thread_logger', logging_file, formatter=Logging.simple_log_formatter)
     def print(*args, **kwargs):
-        return local_logger.info(*args, **kwargs)  
+        message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+        return local_logger.info(message, **kwargs)  
 
 
 kUsePlotPause = not kUseFigCanvasDrawIdle # this should be set True under macOS   
@@ -138,19 +139,21 @@ class Mplot2d:
         
         self.lock = SharedSingletonLock().get_lock
         
+        self.initialized = False  # New flag to track figure initialization
+        
         args = (self.figure_num,self.queue,self.lock,self.key,self.is_running,self.key_queue,)
         self.process = mp.Process(target=self.run, args=args)
         #self.process.daemon = kSetDaemon  
         self.process.start()
 
     def quit(self):
-        print(f'Mplot2d \"{self.title}\" closing...')
+        print(f'Mplot2d {self.title} closing...')
         self.is_running.value = 0
         self.process.join(timeout=5)     
         if self.process.is_alive():
-            print("Warning: Mplot2d \"{self.title}\" process did not terminate in time, forced kill.")         
+            print(f'Warning: Mplot2d {self.title} process did not terminate in time, forced kill.')         
             self.process.terminate()
-        print(f'Mplot2d \"{self.title}\" closed')
+        print(f'Mplot2d {self.title} closed')
 
     def init(self, figure_num, lock):    
         lock.acquire()      
@@ -174,12 +177,13 @@ class Mplot2d:
         #Autoscale on unknown axis and known lims on the other
         self.ax.set_autoscaley_on(True)   
         lock.release()
+        self.initialized = True  # Set the flag to True after initialization
         
     def run(self, figure_num, queue, lock, key, is_running, key_queue):  
         if kVerbose:
-            print('Mplot2d: starting run on figure ', figure_num.value)
+            print(f'Mplot2d {self.title}: starting run on figure ', figure_num.value)
         self.key_queue_thread = key_queue        
-        self.init(figure_num.value, lock) 
+        #self.init(figure_num.value, lock) 
         while is_running.value == 1:
             if kVerbose:            
                 print('Mplot2d: drawer_refresh step')
@@ -187,38 +191,47 @@ class Mplot2d:
             if kUseFigCanvasDrawIdle:               
                 time.sleep(kPlotSleep) 
         empty_queue(queue)  # empty the queue before exiting 
-        print(mp.current_process().name,f" - Mplot2d \'{self.title}\': closing fig ", self.fig)  
+        print(mp.current_process().name,f' - Mplot2d {self.title}: closing fig {self.fig}')  
         plt.close(self.fig)              
 
     def drawer_refresh(self, queue, lock):            
         while not queue.empty():      
             self.got_data = True           
             self.data = queue.get()          
-            xy_signal, name, color, marker = self.data 
+            xy_signal, name, color, marker, linestyle, append = self.data 
+            
+            # Initialize figure upon receiving the first data
+            if not self.initialized:
+                self.init(self.figure_num.value, lock)
+                            
             #print(mp.current_process().name,"refreshing : signal ", name)            
             if name in self.handle_map:
                 handle = self.handle_map[name]
-                handle.set_xdata(np.append(handle.get_xdata(), xy_signal[0]))
-                handle.set_ydata(np.append(handle.get_ydata(), xy_signal[1]))                
+                if append:
+                    handle.set_xdata(np.append(handle.get_xdata(), xy_signal[0]))
+                    handle.set_ydata(np.append(handle.get_ydata(), xy_signal[1]))
+                else:
+                    handle.set_xdata(xy_signal[0])
+                    handle.set_ydata(xy_signal[1])
             else: 
-                handle, = self.ax.plot(xy_signal[0], xy_signal[1], c=color, marker=marker, label=name)    
+                handle, = self.ax.plot(xy_signal[0], xy_signal[1], c=color, marker=marker, linestyle=linestyle, label=name)    
                 self.handle_map[name] = handle  
         #print(mp.current_process().name,"got data: ", self.got_data) 
         if self.got_data is True:                   
             self.plot_refresh(lock)
 
     def on_key_press(self, event):
-        print(mp.current_process().name,f" - Mplot2d \'{self.title}\': key event pressed...", event.key)     
+        print(mp.current_process().name,f' - Mplot2d {self.title}: key event pressed...  {event.key}')     
         self.key.value = ord(event.key) # conver to int 
         self.key_queue_thread.put(self.key.value)
         
     def on_key_release(self, event):
-        print(mp.current_process().name,f" - Mplot2d \"{self.title}\": key event released...", event.key)             
+        print(mp.current_process().name,f' - Mplot2d {self.title}: key event released... {event.key}')             
         self.key.value = 0  # reset to no key symbol
         
     def on_close(self, event):
         self.is_running.value = 0
-        print(mp.current_process().name,f" - Mplot2d \"{self.title}\" closed figure")
+        print(mp.current_process().name,f' - Mplot2d {self.title} closed figure')
      
     def get_key(self):
         if not self.key_queue.empty():
@@ -235,12 +248,12 @@ class Mplot2d:
             self.fig.canvas.draw()
         self.fig.canvas.flush_events()        
 
-    def draw(self, xy_signal, name, color='r', marker='.'):    
+    def draw(self, xy_signal, name, color='r', marker='.', linestyle='-', append=True):    
         if self.queue is None:
             return
         if kVerbose:        
-            print(mp.current_process().name,"draw ", self.title)     
-        self.queue.put((xy_signal, name, color, marker))
+            print(mp.current_process().name,f'Mplot2d {self.title} draw ')     
+        self.queue.put((xy_signal, name, color, marker, linestyle, append))
 
     def updateMinMax(self, np_signal):
         xmax,ymax = np.amax(np_signal,axis=0)
@@ -269,7 +282,7 @@ class Mplot2d:
 
     def plot_refresh(self, lock):
         if kVerbose:        
-            print(mp.current_process().name,"refreshing ", self.title)            
+            print(mp.current_process().name,f'Mplot2d {self.title} refreshing ')            
         lock.acquire()
         if self.is_running.value == 1:           
             self.setAxis()

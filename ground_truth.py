@@ -31,13 +31,15 @@ class GroundTruthType(Enum):
     KITTI = 2
     TUM = 3
     EUROC = 4
-    SIMPLE = 5
+    REPLICA = 5
+    SIMPLE = 6
 
 
 kScaleSimple = 1.0
 kScaleKitti = 1.0  
 kScaleTum = 1.0    
-kScaleEuroc = 1.0  
+kScaleEuroc = 1.0
+kScaleReplica = 1.0
 
 
 def groundtruth_factory(settings):
@@ -63,6 +65,8 @@ def groundtruth_factory(settings):
         return TumGroundTruth(path, name, associations, start_frame_id, GroundTruthType.TUM)
     if type == 'euroc':         
         return EurocGroundTruth(path, name, associations, start_frame_id, GroundTruthType.EUROC)
+    if type == 'replica':         
+        return ReplicaGroundTruth(path, name, associations, start_frame_id, GroundTruthType.REPLICA)
     if type == 'video' or type == 'folder':   
         name = settings['groundtruth_file']
         return SimpleGroundTruth(path, name, associations, start_frame_id, GroundTruthType.SIMPLE)     
@@ -170,9 +174,9 @@ class GroundTruth(object):
                 self.poses.append(xyzq2Tmat(x,y,z,qx,qy,qz,qw))
             except:
                 pass
-        self.timestamps = np.array(self.timestamps, dtype=np.float64)
-        self.trajectory = np.array(self.trajectory, dtype=np.float32)
-        self.poses = np.array(self.poses, dtype=np.float32)
+        self.timestamps = np.array(self.timestamps, dtype=float)
+        self.trajectory = np.array(self.trajectory, dtype=float)
+        self.poses = np.array(self.poses, dtype=float)
         return self.trajectory, self.poses, self.timestamps    
     
 
@@ -361,7 +365,7 @@ class TumGroundTruth(GroundTruth):
         except:
             x_prev, y_prev, z_prev = None, None, None
         ss = self.getDataLine(frame_id)
-        timestamp = float(ss[0]) 
+        timestamp = float(ss[0])
         x = self.scale*float(ss[1])
         y = self.scale*float(ss[2])
         z = self.scale*float(ss[3])
@@ -382,7 +386,7 @@ class TumGroundTruth(GroundTruth):
         except:
             x_prev, y_prev, z_prev = None, None, None     
         ss = self.getDataLine(frame_id)
-        timestamp = float(ss[0]) 
+        timestamp = float(ss[0])
         x = self.scale*float(ss[1])
         y = self.scale*float(ss[2])
         z = self.scale*float(ss[3])
@@ -474,23 +478,23 @@ class EurocGroundTruth(GroundTruth):
                 data = json.load(f)
                 self.association_matches = {int(k): v for k, v in data.items()}
 
-    def read_gt_data(self, csv_file):
-        data = []
-        # check csv_file exists 
-        if not os.path.isfile(csv_file):
-            Printer.red(f'Groundtruth file not found: {csv_file}')
-            return []
-        with open(csv_file, 'r') as f:
-            reader = csv.reader(f)
-            header = next(reader)  # Skip header row
-            for row in reader:
-                timestamp_ns = int(row[0])
-                x = row[1]
-                y = row[2]
-                z = row[3]
-                timestamp_s = (timestamp_ns / 1000000000)
-                data.append((timestamp_s, (x,y,z)))
-        return data
+    # def read_gt_data(self, csv_file):
+    #     data = []
+    #     # check csv_file exists 
+    #     if not os.path.isfile(csv_file):
+    #         Printer.red(f'Groundtruth file not found: {csv_file}')
+    #         return []
+    #     with open(csv_file, 'r') as f:
+    #         reader = csv.reader(f)
+    #         header = next(reader)  # Skip header row
+    #         for row in reader:
+    #             timestamp_ns = int(row[0])
+    #             x = row[1]
+    #             y = row[2]
+    #             z = row[3]
+    #             timestamp_s = (timestamp_ns / 1000000000)
+    #             data.append((timestamp_s, (x,y,z)))
+    #     return data
     
     def read_image_data(self, csv_file):
         timestamps_and_filenames = []
@@ -500,7 +504,7 @@ class EurocGroundTruth(GroundTruth):
             for row in reader:
                 timestamp_ns = int(row[0])
                 filename = row[1]
-                timestamp_s = (timestamp_ns / 1000000000)
+                timestamp_s = (float(timestamp_ns) / 1000000000)
                 timestamps_and_filenames.append((timestamp_s, filename))
         return timestamps_and_filenames    
     
@@ -555,7 +559,7 @@ class EurocGroundTruth(GroundTruth):
             x_prev, y_prev, z_prev = None, None, None
         ss = self.getDataLine(frame_id) 
         #print(f'ss[{frame_id}]: {ss}')  
-        timestamp = float(ss[0])      
+        timestamp = float(ss[0]) 
         x = self.scale*float(ss[1])
         y = self.scale*float(ss[2])
         z = self.scale*float(ss[3])
@@ -592,3 +596,71 @@ class EurocGroundTruth(GroundTruth):
         else:
             abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
         return timestamp,x,y,z, qx,qy,qz,qw,abs_scale        
+    
+    
+
+class ReplicaGroundTruth(GroundTruth):
+    kScale = 1.0 # 6553.5
+    def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.TUM): 
+        super().__init__(path, name, associations, start_frame_id, type)
+        from dataset import ReplicaDataset
+        self.Ts = ReplicaDataset.Ts 
+        self.scale = kScaleTum 
+        self.filename = path + '/' + name + '/' + 'traj.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
+        
+        base_path = os.path.dirname(self.filename)
+        print('base_path: ', base_path)
+                
+        self.poses_ = []
+        self.timestamps_ = []
+        with open(self.filename) as f:
+            self.data = f.readlines()
+            for i,line in enumerate(self.data):
+                pose = np.array(list(map(float, line.split()))).reshape(4, 4)
+                #pose = np.linalg.inv(pose)
+                self.poses_.append(pose)
+                timestamp = i*self.Ts
+                self.timestamps_.append(timestamp)
+        print(f'Number of poses: {len(self.poses_)}')
+        if self.data is None:
+            sys.exit('ERROR while reading groundtruth file!') 
+
+    def getDataLine(self, frame_id):
+        return self.data[frame_id]
+
+    # return timestamp,x,y,z,scale
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            pos_prev = self.poses_[frame_id-1][0:3,3]*ReplicaGroundTruth.kScale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        timestamp = self.timestamps_[frame_id]
+        pos = self.poses_[frame_id][0:3,3]*ReplicaGroundTruth.kScale
+        x, y, z = pos[0], pos[1], pos[2]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        return timestamp,x,y,z,abs_scale 
+        
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            pos_prev = self.poses_[frame_id-1][0:3,3]*ReplicaGroundTruth.kScale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]    
+        except:
+            x_prev, y_prev, z_prev = None, None, None     
+        timestamp = self.timestamps_[frame_id]
+        pos = self.poses_[frame_id][0:3,3]*ReplicaGroundTruth.kScale
+        x, y, z = pos[0], pos[1], pos[2] 
+        R = self.poses_[frame_id][0:3, 0:3]
+        q  = rotmat2qvec(R)  # [qx, qy, qz, qw]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        return timestamp,x,y,z, q[0],q[1],q[2],q[3],abs_scale    
+    

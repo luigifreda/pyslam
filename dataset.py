@@ -39,9 +39,10 @@ class DatasetType(SerializableEnum):
     KITTI = 2
     TUM = 3
     EUROC = 4
-    VIDEO = 5
-    FOLDER = 6  # generic folder of pics 
-    LIVE = 7
+    REPLICA = 5
+    VIDEO = 6
+    FOLDER = 7  # generic folder of pics
+    LIVE = 8
 
     
 @register_class
@@ -102,6 +103,8 @@ def dataset_factory(config):
         dataset = TumDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.TUM)
     if type == 'euroc':
         dataset = EurocDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.EUROC, config) 
+    if type == 'replica':
+        dataset = ReplicaDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.REPLICA)
     if type == 'video':
         dataset = VideoDataset(path, name, sensor_type, associations, timestamps, start_frame_id, DatasetType.VIDEO)   
     if type == 'folder':
@@ -594,6 +597,7 @@ class EurocDataset(Dataset):
         self.image_left_csv_path = '/mav0/cam0/data.csv'
         self.image_right_csv_path = '/mav0/cam1/data.csv'
         
+        # here we read and convert the timestamps to seconds
         timestamps_and_filenames_left = self.read_data(self.path + '/' + self.name + self.image_left_csv_path)
         timestamps_and_filenames_right = self.read_data(self.path + '/' + self.name + self.image_right_csv_path)
 
@@ -607,7 +611,7 @@ class EurocDataset(Dataset):
         # in case of stereo mode, we rectify the stereo images
         self.stereo_settings = config.stereo_settings
         if self.sensor_type == SensorType.STEREO:
-            Printer.yellow('[EuroDataset] automatically rectifying the stereo images')
+            Printer.yellow('[EurocDataset] automatically rectifying the stereo images')
             if self.stereo_settings is None: 
                 sys.exit('ERROR: we are missing stereo settings in Euroc YAML settings!')   
             width = config.width 
@@ -688,4 +692,56 @@ class EurocDataset(Dataset):
             else:
                 self._next_timestamp = self._timestamp + self.Ts                  
         self.is_ok = (img is not None)        
+        return img 
+        
+
+class ReplicaDataset(Dataset):
+    fps = 25
+    Ts = 1./fps
+    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.REPLICA): 
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+            raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
+        self.fps = ReplicaDataset.fps
+        self.Ts = ReplicaDataset.Ts
+        self.scale_viewer_3d = 0.1
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05             
+        print('Processing Replica Sequence')        
+        self.base_path = self.path + '/' + self.name + '/'
+        # count the number of frames in the path 
+        self.color_paths = sorted(glob.glob(f'{self.base_path}/results/frame*.jpg'))
+        self.depth_paths = sorted(glob.glob(f'{self.base_path}/results/depth*.png'))        
+        self.max_frame_id = len(self.color_paths)   
+        self.num_frames = self.max_frame_id
+        print(f'Number of frames: {self.max_frame_id}')  
+
+    def getImage(self, frame_id):
+        img = None
+        if frame_id < self.max_frame_id:
+            file = self.base_path + f'results/frame{str(frame_id).zfill(6)}.jpg'
+            img = cv2.imread(file)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts              
+        else:
+            self.is_ok = False     
+            self._timestamp = None                  
+        return img 
+
+    def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            file = self.base_path + f'results/depth{str(frame_id).zfill(6)}.png'
+            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts                
+        else:
+            self.is_ok = False      
+            self._timestamp = None                       
         return img 

@@ -5,42 +5,43 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.2.6](#pyslam-v226)
-  - [Install](#install)
-    - [Main requirements](#main-requirements)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
-  - [Usage](#usage)
-    - [Feature tracking](#feature-tracking)
-    - [Loop closing](#loop-closing)
-      - [Vocabulary management](#vocabulary-management)
-      - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
-    - [Volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)
-    - [Depth prediction](#depth-prediction)
-    - [Save and reload a map](#save-and-reload-a-map)
-    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
-    - [Trajectory saving](#trajectory-saving)
-    - [SLAM GUI](#slam-gui)
-    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-  - [Supported components and models](#supported-components-and-models)
-    - [Supported local features](#supported-local-features)
-    - [Supported matchers](#supported-matchers)
-    - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
-        - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
-        - [Global descriptors](#global-descriptors)
-    - [Supported depth prediction models](#supported-depth-prediction-models)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-    - [EuRoC Dataset](#euroc-dataset)
-  - [Camera Settings](#camera-settings)
-  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+    - [1. Install](#1-install)
+        - [1.1. Main requirements](#11-main-requirements)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
+    - [2. Usage](#2-usage)
+        - [2.1. Feature tracking](#21-feature-tracking)
+        - [2.2. Loop closing](#22-loop-closing)
+            - [2.2.1. Vocabulary management](#221-vocabulary-management)
+            - [2.2.2. Vocabulary-free loop closing](#222-vocabulary-free-loop-closing)
+        - [2.3. Volumetric reconstruction pipeline](#23-volumetric-reconstruction-pipeline)
+        - [2.4. Depth prediction](#24-depth-prediction)
+        - [2.5. Save and reload a map](#25-save-and-reload-a-map)
+        - [2.6. Relocalization in a loaded map](#26-relocalization-in-a-loaded-map)
+        - [2.7. Trajectory saving](#27-trajectory-saving)
+        - [2.8. SLAM GUI](#28-slam-gui)
+        - [2.9. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#29-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+    - [3. Supported components and models](#3-supported-components-and-models)
+        - [3.1. Supported local features](#31-supported-local-features)
+        - [3.2. Supported matchers](#32-supported-matchers)
+        - [3.3. Supported global descriptors and local descriptor aggregation methods](#33-supported-global-descriptors-and-local-descriptor-aggregation-methods)
+                - [3.3.1. Local descriptor aggregation methods](#331-local-descriptor-aggregation-methods)
+                - [3.3.2. Global descriptors](#332-global-descriptors)
+        - [3.4. Supported depth prediction models](#34-supported-depth-prediction-models)
+    - [4. Datasets](#4-datasets)
+        - [4.1. KITTI Datasets](#41-kitti-datasets)
+        - [4.2. TUM Datasets](#42-tum-datasets)
+        - [4.3. EuRoC Datasets](#43-euroc-datasets)
+        - [4.4. Replica Datasets](#44-replica-datasets)
+    - [5. Camera Settings](#5-camera-settings)
+    - [6. Comparison pySLAM vs ORB-SLAM3](#6-comparison-pyslam-vs-orb-slam3)
+    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
+    - [8. References](#8-references)
+    - [9. Credits](#9-credits)
+    - [10. TODOs](#10-todos)
 
 <!-- /TOC -->
  
@@ -262,8 +263,7 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 - `Step`: Enter in the *Step by step mode*. Press the button `Step` a first time to pause. Then, press it again to make the pipeline process a single new frame.
 - `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `/main_map_viewer.py` (as explained above). 
 - `Reset`: Reset SLAM system. 
-- `Draw Grount Truth`: In the case a groundtruth is loaded (e.g. with *KITTI*, *TUM*, *EUROC* datasets), you can visualize it by pressing this button. The groundtruth trajectory will be visualized and progressively aligned to the estimated trajectory: The more the number of samples in the estimated trajectory the better the computed alignment.  
-
+- `Draw Grount Truth`:  If a ground truth dataset is loaded (e.g., from KITTI, TUM, EUROC, or REPLICA), you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and progressively aligned (approximately every 30 frames) with the estimated trajectory. The alignment improves as more samples are added to the estimated trajectory. After ~20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors (ground truth vs. estimated trajectory) along the axes.  
 
 ### Monitor the logs for tracking, local mapping, and loop closing simultaneously
 
@@ -438,11 +438,17 @@ $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > asso
 3. Select the corresponding calibration settings file (parameter `TUM_DATASET: cam_settings:` in the file `config.yaml`).
 
 
-### EuRoC Dataset
+### EuRoC Datasets
 
 1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
 2. Use the script `groundtruth/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
 3. Select the corresponding calibration settings file (parameter `EUROC_DATASET: cam_settings:` in the file `config.yaml`).
+
+
+### Replica Datasets
+
+1. You can download the zip file containing all the sequences with `wget https://cvg-data.inf.ethz.ch/nice-slam/data/Replica.zip`. Then, uncompress it and deploy the files as you wish.
+2. Select the corresponding calibration settings file (parameter `REPLICA_DATASET: cam_settings:` in the file `config.yaml`).
 
 --- 
 ## Camera Settings
@@ -496,7 +502,7 @@ Suggested material:
 * *[Visual Place Recognition: A Tutorial](https://arxiv.org/pdf/2303.03281)*
 * *[Bags of Binary Words for Fast Place Recognition in Image Sequences](http://doriangalvez.com/papers/GalvezTRO12.pdf)*
 
-Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.org/3.0-beta/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html) or [tutorials](https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_tutorials.html).  
+Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.org/4.x/index.html) or [tutorials](https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html).  
 
 ---
 ## Credits 

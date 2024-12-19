@@ -33,7 +33,7 @@ import numpy as np
 
 from map import Map
 
-from utils_geom import inv_T, align_trajs_with_svd
+from utils_geom import inv_T, align_trajs_with_svd, AlignmentGroundTruthData
 from utils_sys import Printer
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
@@ -55,6 +55,7 @@ kDrawReferenceCamera = True
 
 kMinWeightForDrawingCovisibilityEdge=100
 
+kAlignGroundTruthNumMinKeyframes = 10
 kAlignGroundTruthEveryNKeyframes = 10
 kAlignGroundTruthEveryNFrames = 30
 
@@ -106,8 +107,8 @@ class Viewer3D(object):
         self.gt_trajectory = None
         self.gt_timestamps = None
         self.align_gt_with_scale = False
-        self.estimated_trajectory = None
-        self.estimated_trajectory_timestamps = None
+        #self.estimated_trajectory = None
+        #self.estimated_trajectory_timestamps = None
 
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
         self.mp_manager = MultiprocessingManager()
@@ -121,9 +122,10 @@ class Viewer3D(object):
         self._do_step = mp.Value('i',0)
         self._do_reset = mp.Value('i',0)
         self._is_gt_set = mp.Value('i',0)
+        self.alignment_gt_data_queue = self.mp_manager.Queue()     
         self.vp = mp.Process(target=self.viewer_run,
                           args=(self.qmap, self.qvo, self.qdense,
-                                self._is_running,self._is_paused,self._is_map_save, self._do_step, self._do_reset, self._is_gt_set))
+                                self._is_running,self._is_paused,self._is_map_save, self._do_step, self._do_reset, self._is_gt_set, self.alignment_gt_data_queue))
         self.vp.daemon = True
         self.vp.start()
         
@@ -163,7 +165,7 @@ class Viewer3D(object):
             self._do_reset.value = 0
         return do_reset       
 
-    def viewer_run(self, qmap, qvo, qdense, is_running, is_paused, is_map_save, do_step, do_reset, is_gt_set):
+    def viewer_run(self, qmap, qvo, qdense, is_running, is_paused, is_map_save, do_step, do_reset, is_gt_set, alignment_gt_data_queue):
         self.viewer_init(kViewportWidth, kViewportHeight)
         # init local vars for the the process 
         self.thread_gt_trajectory = None
@@ -172,6 +174,7 @@ class Viewer3D(object):
         self.thread_gt_aligned = False
         self.thread_last_num_poses_gt_was_aligned = 0
         self.thread_last_frame_id_gt_was_aligned = 0
+        self.thread_alignment_gt_data_queue = alignment_gt_data_queue
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
             self.viewer_refresh(qmap, qvo, qdense, is_paused, is_map_save, do_step, do_reset, is_gt_set)
@@ -349,12 +352,15 @@ class Viewer3D(object):
                 if self.draw_gt:                
                     # align the gt to the estimated trajectory every 'kAlignGroundTruthEveryNKeyframes' frames;
                     # the more estimated frames we have the better the alignment! 
-                    condition1 = len(self.map_state.poses) > kAlignGroundTruthEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned
-                    condition2 = self.map_state.cur_frame_id > kAlignGroundTruthEveryNFrames + self.thread_last_frame_id_gt_was_aligned  # this is useful when we are not generating new kfs
-                    if condition1 or condition2:
+                    num_kfs = len(self.map_state.poses)
+                    condition1 = num_kfs > kAlignGroundTruthNumMinKeyframes
+                    condition2 = len(self.map_state.poses) > kAlignGroundTruthEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned
+                    condition3 = self.map_state.cur_frame_id > kAlignGroundTruthEveryNFrames + self.thread_last_frame_id_gt_was_aligned  # this is useful when we are not generating new kfs
+                    if condition1 and (condition2 or condition3):
                         try:
-                            estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=np.float32)
-                            align_trajs_with_svd(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, align_gt=True, compute_align_error=False, find_scale=self.thread_align_gt_with_scale)
+                            estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=float)
+                            T_gt_est, error, alignment_gt_data = align_trajs_with_svd(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, align_gt=True, compute_align_error=False, find_scale=self.thread_align_gt_with_scale)
+                            self.thread_alignment_gt_data_queue.put(alignment_gt_data)
                             self.thread_gt_aligned = True
                             self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)
                             self.thread_last_frame_id_gt_was_aligned = self.map_state.cur_frame_id
@@ -479,7 +485,7 @@ class Viewer3D(object):
             for kf in keyframes:
                 map_state.poses.append(kf.Twc)
                 map_state.pose_timestamps.append(kf.timestamp)
-        map_state.poses = np.array(map_state.poses, dtype=np.float32)
+        map_state.poses = np.array(map_state.poses, dtype=float)
         map_state.pose_timestamps = np.array(map_state.pose_timestamps, dtype=np.float64)
 
         num_map_points = map.num_points()
