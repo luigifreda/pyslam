@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# NOTE: This script is expected to be used under mac. See the file `MAC.md`.
-
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR="$SCRIPT_DIR/.."
 ROOT_DIR=$(realpath $ROOT_DIR)

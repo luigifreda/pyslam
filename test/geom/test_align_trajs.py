@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
 sys.path.append("../../")
+from config import Config
 
 from utils_geom import align_trajs_with_svd, yaw_matrix, roll_matrix, pitch_matrix, poseRt
 

@@ -22,6 +22,7 @@ import numpy as np
 import math
 import time 
 sys.path.append("../../")
+from config import Config
 
 import torch.multiprocessing as mp
 

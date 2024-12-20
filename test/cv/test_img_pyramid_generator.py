@@ -1,5 +1,6 @@
 import sys
 sys.path.append("../../")
+from config import Config
 
 import time 
 import cv2

@@ -25,7 +25,7 @@ if sys.version_info[0] != 3:
 import os
 import yaml
 import numpy as np
-from utils_sys import Printer, locally_configure_qt_environment
+from utilities.utils_sys import Printer, locally_configure_qt_environment
 import math
 
 

@@ -32,7 +32,7 @@ from ground_truth import groundtruth_factory
 from dataset import dataset_factory
 
 from mplot_thread import Mplot2d, Mplot3d
-from qtplot_thread import Qplot2d
+from qplot_thread import Qplot2d
 
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs

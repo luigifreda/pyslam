@@ -7,6 +7,14 @@ CORE_LIB_PATHS:
   orb_features: thirdparty/orbslam2_features/lib
   pyslam_utils: cpp/utils/lib
   thirdparty: thirdparty  # considering the folders in thirdparty as modules
+  utilities: utilities
+  depth_estimation: depth_estimation 
+  local_features: local_features
+  loop_closing: loop_closing
+  slam: slam
+  viz: viz
+  io: io
+  dense: dense
 
 LIB_PATHS:
   # The following libs are explicitely imported on demand by using, for instance:
@@ -47,10 +55,10 @@ LIB_PATHS:
 DATASET:
   # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
-  #type: KITTI_DATASET
+  type: KITTI_DATASET
   #type: TUM_DATASET
   #type: REPLICA_DATASET
-  type: VIDEO_DATASET
+  #type: VIDEO_DATASET
   #type: FOLDER_DATASET
   #type: LIVE_DATASET  # Not recommended for current development stage
 
@@ -121,15 +129,15 @@ VIDEO_DATASET:
   type: video
   sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 
   #
-  #base_path: ./videos/kitti00
+  #base_path: ./data/videos/kitti00
   #settings: settings/KITTI00-02.yaml
   #name: video.mp4
   #
-  base_path: ./videos/kitti06
+  base_path: ./data/videos/kitti06
   settings: settings/KITTI04-12.yaml
   name: video_color.mp4
   #
-  #base_path: ./videos/webcam
+  #base_path: ./data/videos/webcam
   #settings: settings/WEBCAM.yaml 
   #name: video.mp4
   #

@@ -5,7 +5,6 @@ import cv2
 from matplotlib import pyplot as plt
 
 sys.path.append("../../")
-
 from config import Config
 
 from mplot_figure import MPlotFigure
@@ -28,7 +27,7 @@ from ground_truth import groundtruth_factory
 from dataset import dataset_factory
 from timer import Timer
 
-from parameters import Parameters  
+from config_parameters import Parameters  
 
 from feature_tracker_configs import FeatureTrackerConfigs
 

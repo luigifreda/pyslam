@@ -38,7 +38,7 @@ from utils_sys import getchar, Printer
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
-from parameters import Parameters
+from config_parameters import Parameters
 
 
 if __name__ == "__main__":

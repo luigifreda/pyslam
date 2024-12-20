@@ -3,6 +3,7 @@ import multiprocessing as mp
 
 import sys 
 sys.path.append("../../")
+from config import Config
 
 from utils_sys import LoggerQueue
 

@@ -19,7 +19,7 @@ from dataset import dataset_factory
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
-from parameters import Parameters
+from config_parameters import Parameters
 Parameters.kLoopClosingDebugAndPrintToFile = False
 Parameters.kLoopClosingDebugWithSimmetryMatrix = True
 Parameters.kLoopClosingDebugWithLoopDetectionImages = True

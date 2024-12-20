@@ -21,7 +21,9 @@ import sys
 import numpy as np
 import math
 import time 
+
 sys.path.append("../../")
+from config import Config
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
