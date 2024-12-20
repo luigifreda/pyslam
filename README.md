@@ -1,47 +1,47 @@
-# pySLAM v2.2.6
+# pySLAM v2.3.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.2.6](#pyslam-v226)
-    - [1. Install](#1-install)
-        - [1.1. Main requirements](#11-main-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
-    - [2. Usage](#2-usage)
-        - [2.1. Feature tracking](#21-feature-tracking)
-        - [2.2. Loop closing](#22-loop-closing)
-            - [2.2.1. Vocabulary management](#221-vocabulary-management)
-            - [2.2.2. Vocabulary-free loop closing](#222-vocabulary-free-loop-closing)
-        - [2.3. Volumetric reconstruction pipeline](#23-volumetric-reconstruction-pipeline)
-        - [2.4. Depth prediction](#24-depth-prediction)
-        - [2.5. Save and reload a map](#25-save-and-reload-a-map)
-        - [2.6. Relocalization in a loaded map](#26-relocalization-in-a-loaded-map)
-        - [2.7. Trajectory saving](#27-trajectory-saving)
-        - [2.8. SLAM GUI](#28-slam-gui)
-        - [2.9. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#29-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-    - [3. Supported components and models](#3-supported-components-and-models)
-        - [3.1. Supported local features](#31-supported-local-features)
-        - [3.2. Supported matchers](#32-supported-matchers)
-        - [3.3. Supported global descriptors and local descriptor aggregation methods](#33-supported-global-descriptors-and-local-descriptor-aggregation-methods)
-                - [3.3.1. Local descriptor aggregation methods](#331-local-descriptor-aggregation-methods)
-                - [3.3.2. Global descriptors](#332-global-descriptors)
-        - [3.4. Supported depth prediction models](#34-supported-depth-prediction-models)
-    - [4. Datasets](#4-datasets)
-        - [4.1. KITTI Datasets](#41-kitti-datasets)
-        - [4.2. TUM Datasets](#42-tum-datasets)
-        - [4.3. EuRoC Datasets](#43-euroc-datasets)
-        - [4.4. Replica Datasets](#44-replica-datasets)
-    - [5. Camera Settings](#5-camera-settings)
-    - [6. Comparison pySLAM vs ORB-SLAM3](#6-comparison-pyslam-vs-orb-slam3)
-    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
-    - [8. References](#8-references)
-    - [9. Credits](#9-credits)
-    - [10. TODOs](#10-todos)
+- [pySLAM v2.3.0](#pyslam-v230)
+  - [Install](#install)
+    - [Main requirements](#main-requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
+  - [Usage](#usage)
+    - [Feature tracking](#feature-tracking)
+    - [Loop closing](#loop-closing)
+      - [Vocabulary management](#vocabulary-management)
+      - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
+    - [Volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)
+    - [Depth prediction](#depth-prediction)
+    - [Save and reload a map](#save-and-reload-a-map)
+    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
+    - [Trajectory saving](#trajectory-saving)
+    - [SLAM GUI](#slam-gui)
+    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+  - [Supported components and models](#supported-components-and-models)
+    - [Supported local features](#supported-local-features)
+    - [Supported matchers](#supported-matchers)
+    - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
+        - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
+        - [Global descriptors](#global-descriptors)
+    - [Supported depth prediction models](#supported-depth-prediction-models)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+    - [EuRoC Datasets](#euroc-datasets)
+    - [Replica Datasets](#replica-datasets)
+  - [Camera Settings](#camera-settings)
+  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
  
@@ -104,19 +104,19 @@ Then, use the available specific install procedure according to your OS. The pro
 * Kornia 0.7.3
 * Rerun
 
-If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for assistance.
+If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
 
 ### Ubuntu 
 
-Follow the instructions reported [here](./PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
+Follow the instructions reported [here](./docs/PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
 
-If you prefer **conda**, run the scripts described in this other [file](./CONDA.md).
+If you prefer **conda**, run the scripts described in this other [file](./docs/CONDA.md).
 
 
 ### MacOS
 
-Follow the instructions in this [file](./MAC.md). The reported procedure was tested under *Sequoia 15.1.1* and *Xcode 16.1*.
+Follow the instructions in this [file](./docs/MAC.md). The reported procedure was tested under *Sequoia 15.1.1* and *Xcode 16.1*.
 
 
 ### Docker
@@ -130,7 +130,7 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:       
 `$ . pyenv-activate.sh `        
-`$ ./opencv_check.py`       
+`$ ./scripts/opencv_check.py`       
 or use the following command:        
 `$ python3 -c "import cv2; print(cv2.__version__)"`      
 How to check if you have non-free OpenCV module support (no errors imply success):          
@@ -139,7 +139,7 @@ How to check if you have non-free OpenCV module support (no errors imply success
 
 ### Troubleshooting and performance issues
 
-If you run into issues or errors during the installation process or at run-time, please, check the [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) file.
+If you run into issues or errors during the installation process or at run-time, please, check the [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) file.
 
 --- 
 ## Usage
@@ -149,14 +149,14 @@ Once you have run the script `install_all_venv.sh` (follow the instructions abov
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py
 ```
-This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. 
+This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. 
 **Note**: As explained above, the basic script `main_vo.py` **strictly requires a ground truth**.  
 
 In order to process a different **dataset**, you need to set the file `config.yaml`:
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
 * Select the `sensor_type` (`mono`, `stereo`, `rgbd`) in the chosen dataset section.  
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
-* The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `ground_truth.py` and `convert_groundtruth.py`).
+* The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `io/ground_truth.py` and `io/convert_groundtruth.py`).
 
 Similarly, you can test `main_slam.py` by running:
 ```bash
@@ -164,7 +164,7 @@ $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is o
 $ ./main_slam.py
 ```
 
-This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing/clicking on one of the opened matplotlib windows and pressing the key 'Q'. 
+This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing/clicking on one of the opened matplotlib windows and pressing the key 'Q'. 
 **Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
 
 ### Feature tracking
@@ -441,7 +441,7 @@ $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > asso
 ### EuRoC Datasets
 
 1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
-2. Use the script `groundtruth/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
+2. Use the script `io/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
 3. Select the corresponding calibration settings file (parameter `EUROC_DATASET: cam_settings:` in the file `config.yaml`).
 
 

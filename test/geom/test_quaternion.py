@@ -2,10 +2,9 @@ import numpy as np
 
 import sys 
 sys.path.append("../../")
+from config import Config
 
 from utils_geom import qvec2rotmat, rotmat2qvec
-
-
 
 if __name__ == "__main__":
     # Test quaternion

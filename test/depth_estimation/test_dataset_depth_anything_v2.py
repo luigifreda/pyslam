@@ -1,7 +1,6 @@
 import os
 import sys 
 sys.path.append("../../")
-
 from config import Config
 config = Config()
 config.set_lib('depth_anything_v2') 
@@ -17,7 +16,7 @@ from frame import Frame
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
-from parameters import Parameters
+from config_parameters import Parameters
 
 from utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
 

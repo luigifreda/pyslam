@@ -49,7 +49,7 @@ from loop_detector_configs import LoopDetectorConfigs
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 from utils_depth import img_from_depth, filter_shadow_points
 
-from parameters import Parameters  
+from config_parameters import Parameters  
 
 from rerun_interface import Rerun
 

@@ -28,7 +28,6 @@ import platform
 
 import sys 
 sys.path.append("../../")
-
 from config import Config
 
 from slam import Slam, SlamState
@@ -49,7 +48,7 @@ from feature_tracker_configs import FeatureTrackerConfigs
 
 from loop_detector_configs import LoopDetectorConfigs
 
-from parameters import Parameters  
+from config_parameters import Parameters  
 
 from rerun_interface import Rerun
 

@@ -6,7 +6,7 @@ import math
 import sys
 sys.path.append("../../")
 
-from qtplot_thread import Qplot2d, Qplot3d
+from qplot_thread import Qplot2d, Qplot3d
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ matches.txt
 map.png
 .vscode 
 .project
-videos/webcam
+data/videos/webcam
 
 kf_info.log 
 local_mapping.log 
