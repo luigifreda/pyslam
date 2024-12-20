@@ -144,6 +144,14 @@ class SafeQueue:
         with self._lock:
             self._size.value -= 1
         return item
+    
+    def get_nowait(self):
+        """Remove and return an item from the queue without blocking."""
+        item = self.queue.get_nowait()
+        with self._lock:
+            if item:
+                self._size.value -= 1
+        return item
 
     def qsize(self):
         """Return the current size of the queue."""
