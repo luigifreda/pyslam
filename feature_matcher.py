@@ -436,8 +436,12 @@ class FeatureMatcher(object):
                     idxs1, idxs2 = MatcherUtils.rowMatchesWithRatioTest(matcher, kps1, des1, kps2, des2, max_descriptor_distance, max_disparity=max_disparity, ratio_test=ratio_test)
                 else:                             
                     idxs1, idxs2 = MatcherUtils.rowMatches(matcher, kps1, des1, kps2, des2, max_descriptor_distance, max_disparity=max_disparity)
-            result.idxs1 = idxs1
-            result.idxs2 = idxs2                               
+            
+            # Change suggested here https://github.com/luigifreda/pyslam/issues/125#issuecomment-2555299806
+            #result.idxs1 = idxs1
+            #result.idxs2 = idxs2
+            result.idxs1 = idxs1.astype(np.int64)
+            result.idxs2 = idxs2.astype(np.int64)                              
             return result      
 
     

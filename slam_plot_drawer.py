@@ -32,7 +32,7 @@ from mplot_thread import Mplot2d
 from qtplot_thread import Qplot2d
 import matplotlib.colors as mcolors
 
-from utils_geom import AlignmentGroundTruthData, Sim3Pose
+from utils_geom import AlignmentEstimatedAndGroundTruthData, Sim3Pose
 
 kUseQtplot2d = False
 if platform.system() == 'Darwin':
@@ -55,41 +55,34 @@ class SlamPlotDrawer:
         self.info_3dpoints_plt = None
         self.chi2_error_plt = None
         self.timing_plt = None
-        
         self.traj_error_plt = None
+        
         self.last_alignment_timestamp = None
-        self.last_alignment_gt_data = AlignmentGroundTruthData()
+        self.last_alignment_gt_data = AlignmentEstimatedAndGroundTruthData()
         
         # To disable one of them just comment it out
         self.matched_points_plt = factory_plot2d(xlabel='img id', ylabel='# matches',title='# matches')  
         #self.info_3dpoints_plt = factory_plot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
         self.chi2_error_plt = factory_plot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
         self.timing_plt = factory_plot2d(xlabel='img id', ylabel='s',title='timing')        
-        self.traj_error_plt = factory_plot2d(xlabel='time [s]', ylabel='error',title='trajectories: gt vs estimated')
+        self.traj_error_plt = factory_plot2d(xlabel='time [s]', ylabel='error',title='trajectories: gt vs (aligned)estimated')
+        
+        
+        self.plt_list = [self.matched_points_plt, self.info_3dpoints_plt, self.chi2_error_plt, self.timing_plt, self.traj_error_plt]
         
         self.last_processed_kf_img_id = -1
         
     def quit(self):
-        if self.matched_points_plt is not None:
-            self.matched_points_plt.quit()
-        if self.info_3dpoints_plt is not None:
-            self.info_3dpoints_plt.quit()    
-        if self.chi2_error_plt is not None:
-            self.chi2_error_plt.quit()
-        if self.timing_plt is not None:
-            self.timing_plt.quit()            
+        for plt in self.plt_list:
+            if plt is not None:
+                plt.quit()        
             
     def get_key(self):
-        key = self.matched_points_plt.get_key() if self.matched_points_plt is not None else None
-        if key == '' or key is None:
-            key = self.info_3dpoints_plt.get_key() if self.info_3dpoints_plt is not None else None
-        if key == '' or key is None:
-            key = self.chi2_error_plt.get_key() if self.chi2_error_plt is not None else None
-        if key == '' or key is None:
-            key = self.timing_plt.get_key() if self.timing_plt is not None else None
-        if key == '' or key is None:
-            key = self.traj_error_plt.get_key() if self.traj_error_plt is not None else None            
-        return key      
+        for plt in self.plt_list:
+            if plt is not None:
+                key = plt.get_key()
+                if key != '':
+                    return key    
 
     def draw(self, img_id):
         try:
@@ -132,6 +125,7 @@ class SlamPlotDrawer:
                         num_static_stereo_map_points_signal = [img_id, self.slam.tracking.last_num_static_stereo_map_points]
                         self.info_3dpoints_plt.draw(num_static_stereo_map_points_signal,'# static triangulated pts',color='k') 
                 
+            #  draw chi2 error
             if self.chi2_error_plt is not None:
                 if self.slam.tracking.mean_pose_opt_chi2_error is not None:
                     mean_pose_opt_chi2_error_signal = [img_id, self.slam.tracking.mean_pose_opt_chi2_error]
@@ -147,6 +141,7 @@ class SlamPlotDrawer:
                         mean_BA_chi2_error_signal = [img_id, self.slam.GBA.mean_squared_error.value]
                         self.chi2_error_plt.draw(mean_BA_chi2_error_signal,'GBA chi2 error',color='k')
                                         
+            # draw timings
             if self.timing_plt is not None:
                 if self.slam.tracking.time_track is not None:
                     time_track_signal = [img_id, self.slam.tracking.time_track]
@@ -181,19 +176,21 @@ class SlamPlotDrawer:
                         time_volumetric_integration_signal = [img_id, self.slam.volumetric_integrator.time_volumetric_integration.value]
                         self.timing_plt.draw(time_volumetric_integration_signal,'volumetric integration',color=mcolors.CSS4_COLORS['darkviolet'], marker='+')
                         
-                        
-            # we must empty the alignment queue in any case
+                    
+            # draw trajectory and alignment error    
+            # NOTE: we must empty the alignment queue in any case
             new_alignment_data = None
             while not self.viewer3D.alignment_gt_data_queue.empty():
                 new_alignment_data = self.viewer3D.alignment_gt_data_queue.get_nowait()
             if self.traj_error_plt is not None and new_alignment_data is not None:
                 num_samples = len(new_alignment_data.timestamps_associations)                
                 new_alignment_timestamp = new_alignment_data.timestamps_associations[-1] if num_samples > 20 else None
-                print(f'SlamPlotDrawer: new gt alignment timestamp: {new_alignment_timestamp}, error: {new_alignment_data.error}')
-                if new_alignment_data.error >= 0 and self.last_alignment_timestamp != new_alignment_timestamp:
+                print(f'SlamPlotDrawer: new gt alignment timestamp: {new_alignment_timestamp}, error: {new_alignment_data.error}, max_error: {new_alignment_data.max_error}, is_est_aligned: {new_alignment_data.is_est_aligned}')
+                if new_alignment_data.error > 0 and self.last_alignment_timestamp != new_alignment_timestamp:
                     self.last_alignment_timestamp = new_alignment_timestamp
-                    new_alignment_data.copyTo(self.last_alignment_gt_data)
-                    # if not self.last_alignment_gt_data.is_aligned:
+                    #new_alignment_data.copyTo(self.last_alignment_gt_data)
+                    self.last_alignment_gt_data = new_alignment_data
+                    # if not self.last_alignment_gt_data.is_est_aligned:
                     #     print(f'SlamPlotDrawer: realigning estimated and gt trajectories')
                     #     if self.slam.sensor_type != SensorType.MONOCULAR:
                     #         # align the gt to estimated trajectory (T_gt_est is estimated in SE(3))
@@ -203,19 +200,20 @@ class SlamPlotDrawer:
                     #         # align the estimated trajectory to the gt (T_gt_est is estimated in Sim(3))
                     #         #T_est_gt = np.linalg.inv(self.last_alignment_gt_data.T_gt_est)
                     #         T_est_gt = Sim3Pose().from_matrix(self.last_alignment_gt_data.T_gt_est).inverse_matrix()
-                    #         for i in range(len(self.last_alignment_gt_data.filter_t_w_i)):
-                    #             self.last_alignment_gt_data.filter_t_w_i[i] = np.dot(T_est_gt[:3, :3], self.last_alignment_gt_data.filter_t_w_i[i]) + T_est_gt[:3, 3]
+                    #         for i in range(len(self.last_alignment_gt_data.estimated_t_w_i)):
+                    #             self.last_alignment_gt_data.estimated_t_w_i[i] = np.dot(T_est_gt[:3, :3], self.last_alignment_gt_data.estimated_t_w_i[i]) + T_est_gt[:3, 3]
                             
                     gt_traj = np.array(self.last_alignment_gt_data.gt_t_w_i, dtype=float)
-                    filter_traj = np.array(self.last_alignment_gt_data.filter_t_w_i, dtype=float)
+                    estimated_traj = np.array(self.last_alignment_gt_data.estimated_t_w_i, dtype=float)
                     filter_timestamps = np.array(self.last_alignment_gt_data.timestamps_associations, dtype=float)
+                    #print(f'SlamPlotDrawer: gt_traj: {gt_traj.shape}, estimated_traj: {estimated_traj.shape}, filter_timestamps: {filter_timestamps.shape}')
                     if False:
                         time_gt_x_signal = [filter_timestamps, gt_traj[:, 0]]
                         time_gt_y_signal = [filter_timestamps, gt_traj[:, 1]]
                         time_gt_z_signal = [filter_timestamps, gt_traj[:, 2]]
-                        time_filter_x_signal = [filter_timestamps, filter_traj[:, 0]]
-                        time_filter_y_signal = [filter_timestamps, filter_traj[:, 1]]
-                        time_filter_z_signal = [filter_timestamps, filter_traj[:, 2]]
+                        time_filter_x_signal = [filter_timestamps, estimated_traj[:, 0]]
+                        time_filter_y_signal = [filter_timestamps, estimated_traj[:, 1]]
+                        time_filter_z_signal = [filter_timestamps, estimated_traj[:, 2]]
                         self.traj_error_plt.draw(time_filter_x_signal, 'filter_x', color='r', append=False)
                         self.traj_error_plt.draw(time_filter_y_signal, 'filter_y', color='g', append=False)
                         self.traj_error_plt.draw(time_filter_z_signal, 'filter_z', color='b', append=False)
@@ -223,9 +221,14 @@ class SlamPlotDrawer:
                         self.traj_error_plt.draw(time_gt_y_signal, 'gt_y', color='g', linestyle=':', append=False)
                         self.traj_error_plt.draw(time_gt_z_signal, 'gt_z', color='b', linestyle=':', append=False)
                     else:
-                        time_errx_signal = [filter_timestamps, gt_traj[:, 0] - filter_traj[:, 0]]
-                        time_erry_signal = [filter_timestamps, gt_traj[:, 1] - filter_traj[:, 1]]
-                        time_errz_signal = [filter_timestamps, gt_traj[:, 2] - filter_traj[:, 2]]
+                        traj_error = gt_traj - estimated_traj
+                        err_x_max = np.max(np.abs(traj_error[:, 0]))
+                        err_y_max = np.max(np.abs(traj_error[:, 1]))                        
+                        err_z_max = np.max(np.abs(traj_error[:, 2]))
+                        print(f'SlamPlotDrawer: err_x_max: {err_x_max}, err_y_max: {err_y_max}, err_z_max: {err_z_max}')
+                        time_errx_signal = [filter_timestamps, traj_error[:, 0]]
+                        time_erry_signal = [filter_timestamps, traj_error[:, 1]]
+                        time_errz_signal = [filter_timestamps, traj_error[:, 2]]
                         self.traj_error_plt.draw(time_errx_signal, 'err_x', color='r', append=False)
                         self.traj_error_plt.draw(time_erry_signal, 'err_y', color='g', append=False) 
                         self.traj_error_plt.draw(time_errz_signal, 'err_z', color='b', append=False)                                   

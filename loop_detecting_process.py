@@ -41,11 +41,11 @@ from timer import TimerFps
 from keyframe import KeyFrame
 from frame import Frame
 
-from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check, SlamFeatureManagerInfo
+from loop_detector_configs import LoopDetectorConfigs, loop_detector_factory, loop_detector_config_check, GlobalDescriptorType, SlamFeatureManagerInfo
 from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorBase, LoopDetectorOutput
 
 import traceback
-
+import torch.multiprocessing as mp
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -76,6 +76,19 @@ class LoopDetectingProcess:
     def __init__(self, slam: 'Slam', loop_detector_config = LoopDetectorConfigs.DBOW3):
         set_rlimit()          
                 
+        global_descriptor_type = loop_detector_config['global_descriptor_type']
+        # NOTE: the following set_start_method() is needed by multiprocessing for using CUDA acceleration (for instance with torch).
+        if global_descriptor_type ==  GlobalDescriptorType.COSPLACE or \
+           global_descriptor_type == GlobalDescriptorType.ALEXNET or \
+           global_descriptor_type == GlobalDescriptorType.NETVLAD or \
+           global_descriptor_type == GlobalDescriptorType.VLAD or \
+           global_descriptor_type == GlobalDescriptorType.EIGENPLACES:
+            if mp.get_start_method() != 'spawn':
+                mp.set_start_method('spawn', force=True) # NOTE: This may generate some pickling problems with multiprocessing 
+                                                        #       in combination with torch and we need to check it in other places.
+                                                        #       This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
+        
+                    
         self.loop_detector_config = loop_detector_config
         self.slam_info = SlamFeatureManagerInfo(slam=slam)
         

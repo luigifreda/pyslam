@@ -161,10 +161,12 @@ class VolumetricIntegratorOutput:
 class VolumetricIntegrator:
     def __init__(self, slam: 'Slam'):        
         import torch.multiprocessing as mp
-        mp.set_start_method('spawn', force=True) # NOTE: This generates some pickling problems with multiprocessing 
-                                                    #    in combination with torch and we need to check it in other places.
-                                                    #    This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
-    
+        # NOTE: The following set_start_method() is needed by multiprocessing for using CUDA acceleration (for instance with torch).        
+        if mp.get_start_method() != 'spawn':
+            mp.set_start_method('spawn', force=True) # NOTE: This may generate some pickling problems with multiprocessing 
+                                                        #    in combination with torch and we need to check it in other places.
+                                                        #    This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
+        
         set_rlimit()
          
         self.camera = slam.camera

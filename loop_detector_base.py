@@ -108,7 +108,7 @@ class LoopDetectorTask:
     def __init__(self, keyframe: KeyFrame, img, task_type=LoopDetectorTaskType.NONE, covisible_keyframes=[], connected_keyframes=[], load_save_path=None):
         self.task_type = task_type
         self.keyframe_data = LoopDetectKeyframeData(keyframe, img)
-        self.covisible_keyframes_data = [LoopDetectKeyframeData(kf) for kf in covisible_keyframes if not kf.is_bad] 
+        self.covisible_keyframes_data = [LoopDetectKeyframeData(kf) for kf in covisible_keyframes if not kf.is_bad and kf.id != self.keyframe_data.id] 
         self.connected_keyframes_ids =  [kf.id for kf in connected_keyframes]
         self.load_save_path = load_save_path            
         # # for loop closing 
@@ -262,7 +262,8 @@ class LoopDetectorBase:
                     #print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no g_des, computing on img shape: {cov_kf.img.shape}, dtype: {cov_kf.img.dtype}')
                     if cov_kf.img.dtype != np.uint8:                    
                         print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has img dtype: {cov_kf.img.dtype}, converting to uint8')
-                        cov_kf.img = cov_kf.img.astype(np.uint8)            
+                        cov_kf.img = cov_kf.img.astype(np.uint8)
+                print(f'LoopDetectorBase: computing global descriptor for keyframe {cov_kf.id}')            
                 cov_kf.g_des = self.compute_global_des(cov_kf.des, cov_kf.img)
             if cov_kf.g_des is not None:             
                 if not isinstance(cov_kf.g_des, vector_type):

@@ -453,22 +453,15 @@ def closest_rotation_matrix(A):
   return Q
 
 
-class AlignmentGroundTruthData:
-    def __init__(self, timestamps_associations=[], filter_t_w_i=[], gt_t_w_i=[], T_gt_est=None, error=-1.0, is_aligned=False):
+class AlignmentEstimatedAndGroundTruthData:
+    def __init__(self, timestamps_associations=[], estimated_t_w_i=[], gt_t_w_i=[], T_gt_est=None, error=-1.0, is_est_aligned=False, max_error=-1.0):
         self.timestamps_associations = timestamps_associations
-        self.filter_t_w_i = filter_t_w_i
+        self.estimated_t_w_i = estimated_t_w_i
         self.gt_t_w_i = gt_t_w_i
         self.T_gt_est = T_gt_est
-        self.error = error
-        self.is_aligned = is_aligned
-        
-    def copyTo(self, other):
-        other.timestamps_associations = self.timestamps_associations
-        other.filter_t_w_i = self.filter_t_w_i
-        other.gt_t_w_i = self.gt_t_w_i
-        other.T_gt_est = self.T_gt_est
-        other.error = self.error
-        other.is_aligned = self.is_aligned
+        self.error = error           # average alignment error
+        self.max_error = max_error   # max alignement error 
+        self.is_est_aligned = is_est_aligned  # is estimated traj aligned?
 
 
 # align filter trajectory with ground truth trajectory by computing the SE(3) transformation between the two
@@ -477,7 +470,7 @@ class AlignmentGroundTruthData:
 # - gt_timestamps [Nx1]
 # - gt_t_w_i [Nx3]
 # - find_scale allows to compute the full Sim(3) transformation in case the scale is unknown
-def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_i, align_gt=True, compute_align_error=True, find_scale=False, verbose=False):
+def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_i, align_gt=True, compute_align_error=True, find_scale=False, align_est_associations=True, verbose=False):
     est_associations = []
     gt_associations = []
     timestamps_associations = []
@@ -528,12 +521,8 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
     if verbose: 
         print(f'num associations: {num_samples}')
 
-    gt = np.zeros((3, num_samples))
-    est = np.zeros((3, num_samples))
-
-    for i in range(num_samples):
-        gt[:, i] = gt_associations[i]
-        est[:, i] = est_associations[i]
+    gt = np.array(gt_associations).T
+    est = np.array(est_associations).T
 
     mean_gt = np.mean(gt, axis=1)
     mean_est = np.mean(est, axis=1)
@@ -551,7 +540,7 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
         U, D, Vt = np.linalg.svd(cov)
     except: 
         Printer.red('[align_trajs_with_svd] SVD failed!!!\n')
-        return np.eye(4), -1, AlignmentGroundTruthData()
+        return np.eye(4), -1, AlignmentEstimatedAndGroundTruthData()
 
     c = 1
     S = np.eye(3)
@@ -585,19 +574,21 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
         
     # Update gt_t_w_i with transformation
     if align_gt:
-        for i in range(len(gt_t_w_i)):
-            gt_t_w_i[i] = np.dot(T_est_gt[:3, :3], gt_t_w_i[i]) + T_est_gt[:3, 3]
+        gt_t_w_i[:,:] = (T_est_gt[:3, :3] @ np.array(gt_t_w_i).T).T + T_est_gt[:3, 3]
 
     # Compute error
     error = 0
+    max_error = float("-inf")
     if compute_align_error:
-        for i in range(len(est_associations)):
-            res = (np.dot(T_gt_est[:3, :3], est_associations[i]) + T_gt_est[:3, 3]) - gt_associations[i]
-            error += np.dot(res.T, res)
+        if align_est_associations:
+            est_associations = (T_gt_est[:3, :3] @ np.array(est_associations).T).T + T_gt_est[:3, 3]
+            residuals = est_associations - np.array(gt_associations)
+        else: 
+            residuals = ((T_gt_est[:3, :3] @ np.array(est_associations).T).T + T_gt_est[:3, 3]) - np.array(gt_associations)
+        squared_errors = np.sum(residuals**2, axis=1)
+        error = np.sqrt(np.mean(squared_errors))
+        max_error = np.sqrt(np.max(squared_errors))        
 
-        error /= len(est_associations)
-        error = np.sqrt(error)
-
-    aligned_gt_data = AlignmentGroundTruthData(timestamps_associations, est_associations, gt_associations, T_gt_est, error, is_aligned=align_gt)
+    aligned_gt_data = AlignmentEstimatedAndGroundTruthData(timestamps_associations, est_associations, gt_associations, T_gt_est, error, max_error=max_error, is_est_aligned=align_est_associations)
 
     return T_gt_est, error, aligned_gt_data

@@ -116,7 +116,8 @@ class Mplot2d:
 
         self.data = None 
         self.got_data = False 
-        self.handle_map = {}  
+        self.handle_map = {}
+        self.fig = None  
         
         self.axis_computed = False 
         self.xlim = [float("inf"),float("-inf")]

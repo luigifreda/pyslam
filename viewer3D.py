@@ -33,7 +33,7 @@ import numpy as np
 
 from map import Map
 
-from utils_geom import inv_T, align_trajs_with_svd, AlignmentGroundTruthData
+from utils_geom import inv_T, align_trajs_with_svd, AlignmentEstimatedAndGroundTruthData
 from utils_sys import Printer
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
@@ -58,6 +58,7 @@ kMinWeightForDrawingCovisibilityEdge=100
 kAlignGroundTruthNumMinKeyframes = 10
 kAlignGroundTruthEveryNKeyframes = 10
 kAlignGroundTruthEveryNFrames = 30
+kAlignGroundTruthEveryTimeInterval = 2 # [s]
 
 kRefreshDurationTime = 0.03 # [s]
 
@@ -174,6 +175,7 @@ class Viewer3D(object):
         self.thread_gt_aligned = False
         self.thread_last_num_poses_gt_was_aligned = 0
         self.thread_last_frame_id_gt_was_aligned = 0
+        self.thread_last_time_gt_was_aligned = time.time()
         self.thread_alignment_gt_data_queue = alignment_gt_data_queue
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
@@ -353,13 +355,15 @@ class Viewer3D(object):
                     # align the gt to the estimated trajectory every 'kAlignGroundTruthEveryNKeyframes' frames;
                     # the more estimated frames we have the better the alignment! 
                     num_kfs = len(self.map_state.poses)
-                    condition1 = num_kfs > kAlignGroundTruthNumMinKeyframes
+                    condition1 = (time.time() - self.thread_last_time_gt_was_aligned) > kAlignGroundTruthEveryTimeInterval
                     condition2 = len(self.map_state.poses) > kAlignGroundTruthEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned
                     condition3 = self.map_state.cur_frame_id > kAlignGroundTruthEveryNFrames + self.thread_last_frame_id_gt_was_aligned  # this is useful when we are not generating new kfs
-                    if condition1 and (condition2 or condition3):
+                    if self._is_running and (num_kfs > kAlignGroundTruthNumMinKeyframes) and (condition1 or condition2 or condition3):  # we want at least kAlignGroundTruthNumMinKeyframes keyframes to align
                         try:
+                            self.thread_last_time_gt_was_aligned = time.time()
                             estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=float)
-                            T_gt_est, error, alignment_gt_data = align_trajs_with_svd(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, align_gt=True, compute_align_error=False, find_scale=self.thread_align_gt_with_scale)
+                            T_gt_est, error, alignment_gt_data = align_trajs_with_svd(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, \
+                                                                                      align_gt=True, align_est_associations=True, compute_align_error=True, find_scale=self.thread_align_gt_with_scale)
                             self.thread_alignment_gt_data_queue.put(alignment_gt_data)
                             self.thread_gt_aligned = True
                             self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)

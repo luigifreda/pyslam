@@ -871,6 +871,7 @@ class Tracking:
                 #new_pts_count = self.map.add_stereo_points(initializer_output.pts, None, f_cur, kf_cur, np.arange(len(initializer_output.pts), dtype=np.int), img)
                 
                 Printer.green(f"map: initialized with kfs {kf_ref.id}, {kf_cur.id} and {new_pts_count} new map points")                 
+                
                 # update covisibility graph connections 
                 kf_ref.update_connections()
                 kf_cur.update_connections()     

@@ -787,7 +787,8 @@ class LoopClosing:
                     print(f'LoopClosing: processing KF: {keyframe.id}, detection: qin size: {self.loop_detecting_process.q_in.qsize()}, qout size: {self.loop_detecting_process.q_out.qsize()}')       
                                         
                     # update the keyframe with the detection output
-                    keyframe.g_des = detection_output.g_des_vec             
+                    if keyframe.g_des is None:
+                        keyframe.g_des = detection_output.g_des_vec             
   
                     # for viz debugging
                     if self.store_kf_imgs:
@@ -809,7 +810,8 @@ class LoopClosing:
                         if cov_kf_id in self.keyframes_map:
                             cov_kf = self.keyframes_map[cov_kf_id]
                             # update the cov keyframe with the detection output if needed
-                            if not cov_kf.is_bad and cov_kf.g_des is None:
+                            #if not cov_kf.is_bad and cov_kf.g_des is None:
+                            if cov_kf.g_des is None:
                                 cov_kf.g_des = detection_output.covisible_gdes_vecs[i]
       
                     got_loop = False

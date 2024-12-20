@@ -67,6 +67,14 @@ if Parameters.kLoopClosingDebugAndPrintToFile:
 class LoopDetectorVlad(LoopDetectorBase): 
     def __init__(self, vocabulary_data: VocabularyData, local_feature_manager=None):
         super().__init__()
+        
+        import torch.multiprocessing as mp
+        # NOTE: the following set_start_method() is needed by multiprocessing for using CUDA acceleration (for instance with torch).        
+        if mp.get_start_method() != 'spawn':
+            mp.set_start_method('spawn', force=True) # NOTE: This may generate some pickling problems with multiprocessing 
+                                                    #       in combination with torch and we need to check it in other places.
+                                                    #       This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
+                
         self.local_feature_manager = local_feature_manager        
         self.use_torch_vectors = False # use torch vectors with a simple database implementation
                       
@@ -145,6 +153,7 @@ class LoopDetectorVlad(LoopDetectorBase):
 
         # compute global descriptor
         if keyframe.g_des is None:
+            print(f'LoopDetectorVlad: computing global descriptor for keyframe {keyframe.id}')
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get global descriptor
         
         #print(f'LoopDetectorVlad: g_des = {keyframe.g_des}, type: {type(keyframe.g_des)}, shape: {keyframe.g_des.shape}, dim: {keyframe.g_des.dim()}')

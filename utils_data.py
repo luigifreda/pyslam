@@ -15,7 +15,7 @@ def empty_queue(queue, verbose=True):
     if platform.system() == 'Darwin':
         try:             
             while not queue.empty():
-                queue.get(timeout=0.001) 
+                queue.get_nowait() 
         except Exception as e:
             if verbose:
                 Printer.red(f'EXCEPTION in empty_queue: {e}')
@@ -25,7 +25,7 @@ def empty_queue(queue, verbose=True):
     else:
         try:
             while queue.qsize()>0:
-                queue.get(timeout=0.001)
+                queue.get_nowait()
         except Exception as e:
             if verbose:
                 Printer.red(f'EXCEPTION in empty_queue: {e}')

@@ -120,12 +120,14 @@ class Initializer(object):
 
     # push the first image
     def init(self, f_cur : Frame, img_cur):
+        f_cur.img = img_cur # enforce the image storage for the first frames: we need the keyframes to store images for loop detection
         self.frames.append(f_cur)    
         self.f_ref = f_cur
              
             
     # actually initialize having two available images                
     def initialize(self, f_cur: Frame, img_cur): 
+        f_cur.img = img_cur # enforce the image storage for the first frames: we need the keyframes to store images for loop detection
         return self.initialize_simple(f_cur, img_cur)     # try to inizialize current frame with reference frame: reference position is adjusted in the buffer
         #return self.initialize_enumerate(f_cur, img_cur) # try to inizialize current frame with all frames we can use in the buffer    
             
@@ -227,7 +229,7 @@ class Initializer(object):
         #map.add_frame(f_ref)        
         #map.add_frame(f_cur)  
         
-        kf_ref = KeyFrame(f_ref)
+        kf_ref = KeyFrame(f_ref, f_ref.img)
         kf_cur = KeyFrame(f_cur, img_cur)        
         map.add_keyframe(kf_ref)        
         map.add_keyframe(kf_cur)      

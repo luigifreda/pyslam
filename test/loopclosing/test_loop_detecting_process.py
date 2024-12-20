@@ -50,7 +50,7 @@ if __name__ == '__main__':
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.
-    loop_detection_config = LoopDetectorConfigs.DBOW3 
+    loop_detection_config = LoopDetectorConfigs.NETVLAD 
     Printer.green('loop_detection_config: ',loop_detection_config)
     loop_detecting_process = LoopDetectingProcess(slam=None,loop_detector_config=loop_detection_config)
     

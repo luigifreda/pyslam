@@ -148,6 +148,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         
         # compute global descriptor
         if keyframe.g_des is None:
+            print(f'LoopDetectorDBoW2: computing global descriptor for keyframe {keyframe.id}')            
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get bow vector
             g_des_vec = keyframe.g_des.toVec() # transform it to vector(numpy array) to make it pickable
         else: 

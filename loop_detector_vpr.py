@@ -111,7 +111,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
             raise ValueError('LoopDetectorVprBase: global_descriptor_name cannot be None')
                 
         self.score = None           
-        if self.global_descriptor_name == 'SAD':
+        if self.global_descriptor_name.lower() == 'sad':
             self.score = ScoreSad()
             self.min_score = -100
             if Parameters.kLoopClosingDebugWithSimmetryMatrix:
@@ -127,15 +127,16 @@ class LoopDetectorVprBase(LoopDetectorBase):
         self.global_feature_extractor = None
         self.global_db = None
         
-        # NOTE: the following set_start_method() is needed by multiprocessing for using CUDA acceleration (with torch).
-        if global_descriptor_name == 'CosPlace' or \
-            global_descriptor_name == 'AlexNet' or \
-            global_descriptor_name == 'NetVLAD' or \
-            global_descriptor_name == 'EigenPlaces':
+        # NOTE: The following set_start_method() is needed by multiprocessing for using CUDA acceleration (for instance with torch).
+        if global_descriptor_name.lower() == 'cosplace' or \
+            global_descriptor_name.lower() == 'alexnet' or \
+            global_descriptor_name.lower() == 'netvlad' or \
+            global_descriptor_name.lower() == 'eigenplaces':
             import torch.multiprocessing as mp
-            mp.set_start_method('spawn', force=True) # NOTE: This generates some pickling problems with multiprocessing 
-                                                     #       in combination with torch and we need to check it in other places.
-                                                     #       This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
+            if mp.get_start_method() != 'spawn':
+                mp.set_start_method('spawn', force=True) # NOTE: This may generate some pickling problems with multiprocessing 
+                                                         #       in combination with torch and we need to check it in other places.
+                                                         #       This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
     
         #self.init() # NOTE: We call init() in the run_task() method at its first call to 
                      #       initialize the global feature extractor in the potentially launched parallel process.
@@ -185,16 +186,16 @@ class LoopDetectorVprBase(LoopDetectorBase):
     def init_global_feature_extractor(self, global_descriptor_name):
         print(f'LoopDetectorVprBase: init_global_feature_extractor: global_descriptor_name: {global_descriptor_name}')
         global_feature_extractor = None
-        if global_descriptor_name == 'HDC-DELF':
+        if global_descriptor_name.lower() == 'hdc-delf':
             from feature_extraction.feature_extractor_holistic import HDCDELF
             global_feature_extractor = HDCDELF()
-        elif global_descriptor_name == 'AlexNet':
+        elif global_descriptor_name.lower() == 'alexnet':
             from feature_extraction.feature_extractor_holistic import AlexNetConv3Extractor
             global_feature_extractor = AlexNetConv3Extractor()
-        elif global_descriptor_name == 'SAD':
+        elif global_descriptor_name.lower() == 'sad':
             from feature_extraction.feature_extractor_holistic import SAD
             global_feature_extractor = SAD()
-        elif global_descriptor_name == 'NetVLAD':
+        elif global_descriptor_name.lower() == 'netvlad':
             from feature_extraction.feature_extractor_patchnetvlad import PatchNetVLADFeatureExtractor
             from patchnetvlad.tools import PATCHNETVLAD_ROOT_DIR
             import configparser
@@ -204,10 +205,10 @@ class LoopDetectorVprBase(LoopDetectorBase):
             config = configparser.ConfigParser()
             config.read(configfile)
             global_feature_extractor = PatchNetVLADFeatureExtractor(config)
-        elif global_descriptor_name == 'CosPlace':
+        elif global_descriptor_name.lower() == 'cosplace':
             from feature_extraction.feature_extractor_cosplace import CosPlaceFeatureExtractor
             global_feature_extractor = CosPlaceFeatureExtractor()
-        elif global_descriptor_name == 'EigenPlaces':
+        elif global_descriptor_name.lower() == 'eigenplaces':
             from feature_extraction.feature_extractor_eigenplaces import EigenPlacesFeatureExtractor
             global_feature_extractor = EigenPlacesFeatureExtractor()
         else:
@@ -242,6 +243,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
 
         # compute global descriptor
         if keyframe.g_des is None:
+            print(f'LoopDetectorVprBase: computing global descriptor for keyframe {keyframe.id}')
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get global descriptor
         
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
