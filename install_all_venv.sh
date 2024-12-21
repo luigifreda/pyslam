@@ -17,7 +17,6 @@ if [ ! -f /.dockerenv  ]; then
 fi
 
 
-
 case "$OSTYPE" in
   darwin*)
     echo "macOS"

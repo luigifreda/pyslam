@@ -12,10 +12,12 @@
 # NOTE: this is required under mac where I got unexpected segmentation fault errors
 #       on open3d dynamic library loading
 
-
-print_blue "Installing open3d-python from source"
+#echo ROOT_DIR: $ROOT_DIR
+cd $ROOT_DIR  # from bash_utils.sh
 
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
+
+print_blue "Installing open3d-python from source"
 
 #pip install --upgrade pip
 pip uninstall -y open3d

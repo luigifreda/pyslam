@@ -12,8 +12,8 @@
 
 #set -e
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+#echo ROOT_DIR: $ROOT_DIR
+cd $ROOT_DIR  # from bash_utils.sh
 
 # ====================================================
 # check if we have external options
@@ -29,7 +29,7 @@ if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
 fi
 
 
-OpenCV_DIR="$SCRIPT_DIR/thirdparty/opencv/install/lib/cmake/opencv4"
+OpenCV_DIR="$ROOT_DIR/thirdparty/opencv/install/lib/cmake/opencv4"
 if [[ -d "$OpenCV_DIR" ]]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
 fi 

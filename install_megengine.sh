@@ -13,6 +13,9 @@ print_blue '================================================'
 print_blue "Installing megengine from source"
 print_blue '================================================'
 
+#echo ROOT_DIR: $ROOT_DIR
+cd $ROOT_DIR  # from bash_utils.sh
+
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")

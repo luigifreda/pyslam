@@ -8,7 +8,8 @@
 # ====================================================
 
 #set -e
-
+#echo ROOT_DIR: $ROOT_DIR
+cd $ROOT_DIR  # from bash_utils.sh
 
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 

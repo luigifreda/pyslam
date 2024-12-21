@@ -7,14 +7,15 @@
 # import the utils 
 . bash_utils.sh 
 
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
+
 # ====================================================
 
 print_blue '================================================'
 print_blue "Installing pyenv"
 print_blue '================================================'
-
-STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
-
 
 if ! pyenv install --list &> /dev/null; then
     echo "pyenv could not be found => install it!"

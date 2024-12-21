@@ -18,9 +18,8 @@
 """
 
 
-'''
-List of shared parameters 
-''' 
+
+# List of shared parameters for configuring SLAM modules 
 class Parameters:   
     
     # SLAM threads 

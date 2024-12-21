@@ -61,6 +61,10 @@ export TARGET_FOLDER=thirdparty
 
 export OPENCV_VERSION="4.10.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
 
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+STARTING_DIR=`pwd`
+
 # ====================================================
 print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
 
@@ -70,7 +74,6 @@ pip uninstall -y opencv-contrib-python
 
 set -e
 
-STARTING_DIR=`pwd`
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     version=$(lsb_release -a 2>&1)  # ubuntu version
 else 

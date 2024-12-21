@@ -8,13 +8,13 @@
 
 # ====================================================
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-cd $SCRIPT_DIR
-
 set -e
 
 print_blue "=================================================================="
 print_blue "cleaning thirdparty packages and utils..."
+
+#echo ROOT_DIR: $ROOT_DIR
+cd $ROOT_DIR  # from bash_utils.sh
 
 rm -Rf thirdparty/pangolin 
 
@@ -58,15 +58,15 @@ fi
 
 cd thirdparty/pydbow3
 ./clean.sh
-cd $SCRIPT_DIR
+cd $ROOT_DIR
 
 cd thirdparty/pydbow2
 ./clean.sh
-cd $SCRIPT_DIR
+cd $ROOT_DIR
 
 cd thirdparty/pyibow
 ./clean.sh
-cd $SCRIPT_DIR
+cd $ROOT_DIR
 
 
 # clean downloaded models and reset submodules
