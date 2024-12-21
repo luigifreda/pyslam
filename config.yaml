@@ -55,10 +55,10 @@ LIB_PATHS:
 DATASET:
   # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
-  type: KITTI_DATASET
+  #type: KITTI_DATASET
   #type: TUM_DATASET
   #type: REPLICA_DATASET
-  #type: VIDEO_DATASET
+  type: VIDEO_DATASET
   #type: FOLDER_DATASET
   #type: LIVE_DATASET  # Not recommended for current development stage
 

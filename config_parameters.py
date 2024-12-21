@@ -171,7 +171,7 @@ class Parameters:
     kGBAUseRobustKernel = True
     
     # Volume Integration
-    kUseVolumetricIntegration = True                  # To enable/disable volumetric integration (dense mapping)  
+    kUseVolumetricIntegration = False                  # To enable/disable volumetric integration (dense mapping)  
     kVolumetricIntegrationDebugAndPrintToFile = True
     kVolumetricIntegrationExtractMesh = False          # Extract mesh or point cloud as output
     kVolumetricIntegrationVoxelLength = 0.015          # [m]
@@ -180,7 +180,7 @@ class Parameters:
     kVolumetricIntegrationDepthTruncOutdoor = 10.0     # [m]
     kVolumetricIntegrationMinNumLBATimes = 1           # We integrate only the keyframes that have been processed by LBA at least kVolumetricIntegrationMinNumLBATimes times.
     kVolumetricIntegrationOutputTimeInterval = 1.0         # [s]
-    kVolumetricIntegrationUseDepthEstimator = True    # Use depth estimator for volumetric integration in the back-end. 
+    kVolumetricIntegrationUseDepthEstimator = False    # Use depth estimator for volumetric integration in the back-end. 
                                                        # Since the depth inference time is above 1 second, this is very slow.
                                                        # NOTE: the depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM map scale will be not consistent.
     kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)

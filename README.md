@@ -5,43 +5,43 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.3.0](#pyslam-v230)
-  - [Install](#install)
-    - [Main requirements](#main-requirements)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
-  - [Usage](#usage)
-    - [Feature tracking](#feature-tracking)
-    - [Loop closing](#loop-closing)
-      - [Vocabulary management](#vocabulary-management)
-      - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
-    - [Volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)
-    - [Depth prediction](#depth-prediction)
-    - [Save and reload a map](#save-and-reload-a-map)
-    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
-    - [Trajectory saving](#trajectory-saving)
-    - [SLAM GUI](#slam-gui)
-    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-  - [Supported components and models](#supported-components-and-models)
-    - [Supported local features](#supported-local-features)
-    - [Supported matchers](#supported-matchers)
-    - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
-        - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
-        - [Global descriptors](#global-descriptors)
-    - [Supported depth prediction models](#supported-depth-prediction-models)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-    - [EuRoC Datasets](#euroc-datasets)
-    - [Replica Datasets](#replica-datasets)
-  - [Camera Settings](#camera-settings)
-  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [TODOs](#todos)
+    - [1. Install](#1-install)
+        - [1.1. Main requirements](#11-main-requirements)
+        - [1.2. Ubuntu](#12-ubuntu)
+        - [1.3. MacOS](#13-macos)
+        - [1.4. Docker](#14-docker)
+        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
+        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
+    - [2. Usage](#2-usage)
+        - [2.1. Feature tracking](#21-feature-tracking)
+        - [2.2. Loop closing](#22-loop-closing)
+            - [2.2.1. Vocabulary management](#221-vocabulary-management)
+            - [2.2.2. Vocabulary-free loop closing](#222-vocabulary-free-loop-closing)
+        - [2.3. Volumetric reconstruction pipeline](#23-volumetric-reconstruction-pipeline)
+        - [2.4. Depth prediction](#24-depth-prediction)
+        - [2.5. Save and reload a map](#25-save-and-reload-a-map)
+        - [2.6. Relocalization in a loaded map](#26-relocalization-in-a-loaded-map)
+        - [2.7. Trajectory saving](#27-trajectory-saving)
+        - [2.8. SLAM GUI](#28-slam-gui)
+        - [2.9. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#29-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+    - [3. Supported components and models](#3-supported-components-and-models)
+        - [3.1. Supported local features](#31-supported-local-features)
+        - [3.2. Supported matchers](#32-supported-matchers)
+        - [3.3. Supported global descriptors and local descriptor aggregation methods](#33-supported-global-descriptors-and-local-descriptor-aggregation-methods)
+                - [3.3.1. Local descriptor aggregation methods](#331-local-descriptor-aggregation-methods)
+                - [3.3.2. Global descriptors](#332-global-descriptors)
+        - [3.4. Supported depth prediction models](#34-supported-depth-prediction-models)
+    - [4. Datasets](#4-datasets)
+        - [4.1. KITTI Datasets](#41-kitti-datasets)
+        - [4.2. TUM Datasets](#42-tum-datasets)
+        - [4.3. EuRoC Datasets](#43-euroc-datasets)
+        - [4.4. Replica Datasets](#44-replica-datasets)
+    - [5. Camera Settings](#5-camera-settings)
+    - [6. Comparison pySLAM vs ORB-SLAM3](#6-comparison-pyslam-vs-orb-slam3)
+    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
+    - [8. References](#8-references)
+    - [9. Credits](#9-credits)
+    - [10. TODOs](#10-todos)
 
 <!-- /TOC -->
  
@@ -182,7 +182,7 @@ Some basic examples are available in the subfolder `test/loopclosing`. In partic
 ### Loop closing
 
 Different [loop closing methods](#loop-closing) are available, combining [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
-Loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `parameters.py`. Configuration options can be found in [loop_detector_configs.py](loop_detector_configs.py).
+Loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `config_parameters.py`. Configuration options can be found in [loop_detector_configs.py](loop_detector_configs.py).
 
 **Examples**: Start with the examples in `test/loopclosing`, such as [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
 
@@ -207,17 +207,17 @@ As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabu
 
 ### Volumetric reconstruction pipeline
 
-The volumetric reconstruction pipeline is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` in `parameters.py`. This runs in the back-end. At present, it works with:
+The volumetric reconstruction pipeline is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` in `config_parameters.py`. This runs in the back-end. At present, it works with:
 - RGBD datasets 
 - When a [depth estimator](#depth-prediction) is used in the back-end or front-end and a depth prediction/estimation gets available for each processed keyframe. 
 
-If you want a mesh as output set `kVolumetricIntegrationExtractMesh=True` in `parameters.py`.
+If you want a mesh as output set `kVolumetricIntegrationExtractMesh=True` in `config_parameters.py`.
    
 ### Depth prediction
 
 The available depth prediction models can be utilized both in the SLAM back-end and front-end. 
-- Back-end: Depth prediction can be enabled in the [volumetric reconstruction](#volumetric-reconstruction-pipeline) pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator=True` and selecting your preferred `kVolumetricIntegrationDepthEstimatorType` in `parameters.py`. 
-- Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still very *experimental* at present time [WIP].   
+- Back-end: Depth prediction can be enabled in the [volumetric reconstruction](#volumetric-reconstruction-pipeline) pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator=True` and selecting your preferred `kVolumetricIntegrationDepthEstimatorType` in `config_parameters.py`. 
+- Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `config_parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still very *experimental* at present time [WIP].   
 
 Refer to the file `depth_estimator_factory.py` for further details. Both stereo and monocular prediction approaches are supported. You can test depth prediction/estimation by using the script `main_depth_prediction.py`.
 

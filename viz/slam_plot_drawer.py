@@ -34,7 +34,7 @@ import matplotlib.colors as mcolors
 
 from utils_geom import AlignmentEstimatedAndGroundTruthData, Sim3Pose
 
-kUseQtplot2d = True
+kUseQtplot2d = False
 if platform.system() == 'Darwin':
     kUseQtplot2d = True # Under mac force the usage of Qtplot2d: It is smoother 
 
