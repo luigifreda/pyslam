@@ -87,3 +87,4 @@ def filter_matches_with_histogram_orientation(idxs1, idxs2, f1, f2):
     rot_histo.push_entries(rots, [ii for ii in range(num_matches)])    
     valid_match_idxs = rot_histo.get_valid_idxs()     
     return valid_match_idxs 
+

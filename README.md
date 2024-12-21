@@ -5,43 +5,44 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.3.0](#pyslam-v230)
-    - [1. Install](#1-install)
-        - [1.1. Main requirements](#11-main-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
-    - [2. Usage](#2-usage)
-        - [2.1. Feature tracking](#21-feature-tracking)
-        - [2.2. Loop closing](#22-loop-closing)
-            - [2.2.1. Vocabulary management](#221-vocabulary-management)
-            - [2.2.2. Vocabulary-free loop closing](#222-vocabulary-free-loop-closing)
-        - [2.3. Volumetric reconstruction pipeline](#23-volumetric-reconstruction-pipeline)
-        - [2.4. Depth prediction](#24-depth-prediction)
-        - [2.5. Save and reload a map](#25-save-and-reload-a-map)
-        - [2.6. Relocalization in a loaded map](#26-relocalization-in-a-loaded-map)
-        - [2.7. Trajectory saving](#27-trajectory-saving)
-        - [2.8. SLAM GUI](#28-slam-gui)
-        - [2.9. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#29-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-    - [3. Supported components and models](#3-supported-components-and-models)
-        - [3.1. Supported local features](#31-supported-local-features)
-        - [3.2. Supported matchers](#32-supported-matchers)
-        - [3.3. Supported global descriptors and local descriptor aggregation methods](#33-supported-global-descriptors-and-local-descriptor-aggregation-methods)
-                - [3.3.1. Local descriptor aggregation methods](#331-local-descriptor-aggregation-methods)
-                - [3.3.2. Global descriptors](#332-global-descriptors)
-        - [3.4. Supported depth prediction models](#34-supported-depth-prediction-models)
-    - [4. Datasets](#4-datasets)
-        - [4.1. KITTI Datasets](#41-kitti-datasets)
-        - [4.2. TUM Datasets](#42-tum-datasets)
-        - [4.3. EuRoC Datasets](#43-euroc-datasets)
-        - [4.4. Replica Datasets](#44-replica-datasets)
-    - [5. Camera Settings](#5-camera-settings)
-    - [6. Comparison pySLAM vs ORB-SLAM3](#6-comparison-pyslam-vs-orb-slam3)
-    - [7. Contributing to pySLAM](#7-contributing-to-pyslam)
-    - [8. References](#8-references)
-    - [9. Credits](#9-credits)
-    - [10. TODOs](#10-todos)
+  - [Install](#install)
+    - [Main requirements](#main-requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
+  - [Usage](#usage)
+    - [Feature tracking](#feature-tracking)
+    - [Loop closing](#loop-closing)
+      - [Vocabulary management](#vocabulary-management)
+      - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
+    - [Volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)
+    - [Depth prediction](#depth-prediction)
+    - [Save and reload a map](#save-and-reload-a-map)
+    - [Relocalization in a loaded map](#relocalization-in-a-loaded-map)
+    - [Trajectory saving](#trajectory-saving)
+    - [SLAM GUI](#slam-gui)
+    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+  - [System overview](#system-overview)
+  - [Supported components and models](#supported-components-and-models)
+    - [Supported local features](#supported-local-features)
+    - [Supported matchers](#supported-matchers)
+    - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
+        - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
+        - [Global descriptors](#global-descriptors)
+    - [Supported depth prediction models](#supported-depth-prediction-models)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+    - [EuRoC Datasets](#euroc-datasets)
+    - [Replica Datasets](#replica-datasets)
+  - [Camera Settings](#camera-settings)
+  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
  
@@ -182,7 +183,7 @@ Some basic examples are available in the subfolder `test/loopclosing`. In partic
 ### Loop closing
 
 Different [loop closing methods](#loop-closing) are available, combining [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
-Loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `config_parameters.py`. Configuration options can be found in [loop_detector_configs.py](loop_detector_configs.py).
+Loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `config_parameters.py`. Configuration options can be found in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py).
 
 **Examples**: Start with the examples in `test/loopclosing`, such as [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
 
@@ -217,12 +218,12 @@ If you want a mesh as output set `kVolumetricIntegrationExtractMesh=True` in `co
 
 The available depth prediction models can be utilized both in the SLAM back-end and front-end. 
 - Back-end: Depth prediction can be enabled in the [volumetric reconstruction](#volumetric-reconstruction-pipeline) pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator=True` and selecting your preferred `kVolumetricIntegrationDepthEstimatorType` in `config_parameters.py`. 
-- Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `config_parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still very *experimental* at present time [WIP].   
+- Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `config_parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still *experimental* at present time [WIP].   
 
-Refer to the file `depth_estimator_factory.py` for further details. Both stereo and monocular prediction approaches are supported. You can test depth prediction/estimation by using the script `main_depth_prediction.py`.
+Refer to the file `depth_estimation/depth_estimator_factory.py` for further details. Both stereo and monocular prediction approaches are supported. You can test depth prediction/estimation by using the script `main_depth_prediction.py`.
 
 **Notes**: 
-* In the case of a monocular SLAM configuration, do NOT use depth prediction in the back-end volumetric integration: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. In such a configuration, enable depth prediction to run in the front-end.
+* In the case of a monocular SLAM configuration, do NOT use depth prediction in the back-end volumetric integration: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. With monocular datasets, enable depth prediction to run in the front-end.
 - The depth inference may be very slow (for instance, with DepthPro it takes ~1s per image on my machine). Therefore, the resulting volumetric reconstruction pipeline may be very slow.
 
 ### Save and reload a map
@@ -272,6 +273,12 @@ The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_d
 Otherwise, just run the script:       
 `$ ./scripts/launch_tmux_slam.sh`      
 from the repo root folder. Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
+
+---
+
+## System overview
+      
+[Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main system components, and classes relationships and dependencies. Writing a proper documentation is a work in progress.
 
 ---
 
@@ -335,13 +342,13 @@ The following feature **descriptors** are supported:
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
   
-For more information, refer to [feature_types.py](./feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
+For more information, refer to [local_features/feature_types.py](local_features/feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
 
-In both the scripts `main_vo.py` and `main_slam.py`, you can create your preferred detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [feature_tracker.configs.py](./feature_tracker_configs.py)
+In both the scripts `main_vo.py` and `main_slam.py`, you can create your preferred detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [local_features/feature_tracker.configs.py](local_features/feature_tracker_configs.py)
 
-The function `feature_tracker_factory()` can be found in the file `feature_tracker.py`. Take a look at the file `feature_manager.py` for further details.
+The function `feature_tracker_factory()` can be found in the file `local_features/feature_tracker.py`. Take a look at the file `local_features/feature_manager.py` for further details.
 
-**N.B.**: you just need a *single* python environment to be able to work with all the [supported local features](#supported-local-features)!
+**N.B.**: You just need a *single* python environment to be able to work with all the [supported local features](#supported-local-features)!
 
 
 ### Supported matchers 
@@ -352,7 +359,7 @@ The function `feature_tracker_factory()` can be found in the file `feature_track
 * *[LightGlue](https://arxiv.org/abs/2306.13643)*
 * *[LoFTR](https://arxiv.org/abs/2104.00680)*
   
-See the file `feature_matcher.py` for further details.
+See the file `local_features/feature_matcher.py` for further details.
 
 
 ### Supported global descriptors and local descriptor aggregation methods
@@ -380,7 +387,7 @@ Also referred to as *holistic descriptors*:
 
 
 Different [loop closing methods](#loop-closing) are available. These combines the above aggregation methods and global descriptors.
-See the file [loop_detector_configs.py](loop_detector_configs.py) for further details.
+See the file [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py) for further details.
 
 
 ### Supported depth prediction models
@@ -406,6 +413,8 @@ Dataset | type in `config.yaml`
 Video file        | `type: VIDEO_DATASET` 
 Folder of images  | `type: FOLDER_DATASET` 
 
+Use the download scripts available in the folder `scripts` to download some of the following datasets.
+
 ### KITTI Datasets
 
 pySLAM code expects the following structure in the specified KITTI path folder (specified in the section `KITTI_DATASET` of the file `config.yaml`). : 
@@ -422,8 +431,7 @@ pySLAM code expects the following structure in the specified KITTI path folder (
 ```
 1. Download the dataset (grayscale images) from http://www.cvlibs.net/datasets/kitti/eval_odometry.php and prepare the KITTI folder as specified above
 
-2. Select the corresponding calibration settings file (parameter `[KITTI_DATASET][cam_settings]` in the file `config.yaml`)
-
+2. Select the corresponding calibration settings file (section `KITTI_DATASET: cam_settings:` in the file `config.yaml`)
 
 
 ### TUM Datasets 
@@ -435,14 +443,14 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 ```bash
 $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt
 ```
-3. Select the corresponding calibration settings file (parameter `TUM_DATASET: cam_settings:` in the file `config.yaml`).
+3. Select the corresponding calibration settings file (section `TUM_DATASET: cam_settings:` in the file `config.yaml`).
 
 
 ### EuRoC Datasets
 
 1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
 2. Use the script `io/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
-3. Select the corresponding calibration settings file (parameter `EUROC_DATASET: cam_settings:` in the file `config.yaml`).
+3. Select the corresponding calibration settings file (section `EUROC_DATASET: cam_settings:` in the file `config.yaml`).
 
 
 ### Replica Datasets
@@ -450,7 +458,7 @@ $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > asso
 1. You can download the zip file containing all the sequences by running:    
    `$ wget https://cvg-data.inf.ethz.ch/nice-slam/data/Replica.zip`    
 2. Then, uncompress it and deploy the files as you wish.
-3. Select the corresponding calibration settings file (parameter `REPLICA_DATASET: cam_settings:` in the file `config.yaml`).
+3. Select the corresponding calibration settings file (section `REPLICA_DATASET: cam_settings:` in the file `config.yaml`).
 
 --- 
 ## Camera Settings
@@ -458,20 +466,20 @@ $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > asso
 The folder `settings` contains the camera settings files which can be used for testing the code. These are the same used in the framework [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2). You can easily modify one of those files for creating your own new calibration file (for your new datasets).
 
 In order to calibrate your camera, you can use the scripts in the folder `calibration`. In particular: 
-1. use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size therein, you can use the calibration pattern `calib_pattern.pdf` in the same folder) 
-2. use the script `calibrate.py` to process the collected images and compute the calibration parameters (set the chessboard size therein)
+1. Use the script `grab_chessboard_images.py` to collect a sequence of images where the chessboard can be detected (set the chessboard size therein, you can use the calibration pattern `calib_pattern.pdf` in the same folder) 
+2. Use the script `calibrate.py` to process the collected images and compute the calibration parameters (set the chessboard size therein)
 
 For more information on the calibration process, see this [tutorial](https://learnopencv.com/camera-calibration-using-opencv/) or this other [link](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html). 
 
 If you want to **use your camera**, you have to:
-* calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly
-* record a video (for instance, by using `save_video.py` in the folder `calibration`)
-* configure the `VIDEO_DATASET` section of `config.yaml` in order to point to your recorded video.
+* Calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly
+* Record a video (for instance, by using `save_video.py` in the folder `calibration`)
+* Configure the `VIDEO_DATASET` section of `config.yaml` in order to point to your recorded video.
 
 --- 
 ## Comparison pySLAM vs ORB-SLAM3
 
-For a comparison of the trajectories estimated by pySLAM and by ORB-SLAM3, see this [trajectory comparison notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). 
+For a comparative evaluation of the trajectories estimated by pySLAM and by ORB-SLAM3, see this [trajectory comparison notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). 
 
 Note that pySLAM saves its pose estimates in an **online** fashion: At each frame, the current pose estimate is saved at the end of the front-end `tracking` iteration. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback: That means each pose estimate $q$ of ORB-SLAM is refined multiple times by LBA and BA over the multiple window optimizations that cover $q$.  
 
@@ -488,7 +496,9 @@ If you like pySLAM and would like to contribute to the code base, you can report
 Suggested books:
 * *[Multiple View Geometry in Computer Vision](https://www.robots.ox.ac.uk/~vgg/hzbook/)* by Richard Hartley and Andrew Zisserman
 * *[An Invitation to 3-D Vision](https://link.springer.com/book/10.1007/978-0-387-21779-6)* by Yi-Ma, Stefano Soatto, Jana Kosecka, S. Shankar Sastry 
+* *[State Estimation for Robotics](http://asrl.utias.utoronto.ca/~tdb/)* by Timothy D. Barfoot
 * *[Computer Vision: Algorithms and Applications](http://szeliski.org/Book/)*, by Richard Szeliski 
+* *[Introduction to Visual SLAM](https://link.springer.com/book/10.1007/978-981-16-4939-4)* by Xiang Gao, Tao Zhang
 * *[Deep Learning](http://www.deeplearningbook.org/lecture_slides.html)*, by Ian Goodfellow, Yoshua Bengio and Aaron Courville
 * *[Neural Networks and Deep Learning](http://neuralnetworksanddeeplearning.com/index.html)*, By Michael Nielsen 
 
@@ -549,10 +559,12 @@ Many improvements and additional features are currently under development:
 - [x] stereo and RGBD support
 - [x] map saving/loading 
 - [x] modern DL matching algorithms 
-- [ ] object detection and semantic segmentation 
+- [ ] object detection 
+- [ ] semantic segmentation 
 - [x] 3D dense reconstruction 
 - [x] unified install procedure (single branch) for all OSs 
 - [x] trajectory saving 
 - [x] depth prediction integration
 - [ ] ROS support
-
+- [ ] gaussian splatting integration
+- [ ] proper documentation
