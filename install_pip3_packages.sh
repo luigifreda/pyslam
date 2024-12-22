@@ -88,7 +88,8 @@ else
     install_pip_package torchvision==0.17               
 fi 
 
-install_pip_package rerun-sdk #==0.17.0
+pip install "rerun-sdk>=0.17.0"
+
 install_pip_package ujson
 install_pip_package tensorflow_hub  # required for VPR
 

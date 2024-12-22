@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import rerun as rr              # pip install rerun-sdk
-import rerun.blueprint as rrb
+
 import utils_geom as utils_geom
 import math as math
 from camera import Camera
@@ -72,6 +72,7 @@ class Rerun:
     
     @staticmethod
     def init_vo(img_compress=False) -> None:
+        import rerun.blueprint as rrb
         # Setup the blueprint
         Rerun.blueprint = rrb.Vertical(
             rrb.Horizontal(

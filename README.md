@@ -110,10 +110,10 @@ If you encounter any issues or performance problems, refer to the [TROUBLESHOOTI
 
 ### Ubuntu 
 
-Follow the instructions reported [here](./docs/PYTHON-VIRTUAL-ENVS.md) for creating a new virtual environment `pyslam` with **venv**.  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
+- With **venv**: Follow the instructions reported [here](./docs/PYTHON-VIRTUAL-ENVS.md).  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
+- With **conda**: Run the procedure described in this other [file](./docs/CONDA.md).
 
-If you prefer **conda**, run the scripts described in this other [file](./docs/CONDA.md).
-
+Both procedures will create a new virtual environment `pyslam`.
 
 ### MacOS
 
