@@ -1,58 +1,64 @@
 graph LR;
     %% Set default styles for all edges
-    linkStyle default stroke:#0000FF,stroke-width:1px,font-size:10px;
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:10px;
 
-    %% SLAM System
-    classDef system fill:#f9f,stroke:#333,stroke-width:2px,font-size: 12px;
-    classDef module fill:#ddf,stroke:#333,stroke-width:2px,font-size:12px;
-    classDef component fill:#ddf,stroke:#333,stroke-width:2px,font-size:12px;
+    classDef factory fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef type fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef estimator_type fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef dependencies fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef depthEstimator fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef component fill:#,stroke:#6EACDA,stroke-width:1px;    
 
-    %% Main SLAM System
-    class Slam system;
-    Slam["Slam<br><span style='font-size:10px;'>_SLAM System_</span>"];
+    %% depth_estimator_factory
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_ANYTHING_V2;
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_PRO;
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_SGBM;
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_RAFT_STEREO;
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_CRESTEREO;    
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_CRESTEREO_PYTORCH;    
 
-    %% Modules
-    class Tracking module;
-    class FeatureTracker module;
-    class LocalMapping module;
-    class LoopClosing module;
-    class Map module;
-    class Camera module;
-    class GlobalBundleAdjustment module;
-    class VolumetricIntegrator module;
+    %% DepthEstimator types (final classes)
+    DEPTH_ANYTHING_V2 -->|*_creates_*| DepthEstimatorDepthAnythingV2;
+    DEPTH_PRO -->|*_creates_*| DepthEstimatorDepthPro;
+    DEPTH_SGBM -->|*_creates_*| DepthEstimatorSgbm;
+    DEPTH_RAFT_STEREO -->|*_creates_*| DepthEstimatorRaftStereo;
+    DEPTH_CRESTEREO -->|*_creates_*| DepthEstimatorCrestereo;  
+    DEPTH_CRESTEREO_PYTORCH -->|*_creates_*| DepthEstimatorCrestereoPytorch;            
 
-    Slam -->|*_has-a_*| Tracking;
-    Slam -->|*_has-a_*| FeatureTracker;
-    Slam -->|*_has-a_*| LocalMapping["LocalMapping<br><span style='font-size:10px;'><b>[Thread]</b></span>"];
-    Slam -->|*_has-a_*| LoopClosing["LoopClosing<br><span style='font-size:10px;'><b>[Thread]</b></span>"];
-    Slam -->|*_has-a_*| Map;
-    Slam -->|*_has-a_*| Camera;
-    Slam -->|*_has-a_*| GlobalBundleAdjustment["GlobalBundleAdjustment<br><span style='font-size:10px;'><b>[Process/Thread]</b></span>"];
-    Slam -->|*_has-a_*| VolumetricIntegrator["VolumetricIntegrator<br><span style='font-size:10px;'>_3D Volumetric Map_ <b>[Process]</b></span>"];
+    %% DepthEstimator classes
+    DepthEstimator -->|*_has-a_*| camera
+    DepthEstimator -->|*_has-a_*| device
+    DepthEstimator -->|*_has-a_*| model        
 
-    %% Tracking Components
-    class Initializer component;
-    class SLAMDynamicConfig component;
-    class MotionModel component;
+    DepthEstimatorDepthAnythingV2 -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorDepthPro -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorSgbm -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorRaftStereo -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorCrestereo -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorCrestereoPytorch -->|*_is-a_*| DepthEstimator;
 
-    Tracking -->|*_has-a_*| Initializer;
-    Tracking -->|*_has-a_*| SLAMDynamicConfig;
-    Tracking -->|*_has-a_*| MotionModel["MotionModel<br><span style='font-size:10px;'>_Pose Prediction_</span>"];
+    %% DepthEstimator dependencies
+    camera -->|*_is-a_*| Camera;
 
-    %% LoopClosing Components
-    class LoopDetectingProcess component;
-    class LoopGroupConsistencyChecker component;
-    class LoopGeometryChecker component;
-    class LoopCorrector component;
-    class Relocalizer component;
+    class depth_estimator_factory factory;
 
-    LoopClosing -->|*_has-a_*| LoopDetectingProcess["LoopDetectingProcess<br><span style='font-size:10px;'><b>[Process]</b></span>"];
-    LoopClosing -->|*_has-a_*| LoopGroupConsistencyChecker["LoopGroupConsistencyChecker<br><span style='font-size:10px;'>_Loop Cluster Verification_</span>"];
-    LoopClosing -->|*_has-a_*| LoopGeometryChecker["LoopGeometryChecker<br><span style='font-size:10px;'>_Geometric Validation_</span>"];
-    LoopClosing -->|*_has-a_*| LoopCorrector["LoopCorrector<br><span style='font-size:10px;'>_Apply Corrections_</span>"];
-    LoopClosing -->|*_has-a_*| GlobalBundleAdjustment;
-    LoopClosing -->|*_has-a_*| Relocalizer;
+    class DEPTH_ANYTHING_V2 estimator_type;
+    class DEPTH_PRO estimator_type;
+    class DEPTH_SGBM estimator_type;
+    class DEPTH_RAFT_STEREO estimator_type;
+    class DEPTH_CRESTEREO estimator_type;            
+    class DEPTH_CRESTEREO_PYTORCH estimator_type;   
 
-    LoopDetectingProcess -->|*_has-a_*| LoopDetectorBase;
+    class Camera dependencies;
 
-    VolumetricIntegrator -->|*_has-a_*| DepthEstimator;    
+    class DepthEstimator depthEstimator;
+    class DepthEstimatorDepthAnythingV2 depthEstimator;
+    class DepthEstimatorDepthPro depthEstimator;
+    class DepthEstimatorSgbm depthEstimator;
+    class DepthEstimatorRaftStereo depthEstimator;
+    class DepthEstimatorCrestereo depthEstimator;
+    class DepthEstimatorCrestereoPytorch depthEstimator;  
+
+    class camera component;
+    class device component;
+    class model component;  

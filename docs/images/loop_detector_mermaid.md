@@ -1,24 +1,11 @@
 graph LR;
     %% Set default styles for all edges
-    linkStyle default stroke:#0000FF,stroke-width:1px,font-size:10px;
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:10px;
     
-    %% loop_detector_factory
-    classDef factory fill:#f9f,stroke:#333,stroke-width:2px;
-    class loop_detector_factory factory;
-
-    %% Global Descriptor Types
-    classDef descriptor fill:#f9f,stroke:#333,stroke-width:2px;
-    class DBOW2 descriptor;
-    class DBOW3 descriptor;
-    class VLAD descriptor;
-    class OBINDEX2 descriptor;
-    class IBOW descriptor;
-    class HDC_DELF descriptor;
-    class SAD descriptor;
-    class ALEXNET descriptor;
-    class NETVLAD descriptor;
-    class COSPLACE descriptor;
-    class EIGENPLACES descriptor;
+    classDef factory fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef descriptor fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef loopDetectorBase fill:#,stroke:#6EACDA,stroke-width:1px;
+    classDef loopDetectorVprBase fill:#,stroke:#6EACDA,stroke-width:1px;
 
     loop_detector_factory -->|*global_descriptor_type*| DBOW2;
     loop_detector_factory -->|*global_descriptor_type*| DBOW3;
@@ -31,12 +18,6 @@ graph LR;
     loop_detector_factory -->|*global_descriptor_type*| NETVLAD;
     loop_detector_factory -->|*global_descriptor_type*| COSPLACE;
     loop_detector_factory -->|*global_descriptor_type*| EIGENPLACES;
-
-    %% LoopDetectorBase hierarchy
-    classDef loopDetectorBase fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef loopDetectorVprBase fill:#ddf,stroke:#333,stroke-width:2px;
-    class LoopDetectorBase loopDetectorBase;
-    class LoopDetectorVprBase loopDetectorVprBase;
 
     DBOW2 -->|*creates*| LoopDetectorDBoW2;
     DBOW3 -->|*creates*| LoopDetectorDBoW3;
@@ -66,3 +47,36 @@ graph LR;
     LoopDetectorEigenPlaces -->|*_is-a_*| LoopDetectorVprBase;
 
     LoopDetectorVprBase -->|*_is-a_*| LoopDetectorBase;
+
+    %% loop_detector_factory
+    class loop_detector_factory factory;
+
+    %% Global Descriptor Types
+    class DBOW2 descriptor;
+    class DBOW3 descriptor;
+    class VLAD descriptor;
+    class OBINDEX2 descriptor;
+    class IBOW descriptor;
+    class HDC_DELF descriptor;
+    class SAD descriptor;
+    class ALEXNET descriptor;
+    class NETVLAD descriptor;
+    class COSPLACE descriptor;
+    class EIGENPLACES descriptor;
+
+    %% LoopDetectorBase hierarchy
+    class LoopDetectorBase loopDetectorBase;
+    class LoopDetectorVprBase loopDetectorVprBase;
+
+    class LoopDetectorDBoW2 loopDetectorBase;
+    class LoopDetectorDBoW3 loopDetectorBase; 
+    class LoopDetectorVlad loopDetectorBase; 
+    class LoopDetectorOBIndex2 loopDetectorBase; 
+    class LoopDetectorIBow loopDetectorBase; 
+
+    class LoopDetectorHdcDelf loopDetectorBase; 
+    class LoopDetectorSad loopDetectorBase; 
+    class LoopDetectorAlexNet loopDetectorBase; 
+    class LoopDetectorNetVLAD loopDetectorBase; 
+    class LoopDetectorCosPlace loopDetectorBase; 
+    class LoopDetectorEigenPlaces loopDetectorBase; 

@@ -1,33 +1,19 @@
 graph LR;
     %% Set default styles for all edges
-    linkStyle default stroke:#0000FF,stroke-width:1px,font-size:10px;
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:10px;
 
-    %% feature_matcher_factory
-    classDef factory fill:#f9f,stroke:#333,stroke-width:2px
-    class feature_matcher_factory factory;
-    
-    %% FeatureMatcher types
-    classDef matcher fill:#f9f,stroke:#333,stroke-width:2px
-    class BF matcher;
-    class FLANN matcher;
-    class XFEAT matcher;
-    class LIGHTGLUE matcher;
-    class LOFTR matcher;
-    
+    classDef factory fill:#,stroke:#6EACDA,stroke-width:1px
+    classDef matcher fill:#,stroke:#6EACDA,stroke-width:1px
+    classDef singleMatcher fill:#,stroke:#6EACDA,stroke-width:1px
+    classDef featureMatcher fill:#,stroke:#6EACDA,stroke-width:1px
+    classDef component fill:#,stroke:#6EACDA,stroke-width:1px
+
     feature_matcher_factory -->|*matcher_type*| BF;
     feature_matcher_factory -->|*matcher_type*| FLANN;
     feature_matcher_factory -->|*matcher_type*| XFEAT;
     feature_matcher_factory -->|*matcher_type*| LIGHTGLUE;
     feature_matcher_factory -->|*matcher_type*| LOFTR;
-    
-    %% Single Matcher class
-    classDef singleMatcher fill:#f9f,stroke:#333,stroke-width:2px
-    class BfFeatureMatcher singleMatcher;
-    class FlannFeatureMatcher singleMatcher;
-    class XFeatMatcher singleMatcher;
-    class LightGlueMatcher singleMatcher;
-    class LoFTRMatcher singleMatcher;
-    
+        
     BF -->|*creates*| BfFeatureMatcher;
     FLANN -->|*creates*| FlannFeatureMatcher;
     XFEAT -->|*creates*| XFeatMatcher;
@@ -40,14 +26,7 @@ graph LR;
     LightGlueMatcher -->|*_is-a_*| FeatureMatcher;
     LoFTRMatcher -->|*_is-a_*| FeatureMatcher;
     
-    %% FeatureMatcher relationships
-    classDef featureMatcher fill:#f9f,stroke:#333,stroke-width:2px
-    class FeatureMatcher featureMatcher;
-    class Feature featureMatcher;
-    class Descriptor featureMatcher;
-    class DistanceMetric featureMatcher;
-    class RatioTest featureMatcher;
-    
+    %% FeatureMatcher relationships    
     FeatureMatcher -->|*_has-a_*| matcher;    
     FeatureMatcher -->|*_has-a_*| matcher_type;
     FeatureMatcher -->|*_has-a_*| detector_type;
@@ -61,3 +40,39 @@ graph LR;
     matcher -->|*_is-a_*| xfeat.XFeat;
     matcher -->|*_is-a_*| lightglue.LightGlue;
     matcher -->|*_is-a_*| kornia.LoFTR;
+
+    %% Single Matcher class
+    class BfFeatureMatcher singleMatcher;
+    class FlannFeatureMatcher singleMatcher;
+    class XFeatMatcher singleMatcher;
+    class LightGlueMatcher singleMatcher;
+    class LoFTRMatcher singleMatcher;
+
+    %% feature_matcher_factory
+    class feature_matcher_factory factory;
+    
+    %% FeatureMatcher types
+    class BF matcher;
+    class FLANN matcher;
+    class XFEAT matcher;
+    class LIGHTGLUE matcher;
+    class LOFTR matcher;
+
+    class FeatureMatcher featureMatcher;
+    class Feature featureMatcher;
+    class Descriptor featureMatcher;
+    class DistanceMetric featureMatcher;
+    class RatioTest featureMatcher;
+
+    class matcher component;
+    class matcher_type component;
+    class detector_type component;
+    class descriptor_type component;
+    class ratio_test component;
+    class norm_type component;
+
+    class cv2.BFMatcher component;
+    class cv2.FlannBasedMatcher component;
+    class xfeat.XFeat component;
+    class lightglue.LightGlue component;
+    class kornia.LoFTR component;
