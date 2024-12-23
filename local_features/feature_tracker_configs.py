@@ -238,7 +238,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.SUPERPOINT, 
                       descriptor_type = FeatureDescriptorTypes.SUPERPOINT,
                       sigma_level0 = Parameters.kSigmaLevel0,
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = 1.0,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)
     
     LIGHTGLUE_DISK = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
@@ -247,7 +247,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.DISK, 
                       descriptor_type = FeatureDescriptorTypes.DISK,
                       sigma_level0 = Parameters.kSigmaLevel0,
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = 1.0,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)    
     
     LIGHTGLUE_ALIKED = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
@@ -256,7 +256,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.ALIKED, 
                       descriptor_type = FeatureDescriptorTypes.ALIKED,
                       sigma_level0 = Parameters.kSigmaLevel0, 
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = 1.0,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)      
     
     LIGHTGLUESIFT = dict(num_features=kNumFeatures,                            
@@ -265,7 +265,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.LIGHTGLUESIFT, 
                       descriptor_type = FeatureDescriptorTypes.LIGHTGLUESIFT,
                       sigma_level0 = Parameters.kSigmaLevel0,
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = 1.0,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)         
     
     DELF = dict(num_features=kNumFeatures,                   

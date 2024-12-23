@@ -38,6 +38,7 @@ from utils_geom import add_ones, poseRt, normalize, triangulate_points, triangul
 from utils_sys import myjet, Printer
 
 from feature_types import FeatureInfo
+from feature_matcher import FeatureMatcherTypes
 from concurrent.futures import ThreadPoolExecutor
 
 from utils_draw import draw_feature_matches
@@ -307,6 +308,9 @@ class FrameShared:
         FrameShared.descriptor_distance = feature_tracker.feature_manager.descriptor_distance
         FrameShared.descriptor_distances = feature_tracker.feature_manager.descriptor_distances
         FrameShared.oriented_features = feature_tracker.feature_manager.oriented_features
+        if FrameShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE or \
+           FrameShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR:
+            FrameShared.is_store_imgs = True
     
 
 # for parallel stereo processing
@@ -1022,7 +1026,7 @@ def are_map_points_visible(frame1: Frame, frame2: Frame, map_points1, sR21: np.n
 # match frames f1 and f2
 # out: a vector of match index pairs [idx1[i],idx2[i]] such that the keypoint f1.kps[idx1[i]] is matched with f2.kps[idx2[i]]
 def match_frames(f1: Frame, f2: Frame, ratio_test=None):     
-    matching_result = FrameShared.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, ratio_test)
+    matching_result = FrameShared.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, kps1=f1.kps, kps2=f2.kps, ratio_test=ratio_test)
     return matching_result
     # idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
     # idxs1 = np.asarray(idxs1)
@@ -1036,7 +1040,7 @@ def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \
     timer = Timer()      
     def thread_match_function(kf_pair):
         kf1,kf2 = kf_pair
-        matching_result = FrameShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des, ratio_test)
+        matching_result = FrameShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des, kps1=kf1.kps, kps2=kf2.kps, ratio_test=ratio_test)
         idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2             
         match_idxs[(kf1, kf2)] = (np.array(idxs1),np.array(idxs2))
     kf_pairs = [(target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad]                       
@@ -1056,7 +1060,7 @@ def compute_frame_matches(target_frame: Frame, other_frames: list, \
         for kf in other_frames:
             if kf is target_frame or kf.is_bad:
                 continue   
-            matching_result = FrameShared.feature_matcher.match(target_frame.img, kf.img, target_frame.des, kf.des, ratio_test)        
+            matching_result = FrameShared.feature_matcher.match(target_frame.img, kf.img, target_frame.des, kf.des, kps1=target_frame.kps, kps2=kf.kps, ratio_test=ratio_test)        
             idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2    
             match_idxs[(target_frame, kf)] = (idxs1, idxs2)  
     else:  

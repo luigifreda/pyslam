@@ -191,8 +191,12 @@ class Initializer(object):
 
         # find keypoint matches
         matching_result = match_frames(f_cur, f_ref, kInitializerFeatureMatchRatioTest)      
-        idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)
-        if FrameShared.oriented_features:      
+        idxs_cur = np.asarray(matching_result.idxs1, dtype=int) if matching_result.idxs1 is not None else np.array([], dtype=int)
+        idxs_ref = np.asarray(matching_result.idxs2, dtype=int) if matching_result.idxs2 is not None else np.array([], dtype=int)
+        if len(idxs_cur) == 0 or len(idxs_ref) == 0:
+            print(f'Initializer: # keypoint matches: idxs_cur: {len(idxs_cur)}, idxs_ref: {len(idxs_ref)}')
+            return out, is_ok
+        if FrameShared.oriented_features and len(idxs_cur) > 0 and len(idxs_ref) > 0:      
             valid_match_idxs = filter_matches_with_histogram_orientation(idxs_cur, idxs_ref, f_cur, f_ref)
             if len(valid_match_idxs)>0:
                 idxs_cur = idxs_cur[valid_match_idxs]

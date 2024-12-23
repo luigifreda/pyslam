@@ -35,7 +35,6 @@ import kornia as K
 import kornia.feature as KF
 import numpy as np
 
-from frame import Frame
 import config
 config.cfg.set_lib('xfeat') 
 config.cfg.set_lib('lightglue')
@@ -332,13 +331,15 @@ class FeatureMatcher(object):
             oris1 = None 
             oris2 = None
             if kps1 is None and kps2 is None:
-                return [], []
+                print('FeatureMatcher.match: kps1 and kps2 are None')
+                return result
             else: 
                 # convert from list of keypoints to an array of points if needed
                 if not isinstance(kps1, np.ndarray) or kps1.dtype != np.float32:
                     if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
                         scales1 = np.array([x.size for x in kps1], dtype=np.float32)
                         oris1 = np.array([x.angle for x in kps1], dtype=np.float32)
+                    print(f'kps1: {kps1}')
                     kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
                     if kVerbose:
                         print('kps1.shape:',kps1.shape,' kps1.dtype:',kps1.dtype)
@@ -349,6 +350,8 @@ class FeatureMatcher(object):
                     kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
                     if kVerbose: 
                         print('kps2.shape:',kps2.shape,' kps2.dtype:',kps2.dtype)
+            if kVerbose:
+                print(f'image1.shape: {img1.shape}, image2.shape: {img2.shape}')
             img1_shape = img1.shape[0:2]
             d0={
             'keypoints': torch.tensor(kps1, device=self.torch_device).unsqueeze(0),

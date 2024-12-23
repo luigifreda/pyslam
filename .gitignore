@@ -5,6 +5,9 @@ __pycache__
 
 .DS_Store
 
+.vscode 
+!.vscode/settings.json
+
 tmp
 build
 debug.txt
@@ -20,7 +23,6 @@ thirdparty/open3d
 thirdparty/contextdesc/pretrained 
 matches.txt 
 map.png
-.vscode 
 .project
 data/videos/webcam
 
@@ -46,6 +48,7 @@ data/images/StLucia_small
 data/images/SFU
 data/orb_descriptors_kitti.npy
 data/slam_state
+data/kitti_trajectory.txt
 
 thirdparty/pydbow3/ORBvoc.txt
 

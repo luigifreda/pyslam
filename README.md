@@ -255,7 +255,7 @@ Estimated trajectories can be saved in three different formats: *TUM* (The Open 
 SAVE_TRAJECTORY:
   save_trajectory: True
   format_type: tum
-  filename: kitti00_trajectory.txt
+  filename: data/kitti00_trajectory.txt
 ```
 
 ### SLAM GUI 

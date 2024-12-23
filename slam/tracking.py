@@ -89,7 +89,7 @@ kUseGroundTruthScale = False
 
 kNumMinInliersPoseOptimizationTrackFrame = 10
 kNumMinInliersPoseOptimizationTrackLocalMap = 20
-kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 40 # defines bad tracking condition
+kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 50 # defines bad/weak tracking condition
 
 
 kUseMotionModel = Parameters.kUseMotionModel or Parameters.kUseSearchFrameByProjection

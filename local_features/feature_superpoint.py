@@ -33,7 +33,7 @@ from threading import RLock
 from utils_sys import Printer, is_opencv_version_greater_equal
 
 
-kVerbose = True   
+kVerbose = False   
 
 
 class SuperPointOptions:
@@ -41,7 +41,7 @@ class SuperPointOptions:
         # default options from demo_superpoints
         self.weights_path=config.cfg.root_folder + '/thirdparty/superpoint/superpoint_v1.pth'
         print(f'SuperPoint weights: {self.weights_path}')
-        self.nms_dist=4
+        self.nms_dist=3
         self.conf_thresh=0.015
         self.nn_thresh=0.7
         
