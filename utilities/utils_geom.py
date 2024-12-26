@@ -469,8 +469,12 @@ class AlignmentEstimatedAndGroundTruthData:
 # - filter_t_w_i [Nx3]
 # - gt_timestamps [Nx1]
 # - gt_t_w_i [Nx3]
+# - align_est_associations: if True, align the estimated trajectory with the gt
+# - max_align_dt: maximum time difference between filter and gt timestamps in seconds
 # - find_scale allows to compute the full Sim(3) transformation in case the scale is unknown
-def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_i, align_gt=True, compute_align_error=True, find_scale=False, align_est_associations=True, verbose=False):
+def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_i, align_gt=True, \
+                         compute_align_error=True, find_scale=False, align_est_associations=True, max_align_dt=1e-1, \
+                         verbose=False):
     est_associations = []
     gt_associations = []
     timestamps_associations = []
@@ -482,6 +486,8 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
         print(f'gt_t_w_i: {gt_t_w_i.shape}')        
         print(f'filter_timestamps: {filter_timestamps}')
         print(f'gt_timestamps: {gt_timestamps}')
+        
+    max_dt = 0
 
     for i in range(len(filter_t_w_i)):
         timestamp = filter_timestamps[i]
@@ -498,14 +504,18 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
 
         dt = timestamp - gt_timestamps[j]
         dt_gt = gt_timestamps[j + 1] - gt_timestamps[j]
+        
+        abs_dt = abs(dt)
 
         assert dt >= 0, f"dt {dt}"
         assert dt_gt > 0, f"dt_gt {dt_gt}"
 
         # Skip if the interval between gt is larger than 100ms
-        # if dt_gt > 1.1e8:
-        #     continue
+        if abs_dt > max_align_dt:
+            continue
 
+        max_dt = max(max_dt, abs_dt)
+        
         ratio = dt / dt_gt
 
         assert 0 <= ratio < 1
@@ -516,6 +526,9 @@ def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_
         timestamps_associations.append(timestamp)
         gt_associations.append(gt)
         est_associations.append(filter_t_w_i[i])
+    
+    if verbose:
+        print(f'max align dt: {max_dt}')
 
     num_samples = len(est_associations)
     if verbose: 

@@ -439,22 +439,34 @@ class TumGroundTruth(GroundTruth):
 
 
 class EurocGroundTruth(GroundTruth):
+    kReadTumConversion = False
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.EUROC): 
         super().__init__(path, name, associations, start_frame_id, type)
         self.scale = kScaleEuroc
-        self.filename = path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'   # NOTE: Use the script io/generate_euroc_groundtruths_as_tum.sh to generate these groundtruth files
-        
+        if EurocGroundTruth.kReadTumConversion:
+            # NOTE: Use the script io/generate_euroc_groundtruths_as_tum.sh to generate these groundtruth files
+            self.filename = path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'   
+        else: 
+            # Use the original Euroc groundtruth file
+            self.filename = path + '/' + name + '/mav0/state_groundtruth_estimate0/data.csv'
+            
         base_path = os.path.dirname(self.filename)
         print('base_path: ', base_path)
         
         if not os.path.isfile(self.filename):
-            error_message = f'ERROR: Groundtruth file not found: {self.filename}. Use the script io/generate_euroc_groundtruths_as_tum.sh to generate these groundtruth files!'
+            if EurocGroundTruth.kReadTumConversion:
+                error_message = f'ERROR: Groundtruth file not found: {self.filename}. Use the script io/generate_euroc_groundtruths_as_tum.sh to generate these groundtruth files!'
+            else: 
+                error_message = f'ERROR: Groundtruth file not found: {self.filename}. Please, check how you deployed the files and if the code is consistent with this!'
             Printer.red(error_message)
             sys.exit(error_message)
                                     
-        with open(self.filename) as f:
-            self.data = f.readlines()
-            self.data = [line.strip().split() for line in self.data] 
+        if EurocGroundTruth.kReadTumConversion:    
+            with open(self.filename) as f:
+                self.data = f.readlines()
+                self.data = [line.strip().split() for line in self.data] 
+        else:
+            self.data = self.read_gt_data_state(self.filename)
                     
         if len(self.data) > 0:
             self.found = True
@@ -477,24 +489,6 @@ class EurocGroundTruth(GroundTruth):
             with open(associations_file, 'r') as f:
                 data = json.load(f)
                 self.association_matches = {int(k): v for k, v in data.items()}
-
-    # def read_gt_data(self, csv_file):
-    #     data = []
-    #     # check csv_file exists 
-    #     if not os.path.isfile(csv_file):
-    #         Printer.red(f'Groundtruth file not found: {csv_file}')
-    #         return []
-    #     with open(csv_file, 'r') as f:
-    #         reader = csv.reader(f)
-    #         header = next(reader)  # Skip header row
-    #         for row in reader:
-    #             timestamp_ns = int(row[0])
-    #             x = row[1]
-    #             y = row[2]
-    #             z = row[3]
-    #             timestamp_s = (timestamp_ns / 1000000000)
-    #             data.append((timestamp_s, (x,y,z)))
-    #     return data
     
     def read_image_data(self, csv_file):
         timestamps_and_filenames = []
@@ -504,9 +498,41 @@ class EurocGroundTruth(GroundTruth):
             for row in reader:
                 timestamp_ns = int(row[0])
                 filename = row[1]
-                timestamp_s = (float(timestamp_ns) / 1000000000)
+                timestamp_s = (float(timestamp_ns) * 1e-9)
                 timestamps_and_filenames.append((timestamp_s, filename))
         return timestamps_and_filenames    
+    
+    def read_gt_data_state(self, csv_file):
+        data = []
+        with open(csv_file, 'r') as f:
+            for line in f:
+                if line[0] == '#':
+                    continue
+                parts = line.strip().split(',')
+                timestamp_ns = int(parts[0])
+                position = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                quaternion = np.array([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])]) # qw, qx, qy, qz
+                # velocity = np.array([float(parts[8]), float(parts[9]), float(parts[10])])
+                # accel_bias = np.array([float(parts[11]), float(parts[12]), float(parts[13])])
+                # gyro_bias = np.array([float(parts[14]), float(parts[15]), float(parts[16])])
+                # we expect the quaternion in the form [qx, qy, qz, qw] as in the TUM format
+                data.append((float(timestamp_ns)*1e-9, position[0], position[1], position[2], quaternion[1], quaternion[2], quaternion[3], quaternion[0]))
+        return data
+
+    def read_gt_data_pose(self, csv_file):
+        data = []
+        with open(csv_file, 'r') as f:
+            for line in f:
+                if line[0] == '#':
+                    continue
+                parts = line.strip().split(',')
+                timestamp_ns = int(parts[0])
+                position = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
+                quaternion = np.array([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])])
+                # we expect the quaternion in the form [qx, qy, qz, qw] as in the TUM format
+                data.append((float(timestamp_ns)*1e-9, position[0], position[1], position[2], quaternion[1], quaternion[2], quaternion[3], quaternion[0]))
+        return data
+
     
     @staticmethod
     def associate(first_list, second_list, offset=0, max_difference=0.025*(10**9)):
@@ -570,7 +596,6 @@ class EurocGroundTruth(GroundTruth):
         #print(f'abs_scale: {abs_scale}')
         # from https://www.researchgate.net/profile/Michael-Burri/publication/291954561_The_EuRoC_micro_aerial_vehicle_datasets/links/56af0c6008ae19a38516937c/The-EuRoC-micro-aerial-vehicle-datasets.pdf
         return timestamp, x,y,z, abs_scale
-    
     
     # return timestamp, x,y,z, qx,qy,qz,qw, scale
     def getTimestampPoseAndAbsoluteScale(self, frame_id):
