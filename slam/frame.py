@@ -706,8 +706,9 @@ class Frame(FrameBase):
         # we enforce matching on the same row here by using the flag row_matching (epipolar constraint)
         row_matching = True
         ratio_test = 0.9
-        stereo_matching_result = FrameShared.feature_matcher.match(img, img_right, self.des, self.des_r, self.kps, self.kps_r, \
-                                                                  ratio_test=ratio_test, row_matching=row_matching, max_disparity=max_disparity)
+        stereo_matching_result = FrameShared.feature_matcher.match(img, img_right, des1=self.des, des2=self.des_r, \
+                                                                   kps1=self.kps, kps2=self.kps_r, \
+                                                                   ratio_test=ratio_test, row_matching=row_matching, max_disparity=max_disparity)
         matched_kps_l = np.array(self.kps[stereo_matching_result.idxs1])
         matched_kps_r = np.array(self.kps_r[stereo_matching_result.idxs2])         
                           

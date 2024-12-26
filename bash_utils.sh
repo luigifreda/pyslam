@@ -165,5 +165,59 @@ function brew_install(){
     fi
 }
 
+# Function to load .env file
+function load_env_file() {
+    # Default to the .env file in the ROOT_DIR if not provided
+    local file="${1:-$ROOT_DIR/.env}"
+
+    # Check if the file exists
+    if [ -f "$file" ]; then
+        echo "Loading environment variables from $file..."
+
+        # Export each line as an environment variable
+        while IFS= read -r line || [ -n "$line" ]; do
+            # Skip comments and empty lines
+            if [[ "$line" =~ ^# ]] || [[ -z "$line" ]]; then
+                continue
+            fi
+
+            # Export the variable
+            echo "Exporting: $line"
+            export "$line"
+        done < "$file"
+
+        echo "Environment variables loaded."
+    else
+        echo "File $file not found!"
+    fi
+}
+
+# Function to set or update an environment variable in a file
+function set_env_var() {
+    local file="${1:-$ROOT_DIR/.env}"
+    local key="$2"
+    local value="$3"
+
+    # Check if the file exists; create it if not
+    if [ ! -f "$file" ]; then
+        touch "$file"
+    fi
+
+    # Escape special characters in the key and value for safety
+    local escaped_key=$(printf '%s' "$key" | sed 's/[].*^$[]/\\&/g')
+    local escaped_value=$(printf '%s' "$value" | sed 's/[&/\]/\\&/g')
+
+    # Check if the key exists in the file
+    if grep -qE "^${escaped_key}=" "$file"; then
+        # Update the existing key-value pair
+        sed -i.bak -E "s|^(${escaped_key})=.*$|\1=${escaped_value}|" "$file"
+        echo "Updated: $key=$value in $file"
+    else
+        # Add the key-value pair if it doesn't exist
+        echo "${key}=${value}" >> "$file"
+        echo "Added: $key=$value to $file"
+    fi
+}
+
 # ====================================================
 

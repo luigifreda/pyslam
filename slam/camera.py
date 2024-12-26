@@ -28,9 +28,11 @@ import ujson as json
 from utils_geom import add_ones
 from utils_sys import Printer
 
+
 class CameraTypes(Enum):
     NONE = 0
     PINHOLE = 1
+
 
 class CameraBase:
     def __init__(self):
@@ -52,6 +54,7 @@ class CameraBase:
         self.v_min = None
         self.v_max = None
         self.initialized = False   
+
 
 class Camera(CameraBase): 
     def __init__(self, config):
@@ -160,7 +163,30 @@ class Camera(CameraBase):
                (uvs[:, 1] > self.v_min) & (uvs[:, 1] < self.v_max) & \
                (zs > 0 )
 
+    def toRenderProjectionMatrix(self, znear=0.01, zfar=100.0):
+        W, H = self.width, self.height
+        fx, fy = self.fx, self.fy
+        cx, cy = self.cx, self.cy
+        left = ((2 * cx - W) / W - 1.0) * W / 2.0
+        right = ((2 * cx - W) / W + 1.0) * W / 2.0
+        top = ((2 * cy - H) / H + 1.0) * H / 2.0
+        bottom = ((2 * cy - H) / H - 1.0) * H / 2.0
+        left = znear / fx * left
+        right = znear / fx * right
+        top = znear / fy * top
+        bottom = znear / fy * bottom
+        P = np.zeros(4, 4)
+        z_sign = 1.0
+        P[0, 0] = 2.0 * znear / (right - left)
+        P[1, 1] = 2.0 * znear / (top - bottom)
+        P[0, 2] = (right + left) / (right - left)
+        P[1, 2] = (top + bottom) / (top - bottom)
+        P[3, 2] = z_sign
+        P[2, 2] = z_sign * zfar / (zfar - znear)
+        P[2, 3] = -(zfar * znear) / (zfar - znear)
+        return P
         
+
 class PinholeCamera(Camera):
     def __init__(self, config):
         super().__init__(config)

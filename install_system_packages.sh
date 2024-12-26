@@ -44,6 +44,8 @@ install_package  libhdf5-dev    # needed when building h5py wheel from src is re
 install_packages libboost-serialization-dev libboost-system-dev libboost-filesystem-dev
 install_package  tmux # for launching tmux sessions
 
+install_package libqt5gui5 # for qt5 support 
+
 install_package libomp-dev
 
 echo "... Done!" 

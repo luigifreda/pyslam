@@ -10,6 +10,14 @@
 
 #set -e
 
+# clean the old .env file if it exists
+if [ -f "$ROOT_DIR/.env" ]; then
+  rm "$ROOT_DIR/.env"
+fi
+
+set_env_var "$ROOT_DIR/.env" USE_CONDA 1
+
+
 # check that conda is activated 
 if ! command -v conda &> /dev/null
 then

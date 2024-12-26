@@ -130,7 +130,7 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 ### How to install non-free OpenCV modules
 
 The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:       
-`$ . pyenv-activate.sh `        
+`$ . pyenv-activate.sh  `        
 `$ ./scripts/opencv_check.py`       
 or use the following command:        
 `$ python3 -c "import cv2; print(cv2.__version__)"`      

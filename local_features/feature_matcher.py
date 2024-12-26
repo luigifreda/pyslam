@@ -201,7 +201,7 @@ class MatcherUtils:
             if abs(pt1[1] - pt2[1]) < max_row_distance and abs(pt1[0] - pt2[0]) < max_disparity:   # epipolar constraint + max disparity check
                 out_idxs1.append(idx1)
                 out_idxs2.append(idx2)   
-        return np.array(out_idxs1), np.array(out_idxs1)
+        return np.array(out_idxs1), np.array(out_idxs2)
     
     # input: des1 = query-descriptors, des2 = train-descriptors, kps1 = query-keypoints, kps2 = train-keypoints 
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
@@ -371,13 +371,14 @@ class FeatureMatcher(object):
                 d1['oris'] = torch.tensor(oris2, device=self.torch_device).unsqueeze(0)             
             matches01 = self.matcher({"image0": d0, "image1": d1})
             #print(matches01['matches'])
-            idx0 = matches01['matches'][0][:, 0].cpu().tolist()
+            idxs0 = matches01['matches'][0][:, 0].cpu().tolist()
             idxs1 = matches01['matches'][0][:, 1].cpu().tolist()
-            #print(des1.shape,len(idx0),len(idxs1))
-            result.idxs1 = idx0
-            result.idxs2 = idxs1
+            result.idxs1 = np.array(idxs0)
+            result.idxs2 = np.array(idxs1)
             if row_matching: 
                 result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)            
+            if kVerbose:
+                print(f'#result.idxs1: {result.idxs1.shape}, #result.idxs2: {result.idxs2.shape}')            
             return result
         # ===========================================================
         elif self.matcher_type == FeatureMatcherTypes.XFEAT:

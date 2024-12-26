@@ -23,7 +23,7 @@ This page contains a small collections of issues/errors that may be experienced 
 
 **FIRST OF ALL**: did you read the main [README](./../README.md) page? did you use the provided **INSTALL SCRIPTS**? If not then go back on the [README](./../README.md) page, read the few lines in the install section and launch the **REQUIRED** install script. The install scripts were created in order to perform all the required install operations for you and make the install process itself as painless as possible.   
 
-If you work under **Ubuntu 20.04** or **MacOS**, check the specific installation procedures reported in the main [README](./../README.md) page. 
+If you work under **Ubuntu** or **MacOS**, check the specific installation procedures reported in the main [README](./../README.md) page. 
 
 
 ## Bad tracking performances
@@ -100,7 +100,7 @@ https://discuss.pytorch.org/t/failed-to-load-image-python-extension-could-not-fi
 
 ## OrderedSet 
 
-reference https://github.com/luigifreda/pyslam/issues/48 
+Reference: https://github.com/luigifreda/pyslam/issues/48 
 
 If you run `main_slam.py` and hit the following error
 ```
@@ -122,7 +122,7 @@ If you have ROS installed in your system and got the following error:
 ImportError: /opt/ros/kinetic/lib/python2.7/dist-packages/cv2.so:  
 undefined symbol: PyCObject_Type
 ```
-you can run the following command in your shell: 
+You can run the following command in your shell: 
 ```
 $ export PYTHONPATH=""
 ```
@@ -149,7 +149,6 @@ If the following error pops-up:
 ValueError: ndarray is not C-contiguous
 ```
 Open pyslam/search_points.py, find this line (should be line 79):
-
 ```
 projs = f_cur.project_map_points(points)
 ```

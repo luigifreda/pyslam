@@ -10,6 +10,11 @@
 
 #set -e
 
+# clean the old .env file if it exists
+if [ -f "$ROOT_DIR/.env" ]; then
+  rm "$ROOT_DIR/.env"
+fi
+
 # NOTE: in order to detect macOS use:  
 # if [[ "$OSTYPE" == "darwin"* ]]; then 
 # fi 

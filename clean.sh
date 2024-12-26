@@ -68,6 +68,11 @@ cd thirdparty/pyibow
 ./clean.sh
 cd $ROOT_DIR
 
+if [ -f "$ROOT_DIR/.env" ]; then
+    echo "Removing $ROOT_DIR/.env file"
+    rm "$ROOT_DIR/.env"
+fi
+
 
 # clean downloaded models and reset submodules
 # git submodule foreach 'git reset --hard; git clean -xfd'

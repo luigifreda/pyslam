@@ -161,8 +161,12 @@ class Dataset(object):
     # Adjust frame id with start frame id only here
     def getImageColor(self, frame_id):
         frame_id += self.start_frame_id
+        if self.num_frames is not None and frame_id >= self.num_frames:
+            return None
         try: 
             img = self.getImage(frame_id)
+            if img is None:
+                return None
             if img.ndim == 2:
                 return cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)     
             else:
@@ -170,23 +174,31 @@ class Dataset(object):
         except:
             img = None
             self.is_ok = False
-            #raise IOError('Cannot open dataset: ', self.name, ', path: ', self.path)        
-            Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}')
+            if self.num_frames is not None and frame_id >= self.num_frames:
+                Printer.yellow(f'Dataset end: {self.name}, path: {self.path}, frame id: {frame_id}')
+            else:    
+                Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}, frame id: {frame_id}')
             return img    
         
     # Adjust frame id with start frame id only here
     def getImageColorRight(self, frame_id):
         frame_id += self.start_frame_id
+        if self.num_frames is not None and frame_id >= self.num_frames:
+            return None        
         try: 
             img = self.getImageRight(frame_id)
+            if img is None:
+                return None            
             if img is not None and img.ndim == 2:
                 return cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)     
             else:
                 return img             
         except:
-            img = None  
-            #raise IOError('Cannot open dataset: ', self.name, ', path: ', self.path)        
-            Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}, right image')
+            img = None      
+            if self.num_frames is not None and frame_id >= self.num_frames:
+                Printer.yellow(f'Dataset end: {self.name}, path: {self.path}, right image, frame id: {frame_id}')
+            else:    
+                Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}, right image, frame id: {frame_id}')            
             return img         
         
     def getTimestamp(self):
