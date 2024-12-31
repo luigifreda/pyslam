@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # forced camera settings to be kept coherent with the input file below 
     config.config[config.dataset_type]['settings'] = 'settings/KITTI04-12.yaml'
     config.sensor_type='mono'
-    config.get_cam_settings()
+    config.get_cam_settings()  # parse again the settings file
 
     #dataset = dataset_factory(config)
     #grountruth = groundtruth_factory(config.dataset_settings)
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     #============================================
     # create SLAM object 
     #============================================
-    slam = Slam(cam, feature_tracker_config) #, grountruth)
+    slam = Slam(cam, feature_tracker_config) 
 
     timer = Timer()
 

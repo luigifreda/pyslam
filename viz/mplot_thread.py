@@ -49,8 +49,8 @@ kUseFigCanvasDrawIdle = True
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kLogsFolder = kRootFolder + '/logs'
 
 
 if kVerbose and kDebugAndPrintToFile:
@@ -137,6 +137,7 @@ class Mplot2d:
         
         self.figure_num = mp.Value('i', int(FigureNum.getFigureNum()))
         print(f'Mplot2d: starting the process on figure: {self.figure_num.value}')
+        print(f'Mplot2d: backend {matplotlib.get_backend()}')
         
         self.lock = SharedSingletonLock().get_lock
         
@@ -173,8 +174,11 @@ class Mplot2d:
         if self.title != '':
             self.ax.set_title(self.title) 
         self.ax.set_xlabel(self.xlabel)
-        self.ax.set_ylabel(self.ylabel)	   
-        self.ax.grid()		
+        self.ax.set_ylabel(self.ylabel)	
+        if matplotlib.get_backend() == 'Qt5Agg':
+            self.ax.grid(visible=True, which='both', axis='both', color='gray', linestyle='-', linewidth=0.21)
+        else:
+            self.ax.grid()
         #Autoscale on unknown axis and known lims on the other
         self.ax.set_autoscaley_on(True)   
         lock.release()

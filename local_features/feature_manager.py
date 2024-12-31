@@ -157,7 +157,7 @@ class FeatureManager:
         # --------------------------------------------- #
         # manage different opencv versions  
         # --------------------------------------------- #
-        print("using opencv ", cv2.__version__)
+        print("FeatureManager: Using opencv ", cv2.__version__)
         # check opencv version in order to use the right modules 
         opencv_major =  int(cv2.__version__.split('.')[0])
         opencv_minor =  int(cv2.__version__.split('.')[1])
@@ -256,7 +256,7 @@ class FeatureManager:
                                     #FeatureDescriptorTypes.BOOST_DESC # [OK]  BOOST_DESC seems to properly rectify each keypoint patch size (https://github.com/opencv/opencv_contrib/blob/master/modules/xfeatures2d/src/boostdesc.cpp#L346) 
                                     ]:
             self.scale_factor = 2  # the above descriptors work on octave layers with a scale_factor=2!
-            Printer.orange('forcing scale factor=2 for detector', self.descriptor_type.name)
+            Printer.orange('FeatureManager: Forcing scale factor=2 for detector', self.descriptor_type.name)
             
         self.orb_params = dict(nfeatures=num_features,
                                scaleFactor=self.scale_factor,
@@ -407,7 +407,7 @@ class FeatureManager:
             #detector = ShiTomasiDetector(self.num_features)  
             #self._feature_detector = self.MSD_create(detector) 
             self._feature_detector = self.MSD_create()   
-            print('MSD detector info:',dir(self._feature_detector))
+            print('FeatureManager: MSD detector info:',dir(self._feature_detector))
             #self.use_bock_adaptor = True  # override a block adaptor?           
             #self.use_pyramid_adaptor = self.num_levels > 1   # override a pyramid adaptor?     
             #self.pyramid_type = PyramidType.GAUSS_PYRAMID 
@@ -533,7 +533,7 @@ class FeatureManager:
         # init descriptor 
         # --------------------------------------------- #                     
         if self.is_detector_equal_to_descriptor:     
-            Printer.green('using same detector and descriptor object: ', self.detector_type.name)
+            Printer.green('FeatureManager: Using same detector and descriptor object: ', self.detector_type.name)
             self._feature_descriptor = self._feature_detector
         else:      
             # detector and descriptors are different             
@@ -851,7 +851,7 @@ class FeatureManager:
     # initialize scale factors, sigmas for each octave level; 
     # these are used for managing image pyramids and weighting (information matrix) reprojection error terms in the optimization
     def init_sigma_levels(self): 
-        print('num_levels: ', self.num_levels)               
+        print('FeatureManager: num_levels: ', self.num_levels)               
         num_levels = max(kNumLevelsInitSigma, self.num_levels)    
         self.inv_scale_factor = 1./self.scale_factor      
         self.scale_factors = np.zeros(num_levels)
@@ -882,14 +882,14 @@ class FeatureManager:
     # this method can be used only when the following mapping is adopted for SIFT:  
     #   keypoint.octave = (unpacked_octave+1)*3+unpacked_layer  where S=3 is the number of levels per octave
     def init_sigma_levels_sift(self): 
-        print('initializing SIFT sigma levels')
-        print('num_levels: ', self.num_levels)          
+        print('FeatureManager: initializing SIFT sigma levels')
+        print('FeatureManager: num_levels: ', self.num_levels)          
         self.num_levels = 3*self.num_levels + 3   # we map: level=keypoint.octave = (unpacked_octave+1)*3+unpacked_layer  where S=3 is the number of scales per octave
         num_levels = max(kNumLevelsInitSigma, self.num_levels) 
-        #print('num_levels: ', num_levels) 
+        #print('FeatureManager: num_levels: ', num_levels) 
         # N.B: if we adopt the mapping: keypoint.octave = (unpacked_octave+1)*3+unpacked_layer 
         # then we can consider a new virtual scale_factor = 2^(1/3) (used between two contiguous layers of the same octave)
-        print('original scale factor: ', self.scale_factor)
+        print('FeatureManager: Original scale factor: ', self.scale_factor)
         self.scale_factor = math.pow(2,1./3)    
         self.inv_scale_factor = 1./self.scale_factor      
         self.scale_factors = np.zeros(num_levels)

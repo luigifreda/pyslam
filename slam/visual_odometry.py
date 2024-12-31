@@ -215,7 +215,7 @@ class VisualOdometry(object):
     def track(self, img, frame_id, timestamp):
         if kVerbose:
             print('..................................')
-            print('frame: ', frame_id) 
+            print(f'frame: {frame_id}, timestamp: {timestamp}') 
         # convert image to gray if needed    
         if img.ndim>2:
             img = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)             

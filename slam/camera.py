@@ -20,6 +20,7 @@
 from enum import Enum
 import numpy as np 
 import cv2
+import math 
 
 #import json
 import ujson as json
@@ -34,6 +35,15 @@ class CameraTypes(Enum):
     PINHOLE = 1
 
 
+# Convert fov [rad] to focal length in pixels
+def fov2focal(fov, pixels):
+    return float(pixels) / (2 * math.tan(fov / 2.0))
+
+# Convert focal length in pixels to fov [rad]
+def focal2fov(focal, pixels):
+    return 2.0 * math.atan(pixels / (2.0 * focal))
+    
+        
 class CameraBase:
     def __init__(self):
         self.type = CameraTypes.NONE
@@ -76,6 +86,9 @@ class Camera(CameraBase):
         self.fy = fy
         self.cx = cx
         self.cy = cy
+        
+        self.fovx = focal2fov(fx, width)
+        self.fovy = focal2fov(fy, height)
     
         self.D = np.array(D,dtype=float) # np.array([k1, k2, p1, p2, k3])  distortion coefficients 
         self.is_distorted = np.linalg.norm(self.D) > 1e-10
@@ -91,7 +104,7 @@ class Camera(CameraBase):
         self.depth_factor = 1.0 # Depthmap values factor 
         if 'DepthMapFactor' in config.cam_settings:
             self.depth_factor = 1.0/float(config.cam_settings['DepthMapFactor'])
-            print('Using DepthMapFactor = %f' % self.depth_factor)
+            #print('Using DepthMapFactor = %f' % self.depth_factor)
         if config.sensor_type == 'rgbd' and self.depth_factor is None:
             raise ValueError('Expecting the field DepthMapFactor in the camera config file')            
         self.depth_threshold = None  # Close/Far threshold. Baseline times.
@@ -99,7 +112,7 @@ class Camera(CameraBase):
             depth_threshold = float(config.cam_settings['ThDepth'])
             assert(self.bf is not None)
             self.depth_threshold = self.bf * depth_threshold / self.fx 
-            print('Using depth_threshold = %f' % self.depth_threshold)
+            #print('Using depth_threshold = %f' % self.depth_threshold)
         if (config.sensor_type == 'rgbd' or config.sensor_type == 'stereo') and self.depth_threshold is None:
             raise ValueError('Expecting the field ThDepth in the camera config file')              
         
@@ -149,8 +162,11 @@ class Camera(CameraBase):
         self.v_min = float(json_str['v_min'])
         self.v_max = float(json_str['v_max'])
         self.initialized = bool(json_str['initialized'])
+        if not hasattr(self, 'fovx'):
+            self.fovx = focal2fov(self.fx, self.width)
+        if not hasattr(self, 'fovy'):   
+            self.fovy = focal2fov(self.fy, self.height)
         
-     
     def is_in_image(self, uv, z):
         return (uv[0] > self.u_min) & (uv[0] < self.u_max) & \
                (uv[1] > self.v_min) & (uv[1] < self.v_max) & \
@@ -163,7 +179,8 @@ class Camera(CameraBase):
                (uvs[:, 1] > self.v_min) & (uvs[:, 1] < self.v_max) & \
                (zs > 0 )
 
-    def toRenderProjectionMatrix(self, znear=0.01, zfar=100.0):
+    # Get the projection matrix for rendering
+    def get_render_projection_matrix(self, znear=0.01, zfar=100.0):
         W, H = self.width, self.height
         fx, fy = self.fx, self.fy
         cx, cy = self.cx, self.cy
@@ -175,7 +192,7 @@ class Camera(CameraBase):
         right = znear / fx * right
         top = znear / fy * top
         bottom = znear / fy * bottom
-        P = np.zeros(4, 4)
+        P = np.zeros((4, 4), dtype=float)
         z_sign = 1.0
         P[0, 0] = 2.0 * znear / (right - left)
         P[1, 1] = 2.0 * znear / (top - bottom)
@@ -185,10 +202,20 @@ class Camera(CameraBase):
         P[2, 2] = z_sign * zfar / (zfar - znear)
         P[2, 3] = -(zfar * znear) / (zfar - znear)
         return P
+    
+    # Set the camera's horizontal field of view [rad] and the corresponding horizontal focal length
+    def set_fovx(self, fovx):
+        self.fx = fov2focal(fovx, self.width)
+        self.fovx = fovx
+        
+    # Set the camera's vertical field of view [rad] and the corresponding vertical focal length
+    def set_fovy(self, fovy):
+        self.fy = fov2focal(fovy, self.height)
+        self.fovy = fovy
         
 
 class PinholeCamera(Camera):
-    def __init__(self, config):
+    def __init__(self, config=None):
         super().__init__(config)
         self.type = CameraTypes.PINHOLE
         

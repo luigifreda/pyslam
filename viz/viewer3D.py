@@ -117,8 +117,10 @@ class Viewer3D(object):
         self.qvo = self.mp_manager.Queue()
         self.qdense = self.mp_manager.Queue()
                 
-        self._is_running  = mp.Value('i',1)
+        self._is_running  = mp.Value('i',0)
         self._is_paused = mp.Value('i',0)
+        self._is_closed  = mp.Value('i',0)
+        
         self._is_map_save = mp.Value('i',0)
         self._do_step = mp.Value('i',0)
         self._do_reset = mp.Value('i',0)
@@ -126,7 +128,8 @@ class Viewer3D(object):
         self.alignment_gt_data_queue = self.mp_manager.Queue()     
         self.vp = mp.Process(target=self.viewer_run,
                           args=(self.qmap, self.qvo, self.qdense,
-                                self._is_running,self._is_paused,self._is_map_save, self._do_step, self._do_reset, self._is_gt_set, self.alignment_gt_data_queue))
+                                self._is_running,self._is_paused,self._is_closed,
+                                self._is_map_save, self._do_step, self._do_reset, self._is_gt_set, self.alignment_gt_data_queue))
         self.vp.daemon = True
         self.vp.start()
         
@@ -136,15 +139,23 @@ class Viewer3D(object):
             self.gt_timestamps = gt_timestamps
             self.align_gt_with_scale = align_with_scale
             self._is_gt_set.value = 0
-            print(f'groundtruth shape: {gt_trajectory.shape}')
+            print(f'Viewer3D: Groundtruth shape: {gt_trajectory.shape}')
 
     def quit(self):
-        print('Viewer3D: quitting...')        
-        self._is_running.value = 0
-        self.vp.join()    
+        print('Viewer3D: quitting...')
+        if self._is_running.value == 1:        
+            self._is_running.value = 0
+        if self.vp.is_alive():
+            self.vp.join()    
         #pangolin.Quit()
         print('Viewer3D: done')   
         
+    def is_running(self):
+        return (self._is_running.value == 1)
+    
+    def is_closed(self):
+        return (self._is_closed.value == 1)    
+            
     def is_paused(self):
         return (self._is_paused.value == 1)       
     
@@ -166,8 +177,9 @@ class Viewer3D(object):
             self._do_reset.value = 0
         return do_reset       
 
-    def viewer_run(self, qmap, qvo, qdense, is_running, is_paused, is_map_save, do_step, do_reset, is_gt_set, alignment_gt_data_queue):
+    def viewer_run(self, qmap, qvo, qdense, is_running, is_paused, is_closed, is_map_save, do_step, do_reset, is_gt_set, alignment_gt_data_queue):
         self.viewer_init(kViewportWidth, kViewportHeight)
+        is_running.value = 1
         # init local vars for the the process 
         self.thread_gt_trajectory = None
         self.thread_gt_timestamps = None
@@ -186,7 +198,9 @@ class Viewer3D(object):
                 
         empty_queue(qmap)   # empty the queue before exiting
         empty_queue(qvo)    # empty the queue before exiting
-        empty_queue(qdense) # empty the queue before exiting                                  
+        empty_queue(qdense) # empty the queue before exiting
+        is_running.value = 0
+        is_closed.value = 1                                          
         print('Viewer3D: loop exit...')    
 
     def viewer_init(self, w, h):
@@ -529,8 +543,8 @@ class Viewer3D(object):
             self.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
 
     # inputs: 
-    #   point_cloud: o3d.geometry.PointCloud or VolumeIntegratorPointCloud (see the file volumetric_integrator.py)
-    #   mesh: o3d.geometry.TriangleMesh or VolumeIntegrationMesh (see the file volumetric_integrator.py)
+    #   point_cloud: o3d.geometry.PointCloud or VolumetricIntegrationPointCloud (see the file volumetric_integrator.py)
+    #   mesh: o3d.geometry.TriangleMesh or VolumetricIntegrationMesh (see the file volumetric_integrator.py)
     def draw_dense_geometry(self, point_cloud=None, mesh=None):
         if self.qdense is None:
             return

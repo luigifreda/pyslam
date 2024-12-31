@@ -128,7 +128,7 @@ if __name__ == "__main__":
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
     
-    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FrameShared. 
-    Frame.set_tracker(feature_tracker)     
+    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FeatureTrackerShared. 
+    FeatureTrackerShared.set_feature_tracker(feature_tracker)     
     
     main(args.json_config_path, args.output_file, feature_tracker)

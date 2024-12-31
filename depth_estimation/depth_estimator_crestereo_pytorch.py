@@ -128,9 +128,10 @@ class DepthEstimatorCrestereoPytorch(DepthEstimator):
             disparity_map = cv2.resize(disparity_map, (in_w, in_h), interpolation=cv2.INTER_AREA)*t
         self.disparity_map = disparity_map
 
-        disp_min = disparity_map.min()
-        disp_max = disparity_map.max()
-        print(f"DepthEstimatorCrestereoPytorch: disp_min: {disp_min}, disp_max: {disp_max}")
+        if False:
+            disp_min = disparity_map.min()
+            disp_max = disparity_map.max()
+            print(f"DepthEstimatorCrestereoPytorch: disp_min: {disp_min}, disp_max: {disp_max}")
     
         if False:
             disp_vis = img_from_depth(disparity_map)         

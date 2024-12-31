@@ -3,7 +3,7 @@ from collections import defaultdict
 import os
 import numpy as np
 
-from frame import Frame, FrameShared, compute_frame_matches, prepare_input_data_for_pnpsolver
+from frame import Frame, FeatureTrackerShared, compute_frame_matches, prepare_input_data_for_pnpsolver
 from rotation_histogram import filter_matches_with_histogram_orientation
 from optimizer_g2o import pose_optimization
 from utils_sys import Printer, Logging
@@ -25,8 +25,8 @@ kPrintTrackebackDetails = True
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kLogsFolder = kRootFolder + '/logs'
 
 if kVerbose:
     if Parameters.kRelocalizationDebugAndPrintToFile:
@@ -81,7 +81,7 @@ class Relocalizer:
                 assert(len(idxs_frame)==len(idxs_kf))
                 
                 # if features have descriptors with orientation then let's check the matches with a rotation histogram
-                if FrameShared.oriented_features:
+                if FeatureTrackerShared.oriented_features:
                     #num_matches_before = len(idxs_frame)
                     valid_match_idxs = filter_matches_with_histogram_orientation(idxs_frame, idxs_kf, frame, kf)
                     if len(valid_match_idxs)>0:

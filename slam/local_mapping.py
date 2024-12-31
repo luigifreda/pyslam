@@ -67,8 +67,8 @@ kLocalMappingSleepTime = 5e-3  # [s]
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kLogsFolder = kRootFolder + '/logs'
 
 
 if kVerbose:
@@ -198,7 +198,7 @@ class LocalMapping:
     # push the new keyframe and its image into the queue
     def push_keyframe(self, keyframe, img=None, img_right=None, depth=None):
         with self.queue_condition:
-            self.queue.put((keyframe,img,img_right, depth))      
+            self.queue.put((keyframe,img,img_right,depth))      
             self.queue_condition.notifyAll() 
             self.set_opt_abort_flag(True)              
         

@@ -1,0 +1,34 @@
+
+import os
+
+from utils_serialization import SerializableEnum, register_class
+from volumetric_integrator_base import VolumetricIntegratorBase
+from volumetric_integrator_tsdf import VolumetricIntegratorTsdf
+from volumetric_integrator_gaussian_splatting import VolumetricIntegratorGaussianSplatting
+
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder + '/..'
+
+
+@register_class
+class VolumetricIntegratorType(SerializableEnum):
+    TSDF = 0
+    GAUSSIAN_SPLATTING = 1
+    
+    @staticmethod
+    def from_string(name: str):
+        try:
+            return VolumetricIntegratorType[name]
+        except KeyError:
+            raise ValueError(f"Invalid VolumetricIntegratorType: {name}")
+            
+    
+def volumetric_integrator_factory(volumetric_integrator_type, camera, environment_type, sensor_type):
+    if volumetric_integrator_type == VolumetricIntegratorType.TSDF:
+        return VolumetricIntegratorTsdf(camera=camera, environment_type=environment_type, sensor_type=sensor_type)
+    elif volumetric_integrator_type == VolumetricIntegratorType.GAUSSIAN_SPLATTING:
+        return VolumetricIntegratorGaussianSplatting(camera=camera, environment_type=environment_type, sensor_type=sensor_type)
+    else:
+        raise ValueError(f"Invalid VolumetricIntegratorType: {volumetric_integrator_type}")

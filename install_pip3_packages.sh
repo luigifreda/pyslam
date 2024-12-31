@@ -108,12 +108,9 @@ pip install fast-pytorch-kmeans #==0.1.6 # for VLAD
 pip install pyflann-py3 # for loop closure database
 pip install faiss-cpu   # for loop closure database (there is also faiss-gpu)
 
-pip install joblib
-
 if [[ "$OSTYPE" != "darwin"* ]]; then
     pip install open3d
 fi
-
 
 # crestereo
 if [[ "$OSTYPE" != "darwin"* ]]; then
@@ -124,3 +121,23 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
 fi
 
 pip install gdown  # to download from google drive
+
+
+# MonoGS
+pip install munch
+pip install wandb
+pip install plyfile
+pip install glfw
+pip install trimesh
+pip install evo    #==1.11.0
+pip install torchmetrics
+pip install imgviz
+pip install PyOpenGL
+pip install PyGLM
+pip install lpips
+pip install rich
+pip install ruff
+pip install lycon
+pip install git+https://github.com/princeton-vl/lietorch.git
+pip install ./thirdparty/monogs/submodules/simple-knn
+pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization

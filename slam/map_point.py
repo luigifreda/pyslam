@@ -23,7 +23,7 @@ import numpy as np
 from threading import RLock, Lock, Thread
 
 from utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
-from frame import Frame, FrameShared
+from frame import Frame, FeatureTrackerShared
 from utils_sys import Printer
 
 from config_parameters import Parameters
@@ -291,9 +291,9 @@ class MapPoint(MapPointBase):
             self.normal, dist = normalize_vector(po)
             if idxf is not None:            
                 level = keyframe.octaves[idxf]
-            level_scale_factor =  FrameShared.feature_manager.scale_factors[level]
+            level_scale_factor =  FeatureTrackerShared.feature_manager.scale_factors[level]
             self._max_distance = dist * level_scale_factor
-            self._min_distance = self._max_distance / FrameShared.feature_manager.scale_factors[FrameShared.feature_manager.num_levels-1]     
+            self._min_distance = self._max_distance / FeatureTrackerShared.feature_manager.scale_factors[FeatureTrackerShared.feature_manager.num_levels-1]     
   
         self.num_observations_on_last_update_des = 1       # must be 1!    
         self.num_observations_on_last_update_normals = 1   # must be 1!
@@ -320,8 +320,8 @@ class MapPoint(MapPointBase):
                 
     def to_json(self):     
         return {'id': int(self.id) if self.id is not None else None, 
-                '_observations': [(int(kf.id), int(idx)) for kf,idx in self._observations.items()], 
-                '_frame_views': [(int(f.id), int(idx)) for f,idx in self._frame_views.items()],
+                '_observations': [(int(kf.id), int(idx)) for kf,idx in self._observations.items() if kf is not None], 
+                '_frame_views': [(int(f.id), int(idx)) for f,idx in self._frame_views.items() if f is not None],
                 '_is_bad': bool(self._is_bad),
                 '_num_observations': self._num_observations,
                 'num_times_visible': self.num_times_visible,
@@ -394,13 +394,13 @@ class MapPoint(MapPointBase):
     @property
     def min_distance(self):
         with self._lock_pos:           
-            #return FrameShared.feature_manager.inv_scale_factor * self._min_distance  # give it one level of margin (can be too much with scale factor = 2)   
+            #return FeatureTrackerShared.feature_manager.inv_scale_factor * self._min_distance  # give it one level of margin (can be too much with scale factor = 2)   
             return Parameters.kMinDistanceToleranceFactor * self._min_distance     
         
     @property
     def max_distance(self):
         with self._lock_pos:           
-            #return FrameShared.feature_manager.scale_factor * self._max_distance  # give it one level of margin (can be too much with scale factor = 2)
+            #return FeatureTrackerShared.feature_manager.scale_factor * self._max_distance  # give it one level of margin (can be too much with scale factor = 2)
             return Parameters.kMaxDistanceToleranceFactor * self._max_distance  
             
     def get_all_pos_info(self):
@@ -422,8 +422,8 @@ class MapPoint(MapPointBase):
     # minimum distance between input descriptor and map point corresponding descriptors 
     def min_des_distance(self, descriptor):
         with self._lock_features:             
-            #return min([FrameShared.descriptor_distance(d, descriptor) for d in self.descriptors()])
-            return FrameShared.descriptor_distance(self.des, descriptor)
+            #return min([FeatureTrackerShared.descriptor_distance(d, descriptor) for d in self.descriptors()])
+            return FeatureTrackerShared.descriptor_distance(self.des, descriptor)
     
     def delete(self):                
         with self._lock_features:
@@ -550,12 +550,12 @@ class MapPoint(MapPointBase):
         #print('mean normal: ', self.normal)        
   
         level = kf_ref.octaves[idx_ref]
-        level_scale_factor = FrameShared.feature_manager.scale_factors[level]
+        level_scale_factor = FeatureTrackerShared.feature_manager.scale_factors[level]
         dist = np.linalg.norm(position-kf_ref.Ow)
         
         with self._lock_pos:           
             self._max_distance = dist * level_scale_factor
-            self._min_distance = self._max_distance / FrameShared.feature_manager.scale_factors[FrameShared.feature_manager.num_levels-1]            
+            self._min_distance = self._max_distance / FeatureTrackerShared.feature_manager.scale_factors[FeatureTrackerShared.feature_manager.num_levels-1]            
             self.normal = normal         
                     
         
@@ -574,8 +574,8 @@ class MapPoint(MapPointBase):
         descriptors = [kf.des[idx] for kf,idx in observations if not kf.is_bad]
         N = len(descriptors)
         if N > 2:
-            #median_distances = [ np.median([FrameShared.descriptor_distance(d, descriptors[i]) for d in descriptors]) for i in range(N) ]
-            median_distances = [ np.median(FrameShared.descriptor_distances(descriptors[i], descriptors)) for i in range(N)]
+            #median_distances = [ np.median([FeatureTrackerShared.descriptor_distance(d, descriptors[i]) for d in descriptors]) for i in range(N) ]
+            median_distances = [ np.median(FeatureTrackerShared.descriptor_distances(descriptors[i], descriptors)) for i in range(N)]
             with self._lock_features:            
                 self.des = descriptors[np.argmin(median_distances)].copy()
             #print('descriptors: ', descriptors)
@@ -596,11 +596,11 @@ class MapPoint(MapPointBase):
     def predict_detection_level(self, dist):
         with self._lock_pos:             
             ratio = self._max_distance/dist
-        level = math.ceil(math.log(ratio)/FrameShared.feature_manager.log_scale_factor)
+        level = math.ceil(math.log(ratio)/FeatureTrackerShared.feature_manager.log_scale_factor)
         if level < 0:
             level = 0
-        elif level >= FrameShared.feature_manager.num_levels:
-            level = FrameShared.feature_manager.num_levels-1
+        elif level >= FeatureTrackerShared.feature_manager.num_levels:
+            level = FeatureTrackerShared.feature_manager.num_levels-1
         return level
     
     
@@ -609,6 +609,6 @@ def predict_detection_levels(points, dists):
     assert(len(points)==len(dists)) 
     max_distances = np.array([p._max_distance for p in points])  
     ratios = max_distances/dists
-    levels = np.ceil(np.log(ratios)/FrameShared.feature_manager.log_scale_factor).astype(np.intp)
-    levels = np.clip(levels,0,FrameShared.feature_manager.num_levels-1)
+    levels = np.ceil(np.log(ratios)/FeatureTrackerShared.feature_manager.log_scale_factor).astype(np.intp)
+    levels = np.clip(levels,0,FeatureTrackerShared.feature_manager.num_levels-1)
     return levels

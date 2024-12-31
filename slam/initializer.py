@@ -22,7 +22,7 @@ import time
 import cv2
 import random 
 
-from frame import Frame, FrameShared, match_frames
+from frame import Frame, FeatureTrackerShared, match_frames
 from keyframe import KeyFrame
 
 from collections import deque
@@ -83,7 +83,7 @@ class Initializer(object):
         self.check_cell_coverage = Parameters.kInitializerUseCellCoverageCheck
             
         if kShowFeatureMatches: 
-            FrameShared.is_store_imgs = True         
+            Frame.is_store_imgs = True         
         
     def reset(self):
         self.frames.clear()
@@ -119,15 +119,25 @@ class Initializer(object):
 
 
     # push the first image
-    def init(self, f_cur : Frame, img_cur):
-        f_cur.img = img_cur # enforce the image storage for the first frames: we need the keyframes to store images for loop detection
+    def init(self, f_cur : Frame, img_cur, img_right_cur=None, depth_img_cur=None):
+        # enforce the image storage for the first frames: we need the keyframes to store images for loop detection and other processing
+        f_cur.img = img_cur 
+        if img_right_cur is not None:
+            f_cur.set_img_right(img_right_cur)
+        if depth_img_cur is not None:
+            f_cur.set_depth_img(depth_img_cur)    
         self.frames.append(f_cur)    
         self.f_ref = f_cur
              
             
     # actually initialize having two available images                
-    def initialize(self, f_cur: Frame, img_cur): 
-        f_cur.img = img_cur # enforce the image storage for the first frames: we need the keyframes to store images for loop detection
+    def initialize(self, f_cur: Frame, img_cur, img_right_cur=None, depth_img_cur=None): 
+        # enforce the image storage for the first frames: we need the keyframes to store images for loop detection and other processing
+        f_cur.img = img_cur 
+        if img_right_cur is not None:
+            f_cur.set_img_right(img_right_cur)
+        if depth_img_cur is not None:
+            f_cur.set_depth_img(depth_img_cur)
         return self.initialize_simple(f_cur, img_cur)     # try to inizialize current frame with reference frame: reference position is adjusted in the buffer
         #return self.initialize_enumerate(f_cur, img_cur) # try to inizialize current frame with all frames we can use in the buffer    
             
@@ -196,7 +206,7 @@ class Initializer(object):
         if len(idxs_cur) == 0 or len(idxs_ref) == 0:
             print(f'Initializer: # keypoint matches: idxs_cur: {len(idxs_cur)}, idxs_ref: {len(idxs_ref)}')
             return out, is_ok
-        if FrameShared.oriented_features and len(idxs_cur) > 0 and len(idxs_ref) > 0:      
+        if FeatureTrackerShared.oriented_features and len(idxs_cur) > 0 and len(idxs_ref) > 0:      
             valid_match_idxs = filter_matches_with_histogram_orientation(idxs_cur, idxs_ref, f_cur, f_ref)
             if len(valid_match_idxs)>0:
                 idxs_cur = idxs_cur[valid_match_idxs]

@@ -45,8 +45,8 @@ kDebugAndPrintToFile = True
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kLogsFolder = kRootFolder + '/logs'
 
 
 if kVerbose and kDebugAndPrintToFile:

@@ -55,8 +55,8 @@ kPrintTrackebackDetails = True
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kDataFolder = kRootFolder + '/../data'
+kRootFolder = kScriptFolder + '/..'
+kDataFolder = kRootFolder + '/data'
 
 
 if Parameters.kLoopClosingDebugAndPrintToFile:

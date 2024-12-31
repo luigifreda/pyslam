@@ -5,7 +5,7 @@ from utils_features import descriptor_sigma_mad
 from utils_sys import Printer
 
 from config_parameters import Parameters 
-from frame import FrameShared
+from frame import FeatureTrackerShared
 
 # experimental 
 class SLAMDynamicConfig:
@@ -26,7 +26,7 @@ class SLAMDynamicConfig:
         if len(idxs_cur)>0:
             des_cur = f_cur.des[idxs_cur]
             des_ref = f_ref.des[idxs_ref]
-            sigma_mad,_ = descriptor_sigma_mad(des_cur, des_ref, descriptor_distances=FrameShared.descriptor_distances)
+            sigma_mad,_ = descriptor_sigma_mad(des_cur, des_ref, descriptor_distances=FeatureTrackerShared.descriptor_distances)
             delta = self.descriptor_distance_factor*sigma_mad
             if self.descriptor_distance_sigma is None:
                 self.descriptor_distance_sigma = delta

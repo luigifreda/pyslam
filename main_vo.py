@@ -20,6 +20,7 @@
 
 import numpy as np
 import cv2
+import os
 import math
 import time 
 import platform 
@@ -39,6 +40,11 @@ from feature_tracker_configs import FeatureTrackerConfigs
 
 from rerun_interface import Rerun
 
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+kResultsFolder = kRootFolder + '/results'
 
 
 kUseRerun = True
@@ -130,7 +136,7 @@ if __name__ == "__main__":
 
             vo.track(img, img_id, timestamp)  # main VO function 
 
-            if(img_id > 2):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
+            if(len(vo.traj3d_est)>1):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
 
                 x, y, z = vo.traj3d_est[-1]
                 x_true, y_true, z_true = vo.traj3d_gt[-1]
@@ -209,8 +215,10 @@ if __name__ == "__main__":
     #cv2.waitKey(0)
 
     if is_draw_traj_img:
-        print('saving map.png')
-        cv2.imwrite('map.png', traj_img)
+        if not os.path.exists(kResultsFolder):
+            os.makedirs(kResultsFolder, exist_ok=True)
+        print(f'saving {kResultsFolder}/map.png')
+        cv2.imwrite(f'{kResultsFolder}/map.png', traj_img)
     if is_draw_3d:
         if not kUsePangolin:
             plt3d.quit()

@@ -33,6 +33,11 @@ from utils_serialization import SerializableEnum, register_class
 
 import ujson as json
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from config import Config # Only imported when type checking, not at runtime
+
+
 @register_class
 class DatasetType(SerializableEnum):
     NONE = 1
@@ -58,10 +63,32 @@ class SensorType(SerializableEnum):
     RGBD=2
 
 
-def dataset_factory(config):
+# A minimal dataset config for serialization
+class MinimalDatasetConfig:
+    def __init__(self, config:'Config' =None, dataset_settings=None, cam_settings=None, cam_stereo_settings=None):
+        self.dataset_settings = config.dataset_settings if config is not None else dataset_settings
+        self.cam_settings = config.cam_settings if config is not None else cam_settings
+        self.cam_stereo_settings = config.cam_stereo_settings if config is not None else cam_stereo_settings
+
+    def to_json(self):
+        return {
+            'dataset_settings': self.dataset_settings,
+            'cam_settings': self.cam_settings,
+            'cam_stereo_settings': self.cam_stereo_settings,
+        }
+        
+    @staticmethod
+    def from_json(json_str):
+        return MinimalDatasetConfig(
+            dataset_settings=json_str['dataset_settings'], 
+            cam_settings=json_str['cam_settings'], 
+            cam_stereo_settings=json_str['cam_stereo_settings'])
+
+
+def dataset_factory(config:'Config'):
     dataset_settings = config.dataset_settings
-    type=DatasetType.NONE
-    associations = None
+    type = DatasetType.NONE
+    associations = None  # name of the file with the associations
     timestamps = None    
     path = None 
     is_color = None  # used for kitti datasets
@@ -114,7 +141,9 @@ def dataset_factory(config):
         dataset = FolderDataset(path, name, sensor_type, fps, associations, timestamps, start_frame_id, DatasetType.FOLDER)      
     if type == 'live':
         dataset = LiveDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.LIVE)   
-                
+           
+    dataset.minimal_config = MinimalDatasetConfig(config=config)
+
     return dataset 
 
 
@@ -139,6 +168,9 @@ class Dataset(object):
         self.timestamps = None 
         self._timestamp = None       # current timestamp if available [s]
         self._next_timestamp = None  # next timestamp if available otherwise an estimate [s]
+        self.associations = associations  # name of the file with the associations
+        
+        self.minimal_config = MinimalDatasetConfig()
         
     def isOk(self):
         return self.is_ok
@@ -162,6 +194,9 @@ class Dataset(object):
     def getImageColor(self, frame_id):
         frame_id += self.start_frame_id
         if self.num_frames is not None and frame_id >= self.num_frames:
+            if self.is_ok:
+                Printer.yellow(f'Dataset end: {self.name}, path: {self.path}, frame id: {frame_id}')
+                self.is_ok = False
             return None
         try: 
             img = self.getImage(frame_id)
@@ -219,15 +254,12 @@ class Dataset(object):
         return timestamps
     
     def to_json(self):
-        return {
-            'type': self.type.name,            
-            'name': self.name,
-            'sensor_type': self.sensor_type.name,
-            'path': self.path,            
-            'start_frame_id': self.start_frame_id,
-            'fps': self.fps,
-            'num_frames': self.num_frames
-        }
+        return self.minimal_config.to_json()
+        
+    @staticmethod
+    def from_json(json_str):
+        minimal_config = MinimalDatasetConfig.from_json(json_str)
+        return dataset_factory(minimal_config)
         
     def save_info(self, path):
         filename = path + '/dataset_info.json'
@@ -239,43 +271,56 @@ class VideoDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, associations=None, timestamps=None, start_frame_id=0, type=DatasetType.VIDEO): 
         super().__init__(path, name, sensor_type, None, associations, start_frame_id, type)    
         if sensor_type != SensorType.MONOCULAR:
-            raise ValueError('Video dataset only supports MONOCULAR sensor type')
-        self.filename = path + '/' + name 
+            raise ValueError('VideoDataset only supports MONOCULAR sensor type at present time')
+        self.filename = os.path.join(path, name)
+        if not os.path.exists(self.filename):
+            raise FileNotFoundError(f"VideoDataset: File does not exist: {self.filename}")
                 
-        #print('video: ', self.filename)
         self.cap = cv2.VideoCapture(self.filename)
-        self.i = 0        
+        if not self.cap.isOpened():
+            raise IOError(f"VideoDataset: Cannot open movie file: {self.filename}")
+                     
         self.timestamps = None
         if timestamps is not None:
-            self.timestamps = self._read_timestamps(path + '/' + timestamps)
-            Printer.green('read timestamps from ' + path + '/' + timestamps)
-        if not self.cap.isOpened():
-            raise IOError('Cannot open movie file: ', self.filename)
-        else: 
-            print('Processing Video Input')
-            self.num_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) 
-            self.fps = float(self.cap.get(cv2.CAP_PROP_FPS))
-            self.Ts = 1./self.fps 
-            print('num frames: ', self.num_frames)  
-            print('fps: ', self.fps)              
-        self.is_init = False   
+            timestamps_path = os.path.join(path, timestamps)
+            if not os.path.exists(timestamps_path):
+                raise FileNotFoundError(f"Timestamps file does not exist: {timestamps_path}")            
+            self.timestamps = self._read_timestamps(timestamps_path)
+            Printer.green('read timestamps from ' + timestamps_path)
+
+        print('Processing Video Input')
+        self.num_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) 
+        self.fps = float(self.cap.get(cv2.CAP_PROP_FPS))
+        self.Ts = 1.0 / self.fps if self.fps > 0 else 0 
+        self.i = 0           
+        self.is_init = False           
+        print(f"VideoDataset: {self.filename}")
+        print(f"VideoDataset: Number of frames: {self.num_frames}, FPS: {self.fps}")            
             
     def getImage(self, frame_id):
-        # retrieve the first image if its id is > 0 
-        if self.is_init is False and frame_id > 0:
+        # retrieve the first image if its id is >= 0 
+        if self.is_init is False and frame_id >= 0:
             self.is_init = True 
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
-        self.is_init = True
+            self.i = frame_id
+
         ret, image = self.cap.read()
+        if not ret:
+            raise RuntimeError(f"Error reading frame from file: {self.filename}")
+                
         if self.timestamps is not None:
+            if self.i > len(self.timestamps) - 1:
+                raise IndexError("Reached the end of the timestamp list.")            
             # read timestamps from timestamps file
             self._timestamp = float(self.timestamps[self.i])
-            self._next_timestamp = float(self.timestamps[self.i + 1])
+            if self.i < len(self.timestamps) - 1:
+                self._next_timestamp = float(self.timestamps[self.i + 1])
+            else:
+                self._next_timestamp = self._timestamp + self.Ts
             self.i += 1
         else:
-            #self._timestamp = time.time()  # rough timestamp if nothing else is available 
             self._timestamp = float(self.cap.get(cv2.CAP_PROP_POS_MSEC)*1000)
             self._next_timestamp = self._timestamp + self.Ts 
         if ret is False:
@@ -549,24 +594,24 @@ class TumDataset(Dataset):
         if sensor_type == SensorType.MONOCULAR:
             self.scale_viewer_3d = 0.05             
         print('Processing TUM Sequence')        
-        self.base_path=self.path + '/' + self.name + '/'
-        associations_file=self.path + '/' + self.name + '/' + associations
-        with open(associations_file) as f:
-            self.associations = f.readlines()
-            self.max_frame_id = len(self.associations)   
+        self.base_path = self.path + '/' + self.name + '/'
+        self.associations_path = self.path + '/' + self.name + '/' + associations
+        with open(self.associations_path) as f:
+            self.associations_data = f.readlines()
+            self.max_frame_id = len(self.associations_data)   
             self.num_frames = self.max_frame_id        
-        if self.associations is None:
+        if self.associations_data is None:
             sys.exit('ERROR while reading associations file!')    
 
     def getImage(self, frame_id):
         img = None
         if frame_id < self.max_frame_id:
-            file = self.base_path + self.associations[frame_id].strip().split()[1]
+            file = self.base_path + self.associations_data[frame_id].strip().split()[1]
             img = cv2.imread(file)
             self.is_ok = (img is not None)
-            self._timestamp = float(self.associations[frame_id].strip().split()[0])
+            self._timestamp = float(self.associations_data[frame_id].strip().split()[0])
             if frame_id +1 < self.max_frame_id: 
-                self._next_timestamp = float(self.associations[frame_id+1].strip().split()[0])
+                self._next_timestamp = float(self.associations_data[frame_id+1].strip().split()[0])
             else:
                 self._next_timestamp = self._timestamp + self.Ts              
         else:
@@ -580,12 +625,12 @@ class TumDataset(Dataset):
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
-            file = self.base_path + self.associations[frame_id].strip().split()[3]
+            file = self.base_path + self.associations_data[frame_id].strip().split()[3]
             img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
             self.is_ok = (img is not None)
-            self._timestamp = float(self.associations[frame_id].strip().split()[0])
+            self._timestamp = float(self.associations_data[frame_id].strip().split()[0])
             if frame_id +1 < self.max_frame_id: 
-                self._next_timestamp = float(self.associations[frame_id+1].strip().split()[0])
+                self._next_timestamp = float(self.associations_data[frame_id+1].strip().split()[0])
             else:
                 self._next_timestamp = self._timestamp + self.Ts                
         else:
@@ -621,23 +666,23 @@ class EurocDataset(Dataset):
         self.num_frames = self.max_frame_id
         
         # in case of stereo mode, we rectify the stereo images
-        self.stereo_settings = config.stereo_settings
+        self.cam_stereo_settings = config.cam_stereo_settings
         if self.sensor_type == SensorType.STEREO:
             Printer.yellow('[EurocDataset] automatically rectifying the stereo images')
-            if self.stereo_settings is None: 
+            if self.cam_stereo_settings is None: 
                 sys.exit('ERROR: we are missing stereo settings in Euroc YAML settings!')   
-            width = config.width 
-            height = config.height         
+            width = config.cam_settings['Camera.width'] 
+            height = config.cam_settings['Camera.height']         
             
-            K_l = self.stereo_settings['left']['K']
-            D_l = self.stereo_settings['left']['D']
-            R_l = self.stereo_settings['left']['R']
-            P_l = self.stereo_settings['left']['P']
+            K_l = self.cam_stereo_settings['left']['K']
+            D_l = self.cam_stereo_settings['left']['D']
+            R_l = self.cam_stereo_settings['left']['R']
+            P_l = self.cam_stereo_settings['left']['P']
             
-            K_r = self.stereo_settings['right']['K']
-            D_r = self.stereo_settings['right']['D']
-            R_r = self.stereo_settings['right']['R']
-            P_r = self.stereo_settings['right']['P']
+            K_r = self.cam_stereo_settings['right']['K']
+            D_r = self.cam_stereo_settings['right']['D']
+            R_r = self.cam_stereo_settings['right']['R']
+            P_r = self.cam_stereo_settings['right']['P']
             
             self.M1l,self.M2l = cv2.initUndistortRectifyMap(K_l, D_l, R_l, P_l[0:3,0:3], (width, height), cv2.CV_32FC1)
             self.M1r,self.M2r = cv2.initUndistortRectifyMap(K_r, D_r, R_r, P_r[0:3,0:3], (width, height), cv2.CV_32FC1)

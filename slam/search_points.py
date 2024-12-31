@@ -22,7 +22,7 @@ import math
 import numpy as np
 import cv2 
 
-from frame import Frame, FrameShared, are_map_points_visible, are_map_points_visible_in_frame
+from frame import Frame, FeatureTrackerShared, are_map_points_visible, are_map_points_visible_in_frame
 from keyframe import KeyFrame
 from map_point import MapPoint, predict_detection_levels
 
@@ -49,7 +49,7 @@ def propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur,
     idx_cur_out = []
     
     rot_histo = RotationHistogram()
-    check_orientation = kCheckFeaturesOrientation and FrameShared.oriented_features
+    check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features
         
     # populate f_cur with map points by propagating map point matches of f_ref; 
     # to this aim, we use map points observed in f_ref and keypoint matches between f_ref and f_cur  
@@ -103,7 +103,7 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
     idxs_cur = [] 
     
     rot_histo = RotationHistogram()
-    check_orientation = kCheckFeaturesOrientation and FrameShared.oriented_features    
+    check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features    
     
     trc = None
     forward = False
@@ -139,7 +139,7 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
     # is_visible, projs, depths, dists = f_cur.are_visible(matched_ref_points)
         
     kp_ref_octaves = f_ref.octaves[matched_ref_idxs]       
-    kp_ref_scale_factors = FrameShared.feature_manager.scale_factors[kp_ref_octaves]              
+    kp_ref_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[kp_ref_octaves]              
     radiuses = max_reproj_distance * kp_ref_scale_factors     
     kd_cur_idxs = f_cur.kd.query_ball_point(projs[:,:2], radiuses)   
     
@@ -163,7 +163,7 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
         if do_check_stereo_reproj_err:
             check_stereo = f_cur.kps_ur[kd_cur_idxs_j]>0 
             kp_cur_octaves = f_cur.octaves[kd_cur_idxs_j]       
-            kp_cur_scale_factors = FrameShared.feature_manager.scale_factors[kp_cur_octaves]  
+            kp_cur_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[kp_cur_octaves]  
             errs_ur = np.fabs(projs[j,2] - f_cur.kps_ur[kd_cur_idxs_j]) 
             ok_errs_ur = np.where(check_stereo, errs_ur < max_reproj_distance * kp_cur_scale_factors,True)  
                            
@@ -259,7 +259,7 @@ def search_map_by_projection(points, f_cur: Frame,
     visible_pts, projs, depths, dists = f_cur.are_visible(points)
     
     predicted_levels = predict_detection_levels(points, dists) 
-    kp_scale_factors = FrameShared.feature_manager.scale_factors[predicted_levels]              
+    kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
     kd_cur_idxs = f_cur.kd.query_ball_point(projs, radiuses)
                            
@@ -400,7 +400,7 @@ def search_more_map_points_by_projection(points: set,
         print_fun(f'search_more_map_points_by_projection: #visible points: {len(visible_pts)}')
     
     predicted_levels = predict_detection_levels(target_points, dists) 
-    kp_scale_factors = FrameShared.feature_manager.scale_factors[predicted_levels]              
+    kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
     kd_cur_idxs = f_cur.kd.query_ball_point(projs, radiuses)
     
@@ -507,17 +507,17 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
     if idxs1 is None or idxs2 is None:
         timerMatch = Timer()
         timerMatch.start()
-        matching_result = FrameShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des)  
+        matching_result = FeatureTrackerShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des)  
         idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2      
         if __debug__:        
             print('search_frame_for_triangulation - matching - timer: ', timerMatch.elapsed())        
     
     rot_histo = RotationHistogram()
-    check_orientation = kCheckFeaturesOrientation and FrameShared.oriented_features     
+    check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features     
         
         
-    level_sigmas2 = FrameShared.feature_manager.level_sigmas2
-    scale_factors = FrameShared.feature_manager.scale_factors
+    level_sigmas2 = FeatureTrackerShared.feature_manager.level_sigmas2
+    scale_factors = FeatureTrackerShared.feature_manager.scale_factors
     
     # check epipolar constraints 
     for i1,i2 in zip(idxs1,idxs2):
@@ -525,7 +525,7 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
             #print('existing point on match')
             continue 
         
-        descriptor_dist = FrameShared.descriptor_distance(kf1.des[i1], kf2.des[i2])
+        descriptor_dist = FeatureTrackerShared.descriptor_distance(kf1.des[i1], kf2.des[i2])
         if descriptor_dist > max_descriptor_distance:
             continue     
         
@@ -604,7 +604,7 @@ def search_and_fuse(points, keyframe: KeyFrame,
         return fused_pts_count   
     
     predicted_levels = predict_detection_levels(good_pts, good_dists) 
-    kp_scale_factors = FrameShared.feature_manager.scale_factors[predicted_levels]              
+    kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
     
     kd_idxs = keyframe.kd.query_ball_point(good_projs[:,:2], radiuses)    
@@ -639,7 +639,7 @@ def search_and_fuse(points, keyframe: KeyFrame,
             errs_ur = proj[2] - keyframe.kps_ur[kd_idxs_j] # proj_ur - kp_ur
             errs_ur2 = errs_ur*errs_ur
             
-        inv_level_sigmas2 = FrameShared.feature_manager.inv_level_sigmas2
+        inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
                         
         for h, kd_idx in enumerate(kd_idxs_j):             
                 
@@ -754,7 +754,7 @@ def search_and_fuse_for_loop_correction(keyframe: KeyFrame,
         return replace_points
     
     predicted_levels = predict_detection_levels(good_pts, good_dists) 
-    kp_scale_factors = FrameShared.feature_manager.scale_factors[predicted_levels]              
+    kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
     
     kd_idxs = keyframe.kd.query_ball_point(good_projs[:,:2], radiuses)    
@@ -779,7 +779,7 @@ def search_and_fuse_for_loop_correction(keyframe: KeyFrame,
 
         kd_idxs_j = kd_idxs[j]                
             
-        inv_level_sigmas2 = FrameShared.feature_manager.inv_level_sigmas2
+        inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
                         
         for h, kd_idx in enumerate(kd_idxs_j):             
                 
@@ -862,7 +862,7 @@ def search_by_sim3(kf1: KeyFrame, kf2: KeyFrame,
     # if print_fun is not None:
     #     print_fun(f'search_by_sim3: found: {len(unmatched_idxs1)} unmatched map points of kf1 {kf1.id}, {len(unmatched_idxs2)} unmatched map points of kf2 {kf2.id}')
 
-    scale_factors = FrameShared.feature_manager.scale_factors
+    scale_factors = FeatureTrackerShared.feature_manager.scale_factors
     
     # check which unmatched points of kf1 are visible on kf2 
     visible_flags_21, projs_21, depths_21, dists_21 = \

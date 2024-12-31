@@ -22,7 +22,7 @@ import math
 import numpy as np
 import cv2 
 
-from frame import Frame, FrameShared
+from frame import Frame, FeatureTrackerShared
 from utils_geom import skew, add_ones, normalize_vector, computeF12, check_dist_epipolar_line
 from utils_draw import draw_lines, draw_points 
 from utils_sys import Printer, getchar
@@ -105,7 +105,7 @@ def find_matches_along_line(f, e, line, descriptor,
         for k_idx in f.kd.query_ball_point(x, radius):
             # if no point associated 
             if f.get_point_match(k_idx) is None: 
-                descriptor_dist = FrameShared.descriptor_distance(f.des[k_idx], descriptor)                
+                descriptor_dist = FeatureTrackerShared.descriptor_distance(f.des[k_idx], descriptor)                
                 if descriptor_dist < max_descriptor_distance:  
                     if True: 
                         return k_idx, descriptor_dist  # stop at the first match 
@@ -173,7 +173,7 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1 = None)
     for i, p in enumerate(f1.get_points()): 
         if p is None:  # we consider just unmatched keypoints 
             kp = f1.kpsu[i]
-            scale_factor = FrameShared.feature_manager.scale_factors[f1.octaves[i]]
+            scale_factor = FeatureTrackerShared.feature_manager.scale_factors[f1.octaves[i]]
             # discard points which are too close to the epipole 
             if np.linalg.norm(kp-e1) < Parameters.kMinDistanceFromEpipole * scale_factor:             
                 continue    

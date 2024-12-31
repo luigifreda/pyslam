@@ -1,10 +1,10 @@
-# pySLAM v2.3.0
+# pySLAM v2.4.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.3.0](#pyslam-v230)
+- [pySLAM v2.4.0](#pyslam-v240)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -49,7 +49,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 **pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following **features**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
 - Various loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
-- A **[volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)** that processes available depth and color images.
+- A **[volumetric reconstruction pipeline](#volumetric-reconstruction-pipeline)** that processes available depth and color images. This can use TSDF or Gaussian Splatting for volumetric integration.
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
 - A collection of other useful tools for VO and SLAM.
 
@@ -62,7 +62,9 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 * `main_depth_prediction.py` shows how to use the available depth inference models to get depth estimations from input color images.
   
-* `main_map_viewer.py` allows to reload a saved map and visualize it. Further details [here](#relocalization-in-a-loaded-map).
+* `main_map_viewer.py` reloads a saved map and visualizes it. Further details on how to save a map [here](#save-and-reload-a-map).
+
+* `main_map_dense_reconstruction.py` reloads a saved map and uses a configured volumetric integrator to obtain a dense reconstruction. 
 
 **System overview**      
 [Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main system components, and classes relationships and dependencies.
@@ -166,7 +168,7 @@ $ ./main_slam.py
 ```
 
 This will process a default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing/clicking on one of the opened matplotlib windows and pressing the key 'Q'. 
-**Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets).
+<!-- **Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). -->
 
 ### Feature tracking
 
@@ -229,7 +231,7 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 ### Save and reload a map
 
 When you run the script `main_slam.py`:
-- The current map can be saved into the file `data/slam_state/map.json` by pressing the button `Save` on the GUI. 
+- The current map state is saved into the folder `results/slam_state` by pressing the button `Save` on the GUI. 
 - The saved map can be reloaded and visualized into the GUI by running: 
   ```bash
   $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
@@ -242,7 +244,7 @@ To enable map reloading and relocalization in it, open `config.yaml` and set
 ```bash
 SYSTEM_STATE:
   load_state: True               # flag to enable SLAM state reloading (map state + loop closing state)
-  folder_path: data/slam_state   # folder path relative to root of this repository
+  folder_path: results/slam_state   # folder path relative to root of this repository
 ```
 
 Pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map overwrites the current system configurations to ensure descriptor compatibility.  
@@ -255,7 +257,7 @@ Estimated trajectories can be saved in three different formats: *TUM* (The Open 
 SAVE_TRAJECTORY:
   save_trajectory: True
   format_type: tum
-  filename: data/kitti00_trajectory.txt
+  filename: results/kitti_trajectory.txt
 ```
 
 ### SLAM GUI 
@@ -268,11 +270,13 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 
 ### Monitor the logs for tracking, local mapping, and loop closing simultaneously
 
-The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, which are all stored in the folder `logs`. For fun/debugging, you can monitor each parallel flow by running the following command in a separate shell:    
+The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, and `global_bundle_adjustments.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, and `gba.log`, which are all stored in the folder `logs`. For debugging, you can monitor a parallel flow by running the following command in a separate shell:    
 `$ tail -f logs/<log file name>`     
-Otherwise, just run the script:       
+Otherwise, to check all parallel logs with tmux, run:          
+`$ ./scripts/launch_tmux_logs.sh`           
+To launch slam and check all logs in a single tmux, run:     
 `$ ./scripts/launch_tmux_slam.sh`      
-from the repo root folder. Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
+Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 ---
 

@@ -52,9 +52,9 @@ kTimerVerbose = False
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kDataFolder = kRootFolder + '/../data'
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kDataFolder = kRootFolder + '/data'
+kLogsFolder = kRootFolder + '/logs'
 
 
 if kVerbose:

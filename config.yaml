@@ -49,7 +49,7 @@ LIB_PATHS:
   raft_stereo: thirdparty/raft_stereo, thirdparty/raft_stereo/core
   crestereo: thirdparty/crestereo
   crestereo_pytorch: thirdparty/crestereo_pytorch 
-  #crestereo_onnx: thirdparty/crestereo_onnx
+  gaussian_splatting: thirdparty/monogs
 
 
 DATASET:
@@ -68,11 +68,11 @@ KITTI_DATASET:
   sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset
   #
-  # name: '06'
-  # settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
+  name: '06'
+  settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
   #
-  name: '00'
-  settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
+  # name: '00'
+  # settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   is_color: True # do you have the color images for the kitti dataset? (image2 and image3 folders)
   groundtruth_file: auto
@@ -83,14 +83,17 @@ TUM_DATASET:
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
-  #name: rgbd_dataset_freiburg3_long_office_household
-  #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
+  name: rgbd_dataset_freiburg3_long_office_household
+  settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   #name: rgbd_dataset_freiburg1_xyz 
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
-  name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
-  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
+  #name: rgbd_dataset_freiburg2_desk
+  #settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
+  #
+  #name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
+  #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto
@@ -120,7 +123,7 @@ REPLICA_DATASET:
   type: replica
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/replica
-  name: 'room2'
+  name: 'office0'
   settings: settings/REPLICA.yaml # do not forget to correctly set the corresponding camera settings file
   groundtruth_file: auto
 
@@ -159,13 +162,13 @@ FOLDER_DATASET:
 SYSTEM_STATE: 
   # This section is used for saving and re-loading the system state: Map + Loop closing state  
   load_state: False              # flag to enable SLAM state reloading (map state + loop closing state) and relocalization
-  folder_path: data/slam_state   # folder path relative to root of this repository
+  folder_path: results/slam_state   # folder path relative to root of this repository
  
 
 SAVE_TRAJECTORY:
   save_trajectory: True
   format_type: kitti    # supported formats: `tum`, `kitti`, `euroc`
-  filename: kitti_trajectory.txt
+  filename: results/kitti_trajectory.txt
 
 
 # DO NOT USE [LIVE_DATASET]! This section is here for future developments. 

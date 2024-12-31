@@ -22,6 +22,9 @@ import platform
 
 from utils_data import SafeQueue
 
+
+# Utilities for multiprocessing
+
 class MultiprocessingManager:
     # NOTE: The usage of the multiprocessing Manager().Queue() generates pickling problems 
     #       when we use set_start_method('spawn') with torch.multiprocessing (which is needed by torch with CUDA).

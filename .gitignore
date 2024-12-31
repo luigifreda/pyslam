@@ -50,6 +50,8 @@ data/orb_descriptors_kitti.npy
 data/slam_state
 data/kitti_trajectory.txt
 
+results/
+
 thirdparty/pydbow3/ORBvoc.txt
 
 thirdparty/protoc 

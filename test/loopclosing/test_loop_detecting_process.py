@@ -45,8 +45,8 @@ if __name__ == '__main__':
     
     print(f'feature tracker manager: {feature_tracker.feature_manager}')
     
-    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FrameShared. 
-    Frame.set_tracker(feature_tracker) 
+    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FeatureTrackerShared. 
+    FeatureTrackerShared.set_feature_tracker(feature_tracker) 
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW3, etc.

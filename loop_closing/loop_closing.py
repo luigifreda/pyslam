@@ -40,7 +40,7 @@ from qimage_thread import QimageViewer
 from loop_detector_configs import LoopDetectorConfigs
 
 from keyframe import KeyFrame
-from frame import Frame, FrameShared, compute_frame_matches, prepare_input_data_for_sim3solver, prepare_input_data_for_pnpsolver
+from frame import Frame, FeatureTrackerShared, compute_frame_matches, prepare_input_data_for_sim3solver, prepare_input_data_for_pnpsolver
 from map import Map
 from global_bundle_adjustment import GlobalBundleAdjustment
 from dataset import SensorType
@@ -75,8 +75,8 @@ kPrintTrackebackDetails = True
         
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kLogsFolder = kRootFolder + '/logs'
 
             
 if kVerbose:
@@ -215,7 +215,7 @@ class LoopGeometryChecker:
                 assert(len(idxs_kf_cur)==len(idxs_kf))
                 
                 # if features have descriptors with orientation then let's check the matches with a rotation histogram
-                if FrameShared.oriented_features:
+                if FeatureTrackerShared.oriented_features:
                     #num_matches_before = len(idxs_kf_cur)
                     valid_match_idxs = filter_matches_with_histogram_orientation(idxs_kf_cur, idxs_kf, current_keyframe, kf)
                     if len(valid_match_idxs)>0:
@@ -715,11 +715,11 @@ class LoopClosing:
             self.is_running = False           
             if self.stop == False:
                 self.stop = True    
-                if self.work_thread is not None:
+                if self.work_thread is not None and self.work_thread.is_alive():
                     self.work_thread.join(timeout=5)
         self.loop_detecting_process.quit()
         self.GBA.quit()  
-        if self.loop_consistent_candidate_imgs.candidates is not None:
+        if self.loop_consistent_candidate_imgs.candidates is not None or self.draw_similarity_matrix_init:
             cv2.destroyAllWindows()
         if QimageViewer.is_running():
             QimageViewer.get_instance().quit()

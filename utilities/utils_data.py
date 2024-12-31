@@ -22,6 +22,7 @@ import threading as th
 
 import traceback
 import platform
+import copy
 
 from utils_sys import Printer
 
@@ -29,9 +30,29 @@ from utils_sys import Printer
 kPrintTrackebackDetails = True
 
 
+def clone_obj(obj):
+    clone_obj = copy.deepcopy(obj)
+    for attr in clone_obj.__dict__.keys():
+        # check if its a property
+        if hasattr(clone_obj.__class__, attr) and isinstance(
+            getattr(clone_obj.__class__, attr), property
+        ):
+            continue
+        if isinstance(getattr(clone_obj, attr), torch.Tensor):
+            setattr(clone_obj, attr, getattr(clone_obj, attr).detach().clone())
+    return clone_obj
+
+
+def static_fields_to_dict(cls):
+    return {
+        key: value
+        for key, value in vars(cls).items()
+        if not key.startswith('__') and not callable(value)
+    }
+
 # empty a queue before exiting from the consumer thread/process for safety
 def empty_queue(queue, verbose=True):
-    if platform.system() == 'Darwin':
+    #if platform.system() == 'Darwin':
         try:             
             while not queue.empty():
                 queue.get_nowait() 
@@ -41,16 +62,16 @@ def empty_queue(queue, verbose=True):
                 if kPrintTrackebackDetails:
                     traceback_details = traceback.format_exc()
                     print(f'\t traceback details: {traceback_details}')
-    else:
-        try:
-            while queue.qsize()>0:
-                queue.get_nowait()
-        except Exception as e:
-            if verbose:
-                Printer.red(f'EXCEPTION in empty_queue: {e}')
-                if kPrintTrackebackDetails:
-                    traceback_details = traceback.format_exc()
-                    print(f'\t traceback details: {traceback_details}')
+    # else:
+    #     try:
+    #         while queue.qsize()>0:
+    #             queue.get_nowait()
+    #     except Exception as e:
+    #         if verbose:
+    #             Printer.red(f'EXCEPTION in empty_queue: {e}')
+    #             if kPrintTrackebackDetails:
+    #                 traceback_details = traceback.format_exc()
+    #                 print(f'\t traceback details: {traceback_details}')
 
 class Value:
     def __init__(self, type, value):
@@ -181,3 +202,19 @@ class SafeQueue:
     def cancel_join_thread(self):
         """Cancel the queue's worker thread."""
         self.queue.cancel_join_thread()
+        
+        
+class FakeQueue:
+    def put(self, arg):
+        del arg
+
+    def get_nowait(self):
+        raise mp.queues.Empty
+
+    def qsize(self):
+        return 0
+
+    def empty(self):
+        return True
+
+

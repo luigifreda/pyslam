@@ -229,7 +229,7 @@ class KeyFrame(Frame,KeyFrameGraph):
             self.depth_img = frame.depth_img
         else:
             if depth is not None:
-                self.depth_img = depth #.copy()
+                self.set_depth_img(depth) 
                 
         self.map = None 
                 
@@ -286,7 +286,8 @@ class KeyFrame(Frame,KeyFrameGraph):
         
         frame_json['is_keyframe'] = self.is_keyframe
         frame_json['kid'] = self.kid
-        frame_json['_is_bad'] = self._is_bad        
+        frame_json['_is_bad'] = self._is_bad
+        frame_json['lba_count'] = self.lba_count
         frame_json['to_be_erased'] = self.to_be_erased
         frame_json['_pose_Tcp'] = json.dumps(self._pose_Tcp.Tcw.astype(float).tolist())
         
@@ -300,7 +301,8 @@ class KeyFrame(Frame,KeyFrameGraph):
                 
         kf.is_keyframe = bool(json_str['is_keyframe'])
         kf.kid = json_str['kid']        
-        kf._is_bad = bool(json_str['_is_bad'])        
+        kf._is_bad = bool(json_str['_is_bad'])
+        kf.lba_count = int(json_str['lba_count'])   
         kf.to_be_erased = bool(json_str['to_be_erased'])
         kf._pose_Tcp = CameraPose(json.loads(json_str['_pose_Tcp']))
         

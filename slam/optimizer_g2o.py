@@ -31,7 +31,7 @@ import g2o
 from utils_geom import poseRt, Sim3Pose
 from utils_sys import Printer
 from utils_mp import MultiprocessingManager
-from frame import FrameShared
+from frame import FeatureTrackerShared
 from map_point import MapPoint
 from keyframe import KeyFrame
 
@@ -145,7 +145,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             #print('adding edge between point ', p.id,' and frame ', f.id)
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx]>0
             
-            invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
+            invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
             
             if is_stereo_obs: 
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
@@ -347,7 +347,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
             
             # add edge
             edge = None 
-            invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[frame.octaves[idx]]
+            invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[frame.octaves[idx]]
                         
             if is_stereo_obs: 
                 #print('adding stereo edge between point ', p.id,' and frame ', frame.id)
@@ -534,7 +534,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
             #print('adding edge between point ', p.id,' and frame ', f.id)
       
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx]>0
-            invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
+            invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
             
             if is_stereo_obs:
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
@@ -722,7 +722,7 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
                 #print('adding edge between point ', p.id,' and frame ', f.id)
                             
                 is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx] > 0
-                invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
+                invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
 
                 if is_stereo_obs:
                     edge = g2o.EdgeStereoSE3ProjectXYZ()
@@ -1048,7 +1048,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_12.set_vertex(0, optimizer.vertex(vertex_id2))
             edge_12.set_vertex(1, optimizer.vertex(0))
             edge_12.set_measurement(kf1.kpsu[i])
-            invSigma2_12 = FrameShared.feature_manager.inv_level_sigmas2[kf1.octaves[i]]
+            invSigma2_12 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf1.octaves[i]]
             edge_12.set_information(np.eye(2) * invSigma2_12)
             edge_12.set_robust_kernel(g2o.RobustKernelHuber(delta_huber))
             optimizer.add_edge(edge_12)
@@ -1058,7 +1058,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_21.set_vertex(0, optimizer.vertex(vertex_id1))
             edge_21.set_vertex(1, optimizer.vertex(0))
             edge_21.set_measurement(kf2.kpsu[index2])
-            invSigma2_21 = FrameShared.feature_manager.inv_level_sigmas2[kf2.octaves[index2]]
+            invSigma2_21 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf2.octaves[index2]]
             edge_21.set_information(np.eye(2) * invSigma2_21)                
             edge_21.set_robust_kernel(g2o.RobustKernelHuber(delta_huber))
             optimizer.add_edge(edge_21)

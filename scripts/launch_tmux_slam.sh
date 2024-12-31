@@ -26,6 +26,7 @@ if ! -f "$LOGS_DIR/volumetric_integrator.log"; then
     touch "$LOGS_DIR/volumetric_integrator.log"
 fi
 
+# launch SLAM and check the parallel logs
 COMMAND_STRING='[" . '$ROOT_DIR'/pyenv-activate.sh; '$ROOT_DIR'/main_slam.py", "tail -f '$LOGS_DIR'/local_mapping.log", "tail -f '$LOGS_DIR'/loop_closing.log '$LOGS_DIR'/loop_detecting.log", "tail -f '$LOGS_DIR'/gba.log", "tail -f '$LOGS_DIR'/volumetric_integrator.log"]'
 echo COMMAND_STRING: $COMMAND_STRING
 

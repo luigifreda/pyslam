@@ -33,7 +33,7 @@ import g2o
 
 from config_parameters import Parameters  
 
-from frame import Frame, FrameShared, match_frames
+from frame import Frame, FeatureTrackerShared, match_frames
 from keyframe import KeyFrame
 from map_point import MapPoint
 from map import Map
@@ -101,8 +101,8 @@ kNumMinObsForKeyFrameDefault = 3
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kLogsFolder = kRootFolder + '/logs'
 
 
 if not kVerbose:
@@ -128,18 +128,12 @@ class Tracking:
     def __init__(self, slam: 'Slam'):
         
         if kShowFeatureMatches: 
-            FrameShared.is_store_imgs = True 
+            Frame.is_store_imgs = True 
                     
-        self.slam = slam     
-        #self.feature_tracker = slam.feature_tracker # type: FeatureTracker                        
-        #self.camera = slam.camera 
-        #self.map = slam.map
-        #self.sensor_type = slam.sensor_type
+        self.slam = slam
         
         self.trackingWaitForLocalMappingSleepTime = Parameters.kTrackingWaitForLocalMappingSleepTime
         
-        #self.local_mapping = slam.local_mapping # type: LocalMapping
-                                
         self.intializer = Initializer(self.sensor_type)
         
         self.motion_model = MotionModel()  # motion model for current frame pose prediction without damping  
@@ -151,7 +145,7 @@ class Tracking:
         if self.sensor_type == SensorType.RGBD:
             self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapRgbd   
         
-        self.max_frames_between_kfs = int(slam.camera.fps) 
+        self.max_frames_between_kfs = int(slam.camera.fps) if slam.camera.fps is not None else 1
         self.min_frames_between_kfs = 0         
 
         self.state = SlamState.NO_IMAGES_YET
@@ -427,7 +421,7 @@ class Tracking:
         if f_ref is None:
             return 
         # find keypoint matches between f_cur and kf_ref   
-        print('matching keypoints with ', FrameShared.feature_matcher.matcher_type.name)              
+        print('matching keypoints with ', FeatureTrackerShared.feature_matcher.matcher_type.name)              
         self.timer_match.start()
         matching_result = match_frames(f_cur, f_ref) 
         idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)           
@@ -653,16 +647,16 @@ class Tracking:
     def create_new_keyframe(self, f_cur: Frame, img,  img_right=None, depth=None):
         if not self.local_mapping.set_not_stop(True):
             return
-            
-        Printer.green('adding new KF with frame id % d: ' %(f_cur.id))
-        if kLogKFinfoToFile:
-            self.kf_info_logger.info('adding new KF with frame id % d: ' %(f_cur.id))  
-                          
-        kf_new = KeyFrame(f_cur, img)                                     
+                                      
+        kf_new = KeyFrame(f_cur, img, img_right, depth)                                     
         self.kf_last = kf_new  
         self.kf_ref = kf_new 
         f_cur.kf_ref = kf_new                  
         
+        Printer.green(f'Adding new KF with id {kf_new.id}, img shape: {img.shape if img is not None else None}, img_right shape: {img_right.shape if img_right is not None else None}, depth shape: {depth.shape if depth is not None else None}')
+        if kLogKFinfoToFile:
+            self.kf_info_logger.info('adding new KF with frame id % d: ' %(f_cur.id))  
+                    
         self.map.add_keyframe(kf_new)   # add kf_cur to map 
         
         if self.sensor_type != SensorType.MONOCULAR:
@@ -828,9 +822,9 @@ class Tracking:
         
         # at initialization time is better to use more extracted features     
         if self.state != SlamState.OK:
-            FrameShared.feature_tracker.set_double_num_features() 
+            FeatureTrackerShared.feature_tracker.set_double_num_features() 
         else:
-            FrameShared.feature_tracker.set_normal_num_features()
+            FeatureTrackerShared.feature_tracker.set_normal_num_features()
 
         # build current frame 
         self.timer_frame.start()        
@@ -845,13 +839,13 @@ class Tracking:
         
         if self.state == SlamState.NO_IMAGES_YET: 
             # push first frame in the inizializer 
-            self.intializer.init(f_cur, img) 
+            self.intializer.init(f_cur, img, img_right, depth) 
             self.state = SlamState.NOT_INITIALIZED
             return # EXIT (jump to second frame)
         
         if self.state == SlamState.NOT_INITIALIZED:
             # try to inizialize 
-            initializer_output, intializer_is_ok = self.intializer.initialize(f_cur, img)
+            initializer_output, intializer_is_ok = self.intializer.initialize(f_cur, img, img_right, depth)
             if intializer_is_ok:
                 kf_ref = initializer_output.kf_ref
                 kf_cur = initializer_output.kf_cur

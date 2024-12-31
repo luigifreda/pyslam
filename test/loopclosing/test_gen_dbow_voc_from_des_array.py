@@ -20,7 +20,8 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/../..'
 kDataFolder = kRootFolder + '/data'
-kOrbVocabFile = kDataFolder + '/ORBvoc_test.txt'
+kResultsFolder = kRootFolder + '/results'
+kOrbVocabFile = kResultsFolder + '/ORBvoc_test.txt'
 
 
 kUseDbow3 = True   
@@ -55,7 +56,7 @@ def main(input_file, output_file):
 # load descriptors array from a file and generate vocabulary      
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("-i","--input_file", required=False, type=str, default=kDataFolder+"/orb_descriptors_kitti.npy", help="Path to your descriptors array")
+    argparser.add_argument("-i","--input_file", required=False, type=str, default=kResultsFolder+"/orb_descriptors_kitti.npy", help="Path to your descriptors array")
     argparser.add_argument("-o","--output_file", required=False, type=str, default=kOrbVocabFile, help="Path to save the vocabulary")
     args = argparser.parse_args()
 

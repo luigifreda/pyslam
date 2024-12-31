@@ -27,7 +27,7 @@ import ujson as json
 
 from config_parameters import Parameters  
 
-from frame import Frame, FrameShared, match_frames
+from frame import Frame, FeatureTrackerShared, match_frames
 from keyframe import KeyFrame
 from map_point import MapPoint
 from map import Map
@@ -54,7 +54,8 @@ from utils_features import ImageGrid
 from slam_commons import SlamState
 from tracking import Tracking
 
-from volumetric_integrator import VolumetricIntegrator, VolumetricIntegratorOutput
+from volumetric_integrator_base import VolumetricIntegrationOutput
+from volumetric_integrator_factory import volumetric_integrator_factory, VolumetricIntegratorType
 
 kVerbose = True     
 
@@ -71,16 +72,28 @@ if not kVerbose:
         pass 
 
 
+class SlamMode(SerializableEnum):
+    SLAM        = 0   # Normal SLAM mode.
+    MAP_BROWSER = 1   # Want to reload a map and view it. Don't beed loop closing, volume integrator
+
+
 # Main slam system class containing all the required modules. 
 class Slam(object):
-    def __init__(self, camera: Camera, feature_tracker_config: dict, loop_detector_config=None, 
-                 sensor_type=SensorType.MONOCULAR, groundtruth=None, environment_type=DatasetEnvironmentType.OUTDOOR):
+    def __init__(self, camera: Camera, 
+                 feature_tracker_config: dict, 
+                 loop_detector_config=None, 
+                 sensor_type=SensorType.MONOCULAR, 
+                 environment_type=DatasetEnvironmentType.OUTDOOR,
+                 slam_mode=SlamMode.SLAM):
         self.camera = camera 
         self.feature_tracker_config = feature_tracker_config
         self.loop_detector_config = loop_detector_config
         self.sensor_type = sensor_type  
         self.environment_type = environment_type   
+        
+        self.feature_tracker = None
         self.init_feature_tracker(feature_tracker_config)
+        
         self.map = Map()
         self.local_mapping = LocalMapping(self)        
         self.loop_closing = None
@@ -88,11 +101,17 @@ class Slam(object):
         self.volumetric_integrator = None
         self.reset_requested = False
   
-        self.init_volumetric_integrator() 
-        self.init_loop_closing(loop_detector_config)     
+        self.volumetric_integrator = None
+        self.loop_closing = None
+        self.GBA = None
+                    
+        if slam_mode == SlamMode.SLAM:
+            self.init_volumetric_integrator() 
+            self.init_loop_closing(loop_detector_config)     
                 
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
+                     
         self.tracking = Tracking(self) # after all the other initializations
         
         #self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
@@ -131,9 +150,9 @@ class Slam(object):
     def init_feature_tracker(self, feature_tracker_config):
         feature_tracker = feature_tracker_factory(**feature_tracker_config)          
         self.feature_tracker = feature_tracker
-        # Set the static field of the class Frame and FrameShared.
+        # Set the static field of the class Frame and FeatureTrackerShared.
         # NOTE: Here, we set force=True since we don't care if the feature_tracker is already set.
-        Frame.set_tracker(feature_tracker, force=True) 
+        FeatureTrackerShared.set_feature_tracker(feature_tracker, force=True) 
         if kUseEssentialMatrixFitting:
             Printer.orange('SLAM: forcing feature matcher ratio_test to 0.8')
             feature_tracker.matcher.ratio_test = 0.8
@@ -151,7 +170,8 @@ class Slam(object):
         
     def init_volumetric_integrator(self):
         if Parameters.kUseVolumetricIntegration:
-            self.volumetric_integrator = VolumetricIntegrator(self)
+            self.volumetric_integrator_type = VolumetricIntegratorType.from_string(Parameters.kVolumetricIntegrationType)
+            self.volumetric_integrator = volumetric_integrator_factory(self.volumetric_integrator_type, self.camera, self.environment_type, self.sensor_type)
         
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None):
@@ -160,7 +180,7 @@ class Slam(object):
     def set_tracking_state(self, state: SlamState):
         self.tracking.state = state
         
-    def get_dense_map(self) -> VolumetricIntegratorOutput:
+    def get_dense_map(self) -> VolumetricIntegrationOutput:
         if self.volumetric_integrator is not None:
             q_out_size = self.volumetric_integrator.q_out.qsize()
             if q_out_size > 0:
@@ -179,6 +199,9 @@ class Slam(object):
         map_json = self.map.to_json()
         feature_tracker_config_json = SerializationJSON.serialize(self.feature_tracker_config)
         loop_detector_config_json = SerializationJSON.serialize(self.loop_detector_config)
+        
+        map_out_json['sensor_type'] = SerializationJSON.serialize(self.sensor_type)
+        map_out_json['environment_type'] = SerializationJSON.serialize(self.environment_type)
         
         map_out_json['map'] = map_json
         map_out_json['feature_tracker_config'] = feature_tracker_config_json 
@@ -214,6 +237,17 @@ class Slam(object):
             loaded_json = json.loads(f.read())
             
             print()
+            
+            loaded_sensor_type = SerializationJSON.deserialize(loaded_json['sensor_type'])
+            if loaded_sensor_type != self.sensor_type:
+                Printer.yellow(f'SLAM: sensor type mismatch on load_system_state(): {loaded_sensor_type} != {self.sensor_type}')
+                #sys.exit(0)
+            self.sensor_type = loaded_sensor_type
+            loaded_environment_type = SerializationJSON.deserialize(loaded_json['environment_type'])
+            if loaded_environment_type != self.environment_type:
+                Printer.yellow(f'SLAM: environment type mismatch on load_system_state(): {loaded_environment_type} != {self.environment_type}')
+                #sys.exit(0)
+            
             #loaded_feature_tracker_config = loaded_json['feature_tracker_config']
             #print(f'SLAM: deserializing feature_tracker_config: {loaded_feature_tracker_config} ...')
             feature_tracker_config = SerializationJSON.deserialize(loaded_json['feature_tracker_config'])
@@ -241,6 +275,16 @@ class Slam(object):
             map_json = loaded_json['map']                     
             self.map.from_json(map_json)
             self.local_mapping.start()
+            
+        # check if current set camera is the same as the one stored in the map 
+        if self.map is not None and len(self.map.keyframes) > 0:
+            camera0 = self.map.keyframes[0].camera
+            if camera0.width != self.camera.width or camera0.height != self.camera.height:
+                Printer.yellow(f'SLAM: camera size mismatch on load_system_state(): {camera0.width}x{camera0.height} != {self.camera.width}x{self.camera.height}')
+                # update the camera
+                self.camera = camera0 
+                if self.volumetric_integrator is not None:
+                    self.volumetric_integrator.camera = camera0
         Printer.green(f'SLAM: ...system state successfully loaded from: {path}')
     
     def save_map(self, path):

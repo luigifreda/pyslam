@@ -57,8 +57,8 @@ kPrintTrackebackDetails = True
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kLogsFolder = kRootFolder + '/../logs'
+kRootFolder = kScriptFolder + '/..'
+kLogsFolder = kRootFolder + '/logs'
 
 
 if kVerbose:
@@ -155,7 +155,7 @@ class GlobalBundleAdjustment:
         self.process.start()
                     
     def is_running(self):
-        return self._is_running.value == 1
+        return (self._is_running.value == 1)
     
     def abort(self):
         print('GlobalBundleAdjustment: interrupting GBA...')
@@ -167,8 +167,9 @@ class GlobalBundleAdjustment:
     def quit(self):
         if self.is_running():
             print('GlobalBundleAdjustment: quitting...')
-            self.abort()                                     
-            self.process.join(timeout=1)
+            self.abort()
+            if self.process.is_alive():                               
+                self.process.join(timeout=1)
             if self.process.is_alive():
                 message = 'GlobalBundleAdjustment: WARNING: GBA process did not terminate in time, forced kill.'
                 print(message)

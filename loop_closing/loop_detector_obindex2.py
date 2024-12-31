@@ -34,7 +34,7 @@ from feature_types import FeatureInfo
 from timer import TimerFps
 
 from keyframe import KeyFrame
-from frame import Frame, FrameShared
+from frame import Frame, FeatureTrackerShared
 
 from loop_detector_base import LoopDetectorTaskType, LoopDetectKeyframeData, LoopDetectorTask, LoopDetectorOutput, LoopDetectorBase
 
@@ -56,8 +56,8 @@ kTimerVerbose = False
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kDataFolder = kRootFolder + '/../data'
+kRootFolder = kScriptFolder + '/..'
+kDataFolder = kRootFolder + '/data'
 
 
 if Parameters.kLoopClosingDebugAndPrintToFile:

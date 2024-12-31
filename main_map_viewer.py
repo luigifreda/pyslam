@@ -28,10 +28,10 @@ import platform
 
 from config import Config
 
-from slam import Slam, SlamState
+from slam import Slam, SlamState, SlamMode
 from camera  import PinholeCamera
 from dataset import dataset_factory, SensorType
-
+from ground_truth import GroundTruth
 
 from viewer3D import Viewer3D
 from utils_sys import getchar, Printer 
@@ -44,28 +44,33 @@ from config_parameters import Parameters
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=str, default='data/slam_state', help='path where we have saved the system state')
+    parser.add_argument('-p', '--path', type=str, default='results/slam_state', help='path where we have saved the system state')
     args = parser.parse_args()
 
     config = Config()
 
-    cam = PinholeCamera(config)
+    camera = PinholeCamera()
     feature_tracker_config = FeatureTrackerConfigs.TEST
     
     # create SLAM object 
-    slam = Slam(cam, feature_tracker_config)
-    time.sleep(1) # to show initial messages 
-
+    slam = Slam(camera, feature_tracker_config, slam_mode=SlamMode.MAP_BROWSER)   
+    # load the system state
     slam.load_system_state(args.path)
+    camera = slam.camera # update the camera after having reloaded the state 
+    groundtruth = GroundTruth.load(args.path) # load ground truth from saved state
     viewer_scale = slam.viewer_scale() if slam.viewer_scale()>0 else 0.1  # 0.1 is the default viewer scale
     print(f'viewer_scale: {viewer_scale}')
         
     viewer3D = Viewer3D(viewer_scale)
+    if groundtruth is not None:
+        gt_traj3d, gt_timestamps = groundtruth.getFull3dTrajectory()
+        viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=slam.sensor_type==SensorType.MONOCULAR)    
             
-    while True:            
+    while not viewer3D.is_closed():  
+        time.sleep(0.1)
+                  
         # 3D display (map display)
-        if viewer3D is not None:
-            viewer3D.draw_map(slam)   
+        viewer3D.draw_map(slam)   
                 
     slam.quit()
     

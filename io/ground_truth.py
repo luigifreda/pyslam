@@ -22,17 +22,13 @@ import sys
 import csv
 import json
 import numpy as np 
+
 from enum import Enum
+
 from utils_sys import Printer 
 from utils_geom import rotmat2qvec, xyzq2Tmat
 
-class GroundTruthType(Enum):
-    NONE = 1
-    KITTI = 2
-    TUM = 3
-    EUROC = 4
-    REPLICA = 5
-    SIMPLE = 6
+from utils_serialization import SerializableEnum, register_class, NumpyJson, NumpyB64Json, SerializationJSON
 
 
 kScaleSimple = 1.0
@@ -42,9 +38,19 @@ kScaleEuroc = 1.0
 kScaleReplica = 1.0
 
 
+@register_class
+class GroundTruthType(SerializableEnum):
+    NONE = 1
+    KITTI = 2
+    TUM = 3
+    EUROC = 4
+    REPLICA = 5
+    SIMPLE = 6
+
+
 def groundtruth_factory(settings):
 
-    type=GroundTruthType.NONE
+    type = GroundTruthType.NONE
     associations = None 
 
     type = settings['type']
@@ -58,18 +64,18 @@ def groundtruth_factory(settings):
                    
     print('using groundtruth: ', type)   
     if type == 'kitti':         
-        return KittiGroundTruth(path, name, associations, start_frame_id, GroundTruthType.KITTI)
+        return KittiGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.KITTI)
     if type == 'tum':          
         if 'associations' in settings:
             associations = settings['associations']        
-        return TumGroundTruth(path, name, associations, start_frame_id, GroundTruthType.TUM)
+        return TumGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.TUM)
     if type == 'euroc':         
-        return EurocGroundTruth(path, name, associations, start_frame_id, GroundTruthType.EUROC)
+        return EurocGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.EUROC)
     if type == 'replica':         
-        return ReplicaGroundTruth(path, name, associations, start_frame_id, GroundTruthType.REPLICA)
+        return ReplicaGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.REPLICA)
     if type == 'video' or type == 'folder':   
         name = settings['groundtruth_file']
-        return SimpleGroundTruth(path, name, associations, start_frame_id, GroundTruthType.SIMPLE)     
+        return SimpleGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.SIMPLE)     
     else:
         print('not using groundtruth')
         print('if you are using main_vo.py, your estimated trajectory will not make sense!')          
@@ -82,16 +88,16 @@ class GroundTruth(object):
         self.path=path 
         self.name=name 
         self.type=type    
-        self.associations=associations 
+        self.associations=associations # name of the file containing the associations
         self.filename=None
-        self.file_associations=None         
+        self.associations_path=None         
         self.data=None 
         self.scale = 1
         self.start_frame_id=start_frame_id
         
-        self.trajectory = None 
-        self.timestamps = None
-        self.poses = None 
+        self.trajectory = None    # 3d position trajectory 
+        self.timestamps = None    # array of timestamps corresponding to the trajectory
+        self.poses = None         # 6d pose trajectory in the form on an array of homogeneous transformation matrices
 
     def getDataLine(self, frame_id):
         frame_id+=self.start_frame_id
@@ -145,6 +151,8 @@ class GroundTruth(object):
         return self.poses[idx]
     
     def getFull3dTrajectory(self):
+        if self.trajectory is not None and self.timestamps is not None:
+            return self.trajectory, self.timestamps
         num_lines = len(self.data)
         self.trajectory = []
         self.timestamps = []
@@ -161,6 +169,8 @@ class GroundTruth(object):
         return self.trajectory, self.timestamps
     
     def getFull6dTrajectory(self):
+        if self.trajectory is not None and self.poses is not None and self.timestamps is not None:
+            return self.trajectory, self.poses, self.timestamps
         num_lines = len(self.data)
         self.trajectory = []
         self.poses = []
@@ -179,6 +189,91 @@ class GroundTruth(object):
         self.poses = np.array(self.poses, dtype=float)
         return self.trajectory, self.poses, self.timestamps    
     
+    def to_json(self):
+        self.getFull6dTrajectory() # to make sure we have everything
+        ret = {
+            'path': self.path,
+            'name': self.name,
+            'type': SerializationJSON.serialize(self.type),
+            'start_frame_id': self.start_frame_id,
+            'filename': self.filename,
+            'associations': self.associations,
+            'data': json.dumps(NumpyB64Json.numpy_to_json(self.data)),
+            'timestamps': json.dumps(NumpyB64Json.numpy_to_json(self.timestamps)) if self.timestamps is not None else None,
+            'trajectory': json.dumps(NumpyB64Json.numpy_to_json(self.trajectory)) if self.trajectory is not None else None,
+            'poses': json.dumps(NumpyB64Json.numpy_to_json(self.poses)) if self.poses is not None else None,
+        }
+        return ret
+    
+    @staticmethod
+    def from_json(json_str):
+        path = json_str['path']
+        name = json_str['name']
+        type = SerializationJSON.deserialize(json_str['type'])
+        start_frame_id = json_str['start_frame_id']
+        filename = json_str['filename']
+        associations = json_str['associations']
+        data = NumpyB64Json.json_to_numpy(json.loads(json_str['data']))
+        timestamps = NumpyB64Json.json_to_numpy(json.loads(json_str['timestamps'])) if json_str['timestamps'] is not None else None
+        trajectory = NumpyB64Json.json_to_numpy(json.loads(json_str['trajectory'])) if json_str['trajectory'] is not None else None
+        poses = NumpyB64Json.json_to_numpy(json.loads(json_str['poses'])) if json_str['poses'] is not None else None
+                
+        gt = GroundTruth(path=path, name=name, type=type, start_frame_id=start_frame_id, associations=associations)
+        gt.filename = filename
+        gt.data = data
+        gt.timestamps = timestamps
+        gt.trajectory = trajectory
+        gt.poses = poses
+        return gt
+    
+    def save(self, path):
+        filepath = path + '/gt.json'
+        with open(filepath, 'w') as f:
+            json.dump(self.to_json(), f)
+            
+    @staticmethod
+    def load(path):
+        filepath = path + '/gt.json'
+        if not os.path.exists(filepath):
+            Printer.error(f'ERROR: GroundTruth.load(): file {filepath} does not exist!')
+            return None
+        with open(filepath, 'r') as f:
+            json_str = json.load(f)
+        return GroundTruth.from_json(json_str)
+    
+    @staticmethod
+    def associate(first_list, second_list, offset=0, max_difference=0.08*1e9):
+        """
+        Associate two dictionaries of (stamp,data). As the time stamps never match exactly, we aim 
+        to find the closest match for every input tuple.
+        
+        Input:
+        first_list -- first list of (stamp,data) tuples
+        second_list -- second list of (stamp,data) tuples
+        offset -- time offset between both dictionaries (e.g., to model the delay between the sensors)
+        max_difference -- search radius for candidate generation
+
+        Output:
+        matches -- map: index_stamp_first -> (index_stamp_second, diff_stamps, first_timestamp, second_timestamp)
+        """        
+        matches = {}
+        first_flag = [False]*len(first_list)
+        second_flag = [False]*len(second_list)        
+        # extract timestamps
+        t1 = np.array([float(data1[0]) for data1 in first_list])
+        t2 = np.array([(float(data2[0])+offset) for data2 in second_list])
+        for i, t in enumerate(t1):
+            j = np.argmin(np.abs(t2 - t))
+            if abs(t2[j] - t) < max_difference:
+                first_flag[i] = True
+                second_flag[j] = True
+                matches[int(i)] = (int(j), abs(t2[j] - t), t, t2[j])
+        missing_associations = [(i,a) for i,a in enumerate(first_list) if first_flag[i] is False]
+        num_missing_associations = len(missing_associations)
+        if num_missing_associations > 0:
+            Printer.red(f'ERROR: {num_missing_associations} missing associations!')                
+        return matches        
+    
 
 # Read the ground truth from a simple file containining [timestamp, x,y,z, qx, qy, qz, qw, scale] lines
 # Use the file convert_groundtruth.py to convert a dataset into this format.
@@ -189,6 +284,7 @@ class SimpleGroundTruth(GroundTruth):
         self.filename=path + '/' + name
         with open(self.filename) as f:
             self.data = f.readlines()
+            self.data = np.array(self.data)
             self.found = True 
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file: please, check how you deployed the files and if the code is consistent with this!') 
@@ -249,6 +345,7 @@ class KittiGroundTruth(GroundTruth):
         self.filename_timestamps = path + '/sequences/' + name + '/times.txt'
         with open(self.filename) as f:
             self.data = f.readlines()
+            self.data = np.array(self.data)
             self.found = True 
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file: please, check how you deployed the files and if the code is consistent with this!') 
@@ -320,8 +417,8 @@ class TumGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.TUM): 
         super().__init__(path, name, associations, start_frame_id, type)
         self.scale = kScaleTum 
-        self.filename=path + '/' + name + '/' + 'groundtruth.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
-        self.file_associations=path + '/' + name + '/' + associations # N.B.: this may depend on how you name the associations file
+        self.filename = path + '/' + name + '/' + 'groundtruth.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
+        self.associations_path = path + '/' + name + '/' + associations # N.B.: this may depend on how you name the associations file
         
         base_path = os.path.dirname(self.filename)
         print('base_path: ', base_path)
@@ -329,19 +426,20 @@ class TumGroundTruth(GroundTruth):
         with open(self.filename) as f:
             self.data = f.readlines()[3:] # skip the first three rows, which are only comments 
             self.data = [line.strip().split() for line in  self.data] 
+            self.data = np.array(self.data)
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file!') 
-        if self.file_associations is not None: 
-            with open(self.file_associations) as f:
-                self.associations = f.readlines()
-                self.associations = [line.strip().split() for line in self.associations] 
-            if self.associations is None:
+        if self.associations_path is not None: 
+            with open(self.associations_path) as f:
+                self.associations_data = f.readlines()
+                self.associations_data = [line.strip().split() for line in self.associations_data] 
+            if self.associations_data is None:
                 sys.exit('ERROR while reading associations file!')   
                 
         associations_file = base_path + '/gt_associations.json'
-        if not os.path.exists(associations_file):
-            Printer.orange('Computing groundtruth associations (one-time operation)...')             
-            self.association_matches = self.associate(self.associations, self.data)
+        if True: #not os.path.exists(associations_file):
+            #Printer.orange('Computing groundtruth associations (one-time operation, results will be saved)...')             
+            self.association_matches = self.associate(self.associations_data, self.data)
             # save associations
             with open(associations_file, 'w') as f:
                 json.dump(self.association_matches, f)
@@ -351,7 +449,6 @@ class TumGroundTruth(GroundTruth):
                 self.association_matches = {int(k): v for k, v in data.items()}
 
     def getDataLine(self, frame_id):
-        #return self.data[self.association_matches[frame_id][1]]
         return self.data[self.association_matches[frame_id][0]]
 
     # return timestamp,x,y,z,scale
@@ -398,45 +495,7 @@ class TumGroundTruth(GroundTruth):
             abs_scale = 1
         else:
             abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
-        return timestamp,x,y,z, qx,qy,qz,qw,abs_scale    
-    
-    @staticmethod
-    def associate(first_list, second_list, offset=0, max_difference=0.025*(10**9)):
-        """
-        Associate two dictionaries of (stamp,data). As the time stamps never match exactly, we aim 
-        to find the closest match for every input tuple.
-        
-        Input:
-        first_list -- first list of (stamp,data) tuples
-        second_list -- second list of (stamp,data) tuples
-        offset -- time offset between both dictionaries (e.g., to model the delay between the sensors)
-        max_difference -- search radius for candidate generation
-
-        Output:
-        matches -- map: index_stamp_first -> (index_stamp_second, diff_stamps, first_timestamp, second_timestamp)
-        
-        """
-        potential_matches = [(abs(float(a[0]) - (float(b[0]) + offset)), ia, ib) # a[0] and b[0] extract the first element which is a timestamp 
-                            for ia,a in enumerate(first_list)      #for counter, value in enumerate(some_list)
-                            for ib,b in enumerate(second_list)
-                            if abs(float(a[0])  - (float(b[0])  + offset)) < max_difference]
-        potential_matches.sort()
-        matches = {}
-        first_flag = [False]*len(first_list)
-        second_flag = [False]*len(second_list)
-        for diff, ia, ib in potential_matches:
-            if first_flag[ia] is False and second_flag[ib] is False:
-                #first_list.remove(a)
-                first_flag[ia] = True
-                #second_list.remove(b)
-                second_flag[ib] = True 
-                matches[ia]= (ib, diff, first_list[ia][0], second_list[ib][0])
-        missing_associations = [(ia,a) for ia,a in enumerate(first_list) if first_flag[ia] is False]
-        num_missing_associations = len(missing_associations)
-        if num_missing_associations > 0:
-            Printer.red(f'ERROR: {num_missing_associations} missing associations!')
-        return matches       
-
+        return timestamp,x,y,z, qx,qy,qz,qw,abs_scale
 
 class EurocGroundTruth(GroundTruth):
     kReadTumConversion = False
@@ -464,9 +523,11 @@ class EurocGroundTruth(GroundTruth):
         if EurocGroundTruth.kReadTumConversion:    
             with open(self.filename) as f:
                 self.data = f.readlines()
-                self.data = [line.strip().split() for line in self.data] 
+                self.data = [line.strip().split() for line in self.data]
+                self.data = np.array(self.data)
         else:
             self.data = self.read_gt_data_state(self.filename)
+            self.data = np.array(self.data)
                     
         if len(self.data) > 0:
             self.found = True
@@ -479,8 +540,8 @@ class EurocGroundTruth(GroundTruth):
         self.image_data=self.read_image_data(self.image_left_csv_path)
                             
         associations_file = base_path + '/associations.json'
-        if not os.path.exists(associations_file):
-            Printer.orange('Computing groundtruth associations (one-time operation)...')             
+        if True: #not os.path.exists(associations_file):
+            #Printer.orange('Computing groundtruth associations (one-time operation)...')             
             self.association_matches = self.associate(self.image_data, self.data)
             # save associations
             with open(associations_file, 'w') as f:
@@ -533,44 +594,6 @@ class EurocGroundTruth(GroundTruth):
                 data.append((float(timestamp_ns)*1e-9, position[0], position[1], position[2], quaternion[1], quaternion[2], quaternion[3], quaternion[0]))
         return data
 
-    
-    @staticmethod
-    def associate(first_list, second_list, offset=0, max_difference=0.025*(10**9)):
-        """
-        Associate two dictionaries of (stamp,data). As the time stamps never match exactly, we aim 
-        to find the closest match for every input tuple.
-        
-        Input:
-        first_list -- first list of (stamp,data) tuples
-        second_list -- second list of (stamp,data) tuples
-        offset -- time offset between both dictionaries (e.g., to model the delay between the sensors)
-        max_difference -- search radius for candidate generation
-
-        Output:
-        matches -- map index_stamp_first -> (index_stamp_second, diff_stamps)
-        
-        """
-        potential_matches = [(abs(float(a[0]) - (float(b[0]) + offset)), ia, ib) # a[0] and b[0] extract the first element which is a timestamp 
-                            for ia,a in enumerate(first_list)      #for counter, value in enumerate(some_list)
-                            for ib,b in enumerate(second_list)
-                            if abs(float(a[0])  - (float(b[0])  + offset)) < max_difference]
-        potential_matches.sort()
-        matches = {}
-        first_flag = [False]*len(first_list)
-        second_flag = [False]*len(second_list)
-        for diff, ia, ib in potential_matches:
-            if first_flag[ia] is False and second_flag[ib] is False:
-                #first_list.remove(a)
-                first_flag[ia] = True
-                #second_list.remove(b)
-                second_flag[ib] = True 
-                matches[ia]= (ib, diff)
-        missing_associations = [(ia,a) for ia,a in enumerate(first_list) if first_flag[ia] is False]
-        num_missing_associations = len(missing_associations)
-        if num_missing_associations > 0:
-            Printer.red(f'ERROR: {num_missing_associations} missing associations!')
-        return matches   
-        
     def getDataLine(self, frame_id):
         return self.data[self.association_matches[frame_id][0]]
     
@@ -646,6 +669,7 @@ class ReplicaGroundTruth(GroundTruth):
                 self.poses_.append(pose)
                 timestamp = i*self.Ts
                 self.timestamps_.append(timestamp)
+            self.data = np.array(self.data)
         print(f'Number of poses: {len(self.poses_)}')
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file!') 

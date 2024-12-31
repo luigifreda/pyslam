@@ -27,8 +27,10 @@ import cv2
 import threading
 import logging
 from logging.handlers import QueueHandler, QueueListener
-import multiprocessing
-import atexit
+
+#import multiprocessing as mp
+import torch.multiprocessing as mp
+
 
 from pathlib import Path
 import gdown
@@ -37,6 +39,7 @@ from tqdm import tqdm  # Import tqdm for progress bars
 
 import shutil
 import tempfile
+import atexit
 
 
 # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
@@ -228,6 +231,7 @@ class Logging(object):
         return logger        
 
 
+
 class SingletonBase:
     _instances = {}
 
@@ -261,7 +265,7 @@ class LoggerQueue(SingletonBase):
         )
         
         # Shared log queue
-        self.log_queue = multiprocessing.Queue()
+        self.log_queue = mp.Queue()
 
         # File handler for the listener
         self.file_handler = logging.FileHandler(log_file)
@@ -271,8 +275,11 @@ class LoggerQueue(SingletonBase):
         self.listener = QueueListener(self.log_queue, self.file_handler)
 
         # Start the listener
-        self.listener.start()
-        print(f"LoggerQueue[{self.log_file}]: initialized and started.")
+        try:
+            self.listener.start()
+        except Exception as e:
+            print(f"LoggerQueue[{self.log_file}]: Error starting listener: {e}")
+        #print(f"LoggerQueue[{self.log_file}]: initialized and started.")
 
         self.is_closing = False
 
@@ -290,11 +297,11 @@ class LoggerQueue(SingletonBase):
         except Exception as e:
             print(f"LoggerQueue[{log_file}]: Error resetting log file: {e}")
             
-    def __del__(self):
-        """
-        Destructor to stop the logging listener safely.
-        """
-        self.stop_listener()
+    # def __del__(self):
+    #     """
+    #     Destructor to stop the logging listener safely.
+    #     """
+    #     self.stop_listener()
 
     def stop_listener(self):
         """
@@ -304,22 +311,24 @@ class LoggerQueue(SingletonBase):
         if self.is_closing:
             return
         self.is_closing = True
-        process_name = multiprocessing.current_process().name
-        print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopping ...")
+        process_name = mp.current_process().name
+        #print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopping ...")
         try:
             if hasattr(self, "listener") and self.listener:
                 self.listener.stop()  # Stop listener thread
                 self.listener = None
-                print(f"LoggerQueue[{self.log_file}]: process: {process_name}, listener stopped.")
+                #print(f"LoggerQueue[{self.log_file}]: process: {process_name}, listener stopped.")
             if hasattr(self, "log_queue"):
                 self.log_queue.close()  # Close the queue
-                print(f"LoggerQueue[{self.log_file}]: process: {process_name}, queue closed.")
+                self.log_queue.join_thread()
+                #print(f"LoggerQueue[{self.log_file}]: process: {process_name}, queue closed.")
             if hasattr(self, "file_handler"):
                 self.file_handler.close()  # Close the file handler
-                print(f"LoggerQueue[{self.log_file}]: process: {process_name}, file handler closed.")
+                #print(f"LoggerQueue[{self.log_file}]: process: {process_name}, file handler closed.")
         except Exception as e:
             print(f"LoggerQueue[{self.log_file}]: process: {process_name}, Exception during stop: {e}")
-
+        print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopped.")
+        
     def get_logger(self, name=None):
         """
         Create and return a logger configured to use the shared Queue.
@@ -337,6 +346,118 @@ class LoggerQueue(SingletonBase):
         return logger
     
 
+# An implementation of a thread- and process-safe file logger
+class FileLogger:
+    kSafetyLockingTimeout = 0.05
+    def __init__(self, log_file, 
+                 level=logging.INFO, 
+                 formatter=Logging.simple_log_formatter, 
+                 datefmt=''):
+        """
+        Initializes a thread- and process-safe logger.
+
+        :param log_file: Path to the log file.
+        """
+        self.log_file = log_file
+        self._process_lock = mp.Lock()
+        self._thread_lock = threading.Lock()
+        
+        self.reset_log_file(log_file)
+        self.log_file = log_file
+        self.level = level
+        self.formatter = formatter or logging.Formatter(
+            '%(asctime)s [%(levelname)s] (%(processName)s) %(message)s',
+            datefmt=datefmt,
+        )
+                
+        self._logger = logging.getLogger(log_file)
+        self._logger.setLevel(level)
+
+        # Prevent duplicate handlers if the logger is reused.
+        if not self._logger.hasHandlers():
+            file_handler = logging.FileHandler(log_file)
+            #formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(self.formatter)
+            self._logger.addHandler(file_handler)
+            
+        atexit.register(self.close)
+        
+    def close(self):
+        """Close the logger and release system resources."""
+        print(f"FileLogger[{self.log_file}]: closing...")
+        if self._logger:
+            self._logger.removeHandler(self._logger.handlers[0])
+            for h in self._logger.handlers:
+                h.close()
+            self._logger = None
+                        
+    def __del__(self):
+        self.close()
+        print(f"FileLogger[{self.log_file}]: deleted.")
+
+    def reset_log_file(self, log_file):
+        """
+        Clears the contents of the log file to reset it at the beginning.
+        """
+        try:
+            with open(log_file, 'w'):  # Open the file in write mode, which clears it
+                pass
+            print(f"FileLogger[{log_file}]: Log file reset.")
+        except Exception as e:
+            print(f"FileLogger[{log_file}]: Error resetting log file: {e}")
+            
+    def log(self, level, message):
+        """
+        Logs a message at the specified level in a thread- and process-safe manner.
+
+        :param level: Logging level (e.g., logging.INFO, logging.ERROR).
+        :param message: The log message.
+        """
+        # with self._thread_lock:
+        #     with self._process_lock:
+        #         self._logger.log(level, message)
+        
+        try:
+            if self._thread_lock.acquire(timeout=FileLogger.kSafetyLockingTimeout):  # Acquire the thread lock
+                try:
+                    if self._process_lock.acquire(timeout=FileLogger.kSafetyLockingTimeout):  # Acquire the process lock
+                        try:
+                            self._logger.log(level, message)  # Perform logging
+                        finally:
+                            self._process_lock.release()  # Always release the process lock
+                    else:
+                        print(f"FileLogger: ERROR while logging: could not acquire process lock in {FileLogger.kSafetyLockingTimeout} seconds")
+                finally:
+                    self._thread_lock.release()  # Always release the thread lock
+            else:
+                print(f"FileLogger: ERROR while logging: could not acquire thread lock in {FileLogger.kSafetyLockingTimeout} seconds")
+        except Exception as e:
+            # Handle logging exceptions or re-raise
+            print(f"FileLogger: ERROR while logging: {e}")
+
+
+
+    def info(self, message):
+        """Logs an info message."""
+        self.log(logging.INFO, message)
+
+    def debug(self, message):
+        """Logs a debug message."""
+        self.log(logging.DEBUG, message)
+
+    def warning(self, message):
+        """Logs a warning message."""
+        self.log(logging.WARNING, message)
+
+    def error(self, message):
+        """Logs an error message."""
+        self.log(logging.ERROR, message)
+
+    def critical(self, message):
+        """Logs a critical message."""
+        self.log(logging.CRITICAL, message)
+        
+        
 # This function check and exec 'from module import name' and directly return the 'name'.'method'.
 # The method is used to directly return a 'method' of 'name' (i.e. 'module'.'name'.'method')
 # N.B.: if a method is needed you CAN'T
@@ -399,15 +520,16 @@ def set_rlimit():
     import resource
     # Check the current soft and hard limits
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    print(f"set_rlimit(): Current soft limit: {soft_limit}, hard limit: {hard_limit}")
 
     # Set the new limit
     new_soft_limit = 4096
-    resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft_limit, hard_limit))
+    if new_soft_limit > soft_limit:
+        print(f"set_rlimit(): Current soft limit: {soft_limit}, hard limit: {hard_limit}")
+        resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft_limit, hard_limit))
 
-    # Confirm the change
-    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    print(f"set_rlimit(): Updated soft limit: {soft_limit}, hard limit: {hard_limit}")
+        # Confirm the change
+        soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        print(f"set_rlimit(): Updated soft limit: {soft_limit}, hard limit: {hard_limit}")
 
 
 # To fix this issue under linux: https://forum.qt.io/topic/119109/using-pyqt5-with-opencv-python-cv2-causes-error-could-not-load-qt-platform-plugin-xcb-even-though-it-was-found
@@ -497,9 +619,9 @@ class DataDownloader:
     def download_process(self, url, path, type, position=0):
         p = None
         if type == "http":
-            p = multiprocessing.Process(target=http_download, args=(url, path, position))
+            p = mp.Process(target=http_download, args=(url, path, position))
         elif type == "gdrive":
-            p = multiprocessing.Process(target=gdrive_download, args=(url, path, position))
+            p = mp.Process(target=gdrive_download, args=(url, path, position))
         else:
             raise NotImplementedError(f"Download type '{type}' is not implemented")
         return p

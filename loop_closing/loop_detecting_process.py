@@ -60,8 +60,8 @@ kTimerVerbose = False
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder
-kDataFolder = kRootFolder + '/../data'
+kRootFolder = kScriptFolder + '/..'
+kDataFolder = kRootFolder + '/data'
 
 
 if Parameters.kLoopClosingDebugAndPrintToFile:
@@ -209,8 +209,9 @@ class LoopDetectingProcess:
             with self.q_out_condition:
                 self.q_out_condition.notify_all()
             with self.q_out_reloc_condition:
-                self.q_out_reloc_condition.notify_all()                       
-            self.process.join(timeout=5)
+                self.q_out_reloc_condition.notify_all()
+            if self.process.is_alive():                       
+                self.process.join(timeout=5)
             if self.process.is_alive():
                 Printer.orange("Warning: Loop detection process did not terminate in time, forced kill.")  
                 self.process.terminate()      

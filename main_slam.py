@@ -57,7 +57,7 @@ import traceback
 
 
 if __name__ == "__main__":
-                               
+                                                     
     config = Config()
 
     dataset = dataset_factory(config)
@@ -101,7 +101,7 @@ if __name__ == "__main__":
         Printer.green(f'Depth_estimator_type: {depth_estimator_type.name}, max_depth: {max_depth}')       
                 
     # create SLAM object
-    slam = Slam(camera, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None, environment_type=dataset.environmentType()) # groundtruth not actually used by Slam class
+    slam = Slam(camera, feature_tracker_config, loop_detection_config, dataset.sensorType(), environment_type=dataset.environmentType()) # groundtruth not actually used by Slam class
     slam.set_viewer_scale(dataset.scale_viewer_3d)
     time.sleep(1) # to show initial messages 
     
@@ -119,7 +119,7 @@ if __name__ == "__main__":
             viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=dataset.sensor_type==SensorType.MONOCULAR)
     
     if platform.system() == 'Linux':    
-        display2d = Display2D(camera.width, camera.height)  # pygame interface 
+        display2d = None # Display2D(camera.width, camera.height)  # pygame interface 
     else: 
         display2d = None  # enable this if you want to use opencv window
 
@@ -202,14 +202,14 @@ if __name__ == "__main__":
                     
                 img_id += 1 
             else: 
-                time.sleep(0.1) 
+                time.sleep(0.1)     # img is None
                 
             # 3D display (map display)
             if viewer3D is not None:
                 viewer3D.draw_dense_map(slam)  
                               
         else:
-            time.sleep(0.1)                                 
+            time.sleep(0.1)     # pause or do step on GUI                           
         
         # get keys 
         key = plot_drawer.get_key()
@@ -219,7 +219,8 @@ if __name__ == "__main__":
         # if key != '' and key is not None:
         #     print(f'key pressed: {key}') 
         
-        # manage interface infos  
+        
+        # manage SLAM states 
         
         if slam.tracking.state==SlamState.LOST:
             if display2d is None:  
@@ -228,17 +229,22 @@ if __name__ == "__main__":
             else: 
                 #getchar()
                 time.sleep(0.5)
-                 
+                
+        # manage interface infos  
+                         
         if is_map_save:
             slam.save_system_state(config.system_state_folder_path)
             dataset.save_info(config.system_state_folder_path)
+            groundtruth.save(config.system_state_folder_path)
             Printer.green('uncheck pause checkbox on GUI to continue...\n')        
         
         if viewer3D is not None:
             is_paused = viewer3D.is_paused()    
             is_map_save = viewer3D.is_map_save() and is_map_save == False 
             do_step = viewer3D.do_step() and do_step == False  
-            do_reset = viewer3D.reset() and do_reset == False  
+            do_reset = viewer3D.reset() and do_reset == False
+            if viewer3D.is_closed():
+                key = 'q'
                                   
         if key == 'q' or (key_cv == ord('q')):
             slam.quit()

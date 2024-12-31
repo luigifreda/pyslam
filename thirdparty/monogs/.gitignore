@@ -1,0 +1,16 @@
+*.pyc
+.vscode
+output
+build
+diff_rasterization/diff_rast.egg-info
+**.egg-info
+**.so
+diff_rasterization/dist
+
+cameras.json
+*.ply
+*.mp4
+datasets
+wandb
+
+result*

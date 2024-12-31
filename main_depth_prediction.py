@@ -34,7 +34,7 @@ from camera  import PinholeCamera
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 
 from dataset import dataset_factory, DatasetType, SensorType, DatasetEnvironmentType
-from frame import Frame
+from frame import Frame, FeatureTrackerShared
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
@@ -59,8 +59,8 @@ if __name__ == '__main__':
     tracker_config['num_features'] = 2000
     print('tracker_config: ',tracker_config)    
     feature_tracker = feature_tracker_factory(**tracker_config)
-    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FrameShared. 
-    Frame.set_tracker(feature_tracker)        
+    # This is normally done by the Slam class we don't have here. We need to set the static field of the class Frame and FeatureTrackerShared. 
+    FeatureTrackerShared.set_feature_tracker(feature_tracker)        
     
     # Select your depth estimator (see the file depth_estimator_configs.py).
     depth_estimator_type = DepthEstimatorType.DEPTH_PRO

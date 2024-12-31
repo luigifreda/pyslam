@@ -59,6 +59,40 @@ kDrawFeatureRadius = [r*5 for r in range(1,100)]
 kDrawOctaveColor = np.linspace(0, 255, 12)
 
 
+# Shared frame stuff. Normally, this information is exclusively used by SLAM.
+class FeatureTrackerShared:
+    feature_tracker      = None      # type: FeatureTracker
+    feature_manager      = None      # type: FeatureManager
+    feature_matcher      = None      # type: FeatureMatcher
+    descriptor_distance  = None
+    descriptor_distances = None
+    oriented_features    = False
+                
+    @staticmethod
+    def set_feature_tracker(feature_tracker, force=False):
+        
+        FrameBase._id = 0  # reset the frame counter 
+        
+        if not force and FeatureTrackerShared.feature_tracker is not None:
+            raise Exception("FeatureTrackerShared: Tracker is already set!")
+        FeatureTrackerShared.feature_tracker = feature_tracker
+        FeatureTrackerShared.feature_manager = feature_tracker.feature_manager
+        FeatureTrackerShared.feature_matcher = feature_tracker.matcher
+        FeatureTrackerShared.descriptor_distance = feature_tracker.feature_manager.descriptor_distance
+        FeatureTrackerShared.descriptor_distances = feature_tracker.feature_manager.descriptor_distances
+        FeatureTrackerShared.oriented_features = feature_tracker.feature_manager.oriented_features
+        
+        # for the following guys we need to store the images since they need them at each matching step
+        if FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE or \
+           FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR:
+            Frame.is_store_imgs = True
+    
+
+# for parallel stereo processing
+def detect_and_compute(img):
+    return FeatureTrackerShared.feature_tracker.detectAndCompute(img)
+     
+     
 # Base object class for frame info management; 
 # it collects methods for managing:
 # - camera intrinsics 
@@ -287,39 +321,10 @@ class FrameBase(object):
         return out_flags, uvs, zs, dists        
 
 
-
-# Shared frame stuff. Normally, this information is exclusively used by SLAM.
-class FrameShared:
-    feature_tracker      = None      # type: FeatureTracker
-    feature_manager      = None      # type: FeatureManager
-    feature_matcher      = None      # type: FeatureMatcher
-    descriptor_distance  = None
-    descriptor_distances = None
-    oriented_features    = False     
-    is_store_imgs        = False     # used by Frame to store images when needed for debugging or processing purposes
-                
-    @staticmethod
-    def set_tracker(feature_tracker, force=False):
-        if not force and FrameShared.feature_tracker is not None:
-            raise Exception("FrameShared: Tracker is already set!")
-        FrameShared.feature_tracker = feature_tracker
-        FrameShared.feature_manager = feature_tracker.feature_manager
-        FrameShared.feature_matcher = feature_tracker.matcher
-        FrameShared.descriptor_distance = feature_tracker.feature_manager.descriptor_distance
-        FrameShared.descriptor_distances = feature_tracker.feature_manager.descriptor_distances
-        FrameShared.oriented_features = feature_tracker.feature_manager.oriented_features
-        if FrameShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE or \
-           FrameShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR:
-            FrameShared.is_store_imgs = True
-    
-
-# for parallel stereo processing
-def detect_and_compute(img):
-    return FrameShared.feature_tracker.detectAndCompute(img)
-     
             
 # A Frame mainly collects keypoints, descriptors and their corresponding 3D points 
 class Frame(FrameBase):       
+    is_store_imgs        = False     # used by Frame to store images when needed for debugging or processing purposes    
     def __init__(self, camera: Camera, img, img_right=None, depth=None, pose=None, id=None, timestamp=None, kps_data=None, img_id=None):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
         
@@ -355,17 +360,17 @@ class Frame(FrameBase):
                                                         
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
-            if FrameShared.is_store_imgs: 
+            if Frame.is_store_imgs: 
                 self.img = img.copy()  
 
         if img_right is not None:
-            if FrameShared.is_store_imgs: 
+            if Frame.is_store_imgs: 
                 self.img_right = img_right.copy()                                        
 
         if depth is not None:
             if self.camera is not None and self.camera.depth_factor != 1.0:
-                depth = depth * self.camera.depth_factor             
-            if FrameShared.is_store_imgs: 
+                depth = depth * self.camera.depth_factor        
+            if Frame.is_store_imgs: 
                 self.depth_img = depth.copy()
                                 
         if img is not None:                  
@@ -377,7 +382,7 @@ class Frame(FrameBase):
                     self.kps_r, self.des_r = future_r.result()
                     #print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
             else: 
-                self.kps, self.des = FrameShared.feature_tracker.detectAndCompute(img)  
+                self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(img)  
                                                                                 
             # convert from a list of keypoints to arrays of points, octaves, sizes  
             if self.kps is not None:    
@@ -405,7 +410,18 @@ class Frame(FrameBase):
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
            
-            
+    def set_img_right(self, img_right): 
+        self.img_right = img_right.copy()
+        
+    def set_depth_img(self, depth_img):
+        if self.camera is not None and self.camera.depth_factor != 1.0:
+            depth_img = depth_img * self.camera.depth_factor        
+            self.depth_img = depth_img.copy()
+        else: 
+            message = 'Frame.set_depth_img: camera is None or depth_factor is not set'
+            Printer.error(message)
+            raise Exception(message)
+        
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
@@ -494,7 +510,7 @@ class Frame(FrameBase):
         f.img = NumpyB64Json.json_to_numpy(json.loads(json_str['img'])) if json_str['img'] is not None else None
         f.depth_img = NumpyB64Json.json_to_numpy(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
         f.img_right = NumpyB64Json.json_to_numpy(json.loads(json_str['img_right'])) if json_str['img_right'] is not None else None
-        
+                
         if f.kps is not None and f.points is not None:
             #print(f'f.kps.shape = {f.kps.shape}, f.points.shape = {f.points.shape}')        
             assert(len(f.kps) == len(f.points))
@@ -515,13 +531,7 @@ class Frame(FrameBase):
             self.points = actual_points
         # get actual kf_ref 
         if self.kf_ref is not None:  # NOTE: here kf_ref is still an id to be replaced with an object
-            self.kf_ref = get_object_with_id(self.kf_ref, keyframes)
-        
-                
-    @staticmethod
-    def set_tracker(feature_tracker, force=False):
-        FrameShared.set_tracker(feature_tracker, force)
-        Frame._id = 0           
+            self.kf_ref = get_object_with_id(self.kf_ref, keyframes)       
      
     # KD tree of undistorted keypoints
     @property
@@ -706,7 +716,7 @@ class Frame(FrameBase):
         # we enforce matching on the same row here by using the flag row_matching (epipolar constraint)
         row_matching = True
         ratio_test = 0.9
-        stereo_matching_result = FrameShared.feature_matcher.match(img, img_right, des1=self.des, des2=self.des_r, \
+        stereo_matching_result = FeatureTrackerShared.feature_matcher.match(img, img_right, des1=self.des, des2=self.des_r, \
                                                                    kps1=self.kps, kps2=self.kps_r, \
                                                                    ratio_test=ratio_test, row_matching=row_matching, max_disparity=max_disparity)
         matched_kps_l = np.array(self.kps[stereo_matching_result.idxs1])
@@ -718,14 +728,7 @@ class Frame(FrameBase):
         good_disparities = disparities[good_disparities_mask]
         good_matched_idxs1 = stereo_matching_result.idxs1[good_disparities_mask]
         good_matched_idxs2 = stereo_matching_result.idxs2[good_disparities_mask]
-        
-        if Parameters.kStereoMatchingShowMatchedPoints: # debug stereo matching
-            print(f'[compute_stereo_matches] found intial {len(good_matched_idxs1)} stereo matches')
-            stereo_img_matches = draw_feature_matches(img, img_right, self.kps[good_matched_idxs1], self.kps_r[good_matched_idxs2], horizontal=False)
-            #cv2.namedWindow('stereo_img_matches', cv2.WINDOW_NORMAL)
-            cv2.imshow('stereo_img_matches', stereo_img_matches)
-            cv2.waitKey(1)   
-            
+                    
         # compute fundamental matrix and check inliers, just for the hell of it (debugging) ... this is totally redundant here due to the row_matching
         do_check_with_fundamental_mat = False
         if do_check_with_fundamental_mat:
@@ -819,7 +822,7 @@ class Frame(FrameBase):
            
             errs_l_sqr = np.sum(errs_l_vec * errs_l_vec, axis=1)  # squared reprojection errors 
             kpsl_levels = self.octaves[good_matched_idxs1]
-            invSigmas2_1 = FrameShared.feature_manager.inv_level_sigmas2[kpsl_levels] 
+            invSigmas2_1 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kpsl_levels] 
             chis2_l = errs_l_sqr * invSigmas2_1         # chi square 
             #print(f'chis2_l: {chis2_l}')
             good_chi2_l_mask = chis2_l < Parameters.kChi2Mono
@@ -829,7 +832,7 @@ class Frame(FrameBase):
             errs_r_vec = uvs_r - self.kps_r[good_matched_idxs2]
             errs_r_sqr = np.sum(errs_r_vec * errs_r_vec, axis=1)  # squared reprojection errors 
             kpsr_levels = self.octaves_r[good_matched_idxs2]
-            invSigmas2_2 = FrameShared.feature_manager.inv_level_sigmas2[kpsr_levels] 
+            invSigmas2_2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kpsr_levels] 
             chis2_r = errs_r_sqr * invSigmas2_2         # chi square 
             #print(f'chis2_r: {chis2_r}')
             good_chi2_r_mask = chis2_r < Parameters.kChi2Mono
@@ -848,7 +851,7 @@ class Frame(FrameBase):
         if do_check_with_des_distances_sigma_mad:
             des1 = stereo_matching_result.des1[good_matched_idxs1]
             des2 = stereo_matching_result.des2[good_matched_idxs2]
-            sigma_mad, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=FrameShared.descriptor_distances)
+            sigma_mad, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=FeatureTrackerShared.descriptor_distances)
             good_des_dists_mask = des_dists < 1.5 * sigma_mad
             num_good_des_dists = good_des_dists_mask.sum()
             print(f'[compute_stereo_matches] perc good des distances: {100*num_good_des_dists/len(good_des_dists_mask)}')
@@ -860,6 +863,13 @@ class Frame(FrameBase):
         self.depths[good_matched_idxs1] = self.camera.bf * np.reciprocal(good_disparities.astype(float))
         self.kps_ur[good_matched_idxs1] = self.kps_r[good_matched_idxs2][:,0]                   
         
+        if Parameters.kStereoMatchingShowMatchedPoints: # debug stereo matching
+            print(f'[compute_stereo_matches] found intial {len(good_matched_idxs1)} stereo matches')
+            stereo_img_matches = draw_feature_matches(img, img_right, self.kps[good_matched_idxs1], self.kps_r[good_matched_idxs2], horizontal=False)
+            #cv2.namedWindow('stereo_img_matches', cv2.WINDOW_NORMAL)
+            cv2.imshow('stereo_img_matches', stereo_img_matches)
+            cv2.waitKey(1)   
+                    
         if False:
             points, _ = self.unproject_points_3d(good_matched_idxs1, transform_in_world=False)
             rr.log("points", rr.Points3D(points))
@@ -1027,7 +1037,7 @@ def are_map_points_visible(frame1: Frame, frame2: Frame, map_points1, sR21: np.n
 # match frames f1 and f2
 # out: a vector of match index pairs [idx1[i],idx2[i]] such that the keypoint f1.kps[idx1[i]] is matched with f2.kps[idx2[i]]
 def match_frames(f1: Frame, f2: Frame, ratio_test=None):     
-    matching_result = FrameShared.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, kps1=f1.kps, kps2=f2.kps, ratio_test=ratio_test)
+    matching_result = FeatureTrackerShared.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, kps1=f1.kps, kps2=f2.kps, ratio_test=ratio_test)
     return matching_result
     # idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
     # idxs1 = np.asarray(idxs1)
@@ -1041,7 +1051,7 @@ def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \
     timer = Timer()      
     def thread_match_function(kf_pair):
         kf1,kf2 = kf_pair
-        matching_result = FrameShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des, kps1=kf1.kps, kps2=kf2.kps, ratio_test=ratio_test)
+        matching_result = FeatureTrackerShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des, kps1=kf1.kps, kps2=kf2.kps, ratio_test=ratio_test)
         idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2             
         match_idxs[(kf1, kf2)] = (np.array(idxs1),np.array(idxs2))
     kf_pairs = [(target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad]                       
@@ -1061,7 +1071,7 @@ def compute_frame_matches(target_frame: Frame, other_frames: list, \
         for kf in other_frames:
             if kf is target_frame or kf.is_bad:
                 continue   
-            matching_result = FrameShared.feature_matcher.match(target_frame.img, kf.img, target_frame.des, kf.des, kps1=target_frame.kps, kps2=kf.kps, ratio_test=ratio_test)        
+            matching_result = FeatureTrackerShared.feature_matcher.match(target_frame.img, kf.img, target_frame.des, kf.des, kps1=target_frame.kps, kps2=kf.kps, ratio_test=ratio_test)        
             idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2    
             match_idxs[(target_frame, kf)] = (idxs1, idxs2)  
     else:  
@@ -1080,7 +1090,7 @@ def compute_frame_matches(target_frame: Frame, other_frames: list, \
 #   sigmas2_1, sigmas2_2: feature sigmas in f1 and f2
 #   idxs1_out, idxs2_out: indices of good point matches in f1 and f2
 def prepare_input_data_for_sim3solver(f1: Frame, f2: Frame, idxs1, idxs2):
-    level_sigmas2 = FrameShared.feature_manager.level_sigmas2        
+    level_sigmas2 = FeatureTrackerShared.feature_manager.level_sigmas2        
     points_3d_1 = []
     points_3d_2 = []
     sigmas2_1 = []
@@ -1116,7 +1126,7 @@ def prepare_input_data_for_sim3solver(f1: Frame, f2: Frame, idxs1, idxs2):
 #   sigmas2, feature sigmas in f1
 #   idxs1_out, idxs2_out: indices of good point matches in f1 and f2
 def prepare_input_data_for_pnpsolver(f1: Frame, f2: Frame, idxs1, idxs2, print=print):
-    level_sigmas2 = FrameShared.feature_manager.level_sigmas2        
+    level_sigmas2 = FeatureTrackerShared.feature_manager.level_sigmas2        
     points_3d = []
     points_2d = []    
     sigmas2 = []

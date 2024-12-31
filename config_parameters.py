@@ -40,6 +40,7 @@ class Parameters:
     kCosMaxParallax=0.9999 # 0.9998                 # max cos angle for triangulation (min parallax angle)   
     kMinRatioBaselineDepth = 0.01      
     
+    
     # Point visibility 
     kViewingCosLimitForPoint=0.5    # must be viewing cos < kViewingCosLimitForPoint (viewing angle must be less than 60 deg)
     kScaleConsistencyFactor=1.5
@@ -79,6 +80,7 @@ class Parameters:
     kNumBestCovisibilityKeyFrames = 10
     kUseVisualOdometryPoints = True
     
+    
     # Keyframe generation 
     kNumMinPointsForNewKf = 15                               # minimum number of matched map points for spawning a new KeyFrame 
     kNumMinTrackedClosePointsForNewKfNonMonocular = 100      # minimum number of tracked close map points that for not spawning a new KeyFrame in case of a non-monocular system
@@ -88,14 +90,17 @@ class Parameters:
     kThNewKfRefRatioNonMonocualar = 0.25                     # for determining if a new KF must be spawned in case the system is not monocular, condition 2b
     kUseFeatureCoverageControlForNewKf = False               # [experimental] check if all the matched map points in the current frame well cover the image (by using an image grid check)
     
+    
     # Keyframe culling
     kKeyframeCullingRedundantObsRatio = 0.9  
     kKeyframeMaxTimeDistanceInSecForCulling = 0.5 # [s]  # Use float('inf') for disabling it   
     kKeyframeCullingMinNumPoints = 50 
 
+
     # Stereo matching 
     kStereoMatchingMaxRowDistance = 1.1       # [pixels] 
-    kStereoMatchingShowMatchedPoints = False   # show the frame stereo matches (debug stereo matching)
+    kStereoMatchingShowMatchedPoints = False  # show the frame stereo matches (debug stereo matching)
+
 
     # Search matches by projection 
     kMaxReprojectionDistanceFrame = 7    #7   # [pixels]    o:7
@@ -119,11 +124,14 @@ class Parameters:
     kLocalMappingNumNeighborKeyFrames=20                   #  [# frames]   for generating new points and fusing them              
     kLocalMappingTimeoutPopKeyframe=0.5 # [s]
 
+
     # Covisibility graph 
     kMinNumOfCovisiblePointsForCreatingConnection=15 
     
+    
     # Sparse map visualization 
     kSparseImageColorPatchDelta=1  # center +- delta
+    
     
     # Bundle Adjustment (BA)
     kLocalBAWindow=20                 #  [# frames]   
@@ -152,6 +160,7 @@ class Parameters:
     kLoopClosingMaxReprojectionDistanceFuse = 4              # [pixels]    o:4
     kLoopClosingFeatureMatchRatioTest = 0.75                 # TODO: put it in an table and make it configurable per descriptor
 
+
     # Relocatization 
     kRelocalizationDebugAndPrintToFile = False
     kRelocalizationMinKpsMatches = 15                       # o:15
@@ -164,13 +173,16 @@ class Parameters:
     kRelocalizationMaxReprojectionDistanceMapSearchCoarse = 10    # [pixels]    o:10 
     kRelocalizationMaxReprojectionDistanceMapSearchFine = 3       # [pixels]    o:3       
     
+    
     # Global Bundle Adjustment (GBA)
     kUseGBA = True                      # Activated by loop closing
     kGBADebugAndPrintToFile = True
     kGBAUseRobustKernel = True
     
-    # Volume Integration
+    
+    # Volumetric Integration
     kUseVolumetricIntegration = False                  # To enable/disable volumetric integration (dense mapping)  
+    kVolumetricIntegrationType = "TSDF"                # "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_factory.py)
     kVolumetricIntegrationDebugAndPrintToFile = True
     kVolumetricIntegrationExtractMesh = False          # Extract mesh or point cloud as output
     kVolumetricIntegrationVoxelLength = 0.015          # [m]
@@ -178,10 +190,10 @@ class Parameters:
     kVolumetricIntegrationDepthTruncIndoor = 4.0       # [m] 
     kVolumetricIntegrationDepthTruncOutdoor = 10.0     # [m]
     kVolumetricIntegrationMinNumLBATimes = 1           # We integrate only the keyframes that have been processed by LBA at least kVolumetricIntegrationMinNumLBATimes times.
-    kVolumetricIntegrationOutputTimeInterval = 1.0         # [s]
+    kVolumetricIntegrationOutputTimeInterval = 1.0     # [s]
     kVolumetricIntegrationUseDepthEstimator = False    # Use depth estimator for volumetric integration in the back-end. 
-                                                       # Since the depth inference time is above 1 second, this is very slow.
-                                                       # NOTE: the depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM map scale will be not consistent.
+                                                       # Since the depth inference time may be above 1 second, the volumetric integrator may be very slow.
+                                                       # NOTE: The depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM sparse map scale will not be consistent.
     kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
     kVolumetricIntegrationDepthEstimationFilterShadowPoints = True
 

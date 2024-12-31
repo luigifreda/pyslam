@@ -32,7 +32,7 @@ from threading import RLock, Thread
 
 from utils_geom import poseRt, add_ones, add_ones_1D
 from config_parameters import Parameters 
-from frame import Frame, FrameShared, FrameBase
+from frame import Frame, FeatureTrackerShared, FrameBase
 from keyframe import KeyFrame
 from map_point import MapPoint, MapPointBase
 
@@ -358,7 +358,7 @@ class Map(object):
                 errs1 = np.where(is_mono1[:, np.newaxis], errs1_mono_vec, np.zeros(2))   # mono errors 
                 errs1_sqr = np.sum(errs1 * errs1, axis=1)  # squared reprojection errors 
                 kps1_levels = kf1.octaves[idxs1]
-                invSigmas2_1 = FrameShared.feature_manager.inv_level_sigmas2[kps1_levels] 
+                invSigmas2_1 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kps1_levels] 
                 chis2_1_mono = errs1_sqr * invSigmas2_1         # chi square 
                                 
                 # stereo reprojection error
@@ -386,7 +386,7 @@ class Map(object):
                 errs2 = np.where(is_mono2[:, np.newaxis], errs2_mono_vec, np.zeros(2))   # mono errors
                 errs2_sqr = np.sum(errs2 * errs2, axis=1) # squared reprojection errors        
                 kps2_levels = kf2.octaves[idxs2]
-                invSigmas2_2 = FrameShared.feature_manager.inv_level_sigmas2[kps2_levels] 
+                invSigmas2_2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kps2_levels] 
                 chis2_2_mono = errs2_sqr * invSigmas2_2        # chi square 
                 
                 if kf2.kps_ur is not None:
@@ -402,10 +402,10 @@ class Map(object):
                     bad_chis2_2 = chis2_2_mono > Parameters.kChi2Mono  # chi-square 2 DOFs  (Hartley Zisserman pg 119)                      
                 
                 # scale consistency check
-                ratio_scale_consistency = Parameters.kScaleConsistencyFactor * FrameShared.feature_manager.scale_factor 
-                scale_factors_x_depths1 =  FrameShared.feature_manager.scale_factors[kps1_levels] * proj_depths1
+                ratio_scale_consistency = Parameters.kScaleConsistencyFactor * FeatureTrackerShared.feature_manager.scale_factor 
+                scale_factors_x_depths1 =  FeatureTrackerShared.feature_manager.scale_factors[kps1_levels] * proj_depths1
                 scale_factors_x_depths1_x_ratio_scale_consistency = scale_factors_x_depths1*ratio_scale_consistency                             
-                scale_factors_x_depths2 =  FrameShared.feature_manager.scale_factors[kps2_levels] * proj_depths2   
+                scale_factors_x_depths2 =  FeatureTrackerShared.feature_manager.scale_factors[kps2_levels] * proj_depths2   
                 scale_factors_x_depths2_x_ratio_scale_consistency = scale_factors_x_depths2*ratio_scale_consistency      
                 bad_scale_consistency = np.logical_or( (scale_factors_x_depths1 > scale_factors_x_depths2_x_ratio_scale_consistency), 
                                                        (scale_factors_x_depths2 > scale_factors_x_depths1_x_ratio_scale_consistency) )   
@@ -544,7 +544,7 @@ class Map(object):
                     for f, idx in p.observations():
                         uv = f.kpsu[idx]
                         proj,z = f.project_map_point(p)
-                        invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
+                        invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
                         err = (proj-uv)
                         chi2s.append(np.inner(err,err)*invSigma2)
                     # cull
@@ -569,7 +569,7 @@ class Map(object):
                     for f, idx in p.observations():
                         uv = f.kpsu[idx]
                         proj,_ = f.project_map_point(p)
-                        invSigma2 = FrameShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
+                        invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
                         err = (proj-uv)
                         chi2 += np.inner(err,err)*invSigma2
                         num_obs += 1
@@ -671,7 +671,7 @@ class Map(object):
                     self.keyframes_map[kf.id] = kf   
                                 
                 # recover keyframe origins from keyframe map                
-                self.keyframe_origins = [self.keyframes_map[kfjson['id']] for kfjson in loaded_json['keyframe_origins']]            
+                self.keyframe_origins = [self.keyframes_map[kfjson['id']] for kfjson in loaded_json['keyframe_origins'] if kfjson['id'] in self.keyframes_map]            
 
                 self.frames = deque(self.frames, maxlen=kMaxLenFrameDeque) 
                 self.keyframes = OrderedSet(self.keyframes)  

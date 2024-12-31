@@ -48,7 +48,6 @@ class Config(object):
         #print(f'root folder: {self.root_folder}, config file path: {self.config_file_path}')
         self.config = yaml.load(open(self.config_file_path, 'r'), Loader=yaml.FullLoader)
         self.cam_settings = None
-        self.cam_stereo_settings = None
         self.feature_manager_settings = None
         self.dataset_settings = None
         self.dataset_type = None
@@ -252,9 +251,9 @@ class Config(object):
 
     # stereo settings 
     @property
-    def stereo_settings(self):
-        if not hasattr(self, '_stereo_settings'):
-            self._stereo_settings = None
+    def cam_stereo_settings(self):
+        if not hasattr(self, '_cam_stereo_settings'):
+            self._cam_stereo_settings = None
             left, right = {}, {}
             if 'LEFT.D' in self.cam_settings:
                 left_D = self.cam_settings['LEFT.D']
@@ -291,9 +290,9 @@ class Config(object):
                 right['P'] = right_P         
                    
             if len(left) > 0 and len(right) > 0:
-                self._stereo_settings = {'left':left, 'right':right}
-        #print(f'[config] stereo settings: {self._stereo_settings}')
-        return self._stereo_settings
+                self._cam_stereo_settings = {'left':left, 'right':right}
+        #print(f'[config] stereo settings: {self._cam_stereo_settings}')
+        return self._cam_stereo_settings
 
    
 if __name__ != "__main__":
