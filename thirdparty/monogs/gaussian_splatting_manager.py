@@ -237,17 +237,6 @@ class GaussianSplattingManager:
             self.save_dir = save_dir
             print(f'GaussianSplattingManager: Saving results to {self.save_dir}')
 
-
-    def load(self, base_path, ply_path):
-        if self.use_gui and self.gui_process is None:
-            self.gui_process = mp.Process(target=slam_gui.run, args=(self.params_gui,))
-            self.gui_process.start()
-            time.sleep(5)
-        
-        print("GaussianSplattingManager: Loading map from: " + base_path)
-        self.frontend.reset = False
-        self.frontend.load_request = GsmLoadRequest(base_path, ply_path)         
-
     def start(self):
         
         self.torch_start = torch.cuda.Event(enable_timing=True)
@@ -263,8 +252,8 @@ class GaussianSplattingManager:
         self.backend.is_running = True
         self.backend_process.start()
         
-        self.frontend.is_running = True
         self.frontend_thread = threading.Thread(target=self.frontend.run, name="GsmFrontend")
+        self.frontend.is_running = True        
         self.frontend_thread.start()
         
         
@@ -281,6 +270,15 @@ class GaussianSplattingManager:
             points, colors = self.frontend.gaussians.extract_point_cloud_with_rgb()
             return points, colors
 
+    def load(self, base_path, ply_path):
+        if self.use_gui and self.gui_process is None:
+            self.gui_process = mp.Process(target=slam_gui.run, args=(self.params_gui,))
+            self.gui_process.start()
+            time.sleep(5)
+        self.frontend.load(base_path, ply_path)  
+        
+    def save(self, path):
+        self.frontend.save(path)
 
     def stop(self):
         if self.is_stopped:

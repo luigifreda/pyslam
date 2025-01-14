@@ -399,7 +399,7 @@ class TUMDataset(MonocularDataset):
         super().__init__(args, path, config)
         dataset_path = config["Dataset"]["dataset_path"]
         if not os.path.exists(dataset_path):
-            raise ValueError("Dataset path does not exist")        
+            raise ValueError(f"Dataset path {dataset_path} does not exist")        
         parser = TUMParser(dataset_path)
         self.num_imgs = parser.n_img
         self.color_paths = parser.color_paths
@@ -412,7 +412,7 @@ class ReplicaDataset(MonocularDataset):
         super().__init__(args, path, config)
         dataset_path = config["Dataset"]["dataset_path"]
         if not os.path.exists(dataset_path):
-            raise ValueError("Dataset path does not exist")
+            raise ValueError(f"Dataset path {dataset_path} does not exist")
         parser = ReplicaParser(dataset_path)
         self.num_imgs = parser.n_img
         self.color_paths = parser.color_paths
@@ -425,7 +425,7 @@ class EurocDataset(StereoDataset):
         super().__init__(args, path, config)
         dataset_path = config["Dataset"]["dataset_path"]
         if not os.path.exists(dataset_path):
-            raise ValueError("Dataset path does not exist")
+            raise ValueError(f"Dataset path {dataset_path} does not exist")
         parser = EuRoCParser(dataset_path, start_idx=config["Dataset"]["start_idx"])
         self.num_imgs = parser.n_img
         self.color_paths = parser.color_paths

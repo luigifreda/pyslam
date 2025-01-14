@@ -147,6 +147,11 @@ class Tracking:
         
         self.max_frames_between_kfs = int(slam.camera.fps) if slam.camera.fps is not None else 1
         self.min_frames_between_kfs = 0         
+        
+        # params read and set by Slam
+        self.far_points_threshold = None    
+        self.use_fov_centers_based_kf_generation = False
+        self.max_fov_centers_distance = -1        
 
         self.state = SlamState.NO_IMAGES_YET
         
@@ -246,7 +251,7 @@ class Tracking:
         self.num_kf_ref_tracked_points = None                   # number of tracked points in k_ref (considering a minimum number of observations)      
         
         self.last_num_static_stereo_map_points = None
-        
+                
         self.mask_match = None 
 
         self.pose_is_ok = False 
@@ -286,6 +291,10 @@ class Tracking:
     # since we do not have an interframe translation scale, this fitting can be used to detect outliers, estimate interframe orientation and translation direction 
     # N.B. read the NBs of the method estimate_pose_ess_mat(), where the limitations of this method are explained  
     def estimate_pose_by_fitting_ess_mat(self, f_ref, f_cur, idxs_ref, idxs_cur): 
+        if len(idxs_ref) == 0 or len(idxs_cur) == 0:
+            Printer.red('idxs_ref or idxs_cur is empty')
+            return idxs_ref, idxs_cur
+        
         # N.B.: in order to understand the limitations of fitting an essential mat, read the comments of the method self.estimate_pose_ess_mat() 
         self.timer_pose_est.start()
         ransac_method = None 
@@ -293,10 +302,15 @@ class Tracking:
             ransac_method = cv2.USAC_MSAC 
         except: 
             ransac_method = cv2.RANSAC 
-        # estimate inter frame camera motion by using found keypoint matches 
-        # output of the following function is:  Trc = [Rrc, trc] with ||trc||=1  where c=cur, r=ref  and  pr = Trc * pc 
-        Mrc, self.mask_match = estimate_pose_ess_mat(f_ref.kpsn[idxs_ref], f_cur.kpsn[idxs_cur], 
-                                                     method=ransac_method, prob=kRansacProb, threshold=kRansacThresholdNormalized)   
+        try:
+            # estimate inter frame camera motion by using found keypoint matches 
+            # output of the following function is:  Trc = [Rrc, trc] with ||trc||=1  where c=cur, r=ref  and  pr = Trc * pc 
+            Mrc, self.mask_match = estimate_pose_ess_mat(f_ref.kpsn[idxs_ref], f_cur.kpsn[idxs_cur], 
+                                                        method=ransac_method, prob=kRansacProb, threshold=kRansacThresholdNormalized)   
+        except Exception as e:
+            Printer.red(f'Error in estimate_pose_ess_mat: {e}')
+            return idxs_ref, idxs_cur
+            
         #Mcr = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))   
         Mcr = inv_T(Mrc)
         estimated_Tcw = np.dot(Mcr, f_ref.pose)
@@ -493,10 +507,12 @@ class Tracking:
             self.pose_is_ok = False
             return
         
+        # use the updated local map to search for matches between {local map points} and {unmatched keypoints of f_cur}
         num_found_map_pts, reproj_err_frame_map_sigma, matched_points_frame_idxs = search_map_by_projection(self.local_points, f_cur,
                                     max_reproj_distance=self.reproj_err_frame_map_sigma, #Parameters.kMaxReprojectionDistanceMap, 
                                     max_descriptor_distance=self.descriptor_distance_sigma,
-                                    ratio_test=Parameters.kMatchRatioTestMap) # use the updated local map          
+                                    ratio_test=Parameters.kMatchRatioTestMap,
+                                    far_points_threshold=self.far_points_threshold)          
         self.timer_seach_map.refresh()
         #print('reproj_err_sigma: ', reproj_err_frame_map_sigma, ' used: ', self.reproj_err_frame_map_sigma)        
         print(f"# matched map points in local map: {num_found_map_pts}, perc%: {100*num_found_map_pts/len(self.local_points):.2f}")                   
@@ -625,9 +641,24 @@ class Tracking:
         # condition 2: few tracked features compared to reference keyframe 
         cond2 = (num_f_cur_tracked_points < num_kf_ref_tracked_points * thRefRatio or is_need_to_insert_close) \
                  and (num_f_cur_tracked_points > Parameters.kNumMinPointsForNewKf)
+                 
+        # condition 3: distance to closest fov center is too big
+        cond3 = False
+        if self.use_fov_centers_based_kf_generation:
+            if num_f_cur_tracked_points > Parameters.kNumMinPointsForNewKf:
+                # compute distance to closest fov center
+                close_kfs = self.local_keyframes
+                if not self.kf_last in close_kfs:
+                    close_kfs.append(self.kf_last)
+                if len(close_kfs)>0:
+                    close_fov_centers_w = np.array([kf.fov_center_w.flatten() for kf in close_kfs if kf.fov_center_w is not None])            
+                    if close_fov_centers_w.shape[0] > 0: 
+                        dists = np.linalg.norm(close_fov_centers_w - f_cur.fov_center_w.flatten(), axis=1)
+                        min_dist = np.min(dists)
+                        cond3 = min_dist > self.max_fov_centers_distance
         
         #print(f'KF conditions: cond1a: {cond1a}, cond1b: {cond1b}, cond1c: {cond1c}, cond1d: {cond1d}, cond2: {cond2}')
-        condition_checks = (cond1a or cond1b or cond1c or cond1d) and cond2    
+        condition_checks = ( (cond1a or cond1b or cond1c or cond1d) and cond2 ) or cond3    
                                                         
         if condition_checks:
             if is_local_mapping_idle:

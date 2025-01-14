@@ -14,8 +14,11 @@ kRootFolder = kScriptFolder + '/..'
 
 @register_class
 class VolumetricIntegratorType(SerializableEnum):
-    TSDF = 0
-    GAUSSIAN_SPLATTING = 1
+    TSDF = 0                  # Truncated Signed Distance Function with voxel block grid (parallel spatial hashing)
+                              # "ASH: A Modern Framework for Parallel Spatial Hashing in 3D Perception"
+    GAUSSIAN_SPLATTING = 1    # Incremental Gaussian Splatting by leveraging MonoGS backend: pySLAM keyframes are passed as posed input frames to MonoGS backend.
+                              # You need CUDA to run Gaussian Splatting.
+                              # As for MonoGS backend, see the following paper: "Gaussian Splatting SLAM".    
     
     @staticmethod
     def from_string(name: str):

@@ -74,7 +74,9 @@ class Viewer3DMapInput(object):
         self.poses = [] 
         self.pose_timestamps = []
         self.points = [] 
-        self.colors = []         
+        self.colors = []
+        self.fov_centers = [] 
+        self.fov_centers_colors = []        
         self.covisibility_graph = []
         self.spanning_tree = []        
         self.loops = []       
@@ -248,6 +250,7 @@ class Viewer3D(object):
         self.checkboxLoops = pangolin.VarBool('ui.Draw Loops', value=True, toggle=True)           
         self.checkboxGT = pangolin.VarBool('ui.Draw Ground Truth', value=False, toggle=True)    
         self.checkboxPredicted = pangolin.VarBool('ui.Draw Predicted', value=False, toggle=True)
+        self.checkboxFovCenters = pangolin.VarBool('ui.Draw Fov Centers', value=False, toggle=True)        
         self.checkboxDrawSparseCloud = pangolin.VarBool('ui.Draw Sparse Map', value=True, toggle=True)        
         self.checkboxDrawDenseCloud = pangolin.VarBool('ui.Draw Dense Map', value=True, toggle=True)                               
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
@@ -293,6 +296,7 @@ class Viewer3D(object):
         self.draw_loops = self.checkboxLoops.Get()
         self.draw_gt = self.checkboxGT.Get()
         self.draw_predicted = self.checkboxPredicted.Get()
+        self.draw_fov_centers = self.checkboxFovCenters.Get()
         self.draw_wireframe = self.checkboxWireframe.Get()
         self.draw_dense = self.checkboxDrawDenseCloud.Get()
         self.draw_sparse = self.checkboxDrawSparseCloud.Get()
@@ -359,10 +363,17 @@ class Viewer3D(object):
                 gl.glLineWidth(1)                
                 self.updateTwc(self.map_state.cur_pose)
                 
-            if self.map_state.predicted_pose is not None and self.draw_predicted:
+            if self.draw_predicted and self.map_state.predicted_pose is not None:
                 # draw predicted pose in red
                 gl.glColor3f(1.0, 0.0, 0.0)
                 pangolin.DrawCamera(self.map_state.predicted_pose, self.scale)           
+                
+            if self.draw_fov_centers and len(self.map_state.fov_centers)>0:
+                # draw keypoints with their color
+                gl.glPointSize(5)
+                #gl.glColor3f(1.0, 0.0, 0.0)
+                pangolin.DrawPoints(self.map_state.fov_centers, self.map_state.fov_centers_colors)   
+                    
                 
             if self.thread_gt_timestamps is not None: 
                 if self.draw_gt:                
@@ -503,8 +514,14 @@ class Viewer3D(object):
             for kf in keyframes:
                 map_state.poses.append(kf.Twc)
                 map_state.pose_timestamps.append(kf.timestamp)
+                if kf.fov_center_w is not None:
+                    map_state.fov_centers.append(kf.fov_center_w.T)
+                    map_state.fov_centers_colors.append(np.array([1.0,0.0,0.0])) # green
         map_state.poses = np.array(map_state.poses, dtype=float)
         map_state.pose_timestamps = np.array(map_state.pose_timestamps, dtype=np.float64)
+        if len(map_state.fov_centers)>0:
+            map_state.fov_centers = np.array(map_state.fov_centers).reshape(-1,3)
+            map_state.fov_centers_colors = np.array(map_state.fov_centers_colors).reshape(-1,3)
 
         num_map_points = map.num_points()
         if num_map_points>0:

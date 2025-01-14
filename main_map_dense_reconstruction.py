@@ -64,12 +64,13 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 if __name__ == "__main__":
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=str, default='results/slam_state', help='path where we have saved the system state')
-    args = parser.parse_args()
 
     config = Config()
+        
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--path', type=str, default=config.system_state_folder_path, help='path where we have saved the system state')
+    parser.add_argument('-o','--output_path', required=False, type=str, default=config.system_state_folder_path + '_dense_reconstruction', help="Path to save the system state with the dense reconstruction")
+    args = parser.parse_args()
 
     camera = PinholeCamera()
     feature_tracker_config = FeatureTrackerConfigs.TEST
@@ -83,16 +84,14 @@ if __name__ == "__main__":
     viewer_scale = slam.viewer_scale() if slam.viewer_scale()>0 else 0.1  # 0.1 is the default viewer scale
     print(f'Viewer_scale: {viewer_scale}')    
     print(f'Sensor_type: {slam.sensor_type}')
-        
-    print(f'main: id of Parameters: {id(Parameters)}')
                 
-    # Select your volumetric integrator (see the file volumetric_integrator_factory.py) 
-    # TSDF, GAUSSIAN_SPLATTING
-    volumetric_integrator_type = VolumetricIntegratorType.GAUSSIAN_SPLATTING
-    Parameters.kVolumetricIntegrationUseDepthEstimator = (slam.sensor_type==SensorType.STEREO) # Use depth estimator for volumetric integration in the back-end. 
+    # Select your volumetric integrator here (see the file volumetric_integrator_factory.py) 
+    volumetric_integrator_type = VolumetricIntegratorType.TSDF     # TSDF, GAUSSIAN_SPLATTING
+    Parameters.kVolumetricIntegrationUseDepthEstimator = (slam.sensor_type==SensorType.STEREO) # Use depth estimator for volumetric integration in the back-end in the case of stereo data. 
                                                                                     # Since the depth inference time may be above 1 second, the volumetric integrator may be very slow.
-                                                                                    # NOTE: The depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM sparse map scale will not be consistent.
-    Parameters.kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)    
+                                                                                    # NOTE: The depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM output
+                                                                                    # since the SLAM sparse map scale will not be consistent.
+    Parameters.kVolumetricIntegrationDepthEstimatorType = "DEPTH_CRESTEREO_PYTORCH"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)    
     Parameters.kVolumetricIntegrationMinNumLBATimes = 0 # NOTE: This avoids the volumetric integrator integrates just keyframes with lba_count >= kVolumetricIntegrationMinNumLBATimes    
     if Parameters.kVolumetricIntegrationUseDepthEstimator:
         print(f'Using depth estimator: {Parameters.kVolumetricIntegrationDepthEstimatorType}')
@@ -108,19 +107,18 @@ if __name__ == "__main__":
         gt_traj3d, gt_timestamps = groundtruth.getFull3dTrajectory()
         viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=slam.sensor_type==SensorType.MONOCULAR)    
             
-
+    # wait the viewer3D to be ready
     while not viewer3D.is_running():
         time.sleep(0.1)
 
-
-    viewer3D.draw_map(slam)       
-        
+    viewer3D.draw_map(slam)               
             
     print(f'inserting #keyframes: {num_map_keyframes} ...')
     
     is_map_save = False  # save map on GUI
     is_paused = False    # pause/resume on GUI     
     
+    i = 0
     if num_map_keyframes>0:       
         
         for kf in keyframes:
@@ -137,6 +135,9 @@ if __name__ == "__main__":
                 dense_map_output = volumetric_integrator.pop_output()
                 if dense_map_output is not None:
                     viewer3D.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
+            i += 1
+            if i > 30:
+                break
 
     
     print(f'processing and visualizing dense map...')
@@ -156,7 +157,7 @@ if __name__ == "__main__":
                 
         is_map_save = viewer3D.is_map_save() and is_map_save == False                   
         if is_map_save:
-            output_path = config.system_state_folder_path + '_dense_reconstruction'
+            output_path = args.output_path
             slam.save_system_state(output_path)
             volumetric_integrator.save(output_path)
                             

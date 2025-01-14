@@ -122,6 +122,10 @@ class FrameBase(object):
         self.timestamp = timestamp 
         self.img_id = img_id
         
+        self.median_depth = -1   # median depth of the frame
+        self.fov_center_c = None   # fov center 3D position w.r.t. camera
+        self.fov_center_w = None   # fov center 3D position w.r.t world       
+        
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
@@ -196,7 +200,6 @@ class FrameBase(object):
             return self._pose.Tcw      
     @property    
     def quaternion(self): # g2o.Quaternion(),  quaternion_cw  
-        
         with self._lock_pose:           
             return self._pose.quaternion  
     @property    
@@ -212,20 +215,28 @@ class FrameBase(object):
     # update pose from transformation matrix or g2o.Isometry3d
     def update_pose(self, pose):
         with self._lock_pose:              
-            self._pose.set(pose)    
+            self._pose.set(pose)
+            if self.fov_center_c is not None:
+                self.fov_center_w = (self._pose.Rwc @ self.fov_center_c + self._pose.Ow.reshape(3,1))
+            
    # update pose from transformation matrix 
     def update_translation(self, tcw):
         with self._lock_pose:              
-            self._pose.set_translation(tcw)           
+            self._pose.set_translation(tcw)
+            if self.fov_center_c is not None:            
+                self.fov_center_w = (self._pose.Rwc @ self.fov_center_c + self._pose.Ow.reshape(3,1))
+                  
    # update pose from transformation matrix 
     def update_rotation_and_translation(self, Rcw, tcw):
         with self._lock_pose:          
-            self._pose.set_from_rotation_and_translation(Rcw, tcw)            
+            self._pose.set_from_rotation_and_translation(Rcw, tcw)
+            if self.fov_center_c is not None:                        
+                self.fov_center_w = (self._pose.Rwc @ self.fov_center_c + self._pose.Ow.reshape(3,1))        
                 
     # transform a world point into a camera point 
     def transform_point(self, pw):
         with self._lock_pose:          
-            return (self._pose.Rcw @ pw) + self._pose.tcw # p w.r.t. camera 
+            return (self._pose.Rcw @ pw) + self._pose.tcw # p w.r.t. camera
     # transform a world points into camera points [Nx3] 
     # out: points  w.r.t. camera frame  [Nx3] 
     def transform_points(self, points):    
@@ -324,8 +335,12 @@ class FrameBase(object):
             
 # A Frame mainly collects keypoints, descriptors and their corresponding 3D points 
 class Frame(FrameBase):       
-    is_store_imgs        = False     # used by Frame to store images when needed for debugging or processing purposes    
-    def __init__(self, camera: Camera, img, img_right=None, depth=None, pose=None, id=None, timestamp=None, kps_data=None, img_id=None):
+    is_store_imgs           = False     # to store images when needed for debugging or processing purposes
+    is_compute_median_depth = False     # to compute median depth when needed
+    def __init__(self, camera: Camera, 
+                 img, img_right=None, depth=None, 
+                 pose=None, id=None, timestamp=None, img_id=None,
+                 frame_data_dict=None):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
         
         self._lock_features = RLock()  
@@ -353,11 +368,11 @@ class Frame(FrameBase):
         self.outliers = None     # outliers flags for map points (reset and set by pose_optimization())
         
         self.kf_ref = None       # reference keyframe 
-        
+                
         self.img = None          # image (copy of img if available)
         self.img_right = None    # right image (copy of img_right if available)       
         self.depth_img = None    # depth (copy of depth if available)
-                                                        
+
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
             if Frame.is_store_imgs: 
@@ -372,6 +387,40 @@ class Frame(FrameBase):
                 depth = depth * self.camera.depth_factor        
             if Frame.is_store_imgs: 
                 self.depth_img = depth.copy()
+                        
+        if frame_data_dict is not None:
+            self.is_keyframe = frame_data_dict['is_keyframe']
+            self.median_depth = frame_data_dict['median_depth']
+            self.fov_center_c = frame_data_dict['fov_center_c']
+            self.fov_center_w = frame_data_dict['fov_center_w']
+            
+            self.kps       = frame_data_dict['kps']
+            self.kps_r     = frame_data_dict['kps_r']
+            self.kpsu      = frame_data_dict['kpsu']
+            self.kpsn      = frame_data_dict['kpsn']
+            self.octaves   = frame_data_dict['octaves']
+            self.octaves_r = frame_data_dict['octaves_r']
+            self.sizes     = frame_data_dict['sizes']
+            self.angles    = frame_data_dict['angles']
+            self.des       = frame_data_dict['des']
+            self.des_r     = frame_data_dict['des_r']
+            self.depths    = frame_data_dict['depths']
+            self.kps_ur    = frame_data_dict['kps_ur']
+            
+            self.points    = frame_data_dict['points']
+            self.outliers  = frame_data_dict['outliers']
+            
+            self.kf_ref = frame_data_dict['kf_ref']
+            
+            if self.img is None:
+                self.img = frame_data_dict['img']
+                
+            if self.img_right is None:
+                self.img_right = frame_data_dict['img_right']
+                
+            if self.depth_img is None:
+                self.depth_img = frame_data_dict['depth_img']
+            return                        
                                 
         if img is not None:                  
             if img_right is not None:
@@ -403,9 +452,10 @@ class Frame(FrameBase):
                 self.octaves_r = np.uint32(kps_data_r[:,2]) #print('octaves: ', self.octaves)
             
             if self.kps is not None:
+                # compute stereo matches: if there is depth available, use it, otherwise use stereo matching
                 if depth is not None: 
                     self.compute_stereo_from_rgbd(kps_data, depth)
-                if img_right is not None:
+                elif img_right is not None:
                     self.depths = np.full(len(self.kps), -1, dtype=float)     
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
@@ -448,6 +498,9 @@ class Frame(FrameBase):
                 'camera': self.camera.to_json(),
                 
                 'is_keyframe': bool(self.is_keyframe),
+                'median_depth': float(self.median_depth),
+                'fov_center_c': json.dumps(NumpyJson.numpy_to_json(self.fov_center_c)) if self.fov_center_c is not None else None,
+                'fov_center_w': json.dumps(NumpyJson.numpy_to_json(self.fov_center_w)) if self.fov_center_w is not None else None,
                 
                 'kps': json.dumps(self.kps.astype(float).tolist()) if self.kps is not None else None,
                 'kps_r': json.dumps(self.kps_r.astype(float).tolist() if self.kps_r is not None else None),
@@ -479,59 +532,65 @@ class Frame(FrameBase):
     def from_json(json_str):  
         camera = PinholeCamera.from_json(json_str['camera'])      
         pose = np.array(json.loads(json_str['pose']),dtype=np.float64) if json_str['pose'] is not None else None
-        f = Frame(camera=camera,img=None, img_right=None, depth=None,
-                   pose = pose, 
-                   id=json_str['id'], 
-                   timestamp=json_str['timestamp'],
-                   img_id=json_str['img_id'])
         
-        f.is_keyframe = json_str['is_keyframe']
+        frame_data_dict = {}
+        frame_data_dict['is_keyframe'] = json_str['is_keyframe']
+        frame_data_dict['median_depth'] = json_str['median_depth']
+        frame_data_dict['fov_center_c'] = NumpyJson.json_to_numpy(json.loads(json_str['fov_center_c']))
+        frame_data_dict['fov_center_w'] = NumpyJson.json_to_numpy(json.loads(json_str['fov_center_w'])) 
         
-        f.kps = np.array(json.loads(json_str['kps'])) if json_str['kps'] is not None else None        
-        f.kps_r = np.array(json.loads(json_str['kps_r'])) if json_str['kps_r'] is not None else None
-        f.kpsu = np.array(json.loads(json_str['kpsu'])) if json_str['kpsu'] is not None else None
-        f.kpsn = np.array(json.loads(json_str['kpsn'])) if json_str['kpsn'] is not None else None
-        f.octaves = np.array(json.loads(json_str['octaves'])) if json_str['octaves'] is not None else None
-        f.octaves_r = np.array(json.loads(json_str['octaves_r'])) if json_str['octaves_r'] is not None else None
-        f.sizes = np.array(json.loads(json_str['sizes'])) if json_str['sizes'] is not None else None
-        f.angles = np.array(json.loads(json_str['angles'])) if json_str['angles'] is not None else None
+        frame_data_dict['kps'] = np.array(json.loads(json_str['kps'])) if json_str['kps'] is not None else None                
+        frame_data_dict['kps_r'] = np.array(json.loads(json_str['kps_r'])) if json_str['kps_r'] is not None else None
+        frame_data_dict['kpsu'] = np.array(json.loads(json_str['kpsu'])) if json_str['kpsu'] is not None else None
+        frame_data_dict['kpsn'] = np.array(json.loads(json_str['kpsn'])) if json_str['kpsn'] is not None else None
+        frame_data_dict['octaves'] = np.array(json.loads(json_str['octaves'])) if json_str['octaves'] is not None else None
+        frame_data_dict['octaves_r'] = np.array(json.loads(json_str['octaves_r'])) if json_str['octaves_r'] is not None else None
+        frame_data_dict['sizes'] = np.array(json.loads(json_str['sizes'])) if json_str['sizes'] is not None else None
+        frame_data_dict['angles'] = np.array(json.loads(json_str['angles'])) if json_str['angles'] is not None else None
         
-        f.des = NumpyB64Json.json_to_numpy(json.loads(json_str['des'])) if json_str['des'] is not None else None
-        f.des_r = NumpyB64Json.json_to_numpy(json.loads(json_str['des_r'])) if json_str['des_r'] is not None else None    
+        frame_data_dict['des'] = NumpyB64Json.json_to_numpy(json.loads(json_str['des'])) if json_str['des'] is not None else None
+        frame_data_dict['des_r'] = NumpyB64Json.json_to_numpy(json.loads(json_str['des_r'])) if json_str['des_r'] is not None else None    
             
-        f.depths = np.array(json.loads(json_str['depths'])) if json_str['depths'] is not None else None
-        f.kps_ur = np.array(json.loads(json_str['kps_ur'])) if json_str['kps_ur'] is not None else None
+        frame_data_dict['depths'] = np.array(json.loads(json_str['depths'])) if json_str['depths'] is not None else None
+        frame_data_dict['kps_ur'] = np.array(json.loads(json_str['kps_ur'])) if json_str['kps_ur'] is not None else None
         
-        f.points = np.array(json.loads(json_str['points'])) if json_str['points'] is not None else None     
+        frame_data_dict['points'] = np.array(json.loads(json_str['points'])) if json_str['points'] is not None else None     
         
-        f.outliers = np.array(json.loads(json_str['outliers'])) if json_str['outliers'] is not None else None
-        f.kf_ref = json_str['kf_ref'] if json_str['kf_ref'] is not None else None
+        frame_data_dict['outliers'] = np.array(json.loads(json_str['outliers'])) if json_str['outliers'] is not None else None
+        frame_data_dict['kf_ref'] = json_str['kf_ref'] if json_str['kf_ref'] is not None else None
         
-        f.img = NumpyB64Json.json_to_numpy(json.loads(json_str['img'])) if json_str['img'] is not None else None
-        f.depth_img = NumpyB64Json.json_to_numpy(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
-        f.img_right = NumpyB64Json.json_to_numpy(json.loads(json_str['img_right'])) if json_str['img_right'] is not None else None
+        frame_data_dict['img'] = NumpyB64Json.json_to_numpy(json.loads(json_str['img'])) if json_str['img'] is not None else None
+        frame_data_dict['depth_img'] = NumpyB64Json.json_to_numpy(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
+        frame_data_dict['img_right'] = NumpyB64Json.json_to_numpy(json.loads(json_str['img_right'])) if json_str['img_right'] is not None else None
                 
-        if f.kps is not None and f.points is not None:
-            #print(f'f.kps.shape = {f.kps.shape}, f.points.shape = {f.points.shape}')        
-            assert(len(f.kps) == len(f.points))
+        if 'kps' in frame_data_dict and 'points' in frame_data_dict: 
+            assert(len(frame_data_dict['kps']) == len(frame_data_dict['points']))
         
+        f = Frame(camera=camera,
+                  img=None, img_right=None, depth=None,
+                  pose = pose, 
+                  id=json_str['id'], 
+                  timestamp=json_str['timestamp'],
+                  img_id=json_str['img_id'],
+                  frame_data_dict=frame_data_dict)
+                
         return f
-    
-    # post processing after deserialization to replace saved ids with reloaded objects
+                
+    # post processing after deserialization to replace saved ids with reloaded objects                
     def replace_ids_with_objects(self, points, frames, keyframes):
-        def get_object_with_id(id, objs):
-            if id is None: 
-                return None            
-            found_objs = [o for o in objs if o is not None and o.id == id]
-            #print(f'found_objs = {found_objs}, id = {id}, objs = {[o.id for o in objs]}')
-            return found_objs[0] if len(found_objs) > 0 else None
-        # get actual points         
-        if self.points is not None and len(self.points) > 0:  
-            actual_points = np.array([get_object_with_id(id, points) for id in self.points])
-            self.points = actual_points
-        # get actual kf_ref 
-        if self.kf_ref is not None:  # NOTE: here kf_ref is still an id to be replaced with an object
-            self.kf_ref = get_object_with_id(self.kf_ref, keyframes)       
+        # Pre-build dictionaries for faster lookups
+        points_dict = {obj.id: obj for obj in points if obj is not None}
+        keyframes_dict = {obj.id: obj for obj in keyframes if obj is not None}
+        def get_object_with_id(id, lookup_dict):
+            if id is None:
+                return None
+            return lookup_dict.get(id, None)
+        # Get actual points
+        if self.points is not None and len(self.points) > 0:
+            self.points = np.array([get_object_with_id(id, points_dict) for id in self.points])
+        # Get actual kf_ref
+        if self.kf_ref is not None:
+            self.kf_ref = get_object_with_id(self.kf_ref, keyframes_dict)               
      
     # KD tree of undistorted keypoints
     @property
@@ -703,11 +762,18 @@ class Frame(FrameBase):
 
     def compute_stereo_from_rgbd(self, kps_data, depth):
         kps_int = np.uint32(kps_data[:,:2])
-        depth_values = depth[kps_int[:, 1], kps_int[:, 0]]  # Depth at keypoint locations (v, u)                       
-        self.depths = np.where(depth_values > 0, depth_values, -1) 
-        safe_depth_values = np.where(depth_values == 0, np.inf, depth_values) # to prevent division by zero 
-        self.kps_ur = np.where(depth_values > 0, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1)   
+        depth_values = depth[kps_int[:, 1], kps_int[:, 0]]  # Depth at keypoint locations (v, u)     
+        valid_depth_mask = depth_values > 0             
+        self.depths = np.where(valid_depth_mask, depth_values, -1) 
+        safe_depth_values = np.where(valid_depth_mask, depth_values, np.inf) # to prevent division by zero 
+        self.kps_ur = np.where(valid_depth_mask, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1)   
         #print(f'depth: {self.depths}, kps_ur: {self.kps_ur}')  
+        #compute median depth
+        if Frame.is_compute_median_depth:
+            self.median_depth = np.median(depth_values[valid_depth_mask]) if np.any(valid_depth_mask) else 0
+            self.fov_center_c = self.camera.unproject_3d(self.camera.cx, self.camera.cy, self.median_depth)
+            self.fov_center_w = self._pose.Rwc @ self.fov_center_c + self._pose.Ow
+        
 
     def compute_stereo_matches(self, img, img_right): 
         min_z = self.camera.b
@@ -858,13 +924,20 @@ class Frame(FrameBase):
             good_disparities = good_disparities[good_des_dists_mask]
             good_matched_idxs1 = good_matched_idxs1[good_des_dists_mask]
             good_matched_idxs2 = good_matched_idxs2[good_des_dists_mask]                
-                
-        print(f'[compute_stereo_matches] found final {len(good_matched_idxs1)} stereo matches')             
+                          
         self.depths[good_matched_idxs1] = self.camera.bf * np.reciprocal(good_disparities.astype(float))
         self.kps_ur[good_matched_idxs1] = self.kps_r[good_matched_idxs2][:,0]                   
-        
+        print(f'[compute_stereo_matches] found final {len(good_matched_idxs1)} stereo matches')   
+                
+        if Frame.is_compute_median_depth:                
+            valid_dephts_mask = self.depths > 0
+            self.median_depth = np.median(self.depths[valid_dephts_mask])
+            self.fov_center_c = self.camera.unproject_3d(self.camera.cx, self.camera.cy, self.median_depth)
+            self.fov_center_w = self._pose.Rwc @ self.fov_center_c + self._pose.Ow
+            print(f'[compute_stereo_matches] median depth: {self.median_depth}')
+                
         if Parameters.kStereoMatchingShowMatchedPoints: # debug stereo matching
-            print(f'[compute_stereo_matches] found intial {len(good_matched_idxs1)} stereo matches')
+            #print(f'[compute_stereo_matches] found intial {len(good_matched_idxs1)} stereo matches')
             stereo_img_matches = draw_feature_matches(img, img_right, self.kps[good_matched_idxs1], self.kps_r[good_matched_idxs2], horizontal=False)
             #cv2.namedWindow('stereo_img_matches', cv2.WINDOW_NORMAL)
             cv2.imshow('stereo_img_matches', stereo_img_matches)
@@ -962,7 +1035,10 @@ class Frame(FrameBase):
 # check a) map points are in image b) good view angle c) good distance range  
 def are_map_points_visible_in_frame(map_points: list, frame: Frame, Rcw: np.ndarray, tcw: np.ndarray):      
     # similar to frame.are_visible()
-    n = len(map_points)
+    n = len(map_points)    
+    if n==0:
+        return np.array([]), np.array([]), np.array([]), np.array([])  # Return empty arrays if no map points
+    
     points_w = np.zeros((n, 3), dtype=np.float32) 
     point_normals = np.zeros((n, 3), dtype=np.float32) 
     min_dists = np.zeros(n, dtype=np.float32)
@@ -1001,7 +1077,10 @@ def are_map_points_visible_in_frame(map_points: list, frame: Frame, Rcw: np.ndar
 # check a) map points are in image b) good view angle c) good distance range  
 def are_map_points_visible(frame1: Frame, frame2: Frame, map_points1, sR21: np.ndarray, t21: np.ndarray):
     # similar to frame.are_visible()      
-    n = len(map_points1)
+    n = len(map_points1)    
+    if n==0:
+        return np.array([]), np.array([]), np.array([]), np.array([])  # Return empty arrays if no map points
+    
     points_w = np.zeros((n, 3), dtype=np.float32) 
     point_normals = np.zeros((n, 3), dtype=np.float32) 
     min_dists = np.zeros(n, dtype=np.float32)

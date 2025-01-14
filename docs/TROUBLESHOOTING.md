@@ -3,19 +3,20 @@
 <!-- TOC -->
 
 - [Troubleshooting](#troubleshooting)
-    - [1. Bad tracking performances](#1-bad-tracking-performances)
-    - [2. Gtk-ERROR **: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported](#2-gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
-    - [3. SURF error](#3-surf-error)
-    - [4. g2o Errors](#4-g2o-errors)
-        - [4.1. AttributeError: 'g2o.EdgeSE3ProjectXYZ' object has no attribute 'fx'](#41-attributeerror-g2oedgese3projectxyz-object-has-no-attribute-fx)
-        - [4.2. Cannot properly import g2o library or other libs](#42-cannot-properly-import-g2o-library-or-other-libs)
-    - [5. When loading a neural network with CUDA everything gets stuck](#5-when-loading-a-neural-network-with-cuda-everything-gets-stuck)
-    - [6. OrderedSet](#6-orderedset)
-    - [7. Problems with ROS and OpenCV](#7-problems-with-ros-and-opencv)
-    - [8. Could not import PILLOW_VERSION from PIL](#8-could-not-import-pillow_version-from-pil)
-    - [9. ValueError: ndarray is not C-contiguous](#9-valueerror-ndarray-is-not-c-contiguous)
-    - [10. Error: python3: malloc.c:2401: sysmalloc: Assertion old_top == initial_top av && old_size == 0 ...](#10-error-python3-mallocc2401-sysmalloc-assertion-old_top--initial_top-av--old_size--0-)
-    - [11. Python version](#11-python-version)
+  - [Bad tracking performances](#bad-tracking-performances)
+  - [RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
+  - [Gtk-ERROR \*\*: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported](#gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
+  - [SURF error](#surf-error)
+  - [g2o Errors](#g2o-errors)
+    - [AttributeError: 'g2o.EdgeSE3ProjectXYZ' object has no attribute 'fx'](#attributeerror-g2oedgese3projectxyz-object-has-no-attribute-fx)
+    - [Cannot properly import g2o library or other libs](#cannot-properly-import-g2o-library-or-other-libs)
+  - [When loading a neural network with CUDA everything gets stuck](#when-loading-a-neural-network-with-cuda-everything-gets-stuck)
+  - [OrderedSet](#orderedset)
+  - [Problems with ROS and OpenCV](#problems-with-ros-and-opencv)
+  - [Could not import PILLOW\_VERSION from PIL](#could-not-import-pillow_version-from-pil)
+  - [ValueError: ndarray is not C-contiguous](#valueerror-ndarray-is-not-c-contiguous)
+  - [Error: python3: malloc.c:2401: sysmalloc: Assertion \`(old\_top == initial\_top (av) \&\& old\_size == 0) ...](#error-python3-mallocc2401-sysmalloc-assertion-old_top--initial_top-av--old_size--0-)
+  - [Python version](#python-version)
 
 <!-- /TOC -->
 
@@ -31,6 +32,30 @@ If you work under **Ubuntu** or **MacOS**, check the specific installation proce
 Due to the multi-threading system (tracking thread + local mapping thread) and the non-super-fast performances of the python implementations (indeed, [python is not actually multithreading](https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder)), bad tracking performances may occur and vary depending on your machine computation capabilities. In a few words, it may happen that the local mapping thread is not fast enough to spawn new map points in time for the tracking thread. In fact, new spawned map points are necessary to let the tracking thread find enough {keypoint}-{map point} correspondences, and hence stably grasp at the map and proceed along its estimated trajectory. Simply put, the local mapping thread continuously builds/unrolls the fundamental 'carpet' of points (the map) on which the tracking thread 'walks': no 'carpet', no party!
 
 If you experience bad tracking performances, go in [config_parameters.py](./config_parameters.py) and try to set `kTrackingWaitForLocalMappingToGetIdle=True`.
+
+
+## RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile
+
+If you get the following error (or a similar one)
+```
+      RuntimeError:
+      The detected CUDA version (11.8) mismatches the version that was used to compile
+      PyTorch (12.1). Please make sure to use the same CUDA versions.
+```
+then your detected CUDA version should actually be 11.8 and the following command might help:
+```
+pip install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
+```
+Another solution is to install CUDA 12.1, as suggested by the error message.
+
+To know which CUDA version is required by your installed torch version, you can run:
+```
+python -c "import torch; print(torch.__version__)"
+```
+
+In case your dected CUDA version is a different one, you can easily adjust the above command by changing the `cuXYZ` version code. See this reference for further details:
+https://pytorch.org/get-started/previous-versions/
+
 
 ## Gtk-ERROR **: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported
 

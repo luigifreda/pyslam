@@ -102,7 +102,7 @@ class LoopDetectingProcess:
         self.last_input_task = None
         
         self.reset_mutex = mp.Lock()
-        self.reset_requested = mp.Value('i',0)
+        self.reset_requested = mp.Value('i',-1)
 
         self.load_request_completed = mp.Value('i',0)
         self.load_request_condition = mp.Condition()

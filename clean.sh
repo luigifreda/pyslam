@@ -2,6 +2,13 @@
 
 # clean thirdparty install and compiled libraries  
 
+# get the first input if any 
+HARD_CLEAN=0
+if [ "$1" == "--hard" ]; then
+    HARD_CLEAN=1
+fi
+
+
 # ====================================================
 # import the utils 
 . bash_utils.sh 
@@ -75,4 +82,7 @@ fi
 
 
 # clean downloaded models and reset submodules
-# git submodule foreach 'git reset --hard; git clean -xfd'
+if [ $HARD_CLEAN -eq 1 ]; then
+    print_blue "resetting git submodules"
+    git submodule foreach 'git reset --hard; git clean -xfd'
+fi

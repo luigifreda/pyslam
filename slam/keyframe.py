@@ -85,33 +85,34 @@ class KeyFrameGraph(object):
             self.connected_keyframes_weights = json_str['connected_keyframes_weights'] # converted to Counter in replace_ids_with_objects()
             self.ordered_keyframes_weights = json_str['ordered_keyframes_weights'] # converted to OrderedDict in replace_ids_with_objects()
             self.is_first_connection = json_str['is_first_connection']
-       
-    # post processing after deserialization to replace saved ids with reloaded objects       
+                
+    # post processing after deserialization to replace saved ids with reloaded objects                       
     def replace_ids_with_objects(self, points, frames, keyframes):
-        #print(f'replace ids with objects, keyframes = {[k.id for k in keyframes]}')
-        def get_object_with_id(id, objs):
-            if id is None: 
-                return None            
-            found_objs = [o for o in objs if o is not None and o.id == id]
-            #print(f'found_objs = {found_objs}, id = {id}, objs = {[o.id for o in objs]}')
-            return found_objs[0] if len(found_objs) > 0 else None
-        # get actual parent 
-        if self.parent is not None:  # NOTE: here parent is still an id to be replaced with an object
-            self.parent = get_object_with_id(self.parent, keyframes)        
-        # get actual children
+        # Pre-build a dictionary for efficient lookups
+        keyframes_dict = {obj.id: obj for obj in keyframes if obj is not None}
+        def get_object_with_id(id, lookup_dict):
+            return lookup_dict.get(id, None)
+        # Replace parent
+        if self.parent is not None:  
+            self.parent = get_object_with_id(self.parent, keyframes_dict)
+        # Replace children
         if self.children is not None: 
-            actual_children = set([get_object_with_id(id, keyframes) for id in self.children])
-            self.children = actual_children
-        # get actual loop edges
+            self.children = {get_object_with_id(id, keyframes_dict) for id in self.children}
+        # Replace loop edges
         if self.loop_edges is not None: 
-            actual_loop_edges = set([get_object_with_id(id, keyframes) for id in self.loop_edges])
-            self.loop_edges = actual_loop_edges
-        # get actual connected_keyframes_weights
+            self.loop_edges = {get_object_with_id(id, keyframes_dict) for id in self.loop_edges}
+        # Replace connected_keyframes_weights
         if self.connected_keyframes_weights is not None: 
-            self.connected_keyframes_weights = Counter({get_object_with_id(id, keyframes):w for id,w in self.connected_keyframes_weights})
-        # get actual ordered_keyframes_weights
+            self.connected_keyframes_weights = Counter({
+                get_object_with_id(id, keyframes_dict): weight 
+                for id, weight in self.connected_keyframes_weights
+            })
+        # Replace ordered_keyframes_weights
         if self.ordered_keyframes_weights is not None: 
-            self.ordered_keyframes_weights = OrderedDict({get_object_with_id(id, keyframes):w for id,w in self.ordered_keyframes_weights})
+            self.ordered_keyframes_weights = OrderedDict({
+                get_object_with_id(id, keyframes_dict): weight 
+                for id, weight in self.ordered_keyframes_weights
+            })            
                     
     # ===============================    
     # spanning tree     
@@ -254,6 +255,10 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.des     = frame.des        # keypoint descriptors                  [NxD] where D is the descriptor length 
         self.depths  = frame.depths     # keypoint depths                       [Nx1]
         self.kps_ur = frame.kps_ur      # right keypoint coordinates            [Nx1]
+        
+        self.median_depth = frame.median_depth
+        self.fov_center_c = frame.fov_center_c
+        self.fov_center_w = frame.fov_center_w
         
         # for loop closing 
         self.g_des = None               # global (image-wise) descriptor for loop closing

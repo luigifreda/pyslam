@@ -81,9 +81,15 @@ Note that the `GaussianSplatterManager` can be used as backend to add and proces
 
 To reload a saved "checkpoint" and view the model:
 ```bash
-python gaussian_splatting_manager.py --load <checkpoint_path>
+python gaussian_splatting_manager.py --load <gs_checkpoint_path>
 ```
-
+The ` <gs_checkpoint_path>` is expected to have the following structure: 
+```bash
+├── gs_checkpoint_path
+    ├── pointcloud   # folder containing different subfolders, each one with a saved .ply econding the gaussian splatting model at a specific iteration/checkpoint
+    ├── last_camera.json
+    ├── config.yml
+```
 
 ## Downloading Datasets
 Running the following scripts will automatically download datasets to the `./datasets` folder.

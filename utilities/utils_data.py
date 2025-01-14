@@ -50,6 +50,16 @@ def static_fields_to_dict(cls):
         if not key.startswith('__') and not callable(value)
     }
 
+
+def push_to_front(queue, item):
+    temp_list = [item] 
+    while not queue.empty():
+        temp_list.append(queue.get())
+    # Put all items back in the queue, starting with the new item at the front
+    for i in temp_list:
+        queue.put(i)
+        
+
 # empty a queue before exiting from the consumer thread/process for safety
 def empty_queue(queue, verbose=True):
     #if platform.system() == 'Darwin':

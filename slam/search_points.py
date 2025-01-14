@@ -19,16 +19,13 @@
 
 import sys 
 import math 
-import numpy as np
-import cv2 
+import numpy as np 
 
 from frame import Frame, FeatureTrackerShared, are_map_points_visible, are_map_points_visible_in_frame
 from keyframe import KeyFrame
-from map_point import MapPoint, predict_detection_levels
+from map_point import predict_detection_levels
 
-from utils_geom import skew, add_ones, normalize_vector, computeF12, check_dist_epipolar_line, Sim3Pose
-from utils_draw import draw_lines, draw_points 
-from utils_sys import Printer, getchar
+from utils_geom import computeF12, check_dist_epipolar_line, Sim3Pose
 from config_parameters import Parameters  
 from timer import Timer
 from rotation_histogram import RotationHistogram
@@ -154,7 +151,7 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
         
         best_dist = math.inf 
         #best_dist2 = math.inf
-        best_level = -1 
+        #best_level = -1 
         #best_level2 = -1                   
         best_k_idx = -1   
         best_ref_idx = -1          
@@ -243,7 +240,8 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
 def search_map_by_projection(points, f_cur: Frame, 
                              max_reproj_distance=Parameters.kMaxReprojectionDistanceMap, 
                              max_descriptor_distance=None,
-                             ratio_test=Parameters.kMatchRatioTestMap):
+                             ratio_test=Parameters.kMatchRatioTestMap,
+                             far_points_threshold=None):
     if max_descriptor_distance is None:
         max_descriptor_distance = Parameters.kMaxDescriptorDistance  
            
@@ -253,7 +251,7 @@ def search_map_by_projection(points, f_cur: Frame,
     #reproj_dists = []
     
     if len(points) == 0:
-        return 0 
+        return 0,0,0
             
     # check if points are visible 
     visible_pts, projs, depths, dists = f_cur.are_visible(points)
@@ -262,7 +260,12 @@ def search_map_by_projection(points, f_cur: Frame,
     kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
     kd_cur_idxs = f_cur.kd.query_ball_point(projs, radiuses)
-                           
+    
+    # trick to filter out far points if required => we mark them as not visible
+    if far_points_threshold is not None: 
+        #print(f'search_map_by_projection: using far points threshold: {far_points_threshold}')
+        visible_pts = np.logical_and(visible_pts, depths < far_points_threshold)
+
     for i, p in enumerate(points):
         if not visible_pts[i] or p.is_bad:     # point not visible in frame or is bad 
             continue        
@@ -486,11 +489,12 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
     #print('e2: ', e2)    
     
     baseline = np.linalg.norm(O1w-O2w) 
+    #print(f'search_frame_for_triangulation: baseline: {baseline}, camera.b: {kf2.camera.b}')
 
     # if the translation is too small we cannot triangulate 
     if not is_monocular:  # we assume the Inializer has been used for building the first map 
-        baseline < kf2.camera.b
-        return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT
+        if baseline < kf2.camera.b:
+            return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT
     else:    
         medianDepth = kf2.compute_points_median_depth()
         if medianDepth == -1:

@@ -222,6 +222,8 @@ class SerializationJSON:
         elif isinstance(data, SerializableEnum):         
             # If the object is an Enum (SerializableEnum), use its to_json method
             return data.to_json()  # Use the built-in to_json of Enum
+        elif isinstance(data, np.ndarray):
+            return NumpyJson.numpy_to_json(data)
         return data  # Return unchanged if it's not a dict, list, or Serializable/SerializableEnum
 
     @staticmethod
@@ -230,8 +232,13 @@ class SerializationJSON:
         Recursively deserialize data, handling both standard Python objects and Serializable/SerializableEnum.
         """
         if isinstance(data, dict):
-            print(f'SerializationJSON.deserialize: data dict {data}')
-            return SerializationJSON.deserialize_dict_data(data)
+            print(f'SerializationJSON.deserialize: data dict {data}')            
+            if NumpyJson.is_encoded(data):
+                return NumpyJson.json_to_numpy(data)
+            elif NumpyB64Json.is_encoded(data):
+                return NumpyB64Json.json_to_numpy(data) 
+            else:           
+                return SerializationJSON.deserialize_dict_data(data)
         elif isinstance(data, list):
             print(f'SerializationJSON.deserialize: data list {data}')            
             return [SerializationJSON.deserialize(item) for item in data]
@@ -271,23 +278,37 @@ class SerializationJSON:
 class NumpyJson:
     
     @staticmethod
+    def is_encoded(data):
+        return isinstance(data, dict) and data.get("type") == "np" and "dtype" in data and "shape" in data and "data" in data
+    
+    @staticmethod
     def numpy_to_json(data):
         if isinstance(data, np.ndarray):
             # Store data as list and save dtype and shape
             return {
                 "data": data.tolist(),
                 "dtype": str(data.dtype),
-                "shape": data.shape
+                "shape": data.shape,
+                "type": "np"
             }
         else: 
-            raise TypeError(f"numpy_to_json: Object of type {type(data)} not expected")
+            raise TypeError(f"numpy_to_json: Expected np.ndarray, got {type(data)}")
 
     @staticmethod
     def json_to_numpy(data):
-        if "dtype" in data and "shape" in data and "data" in data:
-            return np.array(data["data"], dtype=data["dtype"]).reshape(data["shape"])
+        if NumpyJson.is_encoded(data):
+            try:
+                dtype = np.dtype(data["dtype"])
+                shape = tuple(data["shape"])
+                array_data = data["data"]
+                if isinstance(array_data, list):
+                    return np.array(array_data, dtype=dtype).reshape(shape)
+                else:
+                    raise TypeError(f"json_to_numpy: 'data' should be a list, got {type(array_data)}")
+            except (TypeError, ValueError) as e:
+                raise TypeError(f"json_to_numpy: Error converting data to numpy array: {e}")
         else:
-            raise TypeError(f"json_to_numpy: Object of type {type(data)} not expected")
+            raise TypeError(f"json_to_numpy: Invalid input data format, expected dict with keys 'dtype', 'shape', 'data', 'type'='np'")
          
     
 # Custom encoder/decoder for saving and loading numpy arrays in json format by using base64 encoding.
@@ -295,26 +316,33 @@ class NumpyJson:
 class NumpyB64Json:
     
     @staticmethod
+    def is_encoded(data):
+        return isinstance(data, dict) and data.get("type") == "npB64" and "dtype" in data and "shape" in data and "data" in data
+        
+    @staticmethod
     def numpy_to_json(data):
         if isinstance(data, np.ndarray):
             return {
                 "data": base64.b64encode(data.tobytes()).decode('utf-8'),
                 "dtype": str(data.dtype),
-                "shape": data.shape
+                "shape": data.shape,
+                "type": "npB64"
             }
         else: 
-            raise TypeError(f"numpy_to_json: Object of type {type(data)} not expected")
+            raise TypeError(f"numpy_to_json: Expected np.ndarray, got {type(data)}")
 
     @staticmethod
     def json_to_numpy(data):
-        if "dtype" in data and "shape" in data and "data" in data:
-            buffer = base64.b64decode(data['data'])
-            shape = tuple(data['shape'])
-            dtype = np.dtype(data['dtype'])
-            return np.frombuffer(buffer, dtype=dtype).reshape(shape)
+        if NumpyB64Json.is_encoded(data):
+            try:
+                buffer = base64.b64decode(data['data'])
+                shape = tuple(data['shape'])
+                dtype = np.dtype(data['dtype'])
+                return np.frombuffer(buffer, dtype=dtype).reshape(shape)
+            except (TypeError, ValueError) as e:
+                raise TypeError(f"json_to_numpy: Error converting data to numpy array: {e}")
         else:
-            raise TypeError(f"json_to_numpy: Object of type {type(data)} not expected")
-        
+            raise TypeError(f"json_to_numpy: Invalid input data format, expected dict with keys 'dtype', 'shape', 'data', 'type'='npB64'")
         
     # Serialize map id -> dense numpy array
     @staticmethod

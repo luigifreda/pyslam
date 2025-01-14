@@ -222,7 +222,7 @@ class LoopDetectorBase:
             self.S_color.fill(0)
         if self.loop_detection_imgs is not None:
             self.loop_detection_imgs.reset()
-                
+            
     # Check and compute if requested the image local descriptors by using the potentially allocated independent local feature manager.
     # This feature manager may have be allocated since we want to use different local descriptors in the loop detector (different from the extracted ones in the frontend).
     # If the local feature manager is allocated then compute the local descriptors and replace the "keyframe_data.des" field in the task data structure.

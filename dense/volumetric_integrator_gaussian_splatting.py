@@ -83,6 +83,8 @@ if not kVerbose:
 class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
     def __init__(self, camera, environment_type, sensor_type):        
         super().__init__(camera, environment_type, sensor_type)
+        Parameters.kVolumetricIntegrationMinNumLBATimes = 0 # In MonoGS backend with optimize for keyframes poses too. For this reason, we don't need to wait for enough LBA passes over the keyframes.
+        Printer.yellow(f'VolumetricIntegratorGaussianSplatting: init - setting Parameters.kVolumetricIntegrationMinNumLBATimes to zero')        
     
     def init(self, camera: Camera, environment_type: DatasetEnvironmentType, sensor_type: SensorType, parameters_dict):
         VolumetricIntegratorBase.init(self, camera, environment_type, sensor_type, parameters_dict)
@@ -158,6 +160,9 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                         pc_out = VolumetricIntegrationPointCloud(points=points, colors=colors)
                         print(f'VolumetricIntegratorGaussianSplatting: saving rough point cloud to: {save_path}')
                         o3d.io.write_point_cloud(save_path, pc_out.to_o3d())
+                        
+                        folder_save_path = os.path.dirname(save_path)
+                        self.gsm.save(folder_save_path + '/gaussian_splatting') # save the Gaussian splatting model
                                 
                         last_output = VolumetricIntegrationOutput(self.last_input_task.task_type)      
                         

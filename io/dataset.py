@@ -29,7 +29,7 @@ import re
 import datetime
 from multiprocessing import Process, Queue, Value 
 from utils_sys import Printer
-from utils_serialization import SerializableEnum, register_class
+from utils_serialization import SerializableEnum, register_class, SerializationJSON
 
 import ujson as json
 
@@ -72,17 +72,17 @@ class MinimalDatasetConfig:
 
     def to_json(self):
         return {
-            'dataset_settings': self.dataset_settings,
-            'cam_settings': self.cam_settings,
-            'cam_stereo_settings': self.cam_stereo_settings,
+            'dataset_settings': SerializationJSON.serialize(self.dataset_settings),
+            'cam_settings': SerializationJSON.serialize(self.cam_settings),
+            'cam_stereo_settings': SerializationJSON.serialize(self.cam_stereo_settings),
         }
         
     @staticmethod
     def from_json(json_str):
         return MinimalDatasetConfig(
-            dataset_settings=json_str['dataset_settings'], 
-            cam_settings=json_str['cam_settings'], 
-            cam_stereo_settings=json_str['cam_stereo_settings'])
+            dataset_settings=SerializationJSON.deserialize(json_str['dataset_settings']), 
+            cam_settings=SerializationJSON.deserialize(json_str['cam_settings']), 
+            cam_stereo_settings=SerializationJSON.deserialize(json_str['cam_stereo_settings']))
 
 
 def dataset_factory(config:'Config'):

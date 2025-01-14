@@ -259,46 +259,57 @@ class SLAM_GUI:
         buttons_text= gui.Label("Buttons")
         buttons_text.text_color = gui.Color(0, 0.396, 0.741)
         self.panel.add_child(buttons_text)
-               
-        buttons_geometry = gui.VGrid(cols=3, spacing=0.5 * em, margins=gui.Margins(margin))
+                 
 
+        buttons_layout = gui.VGrid(cols=3, spacing=0.5 * em, margins=gui.Margins(margin))
+        
         # screenshot buttom
         self.screenshot_btn = gui.Button("Screenshot")
         self.screenshot_btn.set_on_clicked(
             self._on_screenshot_btn
         )  # set the callback function
-        buttons_geometry.add_child(self.screenshot_btn)
-        
-        # refine map buttom
-        self.refine_map_btn = gui.Button("Refine map")
-        self.refine_map_btn.set_on_clicked(
-            self._on_refine_map_btn
-        )  # set the callback function
-        buttons_geometry.add_child(self.refine_map_btn)       
-         
-        # refine color buttom
-        self.refine_color_btn = gui.Button("Refine color")
-        self.refine_color_btn.set_on_clicked(
-            self._on_refine_color_btn
-        )  # set the callback function
-        buttons_geometry.add_child(self.refine_color_btn)   
+        buttons_layout.add_child(self.screenshot_btn)
         
         # reset button 
         self.reset_btn = gui.Button("Reset")
         self.reset_btn.set_on_clicked(
             self._on_reset_btn
         ) # set the callback function
-        buttons_geometry.add_child(self.reset_btn)
+        buttons_layout.add_child(self.reset_btn)
         
         # save button 
         self.save_btn = gui.Button("Save")
         self.save_btn.set_on_clicked(
             self._on_save_btn
         ) # set the callback function
-        buttons_geometry.add_child(self.save_btn)
+        buttons_layout.add_child(self.save_btn)
         
-        self.panel.add_child(buttons_geometry)
+                
+        # refine map buttom
+        self.refine_map_btn = gui.Button("Refine map")
+        self.refine_map_btn.set_on_clicked(
+            self._on_refine_map_btn
+        )  # set the callback function
+        buttons_layout.add_child(self.refine_map_btn)       
+         
+        # refine color buttom
+        self.refine_color_btn = gui.Button("Refine color")
+        self.refine_color_btn.set_on_clicked(
+            self._on_refine_color_btn
+        )  # set the callback function
+        buttons_layout.add_child(self.refine_color_btn)   
         
+        self.num_iterations_edit_layout = gui.Horiz(0.5 * em, gui.Margins(margin))
+        self.num_iterations_edit_label = gui.Label("#Iterations")
+        self.num_iterations_edit_layout.add_child(self.num_iterations_edit_label)
+        self.num_iterations_edit = gui.TextEdit()
+        self.num_iterations_edit.text_value = "100"
+        self.num_iterations_edit.tooltip = "Number of iterations to run the refinement algorithm"
+        self.num_iterations_edit_layout.add_child(self.num_iterations_edit)
+           
+        buttons_layout.add_child(self.num_iterations_edit_layout)
+        
+        self.panel.add_child(buttons_layout)                
         
         info_text= gui.Label("Info")
         info_text.text_color = gui.Color(0, 0.396, 0.741)
@@ -498,15 +509,21 @@ class SLAM_GUI:
         cv2.imwrite(f"{filename}.png", img)
 
     def _on_refine_map_btn(self):
+        self.pause_button.is_on = True
+        self._on_pause_button(True)
+                
         packet = Packet_vis2main()
         packet.flag_refine_map = True
-        packet.num_iterations = 100
+        packet.num_iterations = int(self.num_iterations_edit.text_value)
         self.q_vis2main.put(packet)
         
     def _on_refine_color_btn(self):
+        self.pause_button.is_on = True
+        self._on_pause_button(True)
+        
         packet = Packet_vis2main()
         packet.flag_refine_color = True
-        packet.num_iterations = 100
+        packet.num_iterations = int(self.num_iterations_edit.text_value)
         self.q_vis2main.put(packet)       
         
     def _on_reset_btn(self):
@@ -594,6 +611,10 @@ class SLAM_GUI:
             rgb = o3d.geometry.Image(depth)
             self.in_depth_widget.update_image(rgb)
 
+        if gaussian_packet.set_pause is not None:
+            self.pause_button.is_on = gaussian_packet.set_pause
+            self._on_pause_button(self.pause_button.is_on)
+            
         if gaussian_packet.finish:
             Log("Received terminate signal", tag="GUI")
             # clean up the pipe
@@ -604,7 +625,7 @@ class SLAM_GUI:
             self.q_vis2main = None
             self.q_main2vis = None
             self.process_finished = True
-
+            
     @staticmethod
     def depth_to_normal(points, k=3, d_min=1e-3, d_max=10.0):
         k = (k - 1) // 2
@@ -845,7 +866,7 @@ class SLAM_GUI:
 
             gui.Application.instance.post_to_main_thread(self.window, update)
             
-        self.receive_data(self.q_main2vis) # empyt the queue
+        self.receive_data(self.q_main2vis) # empty the viz queue
         o3d.visualization.gui.Application.instance.post_to_main_thread(self.window, self._on_close)            
         Log("Closed Visualization", tag="GUI")
 

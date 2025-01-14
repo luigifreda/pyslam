@@ -114,6 +114,10 @@ class LocalMapping:
         self.time_local_opt = TimerFps('Local optimization', is_verbose = self.timer_verbose)        
         self.time_large_opt = TimerFps('Large window optimization', is_verbose = self.timer_verbose)    
         
+        self.far_points_threshold = None  # read and set by Slam
+        self.use_fov_centers_based_kf_generation = False
+        self.max_fov_centers_distance = -1     
+                
         self.queue = Queue()
         self.queue_condition = Condition()
         self.work_thread = None #Thread(target=self.run)
@@ -156,6 +160,9 @@ class LocalMapping:
     
     def request_reset(self):
         print('LocalMapping: Requesting reset...')
+        if self.reset_requested:
+            print('LocalMapping: reset already requested...')
+            return
         with self.reset_mutex:
             self.reset_requested = True
         while True:
@@ -479,6 +486,23 @@ class LocalMapping:
         num_culled_points = len(remove_set)                                             
         return num_culled_points           
            
+
+    # check if once we remove kf_to_remove from covisible_kfs we still have that the max distance among fov centers is less than D
+    @staticmethod
+    def check_remaining_fov_centers_max_distance(covisible_kfs, kf_to_remove, D):        
+        #from scipy.spatial import KDTree
+        from scipy.spatial import cKDTree
+        # fov centers that remain if we remove kf_to_remove
+        remaining_fov_centers = [kf.fov_center_w for kf in covisible_kfs if kf != kf_to_remove]
+        if len(remaining_fov_centers) == 0:
+            return False
+        remaining_fov_centers = np.hstack(remaining_fov_centers).T 
+        tree = cKDTree(remaining_fov_centers)
+        # Check the distance to the nearest neighbor for each remaining point
+        distances, _ = tree.query(remaining_fov_centers, k=2)  # k=2 because the closest point is itself
+        # Check the second nearest neighbor distance (ignoring the self-match at k=1)
+        return np.all(distances[:, 1] < D)
+           
            
     def cull_keyframes(self): 
         print('>>>> culling keyframes...')    
@@ -486,11 +510,12 @@ class LocalMapping:
         # check redundant keyframes in local keyframes: a keyframe is considered redundant if the 90% of the MapPoints it sees, 
         # are seen in at least other 3 keyframes (in the same or finer scale)
         th_num_observations = 3
-        for kf in self.kf_cur.get_covisible_keyframes(): 
+        covisible_kfs = self.kf_cur.get_covisible_keyframes()
+        for kf in covisible_kfs: 
             if kf.kid==0:
                 continue 
             kf_num_points = 0     # num good points for kf          
-            kf_num_redundant_observations = 0   # num redundant observations for kf       
+            kf_num_redundant_observations = 0   # num redundant observations for kf    
             for i,p in enumerate(kf.get_points()): 
                 if p is not None and not p.is_bad:
                     if kf.depths is not None and (kf.depths[i] > kf.camera.depth_threshold or kf.depths[i] < 0.0):
@@ -511,12 +536,16 @@ class LocalMapping:
                                     break 
                         if p_num_observations >= th_num_observations:
                             kf_num_redundant_observations += 1
-            if (kf_num_redundant_observations > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points) and \
+            remove_kf = (kf_num_redundant_observations > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points) and \
                (kf_num_points > Parameters.kKeyframeCullingMinNumPoints) and \
-               (kf.timestamp - kf.parent.timestamp < Parameters.kKeyframeMaxTimeDistanceInSecForCulling):
-                print('setting keyframe ', kf.id,' bad - redundant observations: ', kf_num_redundant_observations/max(kf_num_points,1),'%')
+               (kf.timestamp - kf.parent.timestamp < Parameters.kKeyframeMaxTimeDistanceInSecForCulling)
+            if remove_kf and self.use_fov_centers_based_kf_generation:
+                if not LocalMapping.check_remaining_fov_centers_max_distance(covisible_kfs, kf, self.max_fov_centers_distance):
+                    remove_kf = False
+            if remove_kf:
                 kf.set_bad()
                 num_culled_keyframes += 1
+                print('culling keyframe ', kf.id,' (set it bad) - redundant observations: ', kf_num_redundant_observations/max(kf_num_points,1),'%')                    
         return num_culled_keyframes
 
             
@@ -564,7 +593,8 @@ class LocalMapping:
                 # try to triangulate the matched keypoints that do not have a corresponding map point   
                 pts3d, mask_pts3d = triangulate_normalized_points(self.kf_cur.pose, kf.pose, self.kf_cur.kpsn[idxs_cur], kf.kpsn[idxs])
                     
-                new_pts_count,_,list_added_points = self.map.add_points(pts3d, mask_pts3d, self.kf_cur, kf, idxs_cur, idxs, self.kf_cur.img, do_check=True)
+                new_pts_count,_,list_added_points = self.map.add_points(pts3d, mask_pts3d, self.kf_cur, kf, idxs_cur, idxs, self.kf_cur.img, 
+                                                                        do_check=True, far_points_threshold=self.far_points_threshold)
                 print(f'\t #added map points: {new_pts_count} for KFs ({self.kf_cur.id}), ({kf.id})')        
                 total_new_pts += new_pts_count 
                 self.recently_added_points.update(list_added_points)       
@@ -618,7 +648,8 @@ class LocalMapping:
                 # try to triangulate the matched keypoints that do not have a corresponding map point   
                 pts3d, mask_pts3d = triangulate_normalized_points(self.kf_cur.pose, kf.pose, self.kf_cur.kpsn[idxs_cur], kf.kpsn[idxs])
                     
-                new_pts_count,_,list_added_points = self.map.add_points(pts3d, mask_pts3d, self.kf_cur, kf, idxs_cur, idxs, self.kf_cur.img, do_check=True)
+                new_pts_count,_,list_added_points = self.map.add_points(pts3d, mask_pts3d, self.kf_cur, kf, idxs_cur, idxs, self.kf_cur.img, 
+                                                                        do_check=True, far_points_threshold=self.far_points_threshold)
                 print(f'\t #added map points: {new_pts_count} for KFs ({self.kf_cur.id}), ({kf.id})')        
                 total_new_pts += new_pts_count 
                 self.recently_added_points.update(list_added_points)       

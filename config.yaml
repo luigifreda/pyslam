@@ -68,8 +68,8 @@ KITTI_DATASET:
   sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset
   #
-  name: '06'
-  settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
+  # name: '06'
+  # settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   # name: '00'
   # settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
@@ -83,14 +83,14 @@ TUM_DATASET:
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
-  name: rgbd_dataset_freiburg3_long_office_household
-  settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
+  #name: rgbd_dataset_freiburg3_long_office_household
+  #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   #name: rgbd_dataset_freiburg1_xyz 
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
-  #name: rgbd_dataset_freiburg2_desk
-  #settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
+  name: rgbd_dataset_freiburg2_desk
+  settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
   #
   #name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
   #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
@@ -132,9 +132,9 @@ VIDEO_DATASET:
   type: video
   sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 
   #
-  #base_path: ./data/videos/kitti00
-  #settings: settings/KITTI00-02.yaml
-  #name: video.mp4
+  # base_path: ./data/videos/kitti00
+  # settings: settings/KITTI00-02.yaml
+  # name: video.mp4
   #
   base_path: ./data/videos/kitti06
   settings: settings/KITTI04-12.yaml
@@ -160,9 +160,9 @@ FOLDER_DATASET:
 
 
 SYSTEM_STATE: 
-  # This section is used for saving and re-loading the system state: Map + Loop closing state  
-  load_state: False              # flag to enable SLAM state reloading (map state + loop closing state) and relocalization
-  folder_path: results/slam_state   # folder path relative to root of this repository
+  # This section is used for saving and reloading the system state: Sparse map + Loop closing state  
+  load_state: False                # flag to enable SLAM state reloading (map state + loop closing state) and relocalization
+  folder_path: results/slam_state  # default folder path (relative to root of this repository) where the system state is saved or reloaded
  
 
 SAVE_TRAJECTORY:

@@ -57,6 +57,11 @@ from tracking import Tracking
 from volumetric_integrator_base import VolumetricIntegrationOutput
 from volumetric_integrator_factory import volumetric_integrator_factory, VolumetricIntegratorType
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from config import Config
+
+
 kVerbose = True     
 
 kLocalMappingOnSeparateThread = Parameters.kLocalMappingOnSeparateThread 
@@ -74,7 +79,7 @@ if not kVerbose:
 
 class SlamMode(SerializableEnum):
     SLAM        = 0   # Normal SLAM mode.
-    MAP_BROWSER = 1   # Want to reload a map and view it. Don't beed loop closing, volume integrator
+    MAP_BROWSER = 1   # Just want to reload a map and view it. Don't need loop closing, volume integrator
 
 
 # Main slam system class containing all the required modules. 
@@ -84,13 +89,15 @@ class Slam(object):
                  loop_detector_config=None, 
                  sensor_type=SensorType.MONOCULAR, 
                  environment_type=DatasetEnvironmentType.OUTDOOR,
-                 slam_mode=SlamMode.SLAM):
+                 slam_mode=SlamMode.SLAM,
+                 config:'Config' =None):
         self.camera = camera 
         self.feature_tracker_config = feature_tracker_config
         self.loop_detector_config = loop_detector_config
         self.sensor_type = sensor_type  
-        self.environment_type = environment_type   
-        
+        self.environment_type = environment_type
+        self.slam_mode = slam_mode
+          
         self.feature_tracker = None
         self.init_feature_tracker(feature_tracker_config)
         
@@ -114,7 +121,29 @@ class Slam(object):
                      
         self.tracking = Tracking(self) # after all the other initializations
         
-        #self.groundtruth = groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
+        self.set_config_params(config)         
+            
+    def set_config_params(self, config:'Config'):
+        self.config = config
+        if config is not None:
+            # get params from config
+            far_points_threshold = config.far_points_threshold #if self.sensor_type != SensorType.MONOCULAR else None
+            if far_points_threshold is not None:
+                Printer.green(f'Slam: Using far points threshold from config: {far_points_threshold}')
+            use_fov_centers_based_kf_generation = config.use_fov_centers_based_kf_generation 
+            max_fov_centers_distance = config.max_fov_centers_distance
+            # distribute the read params to submodules
+            Frame.is_compute_median_depth = config.use_fov_centers_based_kf_generation
+            if use_fov_centers_based_kf_generation:
+                Printer.green(f'Slam: Using fov centers based kf generation from config: {use_fov_centers_based_kf_generation}, max fov centers distance: {max_fov_centers_distance}')            
+            if self.tracking is not None: 
+                self.tracking.far_points_threshold = config.far_points_threshold
+                self.tracking.use_fov_centers_based_kf_generation = config.use_fov_centers_based_kf_generation
+                self.tracking.max_fov_centers_distance = config.max_fov_centers_distance
+            if self.local_mapping is not None:
+                self.local_mapping.far_points_threshold = config.far_points_threshold
+                self.local_mapping.use_fov_centers_based_kf_generation = config.use_fov_centers_based_kf_generation
+                self.local_mapping.max_fov_centers_distance = config.max_fov_centers_distance
 
     def request_reset(self):
         self.reset_requested = True
@@ -262,9 +291,10 @@ class Slam(object):
             print(f'SLAM: initializing feature tracker...')
             self.init_feature_tracker(feature_tracker_config)
             
-            print(f'SLAM: initializing loop closing...')
-            self.init_loop_closing(loop_detector_config)
-            
+            if self.slam_mode == SlamMode.SLAM:
+                print(f'SLAM: initializing loop closing...')
+                self.init_loop_closing(loop_detector_config)
+                
             if self.loop_closing is not None:
                 print(f'SLAM: loading the loop closing state from {path}...')
                 self.loop_closing.load(path)
@@ -274,6 +304,7 @@ class Slam(object):
             print(f'SLAM: loading map...')   
             map_json = loaded_json['map']                     
             self.map.from_json(map_json)
+            print(f'SLAM: map loaded')               
             self.local_mapping.start()
             
         # check if current set camera is the same as the one stored in the map 

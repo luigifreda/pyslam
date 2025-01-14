@@ -83,5 +83,6 @@ class SimpleTaskTimer:
         """Stops the timer."""
         self._stop_event.set()
         if self._thread is not None:
-            self._thread.join()
+            if self._thread.is_alive():
+                self._thread.join()
             self._thread = None

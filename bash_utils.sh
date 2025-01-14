@@ -19,6 +19,12 @@ function get_virtualenv_name(){
     echo $virtual_env_name
 }
 
+function print_green(){
+	printf "\033[32;1m"
+	printf "$@ \n"
+	printf "\033[0m"
+}
+
 function print_blue(){
 	printf "\033[34;1m"
 	printf "$@ \n"
@@ -154,6 +160,21 @@ function get_usable_cuda_version(){
     echo $version
 }
 
+function get_cuda_version(){
+    if [ -d /usr/local/cuda ]; then 
+        if [ -f /usr/local/cuda/version.txt ]; then 
+            CUDA_STRING=$(cat /usr/local/cuda/version.txt)
+            CUDA_VERSION=$(extract_version "$CUDA_STRING")
+            echo $CUDA_VERSION
+        else
+            # Extract the CUDA version from the nvidia-smi output
+            CUDA_VERSION=$(/usr/local/cuda/bin/nvcc --version | grep release | awk '{print $5}' | sed 's/,//')
+            echo $CUDA_VERSION
+        fi 
+    else
+        echo 0
+    fi
+}
 
 function brew_install(){
     if brew ls --versions $1 > /dev/null; then

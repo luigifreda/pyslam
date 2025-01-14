@@ -31,6 +31,7 @@ import torch.multiprocessing as mp
 import os
 import re
 import cv2
+import yaml 
 
 from gaussian_splatting.gaussian_renderer import render
 from gaussian_splatting.utils.graphics_utils import getProjectionMatrix2, getWorld2View2
@@ -97,6 +98,9 @@ class GsmFrontEnd(mp.Process):
         self.cameras = dict()
         self.device = "cuda:0"
         self.pause = False
+        
+        self.save_results = False
+        self.saved_final_index = 0
         
     def stop(self):
         self.is_running = False
@@ -396,24 +400,29 @@ class GsmFrontEnd(mp.Process):
 
         return window, removed_frame
 
+    # send keyframe request to backend
     def request_keyframe(self, cur_frame_idx, viewpoint, current_window, depthmap):
         msg = ["keyframe", cur_frame_idx, viewpoint, current_window, depthmap]
         self.backend_queue.put(msg)
         self.requested_keyframe += 1
 
+    # send mapping request to backend
     def request_mapping(self, cur_frame_idx, viewpoint):
         msg = ["map", cur_frame_idx, viewpoint]
         self.backend_queue.put(msg)
 
+    # send init request to backend
     def request_init(self, cur_frame_idx, viewpoint, depth_map, do_reset=True):
         msg = ["init", cur_frame_idx, viewpoint, depth_map, do_reset]
         self.backend_queue.put(msg)
         self.requested_init = True
 
+    # send load request to backend
     def request_load(self, base_path, ply_path):
         msg = ["load", base_path, ply_path]
         self.backend_queue.put(msg)
 
+    # sync with backend
     def sync_backend(self, data):
         self.gaussians = data[1]
         occ_aware_visibility = data[2]
@@ -425,6 +434,7 @@ class GsmFrontEnd(mp.Process):
         for kf_id, kf_T in keyframes:
             self.cameras[kf_id].T = kf_T.clone()
             
+        # this is needed for rendering purposes when loading a model
         if viewpoint_path is not None:
             viewpoint = CameraViewpoint.load(viewpoint_path)
             self.print(f'GsmFrontEnd: Loaded camera viewpoint from {viewpoint_path}')
@@ -434,17 +444,47 @@ class GsmFrontEnd(mp.Process):
         self.cameras[cur_frame_idx].clean()
         if cur_frame_idx % 10 == 0:
             torch.cuda.empty_cache()
+            
+    # save data (can be called from the run thread)
+    def save_data(self, cur_frame_idx=None, final=True, path=None):
+        target_path = path if path is not None else self.save_dir        
+        if self.save_results and target_path is not None:
+            if cur_frame_idx is None:
+                cur_frame_idx = self.cur_frame_idx # get the current frame id if not set
+            if not os.path.exists(target_path):
+                os.makedirs(target_path)
+            with open(os.path.join(target_path, "config.yml"), "w") as file:
+                yaml.dump(self.config, file)                
+            self.print(f"GsmFrontEnd: Saving Gaussians as point cloud to {target_path} ...")
+            save_gaussians(self.gaussians, target_path, cur_frame_idx, final=final)
+            curr_camera = self.cameras[self.current_window[-1]]
+            curr_camera.save(os.path.join(target_path,'last_camera.json')) # we save the current view point for rendering purposes when loading the model
+            return True
+        else: 
+            self.print(f'GsmFrontEnd: save_results: {self.save_results}, target_path: {target_path}')
+            return False
+        
+    # we set a load request that will be fullfiled when we start the run thread
+    def load(self, base_path, ply_path):
+        self.print("GsmFrontEnd: Loading map from: " + base_path)
+        self.reset = False # we don't need to reset
+        self.load_request = GsmLoadRequest(base_path, ply_path)         
+                
+    # we send a save request to the frontend queue
+    def save(self, path=None):
+        self.print('GsmFrontEnd: saving...')
+        tag = "save"
+        msg = [tag, path]
+        self.frontend_queue.put(msg)
 
     def run(self):
         self.print('GsmFrontEnd: starting...')
         
+        # check if we need to load a model
         if self.load_request is not None: 
             self.request_load(self.load_request.base_path, self.load_request.ply_path)
             self.reset = False
-            self.pause = True
-            # viewpoint_path = os.path.join(self.load_request.base_path, 'curr_camera.json')
-            # viewpoint = CameraViewpoint.load(viewpoint_path)
-            #self.render(viewpoint)
+            self.pause = True # pause here until we have loaded the model in the backend
         
         cur_frame_idx = 0
         if self.dataset is not None:
@@ -463,6 +503,7 @@ class GsmFrontEnd(mp.Process):
             projection_matrix = None
 
         while self.is_running:
+            self.cur_frame_idx = cur_frame_idx
             try: 
                 if self.q_vis2main.empty():
                     if self.pause:
@@ -481,55 +522,49 @@ class GsmFrontEnd(mp.Process):
                         else:
                             self.backend_queue.put(["unpause"])                      
 
-                    self.refine_map = data_vis2main.flag_refine_map
-                    if self.refine_map:
+                    refine_map = data_vis2main.flag_refine_map
+                    if refine_map:
                         self.backend_queue.put(["refine_map", data_vis2main.num_iterations])
-                        self.refine_map = False
                         continue
                     
-                    self.refine_color = data_vis2main.flag_refine_color
-                    if self.refine_color:
+                    refine_color = data_vis2main.flag_refine_color
+                    if refine_color:
                         self.backend_queue.put(["refine_color", data_vis2main.num_iterations])
-                        self.refine_color = False
                         continue
                     
-                    self.gui_reset = data_vis2main.flag_reset
-                    if self.gui_reset:
+                    gui_reset = data_vis2main.flag_reset
+                    if gui_reset:
                         self.reset = True
                         continue
                     
-                    self.on_close = data_vis2main.flag_on_close
-                    if self.on_close:
+                    on_close = data_vis2main.flag_on_close
+                    if on_close:
                         self.is_running = False
                         break
                     
-                    self.save_results = data_vis2main.flag_save
-                    if self.save_results and self.save_dir is not None:
-                        self.print(f"GsmFrontEnd: Saving Gaussians as point cloud to {self.save_dir} ...")
-                        save_gaussians(self.gaussians, self.save_dir, cur_frame_idx, final=False)
-                        curr_camera = self.cameras[self.current_window[-1]]
-                        curr_camera.save(os.path.join(self.save_dir,'curr_camera.json'))
-                        continue
-                    else: 
-                        self.print(f'GsmFrontEnd: save_results: {self.save_results}, save_dir: {self.save_dir}')
+                    save_results = data_vis2main.flag_save
+                    if save_results:
+                        if self.save_data(cur_frame_idx, final=False):
+                            continue
 
                 if self.frontend_queue.empty() and not self.pause:
                     if self.dataset is not None:
                         if cur_frame_idx >= len(self.dataset):
                             print("GsmFrontEnd: No more frames to process, saving results ...")
-                            self.is_running = False
-                            if self.save_results:
-                                eval_ate(
-                                    self.cameras,
-                                    self.kf_indices,
-                                    self.save_dir,
-                                    0,
-                                    final=True,
-                                    monocular=self.monocular,
-                                )
-                                self.print(f"GsmFrontEnd: Saving Gaussians as point cloud to {self.save_dir} ...")
-                                save_gaussians(self.gaussians, self.save_dir, "final", final=True, print_fun=self.print)
-                            break
+                            #self.is_running = False  # We don't want anymore to exit the thread here.
+                            if self.saved_final_index % 50 == 0:
+                                if self.save_results:
+                                    eval_ate(
+                                        self.cameras,
+                                        self.kf_indices,
+                                        self.save_dir,
+                                        0,
+                                        final=True,
+                                        monocular=self.monocular,
+                                    )
+                                    self.save_data("final", final=True)                               
+                                #break # We don't want anymore to exit the thread here.
+                            self.saved_final_index += 1
 
                     if self.requested_init:
                         time.sleep(0.01)
@@ -545,7 +580,11 @@ class GsmFrontEnd(mp.Process):
 
                     if self.dataset is not None:
                         
-                        viewpoint = CameraViewpoint.init_from_dataset(self.dataset, cur_frame_idx, projection_matrix)
+                        if cur_frame_idx < len(self.dataset):
+                            viewpoint = CameraViewpoint.init_from_dataset(self.dataset, cur_frame_idx, projection_matrix)
+                        else: 
+                            time.sleep(0.1)
+                            continue
                     
                     else: 
                         
@@ -558,7 +597,7 @@ class GsmFrontEnd(mp.Process):
                         
                         new_frame_data = self.input_frames_queue.get()
                         if new_frame_data is None:
-                            break
+                            break # A None value indicates that the thread should exit
                         cur_frame_idx, camera, image, depth, pose, gt_pose = new_frame_data
                         image = (
                             torch.from_numpy(image / 255.0)
@@ -736,7 +775,12 @@ class GsmFrontEnd(mp.Process):
                                 gui_utils.GaussianPacket(
                                 gaussians=clone_obj(self.gaussians), keyframes=keyframes)
                             )
-
+                        elif data[0] == "gui_unpause":
+                            self.q_main2vis.put(
+                                gui_utils.GaussianPacket(
+                                    set_pause=False
+                                )
+                            )                            
                         elif data[0] == "keyframe":
                             self.sync_backend(data)
                             self.requested_keyframe -= 1
@@ -748,9 +792,16 @@ class GsmFrontEnd(mp.Process):
                         elif data[0] == "unpause":
                             self.pause = False
 
+                        elif data[0] == "save": 
+                            path = data[1]
+                            self.save_data(cur_frame_idx, path=path, final=False)
+                            
                         elif data[0] == "stop":
                             Log("Frontend Stopped.")
                             break
+                        
+                        else: 
+                            self.print(f"GsmFrontend: Received unknown command from Backend: {data[0]}")
                     
                 if self.pause:
                     time.sleep(0.01)

@@ -244,12 +244,12 @@ class MapPointBase(object):
             return self._num_observations
         
     def is_good_with_min_obs(self, minObs):
-        with self._lock_features:
-            return not self._is_bad and (self._num_observations >= minObs)        
+        #with self._lock_features:
+        return (not self._is_bad) and (self._num_observations >= minObs)        
         
     def is_bad_and_is_good_with_min_obs(self, minObs):
         with self._lock_features:
-            return (self._is_bad, not self._is_bad and (self._num_observations >= minObs))          
+            return ( self._is_bad, (not self._is_bad) and (self._num_observations >= minObs) )          
             
     def increase_visible(self, num_times=1):
         with self._lock_features:
@@ -356,25 +356,28 @@ class MapPoint(MapPointBase):
         p.first_kid = json_str['first_kid']
         p.kf_ref = json_str['kf_ref']
         return p
-        
+                    
     def replace_ids_with_objects(self, points, frames, keyframes):
-        def get_object_with_id(id, objs):
-            if id is None: 
-                return None            
-            found_objs = [o for o in objs if o is not None and o.id == id]
-            #print(f'found_objs = {found_objs}, id = {id}, objs = {[o.id for o in objs]}')
-            return found_objs[0] if len(found_objs) > 0 else None
-        # get actual _observations
-        if self._observations is not None: 
-            actual_observations = {get_object_with_id(fid, keyframes):idx for fid,idx in self._observations}
-            self._observations = actual_observations
-        # get actual _frame_views
-        if self._frame_views is not None: 
-            actual_frame_views = {get_object_with_id(fid, frames):idx for fid,idx in self._frame_views}
-            self._frame_views = actual_frame_views
-        # get actual kf_ref 
-        if self.kf_ref is not None: # NOTE: here kf_ref is still an id to be replaced with an object
-            self.kf_ref = get_object_with_id(self.kf_ref, keyframes)
+        # Pre-build dictionaries for efficient lookups
+        keyframes_dict = {obj.id: obj for obj in keyframes if obj is not None}
+        frames_dict = {obj.id: obj for obj in frames if obj is not None}
+        def get_object_with_id(id, lookup_dict):
+            return lookup_dict.get(id, None)
+        # Replace _observations
+        if self._observations is not None:
+            self._observations = {
+                get_object_with_id(fid, keyframes_dict): idx
+                for fid, idx in self._observations
+            }
+        # Replace _frame_views
+        if self._frame_views is not None:
+            self._frame_views = {
+                get_object_with_id(fid, frames_dict): idx
+                for fid, idx in self._frame_views
+            }
+        # Replace kf_ref
+        if self.kf_ref is not None:
+            self.kf_ref = get_object_with_id(self.kf_ref, keyframes_dict)            
                     
     @property  
     def pt(self):

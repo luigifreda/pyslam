@@ -81,7 +81,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         
         self.use_kf_database = True     # use dbow2.KeyFrameDatabase() or a simple database implementation (as a simple list of bow vectors)
         self.kf_database = dbow2.KeyFrameOrbDatabase(self.voc)      
-        self.global_des_database = []   # simple database where we call all the bow vectors        
+        self.global_des_database = []   # simple database where we collect all the bow vectors (unused alternative to self.kf_database)       
     
     def reset(self):
         LoopDetectorBase.reset(self)

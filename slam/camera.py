@@ -286,6 +286,12 @@ class PinholeCamera(Camera):
         x = (uv[0] - self.cx)/self.fx
         y = (uv[1] - self.cy)/self.fy
         return x,y
+    
+    def unproject_3d(self, u, v, depth):
+        x = depth*(u - self.cx)/self.fx
+        y = depth*(v - self.cy)/self.fy
+        z = depth
+        return np.array([x,y,z], dtype=np.float32).reshape(3,1)
 
     # in:  uvs [Nx2]
     # out: xcs array [Nx2] of normalized coordinates     

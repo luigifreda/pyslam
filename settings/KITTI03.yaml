@@ -51,5 +51,14 @@ ThDepth: 40
 
 FeatureExtractor.nFeatures: 2000
 
+#--------------------------------------------------------------------------------------------
+# Matching (Data Association)
+#--------------------------------------------------------------------------------------------
 
+#Matching.farPointsThreshold: 20.0    # meters (to exclude far points from matching when we have an outdoor scene)
 
+#--------------------------------------------------------------------------------------------
+# Keyframe generation
+#--------------------------------------------------------------------------------------------
+# KeyFrame.useFovCentersBasedGeneration: 1  # compute 3D fov centers of camera frames by using median depth and use their distances to control keyframe generation
+# KeyFrame.maxFovCentersDistance: 0.1       # max distance between fov centers in order to generate a keyframe

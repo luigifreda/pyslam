@@ -31,7 +31,7 @@ from dataset import DatasetEnvironmentType, SensorType
 
 from utils_sys import Printer, set_rlimit, FileLogger, LoggerQueue
 from utils_mp import MultiprocessingManager
-from utils_data import empty_queue, static_fields_to_dict
+from utils_data import empty_queue, push_to_front, static_fields_to_dict
 from utils_depth import filter_shadow_points
 from utils_mt import SimpleTaskTimer
 
@@ -197,11 +197,11 @@ class VolumetricIntegratorBase:
         self.img_id_to_depth = None
         
         self.reset_mutex = mp.Lock()
-        self.reset_requested = mp.Value('i',0)
+        self.reset_requested = mp.Value('i',-1)
 
-        self.load_request_completed = mp.Value('i',0)
+        self.load_request_completed = mp.Value('i',-1)
         self.load_request_condition = mp.Condition()
-        self.save_request_completed = mp.Value('i',0)
+        self.save_request_completed = mp.Value('i',-1)
         self.save_request_condition = mp.Condition()
 
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
@@ -262,15 +262,20 @@ class VolumetricIntegratorBase:
 
 
     def save(self, path):
+        print('VolumetricIntegratorBase: saving...')
         try:
+            if self.save_request_completed.value == 0:
+                print('VolumericIntegratorBase: saving: already saving...')
+                return
             filepath = path + '/dense_map.ply'        
             task_type = VolumetricIntegrationTaskType.SAVE
             task = VolumetricIntegrationTask(task_type=task_type, load_save_path=filepath)
             self.save_request_completed.value = 0
-            self.add_task(task)
+            self.add_task(task, front=True)
             with self.save_request_condition:
                 while self.save_request_completed.value == 0:
                     self.save_request_condition.wait()
+            print('VolumetricIntegratorBase: saving done')
         except Exception as e:
             print(f'VolumetricIntegratorBase: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
@@ -293,6 +298,9 @@ class VolumetricIntegratorBase:
     def request_reset(self):
         print('VolumetricIntegratorBase: Requesting reset...')
         with self.reset_mutex:
+            if self.reset_requested.value == 1:
+                print('VolumetricIntegratorBase: reset already requested...')
+                return
             self.reset_requested.value = 1
         while True:
             with self.reset_mutex:
@@ -434,6 +442,7 @@ class VolumetricIntegratorBase:
                                                         
                 else: 
                     print('VolumetricIntegratorBase: q_in is empty...')
+                    time.sleep(0.1) # sleep for a bit before checking the queue again
                 self.reset_if_requested(reset_mutex, reset_requested, q_in, q_in_condition, q_out, q_out_condition)
             
             except Exception as e:
@@ -497,7 +506,7 @@ class VolumetricIntegratorBase:
     
     # called by add_keyframe() and periodically by the keyframe_queue_timer
     def flush_keyframe_queue(self):
-        # iterate over the keyframe queue
+        # iterate over the keyframe queue and flush the keyframes into the task queue
         with self.keyframe_queue_lock:
             i = 0  
             while i < len(self.keyframe_queue):
@@ -529,10 +538,13 @@ class VolumetricIntegratorBase:
                 traceback_details = traceback.format_exc()
                 print(f'\t traceback details: {traceback_details}')
                         
-    def add_task(self, task: VolumetricIntegrationTask):
+    def add_task(self, task: VolumetricIntegrationTask, front=True):
         if self.is_running.value == 1:
             with self.q_in_condition:
-                self.q_in.put(task)
+                if front:
+                    push_to_front(self.q_in, task)
+                else:
+                    self.q_in.put(task)
                 self.q_in_condition.notify_all()
                 
     def add_update_output_task(self):

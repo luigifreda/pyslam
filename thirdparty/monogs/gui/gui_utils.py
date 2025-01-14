@@ -86,6 +86,7 @@ class GaussianPacket:
         keyframes=None,
         finish=False,
         kf_window=None,
+        set_pause=None
     ):
         self.has_gaussians = False
         if gaussians is not None:
@@ -111,6 +112,7 @@ class GaussianPacket:
         self.keyframes = copy.deepcopy(keyframes)
         self.finish = finish
         self.kf_window = kf_window
+        self.set_pause = set_pause
 
     def resize_img(self, img, width):
         if img is None:
@@ -163,6 +165,7 @@ class Packet_vis2main:
     flag_reset = None
     flag_on_close = None
     flag_save = None
+
 
 class ParamsGUI:
     def __init__(

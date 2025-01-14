@@ -90,7 +90,7 @@ def filter_shadow_points(depth, delta_depth=None, delta_x=2, delta_y=2, fill_val
         
         mad = np.median(delta_values) # MAD, approximating median=0 
         delta_depth = 3 * 1.4826 * mad + mad
-        print(f'filter_shadow_points: delta_depth={delta_depth}, mad: {mad}')
+        #print(f'filter_shadow_points: delta_depth={delta_depth}, mad: {mad}')
             
     # Update mask        
     if delta_y > 0:

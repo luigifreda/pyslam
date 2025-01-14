@@ -373,12 +373,17 @@ class GsmBackEnd(mp.Process):
 
 
     def map_all(self, iters=1):
-        window = []
-        for cam_idx, viewpoint in self.viewpoints.items():
-            window.append(cam_idx)
-        self.map(window, iters=iters, message="all")
-        self.push_to_frontend()       
-        self.print(f"GsmBackEnd: Map refinement done")         
+        try:
+            window = []
+            for cam_idx, viewpoint in self.viewpoints.items():
+                window.append(cam_idx)
+            self.map(window, iters=iters, message="all")
+            self.push_to_frontend()       
+            self.print(f"GsmBackEnd: Map refinement done")       
+        except Exception as e:
+            self.print(f"GsmBackEnd: Map refinement failed: {e}")
+            print(traceback.format_exc())
+              
 
     def map_randow_complementary_window(self, curr_window, iters=1):
         random_win_size = len(curr_window)
@@ -395,41 +400,45 @@ class GsmBackEnd(mp.Process):
         self.map(random_window, iters=iters, message="random")
         
     def color_refinement(self, iteration_total=26000):
-        self.print("GsmBackEnd: Color refinement...")
-        self.print(f"GsmBackEnd: Starting color refinement: num iterations {iteration_total}")
+        try:
+            self.print("GsmBackEnd: Color refinement...")
+            self.print(f"GsmBackEnd: Starting color refinement: num iterations {iteration_total}")
 
-        iteration_total = iteration_total
-        for iteration in tqdm(range(1, iteration_total + 1), desc="GsmBackEnd: Color refinement"):
-            viewpoint_idx_stack = list(self.viewpoints.keys())
-            viewpoint_cam_idx = viewpoint_idx_stack.pop(
-                random.randint(0, len(viewpoint_idx_stack) - 1)
-            )
-            viewpoint_cam = self.viewpoints[viewpoint_cam_idx]
-            render_pkg = render(
-                viewpoint_cam, self.gaussians, self.pipeline_params, self.background
-            )
-            image, visibility_filter, radii = (
-                render_pkg["render"],
-                render_pkg["visibility_filter"],
-                render_pkg["radii"],
-            )
-
-            gt_image = viewpoint_cam.original_image.cuda()
-            Ll1 = l1_loss(image, gt_image)
-            loss = (1.0 - self.opt_params.lambda_dssim) * (
-                Ll1
-            ) + self.opt_params.lambda_dssim * (1.0 - ssim(image, gt_image))
-            loss.backward()
-            with torch.no_grad():
-                self.gaussians.max_radii2D[visibility_filter] = torch.max(
-                    self.gaussians.max_radii2D[visibility_filter],
-                    radii[visibility_filter],
+            iteration_total = iteration_total
+            for iteration in tqdm(range(1, iteration_total + 1), desc="GsmBackEnd: Color refinement"):
+                viewpoint_idx_stack = list(self.viewpoints.keys())
+                viewpoint_cam_idx = viewpoint_idx_stack.pop(
+                    random.randint(0, len(viewpoint_idx_stack) - 1)
                 )
-                self.gaussians.optimizer.step()
-                self.gaussians.optimizer.zero_grad(set_to_none=True)
-                self.gaussians.update_learning_rate(iteration)
-        self.print(f"GsmBackEnd: Color refinement done")
+                viewpoint_cam = self.viewpoints[viewpoint_cam_idx]
+                render_pkg = render(
+                    viewpoint_cam, self.gaussians, self.pipeline_params, self.background
+                )
+                image, visibility_filter, radii = (
+                    render_pkg["render"],
+                    render_pkg["visibility_filter"],
+                    render_pkg["radii"],
+                )
 
+                gt_image = viewpoint_cam.original_image.cuda()
+                Ll1 = l1_loss(image, gt_image)
+                loss = (1.0 - self.opt_params.lambda_dssim) * (
+                    Ll1
+                ) + self.opt_params.lambda_dssim * (1.0 - ssim(image, gt_image))
+                loss.backward()
+                with torch.no_grad():
+                    self.gaussians.max_radii2D[visibility_filter] = torch.max(
+                        self.gaussians.max_radii2D[visibility_filter],
+                        radii[visibility_filter],
+                    )
+                    self.gaussians.optimizer.step()
+                    self.gaussians.optimizer.zero_grad(set_to_none=True)
+                    self.gaussians.update_learning_rate(iteration)
+            self.print(f"GsmBackEnd: Color refinement done")
+        except Exception as e:
+            self.print(f"GsmBackEnd: Color refinement failed: {e}")
+            print(traceback.format_exc()) 
+        
 
     def push_to_frontend(self, tag=None, viewpoint_path=None):
         self.last_sent = 0
@@ -444,7 +453,11 @@ class GsmBackEnd(mp.Process):
         # NOTE: viewpoint_path is used for rendering after load request
         msg = [tag, clone_obj(self.gaussians), self.occ_aware_visibility, keyframes, viewpoint_path]
         self.frontend_queue.put(msg)
-
+    
+    def push_to_frontend_simple(self, tag):
+        msg = [tag]
+        self.frontend_queue.put(msg)
+    
     def run(self):
         while self.is_running:
             try: 
@@ -462,14 +475,15 @@ class GsmBackEnd(mp.Process):
                     if self.single_thread:
                         time.sleep(0.01)
                         continue
-                    
-                    #self.map_all(iters=1)
-                    self.map(self.current_window, iters=1, random_window_size=len(self.current_window))
-                    
+                                        
                     if self.last_sent >= 10:
                         self.map(self.current_window, prune=True, iters=10)
                         self.push_to_frontend()
-                                                                    
+                        time.sleep(0.005)
+                    else: 
+                        #self.map_all(iters=1)
+                        self.map(self.current_window, iters=1, random_window_size=len(self.current_window))
+                        time.sleep(0.005)                                                                              
                 else:
                     data = self.backend_queue.get()
                     
@@ -489,7 +503,7 @@ class GsmBackEnd(mp.Process):
                         ply_path = data[2]
                         load_gaussians(self.gaussians, ply_path)
                         print(f'GsmBackEnd: Loaded point cloud from {ply_path}...')
-                        viewpoint_path = os.path.join(base_path, 'curr_camera.json')                                              
+                        viewpoint_path = os.path.join(base_path, 'last_camera.json')  # we need this for rendering purposes when loading the model                                      
                         self.push_to_frontend('sync_backend', viewpoint_path=viewpoint_path)
                         self.push_to_frontend('gui_refresh')
                         self.push_to_frontend('unpause')
@@ -583,18 +597,20 @@ class GsmBackEnd(mp.Process):
                         self.print(f'GsmBackEnd: Finished with keyframe {cur_frame_idx}')
 						                        
                     elif data[0] == "refine_map":
-                        iters = 100
+                        iters = data[1]
                         if len(data) > 1:
                             iters = data[1]
                         self.map_all(iters=iters)
                         self.push_to_frontend("gui_refresh")
+                        self.push_to_frontend_simple("gui_unpause")
                         
                     elif data[0] == "refine_color":
-                        iters = 100
+                        iters = data[1]
                         if len(data) > 1:
                             iters = data[1]
                         self.color_refinement(iters)
                         self.push_to_frontend("gui_refresh")
+                        self.push_to_frontend_simple("gui_unpause")
                     
                     else:
                         raise Exception("Unprocessed data", data)

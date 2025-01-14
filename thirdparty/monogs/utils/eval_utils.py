@@ -187,7 +187,7 @@ def save_gaussians(gaussians, name, iteration, final=False):
         point_cloud_path = os.path.join(name, "point_cloud/final")
     else:
         point_cloud_path = os.path.join(name, f"point_cloud/iteration_{iteration}")
-    print(f'Saving Gaussians as point cloud to {point_cloud_path}')
+    #print(f'Saving Gaussians as point cloud to {point_cloud_path}')
     gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
 
 

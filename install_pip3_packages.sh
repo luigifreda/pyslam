@@ -12,6 +12,15 @@
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
 
+
+# detect CUDA VERSION
+CUDA_VERSION=""
+if command -v nvidia-smi &> /dev/null; then
+    CUDA_VERSION=$(get_cuda_version)
+    echo CUDA_VERSION: $CUDA_VERSION
+fi
+
+
 # N.B.: python3 is required!
 
 pip3 install --upgrade pip 
@@ -49,7 +58,7 @@ INSTALL_OPENCV_FROM_SOURCE=1
 # Install opencv_python from source with non-free modules enabled 
 if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
     #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
-    echo "Installing opencv_python from source with non-free modules enabled"
+    print_green "Installing opencv_python from source with non-free modules enabled"
     ./install_opencv_python.sh
 else
     PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
@@ -84,8 +93,15 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     install_pip_package torch==2.1           # torch==2.2.0 causes some segmentation faults on mac
     install_pip_package torchvision==0.16         
 else 
-    install_pip_package torch==2.2.0
-    install_pip_package torchvision==0.17               
+    if [[ "$CUDA_VERSION" == "11.8" ]]; then
+        # See also docs/TROUBLESHOOTING.md
+        # This is to avoid the RuntimeError: "The detected CUDA version (11.8) mismatches the version that was used to compile PyTorch (12.1). Please make sure to use the same CUDA versions."
+        print_green "Installing torch==2.2.0+cu118 and torchvision==0.17+cu118"
+        pip install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
+    else
+        install_pip_package torch==2.2.0
+        install_pip_package torchvision==0.17
+    fi         
 fi 
 
 pip install "rerun-sdk>=0.17.0"
@@ -124,20 +140,23 @@ pip install gdown  # to download from google drive
 
 
 # MonoGS
-pip install munch
-pip install wandb
-pip install plyfile
-pip install glfw
-pip install trimesh
-pip install evo    #==1.11.0
-pip install torchmetrics
-pip install imgviz
-pip install PyOpenGL
-pip install PyGLM
-pip install lpips
-pip install rich
-pip install ruff
-pip install lycon
-pip install git+https://github.com/princeton-vl/lietorch.git
-pip install ./thirdparty/monogs/submodules/simple-knn
-pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization
+if command -v nvidia-smi &> /dev/null; then
+    # We need cuda for MonoGS
+    pip install munch
+    pip install wandb
+    pip install plyfile
+    pip install glfw
+    pip install trimesh
+    pip install evo    #==1.11.0
+    pip install torchmetrics
+    pip install imgviz
+    pip install PyOpenGL
+    pip install PyGLM
+    pip install lpips
+    pip install rich
+    pip install ruff
+    pip install lycon
+    pip install git+https://github.com/princeton-vl/lietorch.git
+    pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build 
+    pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build
+fi

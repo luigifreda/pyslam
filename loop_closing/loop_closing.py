@@ -669,7 +669,10 @@ class LoopClosing:
                 self.map_frame_id_to_img = pickle.load(file)
         
     def request_reset(self):
-        print('LoopClosing: Requesting reset...')        
+        print('LoopClosing: Requesting reset...')
+        if self.reset_requested:
+            print('LoopClosing: reset already requested...')
+            return  
         self.GBA.quit()
         with self.reset_mutex:
             self.reset_requested = True

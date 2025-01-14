@@ -42,12 +42,12 @@ from config_parameters import Parameters
 
 
 if __name__ == "__main__":
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=str, default='results/slam_state', help='path where we have saved the system state')
-    args = parser.parse_args()
 
     config = Config()
+        
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--path', type=str, default=config.system_state_folder_path, help='path where we have saved the system state')
+    args = parser.parse_args()
 
     camera = PinholeCamera()
     feature_tracker_config = FeatureTrackerConfigs.TEST

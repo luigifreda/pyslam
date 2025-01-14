@@ -101,7 +101,10 @@ if __name__ == "__main__":
         Printer.green(f'Depth_estimator_type: {depth_estimator_type.name}, max_depth: {max_depth}')       
                 
     # create SLAM object
-    slam = Slam(camera, feature_tracker_config, loop_detection_config, dataset.sensorType(), environment_type=dataset.environmentType()) # groundtruth not actually used by Slam class
+    slam = Slam(camera, feature_tracker_config, 
+                loop_detection_config, dataset.sensorType(), 
+                environment_type=dataset.environmentType(), 
+                config=config) 
     slam.set_viewer_scale(dataset.scale_viewer_3d)
     time.sleep(1) # to show initial messages 
     
@@ -122,6 +125,8 @@ if __name__ == "__main__":
         display2d = None # Display2D(camera.width, camera.height)  # pygame interface 
     else: 
         display2d = None  # enable this if you want to use opencv window
+    # if display2d is None:
+    #     cv2.namedWindow('Camera', cv2.WINDOW_NORMAL) # to make it resizable if needed
 
     plot_drawer = SlamPlotDrawer(slam, viewer3D)
     

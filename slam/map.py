@@ -286,7 +286,8 @@ class Map(object):
 
     # add new points to the map from 3D point estimations, frames and pairwise matches
     # points3d is [Nx3]
-    def add_points(self, points3d, mask_pts3d, kf1: KeyFrame, kf2: KeyFrame, idxs1, idxs2, img1, do_check=True, cos_max_parallax=Parameters.kCosMaxParallax):
+    def add_points(self, points3d, mask_pts3d, kf1: KeyFrame, kf2: KeyFrame, idxs1, idxs2, img1, 
+                   do_check=True, cos_max_parallax=Parameters.kCosMaxParallax, far_points_threshold=None):
         with self._lock:             
             assert(kf1.is_keyframe and  kf2.is_keyframe) # kf1 and kf2 must be keyframes 
             assert(points3d.shape[0] == len(idxs1))
@@ -304,9 +305,16 @@ class Map(object):
                                                         
                 # project points
                 uvs1, proj_depths1 = kf1.project_points(points3d)    
-                bad_depths1 = proj_depths1 <= 0  
+                bad_depths1 = proj_depths1 <= 0
                 uvs2, proj_depths2 = kf2.project_points(points3d)    
-                bad_depths2 = proj_depths2 <= 0                   
+                bad_depths2 = proj_depths2 <= 0
+                
+                if far_points_threshold is not None:
+                    #print(f'Map: adding points: far_points_threshold: {far_points_threshold}')
+                    far_depths1 = proj_depths1 > far_points_threshold
+                    bad_depths1 = bad_depths1 | far_depths1
+                    far_depths2 = proj_depths2 > far_points_threshold
+                    bad_depths2 = bad_depths2 | far_depths2                   
                 
                 is_stereo1 = np.zeros(len(idxs1), dtype=bool) if kf1.kps_ur is None else kf1.kps_ur[idxs1]>0
                 is_mono1 = np.logical_not(is_stereo1)
@@ -364,10 +372,11 @@ class Map(object):
                 # stereo reprojection error
                 #     u   = fx*x*invz+cx
                 #     u_r = u - camera.bf*invz
-                #     v1   = fy*y*invz+cy
+                #     v   = fy*y*invz+cy
                 #     errX   = u - kp.pt.x
                 #     errY   = v - kp.pt.y
                 #     errX_r = u_r - kp_ur
+                
                 # compute stereo reproj errors on kf1
                 if kf1.kps_ur is not None:
                     kp1_ur = kf1.kps_ur[idxs1] if kf1.kps_ur is not None else [-1]*len(idxs1) # kp right coords if available 
@@ -645,8 +654,11 @@ class Map(object):
         with self._lock:          
             with self.update_lock:          
                 # non-static stuff 
+                print('\tLoading frames...')
                 self.frames = [KeyFrame.from_json(f) if bool(f['is_keyframe']) else Frame.from_json(f) for f in loaded_json['frames']]
+                print('\tLoading keyframes...')                
                 self.keyframes = [KeyFrame.from_json(kf) for kf in loaded_json['keyframes']]
+                print('\tLoading points...')                   
                 self.points = [MapPoint.from_json(p) for p in loaded_json['points']]
                                 
                 self.max_frame_id = loaded_json['max_frame_id']
@@ -656,15 +668,18 @@ class Map(object):
                 self.viewer_scale = loaded_json['viewer_scale']
                         
                 # now replace ids with actual objects in the map assets
+                print('\tReplacing ids with actual objects in frames...')                
                 for f in self.frames: 
                     f.replace_ids_with_objects(self.points, self.frames, self.keyframes)
+                print('\tReplacing ids with actual objects in keyframes...')                            
                 for kf in self.keyframes: 
                     kf.replace_ids_with_objects(self.points, self.frames, self.keyframes)
                     kf.map = self # set the map
+                print('\tReplacing ids with actual objects in points...')                        
                 for p in self.points: 
                     p.replace_ids_with_objects(self.points, self.frames, self.keyframes)
                     p.map = self # set the map        
-                    
+                
                 # reconstruct the keyframes_map
                 self.keyframes_map = {}
                 for kf in self.keyframes:
