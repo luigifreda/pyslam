@@ -2,9 +2,13 @@
 import os
 
 from utils_serialization import SerializableEnum, register_class
+from utils_sys import Printer, import_from
+
 from volumetric_integrator_base import VolumetricIntegratorBase
 from volumetric_integrator_tsdf import VolumetricIntegratorTsdf
-from volumetric_integrator_gaussian_splatting import VolumetricIntegratorGaussianSplatting
+
+#from volumetric_integrator_gaussian_splatting import VolumetricIntegratorGaussianSplatting
+VolumetricIntegratorGaussianSplatting = import_from('volumetric_integrator_gaussian_splatting', 'VolumetricIntegratorGaussianSplatting')
 
 
 kScriptPath = os.path.realpath(__file__)
