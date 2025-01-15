@@ -263,4 +263,5 @@ if __name__ == "__main__":
     trajectory_writer.close_file()
     
     #cv2.waitKey(0)
-    #cv2.destroyAllWindows()
+    if display2d is None:
+        cv2.destroyAllWindows()
