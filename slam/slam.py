@@ -159,8 +159,9 @@ class Slam(object):
         
     def reset_session(self):
         self.local_mapping.request_reset()
-        if self.loop_closing is not None:
-            self.loop_closing.request_reset()
+        # See the discussion here: https://github.com/luigifreda/pyslam/issues/131 
+        # if self.loop_closing is not None:
+        #     self.loop_closing.request_reset()
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.request_reset()  
         self.tracking.reset()
