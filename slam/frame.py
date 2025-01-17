@@ -536,8 +536,14 @@ class Frame(FrameBase):
         frame_data_dict = {}
         frame_data_dict['is_keyframe'] = json_str['is_keyframe']
         frame_data_dict['median_depth'] = json_str['median_depth']
-        frame_data_dict['fov_center_c'] = NumpyJson.json_to_numpy(json.loads(json_str['fov_center_c']))
-        frame_data_dict['fov_center_w'] = NumpyJson.json_to_numpy(json.loads(json_str['fov_center_w'])) 
+        try:
+            frame_data_dict['fov_center_c'] = NumpyJson.json_to_numpy(json.loads(json_str['fov_center_c']))
+        except:
+            frame_data_dict['fov_center_c'] = None
+        try:
+            frame_data_dict['fov_center_w'] = NumpyJson.json_to_numpy(json.loads(json_str['fov_center_w'])) 
+        except:
+            frame_data_dict['fov_center_w'] = None
         
         frame_data_dict['kps'] = np.array(json.loads(json_str['kps'])) if json_str['kps'] is not None else None                
         frame_data_dict['kps_r'] = np.array(json.loads(json_str['kps_r'])) if json_str['kps_r'] is not None else None

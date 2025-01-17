@@ -91,7 +91,7 @@ if __name__ == "__main__":
                                                                                     # Since the depth inference time may be above 1 second, the volumetric integrator may be very slow.
                                                                                     # NOTE: The depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM output
                                                                                     # since the SLAM sparse map scale will not be consistent.
-    Parameters.kVolumetricIntegrationDepthEstimatorType = "DEPTH_CRESTEREO_PYTORCH"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)    
+    Parameters.kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)    
     Parameters.kVolumetricIntegrationMinNumLBATimes = 0 # NOTE: This avoids the volumetric integrator integrates just keyframes with lba_count >= kVolumetricIntegrationMinNumLBATimes    
     if Parameters.kVolumetricIntegrationUseDepthEstimator:
         print(f'Using depth estimator: {Parameters.kVolumetricIntegrationDepthEstimatorType}')
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         for kf in keyframes:
             
             print('-----------------------------------')
-            print(f'inserting keyframe: {kf.id}, img_id: {kf.img_id}. img shape: {kf.img.shape}, depth shape: {kf.depth_img.shape if kf.depth_img is not None else None} type: {kf.depth_img.dtype if kf.depth_img is not None else None}, lba_count: {kf.lba_count}')
+            print(f'inserting keyframe {i}/{num_map_keyframes}: {kf.id}, img_id: {kf.img_id}. img shape: {kf.img.shape}, depth shape: {kf.depth_img.shape if kf.depth_img is not None else None} type: {kf.depth_img.dtype if kf.depth_img is not None else None}, lba_count: {kf.lba_count}')
                         
             volumetric_integrator.add_keyframe(kf, kf.img, kf.img_right, kf.depth_img)
             volumetric_integrator.add_update_output_task()
@@ -136,9 +136,6 @@ if __name__ == "__main__":
                 if dense_map_output is not None:
                     viewer3D.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
             i += 1
-            if i > 30:
-                break
-
     
     print(f'processing and visualizing dense map...')
     

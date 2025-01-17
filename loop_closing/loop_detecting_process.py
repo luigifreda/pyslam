@@ -237,7 +237,7 @@ class LoopDetectingProcess:
         # main loop
         while is_running.value == 1:
             with q_in_condition:
-                while q_in.empty() and is_running.value == 1 and reset_requested.value == 0:
+                while q_in.empty() and is_running.value == 1 and reset_requested.value != 1:
                     print('LoopDetectingProcess: waiting for new task...')
                     q_in_condition.wait()
             if not q_in.empty():            
@@ -245,6 +245,7 @@ class LoopDetectingProcess:
                                     load_request_completed, load_request_condition, save_request_completed, save_request_condition, time_loop_detection)
             else: 
                 print('LoopDetectingProcess: q_in is empty...')
+                time.sleep(0.01)
             self.reset_if_requested(reset_mutex, reset_requested, self.loop_detector, q_in, q_in_condition, q_out, q_out_condition, q_out_reloc, q_out_reloc_condition)
 
         empty_queue(q_in) # empty the queue before exiting         

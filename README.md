@@ -1,10 +1,10 @@
-# pySLAM v2.4.0
+# pySLAM v2.4.1
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.4.0](#pyslam-v240)
+- [pySLAM v2.4.1](#pyslam-v241)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -86,7 +86,7 @@ You can use the pySLAM framework as a baseline to experiment with VO techniques,
 </p>
 
 <p align="center" style="margin:0">
-<img src="./images/dense-reconstruction-composition.gif" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" height="400" border="0" /> 
+<img src="./images/dense-reconstruction-composition.gif" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" width="600" border="0" /> 
 </p>
 
 <!-- <img src="./images/dense-reconstruction-euroc-width-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" /> <img src="./images/dense-reconstruction-euroc-with-depth-prediction-gsm.png" alt="Dense Reconstruction - Gaussian Splatting" height="160" border="0" /> <img src="./images/dense-reconstruction-tum-gsm.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" />  -->
@@ -237,21 +237,24 @@ If you want a mesh as output then set `kVolumetricIntegrationExtractMesh=True` i
 
 Use the script `main_map_dense_reconstruction.py` to reload a saved sparse map and to perform dense reconstruction by using its posed keyframes as input. You can select your preferred dense reconstruction method directly in the script. 
 
-To save the obtained dense and sparse maps, press the `Save` button on the GUI. 
+- To check what the volumetric integrator is doing, run in another shell `tail -f logs/volumetric_integrator.log` (from repository root folder).
+- To save the obtained dense and sparse maps, press the `Save` button on the GUI. 
 
 #### Reload and check your dense reconstruction 
 
 You can check the output pointcloud/mesh by using [CloudCompare](https://www.cloudcompare.org/). 
 
-In the case of a saved Gaussian splatting model, you can visualize it by getting into the folder `test/gaussian_splatting` and running:      
-`$ python test_gsm.py --load <gs_checkpoint_path>`
-The ` <gs_checkpoint_path>` is expected to have the following structure: 
-```bash
-├── gs_checkpoint_path
-    ├── pointcloud   # folder containing different subfolders, each one with a saved .ply econding the gaussian splatting model at a specific iteration/checkpoint
-    ├── last_camera.json
-    ├── config.yml
-```
+In the case of a saved Gaussian splatting model, you can visualize it by:
+1. Using the [superslat editor](https://playcanvas.com/supersplat/editor) (drag and drop the saved Gaussian splatting `.ply` pointcloud in the editor interface). 
+2. Getting into the folder `test/gaussian_splatting` and running:      
+    `$ python test_gsm.py --load <gs_checkpoint_path>`      
+    The ` <gs_checkpoint_path>` is expected to have the following structure:      
+    ```bash
+    ├── gs_checkpoint_path
+        ├── pointcloud   # folder containing different subfolders, each one with a saved .ply econding the gaussian splatting model at a specific iteration/checkpoint
+        ├── last_camera.json
+        ├── config.yml
+    ```
 
 #### Controlling the spatial distribution of keyframe FOV centers
 

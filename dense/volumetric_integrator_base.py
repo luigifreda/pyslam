@@ -424,7 +424,7 @@ class VolumetricIntegratorBase:
             try:
                 
                 with q_in_condition:
-                    while q_in.empty() and is_running.value == 1 and reset_requested.value == 0:
+                    while q_in.empty() and is_running.value == 1 and reset_requested.value != 1:
                         print('VolumetricIntegratorBase: waiting for new task...')
                         q_in_condition.wait()
                 if not q_in.empty():

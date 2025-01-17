@@ -1,10 +1,10 @@
 graph LR
     %% Set default styles for all edges
-    linkStyle default stroke:#6EACDA,stroke-width:1px,font-size:10px;
+    linkStyle default stroke:#021526,stroke-width:2px,font-size:10px;
 
-    classDef module fill:none,stroke:#6EACDA,stroke-width:1px,font-weight:bold;
-    classDef component fill:#none,stroke:#6EACDA,stroke-width:1px;  
-    classDef data fill:#none,stroke:#6EACDA,stroke-width:1px;
+    classDef module fill:none,stroke:#6EACDA,stroke-width:2px,font-weight:bold, font-size:22px;
+    classDef component fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:22px;  
+    classDef data fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:22px;
 
     subgraph Tracking[TRACKING]
         FramePreprocessing[Frame<br>Preprocessing] --> PosePrediction
@@ -15,13 +15,13 @@ graph LR
     subgraph LocalMapping[LOCAL MAPPING]
         KeyFrameProcessing[KeyFrame<br>Processing] --> MapPointsCulling
         MapPointsCulling[Recent<br>Map Points<br>Culling] --> NewPointsCreation
-        NewPointsCreation["New Points Creation<br>(Temporal Triangulation)"] --> MapPointFusion
+        NewPointsCreation["New Points Creation<br>(Temporal&nbsp;Triangulation)"] --> MapPointFusion
         MapPointFusion[Map Points<br>Fusion] --> LocalBA
         LocalBA[Local BA] --> LocalKeyFramesCulling[Local Keyframes<br>Culling]
     end
     
     subgraph LoopClosing[LOOP CLOSING]
-        subgraph PlaceRecognition[PLACE RECOGNITION]
+        subgraph PlaceRecognition["PLACE&nbsp;RECOGNITION"]
             VisualVocabulary[Visual Vocabulary] 
             LoopDetectionDatabase[Loop Detection<br>Database]
         end
@@ -31,7 +31,7 @@ graph LR
         LoopCorrection[Loop<br>Correction]  --> EssentialGraphOptimization[Essential<br>Graph<br>Optimization]      
     end
 
-    subgraph VolumetricIntegration[VOLUMETRIC INTEGRATION]
+    subgraph VolumetricIntegration["VOLUMETRIC&nbsp;INTEGRATION"]
         KeyFrameQueue[KeyFrame Queue] --> DepthPrediction
         DepthPrediction["Depth Prediction<br>(Optional)"] --> VolumetricIntegrator[Volume Integration] 
         VolumetricIntegrator --> DenseMap[Dense Map]
