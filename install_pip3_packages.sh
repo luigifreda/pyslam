@@ -18,6 +18,15 @@ CUDA_VERSION=""
 if command -v nvidia-smi &> /dev/null; then
     CUDA_VERSION=$(get_cuda_version)
     echo CUDA_VERSION: $CUDA_VERSION
+
+    export CUDA_VERSION_STRING="cuda-"${CUDA_VERSION}  # must be an installed CUDA path in "/usr/local"; 
+                                                       # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
+    if [ ! -d /usr/local/$CUDA_VERSION_STRING ]; then
+        CUDA_VERSION_STRING="cuda"  # use last installed CUDA path in standard path as a fallback 
+    fi     
+    echo CUDA_VERSION_STRING: $CUDA_VERSION_STRING
+    export PATH=/usr/local/$CUDA_VERSION_STRING/bin${PATH:+:${PATH}}
+    export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION_STRING/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}    
 fi
 
 
@@ -142,6 +151,7 @@ pip install gdown  # to download from google drive
 # MonoGS
 if command -v nvidia-smi &> /dev/null; then
     # We need cuda for MonoGS
+
     pip install munch
     pip install wandb
     pip install plyfile
@@ -155,8 +165,19 @@ if command -v nvidia-smi &> /dev/null; then
     pip install lpips
     pip install rich
     pip install ruff
+    
     #pip install lycon  # removed since it creates install issues under ubuntu 24.04
-    pip install git+https://github.com/princeton-vl/lietorch.git
-    pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build 
-    pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build
+    
+    #pip install git+https://github.com/princeton-vl/lietorch.git
+    if [[ ! -d "$ROOT_DIR/thirdparty/lietorch" ]]; then
+        cd $ROOT_DIR/thirdparty
+        git clone --recursive https://github.com/princeton-vl/lietorch.git lietorch
+        cd lietorch
+        git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
+        git apply ../lietorch.patch
+        cd $ROOT_DIR
+    fi
+    pip install ./thirdparty/lietorch                                         # to clean: $ rm -rf thirdparty/lietorch/build
+    pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build *.egg-info
+    pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build *.egg-info
 fi

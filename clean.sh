@@ -75,11 +75,22 @@ cd thirdparty/pyibow
 ./clean.sh
 cd $ROOT_DIR
 
+if [ -d "thirdparty/lietorch" ]; then
+    rm -rf thirdparty/lietorch
+fi 
+
+if [ -d "thirdparty/monogs/submodules/simple-knn/build" ]; then
+    rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
+fi
+
+if [ -d "thirdparty/monogs/submodules/diff-gaussian-rasterization/build" ]; then
+    rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
+fi
+
 if [ -f "$ROOT_DIR/.env" ]; then
     echo "Removing $ROOT_DIR/.env file"
     rm "$ROOT_DIR/.env"
 fi
-
 
 # clean downloaded models and reset submodules
 if [ $HARD_CLEAN -eq 1 ]; then
