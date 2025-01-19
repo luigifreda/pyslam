@@ -155,7 +155,7 @@ if command -v nvidia-smi &> /dev/null; then
     pip install lpips
     pip install rich
     pip install ruff
-    pip install lycon
+    #pip install lycon  # removed since it creates install issues under ubuntu 24.04
     pip install git+https://github.com/princeton-vl/lietorch.git
     pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build 
     pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build

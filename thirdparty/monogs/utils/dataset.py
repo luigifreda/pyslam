@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import torch
 import trimesh
-import lycon
+#import lycon
 
 
 from gaussian_splatting.utils.graphics_utils import focal2fov
@@ -257,7 +257,9 @@ class MonocularDataset(BaseDataset):
     def __getitem__(self, idx):
         color_path = self.color_paths[idx]
         pose = self.poses[idx]
-        image = lycon.load(color_path)
+        #image = lycon.load(color_path)
+        image = cv2.imread(color_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         depth = None
 
         if self.disorted:
