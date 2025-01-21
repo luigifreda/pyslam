@@ -15,6 +15,9 @@ import os
 import subprocess
 
 
+NUM_PARALLEL_BUILD_JOBS = 4
+
+
 # Initialize gcc major version
 gcc_major_version = 0
 
@@ -65,6 +68,14 @@ except Exception as e:
 print(f"nvcc flags: {nvcc_flags}")
 print(f"cxx flags: {cxx_compiler_flags}")
     
+    
+class CustomBuildExtension(BuildExtension):
+    def build_extensions(self):
+        # Enable parallel builds
+        self.parallel = NUM_PARALLEL_BUILD_JOBS
+        print(f"Building with {self.parallel} parallel jobs")  # Debug message        
+        super().build_extensions()
+        
 setup(
     name="simple_knn",
     ext_modules=[
@@ -77,6 +88,6 @@ setup(
             extra_compile_args={"nvcc": nvcc_flags, "cxx": cxx_compiler_flags})
         ],
     cmdclass={
-        'build_ext': BuildExtension
+        'build_ext': CustomBuildExtension
     }
 )

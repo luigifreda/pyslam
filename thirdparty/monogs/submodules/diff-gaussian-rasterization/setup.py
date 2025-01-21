@@ -14,6 +14,9 @@ from torch.utils.cpp_extension import CUDAExtension, BuildExtension
 import os
 import subprocess
 
+
+NUM_PARALLEL_BUILD_JOBS = 4
+
 # Get the current script's directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -59,6 +62,15 @@ except Exception as e:
     print(f"Failed to get nvcc version: {e}")
     nvcc_flags = ['-O2', '-allow-unsupported-compiler']  # Default flags if nvcc check fails
 
+
+class CustomBuildExtension(BuildExtension):
+    def build_extensions(self):
+        # Enable parallel builds
+        self.parallel = NUM_PARALLEL_BUILD_JOBS
+        print(f"Building with {self.parallel} parallel jobs")  # Debug message        
+        super().build_extensions()
+
+
 # Setup for building the CUDA extension
 setup(
     name="diff_gaussian_rasterization",
@@ -77,6 +89,6 @@ setup(
         ),
     ],
     cmdclass={
-        'build_ext': BuildExtension
+        'build_ext': CustomBuildExtension
     }
 )

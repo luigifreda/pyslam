@@ -174,10 +174,10 @@ if command -v nvidia-smi &> /dev/null; then
         git clone --recursive https://github.com/princeton-vl/lietorch.git lietorch
         cd lietorch
         git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
-        git apply ../lietorch.patch
+        git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
         cd $ROOT_DIR
     fi
-    pip install ./thirdparty/lietorch                                         # to clean: $ rm -rf thirdparty/lietorch/build
-    pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build *.egg-info
-    pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build *.egg-info
+    pip install ./thirdparty/lietorch --verbose                               # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
+    pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
+    pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 fi

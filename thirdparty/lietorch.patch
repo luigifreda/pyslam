@@ -1,8 +1,171 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..7235fae
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,157 @@
++cmake_minimum_required(VERSION 3.10)
++project(lietorch LANGUAGES CXX CUDA)
++
++set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") # We need C++17 since NVCC does not support C++20
++
++# Set default build type to Release
++# if(NOT CMAKE_BUILD_TYPE)
++#   set(CMAKE_BUILD_TYPE Release)
++# endif()
++
++# Set CMake policies
++cmake_policy(SET CMP0148 NEW)
++cmake_policy(SET CMP0146 NEW)
++
++# Set the C++ standard
++set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
++set(CMAKE_CXX_STANDARD_REQUIRED ON)
++
++# Generate compile_commands.json for tooling
++set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
++
++set(CMAKE_C_FLAGS "-O2")
++set(CMAKE_CXX_FLAGS "-O2")
++
++# Function to detect CUDA architectures
++function(detect_cuda_architectures ARCHS)
++  execute_process(
++    COMMAND nvcc --list-gpu-arch
++    OUTPUT_VARIABLE GPU_ARCHS_OUTPUT
++    OUTPUT_STRIP_TRAILING_WHITESPACE
++    ERROR_QUIET
++  )
++
++  # Parse the output and extract architectures
++  string(REPLACE "\n" ";" GPU_ARCHS_LIST "${GPU_ARCHS_OUTPUT}")
++  set(DETECTED_ARCHS "")
++  foreach(ARCH ${GPU_ARCHS_LIST})
++    string(REGEX MATCH "compute_([0-9]+)" _ ${ARCH})
++    if(NOT "${CMAKE_MATCH_1}" STREQUAL "")
++      list(APPEND DETECTED_ARCHS "${CMAKE_MATCH_1}")
++    endif()
++  endforeach()
++
++  if(DETECTED_ARCHS)
++    set(${ARCHS} ${DETECTED_ARCHS} PARENT_SCOPE)
++  else()
++    message(WARNING "No CUDA architectures detected. Falling back to default.")
++    set(${ARCHS} "70" PARENT_SCOPE) # Default to a commonly supported architecture
++  endif()
++endfunction()
++
++# Detect CUDA architectures
++detect_cuda_architectures(CUDA_ARCHITECTURES)
++
++# Set CUDA architectures
++set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCHITECTURES})
++message(STATUS "Detected CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
++
++# Include directories
++include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lietorch/include)
++include_directories(${CMAKE_CURRENT_SOURCE_DIR}/eigen)
++
++# Find Python and PyTorch
++find_package(Python3 REQUIRED)
++#find_package(PythonExtensions REQUIRED)
++
++find_package(CUDA REQUIRED)
++include_directories(${CUDA_INCLUDE_DIRS})
++link_directories(${CUDA_LIBRARY_DIRS})
++
++execute_process(
++  COMMAND python3 -c "from torch.utils import cpp_extension; print(cpp_extension.include_paths()[0])"
++  OUTPUT_VARIABLE TORCH_INCLUDE_DIR
++  OUTPUT_STRIP_TRAILING_WHITESPACE
++)
++
++execute_process(
++  COMMAND python3 -c "from torch.utils import cpp_extension; print(cpp_extension.library_paths()[0])"
++  OUTPUT_VARIABLE TORCH_LIBRARY_DIR
++  OUTPUT_STRIP_TRAILING_WHITESPACE
++)
++
++execute_process(
++  COMMAND python3 -c "from torch.utils import cpp_extension; print(cpp_extension.include_paths()[1])"
++  OUTPUT_VARIABLE TORCH_API_INCLUDE_DIR
++  OUTPUT_STRIP_TRAILING_WHITESPACE
++)
++
++# Add PyTorch and Python include directories
++include_directories(${TORCH_INCLUDE_DIR})
++include_directories(${TORCH_API_INCLUDE_DIR})
++include_directories(${Python3_INCLUDE_DIRS})
++
++# Add PyTorch library directories
++link_directories(${TORCH_LIBRARY_DIR})
++
++# Add libraries
++add_library(lietorch_backends
++  lietorch/src/lietorch_gpu.cu
++  lietorch/src/lietorch.cpp
++  lietorch/src/lietorch_cpu.cpp
++)
++
++
++add_library(lietorch_extras
++  lietorch/extras/altcorr_kernel.cu
++  lietorch/extras/corr_index_kernel.cu
++  lietorch/extras/se3_builder.cu
++  lietorch/extras/se3_inplace_builder.cu
++  lietorch/extras/se3_solver.cu
++  lietorch/extras/extras.cpp
++)
++
++
++# Set CUDA-specific flags
++list(APPEND CUDA_NVCC_FLAGS "-std=c++${CMAKE_CXX_STANDARD}")
++list(APPEND CUDA_NVCC_FLAGS "-O2")
++
++target_compile_options(lietorch_backends PUBLIC ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS})
++target_compile_options(lietorch_extras PUBLIC ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS})
++
++# Link PyTorch and Python libraries
++target_link_libraries(lietorch_backends PUBLIC torch ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
++target_link_libraries(lietorch_extras PUBLIC torch ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
++
++# Enable separable compilation for CUDA
++# set_target_properties(lietorch_backends PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
++# set_target_properties(lietorch_extras PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
++
++# # Set the output directory for the shared libraries
++# set_target_properties(lietorch_backends PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# set_target_properties(lietorch_extras PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++
++# # Install the libraries
++# install(TARGETS lietorch_backends DESTINATION ${CMAKE_BINARY_DIR}/lib/lietorch)
++# install(TARGETS lietorch_extras DESTINATION ${CMAKE_BINARY_DIR}/lib/lietorch)
++
++
++# python_extension_module(lietorch_backends)
++# install(TARGETS lietorch_backends LIBRARY DESTINATION lietorch)
++
++# python_extension_module(lietorch_extras)
++# install(TARGETS lietorch_backends LIBRARY DESTINATION lietorch)
++
++
++message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
++message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
++message(STATUS "Output directory: ${CMAKE_BINARY_DIR}")
++
++# Display GCC build flags
++message(STATUS "GCC CXX flags: ${CMAKE_CXX_FLAGS}")
++
++# If CUDA is used, display NVCC flags
++if(CMAKE_CUDA_COMPILER)
++    message(STATUS "NVCC flags: ${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS}")
++endif()
++
 diff --git a/setup.py b/setup.py
-index 09c8650..b98349f 100644
+index 09c8650..0a11d64 100644
 --- a/setup.py
 +++ b/setup.py
-@@ -1,11 +1,86 @@
+@@ -1,11 +1,97 @@
  from setuptools import setup
  from torch.utils.cpp_extension import BuildExtension, CUDAExtension
  
@@ -11,6 +174,8 @@ index 09c8650..b98349f 100644
  import os.path as osp
  
  
++NUM_PARALLEL_BUILD_JOBS = 1 # It seems setting more than 1 job does not work here! There seems to a race condition at build time for some reason.
++
  ROOT = osp.dirname(osp.abspath(__file__))
  
 +
@@ -52,7 +217,7 @@ index 09c8650..b98349f 100644
 +
 +
 +
-+cxx_compiler_flags = ['-O2','-fPIC']
++cxx_compiler_flags = ['-O2']
 +
 +if os.name == 'nt':
 +    cxx_compiler_flags.append("/wd4624")
@@ -86,11 +251,25 @@ index 09c8650..b98349f 100644
 +print(f"nvcc flags: {nvcc_flags}")
 +print(f"cxx flags: {cxx_compiler_flags}")
 +    
++
++class CustomBuildExtension(BuildExtension):
++    def build_extensions(self):
++        # Enable parallel builds
++        self.parallel = NUM_PARALLEL_BUILD_JOBS
++        print(f"Building with {self.parallel} parallel jobs")  # Debug message        
++        super().build_extensions()
++        
++
  setup(
      name='lietorch',
      version='0.2',
-@@ -22,15 +97,8 @@ setup(
-                 'lietorch/src/lietorch_gpu.cu',
+@@ -18,19 +104,12 @@ setup(
+                 osp.join(ROOT, 'lietorch/include'), 
+                 osp.join(ROOT, 'eigen')],
+             sources=[
++                'lietorch/src/lietorch_gpu.cu',                
+                 'lietorch/src/lietorch.cpp', 
+-                'lietorch/src/lietorch_gpu.cu',
                  'lietorch/src/lietorch_cpu.cpp'],
              extra_compile_args={
 -                'cxx': ['-O2'], 
@@ -107,7 +286,7 @@ index 09c8650..b98349f 100644
              }),
  
          CUDAExtension('lietorch_extras', 
-@@ -43,15 +111,8 @@ setup(
+@@ -43,18 +122,11 @@ setup(
                  'lietorch/extras/extras.cpp',
              ],
              extra_compile_args={
@@ -124,4 +303,8 @@ index 09c8650..b98349f 100644
 +                'nvcc': nvcc_flags
              }),
      ],
-     cmdclass={ 'build_ext': BuildExtension }
+-    cmdclass={ 'build_ext': BuildExtension }
++    cmdclass={ 'build_ext': CustomBuildExtension }
+ )
+ 
+ 
