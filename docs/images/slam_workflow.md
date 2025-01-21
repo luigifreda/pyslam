@@ -1,10 +1,10 @@
 graph LR
     %% Set default styles for all edges
-    linkStyle default stroke:#021526,stroke-width:2px,font-size:10px;
+    linkStyle default stroke:#021526,stroke-width:2px,font-size:12px;
 
-    classDef module fill:none,stroke:#6EACDA,stroke-width:2px,font-weight:bold, font-size:22px;
-    classDef component fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:22px;  
-    classDef data fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:22px;
+    classDef module fill:none,stroke:#6EACDA,stroke-width:2px,font-weight:bold, font-size:24px;
+    classDef component fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:24px;  
+    classDef data fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:24px;
 
     subgraph Tracking[TRACKING]
         FramePreprocessing[Frame<br>Preprocessing] --> PosePrediction
