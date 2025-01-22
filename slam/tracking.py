@@ -206,9 +206,9 @@ class Tracking:
         self.traj3d_est = []         # history of estimated translations centered w.r.t. first one
         self.traj3d_gt = []          # history of estimated ground truth translations centered w.r.t. first one                 
 
-        self.cur_R = None # current rotation w.r.t. world frame  
-        self.cur_t = None # current translation w.r.t. world frame 
-        self.trueX, self.trueY, self.trueZ = None, None, None
+        self.cur_R = None # current rotation Rwc w.r.t. world frame   
+        self.cur_t = None # current translation twc w.r.t. world frame 
+        self.gt_x, self.gt_y, self.gt_z = None, None, None
         #self.groundtruth = slam.groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
         
         if kLogKFinfoToFile:
@@ -284,7 +284,7 @@ class Tracking:
         
         self.cur_R = None # current rotation w.r.t. world frame  
         self.cur_t = None # current translation w.r.t. world frame 
-        self.trueX, self.trueY, self.trueZ = None, None, None
+        self.gt_x, self.gt_y, self.gt_z = None, None, None
                 
 
     # estimate a pose from a fitted essential mat; 
@@ -823,13 +823,13 @@ class Tracking:
         f_cur = self.map.get_frame(-1)
         self.cur_R = f_cur.pose[:3,:3].T
         self.cur_t = np.dot(-self.cur_R,f_cur.pose[:3,3])
-        if (self.init_history is True) and (self.trueX is not None):
+        if (self.init_history is True) and (self.gt_x is not None):
             self.t0_est = np.array([self.cur_t[0], self.cur_t[1], self.cur_t[2]])  # starting translation 
-            self.t0_gt  = np.array([self.trueX, self.trueY, self.trueZ])           # starting translation 
+            self.t0_gt  = np.array([self.gt_x, self.gt_y, self.gt_z])           # starting translation 
         if (self.t0_est is not None) and (self.t0_gt is not None):             
             p = [self.cur_t[0]-self.t0_est[0], self.cur_t[1]-self.t0_est[1], self.cur_t[2]-self.t0_est[2]]   # the estimated traj starts at 0
             self.traj3d_est.append(p)
-            self.traj3d_gt.append([self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]])            
+            self.traj3d_gt.append([self.gt_x-self.t0_gt[0], self.gt_y-self.t0_gt[1], self.gt_z-self.t0_gt[2]])            
             self.poses.append(poseRt(self.cur_R, p))
             self.pose_timestamps.append(f_cur.timestamp)
 

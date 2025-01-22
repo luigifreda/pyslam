@@ -307,7 +307,7 @@ class SimpleGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z,abs_scale 
     
@@ -333,7 +333,7 @@ class SimpleGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp, x,y,z, qx,qy,qz,qw, abs_scale     
 
 
@@ -374,7 +374,7 @@ class KittiGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         timestamp = float(self.data_timestamps[frame_id].strip())
         #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z,abs_scale 
@@ -407,7 +407,7 @@ class KittiGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         timestamp = float(self.data_timestamps[frame_id].strip())
         #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z, q[0],q[1],q[2],q[3], abs_scale     
@@ -469,7 +469,7 @@ class TumGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z,abs_scale 
         
     # return timestamp, x,y,z, qx,qy,qz,qw, scale
@@ -494,7 +494,7 @@ class TumGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z, qx,qy,qz,qw,abs_scale
 
 class EurocGroundTruth(GroundTruth):
@@ -615,7 +615,7 @@ class EurocGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else: 
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         #print(f'abs_scale: {abs_scale}')
         # from https://www.researchgate.net/profile/Michael-Burri/publication/291954561_The_EuRoC_micro_aerial_vehicle_datasets/links/56af0c6008ae19a38516937c/The-EuRoC-micro-aerial-vehicle-datasets.pdf
         return timestamp, x,y,z, abs_scale
@@ -642,7 +642,7 @@ class EurocGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z, qx,qy,qz,qw,abs_scale        
     
     
@@ -691,7 +691,7 @@ class ReplicaGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z,abs_scale 
         
     # return timestamp, x,y,z, qx,qy,qz,qw, scale
@@ -710,6 +710,6 @@ class ReplicaGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z, q[0],q[1],q[2],q[3],abs_scale    
     

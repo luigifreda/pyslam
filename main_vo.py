@@ -27,10 +27,11 @@ import platform
 
 from config import Config
 
-from visual_odometry import VisualOdometry
+from visual_odometry import VisualOdometryEducational
+from visual_odometry_rgbd import VisualOdometryRgbd, VisualOdometryRgbdTensor
 from camera  import PinholeCamera
 from ground_truth import groundtruth_factory
-from dataset import dataset_factory
+from dataset import dataset_factory, SensorType
 
 from mplot_thread import Mplot2d, Mplot3d
 from qplot_thread import Qplot2d
@@ -38,6 +39,7 @@ from qplot_thread import Qplot2d
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 
+from utils_sys import Printer
 from rerun_interface import Rerun
 
 
@@ -84,9 +86,10 @@ if __name__ == "__main__":
 
     cam = PinholeCamera(config)
 
-
     num_features=2000  # how many features do you want to detect and track?
-
+    if config.num_features_to_extract > 0:  # override the number of features to extract if we set something in the settings file
+        num_features = config.num_features_to_extract
+        
     # select your tracker configuration (see the file feature_tracker_configs.py) 
     # LK_SHI_TOMASI, LK_FAST
     # SHI_TOMASI_ORB, FAST_ORB, ORB, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, LIGHTGLUE, XFEAT, XFEAT_XFEAT, LOFTR
@@ -96,7 +99,13 @@ if __name__ == "__main__":
     feature_tracker = feature_tracker_factory(**tracker_config)
 
     # create visual odometry object 
-    vo = VisualOdometry(cam, groundtruth, feature_tracker)
+    if dataset.sensor_type == SensorType.RGBD:
+        vo = VisualOdometryRgbdTensor(cam, groundtruth)  # only for RGBD
+        Printer.green('Using VisualOdometryRgbdTensor')
+    else:
+        vo = VisualOdometryEducational(cam, groundtruth, feature_tracker)
+        Printer.green('Using VisualOdometryEducational')
+    time.sleep(1) # time to read the message
 
     is_draw_traj_img = True
     traj_img_size = 800
@@ -131,21 +140,22 @@ if __name__ == "__main__":
         if dataset.isOk():
             timestamp = dataset.getTimestamp()          # get current timestamp 
             img = dataset.getImageColor(img_id)
+            depth = dataset.getDepth(img_id)
 
         if img is not None:
 
-            vo.track(img, img_id, timestamp)  # main VO function 
+            vo.track(img, depth, img_id, timestamp)  # main VO function 
 
             if(len(vo.traj3d_est)>1):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
 
                 x, y, z = vo.traj3d_est[-1]
-                x_true, y_true, z_true = vo.traj3d_gt[-1]
+                gt_x, gt_y, gt_z = vo.traj3d_gt[-1]
 
                 if is_draw_traj_img:      # draw 2D trajectory (on the plane xz)
                     draw_x, draw_y = int(draw_scale*x) + half_traj_img_size, half_traj_img_size - int(draw_scale*z)
-                    true_x, true_y = int(draw_scale*x_true) + half_traj_img_size, half_traj_img_size - int(draw_scale*z_true)
+                    draw_gt_x, draw_gt_y = int(draw_scale*gt_x) + half_traj_img_size, half_traj_img_size - int(draw_scale*gt_z)
                     cv2.circle(traj_img, (draw_x, draw_y), 1,(img_id*255/4540, 255-img_id*255/4540, 0), 1)   # estimated from green to blue
-                    cv2.circle(traj_img, (true_x, true_y), 1,(0, 0, 255), 1)  # groundtruth in red
+                    cv2.circle(traj_img, (draw_gt_x, draw_gt_y), 1,(0, 0, 255), 1)  # groundtruth in red
                     # write text on traj_img
                     cv2.rectangle(traj_img, (10, 20), (600, 60), (0, 0, 0), -1)
                     text = "Coordinates: x=%2fm y=%2fm z=%2fm" % (x, y, z)
@@ -159,9 +169,9 @@ if __name__ == "__main__":
 
 
                 if is_draw_with_rerun:                                        
-                    Rerun.log_2d_seq_scalar('trajectory_error/err_x', img_id, math.fabs(x_true-x))
-                    Rerun.log_2d_seq_scalar('trajectory_error/err_y', img_id, math.fabs(y_true-y))
-                    Rerun.log_2d_seq_scalar('trajectory_error/err_z', img_id, math.fabs(z_true-z))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_x', img_id, math.fabs(gt_x-x))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_y', img_id, math.fabs(gt_y-y))
+                    Rerun.log_2d_seq_scalar('trajectory_error/err_z', img_id, math.fabs(gt_z-z))
                     
                     Rerun.log_2d_seq_scalar('trajectory_stats/num_matches', img_id, vo.num_matched_kps)
                     Rerun.log_2d_seq_scalar('trajectory_stats/num_inliers', img_id, vo.num_inliers)
@@ -178,9 +188,9 @@ if __name__ == "__main__":
                             plt3d.draw(vo.traj3d_est,'estimated',color='g',marker='.')
 
                     if is_draw_err:         # draw error signals 
-                        errx = [img_id, math.fabs(x_true-x)]
-                        erry = [img_id, math.fabs(y_true-y)]
-                        errz = [img_id, math.fabs(z_true-z)] 
+                        errx = [img_id, math.fabs(gt_x-x)]
+                        erry = [img_id, math.fabs(gt_y-y)]
+                        errz = [img_id, math.fabs(gt_z-z)] 
                         err_plt.draw(errx,'err_x',color='g')
                         err_plt.draw(erry,'err_y',color='b')
                         err_plt.draw(errz,'err_z',color='r')

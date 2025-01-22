@@ -57,11 +57,12 @@ kVerbose = False
 @register_class
 class FeatureMatcherTypes(SerializableEnum):
     NONE      = 0
-    BF        = 1      # Brute force
-    FLANN     = 2      # FLANN-based 
-    XFEAT     = 3      # "XFeat: Accelerated Features for Lightweight Image Matching"
-    LIGHTGLUE = 4      # "LightGlue: Local Feature Matching at Light Speed"
-    LOFTR     = 5      # "LoFTR: Efficient Local Feature Matching with Transformers" (based on kornia)
+    LK        = 1      # Lucas-Kanade tracking
+    BF        = 2      # Brute force
+    FLANN     = 3      # FLANN-based 
+    XFEAT     = 4      # "XFeat: Accelerated Features for Lightweight Image Matching"
+    LIGHTGLUE = 5      # "LightGlue: Local Feature Matching at Light Speed"
+    LOFTR     = 6      # "LoFTR: Efficient Local Feature Matching with Transformers" (based on kornia)
 
 
 def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, 

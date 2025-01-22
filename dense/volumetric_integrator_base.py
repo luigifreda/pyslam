@@ -363,7 +363,7 @@ class VolumetricIntegratorBase:
     def init(self, camera: Camera, environment_type: DatasetEnvironmentType, sensor_type: SensorType, parameters_dict):
         
         self.last_output = None
-        self.depth_factor = 1.0 #/camera.depth_factor # Now, depth factor is already included in the set kf depth image
+        self.depth_factor = 1.0 #/camera.depth_factor # Now, depth factor is already included in the set kf depth image (see Frame constructor)
         self.environment_type = environment_type    
         self.sensor_type = sensor_type
     

@@ -187,6 +187,8 @@ class LkFeatureTracker(FeatureTracker):
                                                        sigma_level0 = sigma_level0,
                                                        detector_type=detector_type, 
                                                        descriptor_type=descriptor_type)   
+        self.matcher_type = FeatureMatcherTypes.LK
+        
         #if num_levels < 3:
         #    Printer.green('LkFeatureTracker: forcing at least 3 levels on LK pyr optic flow') 
         #    num_levels = 3          

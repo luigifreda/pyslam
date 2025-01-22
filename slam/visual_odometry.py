@@ -19,95 +19,59 @@
 
 import numpy as np 
 import cv2
-import platform 
-from enum import Enum
+
 
 from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
 from utils_geom import poseRt, is_rotation_matrix, closest_rotation_matrix
 from timer import TimerFps
 from ground_truth import GroundTruth
 
-class VoStage(Enum):
-    NO_IMAGES_YET   = 0     # no image received 
-    GOT_FIRST_IMAGE = 1     # got first image, we can proceed in a normal way (match current image with previous image)
-    
+from visual_odometry_base import VoState, VisualOdometryBase
+
+
 kVerbose=True     
+
 kMinNumFeature = 2000
 kRansacThresholdNormalized = 0.0004            # metric threshold used for normalized image coordinates (originally 0.0003)
 kRansacThresholdPixels = 0.1                   # pixel threshold used for image coordinates 
-kAbsoluteScaleThresholdKitti = 0.1             # absolute translation scale; it is also the minimum translation norm for an accepted motion 
-kAbsoluteScaleThresholdIndoor = 0.01           # absolute translation scale; it is also the minimum translation norm for an accepted motion
 kUseEssentialMatrixEstimation = True           # using the essential matrix fitting algorithm is more robust RANSAC given five-point algorithm solver 
 kRansacProb = 0.999                            # (originally 0.999)
 kMinAveragePixelShiftForMotionEstimation = 1.5 # if the average pixel shift is below this threshold, motion is considered to be small enough to be ignored
-kUseGroundTruthScale = True 
 
-# This class is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
+kUseGroundTruthScale = True 
+kAbsoluteScaleThresholdKitti = 0.1             # absolute translation scale; it is also the minimum translation norm for an accepted motion 
+kAbsoluteScaleThresholdIndoor = 0.015          # absolute translation scale; it is also the minimum translation norm for an accepted motion
+
+
+# This "educational" class is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
 # It combines the simplest VO ingredients without performing any image point triangulation or 
 # windowed bundle adjustment. At each step $k$, it estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. 
 # The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. 
 # With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a 
 # valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. 
-class VisualOdometry(object):
+class VisualOdometryEducational(VisualOdometryBase):
     def __init__(self, cam, groundtruth: GroundTruth, feature_tracker: FeatureTracker):
-        self.stage = VoStage.NO_IMAGES_YET
-        self.cam = cam
-        
-        self.cur_image = None   # current image
-        self.cur_timestamp = None
-
-        self.prev_image = None  # previous/reference image
-        self.prev_timestamp = None        
+        super().__init__(cam=cam, groundtruth=groundtruth)      
         
         self.kps_ref = None  # reference keypoints 
         self.des_ref = None # refeference descriptors 
         self.kps_cur = None  # current keypoints 
         self.des_cur = None # current descriptors 
+            
+        self.feature_tracker = feature_tracker  # type: FeatureTracker
+        
+        self.pose_estimation_inliers = None
 
-        self.cur_R = np.eye(3,3) # current rotation 
-        self.cur_t = np.zeros((3,1)) # current translation 
-
-        self.trueX, self.trueY, self.trueZ = None, None, None
-        self.groundtruth = groundtruth
         self.absolute_scale_threshold = 0.0
         if self.groundtruth.type == 'kitti':
             self.absolute_scale_threshold = kAbsoluteScaleThresholdKitti
         else: 
             self.absolute_scale_threshold = kAbsoluteScaleThresholdIndoor
             
-        self.feature_tracker = feature_tracker
-        self.track_result = None 
-
-        self.mask_match = None # mask of matched keypoints used for drawing 
-        self.draw_img = None 
-
-        self.init_history = True 
-        self.poses = []              # history of poses
-        self.pose_timestamps = []    # history of pose timestamps
-        self.t0_est = None           # history of estimated translations      
-        self.t0_gt = None            # history of ground truth translations (if available)
-        self.traj3d_est = []         # history of estimated translations centered w.r.t. first one
-        self.traj3d_gt = []          # history of estimated ground truth translations centered w.r.t. first one     
-
-        self.num_matched_kps = None    # current number of matched keypoints  
-        self.num_inliers = None        # current number of inliers 
-
-        self.timer_verbose = False # set this to True if you want to print timings 
-        self.timer_main = TimerFps('VO', is_verbose = self.timer_verbose)
         self.timer_pose_est = TimerFps('PoseEst', is_verbose = self.timer_verbose)
         self.timer_feat = TimerFps('Feature', is_verbose = self.timer_verbose)
 
-    # get current translation scale from ground-truth if groundtruth is not None 
-    def getAbsoluteScale(self, frame_id):  
-        if self.groundtruth is not None and kUseGroundTruthScale:
-            timestamp, self.trueX, self.trueY, self.trueZ, scale = self.groundtruth.getTimestampPositionAndAbsoluteScale(frame_id)
-            return scale
-        else:
-            self.trueX = 0 
-            self.trueY = 0 
-            self.trueZ = 0
-            return 1
-
+        
     def computeFundamentalMatrix(self, kps_ref, kps_cur):
             F, mask = cv2.findFundamentalMat(kps_ref, kps_cur, cv2.FM_RANSAC, kRansacThresholdPixels, kRansacProb)
             if F is None or F.shape == (1, 1):
@@ -157,17 +121,24 @@ class VisualOdometry(object):
             F, self.mask_match = self.computeFundamentalMatrix(kp_cur_u, kp_ref_u)
             E = self.cam.K.T @ F @ self.cam.K    # E = K.T * F * K 
         #self.removeOutliersFromMask(self.mask)  # do not remove outliers, the last unmatched/outlier features can be matched and recognized as inliers in subsequent frames                          
-        _, R, t, mask = cv2.recoverPose(E, self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.))   
+        self.pose_estimation_inliers, R, t, mask = cv2.recoverPose(E, self.kpn_cur, self.kpn_ref, focal=1, pp=(0., 0.))   
+        print(f'num inliers in pose estimation: {self.pose_estimation_inliers}')
         return R,t  # Rrc, trc (with respect to 'ref' frame) 		
 
-    def processFirstFrame(self):
+    def processFirstFrame(self, frame_id) -> None:
+        # convert image to gray if needed    
+        if self.cur_image.ndim>2:
+            self.cur_image = cv2.cvtColor(self.cur_image,cv2.COLOR_RGB2GRAY)                
         # only detect on the current image 
         self.kps_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
         # convert from list of keypoints to an array of points 
         self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) if self.kps_ref is not None else None
         self.draw_img = self.drawFeatureTracks(self.cur_image)
 
-    def processFrame(self, frame_id):
+    def processFrame(self, frame_id) -> None:
+        # convert image to gray if needed    
+        if self.cur_image.ndim>2:
+            self.cur_image = cv2.cvtColor(self.cur_image,cv2.COLOR_RGB2GRAY)                
         # track features 
         self.timer_feat.start()
         self.track_result = self.feature_tracker.track(self.prev_image, self.cur_image, self.kps_ref, self.des_ref)
@@ -186,11 +157,16 @@ class VisualOdometry(object):
         self.average_pixel_shift = np.mean(np.abs(self.track_result.kps_ref_matched - self.track_result.kps_cur_matched))
         print(f'average pixel shift: {self.average_pixel_shift}')
         if kVerbose:        
-            print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers, ', matcher type: ', self.feature_tracker.matcher.matcher_type.name if self.feature_tracker.matcher is not None else 'None', ', tracker type: ', self.feature_tracker.tracker_type.name)      
+            matcher_type = self.feature_tracker.matcher.matcher_type.name if self.feature_tracker.matcher is not None else self.feature_tracker.matcher_type
+            print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers, ', matcher type: ', matcher_type, ', tracker type: ', self.feature_tracker.tracker_type.name)      
         # t is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
-        absolute_scale = self.getAbsoluteScale(frame_id)
+        self.updateGtData(frame_id)
+        absolute_scale = self.gt_scale if kUseGroundTruthScale else 1.0
+        print('absolute scale: ', absolute_scale)
         # NOTE: This simplistic estimation approach provide reasonable results with Kitti where a good ground velocity provides a decent interframe parallax. It does not work with indoor datasets. 
-        if absolute_scale > self.absolute_scale_threshold and self.average_pixel_shift > kMinAveragePixelShiftForMotionEstimation:
+        if absolute_scale > self.absolute_scale_threshold and \
+            self.average_pixel_shift > kMinAveragePixelShiftForMotionEstimation and \
+                self.pose_estimation_inliers > 5:
             # compose absolute motion [Rwa,twa] with estimated relative motion [Rab,s*tab] (s is the scale extracted from the ground truth)
             # [Rwb,twb] = [Rwa,twa]*[Rab,tab] = [Rwa*Rab|twa + Rwa*tab]
             print('estimated t with norm |t|: ', np.linalg.norm(t), ' (just for sake of clarity)')
@@ -198,7 +174,7 @@ class VisualOdometry(object):
             if not is_rotation_matrix(self.cur_R):
                 print(f'Correcting rotation matrix: {self.cur_R}')
                 self.cur_R = closest_rotation_matrix(self.cur_R)
-            self.cur_t = self.cur_t + absolute_scale*self.cur_R.dot(t) 
+            self.cur_t = self.cur_t + absolute_scale*self.cur_R @ t
         # draw image         
         self.draw_img = self.drawFeatureTracks(self.cur_image) 
         # check if we have enough features to track otherwise detect new ones and start tracking from them (used for LK tracker) 
@@ -209,41 +185,18 @@ class VisualOdometry(object):
                 print('# new detected points: ', self.kps_cur.shape[0])                  
         self.kps_ref = self.kps_cur
         self.des_ref = self.des_cur
-        self.updateHistory()           
         
-
-    def track(self, img, frame_id, timestamp):
-        if kVerbose:
-            print('..................................')
-            print(f'frame: {frame_id}, timestamp: {timestamp}') 
-        # convert image to gray if needed    
-        if img.ndim>2:
-            img = cv2.cvtColor(img,cv2.COLOR_RGB2GRAY)             
-        # check coherence of image size with camera settings 
-        assert(img.ndim==2 and img.shape[0]==self.cam.height and img.shape[1]==self.cam.width), "Frame: provided image has not the same size as the camera model or image is not grayscale"
-        self.cur_image = img
-        self.cur_timestamp = timestamp
-        # manage and check stage 
-        if(self.stage == VoStage.GOT_FIRST_IMAGE):
-            self.processFrame(frame_id)
-        elif(self.stage == VoStage.NO_IMAGES_YET):
-            self.processFirstFrame()
-            self.stage = VoStage.GOT_FIRST_IMAGE            
-        self.prev_image = self.cur_image    
-        self.prev_timestamp = self.cur_timestamp
-        # update main timer (for profiling)
-        self.timer_main.refresh()  
-  
 
     def drawFeatureTracks(self, img, reinit = False):
         draw_img = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
-        num_outliers = 0        
-        if(self.stage == VoStage.GOT_FIRST_IMAGE):            
+        num_outliers = 0         
+        if self.state == VoState.GOT_FIRST_IMAGE:                      
             if reinit:
                 for p1 in self.kps_cur:
                     a,b = p1.ravel()
                     cv2.circle(draw_img,(a,b),1, (0,255,0),-1)                    
             else:    
+                print(f'drawing feature tracks, num features matched: {len(self.track_result.kps_ref_matched)}')
                 for i,pts in enumerate(zip(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)):
                     drawAll = False # set this to true if you want to draw outliers 
                     if self.mask_match[i] or drawAll:
@@ -257,17 +210,3 @@ class VisualOdometry(object):
             if kVerbose:
                 print('# outliers: ', num_outliers)     
         return draw_img            
-
-    def updateHistory(self):
-        if (self.init_history is True) and (self.trueX is not None):
-            self.t0_est = np.array([self.cur_t[0], self.cur_t[1], self.cur_t[2]])  # starting translation 
-            self.t0_gt  = np.array([self.trueX, self.trueY, self.trueZ])           # starting translation 
-            self.init_history = False 
-        if (self.t0_est is not None) and (self.t0_gt is not None):             
-            p = [self.cur_t[0]-self.t0_est[0], self.cur_t[1]-self.t0_est[1], self.cur_t[2]-self.t0_est[2]]   # the estimated traj starts at 0
-            self.traj3d_est.append(p)
-            pg = [self.trueX-self.t0_gt[0], self.trueY-self.t0_gt[1], self.trueZ-self.t0_gt[2]]  # the groudtruth traj starts at 0  
-            self.traj3d_gt.append(pg)     
-            self.poses.append(poseRt(self.cur_R, np.array(p).ravel())) 
-            self.pose_timestamps.append(self.cur_timestamp)
-            #self.poses.append(poseRt(self.cur_R, p[0])) 

@@ -163,7 +163,8 @@ Once you have run the script `install_all_venv.sh` (follow the instructions abov
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py
 ```
-This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**.  
+This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
+Now, with RGBD datasets, you can also test the **RGBD odometry** with the classes `VisualOdometryRgbd` or `VisualOdometryRgbdTensor` (ground truth is not required here). 
 
 Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ```bash
@@ -631,3 +632,7 @@ Many improvements and additional features are currently under development:
 - [ ] ROS support
 - [x] gaussian splatting integration
 - [ ] documentation [WIP]
+- [ ] gtsam integration
+- [ ] IMU integration
+- [ ] LIDAR integration
+- [ ] XSt3r-based methods integration

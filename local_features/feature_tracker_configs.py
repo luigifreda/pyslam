@@ -62,7 +62,7 @@ class FeatureTrackerConfigs(object):
                 tracker_type = kTrackerType)
     
     # =====================================
-    # LK trackers (these can only be used with VisualOdometry() ... at the present time)
+    # LK trackers (these can only be used with VisualOdometryEducational() ... at the present time)
     
     LK_SHI_TOMASI = dict(num_features=kNumFeatures,
                          num_levels = 3,
