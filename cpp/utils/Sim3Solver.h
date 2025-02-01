@@ -36,8 +36,7 @@
 */
 
 
-#ifndef SIM3SOLVER_H
-#define SIM3SOLVER_H
+#pragma once
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -48,6 +47,7 @@
 namespace utils{
 
 
+// Input for the Sim3Solver
 class Sim3SolverInput
 {
 public: 
@@ -72,6 +72,7 @@ public:
 };
 
 
+// Sim3 Solver: Estimate the Sim3 transformation between two sets of 3D points back-projected from two camera frames
 class Sim3Solver
 {
 public:
@@ -162,4 +163,3 @@ protected:
 
 } //namespace 
 
-#endif // SIM3SOLVER_H

@@ -4,6 +4,7 @@
 
 - [Troubleshooting](#troubleshooting)
   - [Bad tracking performances](#bad-tracking-performances)
+  - [ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/x86\_64-linux-gnu/libhwy.so.1)](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-libx86_64-linux-gnulibhwyso1)
   - [RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
   - [Gtk-ERROR \*\*: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported](#gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
   - [SURF error](#surf-error)
@@ -33,6 +34,10 @@ Due to the multi-threading system (tracking thread + local mapping thread) and t
 
 If you experience bad tracking performances, go in [config_parameters.py](./config_parameters.py) and try to set `kTrackingWaitForLocalMappingToGetIdle=True`.
 
+
+## ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc_s.so.1: version `GCC_12.0.0' not found (required by /lib/x86_64-linux-gnu/libhwy.so.1)
+
+If you hit this issue, please refer to this [discussion](https://github.com/luigifreda/pyslam/issues/133).
 
 ## RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile
 

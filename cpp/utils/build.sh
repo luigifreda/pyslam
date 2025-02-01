@@ -29,7 +29,7 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 make_dir build
 cd build
-cmake .. $EXTERNAL_OPTIONS
+cmake .. $EXTERNAL_OPTIONS 
 make -j 4
 
 cd ..

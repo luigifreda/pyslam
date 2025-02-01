@@ -74,7 +74,9 @@
         "any": "cpp",
         "core": "cpp",
         "numericaldiff": "cpp",
-        "matrixfunctions": "cpp"
+        "matrixfunctions": "cpp",
+        "alignedvector3": "cpp",
+        "fft": "cpp"
     },
     "python.autoComplete.extraPaths": [
         "${workspaceFolder}",

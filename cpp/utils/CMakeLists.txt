@@ -21,6 +21,11 @@ message(STATUS "opencv include: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "opencv lib dirs: ${OpenCV_INSTALL_PATH}")
 message(STATUS "opencv libs: ${OpenCV_LIBS}")
 
+if(_LINUX_)
+    set(OpenGL_GL_PREFERENCE "GLVND")
+endif()
+find_package(OpenGL REQUIRED)
+
 
 # the following 2 lines are added to correctly detect the python version 
 if(WITH_PYTHON_INTERP_CHECK)
@@ -35,7 +40,8 @@ endif()
 include_directories(
     ${PYTHON_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIR}
-    ${OpenCV_INCLUDE_DIRS}    
+    ${OpenCV_INCLUDE_DIRS}
+    ${OPENGL_INCLUDE_DIR}
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -47,7 +53,7 @@ target_link_libraries(pyslam_utils PRIVATE
     ${OpenCV_LIBS}    
 )
 
-pybind11_add_module(sim3solver sim3solver_module.cpp Sim3Solver.cpp Random.cpp)
+pybind11_add_module(sim3solver sim3solver_module.cpp Sim3Solver.cpp Sim3PointRegistrationSolver.cpp Random.cpp)
 target_link_libraries(sim3solver PRIVATE
     ${OpenCV_LIBS}    
 )
@@ -55,6 +61,11 @@ target_link_libraries(sim3solver PRIVATE
 pybind11_add_module(pnpsolver pnpsolver_module.cpp PnPsolver.cpp MLPnPsolver.cpp Random.cpp)
 target_link_libraries(pnpsolver PRIVATE
     ${OpenCV_LIBS}    
+)
+
+pybind11_add_module(glutils glutils_module.cpp)
+target_link_libraries(glutils PRIVATE
+    ${OPENGL_LIBRARIES}    
 )
 
 # pybind11_add_module(cv2_pyslam cv2_pyslam_module.cpp)

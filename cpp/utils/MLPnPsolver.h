@@ -65,8 +65,7 @@
 * SUCH DAMAGE.                                                               *
 ******************************************************************************/
 
-#ifndef MLPNPSOLVER_H
-#define MLPNPSOLVER_H
+#pragma once
 
 #include "PnPsolver.h"
 
@@ -272,4 +271,3 @@ public:
 
 }
 
-#endif 

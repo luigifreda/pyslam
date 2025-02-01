@@ -66,8 +66,7 @@
 *   either expressed or implied, of the FreeBSD Project
 */
 
-#ifndef PNPSOLVER_H
-#define PNPSOLVER_H
+#pragma once
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -272,4 +271,3 @@ class PnPsolver {
 
 } //namespace 
 
-#endif //PNPSOLVER_H

@@ -50,6 +50,7 @@ LIB_PATHS:
   crestereo: thirdparty/crestereo
   crestereo_pytorch: thirdparty/crestereo_pytorch 
   gaussian_splatting: thirdparty/monogs
+  mvdust3r: thirdparty/mvdust3r
 
 
 DATASET:

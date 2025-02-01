@@ -8,6 +8,7 @@
 #include "pybind11/eigen.h"
 #include "opencv_type_casters.h"
 #include "Sim3Solver.h"
+#include "Sim3PointRegistrationSolver.h"
 
 namespace py = pybind11;
 using namespace pybind11::literals;
@@ -36,6 +37,14 @@ PYBIND11_MODULE(sim3solver, m)
         .def_readwrite("fix_scale", &Sim3SolverInput::bFixScale);
 
 
+    py::class_<Sim3PointRegistrationSolverInput>(m, "Sim3PointRegistrationSolverInput")
+        .def(py::init<>())
+        .def_readwrite("points_3d_w1", &Sim3PointRegistrationSolverInput::mvX3Dw1)
+        .def_readwrite("points_3d_w2", &Sim3PointRegistrationSolverInput::mvX3Dw2)
+        .def_readwrite("sigma2", &Sim3PointRegistrationSolverInput::mSigma2)
+        .def_readwrite("fix_scale", &Sim3PointRegistrationSolverInput::bFixScale);
+
+
     py::class_<Sim3Solver>(m, "Sim3Solver")
         .def(py::init<const Sim3SolverInput&>())
         .def("set_ransac_parameters", &Sim3Solver::SetRansacParameters,
@@ -60,4 +69,30 @@ PYBIND11_MODULE(sim3solver, m)
         .def("get_estimated_rotation", &Sim3Solver::GetEstimatedRotation)
         .def("get_estimated_translation", &Sim3Solver::GetEstimatedTranslation)
         .def("compute_3d_registration_error", &Sim3Solver::Compute3dRegistrationError);
+
+
+    py::class_<Sim3PointRegistrationSolver>(m, "Sim3PointRegistrationSolver")
+        .def(py::init<const Sim3PointRegistrationSolverInput&>())
+        .def("set_ransac_parameters", &Sim3PointRegistrationSolver::SetRansacParameters,
+            "probability"_a = 0.99, "minInliers"_a = 6, "maxIterations"_a = 300)
+        .def("find", [](Sim3PointRegistrationSolver& s){
+            std::vector<uint8_t> vbInliers;
+            int nInliers;
+            bool bConverged;
+            const Eigen::Matrix4f transformation = s.find(vbInliers, nInliers, bConverged);
+            return std::make_tuple(transformation, vbInliers, nInliers, bConverged);
+        })
+        .def("iterate", [](Sim3PointRegistrationSolver& s, const int nIterations){
+            std::vector<uint8_t> vbInliers; 
+            int nInliers;
+            bool bNoMore;
+            bool bConverged;
+            const Eigen::Matrix4f transformation = s.iterate(nIterations, bNoMore, vbInliers, nInliers, bConverged);
+            return std::make_tuple(transformation, bNoMore, vbInliers, nInliers, bConverged);
+            }, "nIterations"_a)
+        .def("get_estimated_transformation", &Sim3PointRegistrationSolver::GetEstimatedTransformation)
+        .def("get_estimated_scale", &Sim3PointRegistrationSolver::GetEstimatedScale)
+        .def("get_estimated_rotation", &Sim3PointRegistrationSolver::GetEstimatedRotation)
+        .def("get_estimated_translation", &Sim3PointRegistrationSolver::GetEstimatedTranslation)
+        .def("compute_3d_registration_error", &Sim3PointRegistrationSolver::Compute3dRegistrationError);
 }
