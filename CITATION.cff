@@ -5,6 +5,6 @@ authors:
   given-names: Luigi
   orcid: https://orcid.org/0000-0002-2268-6045
 title: pySLAM: An Open-Source, Modular, and Extensible Framework for Visual SLAM
-version: 2.4.0
-date-released: 2025-01-15
+version: 2.5.0
+date-released: 2025-02-12
 url: "https://github.com/luigifreda/pyslam"

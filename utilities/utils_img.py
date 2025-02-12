@@ -24,7 +24,8 @@ import math
 
 from utils_geom import add_ones, homography_matrix
 from utils_draw import draw_random_img
-from utils_sys import Printer
+
+import traceback
 
 
 # combine two images horizontally
@@ -274,7 +275,7 @@ def img_from_floats(img_flt, img_max=None, img_min=None, eps=1e-9):
     img_range = img_max - img_min
     if img_range < eps:
         img_range = 1
-    img = (img_flt-img_min)/img_range * 255   
+    img = (img_flt-img_min)/img_range * 255.0   
     return img.astype(np.uint8) 
 
             
@@ -405,6 +406,119 @@ class LoopCandidateImgs:
                     self.candidates[i*img_rows:(i+1)*img_rows, :] = get_dark_gray_image(temp)
                     self.map_color[i] = False
         self.current_count = 0
+
+
+class ImageTable:
+    border_width = 1
+    def __init__(self, num_columns: int=3, resize_scale: float=1.0):
+        """
+        Initializes the ImageTable instance.
+
+        Args:
+            num_columns (int): Number of columns in the image table.
+            resize_scale (float): Scale to resize added images.
+        """
+        self.num_columns = num_columns
+        self.resize_scale = resize_scale
+        self.images = []
+        self.table_image = None
+        
+    def image(self):
+        return self.table_image
+
+    def add(self, image: np.ndarray):
+        """
+        Adds a new image to the table after resizing it.
+
+        Args:
+            image (np.ndarray): The image to add (as a NumPy array).
+        """
+        if not isinstance(image, np.ndarray):
+            raise TypeError("Image must be a NumPy array.")
+
+        try:
+            # Resize the image
+            height, width = image.shape[:2]
+            if self.resize_scale != 1.0:
+                new_size = (int(width * self.resize_scale), int(height * self.resize_scale))
+                #print(f'ImageTable: Resizing image from {width}x{height} to {new_size[0]}x{new_size[1]}')
+                resized_image = cv2.resize(image, new_size, interpolation=cv2.INTER_AREA)
+            else: 
+                resized_image = image
+            self.images.append(resized_image)
+        except Exception as e:
+            print(f"Error: ImageTable: Failed to add image: {e}")
+            print(traceback.format_exc())
+
+    def reset(self):
+        """
+        Resets the image table, clearing all added images.
+        """
+        self.images = []
+        self.table_image = None
+
+    def render(self) -> np.ndarray:
+        """
+        Renders the table as a single composite image.
+
+        Returns:
+            np.ndarray: The composite image.
+        """
+        if len(self.images) == 0:
+            raise ValueError("No images to render.")
+        
+        try: 
+            
+            border_width = self.border_width
+            ndim = self.images[0].ndim
+            fill_value = [255, 255, 255] if ndim == 3 else 255
+                    
+            # Add a small border around each image
+            bordered_images = [cv2.copyMakeBorder(img, border_width, border_width, border_width, border_width, cv2.BORDER_CONSTANT, value = fill_value) for img in self.images]
+
+            # Determine the size of each row
+            rows = []
+            for i in range(0, len(bordered_images), self.num_columns):
+                row_images = bordered_images[i:i + self.num_columns]
+
+                # Pad the row with blank images if necessary
+                if len(row_images) < self.num_columns:
+                    height, width = row_images[0].shape[:2]
+                    blank_image = np.zeros((height, width, ndim), dtype=row_images[0].dtype) if ndim == 3 else np.zeros((height, width), dtype=row_images[0].dtype)
+                    blank_image = cv2.copyMakeBorder(blank_image, border_width, border_width, border_width, border_width, cv2.BORDER_CONSTANT, value = fill_value)
+                    row_images.extend([blank_image] * (self.num_columns - len(row_images)))
+
+                # Ensure all images in the row have the same height
+                max_height = max(img.shape[0] for img in row_images)
+                row_images = [
+                    cv2.copyMakeBorder(img, 0, max_height - img.shape[0], 0, 0, cv2.BORDER_CONSTANT, value = fill_value)
+                    if img.shape[0] < max_height else img
+                    for img in row_images
+                ]
+
+                # Concatenate images horizontally to form a row
+                ndim = row_images[0].ndim
+                for j,col in enumerate(row_images):
+                    if col.ndim != ndim:
+                        print(f'changing elem {i},{j} ndim from: {col.ndim} to {ndim}')
+                        row_images[j] = np.mean(col, axis=2)
+                row = np.hstack(row_images)
+                rows.append(row)
+
+            # Concatenate rows of different heights vertically to form the final table
+            max_height = max(img.shape[0] for img in rows)
+            max_width = max(img.shape[1] for img in rows)
+            table_image = np.vstack([
+                cv2.copyMakeBorder(row, 0, max_height - row.shape[0], 0, max_width - row.shape[1], cv2.BORDER_CONSTANT, value = fill_value)
+                if row.shape[0] < max_height or row.shape[1] < max_width else row
+                for row in rows
+            ])
+            self.table_image = table_image
+            return table_image
+        
+        except Exception as e:
+            print(f"Error: ImageTable: Failed to render table: {e}")
+            print(traceback.format_exc())    
         
 
 # Adapted from https://github.com/nburrus/stereodemo/blob/main/stereodemo/utils.py

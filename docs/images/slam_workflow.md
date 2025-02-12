@@ -28,7 +28,7 @@ graph LR
         LoopDetection[Loop Detection] --> LoopGroupConsistencyChecking
         LoopGroupConsistencyChecking[Loop Group<br>Consistency Checking] --> LoopGeometryChecking
         LoopGeometryChecking[Loop Geometry<br>Checking]--> LoopCorrection
-        LoopCorrection[Loop<br>Correction]  --> EssentialGraphOptimization[Essential<br>Graph<br>Optimization]      
+        LoopCorrection[Loop<br>Correction]  --> PoseGraphOptimization[Pose Graph<br>Optimization]      
     end
 
     subgraph VolumetricIntegration["VOLUMETRIC&nbsp;INTEGRATION"]
@@ -53,12 +53,14 @@ graph LR
     LocalMapping --> ProcessedKeyframe
     ProcessedKeyframe(Processed<br>Keyframe) --> LoopClosing
     ProcessedKeyframe --> VolumetricIntegration
-    LoopClosing --> GlobalBA
+    LoopClosing <--> GlobalBA
 
     Tracking <--> Map
     LocalMapping <--> Map
     LoopClosing <--> Map 
     GlobalBA <--> Map
+    VolumetricIntegration <--> Map
+    LoopClosing --> VolumetricIntegration
 
     class Tracking module;
     class FramePreprocessing component;
@@ -82,7 +84,7 @@ graph LR
     class LoopGroupConsistencyChecking component;
     class LoopGeometryChecking component;
     class LoopCorrection component;
-    class EssentialGraphOptimization component;
+    class PoseGraphOptimization component;
     
     class VolumetricIntegration module;
     class KeyFrameQueue component;

@@ -100,11 +100,11 @@ def combine_images_vertically(img1, img2):
 # - kps1_sizes = [Nx1] array of keypoint sizes 
 # - kps2_sizes = [Nx1] array of keypoint sizes 
 # output: drawn image 
-def draw_feature_matches_horizontally(img1, img2, kps1, kps2, kps1_sizes=None, kps2_sizes=None):
+def draw_feature_matches_horizontally(img1, img2, kps1, kps2, kps1_sizes=None, kps2_sizes=None, lineType = cv2.LINE_AA):
     img3 = combine_images_horizontally(img1,img2)    
     h1,w1 = img1.shape[:2]    
     N = len(kps1)
-    default_size = 2
+    default_size = 3
     if kps1_sizes is None:
         kps1_sizes = np.ones(N,dtype=np.int32)*default_size
     if kps2_sizes is None:
@@ -118,10 +118,10 @@ def draw_feature_matches_horizontally(img1, img2, kps1, kps2, kps1_sizes=None, k
         color = tuple(np.random.randint(0,255,3).tolist())
         #cv2.line(img3, (a,b),(c,d), color, 1)    # optic flow style         
         cv2.line(img3, (a,b),(c+w1,d), color, 1)  # join corrisponding points 
-        cv2.circle(img3,(a,b),2, color,-1)   
-        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=int(size1), thickness=1)  # draw keypoint size as a circle 
-        cv2.circle(img3,(c+w1,d),2, color,-1) 
-        cv2.circle(img3,(c+w1,d), color=(0, 255, 0), radius=int(size2), thickness=1)  # draw keypoint size as a circle  
+        cv2.circle(img3,(a,b),2, color,-1, lineType = lineType)   
+        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=int(size1), thickness=1, lineType = lineType)  # draw keypoint size as a circle 
+        cv2.circle(img3,(c+w1,d),2, color,-1, lineType = lineType) 
+        cv2.circle(img3,(c+w1,d), color=(0, 255, 0), radius=int(size2), thickness=1, lineType = lineType)  # draw keypoint size as a circle  
     return img3    
 
 
@@ -132,7 +132,7 @@ def draw_feature_matches_horizontally(img1, img2, kps1, kps2, kps1_sizes=None, k
 # - kps1_sizes = [Nx1] array of keypoint sizes 
 # - kps2_sizes = [Nx1] array of keypoint sizes 
 # output: drawn image 
-def draw_feature_matches_vertically(img1, img2, kps1, kps2, kps1_sizes=None, kps2_sizes=None):
+def draw_feature_matches_vertically(img1, img2, kps1, kps2, kps1_sizes=None, kps2_sizes=None, lineType = cv2.LINE_AA):
     img3 = combine_images_vertically(img1,img2) 
     h1,w1 = img1.shape[:2]           
     N = len(kps1)
@@ -150,10 +150,10 @@ def draw_feature_matches_vertically(img1, img2, kps1, kps2, kps1_sizes=None, kps
         color = tuple(np.random.randint(0,255,3).tolist())
         #cv2.line(img3, (a,b),(c,d), color, 1)      # optic flow style   
         cv2.line(img3, (a,b),(c,d+h1), color, 1)   # join corrisponding points 
-        cv2.circle(img3,(a,b),2, color,-1)   
-        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=int(size1), thickness=1)  # draw keypoint size as a circle 
-        cv2.circle(img3,(c,d+h1),2, color,-1) 
-        cv2.circle(img3,(c,d+h1), color=(0, 255, 0), radius=int(size2), thickness=1)  # draw keypoint size as a circle  
+        cv2.circle(img3,(a,b),2, color,-1, lineType = lineType)   
+        cv2.circle(img3,(a,b), color=(0, 255, 0), radius=int(size1), thickness=1, lineType = lineType)  # draw keypoint size as a circle 
+        cv2.circle(img3,(c,d+h1),2, color,-1, lineType = lineType) 
+        cv2.circle(img3,(c,d+h1), color=(0, 255, 0), radius=int(size2), thickness=1, lineType = lineType)  # draw keypoint size as a circle  
     return img3   
 
 
@@ -164,11 +164,11 @@ def draw_feature_matches_vertically(img1, img2, kps1, kps2, kps1_sizes=None, kps
 # - kps1_sizes = [Nx1] array of keypoint sizes 
 # - kps2_sizes = [Nx1] array of keypoint sizes 
 # output: drawn image 
-def draw_feature_matches(img1, img2, kps1, kps2, kps1_sizes=None, kps2_sizes=None, horizontal=True):
+def draw_feature_matches(img1, img2, kps1, kps2, kps1_sizes=None, kps2_sizes=None, horizontal=True, lineType = cv2.LINE_AA):
     if horizontal: 
-        return draw_feature_matches_horizontally(img1, img2, kps1, kps2, kps1_sizes, kps2_sizes)    
+        return draw_feature_matches_horizontally(img1, img2, kps1, kps2, kps1_sizes, kps2_sizes, lineType)    
     else:
-        return draw_feature_matches_vertically(img1, img2, kps1, kps2, kps1_sizes, kps2_sizes)
+        return draw_feature_matches_vertically(img1, img2, kps1, kps2, kps1_sizes, kps2_sizes, lineType)
 
 
 def draw_random_lines(img,N=200):

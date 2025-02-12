@@ -81,7 +81,7 @@ if __name__ == '__main__':
     is_paused = False    # pause/resume on GUI         
         
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
-    while True:
+    while not viewer3D.is_closed():
 
         timestamp, img, img_right = None, None, None
         
@@ -138,7 +138,8 @@ if __name__ == '__main__':
         if viewer3D is not None:
             is_paused = viewer3D.is_paused()         
                                 
-        if key_cv == ord('q'):
-            if viewer3D is not None:
-                viewer3D.quit()           
-            break        
+        if key_cv == ord('q'):       
+            break
+
+    if viewer3D is not None:
+        viewer3D.quit()            

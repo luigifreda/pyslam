@@ -6,6 +6,7 @@ import config
 
 import OpenGL.GL as gl
 import pypangolin as pangolin
+import glutils
 
 import numpy as np
 
@@ -62,7 +63,7 @@ def main():
         points = np.random.random((10000, 3)) * 3 - 4
         gl.glPointSize(1)
         gl.glColor3f(1.0, 0.0, 0.0)
-        pangolin.DrawPoints(points)
+        glutils.DrawPoints(points)
 
         # Draw Point Cloud
         points = np.random.random((10000, 3))
@@ -72,14 +73,15 @@ def main():
         colors[:, 0] = 1 - points[:, 2]
         points = points * 3 + 1
         gl.glPointSize(1)
-        pangolin.DrawPoints(points, colors)
+        glutils.DrawPoints(points, colors)
 
         # Draw lines
         gl.glLineWidth(1)
         gl.glColor3f(0.0, 0.0, 0.0)
-        pangolin.DrawLine(trajectory)   # consecutive
+        #glutils.DrawLine(trajectory)   # consecutive
+        glutils.DrawTrajectory(trajectory)
         gl.glColor3f(0.0, 1.0, 0.0)
-        pangolin.DrawLines(
+        glutils.DrawLines2(
             trajectory, 
             trajectory + np.random.randn(len(trajectory), 3), 
             point_size=5)   # separate
@@ -89,7 +91,7 @@ def main():
         pose[:3, 3] = np.random.randn(3)
         gl.glLineWidth(1)
         gl.glColor3f(0.0, 0.0, 1.0)
-        pangolin.DrawCamera(pose, 0.5, 0.75, 0.8)
+        glutils.DrawCamera(pose, 0.5, 0.75, 0.8)
 
         # Draw boxes
         poses = [np.identity(4) for i in range(10)]
@@ -98,7 +100,7 @@ def main():
         sizes = np.random.random((len(poses), 3))
         gl.glLineWidth(1)
         gl.glColor3f(1.0, 0.0, 1.0)
-        pangolin.DrawBoxes(poses, sizes)
+        glutils.DrawBoxes(poses, sizes)
 
 
         pangolin.FinishFrame()

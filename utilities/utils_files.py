@@ -19,12 +19,12 @@
 
 
 # From torchvision.uitls
-import smtplib, socket, os, os.path, hashlib, errno
+import smtplib, socket, hashlib, errno
 import __main__ as main
 from email.mime.text import MIMEText
-from os import path, mkdir
-import multiprocessing
+import os
 import gdown
+
 
 def check_integrity(fpath, md5):
     if not os.path.isfile(fpath):
@@ -69,8 +69,8 @@ def download_url(url, root, filename, md5):
 
 
 def check_dir(dir):
-    if not path.isdir(dir):
-        mkdir(dir)
+    if not os.path.isdir(dir):
+        os.mkdir(dir)
         
         
 def list_dir(root, prefix=False):
@@ -109,15 +109,11 @@ def make_dirs(dir, exist_ok=True):
         os.makedirs(dir)
         
         
-import smtplib, socket, os
-from email.mime.text import MIMEText
-
 # Open a plain text file for reading.  For this example, assume that
 # the text file contains only ASCII characters.
 # with open(textfile) as fp:
 # Create a text/plain message
 # msg = MIMEText(fp.read())
-
 def send_email(recipient, ignore_host="", login_gmail="", login_password=""):
     msg = MIMEText("")
 
@@ -148,3 +144,26 @@ def gdrive_download_lambda(*args, **kwargs):
         gdown.download(url, output)
     else: 
         print(f'file already exists: {output}')
+        
+
+# Select n_frame images from images_path starting from start_frame_name with delta_frame between each frame
+def select_image_files(images_path, start_frame_name, n_frame, delta_frame):
+    # List and sort all image paths in the directory
+    img_paths = os.listdir(images_path)
+    img_paths.sort()
+
+    # Ensure the start_frame_name exists in img_paths
+    if start_frame_name not in img_paths:
+        raise ValueError(f"'{start_frame_name}' not found in the directory '{images_path}'.")
+    
+    # Get the index of the starting frame
+    start_idx = img_paths.index(start_frame_name)
+    num_files = len(img_paths)
+    
+    # Validate that the selection does not go out of bounds
+    if start_idx + (n_frame - 1) * delta_frame >= num_files:
+        raise ValueError(f"Not enough images in the directory to select {n_frame} frames with delta {delta_frame}.")
+
+    # Select the images
+    selected_img_paths = [img_paths[start_idx + i * delta_frame] for i in range(n_frame)]
+    return selected_img_paths

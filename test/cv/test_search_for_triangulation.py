@@ -9,7 +9,7 @@ from config import Config
 
 from mplot_figure import MPlotFigure
 
-from utils_geom import triangulate_points, add_ones, poseRt, skew
+from utils_geom import add_ones, poseRt, skew
 from utils_draw import draw_points2, draw_feature_matches
 from search_points import search_map_by_projection, search_frame_by_projection, search_frame_for_triangulation
 from search_points_test import search_frame_for_triangulation_test
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # forced camera settings to be kept coherent with the input file below 
     config.config[config.dataset_type]['settings'] = 'settings/KITTI04-12.yaml'
     config.sensor_type='mono'
-    config.get_cam_settings()  # parse again the settings file
+    config.get_general_system_settings()  # parse again the settings file
 
     #dataset = dataset_factory(config)
     #grountruth = groundtruth_factory(config.dataset_settings)

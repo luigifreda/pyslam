@@ -32,7 +32,9 @@ from mplot_thread import Mplot2d
 from qplot_thread import Qplot2d
 import matplotlib.colors as mcolors
 
-from utils_geom import AlignmentEstimatedAndGroundTruthData, Sim3Pose
+from utils_geom import Sim3Pose
+from utils_geom_trajectory import TrajectoryAlignementData
+
 
 kUseQtplot2d = False
 if platform.system() == 'Darwin':
@@ -58,7 +60,7 @@ class SlamPlotDrawer:
         self.traj_error_plt = None
         
         self.last_alignment_timestamp = None
-        self.last_alignment_gt_data = AlignmentEstimatedAndGroundTruthData()
+        self.last_alignment_gt_data = TrajectoryAlignementData()
         
         # To disable one of them just comment it out
         self.matched_points_plt = factory_plot2d(xlabel='img id', ylabel='# matches',title='# matches')  
@@ -185,8 +187,8 @@ class SlamPlotDrawer:
             if self.traj_error_plt is not None and new_alignment_data is not None:
                 num_samples = len(new_alignment_data.timestamps_associations)                
                 new_alignment_timestamp = new_alignment_data.timestamps_associations[-1] if num_samples > 20 else None
-                print(f'SlamPlotDrawer: new gt alignment timestamp: {new_alignment_timestamp}, error: {new_alignment_data.error}, max_error: {new_alignment_data.max_error}, is_est_aligned: {new_alignment_data.is_est_aligned}')
-                if new_alignment_data.error > 0 and self.last_alignment_timestamp != new_alignment_timestamp:
+                print(f'SlamPlotDrawer: new gt alignment timestamp: {new_alignment_timestamp}, rms_error: {new_alignment_data.rms_error}, max_error: {new_alignment_data.max_error}, is_est_aligned: {new_alignment_data.is_est_aligned}')
+                if new_alignment_data.rms_error > 0 and self.last_alignment_timestamp != new_alignment_timestamp:
                     self.last_alignment_timestamp = new_alignment_timestamp
                     #new_alignment_data.copyTo(self.last_alignment_gt_data)
                     self.last_alignment_gt_data = new_alignment_data
@@ -194,26 +196,27 @@ class SlamPlotDrawer:
                     #     print(f'SlamPlotDrawer: realigning estimated and gt trajectories')
                     #     if self.slam.sensor_type != SensorType.MONOCULAR:
                     #         # align the gt to estimated trajectory (T_gt_est is estimated in SE(3))
-                    #         for i in range(len(self.last_alignment_gt_data.gt_t_w_i)):
-                    #             self.last_alignment_gt_data.gt_t_w_i[i] = np.dot(self.last_alignment_gt_data.T_gt_est[:3, :3], self.last_alignment_gt_data.gt_t_w_i[i]) + self.last_alignment_gt_data.T_gt_est[:3, 3]
+                    #         for i in range(len(self.last_alignment_gt_data.gt_t_wi)):
+                    #             self.last_alignment_gt_data.gt_t_wi[i] = np.dot(self.last_alignment_gt_data.T_gt_est[:3, :3], self.last_alignment_gt_data.gt_t_wi[i]) + self.last_alignment_gt_data.T_gt_est[:3, 3]
                     #     else:
                     #         # align the estimated trajectory to the gt (T_gt_est is estimated in Sim(3))
                     #         #T_est_gt = np.linalg.inv(self.last_alignment_gt_data.T_gt_est)
                     #         T_est_gt = Sim3Pose().from_matrix(self.last_alignment_gt_data.T_gt_est).inverse_matrix()
-                    #         for i in range(len(self.last_alignment_gt_data.estimated_t_w_i)):
-                    #             self.last_alignment_gt_data.estimated_t_w_i[i] = np.dot(T_est_gt[:3, :3], self.last_alignment_gt_data.estimated_t_w_i[i]) + T_est_gt[:3, 3]
-                            
-                    gt_traj = np.array(self.last_alignment_gt_data.gt_t_w_i, dtype=float)
-                    estimated_traj = np.array(self.last_alignment_gt_data.estimated_t_w_i, dtype=float)
+                    #         for i in range(len(self.last_alignment_gt_data.estimated_t_wi)):
+                    #             self.last_alignment_gt_data.estimated_t_wi[i] = np.dot(T_est_gt[:3, :3], self.last_alignment_gt_data.estimated_t_wi[i]) + T_est_gt[:3, 3]
+                                                
+                    gt_traj = np.array(self.last_alignment_gt_data.gt_t_wi, dtype=float)
+                    estimated_traj = np.array(self.last_alignment_gt_data.estimated_t_wi, dtype=float)
+                    aligned_estimated_traj = (self.last_alignment_gt_data.T_gt_est[:3,:3] @ estimated_traj.T + self.last_alignment_gt_data.T_gt_est[:3, 3].reshape(3,1)).T                  
                     filter_timestamps = np.array(self.last_alignment_gt_data.timestamps_associations, dtype=float)
                     #print(f'SlamPlotDrawer: gt_traj: {gt_traj.shape}, estimated_traj: {estimated_traj.shape}, filter_timestamps: {filter_timestamps.shape}')
                     if False:
                         time_gt_x_signal = [filter_timestamps, gt_traj[:, 0]]
                         time_gt_y_signal = [filter_timestamps, gt_traj[:, 1]]
                         time_gt_z_signal = [filter_timestamps, gt_traj[:, 2]]
-                        time_filter_x_signal = [filter_timestamps, estimated_traj[:, 0]]
-                        time_filter_y_signal = [filter_timestamps, estimated_traj[:, 1]]
-                        time_filter_z_signal = [filter_timestamps, estimated_traj[:, 2]]
+                        time_filter_x_signal = [filter_timestamps, aligned_estimated_traj[:, 0]]
+                        time_filter_y_signal = [filter_timestamps, aligned_estimated_traj[:, 1]]
+                        time_filter_z_signal = [filter_timestamps, aligned_estimated_traj[:, 2]]
                         self.traj_error_plt.draw(time_filter_x_signal, 'filter_x', color='r', append=False)
                         self.traj_error_plt.draw(time_filter_y_signal, 'filter_y', color='g', append=False)
                         self.traj_error_plt.draw(time_filter_z_signal, 'filter_z', color='b', append=False)
@@ -221,17 +224,23 @@ class SlamPlotDrawer:
                         self.traj_error_plt.draw(time_gt_y_signal, 'gt_y', color='g', linestyle=':', append=False)
                         self.traj_error_plt.draw(time_gt_z_signal, 'gt_z', color='b', linestyle=':', append=False)
                     else:
-                        traj_error = gt_traj - estimated_traj
-                        err_x_max = np.max(np.abs(traj_error[:, 0]))
-                        err_y_max = np.max(np.abs(traj_error[:, 1]))                        
-                        err_z_max = np.max(np.abs(traj_error[:, 2]))
-                        print(f'SlamPlotDrawer: err_x_max: {err_x_max}, err_y_max: {err_y_max}, err_z_max: {err_z_max}')
+                        traj_error = gt_traj - aligned_estimated_traj
+                        traj_dists = np.linalg.norm(traj_error, axis=1)
+                        rms_error = np.sqrt(np.mean(np.power(traj_dists, 2)))
+                        print(f'SlamPlotDrawer: traj_error: {traj_error.shape}')
+                        if False:
+                            err_x_max = np.max(np.abs(traj_error[:, 0]))
+                            err_y_max = np.max(np.abs(traj_error[:, 1]))                        
+                            err_z_max = np.max(np.abs(traj_error[:, 2]))
+                            print(f'SlamPlotDrawer: err_x_max: {err_x_max}, err_y_max: {err_y_max}, err_z_max: {err_z_max}')
                         time_errx_signal = [filter_timestamps, traj_error[:, 0]]
                         time_erry_signal = [filter_timestamps, traj_error[:, 1]]
                         time_errz_signal = [filter_timestamps, traj_error[:, 2]]
+                        time_rms_error_signal = [filter_timestamps[-1], rms_error]
                         self.traj_error_plt.draw(time_errx_signal, 'err_x', color='r', append=False)
                         self.traj_error_plt.draw(time_erry_signal, 'err_y', color='g', append=False) 
-                        self.traj_error_plt.draw(time_errz_signal, 'err_z', color='b', append=False)                                   
+                        self.traj_error_plt.draw(time_errz_signal, 'err_z', color='b', append=False)
+                        self.traj_error_plt.draw(time_rms_error_signal, 'RMS error (ATE)', color='c', append=True)                                  
                 
         except Exception as e:
             Printer.red(f'SlamPlotDrawer: draw: encountered exception: {e}')

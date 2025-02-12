@@ -31,11 +31,13 @@ class MultiprocessingManager:
     #       Thereofore, we use this MultiprocessingManager to manage queues in slightly different way.
     #       In general, the usage of the multiprocessing Manager() seem to return smoother interactions. For this
     #       reason, we use it by default. 
-    def __init__(self, use_manager=True):
+    def __init__(self, use_manager=True, verbose=False):
         import torch.multiprocessing as mp
         self.manager = None
         self.start_method = mp.get_start_method()
-        print(f'MultiprocessingManager: start method: {self.start_method}')
+        self.verbose = verbose
+        if verbose:
+            print(f'MultiprocessingManager: start method: {self.start_method}')
         if use_manager and self.start_method != 'spawn':
             self.manager = mp.Manager() # use a memory manager when start method is not 'spawn'
             

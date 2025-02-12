@@ -25,7 +25,9 @@ from frame import Frame, FeatureTrackerShared, are_map_points_visible, are_map_p
 from keyframe import KeyFrame
 from map_point import predict_detection_levels
 
-from utils_geom import computeF12, check_dist_epipolar_line, Sim3Pose
+from utils_geom import Sim3Pose
+from utils_geom_2views import computeF12, check_dist_epipolar_line
+from utils_sys import Printer
 from config_parameters import Parameters  
 from timer import Timer
 from rotation_histogram import RotationHistogram

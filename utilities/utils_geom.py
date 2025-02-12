@@ -21,7 +21,9 @@ import os
 import numpy as np
 import cv2
 import math
+
 from utils_sys import Printer
+from utils_geom_lie import so3_exp, so3_log, is_so3
 
 
 sign = lambda x: math.copysign(1, x)
@@ -67,14 +69,14 @@ def poseRt(R, t):
     ret[:3, 3] = t
     return ret   
 
-# [4x4] homogeneous inverse T^-1 from T represented with [3x3] R and [3x1] t  
+# [4x4] homogeneous inverse T^-1 in SE(3) from T represented with [3x3] R and [3x1] t  
 def inv_poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R.T
     ret[:3, 3] = -R.T @ t
     return ret     
 
-# [4x4] homogeneous inverse T^-1 from [4x4] T     
+# [4x4] homogeneous inverse T^-1 in SE(3)from [4x4] T  
 def inv_T(T):
     ret = np.eye(4)
     R_T = T[:3,:3].T
@@ -82,7 +84,6 @@ def inv_T(T):
     ret[:3, :3] = R_T
     ret[:3, 3] = -R_T @ t
     return ret       
-
 
 class Sim3Pose:
     def __init__(self, R: np.ndarray=np.eye(3, dtype=float), t: np.ndarray=np.zeros(3, dtype=float), s: float=1.0):
@@ -228,108 +229,6 @@ def l2_distances(a,b):
     return np.linalg.norm(a-b, axis=-1, keepdims=True)    
 
 
-# DLT with normalized image coordinates (see [HartleyZisserman Sect. 12.2 ])
-def triangulate_point(pose1, pose2, pt1, pt2):      
-    A = np.zeros((4,4))
-    A[0] = pt1[0] * pose1[2] - pose1[0]
-    A[1] = pt1[1] * pose1[2] - pose1[1]
-    A[2] = pt2[0] * pose2[2] - pose2[0]
-    A[3] = pt2[1] * pose2[2] - pose2[1]
-    _, _, vt = np.linalg.svd(A)
-    return vt[3]
-
-
-def triangulate_points(pose1, pose2, pts1, pts2, mask = None): 
-    if mask is not None: 
-        return triangulate_points_with_mask(pose1, pose2, pts1, pts2, mask)
-    ret = np.zeros((pts1.shape[0], 4))
-    for i, p in enumerate(zip(pts1, pts2)):
-        ret[i] = triangulate_point(pose1, pose2, p[0], p[1])
-    return ret  
-
-
-def triangulate_points_with_mask(pose1, pose2, pts1, pts2, mask):      
-    ret = np.zeros((pts1.shape[0], 4))
-    for i, p in enumerate(zip(pts1, pts2)): 
-        if mask[i]:
-            ret[i] = triangulate_point(pose1, pose2, p[0], p[1])
-    return ret   
-
-
-def triangulate_normalized_points(pose_1w, pose_2w, kpn_1, kpn_2):
-    # P1w = np.dot(K1,  M1w) # K1*[R1w, t1w]
-    # P2w = np.dot(K2,  M2w) # K2*[R2w, t2w]
-    # since we are working with normalized coordinates x_hat = Kinv*x, one has         
-    P1w = pose_1w[:3,:] # [R1w, t1w]
-    P2w = pose_2w[:3,:] # [R2w, t2w]
-
-    point_4d_hom = cv2.triangulatePoints(P1w, P2w, kpn_1.T, kpn_2.T)
-    good_pts_mask = np.where(point_4d_hom[3]!= 0)[0]
-    point_4d = point_4d_hom / point_4d_hom[3] 
-    
-    if __debug__:
-        if False: 
-            point_reproj = P1w @ point_4d;
-            point_reproj = point_reproj / point_reproj[2] - add_ones(kpn_1).T
-            err = np.sum(point_reproj**2)
-            print('reproj err: ', err)     
-
-    #return point_4d.T
-    points_3d = point_4d[:3, :].T
-    return points_3d, good_pts_mask  
-
-
-# compute the fundamental mat F12 and the infinite homography H21 [Hartley Zisserman pag 339]
-def computeF12(f1, f2):
-    R1w = f1.Rcw
-    t1w = f1.tcw 
-    R2w = f2.Rcw
-    t2w = f2.tcw
-
-    R12 = R1w @ R2w.T
-    t12 = -R1w @ (R2w.T @ t2w) + t1w
-    
-    t12x = skew(t12)
-    K1Tinv = f1.camera.Kinv.T
-    R21 = R12.T
-    H21 = (f2.camera.K @ R21) @ f1.camera.Kinv  # infinite homography from f1 to f2 [Hartley Zisserman pag 339]
-    F12 = ( (K1Tinv @ t12x) @ R12 ) @ f2.camera.Kinv
-    return F12, H21  
-
-
-def check_dist_epipolar_line(kp1,kp2,F12,sigma2_kp2):
-    # Epipolar line in second image l = kp1' * F12 = [a b c]
-    l = np.dot(F12.T,np.array([kp1[0],kp1[1],1]))
-    num = l[0]*kp2[0] + l[1]*kp2[1] + l[2]  # kp1' * F12 * kp2
-    den = l[0]*l[0] + l[1]*l[1]   # a*a+b*b
-
-    if(den==0):
-    #if(den < 1e-20):
-        return False
-
-    dist_sqr = num*num/den              # squared (minimum) distance of kp2 from the epipolar line l
-    return dist_sqr < 3.84 * sigma2_kp2 # value of inverse cumulative chi-square for 1 DOF (Hartley Zisserman pag 567)
-
-
-
-# fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
-# input: kpn_ref and kpn_cur are two arrays of [Nx2] normalized coordinates of matched keypoints 
-# out: a) Trc: homogeneous transformation matrix containing Rrc, trc  ('cur' frame with respect to 'ref' frame)    pr = Trc * pc 
-#      b) mask_match: array of N elements, every element of which is set to 0 for outliers and to 1 for the other points (computed only in the RANSAC and LMedS methods)
-# N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with previous estimated poses)
-# N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
-# - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie a ruled quadric 
-# - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
-# N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
-# N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return a correct rotation 
-# N.B.5: the OpenCV findEssentialMat function uses the five-point algorithm solver by D. Nister => hence it should work well in the degenerate planar cases
-def estimate_pose_ess_mat(kpn_ref, kpn_cur, method=cv2.RANSAC, prob=0.999, threshold=0.0003):	
-    # here, the essential matrix algorithm uses the five-point algorithm solver by D. Nister (see the notes and paper above )     
-    E, mask_match = cv2.findEssentialMat(kpn_cur, kpn_ref, focal=1, pp=(0., 0.), method=method, prob=prob, threshold=threshold)                         
-    _, R, t, mask = cv2.recoverPose(E, kpn_cur, kpn_ref, focal=1, pp=(0., 0.))   
-    return poseRt(R,t.T), mask_match  # Trc, mask_mat         
-
-
 # z rotation, input in radians      
 def yaw_matrix(yaw):
     return np.array([
@@ -353,6 +252,81 @@ def roll_matrix(roll):
     [0, math.cos(roll), -math.sin(roll)],
     [0, math.sin(roll),  math.cos(roll)]
     ])    
+    
+    
+def rotation_matrix_from_yaw_pitch_roll(yaw_degs, pitch_degs, roll_degs):
+    # Convert angles from degrees to radians
+    yaw = np.radians(yaw_degs)
+    pitch = np.radians(pitch_degs)
+    roll = np.radians(roll_degs)
+    # Rotation matrix for Roll (X-axis rotation)
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(roll), -np.sin(roll)],
+        [0, np.sin(roll), np.cos(roll)]
+    ])
+    # Rotation matrix for Pitch (Y-axis rotation)
+    Ry = np.array([
+        [np.cos(pitch), 0, np.sin(pitch)],
+        [0, 1, 0],
+        [-np.sin(pitch), 0, np.cos(pitch)]
+    ])
+    # Rotation matrix for Yaw (Z-axis rotation)
+    Rz = np.array([
+        [np.cos(yaw), -np.sin(yaw), 0],
+        [np.sin(yaw), np.cos(yaw), 0],
+        [0, 0, 1]
+    ])
+    # Final rotation matrix: R = Rz * Ry * Rx
+    R = Rz @ Ry @ Rx
+    return R
+
+
+# from z-vector to rotation matrix
+# input: vector is a 3x1 vector
+def get_rotation_from_z_vector(vector):
+    from scipy.spatial.transform import Rotation as R 
+    # Normalize the vector
+    vector = vector / np.linalg.norm(vector)
+    # Reference direction (e.g., z-axis)
+    reference = np.array([0, 0, 1])
+    # Compute the rotation axis (cross product)
+    axis = np.cross(reference, vector)
+    axis_length = np.linalg.norm(axis)
+    if axis_length == 0:
+        # The vector is already aligned with the reference direction
+        return np.eye(3)    
+    axis = axis / axis_length
+    # Compute the angle (dot product)
+    angle = np.arccos(np.dot(reference, vector))
+    # Create the rotation matrix
+    rotation_matrix = R.from_rotvec(angle * axis).as_matrix()
+    return rotation_matrix
+
+    
+# Checks if a matrix is a valid rotation matrix
+def is_rotation_matrix(R):
+  Rt = np.transpose(R)
+  should_be_identity = np.dot(Rt, R)
+  identity = np.identity(len(R))
+  n = np.linalg.norm(should_be_identity - identity)
+  return n < 1e-8 and np.allclose(np.linalg.det(R), 1.0)
+
+# Computes the closest orthogonal matrix to a given matrix.
+def closest_orthogonal_matrix(A):
+  # Singular Value Decomposition
+  U, _, Vt = np.linalg.svd(A)
+  R = np.dot(U, Vt)
+  return R
+
+# Computes the closest rotation matrix to a given matrix.
+def closest_rotation_matrix(A):
+  Q = closest_orthogonal_matrix(A)
+  detQ = np.linalg.det(Q)
+  if detQ < 0:
+    Q[:, -1] *= -1
+  return Q
+
 
 
 # from quaternion vector to rotation matrix
@@ -395,6 +369,7 @@ def rotmat2qvec(R):
         qvec *= -1
     return qvec[[0, 1, 2, 3]]  # Return as [qx, qy, qz, qw]
 
+
 # input: x,y,z,qx,qy,qz,qw
 # output: 4x4 transformation matrix
 def xyzq2Tmat(x,y,z,qx,qy,qz,qw):
@@ -427,181 +402,3 @@ def homography_matrix(img,roll,pitch,yaw,tx=0,ty=0,tz=0):
                     [ 0, 0, tz]])/d
     H = K @ (Rcw - t_n) @ Kinv   
     return H  
-
-    
-# Checks if a matrix is a valid rotation matrix
-def is_rotation_matrix(R):
-  Rt = np.transpose(R)
-  should_be_identity = np.dot(Rt, R)
-  identity = np.identity(len(R))
-  n = np.linalg.norm(should_be_identity - identity)
-  return n < 1e-8 and np.allclose(np.linalg.det(R), 1.0)
-
-# Computes the closest orthogonal matrix to a given matrix.
-def closest_orthogonal_matrix(A):
-  # Singular Value Decomposition
-  U, _, Vt = np.linalg.svd(A)
-  R = np.dot(U, Vt)
-  return R
-
-# Computes the closest rotation matrix to a given matrix.
-def closest_rotation_matrix(A):
-  Q = closest_orthogonal_matrix(A)
-  detQ = np.linalg.det(Q)
-  if detQ < 0:
-    Q[:, -1] *= -1
-  return Q
-
-
-class AlignmentEstimatedAndGroundTruthData:
-    def __init__(self, timestamps_associations=[], estimated_t_w_i=[], gt_t_w_i=[], T_gt_est=None, error=-1.0, is_est_aligned=False, max_error=-1.0):
-        self.timestamps_associations = timestamps_associations
-        self.estimated_t_w_i = estimated_t_w_i
-        self.gt_t_w_i = gt_t_w_i
-        self.T_gt_est = T_gt_est
-        self.error = error           # average alignment error
-        self.max_error = max_error   # max alignement error 
-        self.is_est_aligned = is_est_aligned  # is estimated traj aligned?
-
-
-# align filter trajectory with ground truth trajectory by computing the SE(3) transformation between the two
-# - filter_timestamps [Nx1]
-# - filter_t_w_i [Nx3]
-# - gt_timestamps [Nx1]
-# - gt_t_w_i [Nx3]
-# - align_est_associations: if True, align the estimated trajectory with the gt
-# - max_align_dt: maximum time difference between filter and gt timestamps in seconds
-# - find_scale allows to compute the full Sim(3) transformation in case the scale is unknown
-def align_trajs_with_svd(filter_timestamps, filter_t_w_i, gt_timestamps, gt_t_w_i, align_gt=True, \
-                         compute_align_error=True, find_scale=False, align_est_associations=True, max_align_dt=1e-1, \
-                         verbose=False):
-    est_associations = []
-    gt_associations = []
-    timestamps_associations = []
-
-    if verbose:
-        print(f'filter_timestamps: {filter_timestamps.shape}')
-        print(f'filter_t_w_i: {filter_t_w_i.shape}')
-        print(f'gt_timestamps: {gt_timestamps.shape}')
-        print(f'gt_t_w_i: {gt_t_w_i.shape}')        
-        print(f'filter_timestamps: {filter_timestamps}')
-        print(f'gt_timestamps: {gt_timestamps}')
-        
-    max_dt = 0
-
-    for i in range(len(filter_t_w_i)):
-        timestamp = filter_timestamps[i]
-
-        # Find the index in gt_timestamps where gt_timestamps[j] > timestamp
-        j = 0
-        while j < len(gt_timestamps) and gt_timestamps[j] <= timestamp:
-            j += 1
-        j -= 1
-        assert j>=0, f'j {j}'
-        
-        if j >= len(gt_timestamps) - 1:
-            continue
-
-        dt = timestamp - gt_timestamps[j]
-        dt_gt = gt_timestamps[j + 1] - gt_timestamps[j]
-        
-        abs_dt = abs(dt)
-
-        assert dt >= 0, f"dt {dt}"
-        assert dt_gt > 0, f"dt_gt {dt_gt}"
-
-        # Skip if the interval between gt is larger than 100ms
-        if abs_dt > max_align_dt:
-            continue
-
-        max_dt = max(max_dt, abs_dt)
-        
-        ratio = dt / dt_gt
-
-        assert 0 <= ratio < 1
-
-        #t_gt = (1 - ratio) * gt_timestamps[j] + ratio * gt_timestamps[j + 1]
-        gt = (1 - ratio) * gt_t_w_i[j] + ratio * gt_t_w_i[j + 1]
-
-        timestamps_associations.append(timestamp)
-        gt_associations.append(gt)
-        est_associations.append(filter_t_w_i[i])
-    
-    if verbose:
-        print(f'max align dt: {max_dt}')
-
-    num_samples = len(est_associations)
-    if verbose: 
-        print(f'num associations: {num_samples}')
-
-    gt = np.array(gt_associations).T
-    est = np.array(est_associations).T
-
-    mean_gt = np.mean(gt, axis=1)
-    mean_est = np.mean(est, axis=1)
-
-    gt -= mean_gt[:, None]
-    est -= mean_est[:, None]
-
-    cov = np.dot(gt, est.T)
-    if find_scale:
-        # apply Kabsch–Umeyama algorithm
-        cov /= gt.shape[0]
-        variance_gt = np.mean(np.linalg.norm(gt,axis=1)**2) 
-
-    try: 
-        U, D, Vt = np.linalg.svd(cov)
-    except: 
-        Printer.red('[align_trajs_with_svd] SVD failed!!!\n')
-        return np.eye(4), -1, AlignmentEstimatedAndGroundTruthData()
-
-    c = 1
-    S = np.eye(3)
-    if np.linalg.det(U) * np.linalg.det(Vt) < 0:
-        S[2, 2] = -1
-    if find_scale: 
-        # apply Kabsch–Umeyama algorithm
-        c = variance_gt/np.trace(np.diag(D) @ S)
-
-    rot_gt_est = np.dot(U, np.dot(S, Vt))
-    trans = mean_gt - c * np.dot(rot_gt_est, mean_est)
-
-    T_gt_est = np.eye(4)
-    T_gt_est[:3, :3] = c * rot_gt_est
-    T_gt_est[:3, 3] = trans
-
-    #T_est_gt = np.linalg.inv(T_gt_est)
-    T_est_gt = np.eye(4)  # Identity matrix initialization
-    R_gt_est = T_gt_est[:3, :3]
-    t_gt_est = T_gt_est[:3, 3]
-    if find_scale:
-        # Compute scale as the average norm of the rows of the rotation matrix
-        s = np.mean([np.linalg.norm(R_gt_est[i, :]) for i in range(3)])
-        R = R_gt_est / s
-        sR_inv = (1.0 / s) * R.T
-        T_est_gt[:3, :3] = sR_inv
-        T_est_gt[:3, 3] = -sR_inv @ t_gt_est.ravel()
-    else:
-        T_est_gt[:3, :3] = R_gt_est.T
-        T_est_gt[:3, 3] = -R_gt_est.T @ t_gt_est.ravel()  
-        
-    # Update gt_t_w_i with transformation
-    if align_gt:
-        gt_t_w_i[:,:] = (T_est_gt[:3, :3] @ np.array(gt_t_w_i).T).T + T_est_gt[:3, 3]
-
-    # Compute error
-    error = 0
-    max_error = float("-inf")
-    if compute_align_error:
-        if align_est_associations:
-            est_associations = (T_gt_est[:3, :3] @ np.array(est_associations).T).T + T_gt_est[:3, 3]
-            residuals = est_associations - np.array(gt_associations)
-        else: 
-            residuals = ((T_gt_est[:3, :3] @ np.array(est_associations).T).T + T_gt_est[:3, 3]) - np.array(gt_associations)
-        squared_errors = np.sum(residuals**2, axis=1)
-        error = np.sqrt(np.mean(squared_errors))
-        max_error = np.sqrt(np.max(squared_errors))        
-
-    aligned_gt_data = AlignmentEstimatedAndGroundTruthData(timestamps_associations, est_associations, gt_associations, T_gt_est, error, max_error=max_error, is_est_aligned=align_est_associations)
-
-    return T_gt_est, error, aligned_gt_data

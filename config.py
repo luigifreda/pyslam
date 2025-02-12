@@ -36,16 +36,13 @@ import math
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 
-# Class for getting libs settings (from config.yaml) and camera settings from a yaml file 
+# Class for getting libs settings (from config.yaml) and camera settings from a yaml file.
+# The input 'config.yaml' file is supposed to be in the input root_folder.
 class Config(object):
-    '''
-    Config is used for getting libs settings (from config.yaml) and camera settings from a yaml file 
-    '''
-    def __init__(self):
-        self.root_folder = __location__
-        self.config_file = 'config.yaml'
-        self.config_file_path = __location__ + '/' + self.config_file
-        #print(f'root folder: {self.root_folder}, config file path: {self.config_file_path}')
+    location = __location__
+    def __init__(self, root_folder = __location__, config_file='config.yaml'):
+        self.root_folder = root_folder
+        self.config_file_path = self.root_folder + '/' + config_file
         self.config = yaml.load(open(self.config_file_path, 'r'), Loader=yaml.FullLoader)
         self.cam_settings = None
         self.system_settings = None
@@ -55,7 +52,9 @@ class Config(object):
         self.system_state_settings = None
         self.system_state_folder_path = None
         self.system_state_load = False
-        self.trajectory_settings = None
+        
+        self.trajectory_saving_settings = None
+        
         self.start_frame_id = 0  
         
         #locally_configure_qt_environment()
@@ -66,14 +65,14 @@ class Config(object):
         self.get_dataset_settings()
         self.get_general_system_settings()        
         self.get_system_state_settings()
-        self.get_trajectory_settings()
+        self.get_trajectory_saving_settings()
 
 
     # read core lib paths from config.yaml and set sys paths
     def set_core_lib_paths(self):
         self.core_lib_paths = self.config['CORE_LIB_PATHS']
         for path in self.core_lib_paths:
-            ext_path = __location__ + '/' + self.core_lib_paths[path]
+            ext_path = self.root_folder + '/' + self.core_lib_paths[path]
             #print( "importing path: ", ext_path )
             sys.path.append(ext_path)
             
@@ -87,7 +86,7 @@ class Config(object):
             lib_paths = [e.strip() for e in self.lib_paths[lib_name].split(',')]
             #print('setting lib paths:',lib_paths)
             for lib_path in lib_paths:
-                ext_path = __location__ + '/' + lib_path
+                ext_path = self.root_folder + '/' + lib_path
                 #print( "importing path: ", ext_path )
                 if not prepend: 
                     sys.path.append(ext_path)      
@@ -102,15 +101,15 @@ class Config(object):
         self.dataset_settings = self.config[self.dataset_type]
         self.sensor_type = self.dataset_settings['sensor_type'].lower()
         self.dataset_path = self.dataset_settings['base_path']
-        self.dataset_settings['base_path'] = os.path.join( __location__, self.dataset_path)
+        self.dataset_settings['base_path'] = os.path.join( self.root_folder, self.dataset_path)
         #print('dataset_settings: ', self.dataset_settings)
                     
     # get general system settings
     def get_general_system_settings(self):
         self.system_settings = None
-        self.general_settings_filepath = __location__ + '/' + self.config[self.dataset_type]['settings']
+        self.general_settings_filepath = self.root_folder + '/' + self.config[self.dataset_type]['settings']
         if self.sensor_type == 'stereo' and 'settings_stereo' in self.config[self.dataset_type]:
-            self.general_settings_filepath = __location__ + '/' + self.config[self.dataset_type]['settings_stereo']
+            self.general_settings_filepath = self.root_folder + '/' + self.config[self.dataset_type]['settings_stereo']
             Printer.orange('Using stereo settings file: ' + self.general_settings_filepath)
             print('------------------------------------')          
         if(self.general_settings_filepath is not None):
@@ -124,7 +123,7 @@ class Config(object):
     def get_system_state_settings(self):
         self.system_state_settings = self.config['SYSTEM_STATE']
         self.system_state_load = self.system_state_settings['load_state']
-        self.system_state_folder_path = __location__ + '/' + self.system_state_settings['folder_path']
+        self.system_state_folder_path = self.root_folder + '/' + self.system_state_settings['folder_path']
         folder_path_exists = os.path.exists(self.system_state_folder_path)
         folder_path_is_not_empty = os.path.getsize(self.system_state_folder_path) > 0 if folder_path_exists else False
         if self.system_state_load and not(folder_path_exists and folder_path_is_not_empty):
@@ -132,9 +131,14 @@ class Config(object):
             self.system_state_load = False
 
     # get trajectory save settings
-    def get_trajectory_settings(self):
-        self.trajectory_settings = self.config['SAVE_TRAJECTORY']
-
+    def get_trajectory_saving_settings(self):
+        self.trajectory_saving_settings = self.config['SAVE_TRAJECTORY']
+        
+    def get_trajectory_saving_paths(self, datatime_string=None):
+        dt_string = '' if datatime_string is None else '_' + datatime_string
+        trajectory_online_file_path = self.trajectory_saving_settings['output_folder'] + dt_string + '/' + self.trajectory_saving_settings['basename'] + '_online.txt'  # online estimates (depend only on the past estimates)
+        trajectory_final_file_path = self.trajectory_saving_settings['output_folder'] + dt_string + '/' + self.trajectory_saving_settings['basename'] + '_final.txt'    # final estimates (depend on the past and future estimates)
+        return trajectory_online_file_path, trajectory_final_file_path
 
     # calibration matrix
     @property

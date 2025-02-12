@@ -58,9 +58,10 @@ from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureI
 from feature_tracker import feature_tracker_factory, FeatureTracker, FeatureTrackerTypes 
 
 from utils_serialization import SerializableEnum, SerializationJSON, register_class
-from utils_sys import Printer, getchar, Logging
+from utils_sys import Printer, Logging
 from utils_draw import draw_feature_matches
-from utils_geom import triangulate_points, poseRt, normalize_vector, inv_T, triangulate_normalized_points, estimate_pose_ess_mat
+from utils_geom import poseRt, inv_T
+from utils_geom_2views import estimate_pose_ess_mat
 from utils_features import ImageGrid
 
 from slam_commons import SlamState
@@ -112,15 +113,17 @@ if not kVerbose:
 
 class TrackingHistory(object):
     def __init__(self):
-        self.relative_frame_poses = []  # list of relative frame poses as g2o.Isometry3d() (see camera_pose.py)
+        self.relative_frame_poses = []  # list of relative frame poses w.r.t reference keyframes as g2o.Isometry3d() (see camera_pose.py)
         self.kf_references = []         # list of reference keyframes  
-        self.timestamps = []            # list of frame timestamps 
+        self.timestamps = []            # list of frame timestamps
+        self.ids = []
         self.slam_states = []           # list of slam states 
 
     def reset(self):
         self.relative_frame_poses.clear()
         self.kf_references.clear()
         self.timestamps.clear()
+        self.ids.clear()
         self.slam_states.clear()
 
 
@@ -209,7 +212,6 @@ class Tracking:
         self.cur_R = None # current rotation Rwc w.r.t. world frame   
         self.cur_t = None # current translation twc w.r.t. world frame 
         self.gt_x, self.gt_y, self.gt_z = None, None, None
-        #self.groundtruth = slam.groundtruth  # not actually used here; could be used for evaluating performances (at present done in Viewer3D)
         
         if kLogKFinfoToFile:
             self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', kLogsFolder + '/kf_info.log', formatter=Logging.simple_log_formatter)
@@ -544,12 +546,14 @@ class Tracking:
             isometry3d_Tcr = self.f_cur.isometry3d * self.f_cur.kf_ref.isometry3d.inverse() # pose of current frame w.r.t. current reference keyframe kf_ref 
             self.tracking_history.relative_frame_poses.append(isometry3d_Tcr)
             self.tracking_history.kf_references.append(self.kf_ref)     
-            self.tracking_history.timestamps.append(self.f_cur.timestamp)               
+            self.tracking_history.timestamps.append(self.f_cur.timestamp)
+            self.tracking_history.ids.append(self.f_cur.id)           
         else:
             if len(self.tracking_history.relative_frame_poses) > 0:
                 self.tracking_history.relative_frame_poses.append(self.tracking_history.relative_frame_poses[-1])
                 self.tracking_history.kf_references.append(self.tracking_history.kf_references[-1])   
-                self.tracking_history.timestamps.append(self.tracking_history.timestamps[-1])                                              
+                self.tracking_history.timestamps.append(self.tracking_history.timestamps[-1])
+                self.tracking_history.ids.append(self.tracking_history.ids[-1])                                              
         self.tracking_history.slam_states.append(self.state)                
           
 
@@ -807,7 +811,7 @@ class Tracking:
                     self.local_mapping.wait_idle(print=print, timeout=timeout)
                             
             if self.local_mapping.queue_size()>0: # and self.trackingWaitForLocalMappingSleepTime>0:
-                print('>>>> waiting for local mapping idle...')  
+                print(f'>>>> waiting for local mapping idle (queue_size={self.local_mapping.queue_size()})...')  
                 self.local_mapping.wait_idle(print=print, timeout=timeout)
                 
         # check again for debug                     
@@ -823,13 +827,15 @@ class Tracking:
         f_cur = self.map.get_frame(-1)
         self.cur_R = f_cur.pose[:3,:3].T
         self.cur_t = np.dot(-self.cur_R,f_cur.pose[:3,3])
-        if (self.init_history is True) and (self.gt_x is not None):
+        if self.init_history is True:
             self.t0_est = np.array([self.cur_t[0], self.cur_t[1], self.cur_t[2]])  # starting translation 
-            self.t0_gt  = np.array([self.gt_x, self.gt_y, self.gt_z])           # starting translation 
-        if (self.t0_est is not None) and (self.t0_gt is not None):             
+            if self.gt_x is not None:
+                self.t0_gt  = np.array([self.gt_x, self.gt_y, self.gt_z])           # starting translation 
+        if self.t0_est is not None:            
             p = [self.cur_t[0]-self.t0_est[0], self.cur_t[1]-self.t0_est[1], self.cur_t[2]-self.t0_est[2]]   # the estimated traj starts at 0
             self.traj3d_est.append(p)
-            self.traj3d_gt.append([self.gt_x-self.t0_gt[0], self.gt_y-self.t0_gt[1], self.gt_z-self.t0_gt[2]])            
+            if self.t0_gt is not None: 
+                self.traj3d_gt.append([self.gt_x-self.t0_gt[0], self.gt_y-self.t0_gt[1], self.gt_z-self.t0_gt[2]])            
             self.poses.append(poseRt(self.cur_R, p))
             self.pose_timestamps.append(f_cur.timestamp)
 

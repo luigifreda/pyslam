@@ -58,7 +58,7 @@ class CameraPose(object):
         
     def update(self,pose):
         self.set(pose)
-        
+            
     @property    
     def isometry3d(self):  # pose as g2o.Isometry3d 
         return self._pose 
@@ -80,6 +80,9 @@ class CameraPose(object):
         #angle = angle_axis.angle()
         #axis = angle_axis.axis()  
         return angle_axis  
+    
+    def get_matrix(self):
+        return self._pose.matrix()
     
     def get_inverse_matrix(self):
         return self._pose.inverse().matrix()     

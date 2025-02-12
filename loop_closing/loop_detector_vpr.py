@@ -158,7 +158,10 @@ class LoopDetectorVprBase(LoopDetectorBase):
         self.global_db.save(filepath)
         
     def load(self, path): 
-        filepath = path + '/loop_closing.db'        
+        filepath = path + '/loop_closing.db'
+        if not os.path.exists(filepath):
+            print(f'LoopDetectorVprBase: database does not exist: {filepath}')
+            return
         print(f'LoopDetectorVprBase: loading database from {filepath}...')
         self.global_db.load(filepath)
         print(f'\t Dabased size: {self.global_db.size()}')             

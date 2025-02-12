@@ -23,8 +23,7 @@ import numpy as np
 import cv2
 import math
 import time 
-
-import platform 
+from datetime import datetime
 
 from config import Config
 
@@ -41,12 +40,16 @@ from feature_tracker_configs import FeatureTrackerConfigs
 from config_parameters import Parameters
 
 
+datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")         
+            
+
 if __name__ == "__main__":
 
     config = Config()
         
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path', type=str, default=config.system_state_folder_path, help='path where we have saved the system state')
+    parser.add_argument('-o','--output_path', required=False, type=str, default=config.system_state_folder_path, help="Path to save the system state if needed")    
     args = parser.parse_args()
 
     camera = PinholeCamera()
@@ -66,11 +69,25 @@ if __name__ == "__main__":
         gt_traj3d, gt_timestamps = groundtruth.getFull3dTrajectory()
         viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=slam.sensor_type==SensorType.MONOCULAR)    
             
+            
+    is_map_save = False      # save map on GUI
+    is_bundle_adjust = False # bundle adjust on GUI
+                    
     while not viewer3D.is_closed():  
         time.sleep(0.1)
                   
         # 3D display (map display)
         viewer3D.draw_map(slam)   
+        
+        is_map_save = viewer3D.is_map_save() and is_map_save == False     
+        is_bundle_adjust = viewer3D.is_bundle_adjust() and is_bundle_adjust == False        
+                      
+        if is_map_save:  
+            output_path = args.output_path + "_" + datetime_string
+            slam.save_system_state(output_path)      
+            
+        if is_bundle_adjust:
+            slam.bundle_adjust()                 
                 
     slam.quit()
     

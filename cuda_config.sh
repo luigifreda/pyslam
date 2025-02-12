@@ -28,6 +28,9 @@ if command -v nvidia-smi &> /dev/null; then
         CUDA_VERSION_STRING="cuda"  # use last installed CUDA path in standard path as a fallback 
     fi     
     echo CUDA_VERSION_STRING: $CUDA_VERSION_STRING
-    export PATH=/usr/local/$CUDA_VERSION_STRING/bin${PATH:+:${PATH}}
-    export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION_STRING/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}    
+    export CUDA_HOME="/usr/local/$CUDA_VERSION_STRING"
+    export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
+    export LD_LIBRARY_PATH=$CUDA_HOME/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}    
+    export C_INCLUDE_PATH=$CUDA_HOME/include:$C_INCLUDE_PATH
+    export CPLUS_INCLUDE_PATH=$CUDA_HOME/include:$CPLUS_INCLUDE_PATH     
 fi

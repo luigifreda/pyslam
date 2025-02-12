@@ -36,6 +36,7 @@ class Rerun:
     camera_img_resize_factors = None #[0.1, 0.1]
     current_camera_view_scale = 0.3
     camera_poses_view_size = 0.5
+    is_initialized = False 
     
     def __init__(self) -> None:
         self.init()
@@ -63,6 +64,7 @@ class Rerun:
         else: 
             rr.init("pyslam",  spawn=True)
         #rr.connect()  # Connect to a remote viewer
+        Rerun.is_initialized = True
         
     @staticmethod
     def init3d(img_compress=False) -> None:

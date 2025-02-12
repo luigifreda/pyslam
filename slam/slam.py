@@ -47,9 +47,9 @@ from feature_tracker import feature_tracker_factory, FeatureTracker, FeatureTrac
 
 from utils_serialization import SerializableEnum, SerializationJSON, register_class
 from utils_sys import Printer, getchar, Logging
-from utils_draw import draw_feature_matches
-from utils_geom import triangulate_points, poseRt, normalize_vector, inv_T, triangulate_normalized_points, estimate_pose_ess_mat
-from utils_features import ImageGrid
+from utils_mp import MultiprocessingManager
+from utils_geom import inv_T
+from global_bundle_adjustment import GlobalBundleAdjustment
 
 from slam_commons import SlamState
 from tracking import Tracking
@@ -105,6 +105,7 @@ class Slam(object):
         self.local_mapping = LocalMapping(self)        
         self.loop_closing = None
         self.GBA = None
+        self.GBA_on_demand = None    # used independently when pressing "Bundle Adjust" button on GUI
         self.volumetric_integrator = None
         self.reset_requested = False
   
@@ -263,13 +264,14 @@ class Slam(object):
             Printer.red(f'SLAM: Cannot load system state: {path}')
             sys.exit(0)
         map_file_path = path + '/map.json'
+        if not os.path.exists(map_file_path):
+            Printer.red(f'SLAM: File does not exist: {map_file_path}')
+            return
         with open(map_file_path, 'rb') as f:
             loaded_json = json.loads(f.read())
-            
             print()
-            
             loaded_sensor_type = SerializationJSON.deserialize(loaded_json['sensor_type'])
-            if loaded_sensor_type != self.sensor_type:
+            if loaded_sensor_type != self.sensor_type and self.slam_mode == SlamMode.SLAM:
                 Printer.yellow(f'SLAM: sensor type mismatch on load_system_state(): {loaded_sensor_type} != {self.sensor_type}')
                 #sys.exit(0)
             self.sensor_type = loaded_sensor_type
@@ -289,7 +291,7 @@ class Slam(object):
             print(f'SLAM: loaded loop detector config: {loop_detector_config}')
             print()
             
-            print(f'SLAM: initializing feature tracker...')
+            print(f'SLAM: initializing feature tracker: {feature_tracker_config}')
             self.init_feature_tracker(feature_tracker_config)
             
             if self.slam_mode == SlamMode.SLAM:
@@ -312,7 +314,8 @@ class Slam(object):
         if self.map is not None and len(self.map.keyframes) > 0:
             camera0 = self.map.keyframes[0].camera
             if camera0.width != self.camera.width or camera0.height != self.camera.height:
-                Printer.yellow(f'SLAM: camera size mismatch on load_system_state(): {camera0.width}x{camera0.height} != {self.camera.width}x{self.camera.height}')
+                if self.camera.width is not None and self.camera.height is not None:
+                    Printer.yellow(f'SLAM: camera size mismatch on load_system_state(): {camera0.width}x{camera0.height} != {self.camera.width}x{self.camera.height}')
                 # update the camera
                 self.camera = camera0 
                 if self.volumetric_integrator is not None:
@@ -329,10 +332,83 @@ class Slam(object):
             Printer.red(f'SLAM: Cannot load map: {path}')
             sys.exit(0)
         self.map.load(path)
+    
+    def bundle_adjust(self):
+        # Start an independent global bundle adjustment
+        print(f'SLAM: starting global bundle adjustment ...')
         
-    # for saving and reloading it when needed
+        if not self.GBA_on_demand:
+            # we create a GBA here to allow refining the loaded
+            use_multiprocessing = not MultiprocessingManager.is_start_method_spawn() 
+            self.GBA_on_demand = GlobalBundleAdjustment(self, use_multiprocessing=use_multiprocessing)
+                    
+        if self.GBA_on_demand is not None:
+            if self.GBA_on_demand.is_running():
+                Printer.red('GlobalBundleAdjustment: GBA is already running! You can only have one GBA running at a time.')
+                return
+            else:
+                self.GBA_on_demand.quit()
+                self.GBA_on_demand.start(loop_kf_id=0)  # loop_kf_id=0 means that it GBA is run for all keyframes and there is no loop closure involved
+                while not self.GBA_on_demand.is_running(): # wait for GBA to start
+                    time.sleep(0.1)
+                while self.GBA_on_demand.is_running(): # wait for GBA to finish
+                    time.sleep(0.1)
+                self.GBA_on_demand.correct_after_GBA()
+                print(f'SLAM: ...global bundle adjustment finished.')
+     
+    # For saving and reloading it when needed
     def set_viewer_scale(self, scale):
         self.map.viewer_scale = scale
         
     def viewer_scale(self):
         return self.map.viewer_scale
+    
+    # Retrieve the final processed trajectory. A pose estimate is returned for each camera frame (not only for keyframes). 
+    # If used at the end of dataset playback, this returns an "final" trajectory where each extracted camera pose Twc has been optimized multiple times by LBA and GBA over the multiple window optimizations that cover Twc. 
+    # To get the "online" trajectory (where each camera pose Twc is extracted at the end of each tracking iteration) just get (slam.tracking.cur_R, slam.tracking.cur_t, timestamp) at the end of each tracking iteration.
+    # NOTE: In the "online" trajectory, pose estimates only depend on the past ones. 
+    #       In the "final" trajectory, pose estimates depend on both the past and future ones. 
+    def get_final_trajectory(self):
+        print(f"\nRetrieving final trajectory ...")
+
+        poses = []
+        timestamps = []
+        ids = []
+
+        keyframes = self.map.get_keyframes()
+        #keyframes.sort(key=lambda kf: kf.id)
+        #print(f'keyframes: {[kf.id for kf in keyframes]}')
+
+        # Transform all keyframes so that the first keyframe is at the origin.
+        # After a loop closure the first keyframe might not be at the origin.
+        Two = keyframes[0].Twc
+
+        # Frame pose is stored relative to its reference keyframe (which is optimized by BA and pose graph).
+        # We need to get first the keyframe pose and then concatenate the relative transformation.
+        # Frames not localized (tracking failure) are not saved.
+        
+        tracking_history = self.tracking.tracking_history
+
+        # For each frame we have a reference keyframe (ref_kf), the timestamp (timestamp) and the SLAM state (state)
+        for rel_pose, ref_kf, timestamp, id, state in zip(tracking_history.relative_frame_poses, tracking_history.kf_references, tracking_history.timestamps, tracking_history.ids, tracking_history.slam_states):
+            if state != SlamState.OK:
+                continue
+
+            keyframe = ref_kf
+            Tcr = np.eye(4, dtype=np.float32)
+            # If the reference keyframe was culled, traverse the spanning tree to get a suitable keyframe.
+            while keyframe.is_bad:
+                Tcr = Tcr @ keyframe.Tcp
+                keyframe = keyframe.parent
+
+            Trw = Tcr @ keyframe.Tcw @ Two
+                        
+            Tcw = rel_pose.matrix() @ Trw
+            Twc = inv_T(Tcw)
+            
+            poses.append(Twc)
+            timestamps.append(timestamp)
+            ids.append(id)
+
+        return poses, timestamps, ids
+

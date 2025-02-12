@@ -87,6 +87,14 @@ if [ -d "thirdparty/monogs/submodules/diff-gaussian-rasterization/build" ]; then
     rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 fi
 
+if [ -d "thirdpary/mast3r" ]; then
+    rm -rf thirdparty/mast3r
+fi
+
+if [ -d "thirdparty/mvdust3r" ]; then
+    rm -rf thirdparty/mvdust3r
+fi
+
 if [ -f "$ROOT_DIR/.env" ]; then
     echo "Removing $ROOT_DIR/.env file"
     rm "$ROOT_DIR/.env"

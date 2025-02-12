@@ -23,9 +23,10 @@ import numpy as np
 import cv2 
 
 from frame import Frame, FeatureTrackerShared
-from utils_geom import skew, add_ones, normalize_vector, computeF12, check_dist_epipolar_line
+from utils_geom import add_ones
+from utils_geom_2views import computeF12
 from utils_draw import draw_lines, draw_points 
-from utils_sys import Printer, getchar
+from utils_sys import Printer
 from config_parameters import Parameters  
 from timer import Timer
 

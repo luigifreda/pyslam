@@ -26,6 +26,13 @@ if(_LINUX_)
 endif()
 find_package(OpenGL REQUIRED)
 
+if(APPLE)
+  include_directories(/System/Library/Frameworks)
+  find_library(OpenGL_LIBRARY OpenGL)
+  mark_as_advanced(OpenGL_LIBRARY)
+  set(OPENGL_LIBRARIES ${OpenGL_LIBRARY})
+endif()
+
 
 # the following 2 lines are added to correctly detect the python version 
 if(WITH_PYTHON_INTERP_CHECK)

@@ -25,8 +25,11 @@ if command -v nvidia-smi &> /dev/null; then
         CUDA_VERSION_STRING="cuda"  # use last installed CUDA path in standard path as a fallback 
     fi     
     echo CUDA_VERSION_STRING: $CUDA_VERSION_STRING
-    export PATH=/usr/local/$CUDA_VERSION_STRING/bin${PATH:+:${PATH}}
-    export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION_STRING/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}    
+    export CUDA_HOME="/usr/local/$CUDA_VERSION_STRING"
+    export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
+    export LD_LIBRARY_PATH=$CUDA_HOME/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}    
+    export C_INCLUDE_PATH=$CUDA_HOME/include:$C_INCLUDE_PATH
+    export CPLUS_INCLUDE_PATH=$CUDA_HOME/include:$CPLUS_INCLUDE_PATH    
 fi
 
 
@@ -178,6 +181,27 @@ if command -v nvidia-smi &> /dev/null; then
         cd $ROOT_DIR
     fi
     pip install ./thirdparty/lietorch --verbose                               # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
+    
     pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
     pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 fi
+
+
+# mast3r and mvdust3r
+if command -v nvidia-smi &> /dev/null; then
+    # We need cuda for MonoGS
+
+    pip install gradio 
+    pip install roma 
+
+    # get cuda version and then download the libcusparse and libcusolver packages 
+    CUDA_VERSION_STRING_WITH_HYPHENS=$(replace_dot_with_hyphen $CUDA_VERSION)
+    echo CUDA_VERSION_STRING_WITH_HYPHENS: $CUDA_VERSION_STRING_WITH_HYPHENS
+
+    sudo apt install libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS
+
+    # to install from source (to avoid linking issue with CUDA)
+    pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"    
+fi
+
+

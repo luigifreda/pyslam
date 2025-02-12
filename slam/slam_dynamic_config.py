@@ -1,7 +1,7 @@
 import math 
 import numpy as np 
 
-from utils_features import descriptor_sigma_mad
+from utils_features import descriptor_sigma_mad, descriptor_sigma_mad_v2
 from utils_sys import Printer
 
 from config_parameters import Parameters 
@@ -26,8 +26,12 @@ class SLAMDynamicConfig:
         if len(idxs_cur)>0:
             des_cur = f_cur.des[idxs_cur]
             des_ref = f_ref.des[idxs_ref]
-            sigma_mad,_ = descriptor_sigma_mad(des_cur, des_ref, descriptor_distances=FeatureTrackerShared.descriptor_distances)
-            delta = self.descriptor_distance_factor*sigma_mad
+            if False:
+                sigma_mad, dists_median, _ = descriptor_sigma_mad_v2(des_cur, des_ref, descriptor_distances=FeatureTrackerShared.descriptor_distances)
+                delta = self.descriptor_distance_factor*sigma_mad + dists_median # + sigma_mad # the final "+ sigma_mad" is for adding back a bias (the median itself) to the delta threshold since the delta distribution is not centered at zero
+            else:
+                sigma_mad, dists_median, _ = descriptor_sigma_mad(des_cur, des_ref, descriptor_distances=FeatureTrackerShared.descriptor_distances)
+                delta = self.descriptor_distance_factor*sigma_mad
             if self.descriptor_distance_sigma is None:
                 self.descriptor_distance_sigma = delta
             else:

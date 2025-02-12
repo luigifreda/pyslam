@@ -30,8 +30,8 @@ using namespace pybind11::literals;
 
 #if 0
 
-void DrawPoints(py::array_t<double> points) {
-    auto r = points.unchecked<2>();
+void DrawPoints(const py::array_t<double>& points) {
+    const auto r = points.unchecked<2>();
     glBegin(GL_POINTS);
     for (ssize_t i = 0; i < r.shape(0); ++i) {
         glVertex3d(r(i, 0), r(i, 1), r(i, 2));
@@ -40,9 +40,9 @@ void DrawPoints(py::array_t<double> points) {
 }
 
 
-void DrawPoints(py::array_t<double> points, py::array_t<double> colors) {
-    auto r = points.unchecked<2>();
-    auto rc = colors.unchecked<2>();
+void DrawPoints(const py::array_t<double>& points, const py::array_t<double>& colors) {
+    const auto r = points.unchecked<2>();
+    const auto rc = colors.unchecked<2>();
 
     glBegin(GL_POINTS);
     for (ssize_t i = 0; i < r.shape(0); ++i) {
@@ -54,9 +54,9 @@ void DrawPoints(py::array_t<double> points, py::array_t<double> colors) {
 
 #else 
 
-void DrawPoints(py::array_t<double> points) {
+void DrawPoints(const py::array_t<double>& points) {
     // Access numpy array
-    auto r = points.unchecked<2>(); // Shape: (num_points, 3)
+    const auto r = points.unchecked<2>(); // Shape: (num_points, 3)
 
     // Enable client state for vertex arrays
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -71,10 +71,10 @@ void DrawPoints(py::array_t<double> points) {
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
-void DrawPoints(py::array_t<double> points, py::array_t<double> colors) {
+void DrawPoints(const py::array_t<double>& points, const py::array_t<double>& colors) {
     // Access numpy arrays
-    auto r = points.unchecked<2>();  // Shape: (num_points, 3)
-    auto rc = colors.unchecked<2>(); // Shape: (num_points, 3)
+    const auto r = points.unchecked<2>();  // Shape: (num_points, 3)
+    const auto rc = colors.unchecked<2>(); // Shape: (num_points, 3)
 
     // Enable client states for vertex arrays and color arrays
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -97,11 +97,11 @@ void DrawPoints(py::array_t<double> points, py::array_t<double> colors) {
 
 #if 0
 
-void DrawMesh(py::array_t<double> vertices, py::array_t<int> triangles, py::array_t<double> colors) {
+void DrawMesh(const py::array_t<double>& vertices, const py::array_t<int>& triangles, const py::array_t<double>& colors) {
     // Access numpy arrays
-    auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
-    auto c = colors.unchecked<2>();     // Shape: (num_vertices, 3)
-    auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
+    const auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
+    const auto c = colors.unchecked<2>();     // Shape: (num_vertices, 3)
+    const auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
 
     glBegin(GL_TRIANGLES);
     for (ssize_t i = 0; i < t.shape(0); ++i) {
@@ -114,10 +114,10 @@ void DrawMesh(py::array_t<double> vertices, py::array_t<int> triangles, py::arra
     glEnd();
 }
 
-void DrawMonochromeMesh(py::array_t<double> vertices, py::array_t<int> triangles, float r = 0.5f, float g = 0.5f, float b = 0.5f) {
+void DrawMonochromeMesh(const py::array_t<double>& vertices, const py::array_t<int>& triangles, const float r = 0.5f, const float g = 0.5f, const float b = 0.5f) {
     // Access numpy arrays
-    auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
-    auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
+    const auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
+    const auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
 
     glColor3f(r, g, b);  // Set the constant color for the entire mesh
 
@@ -133,11 +133,11 @@ void DrawMonochromeMesh(py::array_t<double> vertices, py::array_t<int> triangles
 
 #else
 
-void DrawMesh(py::array_t<double> vertices, py::array_t<int> triangles, py::array_t<double> colors, bool wireframe) {
+void DrawMesh(const py::array_t<double>& vertices, const py::array_t<int>& triangles, const py::array_t<double>& colors, const bool wireframe) {
     // Access numpy arrays
-    auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
-    auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
-    auto c = colors.unchecked<2>();     // Shape: (num_vertices, 3)
+    const auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
+    const auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
+    const auto c = colors.unchecked<2>();     // Shape: (num_vertices, 3)
 
     // Enable wireframe mode if requested
     glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
@@ -161,10 +161,10 @@ void DrawMesh(py::array_t<double> vertices, py::array_t<int> triangles, py::arra
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-void DrawMonochromeMesh(py::array_t<double> vertices, py::array_t<int> triangles, std::array<float, 3> color, bool wireframe) {
+void DrawMonochromeMesh(const py::array_t<double>& vertices, const py::array_t<int>& triangles, const std::array<float, 3>& color, const bool wireframe) {
     // Access numpy arrays
-    auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
-    auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
+    const auto v = vertices.unchecked<2>();   // Shape: (num_vertices, 3)
+    const auto t = triangles.unchecked<2>();  // Shape: (num_triangles, 3)
 
     // Enable wireframe mode if requested
     glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
@@ -190,11 +190,11 @@ void DrawMonochromeMesh(py::array_t<double> vertices, py::array_t<int> triangles
 
 #endif
 
-void DrawCameras(py::array_t<double> cameras, float w=1.0, float h_ratio=0.75, float z_ratio=0.6) {
-    auto r = cameras.unchecked<3>();
+void DrawCameras(const py::array_t<double>& cameras, const float w=1.0, const float h_ratio=0.75, const float z_ratio=0.6) {
+    const auto r = cameras.unchecked<3>();
 
-    float h = w * h_ratio;
-    float z = w * z_ratio;
+    const float h = w * h_ratio;
+    const float z = w * z_ratio;
 
     for (ssize_t i = 0; i < r.shape(0); ++i) {
         glPushMatrix();
@@ -228,11 +228,11 @@ void DrawCameras(py::array_t<double> cameras, float w=1.0, float h_ratio=0.75, f
     }
 }
 
-void DrawCamera(py::array_t<double> camera, float w=1.0, float h_ratio=0.75, float z_ratio=0.6) {
-    auto r = camera.unchecked<2>();
+void DrawCamera(const py::array_t<double>& camera, const float w=1.0, const float h_ratio=0.75, const float z_ratio=0.6) {
+    const auto r = camera.unchecked<2>();
 
-    float h = w * h_ratio;
-    float z = w * z_ratio;
+    const float h = w * h_ratio;
+    const float z = w * z_ratio;
 
     glPushMatrix();
     // glMultMatrixd(r.data(0, 0));
@@ -265,14 +265,19 @@ void DrawCamera(py::array_t<double> camera, float w=1.0, float h_ratio=0.75, flo
 }
 
 
-void DrawLine(py::array_t<double> points, float point_size=0) {
-    auto r = points.unchecked<2>();
-    glBegin(GL_LINES);
-    for (ssize_t i = 0; i < r.shape(0)-1; ++i) {
+void DrawLine(const py::array_t<double>& points, const float point_size=0) {
+    const auto r = points.unchecked<2>();
+    // glBegin(GL_LINES);
+    // for (ssize_t i = 0; i < r.shape(0)-1; ++i) {
+    //     glVertex3d(r(i, 0), r(i, 1), r(i, 2));
+    //     glVertex3d(r(i+1, 0), r(i+1, 1), r(i+1, 2));
+    // }
+    // glEnd();
+    glBegin(GL_LINE_STRIP);
+    for (ssize_t i = 0; i < r.shape(0); ++i) {
         glVertex3d(r(i, 0), r(i, 1), r(i, 2));
-        glVertex3d(r(i+1, 0), r(i+1, 1), r(i+1, 2));
     }
-    glEnd();
+    glEnd();    
 
     if(point_size > 0) {
         glPointSize(point_size);
@@ -285,9 +290,8 @@ void DrawLine(py::array_t<double> points, float point_size=0) {
 }
 
 
-
-void DrawLines(py::array_t<double> points, float point_size=0) {
-    auto r = points.unchecked<2>();
+void DrawLines(const py::array_t<double>& points, const float point_size=0) {
+    const auto r = points.unchecked<2>();
 
     glBegin(GL_LINES);
     for (ssize_t i = 0; i < r.shape(0); ++i) {
@@ -308,9 +312,9 @@ void DrawLines(py::array_t<double> points, float point_size=0) {
 }
 
 
-void DrawLines(py::array_t<double> points, py::array_t<double> points2, float point_size=0) {
-    auto r = points.unchecked<2>();
-    auto r2 = points2.unchecked<2>();
+void DrawLines2(const py::array_t<double>& points, const py::array_t<double>& points2, const float point_size=0) {
+    const auto r = points.unchecked<2>();
+    const auto r2 = points2.unchecked<2>();
     glBegin(GL_LINES);
     for (ssize_t i = 0; i < std::min(r.shape(0), r2.shape(0)); ++i) {
         glVertex3d(r(i, 0), r(i, 1), r(i, 2));
@@ -330,7 +334,27 @@ void DrawLines(py::array_t<double> points, py::array_t<double> points2, float po
 }
 
 
-void DrawBoxes(py::array_t<double> cameras, py::array_t<double> sizes) {
+void DrawTrajectory(const py::array_t<double>& points, const float point_size=0) {
+    const auto r = points.unchecked<2>();
+    glBegin(GL_LINE_STRIP);
+    for (ssize_t i = 0; i < r.shape(0); ++i) {
+        glVertex3d(r(i, 0), r(i, 1), r(i, 2));
+    }
+    glEnd();
+
+    if(point_size > 0) {
+        glPointSize(point_size);
+        glBegin(GL_POINTS);
+        for (ssize_t i = 0; i < r.shape(0); ++i) {
+            glVertex3d(r(i, 0), r(i, 1), r(i, 2));
+        }
+        glEnd();
+    }  
+    
+}
+
+
+void DrawBoxes(const py::array_t<double>& cameras, const py::array_t<double>& sizes) {
     auto r = cameras.unchecked<3>();
     auto rs = sizes.unchecked<2>();
 
@@ -379,10 +403,13 @@ void DrawBoxes(py::array_t<double> cameras, py::array_t<double> sizes) {
 
 
 class CameraImage {
+public: 
+    typedef std::shared_ptr<CameraImage> Ptr;
 public:
     // from numpy image 
     template <typename T>
-    CameraImage(py::array_t<unsigned char> image, py::array_t<T> pose, size_t id, float w=1.0, float h_ratio=0.75, float z_ratio=0.6, std::array<float, 3> color={0.0, 1.0, 0.0})
+    CameraImage(const py::array_t<unsigned char>& image, const py::array_t<T>& pose, 
+                const size_t id, const float w=1.0, const float h_ratio=0.75, const float z_ratio=0.6, const std::array<float, 3>& color={0.0, 1.0, 0.0})
         : imageWidth(image.shape(1)), imageHeight(image.shape(0)), id(id), w(w), h_ratio(h_ratio), z_ratio(z_ratio), color(color) {
         // Check if image is color or grayscale
         bool is_color = true;
@@ -399,17 +426,27 @@ public:
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
         if (is_color) {
+            //std::cout << "CameraImage: Color image " << this->id << ", shape: " << image.shape(0) << "x" << image.shape(1) << ", #channels:" << image.shape(2) << std::endl;
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageWidth, imageHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image.data());
         } else {
+            //std::cout << "CameraImage: BW image " << this->id << ", shape: " << image.shape(0) << "x" << image.shape(1) << std::endl;
             glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, imageWidth, imageHeight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, image.data());
         }
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); 
 
+        // Check for OpenGL errors
+        GLenum err;
+        while ((err = glGetError()) != GL_NO_ERROR) {
+            std::cerr << "OpenGL error: " << err << std::endl;
+        }
+        
         setPose(pose);
     }
 
+
     ~CameraImage() {
+        std::cout << "CameraImage " << this->id << " deleted" << std::endl;
         glDeleteTextures(1, &texture);
     }
 
@@ -444,31 +481,34 @@ public:
         glVertex3f(w,-h,z);
         glEnd();
 
-        // Reset color to white before drawing the texture
-        glColor3f(1.0f, 1.0f, 1.0f);
- 
-        // Draw the rectangle representing the image with texture
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        if(!isTransparent)
+        {
+            // Reset color to white before drawing the texture
+            glColor3f(1.0f, 1.0f, 1.0f);
+    
+            // Draw the rectangle representing the image with texture
+            glEnable(GL_TEXTURE_2D);
+            glBindTexture(GL_TEXTURE_2D, texture);
 
-        // Check if face culling is enabled
-        GLboolean isCullFaceEnabled = glIsEnabled(GL_CULL_FACE);
-        if (isCullFaceEnabled) {
-            glDisable(GL_CULL_FACE);
+            // Check if face culling is enabled
+            GLboolean isCullFaceEnabled = glIsEnabled(GL_CULL_FACE);
+            if (isCullFaceEnabled) {
+                glDisable(GL_CULL_FACE);
+            }
+
+            glBegin(GL_QUADS);
+            glTexCoord2f(0.0f, 0.0f); glVertex3f(-w, -h, z);
+            glTexCoord2f(1.0f, 0.0f); glVertex3f(w, -h, z);
+            glTexCoord2f(1.0f, 1.0f); glVertex3f(w, h, z);
+            glTexCoord2f(0.0f, 1.0f); glVertex3f(-w, h, z);
+            glEnd();
+
+            if (isCullFaceEnabled) {
+                glEnable(GL_CULL_FACE);
+            }        
+
+            glDisable(GL_TEXTURE_2D);
         }
-
-        glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f); glVertex3f(-w, -h, z);
-        glTexCoord2f(1.0f, 0.0f); glVertex3f(w, -h, z);
-        glTexCoord2f(1.0f, 1.0f); glVertex3f(w, h, z);
-        glTexCoord2f(0.0f, 1.0f); glVertex3f(-w, h, z);
-        glEnd();
-
-        if (isCullFaceEnabled) {
-            glEnable(GL_CULL_FACE);
-        }        
-
-        glDisable(GL_TEXTURE_2D);     
     }
 
     void draw() const {
@@ -481,7 +521,7 @@ public:
         glPopMatrix();        
     }
 
-    void drawPose(py::array_t<double> pose) const {
+    void drawPose(const py::array_t<double>& pose) const {
         auto r = pose.unchecked<2>();
 
         glPushMatrix();
@@ -503,7 +543,7 @@ public:
     }
 
     template <typename T>
-    void setPose(py::array_t<T> pose) {
+    void setPose(const py::array_t<T>& pose) {
         if (pose.ndim() != 2 || pose.size() != 16) {
             throw std::runtime_error("Pose must be a 4x4 array.");
         }   
@@ -514,8 +554,12 @@ public:
         }
     }
 
-    void setColor(std::array<float, 3> color) {
+    void setColor(const std::array<float, 3>& color) {
         this->color = color;
+    }
+
+    void setTransparent(bool isTransparent) {
+        this->isTransparent = isTransparent;
     }
 
 private:
@@ -525,6 +569,8 @@ private:
     float w;
     float h_ratio;
     float z_ratio;
+
+    bool isTransparent = false;
 
     std::array<float, 3> color={0.0, 1.0, 0.0};
 
@@ -538,7 +584,7 @@ public:
     size_t id=0;
 };
 
-// // Explicitly instantiate the setPose function for float and double
+// Explicitly instantiate the setPose function for float and double
 // template CameraImage::CameraImage(py::array_t<unsigned char> image, py::array_t<float> pose, size_t id, float w, float h_ratio, float z_ratio, std::array<float, 3> color);
 // template CameraImage::CameraImage(py::array_t<unsigned char> image, py::array_t<double> pose, size_t id, float w, float h_ratio, float z_ratio, std::array<float, 3> color);
 // template void CameraImage::setPose<float>(py::array_t<float> pose);
@@ -551,33 +597,42 @@ public:
 
     // Add a camera image from numpy array
     template <typename T>
-    void add(py::array_t<unsigned char> image, py::array_t<T> poseMatrix, size_t id, float w=1.0, float h_ratio=0.75, float z_ratio=0.6, std::array<float, 3> color={0.0, 1.0, 0.0}) {
-        //cams.emplace_back(image, poseMatrix, id, w, h_ratio, z_ratio, color);
-        if (poseMatrix.dtype() == py::dtype::of<float>()) {
+    void add(const py::array_t<unsigned char>& image, const py::array_t<T>& poseMatrix, 
+             const size_t id, const float w=1.0, const float h_ratio=0.75, const float z_ratio=0.6, const std::array<float, 3>& color={0.0, 1.0, 0.0}) {
+        auto dtype = poseMatrix.dtype();
+        //std::cout << "Pose matrix dtype: " << dtype << std::endl;
+        const std::string dtype_str = py::str(dtype);
+        if ( dtype.is(py::dtype::of<float>()) ||  dtype_str == "float32" ) {
             // Ensure float32
-            cams.emplace_back(image, poseMatrix.template cast<py::array_t<float>>(), id, w, h_ratio, z_ratio, color);
-            
-        } else {
+            //cams.emplace_back(image, poseMatrix.template cast<py::array_t<float>>(), id, w, h_ratio, z_ratio, color);
+            const auto cam = std::make_shared<CameraImage>(image, poseMatrix, id, w, h_ratio, z_ratio, color);
+            cams.push_back(cam);
+        } else if ( dtype.is(py::dtype::of<double>()) || dtype_str == "float64" ) {
             // Ensure float64
-            cams.emplace_back(image, poseMatrix.template cast<py::array_t<double>>(), id, w, h_ratio, z_ratio, color);
+            //cams.emplace_back(image, poseMatrix.template cast<py::array_t<double>>(), id, w, h_ratio, z_ratio, color);
+            const auto cam = std::make_shared<CameraImage>(image, poseMatrix, id, w, h_ratio, z_ratio, color);
+            cams.push_back(cam);
+        } else {
+            std::cout << "unmanaged dtype: " << dtype << std::endl;
+            throw std::runtime_error("Pose matrix must be float32 or float64.");
         }
     }
 
-    void drawPoses(py::array_t<double> cameras) const {
-        auto r = cameras.unchecked<3>();
+    void drawPoses(const py::array_t<double>& cameras) const {
+        const auto r = cameras.unchecked<3>();
 
         for (ssize_t i = 0; i < r.shape(0); ++i) {
-            cams[i].drawMatrix(r.data(i, 0, 0));
+            cams[i]->drawMatrix(r.data(i, 0, 0));
         }
     }
 
     void draw() const {
         for (const auto& cam : cams) {
-            cam.draw();
+            cam->draw();
         }
     }
 
-    CameraImage& operator[](size_t i) {
+    CameraImage::Ptr& operator[](size_t i) {
         return cams[i];
     }
 
@@ -590,14 +645,27 @@ public:
     }
 
     void erase(size_t id) {
-        auto it = std::find_if(cams.begin(), cams.end(), [id](const CameraImage& cam) { return cam.id == id; });
+        auto it = std::find_if(cams.begin(), cams.end(), [id](const CameraImage::Ptr& cam) { return cam->id == id; });
         if (it != cams.end()) {
             cams.erase(it);
         }
     }
 
+    void setTransparent(size_t id, bool isTransparent) {
+        auto it = std::find_if(cams.begin(), cams.end(), [id](const CameraImage::Ptr& cam) { return cam->id == id; });
+        if (it != cams.end()) {
+            (*it)->setTransparent(isTransparent);
+        }
+    }
+
+    void setAllTransparent(bool isTransparent) {
+        for (auto& cam : cams) {
+            cam->setTransparent(isTransparent);
+        }
+    }
+
 private: 
-    std::vector<CameraImage> cams;
+    std::vector<CameraImage::Ptr> cams;
 };
 
 
@@ -607,22 +675,25 @@ PYBIND11_MODULE(glutils, m)
     m.doc() = "pybind11 plugin for glutils module";
 
 
-    m.def("DrawPoints", (void (*) (py::array_t<double>)) &DrawPoints, 
+    m.def("DrawPoints", (void (*) (const py::array_t<double>&)) &DrawPoints, 
         "points"_a);
-    m.def("DrawPoints", (void (*) (py::array_t<double>, py::array_t<double>)) &DrawPoints,
+    m.def("DrawPoints", (void (*) (const py::array_t<double>&, const py::array_t<double>&)) &DrawPoints,
         "points"_a, "colors"_a);
 
-    m.def("DrawMesh", (void (*) (py::array_t<double>, py::array_t<int>, py::array_t<double>, bool)) &DrawMesh,
+    m.def("DrawMesh", (void (*) (const py::array_t<double>&, const py::array_t<int>&, const py::array_t<double>&, const bool)) &DrawMesh,
         "vertices"_a, "triangles"_a, "colors"_a, "wireframe"_a=false);
-    m.def("DrawMonochromeMesh", (void (*) (py::array_t<double>, py::array_t<int>, std::array<float, 3>, bool)) &DrawMonochromeMesh,
+    m.def("DrawMonochromeMesh", (void (*) (const py::array_t<double>&, const py::array_t<int>&, const std::array<float, 3>&, const bool)) &DrawMonochromeMesh,
           py::arg("vertices"), py::arg("triangles"), py::arg("color"), py::arg("wireframe") = false);
 
-    m.def("DrawLine", (void (*) (py::array_t<double>, float)) &DrawLine,
+    m.def("DrawLine", (void (*) (const py::array_t<double>&, const float)) &DrawLine,
         "points"_a, "point_size"_a=0);
-    m.def("DrawLines", (void (*) (py::array_t<double>, float)) &DrawLines,
+    m.def("DrawLines", (void (*) (const py::array_t<double>&, const float)) &DrawLines,
         "points"_a, "point_size"_a=0);
-    m.def("DrawLines", (void (*) (py::array_t<double>, py::array_t<double>, float)) &DrawLines,
+    m.def("DrawLines2", (void (*) (const py::array_t<double>&, const py::array_t<double>&, const float)) &DrawLines2,
         "points"_a, "points2"_a, "point_size"_a=0);
+
+    m.def("DrawTrajectory", &DrawTrajectory,
+        "points"_a, "point_size"_a=0);
 
     m.def("DrawCameras", &DrawCameras,
         "poses"_a, "w"_a=1.0, "h_ratio"_a=0.75, "z_ratio"_a=0.6);
@@ -633,35 +704,38 @@ PYBIND11_MODULE(glutils, m)
         "poses"_a, "sizes"_a);
 
     py::class_<CameraImage>(m, "CameraImage")
-        .def(py::init([](py::array_t<unsigned char> image, py::array_t<double> pose, size_t id, float scale, float h_ratio, float z_ratio, std::array<float, 3> color) {
+        .def(py::init([](const py::array_t<unsigned char>& image, const py::array_t<double>& pose, const size_t id, const float scale, const float h_ratio, const float z_ratio, const std::array<float, 3>& color) {
             return new CameraImage(image, pose, id, scale, h_ratio, z_ratio, color);
         }), "image"_a, "pose"_a, "id"_a, "scale"_a=1.0, "h_ratio"_a=0.75, "z_ratio"_a=0.6, "color"_a=std::array<float, 3>{0.0, 1.0, 0.0})
-        .def(py::init([](py::array_t<unsigned char> image, py::array_t<float> pose, size_t id, float scale, float h_ratio, float z_ratio, std::array<float, 3> color) {
+        .def(py::init([](const py::array_t<unsigned char>& image, const py::array_t<float>& pose, const size_t id, const float scale, const float h_ratio, const float z_ratio, const std::array<float, 3>& color) {
             return new CameraImage(image, pose, id, scale, h_ratio, z_ratio, color);
-        }))
+        }), "image"_a, "pose"_a, "id"_a, "scale"_a=1.0, "h_ratio"_a=0.75, "z_ratio"_a=0.6, "color"_a=std::array<float, 3>{0.0, 1.0, 0.0})
         .def("draw", &CameraImage::draw)
         .def("drawPose", &CameraImage::drawPose)
-        .def("setPose", [](CameraImage& self, py::array_t<float> pose) {
+        .def("setPose", [](CameraImage& self, const py::array_t<float>& pose) {
             self.setPose<float>(pose);
         })
-        .def("setPose", [](CameraImage& self, py::array_t<double> pose) {
+        .def("setPose", [](CameraImage& self, const py::array_t<double>& pose) {
             self.setPose<double>(pose);
-        });
+        })
+        .def("setTransparent", &CameraImage::setTransparent);
 
     py::class_<CameraImages>(m, "CameraImages")
         .def(py::init<>())
         //.def("add", &CameraImages::add, "image"_a, "pose"_a, "id"_a, "scale"_a=1.0, "h_ratio"_a=0.75, "z_ratio"_a=0.6, "color"_a=std::array<float, 3>{0.0, 1.0, 0.0})
-        .def("add", [](CameraImages& self, py::array_t<unsigned char> image, py::array_t<float> pose, size_t id, float scale, float h_ratio, float z_ratio, std::array<float, 3> color) {
-            self.add(image, pose, id, scale, h_ratio, z_ratio, color);
+        .def("add", [](CameraImages& self, const py::array_t<unsigned char>& image, const py::array_t<float>& pose, const size_t id, const float scale, const float h_ratio, const float z_ratio, const std::array<float, 3>& color) {
+            self.add<float>(image, pose, id, scale, h_ratio, z_ratio, color);
         }, "image"_a, "pose"_a, "id"_a, "scale"_a=1.0, "h_ratio"_a=0.75, "z_ratio"_a=0.6, "color"_a=std::array<float, 3>{0.0, 1.0, 0.0})
-        .def("add", [](CameraImages& self, py::array_t<unsigned char> image, py::array_t<double> pose, size_t id, float scale, float h_ratio, float z_ratio, std::array<float, 3> color) {
-            self.add(image, pose, id, scale, h_ratio, z_ratio, color);
+        .def("add", [](CameraImages& self, const py::array_t<unsigned char>& image, const py::array_t<double>& pose, const size_t id, const float scale, const float h_ratio, const float z_ratio, const std::array<float, 3>& color) {
+            self.add<double>(image, pose, id, scale, h_ratio, z_ratio, color);
         }, "image"_a, "pose"_a, "id"_a, "scale"_a=1.0, "h_ratio"_a=0.75, "z_ratio"_a=0.6, "color"_a=std::array<float, 3>{0.0, 1.0, 0.0})
         .def("drawPoses", &CameraImages::drawPoses)
         .def("draw", &CameraImages::draw)
         .def("clear", &CameraImages::clear)
         .def("erase", &CameraImages::erase)
         .def("size", &CameraImages::size)
+        .def("setTransparent", &CameraImages::setTransparent)
+        .def("setAllTransparent", &CameraImages::setAllTransparent)
         .def("__getitem__", &CameraImages::operator[], py::return_value_policy::reference)
         .def("__len__", &CameraImages::size);
 }

@@ -1,10 +1,10 @@
-# pySLAM v2.4.1
+# pySLAM v2.5.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.4.1](#pyslam-v241)
+- [pySLAM v2.5.0](#pyslam-v250)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -23,9 +23,10 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
       - [Reload and check your dense reconstruction](#reload-and-check-your-dense-reconstruction)
       - [Controlling the spatial distribution of keyframe FOV centers](#controlling-the-spatial-distribution-of-keyframe-fov-centers)
     - [Depth prediction](#depth-prediction)
-    - [Save the a map](#save-the-a-map)
-    - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
-    - [Trajectory saving](#trajectory-saving)
+    - [Saving and reloading](#saving-and-reloading)
+      - [Save the a map](#save-the-a-map)
+      - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
+      - [Trajectory saving](#trajectory-saving)
     - [SLAM GUI](#slam-gui)
     - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
   - [System overview](#system-overview)
@@ -116,7 +117,7 @@ Then, use the available specific install procedure according to your OS. The pro
 * Tensorflow 2.13.1
 * Kornia 0.7.3
 * Rerun
-* You need CUDA in order to run Gaussian Splatting.
+* You need CUDA in order to run Gaussian splatting and dust3r-based methods.
 
 If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
@@ -142,14 +143,16 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 ### How to install non-free OpenCV modules
 
-The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:       
-`$ . pyenv-activate.sh  `        
-`$ ./scripts/opencv_check.py`       
-or use the following command:        
-`$ python3 -c "import cv2; print(cv2.__version__)"`      
-How to check if you have non-free OpenCV module support (no errors imply success):          
-`$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"`    
-
+The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
+```bash       
+$ . pyenv-activate.sh          
+$ ./scripts/opencv_check.py
+```
+Otherwise, run the following commands: 
+```bash       
+$ python3 -c "import cv2; print(cv2.__version__)" # check opencv version               
+$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"  # check if you have non-free OpenCV module support (no errors imply success)
+```
 
 ### Troubleshooting and performance issues
 
@@ -158,7 +161,7 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all_venv.sh` (follow the instructions above according to your OS), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
+Once you have run the script `install_all_venv.sh` (follow the instructions [above](#install) according to your OS), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py
@@ -181,6 +184,8 @@ With both scripts, in order to process a different **dataset**, you need to upda
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
 * The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `io/ground_truth.py` and `io/convert_groundtruth.py`).
 
+---
+
 ### Feature tracking
 
 If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a taste of the different available local features, run
@@ -192,6 +197,8 @@ $ ./main_feature_matching.py
 In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
 
 Some basic examples are available in the subfolder `test/loopclosing`. In particular, as for feature detection/description, you may want to take a look at [test/cv/test_feature_manager.py](./test/cv/test_feature_manager.py) too.
+
+---
 
 ### Loop closing
 
@@ -222,6 +229,8 @@ Most methods do not require pre-trained vocabularies. Specifically:
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
 
+---
+
 ### Volumetric reconstruction
 
 #### Dense reconstruction while running SLAM 
@@ -230,7 +239,9 @@ The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled b
 
 At present, the volumetric reconstruction pipeline works with:
 - RGBD datasets 
-- When a [depth estimator](#depth-prediction) is used in the back-end or front-end and a depth prediction/estimation gets available for each processed keyframe. 
+- When a [depth estimator](#depth-prediction) is used
+  * in the back-end or
+  * in the front-end and a depth prediction/estimation gets available for each processed keyframe. 
 
 If you want a mesh as output then set `kVolumetricIntegrationExtractMesh=True` in `config_parameters.py`.
 
@@ -265,6 +276,8 @@ KeyFrame.useFovCentersBasedGeneration: 1  # compute 3D fov centers of camera fra
 KeyFrame.maxFovCentersDistance: 0.2       # max distance between fov centers in order to generate a keyframe
 ```
 
+---
+
 ### Depth prediction
 
 The available depth prediction models can be utilized both in the SLAM back-end and front-end. 
@@ -277,7 +290,11 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 * In the case of a monocular SLAM configuration, do NOT use depth prediction in the back-end volumetric integration: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. With monocular datasets, enable depth prediction to run in the front-end.
 - The depth inference may be very slow (for instance, with DepthPro it takes ~1s per image on my machine). Therefore, the resulting volumetric reconstruction pipeline may be very slow.
 
-### Save the a map
+---
+
+### Saving and reloading
+
+#### Save the a map
 
 When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
 - You can save the current map state by pressing the button `Save` on the GUI. This saves the current map along with front-end, and backend configurations into the default folder `results/slam_state` (`results/slam_state_dense_reconstruction`). 
@@ -287,7 +304,7 @@ When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
     folder_path: results/slam_state   # default folder path (relative to repository root) where the system state is saved or reloaded
   ```
 
-### Reload a saved map and relocalize in it 
+#### Reload a saved map and relocalize in it 
 
 - A saved map can be loaded and visualized in the GUI by running: 
   ```bash
@@ -305,15 +322,25 @@ When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
 Note that pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map overwrites the current system configurations to ensure descriptor compatibility.  
 
 
-### Trajectory saving
+#### Trajectory saving
 
-Estimated trajectories can be saved in three different formats: *TUM* (The Open Mapping format), *KITTI* (KITTI Odometry format), and *EuRoC* (EuRoC MAV format). To enable trajectory saving, open `config.yaml` and search for the `SAVE_TRAJECTORY`: set `save_trajectory: True`, select your `format_type` (`tum`, `kitti`, `euroc`), and the output filename. For instance for a `tum` format output:   
+Estimated trajectories can be saved in three **formats**: *TUM* (The Open Mapping format), *KITTI* (KITTI Odometry format), and *EuRoC* (EuRoC MAV format). pySLAM saves two **types** of trajectory estimates:
+
+- **Online**: In *online* trajectories, each pose estimate depends only on past poses. A pose estimate is saved at the end of each front-end iteration on current frame.
+- **Final**: In *final* trajectories, each pose estimate depends on both past and future poses. A pose estimate is refined multiple times by LBA windows that cover it and by GBA during loop closures.
+
+
+To enable trajectory saving, open `config.yaml` and search for the `SAVE_TRAJECTORY`: set `save_trajectory: True`, select your `format_type` (`tum`, `kitti`, `euroc`), and the output filename. For instance for a `kitti` format output:   
 ```bash
 SAVE_TRAJECTORY:
   save_trajectory: True
-  format_type: tum
-  filename: results/kitti_trajectory.txt
+  format_type: kitti             # supported formats: `tum`, `kitti`, `euroc`
+  output_folder: results/metrics # relative to pyslam root folder 
+  basename: trajectory           # basename of the trajectory saving output
 ```
+
+
+---
 
 ### SLAM GUI 
 
@@ -322,6 +349,8 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 - `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `/main_map_viewer.py` (as explained above). 
 - `Reset`: Reset SLAM system. 
 - `Draw Grount Truth`:  If a ground truth dataset is loaded (e.g., from KITTI, TUM, EUROC, or REPLICA), you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and progressively aligned (approximately every 30 frames) with the estimated trajectory. The alignment improves as more samples are added to the estimated trajectory. After ~20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors (ground truth vs. estimated trajectory) along the axes.  
+
+---
 
 ### Monitor the logs for tracking, local mapping, and loop closing simultaneously
 
@@ -542,11 +571,9 @@ If you want to **use your camera**, you have to:
 --- 
 ## Comparison pySLAM vs ORB-SLAM3
 
-For a comparative evaluation of the trajectories estimated by pySLAM and by ORB-SLAM3, see this [trajectory comparison notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). 
+For a comparative evaluation, "**online**" trajectory estimated by pySLAM vs "**final**" trajectories estimated by ORB-SLAM3, see this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For further details about "online" and "final" trajectories, see [here](#trajectory-saving) .
 
-Note that pySLAM saves its pose estimates in an **online** fashion: At each frame, the current pose estimate is saved at the end of the front-end `tracking` iteration. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback: That means each pose estimate $q$ of ORB-SLAM is refined multiple times by LBA and BA over the multiple window optimizations that cover $q$.  
-
-You can save your pyslam trajectories as detailed [here](#trajectory-saving).
+Note that pySLAM is able to save both online and final pose estimates. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback. See this [section](#trajectory-saving) for further details on how to save trajectories with pySLAM.
 
 --- 
 ## Contributing to pySLAM
@@ -611,6 +638,8 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [RAFT-Stereo](https://github.com/princeton-vl/RAFT-Stereo)
 * [CREStereo](https://github.com/megvii-research/CREStereo) and [CREStereo-Pytorch](https://github.com/ibaiGorordo/CREStereo-Pytorch)
 * [MonoGS](https://github.com/muskie82/MonoGS)
+* [mast3r](https://github.com/naver/mast3r)
+* [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 
 ---
@@ -631,8 +660,8 @@ Many improvements and additional features are currently under development:
 - [x] depth prediction integration
 - [ ] ROS support
 - [x] gaussian splatting integration
-- [ ] documentation [WIP]
+- [x] documentation [WIP]
 - [ ] gtsam integration
 - [ ] IMU integration
 - [ ] LIDAR integration
-- [ ] XSt3r-based methods integration
+- [ ] XSt3r-based methods integration [WIP]

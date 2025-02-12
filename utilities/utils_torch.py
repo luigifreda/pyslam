@@ -31,3 +31,34 @@ def to_np(x, ret_type=float) -> np.ndarray:
         x_np = np.array(x)
     x_np = x_np.astype(ret_type)
     return x_np
+
+
+# Transfer some variables to another device (i.e. GPU, CPU:torch, CPU:numpy).
+# - batch: list, tuple, dict of tensors or other things
+# - device: pytorch device or 'numpy'
+# - callback: function that would be called on every sub-elements.
+def to_device(batch, device, callback=None, non_blocking=False):
+    if callback:
+        batch = callback(batch)
+
+    if isinstance(batch, dict):
+        return {k: to_device(v, device) for k, v in batch.items()}
+
+    if isinstance(batch, (tuple, list)):
+        return type(batch)(to_device(x, device) for x in batch)
+
+    x = batch
+    if device == 'numpy':
+        if isinstance(x, torch.Tensor):
+            x = x.detach().cpu().numpy()
+    elif x is not None:
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        if torch.is_tensor(x):
+            x = x.to(device, non_blocking=non_blocking)
+    return x
+
+
+def to_numpy(x): return to_device(x, 'numpy')
+def to_cpu(x): return to_device(x, 'cpu')
+def to_cuda(x): return to_device(x, 'cuda')

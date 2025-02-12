@@ -274,6 +274,47 @@ if [ ! -d crestereo_pytorch ]; then
 fi
 
 cd $STARTING_DIR
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/mast3r ..."
+
+cd thirdparty
+if [ ! -d mast3r ]; then
+    git clone --recursive https://github.com/naver/mast3r mast3r
+    cd mast3r
+    # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
+    cd dust3r 
+    git apply ../../mast3r-dust3r.patch
+    cd dust3r/croco/models/curope/
+    python setup.py build_ext --inplace
+    cd ../../../../    
+    make_dir checkpoints
+    cd checkpoints
+    wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
+fi
+
+cd $STARTING_DIR
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/mvdust3r ..."
+
+cd thirdparty
+if [ ! -d mast3r ]; then
+    git clone --recursive https://github.com/naver/mast3r mvdust3r
+    cd mast3r
+    # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
+    cd croco/models/curope/
+    python setup.py build_ext --inplace
+    cd ../../../
+    make_dir checkpoints
+    cd checkpoints
+    wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth
+    wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth
+    wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth
+    wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth
+fi
+
+cd $STARTING_DIR
 echo "...done with thirdparty"
 
 

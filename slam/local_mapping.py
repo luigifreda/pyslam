@@ -40,11 +40,11 @@ from timer import TimerFps
 
 from utils_sys import Printer, Logging
 from utils_mp import MultiprocessingManager
-from utils_geom import triangulate_normalized_points
+from utils_geom_triangulation import triangulate_normalized_points
 from utils_data import empty_queue
 
 import multiprocessing as mp
-import logging
+import traceback
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -293,6 +293,7 @@ class LocalMapping:
             # emtpy the queue
             while not self.queue.empty():
                 self.queue.get()
+            self.set_idle(True)
             print(f'LocalMapping: released...')
         
     def run(self):
@@ -313,8 +314,13 @@ class LocalMapping:
                         self.last_processed_kf_img_id = self.kf_cur.img_id
                                                                                     
                         self.set_idle(False) 
-                        self.do_local_mapping()    
+                        try: 
+                            self.do_local_mapping()
+                        except Exception as e:
+                            print(f'LocalMapping: encountered exception: {e}')
+                            print(traceback.format_exc())
                         self.set_idle(True)
+                        
             elif self.stop_if_requested():
                 self.set_idle(True)
                 while self.is_stopped():

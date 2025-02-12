@@ -51,6 +51,7 @@ LIB_PATHS:
   crestereo_pytorch: thirdparty/crestereo_pytorch 
   gaussian_splatting: thirdparty/monogs
   mvdust3r: thirdparty/mvdust3r
+  mast3r: thirdparty/mast3r
 
 
 DATASET:
@@ -69,8 +70,8 @@ KITTI_DATASET:
   sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset
   #
-  # name: '06'
-  # settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
+  name: '06'
+  settings: settings/KITTI04-12.yaml # do not forget to correctly set the corresponding camera settings file 
   #
   # name: '00'
   # settings: settings/KITTI00-02.yaml # do not forget to correctly set the corresponding camera settings file 
@@ -168,8 +169,9 @@ SYSTEM_STATE:
 
 SAVE_TRAJECTORY:
   save_trajectory: True
-  format_type: kitti    # supported formats: `tum`, `kitti`, `euroc`
-  filename: results/kitti_trajectory.txt
+  format_type: kitti             # supported formats: `tum`, `kitti`, `euroc`
+  output_folder: results/metrics # relative to pyslam root folder 
+  basename: trajectory           # basename of the trajectory saving output
 
 
 # DO NOT USE [LIVE_DATASET]! This section is here for future developments. 

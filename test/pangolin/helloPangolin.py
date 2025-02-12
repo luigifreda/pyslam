@@ -6,6 +6,7 @@ import config
 
 import OpenGL.GL as gl
 import pypangolin as pangolin
+import glutils
 
 import numpy as np
 
@@ -42,7 +43,7 @@ def main():
         gl.glPointSize(2)
         gl.glColor3f(1.0, 0.0, 0.0)
         # access numpy array directly(without copying data), array should be contiguous.
-        pangolin.DrawPoints(points, colors)    
+        glutils.DrawPoints(points, colors)    
 
         pangolin.FinishFrame()
 

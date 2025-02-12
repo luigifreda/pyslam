@@ -233,9 +233,9 @@ class GroundTruth(object):
             
     @staticmethod
     def load(path):
-        filepath = path + '/gt.json'
+        filepath = os.path.join(path,'gt.json')
         if not os.path.exists(filepath):
-            Printer.error(f'ERROR: GroundTruth.load(): file {filepath} does not exist!')
+            Printer.yellow(f'WARNING: GroundTruth.load(): file {filepath} does not exist!')
             return None
         with open(filepath, 'r') as f:
             json_str = json.load(f)

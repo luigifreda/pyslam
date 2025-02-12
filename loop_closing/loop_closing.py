@@ -662,6 +662,9 @@ class LoopClosing:
             
     def load_image_map_(self, path):
         filepath = path + '/kf_image_map.pkl'
+        if not os.path.exists(filepath):
+            print(f'LoopClosing: KF image map does not exist: {filepath}')
+            return
         print(f'LoopClosing: loading KF image map from {filepath}...')
         # Load the dictionary from a file
         with self.map_frame_id_to_img_lock:  

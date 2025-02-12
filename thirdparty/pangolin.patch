@@ -13,10 +13,33 @@ index 13216f3..a608e73 100644
  namespace pangolin {
  
 diff --git a/python/contrib.hpp b/python/contrib.hpp
-index 873ea3f..4cb108e 100644
+index 873ea3f..4da6393 100644
 --- a/python/contrib.hpp
 +++ b/python/contrib.hpp
-@@ -13,6 +13,8 @@ namespace pangolin {
+@@ -1,3 +1,22 @@
++/*
++* This file is part of PYSLAM 
++*
++* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
++*
++* PYSLAM is free software: you can redistribute it and/or modify
++* it under the terms of the GNU General Public License as published by
++* the Free Software Foundation, either version 3 of the License, or
++* (at your option) any later version.
++*
++* PYSLAM is distributed in the hope that it will be useful,
++* but WITHOUT ANY WARRANTY; without even the implied warranty of
++* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++* GNU General Public License for more details.
++*
++* You should have received a copy of the GNU General Public License
++* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
++*/
++
+ #include <pybind11/pybind11.h>
+ #include <pybind11/stl.h>
+ 
+@@ -13,6 +32,8 @@ namespace pangolin {
  
  namespace {
  
@@ -25,7 +48,7 @@ index 873ea3f..4cb108e 100644
  void DrawPoints(py::array_t<double> points) {
      auto r = points.unchecked<2>();
      glBegin(GL_POINTS);
-@@ -22,6 +24,7 @@ void DrawPoints(py::array_t<double> points) {
+@@ -22,6 +43,7 @@ void DrawPoints(py::array_t<double> points) {
      glEnd();
  }
  
@@ -33,7 +56,7 @@ index 873ea3f..4cb108e 100644
  void DrawPoints(py::array_t<double> points, py::array_t<double> colors) {
      auto r = points.unchecked<2>();
      auto rc = colors.unchecked<2>();
-@@ -34,6 +37,143 @@ void DrawPoints(py::array_t<double> points, py::array_t<double> colors) {
+@@ -34,6 +56,143 @@ void DrawPoints(py::array_t<double> points, py::array_t<double> colors) {
      glEnd();
  }
  
@@ -177,7 +200,22 @@ index 873ea3f..4cb108e 100644
  
  void DrawCameras(py::array_t<double> cameras, float w=1.0, float h_ratio=0.75, float z_ratio=0.6) {
      auto r = cameras.unchecked<3>();
-@@ -238,6 +378,11 @@ void declareContrib(py::module & m) {
+@@ -223,14 +382,9 @@ void DrawBoxes(py::array_t<double> cameras, py::array_t<double> sizes) {
+ }
+ 
+ 
+-// TODO:
+-// draw surface
+-
+ }
+ 
+ 
+-
+-
+ void declareContrib(py::module & m) {
+ 
+     m.def("DrawPoints", (void (*) (py::array_t<double>)) &DrawPoints, 
+@@ -238,6 +392,11 @@ void declareContrib(py::module & m) {
      m.def("DrawPoints", (void (*) (py::array_t<double>, py::array_t<double>)) &DrawPoints,
          "points"_a, "colors"_a);
  

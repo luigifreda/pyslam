@@ -15,6 +15,7 @@ print_blue "Configuring and installing system packages ..."
 sudo apt-get update
 
 install_package rsync 
+install_package wget
 install_package unzip 
 
 # system packages 

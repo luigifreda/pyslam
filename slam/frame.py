@@ -34,7 +34,8 @@ from config_parameters import Parameters
 from camera import Camera, PinholeCamera
 from camera_pose import CameraPose
 
-from utils_geom import add_ones, poseRt, normalize, triangulate_points, triangulate_normalized_points
+from utils_geom import add_ones, poseRt
+from utils_geom_triangulation import triangulate_normalized_points
 from utils_sys import myjet, Printer
 
 from feature_types import FeatureInfo
@@ -46,6 +47,8 @@ from utils_features import compute_NSAD_between_matched_keypoints, descriptor_si
 from utils_serialization import NumpyJson, NumpyB64Json
 
 import rerun as rr              # pip install rerun-sdk
+from rerun_interface import Rerun
+
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -923,7 +926,7 @@ class Frame(FrameBase):
         if do_check_with_des_distances_sigma_mad:
             des1 = stereo_matching_result.des1[good_matched_idxs1]
             des2 = stereo_matching_result.des2[good_matched_idxs2]
-            sigma_mad, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=FeatureTrackerShared.descriptor_distances)
+            sigma_mad, dists_median, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=FeatureTrackerShared.descriptor_distances)
             good_des_dists_mask = des_dists < 1.5 * sigma_mad
             num_good_des_dists = good_des_dists_mask.sum()
             print(f'[compute_stereo_matches] perc good des distances: {100*num_good_des_dists/len(good_des_dists_mask)}')
@@ -950,7 +953,10 @@ class Frame(FrameBase):
             cv2.waitKey(1)   
                     
         if False:
+            if not Rerun.is_initialized:
+                Rerun.init()
             points, _ = self.unproject_points_3d(good_matched_idxs1, transform_in_world=False)
+            #print(f'[compute_stereo_matches] #points 3D: {len(points)}')
             rr.log("points", rr.Points3D(points))
 
     # unproject keypoints where the depth is available                               

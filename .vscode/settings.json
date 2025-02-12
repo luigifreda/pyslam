@@ -76,7 +76,15 @@
         "numericaldiff": "cpp",
         "matrixfunctions": "cpp",
         "alignedvector3": "cpp",
-        "fft": "cpp"
+        "fft": "cpp",
+        "csetjmp": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "charconv": "cpp",
+        "propagate_const": "cpp",
+        "regex": "cpp",
+        "scoped_allocator": "cpp",
+        "dense": "cpp"
     },
     "python.autoComplete.extraPaths": [
         "${workspaceFolder}",
@@ -103,5 +111,5 @@
         "${workspaceFolder}/dense",
         "${workspaceFolder}/thirdparty",
         "${workspaceFolder}/cpp"        
-    ]
+    ],
 }

@@ -19,7 +19,7 @@ fi
 # if [[ "$OSTYPE" == "darwin"* ]]; then 
 # fi 
 
-# install required packages 
+# 1. install required system packages 
 brew update 
 brew install wget 
 brew install doxygen 
@@ -42,22 +42,22 @@ brew install catch2
 #brew install open3d     # built from source for different issues 
 brew install x265 libjpeg libde265 libheif   # for pillow-heif
 
-# create a pyslam environment within pyenv and activate it 
+# 2. create a pyslam environment within pyenv and activate it 
 ./pyenv-mac-create.sh  # NOTE: the use of ./ seems crucial for the correct identification of the python libs for C++ projects 
 
-# activate the created python virtual environment 
+# 3. activate the created python virtual environment 
 . pyenv-activate.sh   
+
+# 4. set up git submodules (we need to install gdown before this) 
+./install_git_modules.sh   
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
- # some unresolved dep conflict found in requirement-pip3.txt may be managed by the following command: 
+ # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
 . install_pip3_packages.sh 
 
-# set up git submodules (we need to install gdown before this) 
-./install_git_modules.sh   
-
-# build and install cpp stuff 
+# 6. build and install cpp stuff 
 . install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
 
-# build and install thirdparty 
+# 7. build and install thirdparty 
 . install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 

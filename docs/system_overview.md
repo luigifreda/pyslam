@@ -14,7 +14,7 @@
 
 <!-- /TOC -->
 
-In this document, you can find a couple of diagram sketches that provide an overview of the main workflow, system components, and classes relationships/dependencies.
+In this document, you will find some diagram sketches that provide an overview of the main workflow, system components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted.
 
 ---
 
@@ -32,7 +32,7 @@ In this document, you can find a couple of diagram sketches that provide an over
 </p>
 
 
-**Note**: You might be wondering why I used **Processes** instead of **Threads** in some cases. The reason is that, at least in Python 3.8 (the version supporting pySLAM), only one thread can execute at a time within a single process due to the Global Interpreter Lock (GIL). On the other hand, using multiprocessing (separate processes that do not share the GIL) enables better parallelism. See this nice [post](https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder).
+**Note**: In some case, I used **Processes** instead of **Threads** because in Python 3.8 (used by pySLAM) the Global Interpreter Lock (GIL) allows only one thread can execute at a time within a single process. Multiprocessing avoids this limitation and enables better parallelism, though it involves data duplication via pickling. See this nice [post](https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder).
 
 
 ---

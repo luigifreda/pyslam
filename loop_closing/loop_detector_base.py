@@ -185,6 +185,9 @@ class LoopDetectorBase:
     # Load the maps used by the loop detector database 
     def load_db_maps(self, path):
         load_path = path + '/loop_closing_db_maps.json'
+        if not os.path.exists(load_path):
+            print(f'LoopDetectorBase: database maps do not exist: {load_path}')
+            return
         print(f'LoopDetectorBase: loading database maps from {load_path}...')        
         with open(load_path, 'rb') as f:
             output = json.load(f)

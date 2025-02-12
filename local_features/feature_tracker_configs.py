@@ -142,7 +142,7 @@ class FeatureTrackerConfigs(object):
                detector_type = FeatureDetectorTypes.ORB, 
                descriptor_type = FeatureDescriptorTypes.ORB,
                sigma_level0 = Parameters.kSigmaLevel0, 
-               match_ratio_test = kRatioTest,                        
+               match_ratio_test = kRatioTest,                       
                tracker_type = kTrackerType)
     
     ORB2 = dict(num_features=kNumFeatures, 

@@ -88,8 +88,9 @@ def filter_shadow_points(depth, delta_depth=None, delta_x=2, delta_y=2, fill_val
         delta_values = np.concatenate(delta_values)
         delta_values = delta_values[delta_values > 0]
         
-        mad = np.median(delta_values) # MAD, approximating median=0 
-        delta_depth = 3 * 1.4826 * mad + mad
+        mad = np.median(delta_values) # MAD, approximating median(deltas)=0 in MAD=median(deltas - median(deltas))
+        sigma_depth = 1.4826 * mad
+        delta_depth = 3 * sigma_depth # + mad  # the final "+ mad" is for adding back a bias (the median itself) to the depth threshold since the delta distribution is not centered at zero
         #print(f'filter_shadow_points: delta_depth={delta_depth}, mad: {mad}')
             
     # Update mask        

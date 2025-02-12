@@ -47,7 +47,7 @@ kAbsoluteScaleThresholdIndoor = 0.015          # absolute translation scale; it 
 # It combines the simplest VO ingredients without performing any image point triangulation or 
 # windowed bundle adjustment. At each step $k$, it estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. 
 # The inter frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $||t_{k-1,k}||=1$. 
-# With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a 
+# With this very basic approach, you need to use a ground truth in order to recover a reasonable inter-frame scale $s$ and estimate a 
 # valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. 
 class VisualOdometryEducational(VisualOdometryBase):
     def __init__(self, cam, groundtruth: GroundTruth, feature_tracker: FeatureTracker):

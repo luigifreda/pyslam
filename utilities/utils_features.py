@@ -139,9 +139,9 @@ def descriptor_sigma_mad(des1, des2, descriptor_distances=l2_distances):
     # for i in range(des1.shape[0]):
     #     dists[i] = descriptor_distance(des1[i],des2[i])
     dists = descriptor_distances(des1,des2)
-    dists_median = np.median(dists)     # MAD, approximating dists_median=0 
+    dists_median = np.median(dists)     # MAD, approximating dists_median=0  in the computation MAD=median(dists - dists_median)
     sigma_mad = 1.4826 * dists_median
-    return sigma_mad, dists        
+    return sigma_mad, dists_median, dists        
 
 # robust estimation of descriptor distance standard deviation by using MAD (Median Absolute Deviation)  
 # N.B: you can use the thresholding condition:
@@ -154,7 +154,7 @@ def descriptor_sigma_mad_v2(des1, des2, descriptor_distances=l2_distances):
     dists = descriptor_distances(des1,des2)
     dists_median = np.median(dists)
     ads = np.fabs(dists - dists_median) # absolute deviations from median 
-    sigma_mad = 1.4826 * np.median(ads) 
+    sigma_mad = 1.4826 * np.median(ads)
     return sigma_mad, dists_median, dists       
 
 
@@ -699,7 +699,7 @@ def transform_float_to_binary_descriptor(float_des):
 
 
 # Represents an image grid with specified cell size equal to (width/num_div_x,height/num_div_y)
-# This can be used to count the num of features that are present in each cell
+# This can be used to count the num of features that are present in each cell and check their image coverage.
 class ImageGrid:
     def __init__(self, width, height, num_div_x=4, num_div_y=4):
         self.width = width

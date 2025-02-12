@@ -22,6 +22,8 @@ import cv2
 import time 
 import os
 import sys
+import numpy as np
+import json
 
 import platform 
 
@@ -41,6 +43,9 @@ if platform.system()  == 'Linux':
 from viewer3D import Viewer3D
 from utils_sys import getchar, Printer 
 from utils_img import ImgWriter
+from utils_eval import eval_ate
+from utils_geom_trajectory import find_poses_associations
+from utils_colors import GlColors
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
@@ -53,19 +58,38 @@ from config_parameters import Parameters
 
 from rerun_interface import Rerun
 
+from datetime import datetime
 import traceback
 
 
-if __name__ == "__main__":
-                                                     
+datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    
+def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est):       
+    T_est_gt = np.linalg.inv(T_gt_est)
+    scale = np.mean([np.linalg.norm(T_est_gt[i, :3]) for i in range(3)])
+    R_est_gt = T_est_gt[:3, :3]/scale # we need a pure rotation to avoid camera scale changes
+    assoc_gt_poses_aligned = [np.eye(4) for i in range(len(assoc_gt_poses))]
+    for i in range(len(assoc_gt_poses)):
+        assoc_gt_poses_aligned[i][:3,3] = T_est_gt[:3, :3] @ assoc_gt_poses[i][:3, 3] + T_est_gt[:3, 3]
+        assoc_gt_poses_aligned[i][:3,:3] = R_est_gt @ assoc_gt_poses[i][:3,:3]
+    viewer3D.draw_cameras([assoc_est_poses, assoc_gt_poses_aligned], [GlColors.kCyan, GlColors.kMagenta])    
+
+
+if __name__ == "__main__":                                    
     config = Config()
 
-    dataset = dataset_factory(config)
+    metrics_save_dir = config.root_folder + '/results' + '/metrics_' + datetime_string
 
-    trajectory_writer = None
-    if config.trajectory_settings['save_trajectory']:
-        trajectory_writer = TrajectoryWriter(format_type=config.trajectory_settings['format_type'], filename=config.trajectory_settings['filename'])
-        trajectory_writer.open_file()
+    dataset = dataset_factory(config)
+    is_monocular=(dataset.sensor_type==SensorType.MONOCULAR)    
+
+    online_trajectory_writer = None
+    final_trajectory_writer = None
+    if config.trajectory_saving_settings['save_trajectory']:
+        trajectory_online_file_path, trajectory_final_file_path = config.get_trajectory_saving_paths(datetime_string)
+        online_trajectory_writer = TrajectoryWriter(format_type=config.trajectory_saving_settings['format_type'], filename=trajectory_online_file_path)
+        final_trajectory_writer = TrajectoryWriter(format_type=config.trajectory_saving_settings['format_type'], filename=trajectory_final_file_path)
     
     groundtruth = groundtruth_factory(config.dataset_settings)
 
@@ -116,10 +140,10 @@ if __name__ == "__main__":
         slam.set_tracking_state(SlamState.INIT_RELOCALIZE)
 
     viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
+    
     if groundtruth is not None:
-        gt_traj3d, gt_timestamps = groundtruth.getFull3dTrajectory()
-        if viewer3D is not None:
-            viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=dataset.sensor_type==SensorType.MONOCULAR)
+        gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
+        viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=is_monocular)
     
     if platform.system() == 'Linux':    
         display2d = None # Display2D(camera.width, camera.height)  # pygame interface 
@@ -132,15 +156,16 @@ if __name__ == "__main__":
     
     img_writer = ImgWriter(font_scale=0.7)
 
-    do_step = False      # proceed step by step on GUI 
-    do_reset = False     # reset on GUI 
-    is_paused = False    # pause/resume on GUI 
-    is_map_save = False  # save map on GUI
+    do_step = False          # proceed step by step on GUI 
+    do_reset = False         # reset on GUI 
+    is_paused = False        # pause/resume on GUI 
+    is_map_save = False      # save map on GUI
+    is_bundle_adjust = False # bundle adjust on GUI
     
     key_cv = None
             
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
-    while True:
+    while not viewer3D.is_closed():
         
         img, img_right, depth = None, None, None    
         
@@ -197,8 +222,8 @@ if __name__ == "__main__":
                     # draw 2d plots
                     plot_drawer.draw(img_id)
                         
-                if trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
-                    trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
+                if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
+                    online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
                     
                 if time_start is not None: 
                     duration = time.time()-time_start
@@ -221,12 +246,8 @@ if __name__ == "__main__":
         if display2d is None:
             key_cv = cv2.waitKey(1) & 0xFF   
             
-        # if key != '' and key is not None:
-        #     print(f'key pressed: {key}') 
-        
-        
+
         # manage SLAM states 
-        
         if slam.tracking.state==SlamState.LOST:
             if display2d is None:  
                 #key_cv = cv2.waitKey(0) & 0xFF   # useful when drawing stuff for debugging
@@ -236,32 +257,63 @@ if __name__ == "__main__":
                 time.sleep(0.5)
                 
         # manage interface infos  
-                         
         if is_map_save:
             slam.save_system_state(config.system_state_folder_path)
             dataset.save_info(config.system_state_folder_path)
             groundtruth.save(config.system_state_folder_path)
-            Printer.green('uncheck pause checkbox on GUI to continue...\n')        
+            Printer.green('uncheck pause checkbox on GUI to continue...\n')    
+            
+        if is_bundle_adjust:
+            slam.bundle_adjust()    
+            Printer.green('uncheck pause checkbox on GUI to continue...\n')
+            
+        if not is_paused and viewer3D.is_paused():  # when a pause is triggered
+            est_poses, timestamps, ids = slam.get_final_trajectory()
+            assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(timestamps, est_poses, gt_timestamps, gt_poses)
+            ape_stats, T_gt_est = eval_ate(poses_est=assoc_est_poses, poses_gt=assoc_gt_poses, frame_ids=ids, 
+                    curr_frame_id=img_id, is_final=False, is_monocular=is_monocular, save_dir=None)
+            Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
+            #draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
+             
         
         if viewer3D is not None:
             is_paused = viewer3D.is_paused()    
             is_map_save = viewer3D.is_map_save() and is_map_save == False 
+            is_bundle_adjust = viewer3D.is_bundle_adjust() and is_bundle_adjust == False
             do_step = viewer3D.do_step() and do_step == False  
             do_reset = viewer3D.reset() and do_reset == False
-            if viewer3D.is_closed():
-                key = 'q'
                                   
-        if key == 'q' or (key_cv == ord('q')):
-            slam.quit()
-            plot_drawer.quit()         
-            if display2d is not None:
-                display2d.quit()
-            if viewer3D is not None:
-                viewer3D.quit()           
+        if key == 'q' or (key_cv == ord('q')):        
             break
             
-    trajectory_writer.close_file()
+    # here we save the online estimated trajectory
+    online_trajectory_writer.close_file()
     
-    #cv2.waitKey(0)
+    # compute metrics on the estimated final trajectory 
+    try: 
+        est_poses, timestamps, ids = slam.get_final_trajectory()
+        is_final = not dataset.isOk()
+        assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(timestamps, est_poses, gt_timestamps, gt_poses)        
+        ape_stats, T_gt_est = eval_ate(poses_est=assoc_est_poses, poses_gt=assoc_gt_poses, frame_ids=ids, 
+                 curr_frame_id=img_id, is_final=is_final, is_monocular=is_monocular, save_dir=metrics_save_dir)
+        Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
+        
+        if final_trajectory_writer is not None:
+            final_trajectory_writer.write_full_trajectory(est_poses, timestamps)
+            final_trajectory_writer.close_file()
+        
+    except Exception as e:
+        print('Exception while computing metrics: ', e)
+        print(f'traceback: {traceback.format_exc()}')
+
+    # close stuff 
+    slam.quit()
+    if plot_drawer is not None:
+        plot_drawer.quit()         
+    if display2d is not None:
+        display2d.quit()
+    if viewer3D is not None:
+        viewer3D.quit()   
+                
     if display2d is None:
         cv2.destroyAllWindows()

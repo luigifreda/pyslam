@@ -15,8 +15,9 @@ from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureI
 from feature_matcher import FeatureMatcherTypes
 from utils_img import combine_images_horizontally, rotate_img, transform_img, add_background
 from utils_geom import add_ones
-from utils_features import descriptor_sigma_mad, compute_hom_reprojection_error
+from utils_features import descriptor_sigma_mad, descriptor_sigma_mad_v2, compute_hom_reprojection_error
 from utils_draw import draw_feature_matches
+from utils_plot import plot_errors_histograms
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
@@ -44,7 +45,7 @@ img1_box = None               # image 1 bounding box (initialization)
 model_fitting_type = None     # 'homography' or 'fundamental' (automatically set below, this is an initialization)
 draw_horizontal_layout=True   # draw matches with the two images in an horizontal or vertical layout (automatically set below, this is an initialization) 
 
-test_type='graf'             # select the test type (there's a template below to add your test)
+test_type='kitti_step'             # select the test type (there's a template below to add your test)
 #  
 if test_type == 'box': 
     img1 = cv2.imread(kScriptFolder + '/test/data/box.png')          # queryImage  
@@ -54,18 +55,23 @@ if test_type == 'box':
 #
 if test_type == 'graf': 
     img1 = cv2.imread(kScriptFolder + '/test/data/graf/img1.ppm') # queryImage
-    img2 = cv2.imread(kScriptFolder + '/test/data/graf/img3.ppm') # trainImage   img2, img3, img4
+    img2 = cv2.imread(kScriptFolder + '/test/data/graf/img4.ppm') # trainImage   img2, img3, img4
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
     model_fitting_type='homography' 
     draw_horizontal_layout = True 
 #
-if test_type == 'kitti': 
+if test_type == 'kitti_LR': 
     img1 = cv2.imread(kScriptFolder + '/test/data/kitti06-12-color.png')
-    img2 = cv2.imread(kScriptFolder + '/test/data/kitti06-12-R-color.png')     
-    #img2 = cv2.imread(kScriptFolder + '/test/data/kitti06-13-color.png')     
+    img2 = cv2.imread(kScriptFolder + '/test/data/kitti06-12-R-color.png')       
     model_fitting_type='fundamental' 
-    draw_horizontal_layout = False     
+    draw_horizontal_layout = False    
+#
+if test_type == 'kitti_step': 
+    img1 = cv2.imread(kScriptFolder + '/test/data/kitti06-12-color.png') 
+    img2 = cv2.imread(kScriptFolder + '/test/data/kitti06-17-color.png')     
+    model_fitting_type='fundamental' 
+    draw_horizontal_layout = False       
 # 
 if test_type == 'churchill': 
     img1 = cv2.imread(kScriptFolder + '/test/data/churchill/1.ppm') 
@@ -131,9 +137,9 @@ tracker_type = None
 
 # select your tracker configuration (see the file feature_tracker_configs.py) 
 # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT_XFEAT, LOFTR
-tracker_config = FeatureTrackerConfigs.ROOT_SIFT
+tracker_config = FeatureTrackerConfigs.ORB2
 tracker_config['num_features'] = num_features
-tracker_config['match_ratio_test'] = 0.8        # 0.7 is the default in feature_tracker_configs.py
+tracker_config['match_ratio_test'] = 0.7        # 0.7 is the default in feature_tracker_configs.py
 if tracker_type is not None:
     tracker_config['tracker_type'] = tracker_type
 print('feature_manager_config: ', tracker_config)
@@ -191,8 +197,10 @@ kps2_size = kps2_size[idxs2]
 
 # compute sigma mad of descriptor distances
 if des1_matched is not None and des2_matched is not None:
-    sigma_mad, dists = descriptor_sigma_mad(des1_matched,des2_matched,descriptor_distances=feature_tracker.descriptor_distances)
-    print('3 x sigma-MAD of descriptor distances (all): ', 3 * sigma_mad)
+    sigma_mad, median, dists = descriptor_sigma_mad(des1_matched,des2_matched,descriptor_distances=feature_tracker.descriptor_distances)
+    print('[3*sigma-MAD] of descriptor distances (all): ', 3 * sigma_mad)
+    print('[median+3*sigma-MAD] of descriptor distances (all): ', median + 3 * sigma_mad)
+    plot_errors_histograms(dists, title='Histogram of Descriptor Distances', xlabel='Descriptor Distance', ylabel='Frequency', bins=50, show=False)
 
 
 #============================================
@@ -258,9 +266,12 @@ if mask is not None:
     print('inliers percentage: ', len(kps1_matched_inliers)/max(len(kps1_matched),1.)*100,'%')
         
     if des1_matched_inliers is not None and des2_matched_inliers is not None: 
-        sigma_mad_inliers, dists = descriptor_sigma_mad(des1_matched_inliers,des2_matched_inliers,descriptor_distances=feature_tracker.descriptor_distances)
-        print('3 x sigma-MAD of descriptor distances (inliers): ', 3 * sigma_mad)  # This value can be used as an initial reasonable max descriptor distance (provided the matched images are not too similar). 
-    #print('distances: ', dists)
+        sigma_mad_inliers, median, dists = descriptor_sigma_mad(des1_matched_inliers,des2_matched_inliers,descriptor_distances=feature_tracker.descriptor_distances)
+        print(f'sigma_mad_inliers: {sigma_mad_inliers}')
+        print(f'[3*sigma-MAD]  of descriptor distances (inliers): {3*sigma_mad_inliers}')  # This value can be used as an initial reasonable max descriptor distance (provided the matched images are not too similar). 
+        print('[median + 3*sigma-MAD] of descriptor distances (inliers): ', median + 3*sigma_mad_inliers)
+        plot_errors_histograms(dists, title='Histogram of Descriptor Inlier Distances', xlabel='Descriptor Distance', ylabel='Frequency', bins=50, show=False)
+    
     if not show_kps_size:
         kps1_size_inliers, kps2_size_inliers = None, None
     img_matched_inliers = draw_feature_matches(img1, img2, kps1_matched_inliers, kps2_matched_inliers, kps1_size_inliers, kps2_size_inliers, draw_horizontal_layout)    
@@ -268,8 +279,8 @@ if mask is not None:
 if not show_kps_size:
     kps1_size, kps2_size = None, None
 img_matched = draw_feature_matches(img1, img2, kps1_matched, kps2_matched, kps1_size, kps2_size, draw_horizontal_layout)                          
-                                                
+                                                                                             
+fig1 = MPlotFigure(img_matched, title='All matches')
 if img_matched_inliers is not None: 
-    fig1 = MPlotFigure(img_matched_inliers, title='Inlier matches')                                                
-fig2 = MPlotFigure(img_matched, title='All matches')
+    fig2qq = MPlotFigure(img_matched_inliers, title='Inlier matches')   
 MPlotFigure.show()

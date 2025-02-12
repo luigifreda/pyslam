@@ -71,8 +71,8 @@ class KeyFrameGraph(object):
                     'children': [k.id for k in self.children],
                     'loop_edges': [k.id for k in self.loop_edges],
                     'not_to_erase': bool(self.not_to_erase),
-                    'connected_keyframes_weights': [ (k.id,w) for k,w in self.connected_keyframes_weights.items()],
-                    'ordered_keyframes_weights': [ (k.id,w) for k,w in self.ordered_keyframes_weights.items()],
+                    'connected_keyframes_weights': [ (k.id,w) for k,w in self.connected_keyframes_weights.items() if k is not None],
+                    'ordered_keyframes_weights': [ (k.id,w) for k,w in self.ordered_keyframes_weights.items() if k is not None],
                     'is_first_connection': bool(self.is_first_connection)
                     }
        
@@ -242,7 +242,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         
         self.lba_count = 0       # how many time this keyframe has adjusted by LBA
         
-        # pose relative to parent (this is computed when bad flag is activated)
+        # pose relative to parent: self.Tcw @ self.parent.Twc (this is computed when bad flag is activated)
         self._pose_Tcp = CameraPose() 
 
         # share keypoints info with frame (these are computed once for all on frame initialization and they are not changed anymore)
@@ -383,6 +383,11 @@ class KeyFrame(Frame,KeyFrameGraph):
                 self.is_first_connection = False 
         #print('ordered_keyframes_weights: ', self.ordered_keyframes_weights)                               
             
+    @property 
+    def Tcp(self): 
+        with self._lock_connections: 
+            return self._pose_Tcp.get_matrix() # pose relative to parent: self.Tcw @ self.parent.Twc (this is computed when bad flag is activated)
+        
     @property             
     def is_bad(self): 
         with self._lock_connections:        

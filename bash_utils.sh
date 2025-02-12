@@ -240,5 +240,11 @@ function set_env_var() {
     fi
 }
 
+function replace_dot_with_hyphen() {
+    local input_string="$1"
+    new_string=$(echo "$input_string" | tr '.' '-')
+    echo "$new_string"
+}
+
 # ====================================================
 
