@@ -13,30 +13,16 @@ print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
 
 
-# detect CUDA VERSION
-CUDA_VERSION=""
-if command -v nvidia-smi &> /dev/null; then
-    CUDA_VERSION=$(get_cuda_version)
-    echo CUDA_VERSION: $CUDA_VERSION
-
-    export CUDA_VERSION_STRING="cuda-"${CUDA_VERSION}  # must be an installed CUDA path in "/usr/local"; 
-                                                       # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
-    if [ ! -d /usr/local/$CUDA_VERSION_STRING ]; then
-        CUDA_VERSION_STRING="cuda"  # use last installed CUDA path in standard path as a fallback 
-    fi     
-    echo CUDA_VERSION_STRING: $CUDA_VERSION_STRING
-    export CUDA_HOME="/usr/local/$CUDA_VERSION_STRING"
-    export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
-    export LD_LIBRARY_PATH=$CUDA_HOME/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}    
-    export C_INCLUDE_PATH=$CUDA_HOME/include:$C_INCLUDE_PATH
-    export CPLUS_INCLUDE_PATH=$CUDA_HOME/include:$CPLUS_INCLUDE_PATH    
-fi
+# detect and configure CUDA 
+. cuda_config.sh
 
 
 # N.B.: python3 is required!
 
 pip3 install --upgrade pip 
 pip3 install --upgrade setuptools wheel
+
+pip3 install ninja
 
 
 # PIP_MAC_OPTIONS=""
@@ -150,6 +136,7 @@ fi
 
 pip install gdown  # to download from google drive
 
+pip install evo    #==1.11.0
 
 # MonoGS
 if command -v nvidia-smi &> /dev/null; then
@@ -160,7 +147,6 @@ if command -v nvidia-smi &> /dev/null; then
     pip install plyfile
     pip install glfw
     pip install trimesh
-    pip install evo    #==1.11.0
     pip install torchmetrics
     pip install imgviz
     pip install PyOpenGL
@@ -180,7 +166,8 @@ if command -v nvidia-smi &> /dev/null; then
         git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
         cd $ROOT_DIR
     fi
-    pip install ./thirdparty/lietorch --verbose                               # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
+    pip install ./thirdparty/lietorch --verbose                              # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
+    #./thirdparty/lietorch/build.sh                                            # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
     
     pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
     pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
@@ -189,7 +176,7 @@ fi
 
 # mast3r and mvdust3r
 if command -v nvidia-smi &> /dev/null; then
-    # We need cuda for MonoGS
+    # We need cuda for mast3r and mvdust3r
 
     pip install gradio 
     pip install roma 
@@ -200,6 +187,7 @@ if command -v nvidia-smi &> /dev/null; then
 
     sudo apt install libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS
 
+    MAKEFLAGS_OPTION="-j$(nproc)"
     # to install from source (to avoid linking issue with CUDA)
     pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"    
 fi

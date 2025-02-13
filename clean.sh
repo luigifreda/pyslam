@@ -87,7 +87,7 @@ if [ -d "thirdparty/monogs/submodules/diff-gaussian-rasterization/build" ]; then
     rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 fi
 
-if [ -d "thirdpary/mast3r" ]; then
+if [ -d "thirdparty/mast3r" ]; then
     rm -rf thirdparty/mast3r
 fi
 

@@ -1,9 +1,9 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 new file mode 100644
-index 0000000..7235fae
+index 0000000..731ec60
 --- /dev/null
 +++ b/CMakeLists.txt
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,189 @@
 +cmake_minimum_required(VERSION 3.10)
 +project(lietorch LANGUAGES CXX CUDA)
 +
@@ -25,6 +25,7 @@ index 0000000..7235fae
 +# Generate compile_commands.json for tooling
 +set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 +
++# Set basic compiler flags
 +set(CMAKE_C_FLAGS "-O2")
 +set(CMAKE_CXX_FLAGS "-O2")
 +
@@ -55,25 +56,30 @@ index 0000000..7235fae
 +  endif()
 +endfunction()
 +
-+# Detect CUDA architectures
++# Detect CUDA architectures and set them
 +detect_cuda_architectures(CUDA_ARCHITECTURES)
 +
 +# Set CUDA architectures
 +set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCHITECTURES})
 +message(STATUS "Detected CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 +
-+# Include directories
-+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lietorch/include)
-+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/eigen)
++# Use the newer CUDA toolkit package
++find_package(CUDAToolkit REQUIRED)
 +
-+# Find Python and PyTorch
-+find_package(Python3 REQUIRED)
-+#find_package(PythonExtensions REQUIRED)
++# Find Python (and its development files)
++find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 +
-+find_package(CUDA REQUIRED)
-+include_directories(${CUDA_INCLUDE_DIRS})
-+link_directories(${CUDA_LIBRARY_DIRS})
++# Determine the Python site-packages directory
++execute_process(
++    COMMAND ${Python3_EXECUTABLE} -c "import site; print(site.getsitepackages()[0])"
++    OUTPUT_VARIABLE SITE_PACKAGES_DIR
++    OUTPUT_STRIP_TRAILING_WHITESPACE
++)
++message(STATUS "Python site-packages directory: ${SITE_PACKAGES_DIR}")
 +
++#find_package(Torch REQUIRED)
++
++# Query PyTorch’s include and library paths (as done in setup.py)
 +execute_process(
 +  COMMAND python3 -c "from torch.utils import cpp_extension; print(cpp_extension.include_paths()[0])"
 +  OUTPUT_VARIABLE TORCH_INCLUDE_DIR
@@ -92,23 +98,57 @@ index 0000000..7235fae
 +  OUTPUT_STRIP_TRAILING_WHITESPACE
 +)
 +
-+# Add PyTorch and Python include directories
++execute_process(
++  COMMAND python3 -c "import torch; import glob; print(';'.join(glob.glob(torch.__path__[0] + '/lib/*.so')))"
++  OUTPUT_VARIABLE TORCH_LIBRARIES
++  OUTPUT_STRIP_TRAILING_WHITESPACE
++)
++
++message(STATUS "PyTorch include directory: ${TORCH_INCLUDE_DIR}")
++message(STATUS "PyTorch library directory: ${TORCH_LIBRARY_DIR}")
++message(STATUS "PyTorch API include directory: ${TORCH_API_INCLUDE_DIR}")
++message(STATUS "PyTorch libraries: ${TORCH_LIBRARIES}")
++
++
++execute_process(
++  COMMAND python3 -c "import torch; print(int(torch._C._GLIBCXX_USE_CXX11_ABI))"
++  OUTPUT_VARIABLE GLIBCXX_USE_CXX11_ABI
++  OUTPUT_STRIP_TRAILING_WHITESPACE
++)
++message(STATUS "Detected _GLIBCXX_USE_CXX11_ABI=${GLIBCXX_USE_CXX11_ABI}")
++add_definitions(-D_GLIBCXX_USE_CXX11_ABI=${GLIBCXX_USE_CXX11_ABI})
++
++
++# Include directories for Python, PyTorch, and CUDA
++include_directories(${Python3_INCLUDE_DIRS})
 +include_directories(${TORCH_INCLUDE_DIR})
 +include_directories(${TORCH_API_INCLUDE_DIR})
-+include_directories(${Python3_INCLUDE_DIRS})
++#include_directories(${Torch_INCLUDE_DIRS})
++include_directories(${CUDA_INCLUDE_DIRS})
 +
-+# Add PyTorch library directories
++include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lietorch/include)
++include_directories(${CMAKE_CURRENT_SOURCE_DIR}/eigen)
++
++# Add PyTorch and Python library directories
++link_directories(${CUDA_LIBRARY_DIRS})
 +link_directories(${TORCH_LIBRARY_DIR})
 +
-+# Add libraries
-+add_library(lietorch_backends
++# Set up extra compile arguments (here we simply append -std=c++17 and -O2)
++# You might add more flags (e.g., -allow-unsupported-compiler) as needed.
++list(APPEND CUDA_NVCC_FLAGS "-std=c++${CMAKE_CXX_STANDARD}")
++list(APPEND CUDA_NVCC_FLAGS "-O2")
++
++# Build the shared libraries for the two extension modules.
++# Note: We remove the default "lib" prefix so that the modules are named 
++# exactly as Python expects (e.g. "lietorch_backends.so")
++add_library(lietorch_backends SHARED
 +  lietorch/src/lietorch_gpu.cu
 +  lietorch/src/lietorch.cpp
 +  lietorch/src/lietorch_cpu.cpp
 +)
++set_target_properties(lietorch_backends PROPERTIES PREFIX "")
 +
-+
-+add_library(lietorch_extras
++add_library(lietorch_extras SHARED
 +  lietorch/extras/altcorr_kernel.cu
 +  lietorch/extras/corr_index_kernel.cu
 +  lietorch/extras/se3_builder.cu
@@ -116,37 +156,29 @@ index 0000000..7235fae
 +  lietorch/extras/se3_solver.cu
 +  lietorch/extras/extras.cpp
 +)
++set_target_properties(lietorch_extras PROPERTIES PREFIX "")
 +
-+
-+# Set CUDA-specific flags
-+list(APPEND CUDA_NVCC_FLAGS "-std=c++${CMAKE_CXX_STANDARD}")
-+list(APPEND CUDA_NVCC_FLAGS "-O2")
-+
++# Apply compile options to both targets
 +target_compile_options(lietorch_backends PUBLIC ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS})
 +target_compile_options(lietorch_extras PUBLIC ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS})
 +
-+# Link PyTorch and Python libraries
-+target_link_libraries(lietorch_backends PUBLIC torch ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
-+target_link_libraries(lietorch_extras PUBLIC torch ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
++# Link with PyTorch, Python, and CUDA libraries
++target_link_libraries(lietorch_backends PUBLIC ${TORCH_LIBRARIES} ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
++target_link_libraries(lietorch_extras PUBLIC ${TORCH_LIBRARIES} ${Python3_LIBRARIES} ${CUDA_LIBRARIES})
 +
-+# Enable separable compilation for CUDA
-+# set_target_properties(lietorch_backends PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-+# set_target_properties(lietorch_extras PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
++# Specify output directories (this is optional and can be adjusted)
++set_target_properties(lietorch_backends PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++set_target_properties(lietorch_extras PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 +
-+# # Set the output directory for the shared libraries
-+# set_target_properties(lietorch_backends PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-+# set_target_properties(lietorch_extras PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Define the TORCH_EXTENSION_NAME for each module
++target_compile_definitions(lietorch_backends PRIVATE TORCH_EXTENSION_NAME=lietorch_backends)
++target_compile_definitions(lietorch_extras PRIVATE TORCH_EXTENSION_NAME=lietorch_extras)
 +
-+# # Install the libraries
-+# install(TARGETS lietorch_backends DESTINATION ${CMAKE_BINARY_DIR}/lib/lietorch)
-+# install(TARGETS lietorch_extras DESTINATION ${CMAKE_BINARY_DIR}/lib/lietorch)
-+
-+
-+# python_extension_module(lietorch_backends)
-+# install(TARGETS lietorch_backends LIBRARY DESTINATION lietorch)
-+
-+# python_extension_module(lietorch_extras)
-+# install(TARGETS lietorch_backends LIBRARY DESTINATION lietorch)
++# Install the built extension modules into a package directory.
++# We also install the entire "lietorch" folder (which should include __init__.py and other Python files).
++install(TARGETS lietorch_backends DESTINATION ${SITE_PACKAGES_DIR})
++install(TARGETS lietorch_extras DESTINATION ${SITE_PACKAGES_DIR})
++install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lietorch/ DESTINATION ${SITE_PACKAGES_DIR}/lietorch)
 +
 +
 +message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
@@ -161,6 +193,47 @@ index 0000000..7235fae
 +    message(STATUS "NVCC flags: ${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS}")
 +endif()
 +
+diff --git a/build.sh b/build.sh
+new file mode 100755
+index 0000000..8b69b8e
+--- /dev/null
++++ b/build.sh
+@@ -0,0 +1,34 @@
++#!/bin/bash
++
++SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
++SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
++
++cd $SCRIPT_DIR
++
++# instead of building with setup.py use cmake and ninja
++# pip install . --verbose
++
++if [ ! -d build ]; then
++    mkdir build
++fi
++cd build
++
++# get how many cores are available
++cores=$(grep -c ^processor /proc/cpuinfo)
++# use half of them 
++cores=$((cores/2))
++
++echo "Building with $cores cores"
++
++# use ninja if available 
++if command -v ninja >/dev/null 2>&1; then
++    cmake -G Ninja ..
++    # launch parallel build with 8 threads
++    ninja -j$cores
++else 
++    echo "ninja not found, falling back to make"    
++    cmake ..
++    make -j$cores    
++fi
++
++cd $SCRIPT_DIR
+\ No newline at end of file
 diff --git a/setup.py b/setup.py
 index 09c8650..0a11d64 100644
 --- a/setup.py

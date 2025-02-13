@@ -1,0 +1,107 @@
+diff --git a/croco/models/curope/setup.py b/croco/models/curope/setup.py
+index 230632e..3b73274 100644
+--- a/croco/models/curope/setup.py
++++ b/croco/models/curope/setup.py
+@@ -4,6 +4,9 @@
+ from setuptools import setup
+ from torch import cuda
+ from torch.utils.cpp_extension import BuildExtension, CUDAExtension
++import subprocess
++import os
++
+ 
+ # compile for all possible CUDA architectures
+ all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
+@@ -15,6 +18,62 @@ all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
+     # '-gencode', 'arch=compute_86,code=sm_86'
+ # ]
+ 
++
++# Initialize gcc major version
++gcc_major_version = 0
++
++# Get the version of g++
++try: 
++    # Run the command to get the g++ version
++    result = subprocess.run(['g++', '--version'], capture_output=True, text=True)
++    if result.returncode == 0:
++        # Extract version from the output
++        version_line = result.stdout.splitlines()[0]
++        version = version_line.split()[-1]  # The last element is the version
++        print(f"g++ version: {version}")
++
++        # Check if the version supports C++20 (g++ 10 and above support it)
++        gcc_major_version = int(version.split('.')[0])
++        print(f"gcc major version: {gcc_major_version}")
++    else:
++        print("Failed to get g++ version")        
++except Exception as e:
++    print(f"Failed to get g++ version: {e}")
++    
++
++
++cxx_compiler_flags = ['-O3']
++
++if os.name == 'nt':
++    cxx_compiler_flags.append("/wd4624")
++
++# Check nvcc version and set the appropriate flags.
++# Make sure that the nvcc executable is available in $PATH variables,
++# or find one according to the $CUDA_HOME variable
++try:
++    nvcc_std = subprocess.run("nvcc -h | grep -- '--std'", shell=True, capture_output=True, text=True)
++    nvcc_std_output = nvcc_std.stdout
++    
++    nvcc_flags = ['-O3','--ptxas-options=-v',"--use_fast_math"]
++    if 'c++20' in nvcc_std_output and gcc_major_version >= 10:
++        nvcc_flags.append('-std=c++20')
++        cxx_compiler_flags.append('-std=c++20')
++    elif 'c++17' in nvcc_std_output:
++        nvcc_flags.append('-std=c++17')
++        cxx_compiler_flags.append('-std=c++17')
++    elif 'c++14' in nvcc_std_output:
++        nvcc_flags.append('-std=c++14')
++        cxx_compiler_flags.append('-std=c++14')
++except Exception as e:
++    print(f"Failed to get nvcc version: {e}")
++    nvcc_flags = ['-O3','--ptxas-options=-v',"--use_fast_math"]  # Default flags if nvcc check fails
++    
++
++    
++print(f"nvcc flags: {nvcc_flags}")
++print(f"cxx flags: {cxx_compiler_flags}")
++
++
+ setup(
+     name = 'curope',
+     ext_modules = [
+@@ -25,8 +84,8 @@ setup(
+                     "kernels.cu",
+                 ],
+                 extra_compile_args = dict(
+-                    nvcc=['-O3','--ptxas-options=-v',"--use_fast_math"]+all_cuda_archs, 
+-                    cxx=['-O3'])
++                    nvcc=nvcc_flags+all_cuda_archs, 
++                    cxx=cxx_compiler_flags)
+                 )
+     ],
+     cmdclass = {
+diff --git a/install.sh b/install.sh
+index 3775ece..16b6b84 100755
+--- a/install.sh
++++ b/install.sh
+@@ -1,8 +1,14 @@
++#!/usr/bin/env bash
++
+ # Assuming cuda is 12.x
+ 
+ conda create -n mvdp python=3.12 -y
+ conda activate mvdp
+ 
++python -m ensurepip --upgrade
++python -m pip install --upgrade setuptools
++
++pip install --upgrade setuptools
+ pip install -r requirements.txt
+ 
+ # installing pytorch3d: conda install directly often fails for version checking :( so installing from tar is much easier.

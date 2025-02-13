@@ -278,40 +278,55 @@ cd $STARTING_DIR
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/mast3r ..."
 
-cd thirdparty
-if [ ! -d mast3r ]; then
-    git clone --recursive https://github.com/naver/mast3r mast3r
-    cd mast3r
-    # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
-    cd dust3r 
-    git apply ../../mast3r-dust3r.patch
-    cd dust3r/croco/models/curope/
-    python setup.py build_ext --inplace
-    cd ../../../../    
-    make_dir checkpoints
-    cd checkpoints
-    wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
-fi
+if command -v nvidia-smi &> /dev/null; then
+    # we need CUDA
+
+    cd thirdparty
+    if [ ! -d mast3r ]; then
+        git clone --recursive https://github.com/naver/mast3r mast3r
+        git checkout e06b0093ddacfd8267cdafe5387954a650af0d3b
+        cd mast3r
+        # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
+        cd dust3r 
+        git apply ../../mast3r-dust3r.patch
+        cd croco 
+        git apply ../../../mast3r-dust3r-croco.patch
+        cd models/curope/
+        python setup.py build_ext --inplace
+        cd ../../../../    
+        make_dir checkpoints
+        cd checkpoints
+        wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
+    fi
+
+fi 
 
 cd $STARTING_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/mvdust3r ..."
 
-cd thirdparty
-if [ ! -d mast3r ]; then
-    git clone --recursive https://github.com/naver/mast3r mvdust3r
-    cd mast3r
-    # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
-    cd croco/models/curope/
-    python setup.py build_ext --inplace
-    cd ../../../
-    make_dir checkpoints
-    cd checkpoints
-    wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth
-    wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth
-    wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth
-    wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth
+if command -v nvidia-smi &> /dev/null; then
+    # we need CUDA
+
+    cd thirdparty
+    if [ ! -d mvdust3r ]; then
+        git clone https://github.com/facebookresearch/mvdust3r.git mvdust3r
+        git checkout 430ca6630b07567cfb2447a4dcee9747b132d5c7
+        cd mvdust3r
+        git apply ../mvdust3r.patch
+        # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
+        cd croco/models/curope/
+        python setup.py build_ext --inplace
+        cd ../../../
+        make_dir checkpoints
+        cd checkpoints
+        wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth
+        wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth
+        wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth
+        wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth
+    fi
+
 fi
 
 cd $STARTING_DIR
