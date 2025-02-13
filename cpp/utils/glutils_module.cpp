@@ -21,8 +21,11 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 
+#if defined(__APPLE__)
+#include <OpenGL/gl.h>
+#else
 #include <GL/gl.h>
-
+#endif
 
 namespace py = pybind11;
 using namespace pybind11::literals;
