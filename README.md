@@ -117,7 +117,7 @@ Then, use the available specific install procedure according to your OS. The pro
 * Tensorflow 2.13.1
 * Kornia 0.7.3
 * Rerun
-* You need CUDA in order to run Gaussian splatting and dust3r-based methods.
+* You need CUDA in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check with `./cuda_config.sh` 
 
 If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
@@ -161,7 +161,7 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all_venv.sh` (follow the instructions [above](#install) according to your OS), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
+Once you have run the script `install_all_venv.sh` / `install_all_conda.sh` (follow the instructions [above](#install) according to your OS), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py

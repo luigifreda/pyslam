@@ -24,13 +24,6 @@ pip3 install --upgrade setuptools wheel
 
 pip3 install ninja
 
-
-# PIP_MAC_OPTIONS=""
-# if [[ "$OSTYPE" == "darwin"* ]]; then
-#     PIP_MAC_OPTIONS=" --no-binary :all: "
-# fi
-
-
 # pip3 packages 
 install_pip_package pygame==2.6.0 
 install_pip_package matplotlib==3.7.5 
@@ -81,17 +74,17 @@ install_pip_package kornia_moons==0.2.9
 install_pip_package importlib_metadata==8.0.0
 
 install_pip_package timm        # ml-depth-pro
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [ "$OSTYPE" == "darwin"* ]; then
     pip install pillow_heif==0.17.0 # ml-depth-pro
 else
     install_pip_package pillow_heif # ml-depth-pro
 fi
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [ "$OSTYPE" == "darwin"* ]; then
     install_pip_package torch==2.1           # torch==2.2.0 causes some segmentation faults on mac
     install_pip_package torchvision==0.16         
 else 
-    if [[ "$CUDA_VERSION" == "11.8" ]]; then
+    if [ "$CUDA_VERSION" == "11.8" ]; then
         # See also docs/TROUBLESHOOTING.md
         # This is to avoid the RuntimeError: "The detected CUDA version (11.8) mismatches the version that was used to compile PyTorch (12.1). Please make sure to use the same CUDA versions."
         print_green "Installing torch==2.2.0+cu118 and torchvision==0.17+cu118"
@@ -122,12 +115,12 @@ pip install fast-pytorch-kmeans #==0.1.6 # for VLAD
 pip install pyflann-py3 # for loop closure database
 pip install faiss-cpu   # for loop closure database (there is also faiss-gpu)
 
-if [[ "$OSTYPE" != "darwin"* ]]; then
+if [ "$OSTYPE" != "darwin"* ]; then
     pip install open3d
 fi
 
 # crestereo
-if [[ "$OSTYPE" != "darwin"* ]]; then
+if [ "$OSTYPE" != "darwin"* ]; then
     # Unfortunately, megengine is not supported on macOS with arm architecture
     pip install --upgrade cryptography pyOpenSSL
     python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
@@ -138,10 +131,13 @@ pip install gdown  # to download from google drive
 
 pip install evo    #==1.11.0
 
+
 # MonoGS
-if command -v nvidia-smi &> /dev/null; then
+if [ "$CUDA_VERSION" != "0" ]; then
     # We need cuda for MonoGS
 
+    #MAKEFLAGS_OPTION="-j$(nproc)"
+    
     pip install munch
     pip install wandb
     pip install plyfile
@@ -157,6 +153,8 @@ if command -v nvidia-smi &> /dev/null; then
     
     #pip install lycon  # removed since it creates install issues under ubuntu 24.04
     
+    sudo apt install -y cuda-command-line-tools-$CUDA_VERSION_STRING_WITH_HYPHENS cuda-libraries-$CUDA_VERSION_STRING_WITH_HYPHENS
+
     #pip install git+https://github.com/princeton-vl/lietorch.git
     if [[ ! -d "$ROOT_DIR/thirdparty/lietorch" ]]; then
         cd $ROOT_DIR/thirdparty
@@ -166,30 +164,31 @@ if command -v nvidia-smi &> /dev/null; then
         git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
         cd $ROOT_DIR
     fi
-    pip install ./thirdparty/lietorch --verbose                              # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
-    #./thirdparty/lietorch/build.sh                                            # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
+    #pip install ./thirdparty/lietorch --verbose                                # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
+    ./thirdparty/lietorch/build.sh                                            # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
     
     pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
     pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
+else
+    print_yellow "Skipping MonoGS since CUDA_VERSION is 0"
 fi
 
 
 # mast3r and mvdust3r
-if command -v nvidia-smi &> /dev/null; then
+if [ "$CUDA_VERSION" != "0" ]; then
     # We need cuda for mast3r and mvdust3r
 
     pip install gradio 
     pip install roma 
 
-    # get cuda version and then download the libcusparse and libcusolver packages 
-    CUDA_VERSION_STRING_WITH_HYPHENS=$(replace_dot_with_hyphen $CUDA_VERSION)
-    echo CUDA_VERSION_STRING_WITH_HYPHENS: $CUDA_VERSION_STRING_WITH_HYPHENS
+    sudo apt install -y libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS
 
-    sudo apt install libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS
-
-    MAKEFLAGS_OPTION="-j$(nproc)"
+    #MAKEFLAGS_OPTION="-j$(nproc)"
+    
     # to install from source (to avoid linking issue with CUDA)
     pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"    
+else 
+    print_yellow "Skipping mast3r and mvdust3r since CUDA_VERSION is 0"
 fi
 
 

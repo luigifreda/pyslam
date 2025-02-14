@@ -13,9 +13,19 @@ function get_after_last_slash(){
     ret=$(echo $1 | sed 's:.*/::')
     echo $ret 
 }
+# function get_virtualenv_name(){
+#     cmd_out=$(printenv | grep VIRTUAL_ENV)
+#     virtual_env_name=$(get_after_last_slash $cmd_out)
+#     echo $virtual_env_name
+# }
 function get_virtualenv_name(){
-    cmd_out=$(printenv | grep VIRTUAL_ENV)
-    virtual_env_name=$(get_after_last_slash $cmd_out)
+    if [ -n "$VIRTUAL_ENV" ]; then
+        virtual_env_name=$(basename "$VIRTUAL_ENV")
+    elif [ -n "$CONDA_DEFAULT_ENV" ]; then
+        virtual_env_name="$CONDA_DEFAULT_ENV"
+    else
+        virtual_env_name=""
+    fi
     echo $virtual_env_name
 }
 
@@ -29,6 +39,18 @@ function print_blue(){
 	printf "\033[34;1m"
 	printf "$@ \n"
 	printf "\033[0m"
+}
+
+function print_yellow(){
+    printf "\033[33;1m"
+    printf "$@ \n"
+    printf "\033[0m"
+}
+
+function print_red(){
+    printf "\033[31;1m"
+    printf "$@ \n"
+    printf "\033[0m"
 }
 
 function make_dir(){
@@ -245,6 +267,13 @@ function replace_dot_with_hyphen() {
     new_string=$(echo "$input_string" | tr '.' '-')
     echo "$new_string"
 }
+
+function remove_dots() {
+    local input_string="$1"
+    new_string="${input_string//./}"
+    echo "$new_string"
+}
+
 
 # ====================================================
 

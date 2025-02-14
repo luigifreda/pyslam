@@ -23,7 +23,7 @@ STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 # ====================================================
 # check if want to use conda or venv
 if [ -z $USING_CONDA_PYSLAM ]; then
-    if [[ -z "${USE_PYSLAM_ENV}" ]]; then
+    if [ -z "${USE_PYSLAM_ENV}" ]; then
         USE_PYSLAM_ENV=0
     fi
     if [ $USE_PYSLAM_ENV -eq 1 ]; then
@@ -75,7 +75,7 @@ cd thirdparty
 if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
     # N.B.: pay attention this will generate a module 'pypangolin' ( it does not have the methods dcam.SetBounds(...) and pangolin.DrawPoints(points, colors)  )
     if [ ! -d pangolin ]; then
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if [ "$OSTYPE" == "linux-gnu"* ]; then
             sudo apt-get install -y libglew-dev
         fi     
         git clone https://github.com/stevenlovegrove/Pangolin.git pangolin
@@ -95,7 +95,7 @@ if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
 else
     # N.B.: pay attention this will generate a module 'pangolin' 
     if [ ! -d pangolin ]; then
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then    
+        if [ "$OSTYPE" == "linux-gnu"* ]; then    
             sudo apt-get install -y libglew-dev
             # git clone https://github.com/uoip/pangolin.git
             # cd pangolin
@@ -106,7 +106,7 @@ else
             # rsync ./pangolin_changes/python_CMakeLists.txt ./pangolin/python/CMakeLists.txt 
             git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin
         fi 
-        if [[ "$OSTYPE" == "darwin"* ]]; then
+        if [ "$OSTYPE" == "darwin"* ]; then
             git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin 
         fi 
         cd pangolin
@@ -133,7 +133,7 @@ print_blue "Configuring and building thirdparty/g2o ..."
 
 cd thirdparty
 if [ ! -d g2opy ]; then
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    if [ "$OSTYPE" == "linux-gnu"* ]; then
         sudo apt-get install -y libsuitesparse-dev libeigen3-dev
     fi     
 	git clone https://github.com/uoip/g2opy.git
@@ -180,7 +180,7 @@ cd thirdparty/pyibow
 cd $STARTING_DIR
 
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [ "$OSTYPE" == "darwin"* ]; then
     print_blue "=================================================================="
     print_blue "Configuring and building thirdparty/open3d ..."
 
