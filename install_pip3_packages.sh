@@ -45,7 +45,6 @@ install_pip_package pyqt5==5.15.11        # version 5.15.11 working under mac
 install_pip_package pyqtgraph==0.13.3  
 
 INSTALL_OPENCV_FROM_SOURCE=1
-
 # Install opencv_python from source with non-free modules enabled 
 if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
     #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
@@ -128,7 +127,6 @@ if [ "$OSTYPE" != "darwin"* ]; then
 fi
 
 pip install gdown  # to download from google drive
-
 pip install evo    #==1.11.0
 
 

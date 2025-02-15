@@ -42,21 +42,19 @@ export CPPFLAGS+=""
 export CPATH+=""
 export CPP_INCLUDE_PATH+=""
 export C_INCLUDE_PATH+=""
-if [ -z $USING_CONDA_PYSLAM ]; then
-    PYSLAM_VENV_PATH=$HOME/.python/venvs/pyslam
-    CPPFLAGS="-I$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/:$CPPFLAGS" 
-    CPATH="$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPATH
-    C_INCLUDE_PATH="$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$C_INCLUDE_PATH
-    CPP_INCLUDE_PATH="$PYSLAM_VENV_PATH/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPP_INCLUDE_PATH
-else
-    echo "Using conda pyslam..."
-    # we want to use conda environment
-    CONDA_BASE_FOLDER="$(conda info --base)"
-    CPPFLAGS="-I$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/:$CPPFLAGS"
-    CPATH="$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPATH
-    C_INCLUDE_PATH="$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$C_INCLUDE_PATH
-    CPP_INCLUDE_PATH="$CONDA_BASE_FOLDER/envs/pyslam/lib/python$PYTHON_VERSION/site-packages/numpy/core/include/":$CPP_INCLUDE_PATH
-fi
+
+# Get the current Python environment's base directory
+PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
+NUMPY_INCLUDE_PATH=$(python3 -c "import numpy; print(numpy.get_include())")
+echo "Using PYTHON_ENV: $PYTHON_ENV"
+
+
+# Set include paths dynamically
+export CPPFLAGS="-I$NUMPY_INCLUDE_PATH:$CPPFLAGS"
+export CPATH="$NUMPY_INCLUDE_PATH:$CPATH"
+export C_INCLUDE_PATH="$NUMPY_INCLUDE_PATH:$C_INCLUDE_PATH"
+export CPP_INCLUDE_PATH="$NUMPY_INCLUDE_PATH:$CPP_INCLUDE_PATH"
+
 
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \

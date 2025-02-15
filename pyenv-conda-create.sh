@@ -28,7 +28,8 @@ then
     exit
 fi
 
-export PYSLAM_PYTHON_VERSION="3.8.10"
+#export PYSLAM_PYTHON_VERSION="3.8.10"
+export PYSLAM_PYTHON_VERSION="3.10.12"
 
 if conda env list | grep -q "^$ENV_NAME$"; then
     echo "Conda environment $ENV_NAME already exists."
@@ -46,15 +47,13 @@ conda update --force conda -y
 
 #which pip  # this should refer to */pyslam/bin/pip  (that is actually pip3)
 
-pip3 install --upgrade pip 
-pip3 install --upgrade setuptools wheel
+pip3 install --upgrade pip setuptools wheel
 
 # install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
 pip3 install -r requirements-pip3.txt #-vvv
 
 # install opencv python from source with non-free modules enabled (installation order does matter here!)
-. install_opencv_python.sh
-
+#. install_opencv_python.sh
 
 # To activate this environment, use
 #   $ conda activate pyslam

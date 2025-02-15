@@ -22,6 +22,7 @@ install_package unzip
 install_packages build-essential cmake
 install_package python3-sdl2 
 install_package python3-tk
+install_package python3-dev
 
 install_package libsuitesparse-dev
 
