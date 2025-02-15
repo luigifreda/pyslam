@@ -21,29 +21,36 @@
 import cv2
 import os
 import ctypes.util
+
+
+def print_red(text):
+    print("\033[91m" + text + "\033[0m")
     
+def print_green(text):
+    print("\033[92m" + text + "\033[0m")
+
+
 if __name__ == "__main__":
-    # Print OpenCV version
-    print(f"OpenCV version: {cv2.__version__}")
+    
+    try:
+        # Print OpenCV version
+        print_green(f'Opencv info:')
+        print(f"\tversion: {cv2.__version__}")
 
-    # Print the path of the loaded cv2 library
-    print(f"Loaded OpenCV library: {cv2.__file__}")
-
-    if True:
-        try:
-            # If you need more details about linked libraries
-            loaded_libs = ctypes.util.find_library("opencv")
-            print(f"Linked OpenCV library details: {loaded_libs}")
-        except Exception as e:
-            print(f"Exception: {e}")
-            print(f'Could not find linked OpenCV library details')
+        # Print the path of the loaded cv2 library
+        print(f"\tloaded library: {cv2.__file__}")
             
+        # If you need more details about linked libraries
+        # loaded_libs = ctypes.util.find_library("opencv")
+        # print_green(f"OK: Linked OpenCV library details: {loaded_libs}")
+    except Exception as e:
+        print(f"Exception: {e}")
+        print_red(f'NOK: Could not find linked OpenCV library details')
             
-    if True: 
-        try: 
-            detector = cv2.xfeatures2d.SURF_create()
-            print(f"Detector: {detector} created")
-            print(f'You have non-free OpenCV support!')
-        except Exception as e:
-            print(f"Exception: {e}")
-            print(f'Could not create SURF detector: You dont have non-free OpenCV support!')
+    try: 
+        detector = cv2.xfeatures2d.SURF_create()
+        print_green(f'OK: You have non-free OpenCV support!')        
+        print(f"\t Succeeded to create detector: {detector}")
+    except Exception as e:
+        print(f"Exception: {e}")
+        print_red(f'NOK: Could not create SURF detector: You dont have non-free OpenCV support!')
