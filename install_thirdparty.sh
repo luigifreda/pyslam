@@ -94,7 +94,7 @@ if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
         ln -s pypangolin.*-linux-gnu.so  pangolin.linux-gnu.so
     fi
 else
-    # N.B.: pay attention this will generate a module 'pangolin' 
+    # N.B.: pay attention this will generate a module 'pypangolin' 
     if [ ! -d "pangolin" ]; then
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
             echo "OS: $OSTYPE"   
@@ -106,7 +106,7 @@ else
         cd ..
     fi
     cd pangolin
-    if [ ! -f pangolin.cpython-*.so ]; then   
+    if [ ! -f pypangolin.cpython-*.so ]; then   
         make_dir build   
         cd build
         cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
@@ -145,6 +145,7 @@ if [ ! -f lib/g2o.cpython-*.so ]; then
     #python3 setup.py install --user
 fi    
 cd $STARTING_DIR
+
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pydbow3 ..."

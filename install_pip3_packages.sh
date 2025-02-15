@@ -12,7 +12,7 @@
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
 
-export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
+export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter
 
 # detect and configure CUDA 
 . cuda_config.sh
@@ -24,6 +24,21 @@ pip3 install --upgrade pip
 pip3 install --upgrade setuptools wheel
 
 pip3 install ninja
+
+# Install opencv_python from source with non-free modules enabled 
+INSTALL_OPENCV_FROM_SOURCE=1
+if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
+    #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
+    print_green "Installing opencv_python from source with non-free modules enabled"
+    ./install_opencv_python.sh
+else
+    PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
+    MAKEFLAGS_OPTION="-j$(nproc)"
+    CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
+
+    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
+    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
+fi
 
 # pip3 packages 
 install_pip_package pygame==2.6.0 
@@ -44,21 +59,6 @@ install_pip_package psutil
 install_pip_package PyQt5-sip==12.15.0    # NOTE: This is required by pyqt5. The the next versions of PyQt5-sip require python 3.9.
 install_pip_package pyqt5==5.15.11        # version 5.15.11 working under mac
 install_pip_package pyqtgraph==0.13.3  
-
-INSTALL_OPENCV_FROM_SOURCE=1
-# Install opencv_python from source with non-free modules enabled 
-if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
-    #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
-    print_green "Installing opencv_python from source with non-free modules enabled"
-    ./install_opencv_python.sh
-else
-    PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
-    MAKEFLAGS_OPTION="-j$(nproc)"
-    CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
-
-    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
-    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
-fi
 
 install_pip_package tqdm==4.66.4 
 install_pip_package scipy==1.10.1
@@ -112,12 +112,12 @@ if command -v nvidia-smi &> /dev/null; then
     install_pip_package faiss-gpu  # for loop closure database on GPU
 fi 
 
-if [ "$OSTYPE" != "darwin"* ]; then
+if [[ "$OSTYPE" != "darwin"* ]]; then
     pip install open3d
 fi
 
 # crestereo
-if [ "$OSTYPE" != "darwin"* ]; then
+if [[ "$OSTYPE" != "darwin"* ]]; then
     # Unfortunately, megengine is not supported on macOS with arm architecture
     pip install --upgrade cryptography pyOpenSSL
     python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
