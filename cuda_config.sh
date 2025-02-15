@@ -45,7 +45,7 @@ if command -v nvidia-smi &> /dev/null; then
 fi
 
 # check the nvidia toolkit is available and install it 
-if command -v nvidia-smi &> /dev/null; then
+if [ "$CUDA_VERSION" != "0" ]; then
     print_blue "Checking the nvidia toolkit ..."
     sudo apt-get install -y cuda-toolkit-$CUDA_VERSION_STRING_WITH_HYPHENS
     if [ $? -ne 0 ]; then
@@ -56,4 +56,6 @@ if command -v nvidia-smi &> /dev/null; then
         print_red "Exiting..."
         exit 1  # Exit immediately with a critical error
     fi
+else
+    print_yellow "Skipping nvidia toolkit install since CUDA_VERSION is 0"
 fi

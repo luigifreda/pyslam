@@ -42,9 +42,12 @@ fi
 # activate created env 
 . pyenv-conda-activate.sh 
 
+conda update --force conda -y
+
 #which pip  # this should refer to */pyslam/bin/pip  (that is actually pip3)
 
-#pip3 install --upgrade setuptools
+pip3 install --upgrade pip 
+pip3 install --upgrade setuptools wheel
 
 # install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
 pip3 install -r requirements-pip3.txt #-vvv
