@@ -760,6 +760,10 @@ class Tracking:
             valid_depths_and_idxs = [(z, i) for i, z in enumerate(kf.depths) if z > 0]
             valid_depths_and_idxs.sort() # increasing-depth order 
             
+            if len(valid_depths_and_idxs)==0:
+                Printer.yellow('[create_and_add_stereo_map_points_on_new_kf] no valid depths and idxs found, returning')
+                return
+            
             sorted_z_values, sorted_idx_values = zip(*valid_depths_and_idxs) # unpack the sorted z values and i values into separate lists
             sorted_z_values = np.array(sorted_z_values, dtype=np.float32)
             sorted_idx_values = np.array(sorted_idx_values, dtype=np.int32)
