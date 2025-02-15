@@ -1,6 +1,6 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 new file mode 100644
-index 0000000..4ca8cad
+index 0000000..4db02a0
 --- /dev/null
 +++ b/CMakeLists.txt
 @@ -0,0 +1,232 @@
@@ -43,7 +43,7 @@ index 0000000..4ca8cad
 +elseif(NVCC_OUTPUT MATCHES "c\\+\\+14")
 +    set(CPP_STANDARD_VERSION "14")
 +else()
-+    message(WARNING "No valid C++ standard found, defaulting to C++14")
++    message(WARNING "No valid C++ standard found, defaulting to C++${CPP_STANDARD_VERSION}")
 +endif()
 +
 +message(STATUS "Using C++ standard: C++${CPP_STANDARD_VERSION}")

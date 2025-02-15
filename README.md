@@ -1,10 +1,10 @@
-# pySLAM v2.5.0
+# pySLAM v2.5.1
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.5.0](#pyslam-v250)
+- [pySLAM v2.5.1](#pyslam-v251)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -111,7 +111,7 @@ Then, use the available specific install procedure according to your OS. The pro
 
 ### Main requirements
 
-* Python 3.8.10
+* Python 3.10.12
 * OpenCV >=4.10 (see [below](#how-to-install-non-free-opencv-modules))
 * PyTorch 2.3.1
 * Tensorflow 2.13.1

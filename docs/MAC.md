@@ -4,14 +4,14 @@
 <!-- TOC -->
 
 - [Install pyslam under macOS](#install-pyslam-under-macos)
-  - [Install steps](#install-steps)
-  - [Usage](#usage)
-  - [Notes about macOS](#notes-about-macos)
-    - [Install homebrew](#install-homebrew)
-  - [Known issues](#known-issues)
-    - [First run of the scripts](#first-run-of-the-scripts)
-    - [Issues found with OpenCV and pyenv](#issues-found-with-opencv-and-pyenv)
-    - [Issues found with boost serialization](#issues-found-with-boost-serialization)
+    - [1. Install steps](#1-install-steps)
+    - [2. Usage](#2-usage)
+    - [3. Notes about macOS](#3-notes-about-macos)
+        - [3.1. Install homebrew](#31-install-homebrew)
+    - [4. Known issues](#4-known-issues)
+        - [4.1. First run of the scripts](#41-first-run-of-the-scripts)
+        - [4.2. Issues found with OpenCV and pyenv](#42-issues-found-with-opencv-and-pyenv)
+        - [4.3. Issues found with boost serialization](#43-issues-found-with-boost-serialization)
 
 <!-- /TOC -->
 
@@ -47,12 +47,12 @@ You can find further details about python virtual environments [here](./PYTHON-V
 
 ## Usage 
    
-- To test the basic visual odometry run 
+To test the basic visual odometry run 
    ```bash
    $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
    $ ./main_vo.py
    ```
-- To test the full SLAM system run 
+To test the full SLAM system run 
    ```bash
    $ . pyenv-activate.sh   # Activate pyslam environment. This is just needed once in a new terminal.
    $ ./main_slam.py

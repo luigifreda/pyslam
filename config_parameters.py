@@ -34,6 +34,8 @@ class Parameters:
     # Number of desired keypoints per frame 
     kNumFeatures=2000
     
+    # Adaptive stats 
+    kUseDescriptorSigmaMadv2 = False                # Experimental [WIP]
 
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # max cos angle for triangulation (min parallax angle) in the Initializer
@@ -64,6 +66,7 @@ class Parameters:
     kInitializerNumMinFeatures = 100
     kInitializerNumMinFeaturesStereo = 500
     kInitializerNumMinTriangulatedPoints = 150
+    kInitializerNumMinTriangulatedPointsStereo = 50
     kInitializerFeatureMatchRatioTest = 0.9    # ratio test used by Initializer   # TODO: put it in an table and make it configurable per descriptor
     kInitializerNumMinNumPointsForPnPWithDepth = 15 
     kInitializerUseCellCoverageCheck = True

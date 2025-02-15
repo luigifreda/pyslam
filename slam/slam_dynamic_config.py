@@ -26,9 +26,9 @@ class SLAMDynamicConfig:
         if len(idxs_cur)>0:
             des_cur = f_cur.des[idxs_cur]
             des_ref = f_ref.des[idxs_ref]
-            if False:
+            if Parameters.kUseDescriptorSigmaMadv2:
                 sigma_mad, dists_median, _ = descriptor_sigma_mad_v2(des_cur, des_ref, descriptor_distances=FeatureTrackerShared.descriptor_distances)
-                delta = self.descriptor_distance_factor*sigma_mad + dists_median # + sigma_mad # the final "+ sigma_mad" is for adding back a bias (the median itself) to the delta threshold since the delta distribution is not centered at zero
+                delta = self.descriptor_distance_factor*sigma_mad + dists_median # the final "+ dists_median" is for adding back a bias (the median itself) to the delta threshold since the delta distribution is not centered at zero
             else:
                 sigma_mad, dists_median, _ = descriptor_sigma_mad(des_cur, des_ref, descriptor_distances=FeatureTrackerShared.descriptor_distances)
                 delta = self.descriptor_distance_factor*sigma_mad

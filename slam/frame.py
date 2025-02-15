@@ -43,7 +43,7 @@ from feature_matcher import FeatureMatcherTypes
 from concurrent.futures import ThreadPoolExecutor
 
 from utils_draw import draw_feature_matches
-from utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad, stereo_match_subpixel_correlation
+from utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad, descriptor_sigma_mad_v2, stereo_match_subpixel_correlation
 from utils_serialization import NumpyJson, NumpyB64Json
 
 import rerun as rr              # pip install rerun-sdk
@@ -929,8 +929,12 @@ class Frame(FrameBase):
         if do_check_with_des_distances_sigma_mad:
             des1 = stereo_matching_result.des1[good_matched_idxs1]
             des2 = stereo_matching_result.des2[good_matched_idxs2]
-            sigma_mad, dists_median, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=FeatureTrackerShared.descriptor_distances)
-            good_des_dists_mask = des_dists < 1.5 * sigma_mad
+            if Parameters.kUseDescriptorSigmaMadv2:
+                sigma_mad, dists_median, des_dists = descriptor_sigma_mad_v2(des1, des2, descriptor_distances=FeatureTrackerShared.descriptor_distances)
+                good_des_dists_mask = des_dists < 1.5 * sigma_mad + dists_median
+            else:
+                sigma_mad, dists_median, des_dists = descriptor_sigma_mad(des1, des2, descriptor_distances=FeatureTrackerShared.descriptor_distances)
+                good_des_dists_mask = des_dists < 1.5 * sigma_mad
             num_good_des_dists = good_des_dists_mask.sum()
             print(f'[compute_stereo_matches] perc good des distances: {100*num_good_des_dists/len(good_des_dists_mask)}')
             good_disparities = good_disparities[good_des_dists_mask]

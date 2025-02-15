@@ -12,6 +12,7 @@
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
 
+export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
 # detect and configure CUDA 
 . cuda_config.sh
@@ -99,12 +100,6 @@ pip install "rerun-sdk>=0.17.0"
 install_pip_package ujson
 install_pip_package tensorflow_hub  # required for VPR
 
-if command -v nvidia-smi &> /dev/null; then
-    install_pip_package faiss-gpu 
-else 
-    install_pip_package faiss-cpu
-fi 
-
 pip install protobuf==3.20.*    # for delf NN
 pip install ujson
 
@@ -112,7 +107,10 @@ pip install einops                       # for VLAD
 pip install fast-pytorch-kmeans #==0.1.6 # for VLAD
  
 pip install pyflann-py3 # for loop closure database
-pip install faiss-cpu   # for loop closure database (there is also faiss-gpu)
+pip install faiss-cpu # for loop closure database
+if command -v nvidia-smi &> /dev/null; then
+    install_pip_package faiss-gpu  # for loop closure database on GPU
+fi 
 
 if [ "$OSTYPE" != "darwin"* ]; then
     pip install open3d
@@ -126,7 +124,6 @@ if [ "$OSTYPE" != "darwin"* ]; then
     #pip install megengine  # This brings issues with non-supported CUDA architecture on my machine
 fi
 
-pip install gdown  # to download from google drive
 pip install evo    #==1.11.0
 
 

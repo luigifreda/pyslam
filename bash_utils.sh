@@ -63,14 +63,13 @@ function make_buid_dir(){
 }
 
 function check_package(){
-    package_name=$1
-    PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $package_name |grep "install ok installed")
-    #echo "checking for $package_name: $PKG_OK"
-    if [ "" == "$PKG_OK" ]; then
-      #echo "$package_name is not installed"
-      echo 1
+    local package_name="$1"
+    local PKG_OK=$(dpkg-query -W --showformat='${Status}\n' "$package_name" 2>/dev/null | grep "install ok installed")
+
+    if [ -z "$PKG_OK" ]; then
+        echo 1  # Package is not installed
     else
-      echo 0
+        echo 0  # Package is installed
     fi
 }
 function install_package(){
@@ -90,7 +89,7 @@ function check_pip_package(){
     package_name=$1
     PKG_OK=$(python3 -m pip list |grep $package_name)
     #echo "checking for $package_name: $PKG_OK"
-    if [ "" == "$PKG_OK" ]; then
+    if [ -z "$PKG_OK" ]; then
       #echo "$package_name is not installed"
       echo 1
     else
@@ -110,7 +109,7 @@ function install_pip_package(){
     do_install=$(check_pip_package $1)
     virtual_env=$(get_virtualenv_name)
     if [ $do_install -eq 1 ] ; then
-        if [ "" == "$virtual_env" ]; then
+        if [ -z "$virtual_env" ]; then
             pip3 install --user $1          
         else
             pip3 install $1     # if you are in a virtual environment the option `--user` will install make pip3 install things outside the env 

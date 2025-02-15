@@ -46,7 +46,7 @@ make_dir $ENV_PATH
 cd $ENVS_PATH
 
 #export PYSLAM_PYTHON_VERSION="3.6.9"
-export PYSLAM_PYTHON_VERSION="3.8.10"
+export PYSLAM_PYTHON_VERSION="3.10.12"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
@@ -71,14 +71,15 @@ if [ -d ~/.cache/pip/selfcheck ]; then
     rm -r ~/.cache/pip/selfcheck/
 fi 
 
-print_blue "installing opencv"
 
 PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
 MAKEFLAGS_OPTION="-j$(nproc)" 
-CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
-MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION
-MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION
+#print_blue "installing opencv"
+# CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
+
+# MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION
+# MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION
 
 # install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
 MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv

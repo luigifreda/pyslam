@@ -4,6 +4,7 @@
 
 - [Install under Anaconda or Miniconda](#install-under-anaconda-or-miniconda)
   - [Installation](#installation)
+  - [Usage](#usage)
   - [Create a `pyslam` conda environment](#create-a-pyslam-conda-environment)
   - [Activate the created `pyslam` conda environment](#activate-the-created-pyslam-conda-environment)
   - [Deactivate `pyslam` conda environment](#deactivate-pyslam-conda-environment)
@@ -24,15 +25,20 @@ In order to use `pyslam` under conda, check you have activated `conda` in your t
 ```bash
 $ ./install_all_conda.sh  
 ```
-This will compile the required thirdparty packages and will also create a `pyslam` conda environment. Now, from the same terminal, you can run: 
+This will compile the required thirdparty packages and will also create a `pyslam` conda environment.      
+Please, discard any error like this: `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed....`. See [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for further details.
+
+## Usage 
+
+Now, from the same terminal, you can run: 
 ```bash
 $ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
-$ ./main_vo.py
+$ ./main_vo.py               # test visual odometry
 ```
 or
 ```bash
 $ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
-$ ./main_slam.py
+$ ./main_slam.py             # test full SLAM
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
 

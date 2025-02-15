@@ -28,7 +28,6 @@ then
     exit
 fi
 
-#export PYSLAM_PYTHON_VERSION="3.8.10"
 export PYSLAM_PYTHON_VERSION="3.10.12"
 
 if conda env list | grep -q "^$ENV_NAME$"; then

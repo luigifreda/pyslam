@@ -32,12 +32,18 @@ def plot_histogram(data, title='Histogram of Scalar Data', xlabel='Data', ylabel
     plt.axvline(mean, color='r', linestyle='dashed', linewidth=2, label=f'Mean: {mean:.2f}')
     plt.axvline(median, color='g', linestyle='dashed', linewidth=2, label=f'Median: {median:.2f}')
     
-    plt.axvline(mean - 3*np.sqrt(variance), color='y', linestyle='dashed', linewidth=2, label=f'mean-3*standard_dev: {mean - 3*standard_dev:.2f}')
-    plt.axvline(mean + 3*np.sqrt(variance), color='y', linestyle='dashed', linewidth=2, label=f'mean+3*standard_dev: {mean + 3*standard_dev:.2f}')
+    lower_bound = mean - 3*standard_dev if not is_positive_errors else 0
+    upper_bound = mean + 3*standard_dev
+    if not is_positive_errors:
+        plt.axvline(lower_bound, color='y', linestyle='dashed', linewidth=2, label=f'mean - 3*standard_dev: {lower_bound:.2f}')
+    plt.axvline(upper_bound, color='y', linestyle='dashed', linewidth=2, label=f'mean + 3*standard_dev: {upper_bound:.2f}')
     
     # Add lines for MAD and sigma_mad
-    plt.axvline(bias - 3*sigma_mad, color='g', linestyle='dashed', linewidth=2, label=f'bias-3*sigma_mad: {bias - 3*sigma_mad:.2f}')
-    plt.axvline(bias + 3*sigma_mad, color='g', linestyle='dashed', linewidth=2, label=f'bias+3*sigma_mad: {bias + 3*sigma_mad:.2f}')
+    lower_bound_mad = bias - 3*sigma_mad if not is_positive_errors else 0
+    upper_bound_mad = bias + 3*sigma_mad
+    if not is_positive_errors:
+        plt.axvline(lower_bound_mad, color='g', linestyle='dashed', linewidth=2, label=f'bias - 3*sigma_mad: {lower_bound_mad:.2f}')
+    plt.axvline(upper_bound_mad, color='g', linestyle='dashed', linewidth=2, label=f'bias + 3*sigma_mad: {upper_bound_mad:.2f}')
 
     # Display statistics on the plot
     plt.title(title)
@@ -51,4 +57,4 @@ def plot_histogram(data, title='Histogram of Scalar Data', xlabel='Data', ylabel
         
         
 def plot_errors_histograms(data, title='Histogram of Scalar Data', xlabel='Data', ylabel='Frequency', bins=30, show=True):
-    return plot_histogram(data, title, xlabel, ylabel, bins, show, is_positive_errors=True)
+    return plot_histogram(data, title, xlabel, ylabel, bins, show, is_positive_errors=False)

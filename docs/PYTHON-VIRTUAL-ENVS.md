@@ -31,19 +31,20 @@ In order to run `main_slam.py` with venv, get in the root of this repository and
 ```bash
 $ ./install_all_venv.sh  
 ```
-This will compile all the required thirdparty packages and create a `pyslam` python virtual environment. 
+This will compile all the required thirdparty packages and create a `pyslam` python virtual environment.     
+Please, discard any error like this: `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed....`. See [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for further details.
 
 ## Usage
 
 Now, you can run: 
 ```bash
 $ . pyenv-activate.sh   # Activate pyslam python virtual environment. This is just needed once in a new terminal.
-$ ./main_vo.py
+$ ./main_vo.py          # test visual odometry
 ```
 or 
 ```bash
 $ . pyenv-activate.sh   # Activate pyslam python virtual environment. This is just needed once in a new terminal.
-$ ./main_slam.py
+$ ./main_slam.py        # test full SLAM
 ```
 If you want to use a new terminal, recall that you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-environment)
 

@@ -74,7 +74,7 @@ class Initializer(object):
         self.f_ref = None        
                 
         self.num_min_features = Parameters.kInitializerNumMinFeatures if self.is_monocular else Parameters.kInitializerNumMinFeaturesStereo
-        self.num_min_triangulated_points = Parameters.kInitializerNumMinTriangulatedPoints       
+        self.num_min_triangulated_points = Parameters.kInitializerNumMinTriangulatedPoints if self.is_monocular else Parameters.kInitializerNumMinTriangulatedPointsStereo    
         self.num_failures = 0 
         
         # more checks for monocular inizialization
@@ -111,7 +111,8 @@ class Initializer(object):
 
     def check_num_failures(self):
         if self.num_failures > kNumOfFailuresAfterWichNumMinTriangulatedPointsIsReduced: 
-            self.num_min_triangulated_points = 2.0/3 * Parameters.kInitializerNumMinTriangulatedPoints
+            factor = 2.0/3.0
+            self.num_min_triangulated_points = factor * Parameters.kInitializerNumMinTriangulatedPoints if self.is_monocular else factor * Parameters.kInitializerNumMinTriangulatedPointsStereo
             #self.check_min_frame_distance = False
             self.check_cell_coverage = False
             Printer.orange('Initializer: reduced min num triangulated features to ', self.num_min_triangulated_points)          
