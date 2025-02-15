@@ -7,8 +7,9 @@
 # import the utils 
 . bash_utils.sh 
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 # ====================================================
@@ -17,7 +18,10 @@ print_blue '================================================'
 print_blue "Installing opencv-python from source"
 print_blue '================================================'
 
+# Get the current Python environment's base directory
+PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
+echo "Using PYTHON_ENV: $PYTHON_ENV"
 
 #pip install --upgrade pip
 pip uninstall -y opencv-python
@@ -43,10 +47,8 @@ export CPATH+=""
 export CPP_INCLUDE_PATH+=""
 export C_INCLUDE_PATH+=""
 
-# Get the current Python environment's base directory
-PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
+
 NUMPY_INCLUDE_PATH=$(python3 -c "import numpy; print(numpy.get_include())")
-echo "Using PYTHON_ENV: $PYTHON_ENV"
 
 
 # Set include paths dynamically
@@ -55,6 +57,14 @@ export CPATH="$NUMPY_INCLUDE_PATH:$CPATH"
 export C_INCLUDE_PATH="$NUMPY_INCLUDE_PATH:$C_INCLUDE_PATH"
 export CPP_INCLUDE_PATH="$NUMPY_INCLUDE_PATH:$CPP_INCLUDE_PATH"
 
+# Set library paths dynamically
+export LDFLAGS="-L$PYTHON_ENV/lib:$LDFLAGS"
+export LIBRARY_PATH="$PYTHON_ENV/lib:$LIBRARY_PATH"
+
+# Add NumPy library path if needed
+NUMPY_LIB_PATH=$(python3 -c "import numpy; print(numpy.__path__[0] + '/core/lib')")
+export LDFLAGS="-L$NUMPY_LIB_PATH:$LDFLAGS"
+export LIBRARY_PATH="$NUMPY_LIB_PATH:$LIBRARY_PATH"
 
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \
@@ -72,6 +82,20 @@ pip install opencv*.whl --force-reinstall
 export ENABLE_CONTRIB=1
 pip wheel . --verbose
 # install built packages
-pip install opencv*.whl --force-reinstall
+# pip install opencv*.whl --force-reinstall
 
 cd $STARTING_DIR
+
+
+# HACK for "ImportError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32"
+# See https://github.com/elerac/EasyPySpin/issues/12
+CV2_SO_PATH=$PYTHON_ENV/lib/python$PYTHON_VERSION/site-packages/cv2
+# Find the actual .so file (handles different naming variations)
+CV2_SO_FILE=$(ls "$CV2_SO_PATH"/cv2.*.so 2>/dev/null | head -n 1)
+# Check if a valid file was found
+if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
+    if ldd "$CV2_SO_FILE" | grep -q "libffi"; then
+        echo "Preloading libffi..."
+        export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
+    fi
+fi

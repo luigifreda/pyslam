@@ -9,6 +9,9 @@
 
 #set -e
 
+PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
+echo "PYTHON_ENV: $PYTHON_ENV"
+
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
 

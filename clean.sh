@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
 # clean thirdparty install and compiled libraries  
 
 # get the first input if any 

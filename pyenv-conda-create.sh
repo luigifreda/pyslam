@@ -42,7 +42,7 @@ fi
 # activate created env 
 . pyenv-conda-activate.sh 
 
-conda update --force conda -y
+conda update conda -y
 
 #which pip  # this should refer to */pyslam/bin/pip  (that is actually pip3)
 
