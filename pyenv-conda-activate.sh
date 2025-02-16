@@ -37,7 +37,11 @@ CV2_SO_FILE=$(ls "$CV2_SO_PATH"/cv2.*.so 2>/dev/null | head -n 1)
 # Check if a valid file was found
 if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
     if ldd "$CV2_SO_FILE" | grep -q "libffi"; then
-        echo "Preloading libffi..."
-        export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
+        if [[ -f /lib/x86_64-linux-gnu/libffi.so ]]; then
+            echo "Preloading libffi..."
+            export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
+        else
+            echo "WARNING: /lib/x86_64-linux-gnu/libffi.so not found; check your libffi dependencies"
+        fi
     fi
 fi

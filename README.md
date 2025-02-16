@@ -111,13 +111,13 @@ Then, use the available specific install procedure according to your OS. The pro
 
 ### Main requirements
 
-* Python 3.10.12
+* Python **3.10.12**
 * OpenCV >=4.10 (see [below](#how-to-install-non-free-opencv-modules))
 * PyTorch 2.3.1
 * Tensorflow 2.13.1
 * Kornia 0.7.3
 * Rerun
-* You need CUDA in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check with `./cuda_config.sh` 
+* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check with `./cuda_config.sh` 
 
 If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
