@@ -450,8 +450,6 @@ class Viewer3D(object):
         while not qcams.empty():
             self.camera_trajectories_state = qcams.get()
 
-        # if pangolin.Pushed(self.button):
-        #    print('You Pushed a button!')
 
         self.do_follow = self.checkboxFollow.Get()
         self.is_grid = self.checkboxGrid.Get()        

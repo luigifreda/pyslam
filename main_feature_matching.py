@@ -138,9 +138,9 @@ tracker_type = None
 #tracker_type = FeatureTrackerTypes.XFEAT        # based on XFEAT, "XFeat: Accelerated Features for Lightweight Image Matching"
 #tracker_type = FeatureTrackerTypes.LIGHTGLUE    # LightGlue, "LightGlue: Local Feature Matching at Light Speed"
 
-# select your tracker configuration (see the file feature_tracker_configs.py) 
-# FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT_XFEAT, LOFTR
-tracker_config = FeatureTrackerConfigs.ORB2
+# Select your tracker configuration (see the file feature_tracker_configs.py). Some examples:
+# FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, CONTEXTDESC, LIGHTGLUE, XFEAT_XFEAT, LOFTR, DISK, ALIKED, KEYNETAFFNETHARDNET, XFEAT, XFEAT_XFEAT, ...
+tracker_config = FeatureTrackerConfigs.ROOT_SIFT
 tracker_config['num_features'] = num_features
 #tracker_config['match_ratio_test'] = 0.7        # 0.7 is the default in feature_tracker_configs.py
 if tracker_type is not None:
@@ -254,6 +254,13 @@ else:
 
 show_kps_size = False
 img_matched_inliers = None 
+
+if False:
+    img1_kps = cv2.drawKeypoints(img1, kps1, None, color=(0,255,0), flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    cv2.imshow('img1_kps', img1_kps)
+    img2_kps = cv2.drawKeypoints(img2, kps2, None, color=(0,255,0), flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    cv2.imshow('img2_kps', img2_kps)
+    cv2.waitKey()
 
 if mask is not None:    
     # Build arrays of matched inliers 

@@ -35,7 +35,7 @@ class Parameters:
     kNumFeatures=2000
     
     # Adaptive stats 
-    kUseDescriptorSigmaMadv2 = False                # Experimental [WIP]
+    kUseDescriptorSigmaMadv2 = False                # Experimental [WIP] In theory, if we use this we should accordingly change all descriptor thresholds
 
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # max cos angle for triangulation (min parallax angle) in the Initializer

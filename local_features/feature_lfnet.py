@@ -40,7 +40,7 @@ if False:
 else: 
     # from https://stackoverflow.com/questions/56820327/the-name-tf-session-is-deprecated-please-use-tf-compat-v1-session-instead
     import tensorflow as tf
-    import tensorflow as tfv2
+    #import tensorflow as tfv2
 
 
 import importlib
@@ -52,7 +52,7 @@ from lfnet.mydatasets import *
 from lfnet.det_tools import *
 from lfnet.eval_tools import draw_keypoints
 from lfnet.common.tf_train_utils import get_optimizer
-from imageio import imread, imsave
+#from imageio import imread, imsave
 from lfnet.inference import *
 from lfnet.utils import embed_breakpoint, print_opt
 
@@ -204,15 +204,13 @@ class LfNetFeature2D:
         self.lfnet_config = build_lfnet_config()
         print_options(self.lfnet_config,'LFNET CONFIG')
         
-        self.num_features=num_features
+        self.num_features = num_features
         self.lfnet_config.top_k = self.num_features
 
         set_tf_logging(do_tf_logging)
         
         print('==> Loading pre-trained network.')
         # Build Networks
-        #tf.reset_default_graph()
-
         tf.compat.v1.disable_eager_execution()
         self.photo_ph = tf.compat.v1.placeholder(tf.float32, [1, None, None, 1]) # input grayscale image, normalized by 0~1
         is_training = tf.constant(False) # Always False in testing
@@ -225,30 +223,65 @@ class LfNetFeature2D:
         self.session.run(tf.compat.v1.global_variables_initializer())
 
         # load model
-        saver = tf.compat.v1.train.Saver()
-        print('Load trained models...')
+        #saver = tf.compat.v1.train.Saver()
 
-        if os.path.isdir(self.lfnet_config.model):
-            checkpoint = tf.compat.v1.train.latest_checkpoint(self.lfnet_config.model)
-            model_dir = self.lfnet_config.model
-        else:
-            checkpoint = self.lfnet_config.model
-            model_dir = os.path.dirname(self.lfnet_config.model)
+        # print('Loading trained models...')
 
-        if checkpoint is not None:
-            print('Checkpoint', os.path.basename(checkpoint))
-            print("[{}] Resuming...".format(time.asctime()))
-            saver.restore(self.session, checkpoint)
-        else:
-            raise ValueError('Cannot load model from {}'.format(model_dir))    
-        print('==> Successfully loaded pre-trained network.')
+        # if os.path.isdir(self.lfnet_config.model):
+        #     checkpoint = tf.compat.v1.train.latest_checkpoint(self.lfnet_config.model)
+        #     model_dir = self.lfnet_config.model
+        # else:
+        #     checkpoint = self.lfnet_config.model
+        #     model_dir = os.path.dirname(self.lfnet_config.model)
+
+        # if checkpoint is not None:
+        #     print('Checkpoint', os.path.basename(checkpoint))
+        #     print("[{}] Resuming...".format(time.asctime()))
+        #     #try:
+        #     saver.restore(self.session, checkpoint)
+        #     # except tf.errors.NotFoundError as e:
+        #     #     print("Error restoring checkpoint: ", e)
+        #     #     print("Attempting partial restore...")
+        #     #     var_list = tf.compat.v1.global_variables()
+        #     #     var_list = {v.name.split(':')[0]: v for v in var_list}
+        #     #     saver = tf.compat.v1.train.Saver(var_list=var_list)
+        #     #     saver.restore(self.session, checkpoint)
+        # else:
+        #     raise ValueError('Cannot load model from {}'.format(model_dir))    
+        # print('==> Successfully loaded pre-trained network.')
                 
+        # load model
+        print('Loading trained models...')
+        self.model = self.load_pretrained_network(self.lfnet_config.model)
+        if self.model is None:
+            raise ValueError('Cannot load model from {}'.format(self.lfnet_config.model))
+        print('==> Successfully loaded pre-trained network.')
+                        
         self.pts = []
         self.kps = []        
         self.des = []
         self.frame = None    
         self.keypoint_size = 20.  # just a representative size for visualization and in order to convert extracted points to cv2.KeyPoint                       
     
+    
+    def load_pretrained_network(self, checkpoint_path):
+        try:
+            # Create a new model instance
+            model = tf.keras.models.Sequential()  # Replace with your model architecture
+
+            # Create a checkpoint object
+            checkpoint = tf.train.Checkpoint(model=model)
+
+            # Restore the checkpoint
+            checkpoint.restore(tf.train.latest_checkpoint(checkpoint_path)).expect_partial()
+            return model
+        except tf.errors.NotFoundError as e:
+            if 'bn1/beta' in str(e):
+                print("Warning: Key 'bn1/beta' not found in checkpoint. Please check the checkpoint file.")
+            else:
+                print("Error loading model:", e)
+            return None    
+
 
     def __del__(self): 
         try: 
@@ -259,7 +292,7 @@ class LfNetFeature2D:
         
     def close(self):
         if self.session is not None:
-            print('DELF: closing tf session')
+            print('LFNET: closing tf session')
             self.session.close()
             tf.reset_default_graph()           
     
@@ -270,7 +303,7 @@ class LfNetFeature2D:
         # TODO: here we should rebuild the network! 
             
             
-    def compute_kps_des(self,photo):     
+    def compute_kps_des(self, photo):     
         with self.lock:        
             height, width = photo.shape[:2]
             longer_edge = max(height, width)
@@ -324,17 +357,17 @@ class LfNetFeature2D:
             return self.kps, self.des 
         
         
-    def debug(self,pts,scales,orientations,scale_maps,heatmaps):
-        print('orientations:',orientations)                     
-        print('scales:',scales)            
+    def debug(self, pts, scales, orientations, scale_maps, heatmaps):
+        print('orientations:', orientations)                     
+        print('scales:', scales)            
         print('heatmaps info:')
         np.info(heatmaps)
         print('scalemaps info:')
         np.info(scale_maps)        
         heatmaps_img = img_from_floats(heatmaps)
-        cv2.imshow('heatmap',heatmaps_img)             
+        cv2.imshow('heatmap', heatmaps_img)             
         scalemaps_img = img_from_floats(scale_maps)
-        cv2.imshow('scale maps',scalemaps_img)     
+        cv2.imshow('scale maps', scalemaps_img)     
         cv2.waitKey(1)        
     
     
@@ -361,6 +394,6 @@ class LfNetFeature2D:
             if self.frame is not frame:
                 Printer.orange('WARNING: LFNET  is recomputing both kps and des on last input frame', frame.shape)            
                 self.detectAndCompute(frame)
-            return self.kps, self.des                 
-           
-                   
+            return self.kps, self.des
+
+

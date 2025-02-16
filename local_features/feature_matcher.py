@@ -340,7 +340,7 @@ class FeatureMatcher(object):
                     if self.detector_type == FeatureDetectorTypes.LIGHTGLUESIFT:
                         scales1 = np.array([x.size for x in kps1], dtype=np.float32)
                         oris1 = np.array([x.angle for x in kps1], dtype=np.float32)
-                    print(f'kps1: {kps1}')
+                    #print(f'kps1: {kps1}')
                     kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
                     if kVerbose:
                         print('kps1.shape:',kps1.shape,' kps1.dtype:',kps1.dtype)

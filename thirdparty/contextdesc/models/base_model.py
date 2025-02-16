@@ -11,6 +11,8 @@ from abc import ABCMeta, abstractmethod
 import collections
 import tensorflow as tf
 
+from collections.abc import Mapping
+
 sys.path.append('..')
 
 from ..utils.tf import load_frozen_model, recoverer
@@ -27,7 +29,8 @@ def dict_update(d, u):
         The updated dictionary.
     """
     for k, v in u.items():
-        if isinstance(v, collections.Mapping):
+        #if isinstance(v, collections.Mapping):
+        if isinstance(v, Mapping):
             d[k] = dict_update(d.get(k, {}), v)
         else:
             d[k] = v

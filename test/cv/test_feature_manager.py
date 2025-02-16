@@ -19,6 +19,8 @@ from feature_tracker_configs import FeatureTrackerConfigs
 
 from timer import TimerFps
 
+from feature_keynet import KeyNetDescFeature2D
+
 
 # ==================================================================================================
 # N.B.: here we test feature manager detectAndCompute()
@@ -36,8 +38,8 @@ num_features=2000
 
  
 # select your tracker configuration (see the file feature_tracker_configs.py) 
-# FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
-feature_tracker_config = FeatureTrackerConfigs.ORB2
+# FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
+feature_tracker_config = FeatureTrackerConfigs.ROOT_SIFT
 feature_tracker_config['num_features'] = num_features
 
 feature_manager_config = FeatureManagerConfigs.extract_from(feature_tracker_config)
@@ -49,7 +51,7 @@ des = None
 img_old = img.copy()
     
 # loop for measuring time performance 
-N=20
+N=1
 for i in range(N):
     timer.start()
     
@@ -64,6 +66,7 @@ for i in range(N):
 #sizes = np.array([x.size for x in kps], dtype=np.float32) 
 
 print('#kps: ', len(kps))
+des = np.array(des)
 if des is not None: 
     print('des shape: ', des.shape)
 

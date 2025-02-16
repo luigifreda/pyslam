@@ -21,7 +21,7 @@ import os
 import cv2
 import numpy as np
 
-from utils_sys import Printer,getchar
+from utils_sys import Printer
 
 import kornia as K
 import kornia.feature as KF
@@ -55,10 +55,10 @@ class KeyNetAffNetHardNetFeature2D:
         mkpts = KF.get_laf_center(lafs).squeeze().detach().cpu().numpy()
         return mkpts
 
-    def convert_to_keypoints(self, lafs, size=1): 
+    def convert_to_keypoints(self, lafs, resps, size=32): 
         mkpts = self.convert_to_keypoints_array(lafs)
         # convert matrix [Nx2] of pts into list of keypoints  
-        kps = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=size, response=1) for p in mkpts ]                        
+        kps = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=size, response=resps[i]) for i,p in enumerate(mkpts) ]                        
         return kps  
 
     def draw_matches(self, img1, img2, lafs1, lafs2, idxs, inliers):
@@ -69,12 +69,15 @@ class KeyNetAffNetHardNetFeature2D:
             ax=ax)
             
     # extract keypoints 
-    def detect(self, img, mask=None):  #mask is fake: it is not considered by the c++ implementation         
-        mkptkpss1 = None
+    def detect(self, img, mask=None):  #mask is fake: it is not considered by the implementation
+        kps = None
         with torch.inference_mode():
-            lafs, resps, descs = self.feature(img)
-            kps = self.convert_to_keypoints(lafs)
-        return kps       
+            if img.ndim>2:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            img = K.image_to_tensor(img, False).to(self.device).float() / 255.             
+            lafs, resps = self.feature.detector(img)
+            kps = self.convert_to_keypoints(lafs, resps.squeeze().detach().cpu().numpy())
+        return kps      
     
     def compute(self, img, kps, mask=None):
         Printer.orange('WARNING: you are supposed to call detectAndCompute() for KeyNetAffNetHardNetFeature2D instead of compute()')
@@ -91,7 +94,7 @@ class KeyNetAffNetHardNetFeature2D:
                 img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             img = K.image_to_tensor(img, False).to(self.device).float() / 255. 
             lafs, resps, des = self.feature(img)
-            kps = self.convert_to_keypoints(lafs)
+            kps = self.convert_to_keypoints(lafs, resps.squeeze().detach().cpu().numpy())
             des = des.cpu().numpy()
             des =  np.squeeze(des, axis=0)
             #print(f'des shape: {des.shape}, des type: {des.dtype}')
@@ -110,5 +113,5 @@ class KeyNetAffNetHardNetFeature2D:
                 img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             timg = K.image_to_tensor(img, False).to(self.device).float() / 255. 
             lafs, tresps, tdes = self.feature(timg)
-            kps = self.convert_to_keypoints(lafs)
+            kps = self.convert_to_keypoints(lafs, tresps.squeeze().detach().cpu().numpy())
         return kps, lafs, tresps, tdes       

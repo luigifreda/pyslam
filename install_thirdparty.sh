@@ -289,8 +289,10 @@ if command -v nvidia-smi &> /dev/null; then
         cd ../../../../    
         make_dir checkpoints
         cd checkpoints
-        wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
-    fi
+        if [ ! -f MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth ]; then
+            wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
+        fi
+    fi 
 
 fi 
 
@@ -314,10 +316,18 @@ if command -v nvidia-smi &> /dev/null; then
         cd ../../../
         make_dir checkpoints
         cd checkpoints
-        wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth
-        wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth
-        wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth
-        wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth
+        if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth
+        fi
+        if [ ! -f MVD.pth ]; then
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth
+        fi
+        if [ ! -f MVDp_s1.pth ]; then
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth
+        fi
+        if [ ! -f MVDp_s2.pth ]; then
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth
+        fi
     fi
 
 fi
