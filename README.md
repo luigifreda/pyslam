@@ -17,6 +17,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [Loop closing](#loop-closing)
       - [Vocabulary management](#vocabulary-management)
       - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
+      - [Double-check your loop detection configuration and verify vocabulary compability](#double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
     - [Volumetric reconstruction](#volumetric-reconstruction)
       - [Dense reconstruction while running SLAM](#dense-reconstruction-while-running-slam)
       - [Reload a saved sparse map and perform dense reconstruction](#reload-a-saved-sparse-map-and-perform-dense-reconstruction)
@@ -228,6 +229,19 @@ Most methods do not require pre-trained vocabularies. Specifically:
 - Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, and `EigenPlaces` directly extract global descriptors and process them using dedicated aggregators, independently from the used front-end descriptors.
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
+
+#### Double-check your loop detection configuration and verify vocabulary compability
+
+When selecting a loop detection method based on a pre-trained vocabulary(such as `DBoW2`, `DBoW3`, and `VLAD`), ensure the following:
+1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency).
+2. A corresponding pre-trained vocubulary is available. For more details, refer to the [vocabulary management section](#vocabulary-management).
+
+If you lack a compatible vocabulary for the selected front-end descriptor type, you have the following options:
+a. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)). 
+b. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.
+c. Select a vocabular-free loop closing method. 
+See the file `loop_detector_configs.py` for further details.
+
 
 ---
 
