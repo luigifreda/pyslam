@@ -22,6 +22,9 @@ STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
+# detect and configure CUDA 
+. cuda_config.sh
+
 # ====================================================
 # check if want to use conda or venv
 if [ -z $USING_CONDA_PYSLAM ]; then
@@ -136,7 +139,7 @@ if [ ! -d g2opy ]; then
     cd ..     
 fi
 cd g2opy
-if [ ! -f lib/g2o.cpython-*.so ]; then  
+if [ ! -f lib/g2o.cpython*.so ]; then  
     make_buid_dir
     cd build
     cmake .. $EXTERNAL_OPTIONS
@@ -285,7 +288,9 @@ if command -v nvidia-smi &> /dev/null; then
         cd croco 
         git apply ../../../mast3r-dust3r-croco.patch
         cd models/curope/
-        python setup.py build_ext --inplace
+        if [ "$CUDA_VERSION" != "0" ]; then        
+            python setup.py build_ext --inplace
+        fi
         cd ../../../../    
         make_dir checkpoints
         cd checkpoints
@@ -312,22 +317,27 @@ if command -v nvidia-smi &> /dev/null; then
         git apply ../mvdust3r.patch
         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
         cd croco/models/curope/
-        python setup.py build_ext --inplace
+        if [ "$CUDA_VERSION" != "0" ]; then        
+            python setup.py build_ext --inplace
+        fi
         cd ../../../
         make_dir checkpoints
         cd checkpoints
         if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth &
         fi
         if [ ! -f MVD.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth &
         fi
         if [ ! -f MVDp_s1.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth &
         fi
         if [ ! -f MVDp_s2.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth &
         fi
+
+        # Wait for all background download jobs to complete
+        wait
     fi
 
 fi

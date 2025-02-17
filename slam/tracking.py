@@ -703,7 +703,11 @@ class Tracking:
 
     def relocalize(self, f_cur: Frame, img):
         Printer.green(f'Relocalizing frame id: {f_cur.id}...')
-        return self.slam.loop_closing.relocalize(f_cur, img)
+        if self.slam.loop_closing is not None:
+            return self.slam.loop_closing.relocalize(f_cur, img)
+        else:
+            Printer.yellow(f'[Tracking]: WARNING you did not set any loop closing / relolize method!')
+            return False
  
                       
     def create_vo_points_on_last_frame(self):

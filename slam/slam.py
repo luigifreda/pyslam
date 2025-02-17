@@ -108,10 +108,6 @@ class Slam(object):
         self.GBA_on_demand = None    # used independently when pressing "Bundle Adjust" button on GUI
         self.volumetric_integrator = None
         self.reset_requested = False
-  
-        self.volumetric_integrator = None
-        self.loop_closing = None
-        self.GBA = None
                     
         if slam_mode == SlamMode.SLAM:
             self.init_volumetric_integrator() 
@@ -188,7 +184,7 @@ class Slam(object):
             Printer.orange('SLAM: forcing feature matcher ratio_test to 0.8')
             feature_tracker.matcher.ratio_test = 0.8
         if feature_tracker.tracker_type == FeatureTrackerTypes.LK:
-            raise ValueError("SLAM: You cannot use Lukas-Kanade feature_tracker in this SLAM approach!")  
+            raise ValueError("SLAM: At present time, you cannot use Lukas-Kanade feature_tracker in this SLAM framework!")  
         
     def init_loop_closing(self, loop_detector_config):
         if Parameters.kUseLoopClosing and loop_detector_config is not None:
