@@ -76,7 +76,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 **System overview**      
 [Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM workflow, system components, and classes relationships/dependencies.
 
-You can use the pySLAM framework as a baseline to experiment with VO techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)*, and create your own (proof of concept) VO/SLAM pipeline in python. When working with it, please keep in mind this is a research framework written in Python and a work in progress. It is not designed for real-time performances.   
+pySLAM can be used as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should note that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
 **Enjoy it!**
 
@@ -236,10 +236,10 @@ When selecting a loop detection method based on a pre-trained vocabulary(such as
 1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency).
 2. A corresponding pre-trained vocubulary is available. For more details, refer to the [vocabulary management section](#vocabulary-management).
 
-If you lack a compatible vocabulary for the selected front-end descriptor type, you have the following options:
-a. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)). 
-b. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.
-c. Select a vocabular-free loop closing method. 
+If you lack a compatible vocabulary for the selected front-end descriptor type, you have the following options:     
+a. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)).     
+b. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.     
+c. Select a vocabular-free loop closing method.      
 See the file `loop_detector_configs.py` for further details.
 
 
