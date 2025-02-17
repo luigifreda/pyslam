@@ -136,7 +136,7 @@ if [ ! -d g2opy ]; then
     cd ..     
 fi
 cd g2opy
-if [ ! -f lib/g2o.cpython-*.so ]; then  
+if [ ! -f lib/g2o.cpython*.so ]; then  
     make_buid_dir
     cd build
     cmake .. $EXTERNAL_OPTIONS
@@ -317,17 +317,20 @@ if command -v nvidia-smi &> /dev/null; then
         make_dir checkpoints
         cd checkpoints
         if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth &
         fi
         if [ ! -f MVD.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth &
         fi
         if [ ! -f MVDp_s1.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth &
         fi
         if [ ! -f MVDp_s2.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth
+            wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth &
         fi
+
+        # Wait for all background jobs to complete
+        wait
     fi
 
 fi

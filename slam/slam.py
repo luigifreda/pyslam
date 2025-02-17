@@ -108,10 +108,6 @@ class Slam(object):
         self.GBA_on_demand = None    # used independently when pressing "Bundle Adjust" button on GUI
         self.volumetric_integrator = None
         self.reset_requested = False
-  
-        self.volumetric_integrator = None
-        self.loop_closing = None
-        self.GBA = None
                     
         if slam_mode == SlamMode.SLAM:
             self.init_volumetric_integrator() 

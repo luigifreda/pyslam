@@ -58,12 +58,10 @@ print_blue "currently used pyenv: $CURRENT_USED_PYENV"
 
 cd cpp 
 
-# build utils 
-cd utils 
+# build utils
 . build.sh $EXTERNAL_OPTIONS       # use . in order to inherit python env configuration 
-cd ..
 
-cd .. 
+cd $ROOT_DIR
 
 
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
