@@ -29,6 +29,7 @@ import platform
 
 from camera import Camera
 from dataset import DatasetEnvironmentType
+from utils_sys import import_from
 
 from utils_serialization import SerializableEnum, register_class
 from depth_estimator_base import DepthEstimator, DepthEstimatorSgbm
@@ -51,8 +52,10 @@ class DepthEstimatorType(SerializableEnum):
     DEPTH_PRO                  = 2    # "Depth Pro: Sharp Monocular Metric Depth in Less Than a Second" [Monocular]
     DEPTH_RAFT_STEREO          = 3    # "RAFT-Stereo: Multilevel Recurrent Field Transforms for Stereo Matching" [Stereo, it requires a stereo dataset]
     DEPTH_CRESTEREO            = 4    # "Practical Stereo Matching via Cascaded Recurrent Network with Adaptive Correlation" [Stereo, it requires a stereo dataset]
-                                      # Note: Unstable and with linking problems under Linux, not supported under mac [WIP] => use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH
+                                      # Note: Linking problems under Linux, not supported under mac [WIP] => use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH
     DEPTH_CRESTEREO_PYTORCH    = 5    # "Practical Stereo Matching via Cascaded Recurrent Network with Adaptive Correlation", pytorch implementation [Stereo, it requires a stereo dataset]
+    DEPTH_MAST3R               = 6    # "Grounding Image Matching in 3D with MASt3R"
+    DEPTH_MVDUST3R             = 7    # "MV-DUSt3R+: Single-Stage Scene Reconstruction from Sparse Views In 2 Seconds"
  
 
     @staticmethod
@@ -96,6 +99,16 @@ def depth_estimator_factory(depth_estimator_type=DepthEstimatorType.DEPTH_ANYTHI
         return DepthEstimatorCrestereoPytorch(device=device, camera=camera, 
                                               min_depth=min_depth, max_depth=max_depth, 
                                               dataset_env_type=dataset_env_type)
+    elif depth_estimator_type == DepthEstimatorType.DEPTH_MAST3R:
+        from depth_estimator_mast3r import DepthEstimatorMast3r # available only with CUDA       
+        return DepthEstimatorMast3r(device=device, camera=camera, 
+                                    min_depth=min_depth, max_depth=max_depth, 
+                                    dataset_env_type=dataset_env_type)
+    elif depth_estimator_type == DepthEstimatorType.DEPTH_MVDUST3r:
+        from depth_estimator_mvdust3r import DepthEstimatorMvdust3r # available only with CUDA      
+        return DepthEstimatorMvdust3r(device=device, camera=camera, 
+                                    min_depth=min_depth, max_depth=max_depth, 
+                                    dataset_env_type=dataset_env_type)
     else:
         raise ValueError(f'Invalid depth estimator type: {depth_estimator_type}')
 

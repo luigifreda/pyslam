@@ -107,7 +107,7 @@ if __name__ == "__main__":
     Printer.green('feature_tracker_config: ',feature_tracker_config)    
     
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
-    # LoopDetectorConfigs: DBOW2, DBOW3, IBOW, OBINDEX2, VLAD, HDC_DELF, SAD, ALEXNET, NETVLAD, COSPLACE, EIGENPLACES  etc.
+    # LoopDetectorConfigs: DBOW2, DBOW2_INDEPENDENT, DBOW3, DBOW3_INDEPENDENT, IBOW, OBINDEX2, VLAD, HDC_DELF, SAD, ALEXNET, NETVLAD, COSPLACE, EIGENPLACES  etc.
     # NOTE: under mac, the boost/text deserialization used by DBOW2 and DBOW3 may be very slow.
     loop_detection_config = LoopDetectorConfigs.DBOW3
     Printer.green('loop_detection_config: ',loop_detection_config)

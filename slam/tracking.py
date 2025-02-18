@@ -706,6 +706,7 @@ class Tracking:
         if self.slam.loop_closing is not None:
             return self.slam.loop_closing.relocalize(f_cur, img)
         else:
+            Printer.yellow(f'[Tracking]: WARNING you did not set any loop closing / relolize method!')
             return False
  
                       
@@ -1005,6 +1006,8 @@ class Tracking:
                     Printer.green('Relocalization successful')
                 else: 
                     Printer.red('Relocalization failed')
+                    if self.slam.loop_closing is None:
+                        Printer.yellow('WARNING: you did not set any loop closing / relocalize method!')
                                             
             # now, having a better estimate of f_cur pose, we can find more map point matches: 
             # find matches between {local map points} (points in the local map) and {unmatched keypoints of f_cur}

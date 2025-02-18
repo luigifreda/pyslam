@@ -22,7 +22,7 @@ from matplotlib import pyplot as pl
 
 from utils_draw import draw_feature_matches
 from utils_img import img_from_floats
-from utils_dust3r import convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
+from utils_dust3r import  dust3r_preprocess_images, invert_dust3r_preprocess_images, invert_dust3r_preprocess_depth, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
 
 from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
 from utils_img import ImageTable
@@ -40,18 +40,38 @@ device = 'cuda'
 
 # Input images (can be of different sizes)
 #images = load_images([kMast3rFolder + '/dust3r/croco/assets/Chateau1.png', kMast3rFolder + '/dust3r/croco/assets/Chateau2.png'], size=512)
-images = load_images([kMast3rFolder + '/assets/NLE_tower/1AD85EF5-B651-4291-A5C0-7BDB7D966384-83120-000041DADF639E09.jpg', kMast3rFolder + '/assets/NLE_tower/2679C386-1DC0-4443-81B5-93D7EDE4AB37-83120-000041DADB2EA917.jpg'], size=512)
+# images = load_images([kMast3rFolder + '/assets/NLE_tower/1AD85EF5-B651-4291-A5C0-7BDB7D966384-83120-000041DADF639E09.jpg', 
+#                       kMast3rFolder + '/assets/NLE_tower/2679C386-1DC0-4443-81B5-93D7EDE4AB37-83120-000041DADB2EA917.jpg'], size=512)
+# images = load_images([kMast3rFolder + '/assets/NLE_tower/1AD85EF5-B651-4291-A5C0-7BDB7D966384-83120-000041DADF639E09.jpg', 
+#                       kMast3rFolder + '/assets/NLE_tower/1AD85EF5-B651-4291-A5C0-7BDB7D966384-83120-000041DADF639E09.jpg'], size=512)  # test same image
     
-   
+# Input images (can be of different sizes)
+#image_paths = [kMast3rFolder + '/dust3r/croco/assets/Chateau1.png', kMast3rFolder + '/dust3r/croco/assets/Chateau2.png']
+images_paths = [kMast3rFolder + '/assets/NLE_tower/1AD85EF5-B651-4291-A5C0-7BDB7D966384-83120-000041DADF639E09.jpg', 
+                kMast3rFolder + '/assets/NLE_tower/2679C386-1DC0-4443-81B5-93D7EDE4AB37-83120-000041DADB2EA917.jpg']
+# images_paths = [kMast3rFolder + '/assets/NLE_tower/1AD85EF5-B651-4291-A5C0-7BDB7D966384-83120-000041DADF639E09.jpg', 
+#                 kMast3rFolder + '/assets/NLE_tower/1AD85EF5-B651-4291-A5C0-7BDB7D966384-83120-000041DADF639E09.jpg']
+
 if __name__ == '__main__': 
     
     min_conf_thr = 50   # percentage of the max confidence value
+    inference_size = 512
+    invert_colors_on_loading = True
 
     # you can put the path to a local checkpoint in model_name if needed
     model = AsymmetricMASt3R.from_pretrained(model_name).to(device)
     
+    imgs = []
+    for p in images_paths:
+        img = cv2.imread(p)
+        if img.ndim == 3 and invert_colors_on_loading:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)        
+        imgs.append(img)
+        
+    imgs_preproc = dust3r_preprocess_images(imgs, size=inference_size) 
+    
     # get inference output 
-    output = inference([tuple(images)], model, device, batch_size=1, verbose=False)
+    output = inference([tuple(imgs_preproc)], model, device, batch_size=1, verbose=False)
 
     # at this stage, you have the raw dust3r predictions
     view1, pred1 = output['view1'], output['pred1']
@@ -84,11 +104,10 @@ if __name__ == '__main__':
     h, w, _ = rgb_imgs[0].shape[0:3] # [H, W, 3]    
     conf_first = conf[0].reshape(-1) # [bs, H * W]
     conf_first_sorted = conf_first.sort()[0] # [bs, h * w]
-    conf_first_thres = conf_first_sorted[int(conf_first.shape[0] * 0.03)]
+    #conf_first_thres = conf_first_sorted[int(conf_first_sorted.shape[0] * 0.03)]  # here we use a different threshold 
+    conf_first_thres = conf_first_sorted[int(conf_first_sorted.shape[0] * float(min_conf_thr) * 0.01)]
     valid_first = (conf_first_sorted >= conf_first_thres) # & valids[0].reshape(bs, -1)
-    valid_first = valid_first.reshape(h, w)    
-    valid_first = (conf_first >= conf_thres) # & valids[0].reshape(bs, -1)
-    valid_first = valid_first.reshape(h, w)    
+    valid_first = valid_first.reshape(h, w)     
     
     focals = estimate_focal_knowing_depth(pts3d[0][None].cuda(), valid_first[None].cuda()).cpu().item()
     
@@ -144,7 +163,6 @@ if __name__ == '__main__':
     n_viz = int(100/n_viz_percent)
     match_idx_to_viz = np.arange(0, num_matches - 1, n_viz)  # extract 1 sample every n_viz samples
     viz_matches_im0, viz_matches_im1 = matches_im0[match_idx_to_viz], matches_im1[match_idx_to_viz]
-
     
     # convert to visualizable images 
     for i,img in enumerate(rgb_imgs):
@@ -152,17 +170,43 @@ if __name__ == '__main__':
         print(f'conf shape: {confs[i].shape}, min: {confs[i].min()}, max: {confs[i].max()}')        
         confs[i] = img_from_floats(confs[i])
             
-    show_image_tables = True
-    if show_image_tables:
-        img_table_originals = ImageTable(num_columns=2, resize_scale=0.5)
+    inverted_images = invert_dust3r_preprocess_images(rgb_imgs, [im.shape[0:2] for im in imgs], inference_size)
+
+    # extract first image depth with mask 
+    h, w = rgb_imgs[0].shape[0:2]           
+    valid_first = mask[0].reshape(h,w)
+    depth = np.zeros(shape=(h,w),dtype=pts3d[0].dtype)
+    depth[valid_first] = pts3d[0][valid_first,2]
+    
+    depth_inv = invert_dust3r_preprocess_depth(depth, imgs[0].shape[0:2], inference_size)
+    depth_inv_img = img_from_floats(depth_inv)
+    cv2.imshow('Depth', depth_inv_img)
+    
         
-        img_table = ImageTable(num_columns=2)
+    show_image_tables = True
+    table_resize_scale=0.8    
+    if show_image_tables:
+        img_table_originals = ImageTable(num_columns=2, resize_scale=table_resize_scale)
+        for i, img in enumerate(imgs):
+            if img.ndim == 3 and invert_colors_on_loading:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
+            img_table_originals.add(img)
+        img_table_originals.render()
+        cv2.imshow('Original Images', img_table_originals.image())
+        
+        img_table = ImageTable(num_columns=2, resize_scale=table_resize_scale)
         for i, img in enumerate(rgb_imgs):
             img_table.add(img)
         img_table.render()
         cv2.imshow('Dust3r Images', img_table.image())
         
-        img_table_conf = ImageTable(num_columns=2)
+        img_inverted_table = ImageTable(num_columns=2, resize_scale=table_resize_scale)
+        for i, img in enumerate(inverted_images):
+            img_inverted_table.add(img)
+        img_inverted_table.render()
+        cv2.imshow('Inverted Images', img_inverted_table.image())        
+        
+        img_table_conf = ImageTable(num_columns=2, resize_scale=table_resize_scale)
         for i, conf in enumerate(confs):
             print(f'adding confidence image {i}, shape: {conf.shape}, min: {np.min(conf)}, max: {np.max(conf)}')
             img_table_conf.add(conf)

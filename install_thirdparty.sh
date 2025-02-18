@@ -22,6 +22,9 @@ STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
+# detect and configure CUDA 
+. cuda_config.sh
+
 # ====================================================
 # check if want to use conda or venv
 if [ -z $USING_CONDA_PYSLAM ]; then
@@ -60,7 +63,7 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 # ====================================================
 
 CURRENT_USED_PYENV=$(get_virtualenv_name)
-print_blue "currently used pyenv: $CURRENT_USED_PYENV"
+print_blue "Currently used pyenv: $CURRENT_USED_PYENV"
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
@@ -279,13 +282,16 @@ if command -v nvidia-smi &> /dev/null; then
         git clone --recursive https://github.com/naver/mast3r mast3r
         git checkout e06b0093ddacfd8267cdafe5387954a650af0d3b
         cd mast3r
+        git apply ../mast3r.patch
         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
         cd dust3r 
         git apply ../../mast3r-dust3r.patch
         cd croco 
         git apply ../../../mast3r-dust3r-croco.patch
         cd models/curope/
-        python setup.py build_ext --inplace
+        if [ "$CUDA_VERSION" != "0" ]; then        
+            python setup.py build_ext --inplace
+        fi
         cd ../../../../    
         make_dir checkpoints
         cd checkpoints
@@ -312,7 +318,9 @@ if command -v nvidia-smi &> /dev/null; then
         git apply ../mvdust3r.patch
         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
         cd croco/models/curope/
-        python setup.py build_ext --inplace
+        if [ "$CUDA_VERSION" != "0" ]; then        
+            python setup.py build_ext --inplace
+        fi
         cd ../../../
         make_dir checkpoints
         cd checkpoints
@@ -329,7 +337,7 @@ if command -v nvidia-smi &> /dev/null; then
             wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth &
         fi
 
-        # Wait for all background jobs to complete
+        # Wait for all background download jobs to complete
         wait
     fi
 

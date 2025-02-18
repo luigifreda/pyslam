@@ -1,3 +1,20 @@
+diff --git a/models/croco.py b/models/croco.py
+index 14c6863..4aeb4d1 100644
+--- a/models/croco.py
++++ b/models/croco.py
+@@ -13,9 +13,9 @@ import torch.nn as nn
+ torch.backends.cuda.matmul.allow_tf32 = True # for gpu >= Ampere and pytorch >= 1.12
+ from functools import partial
+ 
+-from models.blocks import Block, DecoderBlock, PatchEmbed
+-from models.pos_embed import get_2d_sincos_pos_embed, RoPE2D 
+-from models.masking import RandomMask
++from .blocks import Block, DecoderBlock, PatchEmbed
++from .pos_embed import get_2d_sincos_pos_embed, RoPE2D 
++from .masking import RandomMask
+ 
+ 
+ class CroCoNet(nn.Module):
 diff --git a/models/curope/setup.py b/models/curope/setup.py
 index 230632e..3b73274 100644
 --- a/models/curope/setup.py

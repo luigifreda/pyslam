@@ -9,20 +9,25 @@ set -e
 
 # if we are not under docker
 if [ ! -f /.dockerenv  ]; then 
-  # Provide the password to sudo once at the start
-  echo "insert your sudo password once" 
+  # Provide the password to sudo once at the start (hopefully...)
+  echo "Insert your sudo password" 
   sudo -S -v    # not working properly under mac
 fi
 
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    echo "Under conda, you have to use install_all_conda.sh script"
+    exit
+fi
 
 case "$OSTYPE" in
   darwin*)
     echo "macOS"
-    . install_all_mac_venv.sh
+    . install_all_venv_mac.sh
     ;;
   linux*)
     echo "Linux"
-    . install_all_linux_venv.sh
+    . install_all_venv_linux.sh
     ;;
   *)
     echo "Unknown OS"

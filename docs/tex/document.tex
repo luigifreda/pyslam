@@ -101,15 +101,26 @@
 \makeatother
 
 
-\title{pySLAM: An Open-Source, Modular, and Extensible Framework for Visual SLAM}
+\title{pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM}
 \author{Luigi Freda}
-\date{\today}  % put the 
-
+\date{\small \today}  % put the 
 
 \begin{document}
 
-
 \maketitle
+\begin{center}
+  \href{https://github.com/luigifreda/pyslam}{github.com/luigifreda/pyslam}
+\end{center}
+
+\begin{abstract}
+pySLAM is an open-source Python framework for Visual SLAM, supporting monocular, stereo, and RGB-D cameras. It provides a flexible interface for integrating both classical and modern local features, making it adaptable to various SLAM tasks. The framework includes different loop closure methods, a volumetric reconstruction pipeline, and support for depth prediction models. Additionally, it offers a suite of tools for visual odometry and SLAM applications. Designed for both beginners and experienced researchers, pySLAM encourages community contributions, fostering collaborative development in the field of Visual SLAM.
+\end{abstract}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.6\textwidth]{images_tex/pyslam-teaser-rect.png}
+  \label{fig:teaser}
+\end{figure}
 
 \tableofcontents
 
@@ -117,8 +128,7 @@
 
 \section{Introduction}
 
-\textbf{pySLAM} is a python implementation of a \emph{Visual SLAM}
-pipeline that supports \textbf{monocular}, \textbf{stereo} and
+The goal of this document is to present the pySLAM framework, its main features, and usage. \textbf{pySLAM} is a python implementation of a \emph{Visual SLAM} pipeline that supports \textbf{monocular}, \textbf{stereo} and
 \textbf{RGBD} cameras. It provides the following \textbf{features}: 
 
 \begin{itemize}
@@ -148,7 +158,7 @@ pipeline that supports \textbf{monocular}, \textbf{stereo} and
     \item A collection of other useful tools for VO and SLAM.
 \end{itemize}
 
-\textbf{Main Scripts} 
+A convenient entry-point are the following \textbf{main scripts}:
 \begin{itemize}
 \item 
 \texttt{main\_vo.py} combines the simplest VO
@@ -189,18 +199,16 @@ camera pose estimation.
   \protect\hyperlink{volumetric-reconstruction}{here}).
 \end{itemize}
 
-You can use the pySLAM framework as a baseline to experiment with VO
-techniques, \emph{\protect\hyperlink{supported-local-features}{local
+pySLAM can be used as flexible baseline framework to experiment with VO/SLAM techniques, \emph{\protect\hyperlink{supported-local-features}{local
 features}},
 \emph{\protect\hyperlink{supported-global-descriptors-and-local-descriptor-aggregation-methods}{descriptor
 aggregators}},
 \emph{\protect\hyperlink{supported-global-descriptors-and-local-descriptor-aggregation-methods}{global
 descriptors}},
 \emph{\protect\hyperlink{volumetric-reconstruction-pipeline}{volumetric
-integration}}, \emph{\protect\hyperlink{depth-prediction}{depth
-prediction}}, and create your own (proof of concept) VO/SLAM pipeline in
-python. When working with it, please keep in mind this is a research
-framework written in Python and a work in progress. It is not designed
+integration}} and \emph{\protect\hyperlink{depth-prediction}{depth
+prediction}}. It allows to quickly explore, prototype and develop VO/SLAM pipelines. 
+Users should note that pySLAM is a research framework and a work in progress. It is not optimized
 for real-time performances.
 
 \textbf{Enjoy it!}
@@ -209,51 +217,55 @@ for real-time performances.
 \hypertarget{system_overview}{%
 \section{System overview}\label{system_overview}}
 
-\subsection{SLAM Workflow}
+This section presents some diagram sketches that provide an overview of the main workflow, system components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted.
+
+\subsubsection{SLAM Workflow}
 \begin{center}
     \includegraphics[width=\textwidth]{./images/slam_workflow.png}
 \end{center}
 
-\subsection{SLAM Components}
+\subsubsection{SLAM Components}
 \begin{center}
     \includegraphics[width=0.8\textwidth]{./images/slam_components.png}
 \end{center}
 
-\textbf{Note}: You might be wondering why I used \textbf{Processes} instead of \textbf{Threads} in some cases. The reason is that, at least in Python 3.8 (the version supporting pySLAM), only one thread can execute at a time within a single process due to the Global Interpreter Lock (GIL). On the other hand, using multiprocessing (separate processes that do not share the GIL) enables better parallelism. See this nice \href{https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder}{post}.
+\textbf{Note}: In some case, I used \textbf{Processes} instead of \textbf{Threads} because in Python 3.8 (used by pySLAM) the Global Interpreter Lock (GIL) allows only one thread can execute at a time within a single process. Multiprocessing avoids this limitation and enables better parallelism, though it involves data duplication via pickling. See this related nice \href{https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder}{post}.
 
-\subsection{Main System Components}
+
+\subsubsection{Main System Components}
 
 \textbf{Feature Tracker}
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{./images/feature_tracker.png}
+    \includegraphics[width=0.7\textwidth]{./images/feature_tracker.png}
 \end{center}
 
 \textbf{Feature Matcher}
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{./images/feature_matcher.png}
+    \includegraphics[width=0.7\textwidth]{./images/feature_matcher.png}
 \end{center}
 
 \textbf{Loop Detector}
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{./images/loop_detector.png}
+    \includegraphics[width=0.7\textwidth]{./images/loop_detector.png}
 \end{center}
 
 \textbf{Depth Estimator}
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{./images/depth_estimator.png}
+    \includegraphics[width=0.7\textwidth]{./images/depth_estimator.png}
 \end{center}
 
-\subsection{Volumetric Integrator}
+\subsubsection{Volumetric Integrator}
 \begin{center}
-    \includegraphics[width=0.8\textwidth]{./images/volumetric_integrator.png}
+    \includegraphics[width=0.7\textwidth]{./images/volumetric_integrator.png}
 \end{center}
 
 \hypertarget{usage}{%
 \section{Usage}\label{usage}}
 
-Once you have run the script \texttt{install\_all\_venv.sh} (follow the
-instructions above according to your OS), you can open a new terminal
-and start testing the basic \textbf{Visual Odometry} (VO):\\
+Once you have run the script \texttt{install\_all\_venv.sh} /
+\texttt{install\_all\_conda.sh} (follow the instructions
+\protect\hyperlink{install}{above} according to your OS), you can open a
+new terminal and start testing the basic \textbf{Visual Odometry} (VO):
 
 \begin{scriptsize}
 \begin{Shaded}
@@ -273,7 +285,10 @@ corresponding camera calibration file (available in the folder
 \texttt{data/videos} folder). If matplotlib windows are used, you can
 stop \texttt{main\_vo.py} by focusing/clicking on one of them and
 pressing the key `Q'. As explained above, this very \emph{basic} script
-\texttt{main\_vo.py} \textbf{strictly requires a ground truth}.
+\texttt{main\_vo.py} \textbf{strictly requires a ground truth}. Now,
+with RGBD datasets, you can also test the \textbf{RGBD odometry} with
+the classes \texttt{VisualOdometryRgbd} or
+\texttt{VisualOdometryRgbdTensor} (ground truth is not required here).
 
 Similarly, you can test the \textbf{full SLAM} by running
 \texttt{main\_slam.py}:\\
@@ -399,9 +414,42 @@ descriptors.
 As mentioned above, only \texttt{DBoW2}, \texttt{DBoW3}, and
 \texttt{VLAD} require pre-trained vocabularies.
 
+\hypertarget{double-check-your-loop-detection-configuration-and-verify-vocabulary-compability}{%
+\paragraph{Double-check your loop detection configuration and verify
+vocabulary
+compability}\label{double-check-your-loop-detection-configuration-and-verify-vocabulary-compability}}
+
+When selecting a loop detection method based on a pre-trained
+vocabulary(such as \texttt{DBoW2}, \texttt{DBoW3}, and \texttt{VLAD}),
+ensure the following: 
+\begin{enumerate}
+\item The back-end and the front-end are using the
+same descriptor type (this is also automatically checked for
+consistency). 
+\item A corresponding pre-trained vocubulary is available.
+\end{enumerate}
+
+For more details, refer to the
+\protect\hyperlink{vocabulary-management}{vocabulary management
+section}.
+
+If you lack a compatible vocabulary for the selected front-end
+descriptor type, you have the following options: 
+\begin{enumerate}
+\item[a.] Create and load the vocabulary (refer to the
+\protect\hyperlink{vocabulary-management}{vocabulary management
+section}). 
+\item[b.] Choose an \texttt{*\_INDEPENDENT} loop detector method,
+which works with an independent local\_feature\_manager. 
+\item[c.] Select a vocabular-free loop closing method. 
+\end{enumerate}
+
+See the file \texttt{loopclosing/loop\_detector\_configs.py} for further details.
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
 \hypertarget{volumetric-reconstruction}{%
-\subsection{Volumetric
-reconstruction}\label{volumetric-reconstruction}}
+\subsection{Volumetric reconstruction}\label{volumetric-reconstruction}}
 
 \hypertarget{dense-reconstruction-while-running-slam}{%
 \paragraph{Dense reconstruction while running
@@ -522,9 +570,11 @@ the front-end. - The depth inference may be very slow (for instance,
 with DepthPro it takes \textasciitilde{}1s per image on my machine).
 Therefore, the resulting volumetric reconstruction pipeline may be very
 slow.
+\hypertarget{saving-and-reloading}{%
+\subsection{Saving and reloading}\label{saving-and-reloading}}
 
 \hypertarget{save-the-a-map}{%
-\subsection{Save the a map}\label{save-the-a-map}}
+\subsubsection{Save the a map}\label{save-the-a-map}}
 
 When you run the script \texttt{main\_slam.py}
 (\texttt{main\_map\_dense\_reconstruction.py}): - You can save the
@@ -537,7 +587,7 @@ default saving path, open \texttt{config.yaml} and update target
 \texttt{bash\ \ \ SYSTEM\_STATE:\ \ \ \ \ folder\_path:\ results/slam\_state\ \ \ \#\ default\ folder\ path\ (relative\ to\ repository\ root)\ where\ the\ system\ state\ is\ saved\ or\ reloaded}
 
 \hypertarget{reload-a-saved-map-and-relocalize-in-it}{%
-\subsection{Reload a saved map and relocalize in
+\subsubsection{Reload a saved map and relocalize in
 it}\label{reload-a-saved-map-and-relocalize-in-it}}
 
 \begin{itemize}
@@ -575,24 +625,41 @@ front-end, and backend configurations. Reloading a saved map overwrites
 the current system configurations to ensure descriptor compatibility.
 
 \hypertarget{trajectory-saving}{%
-\subsection{Trajectory saving}\label{trajectory-saving}}
+\subsubsection{Trajectory saving}\label{trajectory-saving}}
 
 Estimated trajectories can be saved in three different formats:
 \emph{TUM} (The Open Mapping format), \emph{KITTI} (KITTI Odometry
-format), and \emph{EuRoC} (EuRoC MAV format). To enable trajectory
-saving, open \texttt{config.yaml} and search for the
-\texttt{SAVE\_TRAJECTORY}: set \texttt{save\_trajectory:\ True}, select
-your \texttt{format\_type} (\texttt{tum}, \texttt{kitti},
+format), and \emph{EuRoC} (EuRoC MAV format). pySLAM saves two
+\textbf{types} of trajectory estimates:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Online}: In \emph{online} trajectories, each pose estimate
+  depends only on past poses. A pose estimate is saved at the end of
+  each front-end iteration on current frame.
+\item
+  \textbf{Final}: In \emph{final} trajectories, each pose estimate
+  depends on both past and future poses. A pose estimate is refined
+  multiple times by LBA windows that cover it and by GBA during loop
+  closures.
+\end{itemize}
+
+To enable trajectory saving, open \texttt{config.yaml} and search for
+the \texttt{SAVE\_TRAJECTORY}: set \texttt{save\_trajectory:\ True},
+select your \texttt{format\_type} (\texttt{tum}, \texttt{kitti},
 \texttt{euroc}), and the output filename. For instance for a
 \texttt{tum} format output: \\
 
 \begin{scriptsize}
+
 \begin{Shaded}
 \begin{Highlighting}[]
 \ExtensionTok{SAVE_TRAJECTORY}\NormalTok{:}
   \ExtensionTok{save_trajectory}\NormalTok{: True}
-  \ExtensionTok{format_type}\NormalTok{: tum}
-  \ExtensionTok{filename}\NormalTok{: results/kitti_trajectory.txt}
+  \ExtensionTok{format_type}\NormalTok{: kitti             }\CommentTok{# supported formats: `tum`, `kitti`, `euroc`}
+  \ExtensionTok{output_folder}\NormalTok{: results/metrics }\CommentTok{# relative to pyslam root folder }
+  \ExtensionTok{basename}\NormalTok{: trajectory           }\CommentTok{# basename of the trajectory saving output}
 \end{Highlighting}
 \end{Shaded}
 
@@ -1069,16 +1136,27 @@ folder \texttt{calibration}) * Configure the \texttt{VIDEO\_DATASET}
 section of \texttt{config.yaml} in order to point to your recorded
 video.
 
-\hypertarget{contributing-to-pyslam}{%
-\section{Contributing to pySLAM}\label{contributing-to-pyslam}}
+%\hypertarget{contributing-to-pyslam}{%
+%\section{Contributing to pySLAM}\label{contributing-to-pyslam}}
+%
+%If you like pySLAM and would like to contribute to the code base, you
+%can report bugs, leave comments and proposing new features through
+%issues and pull requests on github. Feel free to get in touch at
+%\emph{luigifreda(at)gmail{[}dot{]}com}. Thank you!
 
-If you like pySLAM and would like to contribute to the code base, you
-can report bugs, leave comments and proposing new features through
-issues and pull requests on github. Feel free to get in touch at
-\emph{luigifreda(at)gmail{[}dot{]}com}. Thank you!
+
+\hypertarget{Comparison pySLAM vs ORB-SLAM3}{%
+\section{Comparison pySLAM vs ORB-SLAM3}\label{comparison-pySLAM-ORBSLAM3}}
+
+For a comparative evaluation, \textit{online} trajectory estimated by pySLAM vs \textit{final} trajectories estimated by ORB-SLAM3, see this nice \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}. 
+Note that pySLAM is able to save both online and final pose estimates. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback. 
+For further details about online/final trajectories and trajectory saving, see the section~\ref{trajectory-saving}.
+
 
 \hypertarget{credits}{%
 \section{Credits}\label{credits}}
+
+The following is a list of frameworks that inspired or has been integrated into pySLAM. Many thanks to their Authors for their great work.
 
 \begin{itemize}
 \tightlist
@@ -1141,6 +1219,10 @@ issues and pull requests on github. Feel free to get in touch at
   \href{https://github.com/ibaiGorordo/CREStereo-Pytorch}{CREStereo-Pytorch} \cite{CREStereo}
 \item
   \href{https://github.com/muskie82/MonoGS}{MonoGS} \cite{MonoGS}
+\item
+  \href{https://github.com/naver/mast3r}{mast3r}
+\item
+  \href{https://github.com/facebookresearch/mvdust3r}{mvdust3r}
 \item
   Many thanks to \href{https://github.com/anathonic}{Anathonic} for
   adding the trajectory-saving feature and for the comparison notebook:

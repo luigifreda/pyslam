@@ -50,7 +50,7 @@ if [ "$CUDA_VERSION" != "0" ]; then
     sudo apt-get install -y cuda-toolkit-$CUDA_VERSION_STRING_WITH_HYPHENS
     if [ $? -ne 0 ]; then
         print_red "❌ Installation failed! Try these alternatives:"
-        print_red "1. Check available versions: apt-cache search nvidia-cuda-toolkit"
+        print_red "1. Check available versions: apt-cache search cuda-toolkit"
         print_red "2. Before trying again, manually add NVIDIAs repository. For further details, see this link:" 
         print_red "   https://developer.nvidia.com/cuda-toolkit-archive"
         print_red "Exiting..."

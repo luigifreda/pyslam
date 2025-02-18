@@ -103,7 +103,8 @@ if __name__ == '__main__':
                 print(f'inference time: {time.time() - start_time}')
 
                 # Filter depth
-                if True:
+                filter_depth = True
+                if filter_depth:
                     depth_filtered = filter_shadow_points(depth_prediction, delta_depth=None)
                 else:
                     depth_filtered = depth_prediction

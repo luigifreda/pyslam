@@ -1,30 +1,27 @@
 #!/usr/bin/env bash
 
-#echo "usage: ./${0##*/} <env-name>"
+#N.B: this install script allows you to run main_slam.py and all the scripts 
 
-export ENV_NAME=$1
+# ====================================================
+# import the utils 
+. bash_utils.sh 
 
-if [ -z "${ENV_NAME}" ]; then
-    ENV_NAME='pyslam'
+# ====================================================
+
+#set -e
+
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    CONDA_INSTALLED=true
+else
+    CONDA_INSTALLED=false
 fi
 
-ENVS_PATH=~/.python/venvs  # path where to group virtual environments 
-ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 
-
-#export PYTHONPATH=$ENVS_PATH/$ENV_NAME/bin  
-export PYTHONPATH=""   # clean python path => for me, remove ROS stuff 
-
-if [ ! -f $ENV_PATH/bin/activate ]; then
-    echo "Are you using conda? If so, use pyenv-conda-activate.sh"
-    return 1
-fi
-. $ENV_PATH/bin/activate  
-
-# N.B.: in order to deactivate the virtual environment run: 
-# $ deactivate 
-
-# Check if the operating system is Darwin (macOS)
-if [[ $OSTYPE == 'darwin'* ]]; then
-    export PYTORCH_ENABLE_MPS_FALLBACK=1
-    echo "setting PYTORCH_ENABLE_MPS_FALLBACK: $PYTORCH_ENABLE_MPS_FALLBACK"
+# check that conda is activated 
+if [ "$CONDA_INSTALLED" = true ]; then
+    print_blue "activating pySLAM environment by using conda"
+    . pyenv-conda-activate.sh
+else
+    print_blue "activating pySLAM environment by using venv"
+    . pyenv-venv-activate.sh
 fi

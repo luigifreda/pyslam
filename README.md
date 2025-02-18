@@ -1,10 +1,10 @@
-# pySLAM v2.5.1
+# pySLAM v2.5.3
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.5.1](#pyslam-v251)
+- [pySLAM v2.5.3](#pyslam-v253)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -17,6 +17,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [Loop closing](#loop-closing)
       - [Vocabulary management](#vocabulary-management)
       - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
+      - [Double-check your loop detection configuration and verify vocabulary compability](#double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
     - [Volumetric reconstruction](#volumetric-reconstruction)
       - [Dense reconstruction while running SLAM](#dense-reconstruction-while-running-slam)
       - [Reload a saved sparse map and perform dense reconstruction](#reload-a-saved-sparse-map-and-perform-dense-reconstruction)
@@ -48,6 +49,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [Contributing to pySLAM](#contributing-to-pyslam)
   - [References](#references)
   - [Credits](#credits)
+  - [License](#license)
   - [TODOs](#todos)
 
 <!-- /TOC -->
@@ -75,7 +77,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 **System overview**      
 [Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM workflow, system components, and classes relationships/dependencies.
 
-You can use the pySLAM framework as a baseline to experiment with VO techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)*, and create your own (proof of concept) VO/SLAM pipeline in python. When working with it, please keep in mind this is a research framework written in Python and a work in progress. It is not designed for real-time performances.   
+pySLAM can be used as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should note that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
 **Enjoy it!**
 
@@ -95,19 +97,25 @@ You can use the pySLAM framework as a baseline to experiment with VO techniques,
 --- 
 ## Install 
 
-First, clone this repo and its modules by running 
+First, clone this repo and its submodules by running 
 ```bash
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 $ cd pyslam 
 ```
 
-Then, use the available specific install procedure according to your OS. The provided scripts will create a **single python environment** that is able to host all the [supported components and models](#supported-components-and-models)!
+Then, under **Ubuntu** and **MacOs** you can simply run:
+```bash
+$ ./install_all.sh
+```
+This install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. 
 
+Refer to these links for further details about the specific install procedures that are supported.
 - **Ubuntu**  [=>](#ubuntu)
-- **MacOs** [=>](#macos) 
+- **MacOs** [=>](#macos)  
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
 - **Docker** [=>](#docker)
 
+Once everything is completed you can jump the [usage section](#usage).
 
 ### Main requirements
 
@@ -145,7 +153,7 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
 ```bash       
-$ . pyenv-activate.sh          
+$ . pyenv-activate.sh     #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./scripts/opencv_check.py
 ```
 Otherwise, run the following commands: 
@@ -161,7 +169,7 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all_venv.sh` / `install_all_conda.sh` (follow the instructions [above](#install) according to your OS), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
+Once you have run the script `install_all.sh` (follow the instructions [above](#install)), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py
@@ -228,6 +236,19 @@ Most methods do not require pre-trained vocabularies. Specifically:
 - Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, and `EigenPlaces` directly extract global descriptors and process them using dedicated aggregators, independently from the used front-end descriptors.
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
+
+#### Double-check your loop detection configuration and verify vocabulary compability
+
+When selecting a loop detection method based on a pre-trained vocabulary(such as `DBoW2`, `DBoW3`, and `VLAD`), ensure the following:
+1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency).
+2. A corresponding pre-trained vocubulary is available. For more details, refer to the [vocabulary management section](#vocabulary-management).
+
+If you lack a compatible vocabulary for the selected front-end descriptor type, you have the following options:     
+a. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)).     
+b. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.     
+c. Select a vocabular-free loop closing method.      
+See the file `loop_detector_configs.py` for further details.
+
 
 ---
 
@@ -641,6 +662,16 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mast3r](https://github.com/naver/mast3r)
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
+
+
+
+## License 
+
+pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modified libraries, each one coming with its license. Where nothing is specified, a GPLv3 license applies to the software.
+
+If you use pySLAM in your projects, please cite this document:
+["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*
+
 
 ---
 ## TODOs
