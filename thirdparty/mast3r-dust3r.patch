@@ -4,25 +4,42 @@ diff --git a/croco b/croco
 @@ -1 +1 @@
 -Subproject commit 743ee71a2a9bf57cea6832a9064a70a0597fcfcb
 +Subproject commit 743ee71a2a9bf57cea6832a9064a70a0597fcfcb-dirty
-diff --git a/dust3r/cloud_opt/init_im_poses.py b/dust3r/cloud_opt/init_im_poses.py
-index 7887c5c..1ed2a98 100644
---- a/dust3r/cloud_opt/init_im_poses.py
-+++ b/dust3r/cloud_opt/init_im_poses.py
-@@ -4,7 +4,7 @@
+diff --git a/dust3r/heads/dpt_head.py b/dust3r/heads/dpt_head.py
+index b7bdc9f..0107afe 100644
+--- a/dust3r/heads/dpt_head.py
++++ b/dust3r/heads/dpt_head.py
+@@ -14,7 +14,7 @@ import torch
+ import torch.nn as nn
+ from dust3r.heads.postprocess import postprocess
+ import dust3r.utils.path_to_croco  # noqa: F401
+-from models.dpt_block import DPTOutputAdapter  # noqa
++from croco.models.dpt_block import DPTOutputAdapter  # noqa
+ 
+ 
+ class DPTOutputAdapter_fix(DPTOutputAdapter):
+diff --git a/dust3r/model.py b/dust3r/model.py
+index 41c3a4f..e10ad33 100644
+--- a/dust3r/model.py
++++ b/dust3r/model.py
+@@ -15,7 +15,7 @@ from .heads import head_factory
+ from dust3r.patch_embed import get_patch_embed
+ 
+ import dust3r.utils.path_to_croco  # noqa: F401
+-from models.croco import CroCoNet  # noqa
++from croco.models.croco import CroCoNet  # noqa
+ 
+ inf = float('inf')
+ 
+diff --git a/dust3r/patch_embed.py b/dust3r/patch_embed.py
+index 07bb184..f5a1015 100644
+--- a/dust3r/patch_embed.py
++++ b/dust3r/patch_embed.py
+@@ -7,7 +7,7 @@
  # --------------------------------------------------------
- # Initialization functions for global alignment
- # --------------------------------------------------------
--from functools import cache
-+from functools import lru_cache
- 
- import numpy as np
- import scipy.sparse as sp
-@@ -239,7 +239,7 @@ def estimate_focal(pts3d_i, pp=None):
-     return float(focal)
+ import torch
+ import dust3r.utils.path_to_croco  # noqa: F401
+-from models.blocks import PatchEmbed  # noqa
++from croco.models.blocks import PatchEmbed  # noqa
  
  
--@cache
-+@lru_cache
- def pixel_grid(H, W):
-     return np.mgrid[:W, :H].T.astype(np.float32)
- 
+ def get_patch_embed(patch_embed_cls, img_size, patch_size, enc_embed_dim):

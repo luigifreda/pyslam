@@ -50,7 +50,7 @@ from dust3r.viz import add_scene_cam, CAM_COLORS, OPENGL, pts3d_to_trimesh, cat_
 #from dust3r.demo import get_args_parser as dust3r_get_args_parser
 
 from utils_files import select_image_files 
-from utils_dust3r import preprocess_images, convert_mv_output_to_geometry
+from utils_dust3r import dust3r_preprocess_images, invert_dust3r_preprocess_images, convert_mv_output_to_geometry
 from utils_img import img_from_floats
 
 from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
@@ -557,7 +557,7 @@ def dust3r_get_args_parser():
     parser_url.add_argument("--local_network", action='store_true', default=False,
                             help="make app accessible on local network: address will be set to 0.0.0.0")
     parser_url.add_argument("--server_name", type=str, default=None, help="server url, default is 127.0.0.1")
-    parser.add_argument("--image_size", type=int, default=512, choices=[512, 224], help="image size")
+    parser.add_argument("--image_size", type=int, default=512, choices=[512, 224], help="image size for inference")
     parser.add_argument("--server_port", type=int, help=("will start gradio app on this port (if available). "
                                                          "If None, will search for an available port starting at 7860."),default=None)
     parser_weights = parser.add_mutually_exclusive_group(required=False)
@@ -616,7 +616,7 @@ if __name__ == '__main__':
             if img.ndim == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
-    imgs_preproc = preprocess_images(imgs, args.image_size, verbose=not args.silent)
+    imgs_preproc = dust3r_preprocess_images(imgs, args.image_size, verbose=not args.silent)
     print(f'done preprocessing images')    
 
     def get_context(tmp_dir):
@@ -667,6 +667,10 @@ if __name__ == '__main__':
         viz_camera_images.append(VizCameraImage(image=img_char, Twc=cams2world[i], scale=0.1))
     viewer3D.draw_dense_geometry(point_cloud=viz_point_cloud, mesh=viz_mesh, camera_images=viz_camera_images)
     
+    
+    # inverted_images = invert_dust3r_preprocess_images([(im*255).astype(np.uint8) for im in rgb_imgs], 
+    #                                            [im.shape[0:2] for im in imgs], 
+    #                                            args.image_size)
 
     show_image_tables = True
     table_resize_scale=0.8    
@@ -682,6 +686,12 @@ if __name__ == '__main__':
             img_table.add(img)
         img_table.render()
         cv2.imshow('Dust3r Images', img_table.image())
+        
+        # img_inverted_table = ImageTable(num_columns=4, resize_scale=table_resize_scale)
+        # for i, img in enumerate(inverted_images):
+        #     img_inverted_table.add(img)
+        # img_inverted_table.render()
+        # cv2.imshow('Inverted Images', img_inverted_table.image())
         
         img_table_conf = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         for i, conf in enumerate(confs):

@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 
-#echo "usage: ./${0##*/} <env-name>"
+#N.B: this install script allows you to run main_slam.py and all the scripts 
 
-export ENV_NAME=$1
+# ====================================================
+# import the utils 
+. bash_utils.sh 
 
-if [ -z "${ENV_NAME}" ]; then
-    ENV_NAME='pyslam'
+# ====================================================
+
+#set -e
+
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    CONDA_INSTALLED=true
+else
+    CONDA_INSTALLED=false
 fi
 
-ENVS_PATH=~/.python/venvs            # path where to group virtual environments 
-ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 
- 
-if [ -d $ENV_PATH ]; then 
-    echo deleting virtual environment $ENV_NAME in $ENV_PATH
-    rm -R $ENV_PATH
+# check that conda is activated 
+if [ "$CONDA_INSTALLED" = true ]; then
+    print_blue "deleting pySLAM environment by using conda"
+    . pyenv-conda-delete.sh
 else
-    echo virtual environment $ENV_NAME does not exist in $ENV_PATH
-fi 
-
+    print_blue "deleting pySLAM environment by using venv"
+    . pyenv-venv-delete.sh
+fi

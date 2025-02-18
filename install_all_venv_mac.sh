@@ -43,7 +43,7 @@ brew install catch2
 brew install x265 libjpeg libde265 libheif   # for pillow-heif
 
 # 2. create a pyslam environment within pyenv and activate it 
-./pyenv-mac-create.sh  # NOTE: the use of ./ seems crucial for the correct identification of the python libs for C++ projects 
+./pyenv-venv-create-mac.sh  # NOTE: the use of ./ seems crucial for the correct identification of the python libs for C++ projects 
 
 # 3. activate the created python virtual environment 
 . pyenv-activate.sh   

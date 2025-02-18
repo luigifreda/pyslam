@@ -49,6 +49,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [Contributing to pySLAM](#contributing-to-pyslam)
   - [References](#references)
   - [Credits](#credits)
+  - [License](#license)
   - [TODOs](#todos)
 
 <!-- /TOC -->
@@ -104,6 +105,13 @@ $ cd pyslam
 
 Then, use the available specific install procedure according to your OS. The provided scripts will create a **single python environment** that is able to host all the [supported components and models](#supported-components-and-models)!
 
+Under Ubuntu and MacOs you can simply run:
+```bash
+$ ./install_all.sh
+```
+Once everything is completed you can jump the [usage section](#usage).
+
+Refer to these links for further details about the specific install procedures:
 - **Ubuntu**  [=>](#ubuntu)
 - **MacOs** [=>](#macos) 
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
@@ -162,7 +170,7 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all_venv.sh` / `install_all_conda.sh` (follow the instructions [above](#install) according to your OS), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
+Once you have run the script `install_all.sh` (follow the instructions [above](#install)), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py
@@ -655,6 +663,16 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mast3r](https://github.com/naver/mast3r)
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
+
+
+
+## License 
+
+pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modified libraries, each one coming with its license. Where nothing is specified, a GPLv3 license applies to the software.
+
+If you use pySLAM in your projects, please cite this document:
+["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*
+
 
 ---
 ## TODOs

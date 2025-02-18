@@ -28,7 +28,7 @@ import config
 
 from camera import Camera
 from dataset import DatasetEnvironmentType
-
+from utils_sys import Printer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

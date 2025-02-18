@@ -58,5 +58,7 @@ thirdparty/protoc
 
 logs/*.log
 
+cpp/lib/
+
 .env
 .env.bak

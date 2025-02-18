@@ -81,7 +81,8 @@ class Config(object):
         self.lib_paths = self.config['LIB_PATHS']
         
     # set sys path of lib 
-    def set_lib(self,lib_name,prepend=False):
+    def set_lib(self,lib_name,prepend=False,verbose=False):
+        ext_path = None
         if lib_name in self.lib_paths:
             lib_paths = [e.strip() for e in self.lib_paths[lib_name].split(',')]
             #print('setting lib paths:',lib_paths)
@@ -92,8 +93,20 @@ class Config(object):
                     sys.path.append(ext_path)      
                 else: 
                     sys.path.insert(0,ext_path)
+                if verbose:
+                    print('[Config] adding path: ', ext_path)
         else: 
             print('cannot set lib: ', lib_name)
+        return ext_path
+    
+    def remove_lib(self,lib_name,verbose=False):
+        if lib_name in self.lib_paths:
+            lib_paths = [e.strip() for e in self.lib_paths[lib_name].split(',')]
+            for lib_path in lib_paths:
+                ext_path = self.root_folder + '/' + lib_path
+                if verbose:
+                    print('[Config] removing path: ', ext_path)
+                sys.path.remove(ext_path)
             
     # get dataset settings
     def get_dataset_settings(self):

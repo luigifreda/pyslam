@@ -22,7 +22,7 @@ from utils_img import ImageTable
 import time
 
 from utils_files import select_image_files 
-from utils_dust3r import preprocess_images, convert_mv_output_to_geometry
+from utils_dust3r import dust3r_preprocess_images, convert_mv_output_to_geometry
 from utils_img import img_from_floats
 
 inf = np.inf
@@ -229,7 +229,7 @@ gl_reverse_rgb = True
 #     return output, outfile, imgs
 
 
-def infer_mv_scene(outdir, model, device, imgs, silent):
+def infer_mv_scene(model, device, imgs, silent):
     if len(imgs) == 1:
         imgs = [imgs[0], copy.deepcopy(imgs[0])]
         imgs[1]['idx'] = 1
@@ -427,7 +427,7 @@ if __name__ == '__main__':
             if img.ndim == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
-    imgs_preproc = preprocess_images(imgs, args.image_size, verbose=not args.silent)
+    imgs_preproc = dust3r_preprocess_images(imgs, args.image_size, verbose=not args.silent)
     print(f'done preprocessing images')
     
     # adjust the confidence threshold    
@@ -447,7 +447,7 @@ if __name__ == '__main__':
     #         imgs=imgs_preproc, min_conf_thr=min_conf_thr, as_pointcloud=as_pointcloud, \
     #         transparent_cams=transparent_cams, cam_size=cam_size, silent=args.silent)
     
-    output = infer_mv_scene(outdir=kResultsFolder, model=model, device=args.device, imgs=imgs_preproc, silent=args.silent)
+    output = infer_mv_scene(model=model, device=args.device, imgs=imgs_preproc, silent=args.silent)
     print(f'done mv inference')    
     
     global_pc, global_mesh, rgb_imgs, pts3d, msk, cams2world, focals, confs = get_3D_dense_map(output, min_conf_thr=min_conf_thr, as_pointcloud=as_pointcloud)

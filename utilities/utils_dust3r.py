@@ -1,3 +1,21 @@
+"""
+* This file is part of PYSLAM 
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
 
 import cv2
 import numpy as np
@@ -9,14 +27,19 @@ from utils_torch import to_numpy
 
 
 
+# NOTE: some of the following functions have been adapted from https://github.com/naver/dust3r
+
 
 # =========================================================
 # preprocessing
 # =========================================================
 
 
+# define the standard image transforms
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
+
+# resize input image so that its long side size is resized to "long_edge_size"
 def _resize_cv_image(img, long_edge_size):
     H, W = img.shape[:2]
     S = max(H, W)
@@ -28,9 +51,12 @@ def _resize_cv_image(img, long_edge_size):
     return cv2.resize(img, new_size, interpolation=interp)
 
 
-def preprocess_images(imgs_raw, size, square_ok=False, verbose=True):    
+# preprocess a list of images:
+# size can be either 224 or 512
+# resize and center crop to 224x224 or 512x512
+def dust3r_preprocess_images(imgs_raw, size, square_ok=False, verbose=True):    
     imgs = []
-    for img in imgs_raw:
+    for j,img in enumerate(imgs_raw):
         H1, W1, _ = img.shape
         if size == 224:
             # resize short side to 224 (then crop)
@@ -52,12 +78,88 @@ def preprocess_images(imgs_raw, size, square_ok=False, verbose=True):
 
         H2, W2, _ = img.shape
         if verbose:
-            print(f'preprocessing image - resolution {W1}x{H1} --> {W2}x{H2}')        
+            print(f'preprocessing image {j} - resolution {W1}x{H1} --> {W2}x{H2}')        
         imgs.append(dict(img=ImgNorm(img)[None], true_shape=np.int32(
             [img.shape[:2]]), idx=len(imgs), instance=str(len(imgs))))
         # print('adding image', imgs[-1]['img'].shape, imgs[-1]['img'].max(), imgs[-1]['img'].min(), imgs[-1]['true_shape'], imgs[-1]['idx'], imgs[-1]['instance'])
         # adding image torch.Size([1, 3, 384, 512]) tensor(1.) tensor(-0.9608) [[384 512]] 3 3
     return imgs
+
+
+# invert dust3r preprocessing
+def invert_dust3r_preprocess_images(imgs, original_shapes, size, square_ok=False, verbose=True):
+    imgs_raw = []
+    print(f'original_shapes: {original_shapes}')
+    for img, (H1, W1) in zip(imgs, original_shapes):
+        # we assume the input images have been correctly extracted and transformed back to numpy images
+        # img = img_dict['img'].squeeze(0).permute(1, 2, 0).numpy()  # Convert back to HWC format
+        # img = (img * 0.5 + 0.5) * 255  # Denormalize
+        # img = img.astype(np.uint8)
+
+        H, W, _ = img.shape
+        
+        if H != H1 or W != W1:
+            cx, cy = W // 2, H // 2
+
+            if size == 224:
+                half = min(cx, cy)
+                img_cropped = img[cy-half:cy+half, cx-half:cx+half]
+            else:
+                halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
+                if not (square_ok) and W == H:
+                    halfh = 3*halfw//4
+                img_cropped = img[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
+
+            # Resize back to original dimensions
+            img_resized = cv2.resize(img_cropped, (W1, H1), interpolation=cv2.INTER_CUBIC)
+
+            # Create a canvas of zeros with the original dimensions
+            img_raw = np.zeros((H1, W1, 3), dtype=np.uint8)
+
+            # Place the resized image into the canvas
+            img_raw[:H1, :W1] = img_resized
+
+            if verbose:
+                print(f'inverting preprocessing - resolution {W}x{H} --> {W1}x{H1}')
+        else:
+            img_raw = img
+
+        imgs_raw.append(img_raw)
+
+    return imgs_raw
+
+
+# invert dust3r preprocessing for a depth image: from cropped-resized to original shape
+def invert_dust3r_preprocess_depth(depth, original_shape, size, square_ok=False, verbose=True):
+    H1, W1 = original_shape
+    H, W = depth.shape
+    cx, cy = W // 2, H // 2
+
+    if H != H1 or W != W1:
+        if size == 224:
+            half = min(cx, cy)
+            depth_cropped = depth[cy-half:cy+half, cx-half:cx+half]
+        else:
+            halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
+            if not (square_ok) and W == H:
+                halfh = 3*halfw//4
+            depth_cropped = depth[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
+
+        # Resize back to original dimensions
+        depth_resized = cv2.resize(depth_cropped, (W1, H1), interpolation=cv2.INTER_NEAREST)
+
+        # Create a canvas of zeros with the original dimensions
+        depth_raw = np.zeros((H1, W1), dtype=depth.dtype)
+
+        # Place the resized depth map into the canvas
+        depth_raw[:H1, :W1] = depth_resized
+
+        if verbose:
+            print(f'inverting preprocessing - resolution {W}x{H} --> {W1}x{H1}')
+    else:
+        depth_raw = depth
+
+    return depth_raw
 
 
 # =========================================================

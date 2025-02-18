@@ -8,11 +8,11 @@ set -e
 case "$OSTYPE" in
   darwin*)
     echo "macOS"
-    . pyenv-mac-create.sh
+    . pyenv-venv-create-mac.sh
     ;;
   linux*)
     echo "Linux"
-    . pyenv-linux-create.sh
+    . pyenv-venv-create-linux.sh 
     ;;
   *)
     echo "Unknown OS"

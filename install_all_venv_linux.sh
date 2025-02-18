@@ -19,7 +19,7 @@ fi
 ./install_system_packages.sh    
 
 # 2. create a pyslam environment within venv 
-./pyenv-create.sh 
+./pyenv-venv-create-linux.sh 
 
 # 3. activate the created python virtual environment 
 . pyenv-activate.sh   

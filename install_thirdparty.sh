@@ -282,6 +282,7 @@ if command -v nvidia-smi &> /dev/null; then
         git clone --recursive https://github.com/naver/mast3r mast3r
         git checkout e06b0093ddacfd8267cdafe5387954a650af0d3b
         cd mast3r
+        git apply ../mast3r.patch
         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
         cd dust3r 
         git apply ../../mast3r-dust3r.patch

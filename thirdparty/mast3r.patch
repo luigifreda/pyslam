@@ -1,0 +1,19 @@
+diff --git a/dust3r b/dust3r
+--- a/dust3r
++++ b/dust3r
+@@ -1 +1 @@
+-Subproject commit 9869e71f9165aa53c53ec0979cea1122a569ade4
++Subproject commit 9869e71f9165aa53c53ec0979cea1122a569ade4-dirty
+diff --git a/mast3r/catmlp_dpt_head.py b/mast3r/catmlp_dpt_head.py
+index ac44579..8df6c9a 100644
+--- a/mast3r/catmlp_dpt_head.py
++++ b/mast3r/catmlp_dpt_head.py
+@@ -11,7 +11,7 @@ import mast3r.utils.path_to_dust3r  # noqa
+ from dust3r.heads.postprocess import reg_dense_depth, reg_dense_conf  # noqa
+ from dust3r.heads.dpt_head import PixelwiseTaskWithDPT  # noqa
+ import dust3r.utils.path_to_croco  # noqa
+-from models.blocks import Mlp  # noqa
++from croco.models.blocks import Mlp  # noqa
+ 
+ 
+ def reg_desc(desc, mode):

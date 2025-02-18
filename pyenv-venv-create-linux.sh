@@ -45,7 +45,7 @@ install_package python3-venv
 make_dir $ENV_PATH
 cd $ENVS_PATH
 
-#export PYSLAM_PYTHON_VERSION="3.6.9"
+
 export PYSLAM_PYTHON_VERSION="3.10.12"
 
 # actually create the virtual environment 

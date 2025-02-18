@@ -3,7 +3,7 @@
 # a collection of bash utils 
 
 
-BASH_UTILS_SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
+BASH_UTILS_SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of pySLAM)
 BASH_UTILS_SCRIPT_DIR=$(readlink -f $BASH_UTILS_SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 
 ROOT_DIR="$BASH_UTILS_SCRIPT_DIR"
