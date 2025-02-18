@@ -22,23 +22,13 @@ STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
+# ====================================================
 # detect and configure CUDA 
 . cuda_config.sh
 
 # ====================================================
-# check if want to use conda or venv
-if [ -z $USING_CONDA_PYSLAM ]; then
-    if [ -z "${USE_PYSLAM_ENV}" ]; then
-        USE_PYSLAM_ENV=0
-    fi
-    if [ $USE_PYSLAM_ENV -eq 1 ]; then
-        echo "Using venv pyslam..."
-        . pyenv-activate.sh
-    fi  
-else 
-    echo "Using conda pyslam..."
-    . pyenv-conda-activate.sh
-fi 
+# activate pyslam python environment
+. pyenv-activate.sh
 
 # ====================================================
 # check if we have external options

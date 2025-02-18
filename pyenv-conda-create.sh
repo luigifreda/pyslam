@@ -22,27 +22,37 @@ print_blue "Creating Conda Environment: $ENV_NAME"
 print_blue '================================================'
 
 # check that conda is activated 
-if ! command -v conda &> /dev/null
-then
-    echo "conda could not be found! did you installed/activated conda?"
-    exit
+if ! command -v conda &> /dev/null ; then
+    print_red "ERROR: Conda could not be found! Did you installe/activate conda?"
+    exit 1
 fi
+
+conda update conda -y
 
 export PYSLAM_PYTHON_VERSION="3.10.12"
 
 if conda env list | grep -q "^$ENV_NAME$"; then
-    echo "Conda environment $ENV_NAME already exists."
+    print_yellow "Conda environment $ENV_NAME already exists."
+    return 1
 else 
     #conda create --name $ENV_NAME --file requirements-conda.txt -c conda-forge
     # or (easier)
     #conda env create -f requirements-conda.yml
+    print_blue "Creating conda virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION"
     conda create -yn $ENV_NAME python=$PYSLAM_PYTHON_VERSION
-fi 
+fi
 
-# activate created env 
+# on first run
+. activate base    
+
+# activate created env  
 . pyenv-conda-activate.sh 
 
-conda update conda -y
+# Check if the current conda environment is "pyslam"
+if [ "$CONDA_DEFAULT_ENV" != "$ENV_NAME" ]; then
+    print_red "ERROR: The current conda environment is not '$ENV_NAME'. Please activate the '$ENV_NAME' environment and try again."
+    exit 1
+fi
 
 #which pip  # this should refer to */pyslam/bin/pip  (that is actually pip3)
 

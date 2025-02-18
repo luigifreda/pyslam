@@ -19,9 +19,9 @@ fi
 
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
-    print_blue "Activating pySLAM environment by using conda"
-    . pyenv-conda-activate.sh
+    print_blue "Creating pySLAM environment by using conda"
+    . pyenv-conda-create.sh
 else
-    print_blue "Activating pySLAM environment by using venv"
-    . pyenv-venv-activate.sh
+    print_blue "Creating pySLAM environment by using venv"
+    . pyenv-venv-create.sh
 fi

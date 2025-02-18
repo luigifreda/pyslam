@@ -39,7 +39,7 @@ export PYSLAM_PYTHON_VERSION="3.10.12"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
-    echo creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION
+    print_blue "Creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION under MacOs"
     export PATH=~/.pyenv/shims:$PATH
     
     PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s -v  $PYSLAM_PYTHON_VERSION

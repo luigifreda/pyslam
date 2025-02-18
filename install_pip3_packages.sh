@@ -86,16 +86,37 @@ fi
 if [ "$OSTYPE" == "darwin"* ]; then
     install_pip_package torch==2.1           # torch==2.2.0 causes some segmentation faults on mac
     install_pip_package torchvision==0.16         
-else 
-    if [ "$CUDA_VERSION" == "11.8" ]; then
-        # See also docs/TROUBLESHOOTING.md
-        # This is to avoid the RuntimeError: "The detected CUDA version (11.8) mismatches the version that was used to compile PyTorch (12.1). Please make sure to use the same CUDA versions."
-        print_green "Installing torch==2.2.0+cu118 and torchvision==0.17+cu118"
-        pip install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
+else
+    TORCH_CUDA_VERSION=0
+    if [ "$CUDA_VERSION" != "0" ]; then
+        TORCH_CUDA_VERSION=$(python3 -c "import torch; print(torch.version.cuda)")
+    fi
+    # if [ "$CUDA_VERSION" == "11.8" ]; then
+    #     # See also docs/TROUBLESHOOTING.md
+    #     # This is to avoid the RuntimeError: "The detected CUDA version (11.8) mismatches the version that was used to compile PyTorch (12.1). Please make sure to use the same CUDA versions."
+    #     print_green "Installing torch==2.2.0+cu118 and torchvision==0.17+cu118"
+    #     pip install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
+    # fi
+    INSTALL_CUDA_SPECIFIC_TORCH=false
+    if [[ "$CUDA_VERSION" != "0" && "$TORCH_CUDA_VERSION" != "$CUDA_VERSION" ]]; then
+        INSTALL_CUDA_SPECIFIC_TORCH=true
+    fi
+
+    print_blue "CUDA_VERSION: $CUDA_VERSION, TORCH_CUDA_VERSION: $TORCH_CUDA_VERSION"
+
+    if $INSTALL_CUDA_SPECIFIC_TORCH; then
+        print_green "System CUDA_VERSION is $CUDA_VERSION but the detected TORCH CUDA version is $TORCH_CUDA_VERSION. Installing torch==2.2.0+cu${CUDA_VERSION_STRING_COMPACT} and torchvision==0.17+cu${CUDA_VERSION_STRING_COMPACT}"
+        pip install torch=="2.2.0+cu${CUDA_VERSION_STRING_COMPACT}" torchvision=="0.17+cu${CUDA_VERSION_STRING_COMPACT}" --index-url https://download.pytorch.org/whl/cu${CUDA_VERSION_STRING_COMPACT}   
+        # check if last command was ok  (in the case we don't find the CUDA-specific torch version)
+        if [[ $? -ne 0 ]]; then
+            print_yellow "WARNING: Failed to install CUDA-specific torch and torchvision. Installing default versions."
+            install_pip_package torch==2.2.0
+            install_pip_package torchvision==0.17
+        fi
     else
         install_pip_package torch==2.2.0
         install_pip_package torchvision==0.17
-    fi         
+    fi             
 fi 
 
 pip install "rerun-sdk>=0.17.0"
@@ -104,7 +125,6 @@ install_pip_package ujson
 install_pip_package tensorflow_hub  # required for VPR
 
 pip install protobuf==3.20.*    # for delf NN
-pip install ujson
 
 pip install einops                       # for VLAD
 pip install fast-pytorch-kmeans #==0.1.6 # for VLAD

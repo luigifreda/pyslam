@@ -8,6 +8,8 @@
 
 # ====================================================
 
+print_blue "Running install_all_conda.sh"
+
 #set -e
 
 # clean the old .env file if it exists
@@ -17,19 +19,26 @@ fi
 
 set_env_var "$ROOT_DIR/.env" USE_CONDA 1
 
-
 # check that conda is activated 
-if ! command -v conda &> /dev/null
-then
-    echo "ERROR: conda could not be found! did you installed/activated conda?"
-    return 1 
+if ! command -v conda &> /dev/null ; then
+    print_red "ERROR: conda could not be found! Did you installe/activate conda?"
+    exit 1 
 fi
 
 # 1. install system packages 
 ./install_system_packages.sh     
 
-# 2. and 3. create a pyslam environment within conda and activate it (this will set the env var USING_CONDA_PYSLAM)
-. pyenv-conda-create.sh 
+# 2. create a pyslam environment within conda (this will set the env var USING_CONDA_PYSLAM)
+./pyenv-conda-create.sh 
+
+# 3. activate the created python virtual environment 
+. pyenv-activate.sh   
+
+# Check if the current conda environment is "pyslam"
+if [ "$CONDA_DEFAULT_ENV" != "$ENV_NAME" ]; then
+    print_red "ERROR: The current conda environment is not '$ENV_NAME'. Please activate the '$ENV_NAME' environment and try again."
+    exit 1
+fi
 
 # 4. set up git submodules  
 ./install_git_modules.sh 

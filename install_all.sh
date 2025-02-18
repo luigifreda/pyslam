@@ -10,6 +10,13 @@
 
 #set -e
 
+# if we are not under docker
+if [ ! -f /.dockerenv  ]; then 
+  # Provide the password to sudo once at the start (hopefully...)
+  echo "Insert your sudo password" 
+  sudo -S -v    # not working properly under mac
+fi
+
 # Check if conda is installed
 if command -v conda &> /dev/null; then
     CONDA_INSTALLED=true

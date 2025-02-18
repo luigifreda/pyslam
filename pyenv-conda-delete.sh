@@ -8,5 +8,5 @@ if [ -z "$ENV_NAME" ]; then
     ENV_NAME='pyslam'
 fi
 
-conda remove --name $ENV_NAME --all
+conda remove --name $ENV_NAME --all -y
 

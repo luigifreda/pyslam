@@ -141,7 +141,7 @@ function pause(){
 function check_conda(){
     # check that conda is activated 
     if ! command -v conda &> /dev/null; then
-        echo "ERROR: conda could not be found! did you installed/activated conda?"
+        echo "ERROR: conda could not be found! Did you install/activate conda?"
         echo 1 
     else
         echo 0
@@ -195,6 +195,11 @@ function get_cuda_version(){
     else
         echo 0
     fi
+}
+
+function get_torch_cuda_version() {
+    TORCH_CUDA_VERSION=$(python3 -c "import torch; print(torch.version.cuda)")
+    echo $TORCH_CUDA_VERSION
 }
 
 function brew_install(){
