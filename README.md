@@ -1,10 +1,10 @@
-# pySLAM v2.5.1
+# pySLAM v2.5.3
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.5.1](#pyslam-v251)
+- [pySLAM v2.5.3](#pyslam-v253)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -97,26 +97,25 @@ pySLAM can be used as flexible baseline framework to experiment with VO/SLAM tec
 --- 
 ## Install 
 
-First, clone this repo and its modules by running 
+First, clone this repo and its submodules by running 
 ```bash
 $ git clone --recursive https://github.com/luigifreda/pyslam.git
 $ cd pyslam 
 ```
 
-Then, use the available specific install procedure according to your OS. The provided scripts will create a **single python environment** that is able to host all the [supported components and models](#supported-components-and-models)!
-
-Under Ubuntu and MacOs you can simply run:
+Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
 $ ./install_all.sh
 ```
-Once everything is completed you can jump the [usage section](#usage).
+This install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. 
 
-Refer to these links for further details about the specific install procedures:
+Refer to these links for further details about the specific install procedures that are supported.
 - **Ubuntu**  [=>](#ubuntu)
-- **MacOs** [=>](#macos) 
+- **MacOs** [=>](#macos)  
 - **Windows** [=>](https://github.com/luigifreda/pyslam/issues/51)
 - **Docker** [=>](#docker)
 
+Once everything is completed you can jump the [usage section](#usage).
 
 ### Main requirements
 
@@ -154,7 +153,7 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
 ```bash       
-$ . pyenv-activate.sh          
+$ . pyenv-activate.sh     #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./scripts/opencv_check.py
 ```
 Otherwise, run the following commands: 
