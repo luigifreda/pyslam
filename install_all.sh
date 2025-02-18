@@ -19,9 +19,9 @@ fi
 
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
-    print_blue "installing pySLAM by using conda"
+    print_blue "Installing pySLAM by using conda"
     . install_all_conda.sh
 else
-    print_blue "installing pySLAM by using venv"
+    print_blue "Installing pySLAM by using venv"
     . install_all_venv.sh
 fi

@@ -19,9 +19,9 @@ fi
 
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
-    print_blue "deleting pySLAM environment by using conda"
+    print_blue "Deleting pySLAM environment by using conda"
     . pyenv-conda-delete.sh
 else
-    print_blue "deleting pySLAM environment by using venv"
+    print_blue "Deleting pySLAM environment by using venv"
     . pyenv-venv-delete.sh
 fi

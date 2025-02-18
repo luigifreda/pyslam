@@ -22,7 +22,7 @@ fi
 set -e
 
 print_blue "=================================================================="
-print_blue "cleaning thirdparty packages and utils..."
+print_blue "Cleaning thirdparty packages and utils..."
 
 #echo ROOT_DIR: $ROOT_DIR
 cd $ROOT_DIR  # from bash_utils.sh
@@ -106,6 +106,6 @@ fi
 
 # clean downloaded models and reset submodules
 if [ $HARD_CLEAN -eq 1 ]; then
-    print_blue "resetting git submodules"
+    print_blue "Resetting git submodules"
     git submodule foreach 'git reset --hard; git clean -xfd'
 fi

@@ -57,7 +57,7 @@ export PYTHONPATH=""   # clean python path => for me, remove ROS stuff
 
 pip3 install --upgrade pip
 
-#print_blue "installing opencv"
+#print_blue "Installing opencv"
 
 MAKEFLAGS_OPTION="-j$(nproc)" 
 # PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.

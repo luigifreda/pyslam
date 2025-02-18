@@ -51,7 +51,7 @@ export PYSLAM_PYTHON_VERSION="3.10.12"
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
     export PATH="/home/$USER/.pyenv/bin:$PATH"  # this seems to be needed under docker (even if it seems redundant)
-    print_blue "creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION"
+    print_blue "Creating virtual environment $ENV_NAME with python version $PYSLAM_PYTHON_VERSION"
     if [[ $version == *"22.04"* ]] ; then
         CC=clang pyenv install -v $PYSLAM_PYTHON_VERSION
     else
@@ -75,7 +75,7 @@ fi
 PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
 MAKEFLAGS_OPTION="-j$(nproc)" 
 
-#print_blue "installing opencv"
+#print_blue "Installing opencv"
 # CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
 # MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-python -vvv $PRE_OPTION

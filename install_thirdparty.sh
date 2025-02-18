@@ -63,7 +63,7 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 # ====================================================
 
 CURRENT_USED_PYENV=$(get_virtualenv_name)
-print_blue "currently used pyenv: $CURRENT_USED_PYENV"
+print_blue "Currently used pyenv: $CURRENT_USED_PYENV"
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
