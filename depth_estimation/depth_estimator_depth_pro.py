@@ -65,6 +65,7 @@ class DepthEstimatorDepthPro(DepthEstimator):
                          min_depth=min_depth, max_depth=max_depth, 
                          dataset_env_type=dataset_env_type, precision=precision)
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         image = self.transform(image)
         f_px = torch.tensor(self.camera.fx) if self.camera is not None else None
@@ -74,6 +75,6 @@ class DepthEstimatorDepthPro(DepthEstimator):
         #focallength_px = prediction["focallength_px"]  # Focal length in pixels.            
         depth_prediction = depth_prediction.squeeze().cpu().numpy()
         self.depth_map = depth_prediction        
-        return depth_prediction
+        return depth_prediction, None
 
 

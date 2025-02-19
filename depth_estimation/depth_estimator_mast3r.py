@@ -31,7 +31,7 @@ import torch
 from camera import Camera
 from dataset import DatasetEnvironmentType
 from utils_dust3r import dust3r_preprocess_images, invert_dust3r_preprocess_depth
-from utils_depth import img_from_depth
+from utils_depth import img_from_depth, PointCloud
 
 from depth_estimator_base import DepthEstimator
 
@@ -76,6 +76,7 @@ class DepthEstimatorMast3r(DepthEstimator):
                          min_depth=min_depth, max_depth=max_depth, 
                          dataset_env_type=dataset_env_type)
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         images = []
         if image_right is None:
@@ -111,11 +112,11 @@ class DepthEstimatorMast3r(DepthEstimator):
         valid_first = mask[0].reshape(h,w)
 
         if False: 
-            # get a depth at the inference size
+            # get a depth map at the inference size
             depth_map_from_inference = np.zeros(shape=(h,w),dtype=pts3d[0].dtype)
             depth_map_from_inference[valid_first] = pts3d[0][valid_first,2]          
-            # get a depth a the original image size by using interpolation  
-            depth_prediction_1 = invert_dust3r_preprocess_depth(depth_map_from_inference, image.shape[0:2], self.inference_size)
+            # get a depth map at the original image size by using interpolation  
+            depth_prediction_interp = invert_dust3r_preprocess_depth(depth_map_from_inference, image.shape[0:2], self.inference_size)
         
         if True:
             # Project 3D points to 2D image plane and get a
@@ -135,17 +136,21 @@ class DepthEstimatorMast3r(DepthEstimator):
 
             # Apply depth values using NumPy advanced indexing
             depth_map[xy[valid_mask, 1], xy[valid_mask, 0]] = pts3d1_flat[valid_mask, 2]       
-            depth_prediction_2 = depth_map        
+            depth_prediction_project = depth_map        
             
         if False:
-            depth_prediction_1_copy = depth_prediction_1.copy()
-            depth_prediction_1_mask = (depth_prediction_2 == 0)
-            depth_prediction_1_copy[depth_prediction_1_mask] = 0
-            depth_diff = np.abs(depth_prediction_1_copy - depth_prediction_2)
+            # debugging check the difference between the two extracted depth maps
+            depth_prediction_interp_copy = depth_prediction_interp.copy()
+            depth_prediction_interp_mask = (depth_prediction_project == 0)
+            depth_prediction_interp_copy[depth_prediction_interp_mask] = 0
+            depth_diff = np.abs(depth_prediction_interp_copy - depth_prediction_project)
             print(f'depth diff min: {np.min(depth_diff)}, max: {np.max(depth_diff)}, mean: {np.mean(depth_diff)}')
             depth_diff_img = img_from_depth(depth_diff)
             cv2.imshow("depth_diff", depth_diff_img)  
            
-        return depth_prediction_2
+        pts3d_first = pts3d[0][valid_first]
+        color_first = rgb_imgs[0][valid_first]
+        
+        return depth_prediction_project, PointCloud(pts3d_first, color_first)
 
 

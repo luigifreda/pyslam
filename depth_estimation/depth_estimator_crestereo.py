@@ -107,6 +107,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
             raise NotImplementedError
             return None
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         if platform.system() != 'Darwin':
             
@@ -164,7 +165,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
             self.depth_map = depth_map
             
             print(f'DepthEstimatorCrestereo: Depth map shape: {depth_map.shape}')
-            return depth_map
+            return depth_map, None
         
         else: 
             Printer.red("DepthEstimatorCrestereo: Not implemented for MacOS")

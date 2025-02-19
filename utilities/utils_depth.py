@@ -34,11 +34,11 @@ def img_from_depth(img_flt, img_max=None, img_min=None, eps=1e-9):
     return img.astype(np.uint8) 
 
 
-
 class PointCloud:
-    def __init__(self, points, colors):
-        self.points = points
-        self.colors = colors
+    def __init__(self, points=None, colors=None):
+        self.points = points    # array Nx3
+        self.colors = colors    # array Nx3
+
         
 def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
     # mask for valid depth values

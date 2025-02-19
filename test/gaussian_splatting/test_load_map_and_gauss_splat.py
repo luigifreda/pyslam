@@ -120,7 +120,7 @@ if __name__ == "__main__":
             if kf.depth_img is None:
                 if depth_estimator is not None:
                     print
-                    kf.depth_img = depth_estimator.infer(kf.img, kf.img_right)
+                    kf.depth_img, pts3d_prediction = depth_estimator.infer(kf.img, kf.img_right)
                 else:
                     print('depth_img is None')
                     continue

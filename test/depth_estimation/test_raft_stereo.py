@@ -29,12 +29,12 @@ if __name__ == "__main__":
     image2 = cv2.imread(imgfile2)
 
     start_time = time.time()    
-    depth_map = depth_estimator.infer(image1, image2)
+    depth_prediction, pts3d_prediction = depth_estimator.infer(image1, image2)
     
     end_time = time.time()
     print('Time taken for stereo depth prediction: ', end_time-start_time)
     
-    depth_img = img_from_depth(depth_map)
+    depth_img = img_from_depth(depth_prediction)
     
     stereo_pair = np.concatenate([image1, image2], axis=1)
     cv2.imshow("stereo pair", stereo_pair)

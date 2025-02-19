@@ -467,7 +467,7 @@ class Frame(FrameBase):
         self.img_right = img_right.copy()
         
     def set_depth_img(self, depth_img):
-        if self.camera is not None and self.camera.depth_factor != 1.0:
+        if self.camera is not None: # and self.camera.depth_factor != 1.0:
             depth_img = depth_img * self.camera.depth_factor        
             self.depth_img = depth_img.copy()
         else: 

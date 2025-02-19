@@ -29,6 +29,7 @@ import config
 from camera import Camera
 from dataset import DatasetEnvironmentType
 from utils_sys import Printer
+from utils_depth import PointCloud
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -50,7 +51,9 @@ class DepthEstimator:
         
         self.depth_map = None
         self.disparity_map = None 
+        self.pts3d = None  # type: PointCloud 
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         raise NotImplementedError
 
@@ -83,6 +86,7 @@ class DepthEstimatorSgbm(DepthEstimator):
             preFilterCap=63,
         )
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         if image_right is None:
             message = 'Image right is None. Are you using a stereo dataset?'
@@ -103,5 +107,5 @@ class DepthEstimatorSgbm(DepthEstimator):
         abs_disparity_map = np.abs(disparity_map, dtype=float)
         depth_map = np.where(abs_disparity_map > self.min_disparity, bf / abs_disparity_map, 0.0)        
         self.depth_map = depth_map
-        return depth_map
+        return depth_map, None
     

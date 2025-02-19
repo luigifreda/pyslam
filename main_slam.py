@@ -115,7 +115,7 @@ if __name__ == "__main__":
     # Select your depth estimator in the front-end (EXPERIMENTAL, WIP)
     depth_estimator = None
     if Parameters.kUseDepthEstimatorInFrontEnd:
-        Parameters.kVolumetricIntegrationUseDepthEstimator = False  # Just use this depth estimator in the front-end
+        Parameters.kVolumetricIntegrationUseDepthEstimator = False  # Just use this depth estimator in the front-end (This is not a choice, we are imposing it for avoiding computing the depth twice)
         # Select your depth estimator (see the file depth_estimator_factory.py)
         # DEPTH_ANYTHING_V2, DEPTH_PRO, DEPTH_RAFT_STEREO, DEPTH_SGBM, etc.
         depth_estimator_type = DepthEstimatorType.DEPTH_PRO
@@ -196,7 +196,7 @@ if __name__ == "__main__":
                     time_start = time.time()    
                     
                     if depth is None and depth_estimator is not None:
-                        depth_prediction = depth_estimator.infer(img, img_right)
+                        depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
                         if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
                             depth = filter_shadow_points(depth_prediction)
                         else: 

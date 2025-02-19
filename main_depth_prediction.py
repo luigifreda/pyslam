@@ -98,33 +98,49 @@ if __name__ == '__main__':
                 
                 start_time = time.time()
                 
-                depth_prediction = depth_estimator.infer(img, img_right)
+                depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
                                 
                 print(f'inference time: {time.time() - start_time}')
 
-                # Filter depth
-                filter_depth = True
-                if filter_depth:
-                    depth_filtered = filter_shadow_points(depth_prediction, delta_depth=None)
-                else:
-                    depth_filtered = depth_prediction
-
-                # Visualize depth map                     
-                depth_img = img_from_depth(depth_prediction, img_min=0, img_max=max_depth)
-                depth_filtered_img = img_from_depth(depth_filtered, img_min=0, img_max=max_depth)
-                
-                # Visualize 3D point cloud
-                if viewer3D is not None:
-                    image_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)             
-                    point_cloud = depth2pointcloud(depth_filtered, image_rgb, cam.fx, cam.fy, cam.cx, cam.cy, max_depth)                    
-                    viewer3D.draw_dense_geometry(point_cloud=point_cloud)
-                
                 cv2.imshow('color image', img)
                 if img_right is not None:
                     cv2.imshow('color image right', img_right)
-                cv2.imshow("depth prediction", depth_img)
-                cv2.imshow("depth filtered", depth_filtered_img)            
-                
+                        
+                if pts3d_prediction is None:
+                    
+                    # We use the depth to build a 3D point cloud and visualize it.
+                    
+                    # Filter depth
+                    filter_depth = True
+                    if filter_depth:
+                        depth_filtered = filter_shadow_points(depth_prediction, delta_depth=None)
+                    else:
+                        depth_filtered = depth_prediction
+
+                    # Visualize depth map                     
+                    depth_img = img_from_depth(depth_prediction, img_min=0, img_max=max_depth)
+                    depth_filtered_img = img_from_depth(depth_filtered, img_min=0, img_max=max_depth)
+                    
+                    # Visualize 3D point cloud
+                    if viewer3D is not None:
+                        image_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)             
+                        point_cloud = depth2pointcloud(depth_filtered, image_rgb, cam.fx, cam.fy, cam.cx, cam.cy, max_depth)                    
+                        viewer3D.draw_dense_geometry(point_cloud=point_cloud)
+                    
+                    cv2.imshow("depth prediction", depth_img)
+                    cv2.imshow("depth filtered", depth_filtered_img)      
+                    
+                else: 
+                    
+                    # We have predicted a 3D point cloud.
+                    print(f'got directly point cloud: {pts3d_prediction.points.shape}')
+                    
+                    depth_img = img_from_depth(depth_prediction, img_min=0, img_max=max_depth)
+                    cv2.imshow("depth prediction", depth_img)
+                                        
+                    if viewer3D is not None:
+                        viewer3D.draw_dense_geometry(point_cloud=pts3d_prediction)
+                        
             else: 
                 time.sleep(0.1)
             

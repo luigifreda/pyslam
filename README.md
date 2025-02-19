@@ -1,10 +1,10 @@
-# pySLAM v2.5.3
+# pySLAM v2.5.4
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.5.3](#pyslam-v253)
+- [pySLAM v2.5.4](#pyslam-v254)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)

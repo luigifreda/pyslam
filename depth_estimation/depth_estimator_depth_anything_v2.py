@@ -79,9 +79,10 @@ class DepthEstimatorDepthAnythingV2(DepthEstimator):
                          min_depth=min_depth, max_depth=max_depth, 
                          dataset_env_type=dataset_env_type, precision=None)
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         depth_prediction = self.model.infer_image(image)
         self.depth_map = depth_prediction
-        return depth_prediction
+        return depth_prediction, None
     
     

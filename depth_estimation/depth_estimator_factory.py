@@ -104,7 +104,7 @@ def depth_estimator_factory(depth_estimator_type=DepthEstimatorType.DEPTH_ANYTHI
         return DepthEstimatorMast3r(device=device, camera=camera, 
                                     min_depth=min_depth, max_depth=max_depth, 
                                     dataset_env_type=dataset_env_type)
-    elif depth_estimator_type == DepthEstimatorType.DEPTH_MVDUST3r:
+    elif depth_estimator_type == DepthEstimatorType.DEPTH_MVDUST3R:
         from depth_estimator_mvdust3r import DepthEstimatorMvdust3r # available only with CUDA      
         return DepthEstimatorMvdust3r(device=device, camera=camera, 
                                     min_depth=min_depth, max_depth=max_depth, 

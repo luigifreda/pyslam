@@ -123,6 +123,7 @@ class DepthEstimatorRaftStereo(DepthEstimator):
                          min_depth=min_depth, max_depth=max_depth, 
                          dataset_env_type=dataset_env_type)    
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         if image_right is None:
             message = 'Image right is None. Are you using a stereo dataset?'
@@ -157,4 +158,4 @@ class DepthEstimatorRaftStereo(DepthEstimator):
             depth_map = np.zeros_like(disparity_map, dtype=disparity_map.dtype)
             depth_map[valid_mask] = bf / abs_disparity_map[valid_mask]
             self.depth_map = depth_map             
-            return depth_map
+            return depth_map, None

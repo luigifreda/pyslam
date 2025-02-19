@@ -73,6 +73,7 @@ class DepthEstimatorCrestereoPytorch(DepthEstimator):
         model.eval()
         return model
 
+    # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         if image_right is None:
             message = 'Image right is None. Are you using a stereo dataset?'
@@ -147,4 +148,4 @@ class DepthEstimatorCrestereoPytorch(DepthEstimator):
         self.depth_map = depth_map
         
         print(f'DepthEstimatorCrestereoPytorch: Depth map shape: {depth_map.shape}')
-        return depth_map
+        return depth_map, None

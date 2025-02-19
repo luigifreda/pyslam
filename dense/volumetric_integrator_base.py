@@ -473,7 +473,7 @@ class VolumetricIntegratorBase:
                 else:
                     if self.sensor_type == SensorType.MONOCULAR:
                         Printer.error('VolumetricIntegratorBase: You cannot use a MONOCULAR depth estimator with a MONOCULAR SLAM system!')                                    
-                    depth = self.depth_estimator.infer(color, color_right)
+                    depth, pts3d = self.depth_estimator.infer(color, color_right)
                     print(f'VolumetricIntegratorBase: depth inference time: {time.time() - inference_start_time}')
                     if self.parameters_dict['kVolumetricIntegrationDepthEstimationFilterShadowPoints']:
                         depth = filter_shadow_points(depth, delta_depth=None)
