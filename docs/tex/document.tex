@@ -152,8 +152,8 @@ The goal of this document is to present the pySLAM framework, its main features,
     
     \item Integration of
     \textbf{\protect\hyperlink{depth-prediction}{depth prediction models}}
-    within the SLAM pipeline. These include DepthPro, DepthAnythingV2,
-    RAFT-Stereo, CREStereo, etc.
+    within the SLAM pipeline. TThese include DepthPro, DepthAnythingV2,
+    RAFT-Stereo, CREStereo, MASt3R, MVDUSt3R, etc.
     
     \item A collection of other useful tools for VO and SLAM.
 \end{itemize}
@@ -434,7 +434,8 @@ For more details, refer to the
 section}.
 
 If you lack a compatible vocabulary for the selected front-end
-descriptor type, you have the following options: 
+descriptor type, no loop closing method will be used. You have the
+following options:
 \begin{enumerate}
 \item[a.] Create and load the vocabulary (refer to the
 \protect\hyperlink{vocabulary-management}{vocabulary management
@@ -872,222 +873,10 @@ algorithm has been included as a classic reference approach.
   \href{https://arxiv.org/abs/2109.07547}{RAFT-Stereo} (Stereo) \cite{teed2021raft}
 \item
   \href{https://arxiv.org/abs/2203.11483}{CREStereo} (Stereo) \cite{li2022cres}
-\end{itemize}
-
-\hypertarget{supported-volumetric-mapping-methods}{%
-\subsection{Supported volumetric mapping
-methods}\label{supported-volumetric-mapping-methods}}
-
-\begin{itemize}
-\tightlist
 \item
-  \href{https://arxiv.org/pdf/2110.00511}{TSDF} with voxel block grid
-  (parallel spatial hashing)
+  \href{https://arxiv.org/abs/2406.09756}{MASt3R} (Monocular/Stereo) \cite{master}
 \item
-  Incremental 3D Gaussian Splatting. See
-  \href{https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/}{here}
-  and \href{https://arxiv.org/abs/2312.06741}{MonoGS} for a description
-  of its backend \cite{kerbl2023monogs}.
-\end{itemize}
-
-\hypertarget{camera-settings}{%
-\section{Camera Settings}\label{camera-settings}}
-
-The folder \texttt{settings} contains the camera settings files which
-can be used for testing the code. These are the same used in the
-framework \href{https://github.com/raulmur/ORB_SLAM2}{ORB-SLAM2}. You
-can easily modify one of those files for creating your own new
-calibration file (for your new datasets).
-
-In order to calibrate your camera, you can use the scripts in the folder
-\texttt{calibration}. In particular: 1. Use the script
-\texttt{grab\_chessboard\_images.py} to collect a sequence of images
-where the chessboard can be detected (set the chessboard size therein,
-you can use the calibration pattern \texttt{calib\_pattern.pdf} in the
-same folder) 2. Use the script \texttt{calibrate.py} to process the
-collected images and compute the calibration parameters (set the
-chessboard size therein)
-
-For more information on the calibration process, see this
-\href{https://learnopencv.com/camera-calibration-using-opencv/}{tutorial}
-or this other
-\href{https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html}{link}.
-
-If you want to \textbf{use your camera}, you have to: * Calibrate it and
-configure \href{./settings/WEBCAM.yaml}{WEBCAM.yaml} accordingly *
-Record a video (for instance, by using \texttt{save\_video.py} in the
-folder \texttt{calibration}) * Configure the\hypertarget{supported-components-and-models}{%
-\section{Supported components and
-models}\label{supported-components-and-models}}
-
-\hypertarget{supported-local-features}{%
-\subsection{Supported local
-features}\label{supported-local-features}}
-
-At present time, the following feature \textbf{detectors} are supported:
-
-\begin{itemize}
-    \item \href{https://www.edwardrosten.com/work/fast.html}{FAST} \cite{rosten2006machine}
-    \item \href{https://ieeexplore.ieee.org/document/323794}{Good features to track} \cite{shi1994good}
-    \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
-    \item \href{https://github.com/raulmur/ORB_SLAM2}{ORB2} (improvements of ORB-SLAM2 to ORB detector)
-    \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
-    \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
-    \item \href{https://www.doc.ic.ac.uk/~ajd/Publications/alcantarilla_etal_eccv2012.pdf}{KAZE} \cite{alcantarilla2012kaze}
-    \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
-    \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
-    \item \href{http://www.i6.in.tum.de/Main/ResearchAgast}{AGAST}
-    \item \href{http://cmp.felk.cvut.cz/~matas/papers/matas-bmvc02.pdf}{MSER} \cite{matas2002robust}
-    \item \href{https://link.springer.com/content/pdf/10.1007%2F978-3-540-88693-8_8.pdf}{StarDector/CenSurE}
-    \item \href{https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf}{Harris-Laplace}
-    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint}
-    \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
-    \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
-    \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
-    \item \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{ono2018lf}
-    \item \href{https://github.com/naver/r2d2}{R2D2} \cite{revaud2019r2d2}
-    \item \href{https://github.com/axelBarroso/Key.Net}{Key.Net} \cite{barroso2020key}
-    \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
-    \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
-    \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
-    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector + AffNet + HardNet descriptor)
-\end{itemize}
-
-The following feature \textbf{descriptors} are supported: 
-
-\begin{itemize}
-    \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
-    \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
-    \item \href{https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf}{ROOT SIFT}
-    \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
-    \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
-    \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
-    \item \href{https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint}{FREAK}
-    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint}
-    \item \href{https://github.com/vbalnt/tfeat}{Tfeat}
-    \item \href{https://www.labri.fr/perso/vlepetit/pubs/trzcinski_pami15.pdf}{BOOST-DESC} \cite{trzcinski2013boosting}
-    \item \href{https://ieeexplore.ieee.org/document/4815264}{DAISY} \cite{tola2010daisy}
-    \item \href{https://arxiv.org/abs/1501.03719}{LATCH} \cite{levi2006latch}
-    \item \href{https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf}{LUCID}
-    \item \href{https://www.robots.ox.ac.uk/~vedaldi/assets/pubs/simonyan14learning.pdf}{VGG} \cite{simonyan2014learning}
-    \item \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{mishchuk2017working}
-    \item \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{verdie2018tilde}
-    \item \href{https://github.com/yuruntian/SOSNet.git}{SOSNet}
-    \item \href{https://github.com/yuruntian/L2-Net}{L2Net}
-    \item \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor}
-    \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
-    \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
-    \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
-    \item \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{ono2018lf}
-    \item \href{https://github.com/naver/r2d2}{R2D2} \cite{revaud2019r2d2}
-    \item \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID}
-    \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
-    \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
-    \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
-    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector + AffNet + HardNet descriptor)
-\end{itemize}
-
-For more information, refer to \url{local_features/feature_types.py}
-file. Some of the local features consist of a \emph{joint
-detector-descriptor}. You can start playing with the supported local
-features by taking a look at \texttt{test/cv/test\_feature\_manager.py}
-and \texttt{main\_feature\_matching.py}.
-
-In both the scripts \texttt{main\_vo.py} and \texttt{main\_slam.py}, you
-can create your preferred detector-descritor configuration and feed it
-to the function \texttt{feature\_tracker\_factory()}. Some ready-to-use
-configurations are already available in the file
-\href{local_features/feature_tracker_configs.py}{local\_features/feature\_tracker.configs.py}
-
-The function \texttt{feature\_tracker\_factory()} can be found in the
-file \texttt{local\_features/feature\_tracker.py}. Take a look at the
-file \texttt{local\_features/feature\_manager.py} for further details.
-
-\textbf{N.B.}: You just need a \emph{single} python environment to be
-able to work with all the
-\protect\hyperlink{supported-local-features}{supported local features}!
-
-\hypertarget{supported-matchers}{%
-\subsection{Supported matchers}\label{supported-matchers}}
-
-\begin{itemize}
-    \item \texttt{BF}: Brute force matcher on descriptors (with KNN).
-    \item \href{https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350}{FLANN} \cite{muja2009fast}
-    \item \href{https://arxiv.org/abs/2404.19174}{XFeat} \cite{barroso2024xfeat}
-    \item \href{https://arxiv.org/abs/2306.13643}{LightGlue}
-    \item \href{https://arxiv.org/abs/2104.00680}{LoFTR}
-\end{itemize}
-
-See the file \texttt{local\_features/feature\_matcher.py} for further
-details.
-
-\hypertarget{supported-global-descriptors-and-local-descriptor-aggregation-methods}{%
-\subsection{Supported global descriptors and local descriptor
-aggregation
-methods}\label{supported-global-descriptors-and-local-descriptor-aggregation-methods}}
-
-\hypertarget{local-descriptor-aggregation-methods}{%
-\subparagraph{Local descriptor aggregation
-methods}\label{local-descriptor-aggregation-methods}}
-
-\begin{itemize}
-    \item Bag of Words (BoW): \href{https://github.com/dorian3d/DBoW2}{DBoW2} \cite{galvez2012bags}, \href{https://github.com/rmsalinas/DBow3}{DBoW3}.  \href{https://doi.org/10.1109/TRO.2012.2197158}{[paper]}
-    \item Vector of Locally Aggregated Descriptors: \href{https://www.vlfeat.org/api/vlad.html}{VLAD} \cite{arandjelovic2016netvlad}.  \href{https://doi.org/10.1109/CVPR.2010.5540039}{[paper]}
-    \item Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: \href{https://github.com/emiliofidalgo/ibow-lcd}{iBoW}, \href{https://github.com/emiliofidalgo/obindex2}{OBIndex2}.  \href{https://doi.org/10.1109/LRA.2018.2849609}{[paper]}
-    \item Hyperdimensional Computing: \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC} \cite{neubert2021hyperdimensional}.  \href{https://openaccess.thecvf.com/content/CVPR2021/html/Neubert_Hyperdimensional_Computing_as_a_Framework_for_Systematic_Aggregation_of_Image_CVPR_2021_paper.html}{[paper]}
-\end{itemize}
-
-\textbf{NOTE}: \emph{iBoW} and \emph{OBIndex2} incrementally build a
-binary image index and do not need a prebuilt vocabulary. In the
-implemented classes, when needed, the input non-binary local descriptors
-are transparently transformed into binary descriptors.
-
-\hypertarget{global-descriptors}{%
-\subparagraph{Global descriptors}\label{global-descriptors}}
-
-Also referred to as \emph{holistic descriptors}:
-
-\begin{itemize}
-\tightlist
-\item
-  \href{https://ieeexplore.ieee.org/document/6224623}{SAD}
-\item
-  \href{https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet}{AlexNet}
-\item
-  \href{https://www.di.ens.fr/willow/research/netvlad/}{NetVLAD} \cite{arandjelovic2016netvlad}
-\item
-  \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC-DELF}
-\item
-  \href{https://github.com/gmberton/CosPlace}{CosPlace} \cite{berton2023cosplace}
-\item
-  \href{https://github.com/gmberton/EigenPlaces}{EigenPlaces} \cite{berton2023eigenplaces}
-\end{itemize}
-
-Different \protect\hyperlink{loop-closing}{loop closing methods} are
-available. These combines the above aggregation methods and global
-descriptors. See the file \url{loop_closing/loop_detector_configs.py}
-for further details.
-
-\hypertarget{supported-depth-prediction-models}{%
-\subsection{Supported depth prediction
-models}\label{supported-depth-prediction-models}}
-
-Both monocular and stereo depth prediction models are available. SGBM
-algorithm has been included as a classic reference approach.
-
-\begin{itemize}
-\tightlist
-\item
-  \href{https://ieeexplore.ieee.org/document/4359315}{SGBM}: Depth SGBM
-  from OpenCV (Stereo, classic approach) \cite{hirschmuller2007stereo}
-\item
-  \href{https://arxiv.org/abs/2410.02073}{Depth-Pro} (Monocular) \cite{depthpro2023}
-\item
-  \href{https://arxiv.org/abs/2406.09414}{DepthAnythingV2} (Monocular) \cite{depthanythingv2_2024}
-\item
-  \href{https://arxiv.org/abs/2109.07547}{RAFT-Stereo} (Stereo) \cite{teed2021raft}
-\item
-  \href{https://arxiv.org/abs/2203.11483}{CREStereo} (Stereo) \cite{li2022cres}
+  \href{https://arxiv.org/abs/2412.06974}{MV-DUSt3R} (Monocular/Stereo) \cite{mvduster}    
 \end{itemize}
 
 \hypertarget{supported-volumetric-mapping-methods}{%
@@ -1129,12 +918,13 @@ For more information on the calibration process, see this
 or this other
 \href{https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html}{link} \cite{opencv}.
 
-If you want to \textbf{use your camera}, you have to: * Calibrate it and
-configure \href{./settings/WEBCAM.yaml}{WEBCAM.yaml} accordingly *
-Record a video (for instance, by using \texttt{save\_video.py} in the
-folder \texttt{calibration}) * Configure the \texttt{VIDEO\_DATASET}
-section of \texttt{config.yaml} in order to point to your recorded
-video.
+If you want to \textbf{use your camera}, you have to: 
+\begin{itemize}
+\item Calibrate it and configure \href{./settings/WEBCAM.yaml}{WEBCAM.yaml} accordingly.
+\item Record a video (for instance, by using \texttt{save\_video.py} in the folder \texttt{calibration}). 
+\item Configure the \texttt{VIDEO\_DATASET} section of \texttt{config.yaml} in order to point to your recorded video.
+\end{itemize}
+
 
 %\hypertarget{contributing-to-pyslam}{%
 %\section{Contributing to pySLAM}\label{contributing-to-pyslam}}
@@ -1220,9 +1010,9 @@ The following is a list of frameworks that inspired or has been integrated into 
 \item
   \href{https://github.com/muskie82/MonoGS}{MonoGS} \cite{MonoGS}
 \item
-  \href{https://github.com/naver/mast3r}{mast3r}
+  \href{https://github.com/naver/mast3r}{MASt3R} \cite{master}
 \item
-  \href{https://github.com/facebookresearch/mvdust3r}{mvdust3r}
+  \href{https://github.com/facebookresearch/mvdust3r}{MV-DUSt3R} \cite{mvduster}
 \item
   Many thanks to \href{https://github.com/anathonic}{Anathonic} for
   adding the trajectory-saving feature and for the comparison notebook:

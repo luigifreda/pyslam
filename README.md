@@ -508,6 +508,8 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 * [DepthAnythingV2](https://arxiv.org/abs/2406.09414) (Monocular)
 * [RAFT-Stereo](https://arxiv.org/abs/2109.07547) (Stereo)
 * [CREStereo](https://arxiv.org/abs/2203.11483) (Stereo)
+* [MASt3R](https://arxiv.org/abs/2406.09756) (Stereo/Monocular)
+* [MV-DUSt3R](https://arxiv.org/abs/2412.06974) (Stereo/Monocular)
 
 ### Supported volumetric mapping methods
 
@@ -522,10 +524,11 @@ Five different types of datasets are available:
 Dataset | type in `config.yaml`
 --- | --- 
 [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)  | `type: KITTI_DATASET` 
-[TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                   | `type: TUM_DATASET` 
-[EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)                   | `type: EUROC_DATASET` 
-Video file        | `type: VIDEO_DATASET` 
-Folder of images  | `type: FOLDER_DATASET` 
+[TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                           | `type: TUM_DATASET` 
+[EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
+[REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)        | `type: REPLICA_DATASET` 
+Video file                                                                                            | `type: VIDEO_DATASET` 
+Folder of images                                                                                      | `type: FOLDER_DATASET` 
 
 Use the download scripts available in the folder `scripts` to download some of the following datasets.
 
@@ -671,7 +674,7 @@ pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modifi
 
 If you use pySLAM in your projects, please cite this document:
 ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*
-
+You may find an update version of this document [here](./docs/tex/document.pdf).
 
 ---
 ## TODOs

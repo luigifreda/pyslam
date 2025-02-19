@@ -15,7 +15,9 @@ graph LR;
     depth_estimator_factory -->|*depth_estimator_type*| DEPTH_SGBM;
     depth_estimator_factory -->|*depth_estimator_type*| DEPTH_RAFT_STEREO;
     depth_estimator_factory -->|*depth_estimator_type*| DEPTH_CRESTEREO;    
-    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_CRESTEREO_PYTORCH;    
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_CRESTEREO_PYTORCH;  
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_MAST3R;  
+    depth_estimator_factory -->|*depth_estimator_type*| DEPTH_MVDUST3R;            
 
     %% DepthEstimator types (final classes)
     DEPTH_ANYTHING_V2 -->|*_creates_*| DepthEstimatorDepthAnythingV2;
@@ -23,7 +25,9 @@ graph LR;
     DEPTH_SGBM -->|*_creates_*| DepthEstimatorSgbm;
     DEPTH_RAFT_STEREO -->|*_creates_*| DepthEstimatorRaftStereo;
     DEPTH_CRESTEREO -->|*_creates_*| DepthEstimatorCrestereo;  
-    DEPTH_CRESTEREO_PYTORCH -->|*_creates_*| DepthEstimatorCrestereoPytorch;            
+    DEPTH_CRESTEREO_PYTORCH -->|*_creates_*| DepthEstimatorCrestereoPytorch;
+    DEPTH_MAST3R -->|*_creates_*| DepthEstimatorMast3r;  
+    DEPTH_MVDUST3R -->|*_creates_*| DepthEstimatorMvdust3r;                 
 
     %% DepthEstimator classes
     DepthEstimator -->|*_has-a_*| camera
@@ -36,6 +40,8 @@ graph LR;
     DepthEstimatorRaftStereo -->|*_is-a_*| DepthEstimator;
     DepthEstimatorCrestereo -->|*_is-a_*| DepthEstimator;
     DepthEstimatorCrestereoPytorch -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorMast3r -->|*_is-a_*| DepthEstimator;
+    DepthEstimatorMvdust3r -->|*_is-a_*| DepthEstimator;
 
     %% DepthEstimator dependencies
     camera -->|*_is-a_*| Camera;
@@ -48,6 +54,8 @@ graph LR;
     class DEPTH_RAFT_STEREO estimator_type;
     class DEPTH_CRESTEREO estimator_type;            
     class DEPTH_CRESTEREO_PYTORCH estimator_type;   
+    class DEPTH_MAST3R estimator_type;   
+    class DEPTH_MVDUST3R estimator_type;           
 
     class Camera dependencies;
 
@@ -58,6 +66,8 @@ graph LR;
     class DepthEstimatorRaftStereo depthEstimator;
     class DepthEstimatorCrestereo depthEstimator;
     class DepthEstimatorCrestereoPytorch depthEstimator;  
+    class DepthEstimatorMast3r depthEstimator;  
+    class DepthEstimatorMvdust3r depthEstimator;          
 
     class camera component;
     class device component;
