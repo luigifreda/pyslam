@@ -28,6 +28,12 @@ This page contains a small collections of issues/errors that may be experienced 
 
 If you work under **Ubuntu** or **MacOS**, check the specific installation procedures reported in the main [README](./../README.md) page. 
 
+If you want to perform a **clean reset** and rebuild everything from scratch, run the following commands:  
+```bash
+./clean.sh --hard   # clean build folders 
+./pyenv-delete.sh   # delete the "pyslam" virtual environment
+```
+
 
 ## Bad tracking performances
 
