@@ -3,10 +3,11 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 
+ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 # import the bash utils 
-. $SCRIPT_DIR/bash_utils.sh 
+. "$ROOT_DIR"/bash_utils.sh 
 
 # ====================================================
 
@@ -49,12 +50,14 @@ if [ "$CUDA_VERSION" != "0" ]; then
     print_blue "Checking the nvidia toolkit ..."
     sudo apt-get install -y cuda-toolkit-$CUDA_VERSION_STRING_WITH_HYPHENS
     if [ $? -ne 0 ]; then
-        print_red "❌ Installation failed! Try these alternatives:"
-        print_red "1. Check available versions: apt-cache search cuda-toolkit"
-        print_red "2. Before trying again, manually add NVIDIAs repository. For further details, see this link:" 
-        print_red "   https://developer.nvidia.com/cuda-toolkit-archive"
-        print_red "Exiting..."
-        exit 1  # Exit immediately with a critical error
+        print_yellow "Installation of cuda-toolkit-$CUDA_VERSION_STRING_WITH_HYPHENS failed!"
+        print_yellow "Something can go wrong in the install process. Please:" 
+        print_yellow "1. Check you have an available cuda-toolkit versions with:$ apt-cache search cuda-toolkit"
+        print_yellow "2. Before trying again, manually add NVIDIAs repository. For further details, see this link:" 
+        print_yellow "   https://developer.nvidia.com/cuda-toolkit-archive"
+        #print_red "Exiting..."
+        #exit 1  # Exit immediately with a critical error
+        sleep 2
     fi
 else
     print_yellow "Skipping nvidia toolkit install since CUDA_VERSION is 0"

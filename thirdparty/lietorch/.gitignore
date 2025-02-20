@@ -1,0 +1,14 @@
+__pycache__
+build
+dist
+*.egg-info
+*.vscode/
+*.pth
+tests
+checkpoints
+datasets
+runs
+a.out
+cache
+*.g2o
+

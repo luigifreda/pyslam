@@ -4,15 +4,19 @@
 
 set -e
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
 
 case "$OSTYPE" in
   darwin*)
     echo "macOS"
-    . pyenv-venv-create-mac.sh
+    . "$ROOT_DIR"/pyenv-venv-create-mac.sh
     ;;
   linux*)
     echo "Linux"
-    . pyenv-venv-create-linux.sh 
+    . "$ROOT_DIR"/pyenv-venv-create-linux.sh 
     ;;
   *)
     echo "Unknown OS"

@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
+
 # ====================================================
 # import the bash utils 
-. bash_utils.sh 
+. "$ROOT_DIR"/bash_utils.sh 
+
+cd "$ROOT_DIR" 
 
 # ====================================================
 

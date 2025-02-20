@@ -2,6 +2,18 @@
 
 #echo "usage: ./${0##*/} <env-name>"
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
+
+# ====================================================
+# import the bash utils 
+. "$ROOT_DIR"/bash_utils.sh 
+
+# ====================================================
+
+cd "$ROOT_DIR"
 STARTING_DIR=`pwd`
 
 export ENV_NAME=$1
@@ -13,9 +25,6 @@ fi
 ENVS_PATH=~/.python/venvs  # path where to group virtual environments 
 ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 
 
-# ====================================================
-# import the utils 
-. bash_utils.sh 
 
 # ====================================================
 

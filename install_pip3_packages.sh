@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
+
 # ====================================================
 # import the bash utils 
-. bash_utils.sh 
+. "$ROOT_DIR"/bash_utils.sh 
+
+cd "$ROOT_DIR" 
 
 # ====================================================
 
@@ -175,12 +182,12 @@ if [ "$CUDA_VERSION" != "0" ]; then
 
     #pip install git+https://github.com/princeton-vl/lietorch.git
     if [[ ! -d "$ROOT_DIR/thirdparty/lietorch" ]]; then
-        cd $ROOT_DIR/thirdparty
-        git clone --recursive https://github.com/princeton-vl/lietorch.git lietorch
-        cd lietorch
-        git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
-        git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
-        cd $ROOT_DIR
+        cd "$ROOT_DIR"/thirdparty
+        #git clone --recursive https://github.com/princeton-vl/lietorch.git lietorch
+        #cd lietorch
+        #git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
+        #git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
+        cd "$ROOT_DIR"
     fi
     #pip install ./thirdparty/lietorch --verbose                                # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
     ./thirdparty/lietorch/build.sh                                            # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)

@@ -2,9 +2,14 @@
 
 #echo "usage: ./${0##*/} <env-name>"
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
+
 # ====================================================
-# import the utils 
-. bash_utils.sh 
+# import the bash utils 
+. "$ROOT_DIR"/bash_utils.sh 
 
 # ====================================================
 
@@ -46,7 +51,7 @@ fi
 . activate base    
 
 # activate created env  
-. pyenv-conda-activate.sh 
+. "$ROOT_DIR"/pyenv-conda-activate.sh 
 
 # Check if the current conda environment is "pyslam"
 if [ "$CONDA_DEFAULT_ENV" != "$ENV_NAME" ]; then

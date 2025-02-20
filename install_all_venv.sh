@@ -2,9 +2,14 @@
 
 #N.B: this install script allows you to run main_slam.py and all the scripts 
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
+
 # ====================================================
 # import the utils 
-. bash_utils.sh 
+. "$ROOT_DIR"/bash_utils.sh 
 
 # ====================================================
 
@@ -26,24 +31,24 @@ if command -v conda &> /dev/null; then
 fi
 
 # 1. install system packages 
-./install_system_packages.sh    
+"$ROOT_DIR"/install_system_packages.sh    
 
 # 2. create a pyslam environment within venv 
-./pyenv-venv-create.sh  # NOTE: Keep the use of "./" seems. It seems crucial for the correct identification of the python libs for C++ projects 
+"$ROOT_DIR"/pyenv-venv-create.sh  # NOTE: Keep the use of "./" seems. It seems crucial for the correct identification of the python libs for C++ projects 
 
 # 3. activate the created python virtual environment 
-. pyenv-activate.sh   
+. "$ROOT_DIR"/pyenv-activate.sh   
 
 # 4. set up git submodules (we need to install gdown before this) 
-./install_git_modules.sh 
+"$ROOT_DIR"/install_git_modules.sh 
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
  # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
-. install_pip3_packages.sh 
+. "$ROOT_DIR"/install_pip3_packages.sh 
 
 # 6. build and install cpp stuff 
-. install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
+. "$ROOT_DIR"/install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
 
 # 7. build and install thirdparty 
-. install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 
+. "$ROOT_DIR"/install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 

@@ -4,6 +4,8 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 
+ROOT_DIR="$SCRIPT_DIR"
+
 # clean thirdparty install and compiled libraries  
 
 # get the first input if any 
@@ -14,8 +16,8 @@ fi
 
 
 # ====================================================
-# import the utils 
-. bash_utils.sh 
+# import the bash utils 
+. "$ROOT_DIR"/bash_utils.sh 
 
 # ====================================================
 
@@ -25,7 +27,7 @@ print_blue "=================================================================="
 print_blue "Cleaning thirdparty packages and utils..."
 
 #echo ROOT_DIR: $ROOT_DIR
-cd $ROOT_DIR  # from bash_utils.sh
+cd "$ROOT_DIR"  # from bash_utils.sh
 
 rm -Rf thirdparty/pangolin 
 
@@ -69,15 +71,15 @@ fi
 
 cd thirdparty/pydbow3
 ./clean.sh
-cd $ROOT_DIR
+cd "$ROOT_DIR"
 
 cd thirdparty/pydbow2
 ./clean.sh
-cd $ROOT_DIR
+cd "$ROOT_DIR"
 
 cd thirdparty/pyibow
 ./clean.sh
-cd $ROOT_DIR
+cd "$ROOT_DIR"
 
 if [ -d "thirdparty/lietorch" ]; then
     rm -rf thirdparty/lietorch

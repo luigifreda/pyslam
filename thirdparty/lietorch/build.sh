@@ -1,0 +1,36 @@
+#!/bin/bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+cd $SCRIPT_DIR
+
+# instead of building with setup.py use cmake and ninja
+# pip install . --verbose
+
+if [ ! -d build ]; then
+    mkdir build
+fi
+cd build
+
+# get how many cores are available
+cores=$(grep -c ^processor /proc/cpuinfo)
+# use half of them 
+cores=$((cores/2))
+
+echo "Building with $cores cores"
+
+# use ninja if available 
+if command -v ninja >/dev/null 2>&1; then
+    cmake -G Ninja ..
+    # launch parallel build with 8 threads
+    ninja -j$cores
+    sudo $(which ninja) install   # "sudo ninja install" does not work!
+else 
+    echo "ninja not found, falling back to make"    
+    cmake ..
+    make -j$cores
+    sudo make install  
+fi
+
+cd $SCRIPT_DIR

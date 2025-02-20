@@ -3,9 +3,14 @@
 
 #set -e
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
+
 # ====================================================
-# import the utils 
-. bash_utils.sh 
+# import the bash utils 
+. "$ROOT_DIR"/bash_utils.sh 
 
 # ====================================================
 
@@ -13,7 +18,7 @@
 #       on open3d dynamic library loading
 
 #echo ROOT_DIR: $ROOT_DIR
-cd $ROOT_DIR  # from bash_utils.sh
+cd "$ROOT_DIR"  # from bash_utils.sh
 
 STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 

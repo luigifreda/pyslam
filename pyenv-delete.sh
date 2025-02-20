@@ -2,9 +2,14 @@
 
 #N.B: this install script allows you to run main_slam.py and all the scripts 
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
+ROOT_DIR="$SCRIPT_DIR"
+
 # ====================================================
-# import the utils 
-. bash_utils.sh 
+# import the bash utils 
+. "$ROOT_DIR"/bash_utils.sh 
 
 # ====================================================
 
@@ -20,8 +25,8 @@ fi
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
     print_blue "Deleting pySLAM environment by using conda"
-    . pyenv-conda-delete.sh
+    . "$ROOT_DIR"/pyenv-conda-delete.sh
 else
     print_blue "Deleting pySLAM environment by using venv"
-    . pyenv-venv-delete.sh
+    . "$ROOT_DIR"/pyenv-venv-delete.sh
 fi

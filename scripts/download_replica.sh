@@ -4,7 +4,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) 
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 
 ROOT_DIR="$SCRIPT_DIR/.."
-cd $ROOT_DIR
+cd "$ROOT_DIR"
 
 mkdir -p datasets
 cd datasets
