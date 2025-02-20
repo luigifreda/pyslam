@@ -294,7 +294,8 @@ if command -v nvidia-smi &> /dev/null; then
             wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
         fi
     fi 
-
+else
+    print_yellow "MASt3R requires CUDA. Skipping..."
 fi 
 
 cd $STARTING_DIR
@@ -336,6 +337,8 @@ if command -v nvidia-smi &> /dev/null; then
         wait
     fi
 
+else 
+    print_yellow "MASt3R requires CUDA. Skipping..."
 fi
 
 cd $STARTING_DIR

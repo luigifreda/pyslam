@@ -187,8 +187,8 @@ if [ "$CUDA_VERSION" != "0" ]; then
         #cd lietorch
         #git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
         #git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
-        cd "$ROOT_DIR"
     fi
+    cd "$ROOT_DIR"    
     #pip install ./thirdparty/lietorch --verbose                                # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
     ./thirdparty/lietorch/build.sh                                            # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
     
