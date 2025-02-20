@@ -20,7 +20,10 @@ export USING_CONDA_PYSLAM=1
 
 export PYTHONPATH=""   # clean python path => for me, remove ROS stuff 
 
-. activate base   # from https://community.anaconda.cloud/t/unable-to-activate-environment-prompted-to-run-conda-init-before-conda-activate-but-it-doesnt-work/68677/10
+if [ -z "$CONDA_PREFIX" ]; then
+    CONDA_PREFIX=$(conda info --base)
+fi
+. "$CONDA_PREFIX"/bin/activate base   # from https://community.anaconda.cloud/t/unable-to-activate-environment-prompted-to-run-conda-init-before-conda-activate-but-it-doesnt-work/68677/10
 conda activate $ENV_NAME
 
 # N.B.: in order to deactivate the virtual environment run: 

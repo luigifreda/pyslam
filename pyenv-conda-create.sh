@@ -51,7 +51,10 @@ else
 fi
 
 # on first run
-. activate base    
+if [ -z "$CONDA_PREFIX" ]; then
+    CONDA_PREFIX=$(conda info --base)
+fi
+. "$CONDA_PREFIX"/bin/activate base   # from https://community.anaconda.cloud/t/unable-to-activate-environment-prompted-to-run-conda-init-before-conda-activate-but-it-doesnt-work/68677/10
 
 # activate created env  
 . pyenv-conda-activate.sh 
