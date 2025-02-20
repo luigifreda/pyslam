@@ -131,7 +131,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                     if self.last_input_task.task_type == VolumetricIntegrationTaskType.INTEGRATE:
                         keyframe_data = self.last_input_task.keyframe_data
 
-                        color_undistorted, depth_undistorted = self.estimate_depth_in_needed_and_rectify(keyframe_data)
+                        color_undistorted, depth_undistorted, pts3d = self.estimate_depth_if_needed_and_rectify(keyframe_data)
                                                                         
                         pose = keyframe_data.pose # Tcw
                         #inv_pose = inv_T(pose)   # Twc

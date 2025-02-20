@@ -76,6 +76,7 @@ if __name__ == '__main__':
 
     viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
     
+    show_directly_point_cloud_if_available = True  
     
     key_cv = None
     is_paused = False    # pause/resume on GUI         
@@ -106,12 +107,24 @@ if __name__ == '__main__':
                 if img_right is not None:
                     cv2.imshow('color image right', img_right)
                         
-                if pts3d_prediction is None:
+                if pts3d_prediction is not None and show_directly_point_cloud_if_available:
                     
+                    # We have predicted a 3D point cloud.
+                    print(f'got directly point cloud: {pts3d_prediction.points.shape}')
+                    
+                    depth_img = img_from_depth(depth_prediction, img_min=0, img_max=max_depth)
+                    cv2.imshow("depth prediction", depth_img)
+                             
+                    # Draw directly the predicted points cloud           
+                    if viewer3D is not None:
+                        viewer3D.draw_dense_geometry(point_cloud=pts3d_prediction)
+                        
+                else:                   
+                     
                     # We use the depth to build a 3D point cloud and visualize it.
                     
                     # Filter depth
-                    filter_depth = True
+                    filter_depth = True # do you want to filter the depth?
                     if filter_depth:
                         depth_filtered = filter_shadow_points(depth_prediction, delta_depth=None)
                     else:
@@ -128,18 +141,9 @@ if __name__ == '__main__':
                         viewer3D.draw_dense_geometry(point_cloud=point_cloud)
                     
                     cv2.imshow("depth prediction", depth_img)
-                    cv2.imshow("depth filtered", depth_filtered_img)      
+                    cv2.imshow("depth filtered", depth_filtered_img)
                     
-                else: 
-                    
-                    # We have predicted a 3D point cloud.
-                    print(f'got directly point cloud: {pts3d_prediction.points.shape}')
-                    
-                    depth_img = img_from_depth(depth_prediction, img_min=0, img_max=max_depth)
-                    cv2.imshow("depth prediction", depth_img)
-                                        
-                    if viewer3D is not None:
-                        viewer3D.draw_dense_geometry(point_cloud=pts3d_prediction)
+
                         
             else: 
                 time.sleep(0.1)

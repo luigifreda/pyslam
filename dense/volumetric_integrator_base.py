@@ -457,10 +457,12 @@ class VolumetricIntegratorBase:
         print('VolumetricIntegratorBase: loop exit...')         
 
 
-    def estimate_depth_in_needed_and_rectify(self, keyframe_data: VolumetricIntegrationKeyframeData):
+    def estimate_depth_if_needed_and_rectify(self, keyframe_data: VolumetricIntegrationKeyframeData):
         color = keyframe_data.img
         color_right = keyframe_data.img_right
         depth = keyframe_data.depth    
+        
+        pts3d = None
     
         if depth is None: 
             if self.depth_estimator is None:
@@ -493,7 +495,7 @@ class VolumetricIntegratorBase:
                 self.img_id_to_depth[keyframe_data.id] = depth_undistorted
                                 
         color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
-        return color_undistorted, depth_undistorted
+        return color_undistorted, depth_undistorted, pts3d
 
 
     def volume_integration(self, q_in, q_out, q_out_condition, is_running, \

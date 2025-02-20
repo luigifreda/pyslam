@@ -28,6 +28,11 @@ def mkdir_p(folder_path):
             raise
 
 
+# Evaluate the estimated poses against the ground truth poses and save/plot the results.
+# Returns the RMSE ATE and the EVO stats
+# Inputs: poses_est: List of estimated poses, each on a [4x4] transformation matrix
+#         poses_gt: List of ground truth poses, each on a [4x4] transformation matrix
+#         is_monocular: True if the camera is monocular
 def evaluate_evo(poses_est, poses_gt, is_monocular, plot_dir, label, save_metrics=True, save_plot=True):
 
     traj_est = PosePath3D(poses_se3=poses_est)
@@ -86,6 +91,12 @@ def evaluate_evo(poses_est, poses_gt, is_monocular, plot_dir, label, save_metric
     return ape_stats, T_gt_est
 
 
+# Evaluate the estimated poses against the ground truth poses and save/plot the results.
+# Returns the RMSE ATE and the EVO stats
+# Inputs: poses_est: List of estimated poses, each on a [4x4] transformation matrix
+#         poses_gt: List of ground truth poses, each on a [4x4] transformation matrix
+#         frame_ids: List of frame ids
+#         is_monocular: True if the camera is monocular
 def eval_ate(poses_est, poses_gt, frame_ids, curr_frame_id, is_final=False, is_monocular=False, save_dir=None, save_metrics=True, save_plot=True):
     if save_dir is None:
         save_metrics = False 

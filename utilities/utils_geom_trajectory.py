@@ -76,7 +76,13 @@ def align_3d_points_with_svd(gt_points, est_points, find_scale=True):
     return T_gt_est, T_est_gt, is_ok  
 
 
-
+# Find associations between 3D trajectories timestamps in filter and gt. For each filter timestamp, find the closest gt timestamps
+# and interpolate the 3D trajectory between them.
+# Inputs: filter_timestamps: List of filter timestamps assumed to be in seconds
+#         filter_t_wi: List of 3D positions, filter trajectory
+#         gt_timestamps: List of gt timestamps assumed to be in seconds
+#         gt_t_wi: List of 3D positions, ground truth trajectory
+#         max_align_dt: maximum time difference between filter and gt timestamps in seconds
 def find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=1e-1, verbose=True):
     max_dt = 0
 
@@ -134,6 +140,15 @@ def find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps
 
 # Associate each filter pose to a gt pose on the basis of their timestamps. Interpolate the gt poses where needed.
 # We assume the gt poses are in SE(3).
+
+
+# Find associations between poses in filter and gt. For each filter timestamp, find the closest gt timestamps
+# and interpolate the pose between them.
+# Inputs: filter_timestamps: List of filter timestamps assumed to be in seconds
+#         filter_T_wi: List of filter poses in SE(3), each one a [4x4] transformation matrix
+#         gt_timestamps: List of gt timestamps assumed to be in seconds
+#         gt_T_wi: List of ground truth poses, each one a [4x4] transformation matrix
+#         max_align_dt: maximum time difference between filter and gt timestamps in seconds
 def find_poses_associations(filter_timestamps, filter_T_wi, gt_timestamps, gt_T_wi, max_align_dt=1e-1, verbose=True):
     max_dt = 0
 
@@ -221,10 +236,10 @@ class TrajectoryAlignementData:
 # Align filter trajectory with ground truth trajectory by computing the SE(3)/Sim(3) transformation between the two trajectories.
 # First, find associations between filter timestamps and gt timestamps.
 # Next, align the two trajectories with SVD on the basis of their associations.
-# - filter_timestamps [Nx1] assumed to be in seconds
-# - filter_t_wi [Nx3] 
-# - gt_timestamps [Nx1] assumed to be in seconds
-# - gt_t_wi [Nx3]
+# - filter_timestamps: List of filter timestamps assumed to be in seconds
+# - filter_t_wi: List of filter 3D positions
+# - gt_timestamps: List of gt timestamps assumed to be in seconds
+# - gt_t_wi: List of gt 3D positions
 # - max_align_dt: maximum time difference between filter and gt timestamps in seconds
 # - find_scale allows to compute the full Sim(3) transformation in case the scale is unknown
 def align_trajectories_with_svd(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, \

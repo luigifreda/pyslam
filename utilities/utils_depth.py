@@ -108,3 +108,51 @@ def filter_shadow_points(depth, delta_depth=None, delta_x=2, delta_y=2, fill_val
     depth_out[mask] = fill_value
 
     return depth_out
+
+
+def point_cloud_to_depth(points, K, w, h):
+    """
+    Generate a depth image from a point cloud.
+    
+    Parameters:
+      points: (N, 3) numpy array of points in the camera coordinate system.
+      K: (3, 3) intrinsic calibration matrix.
+      w: target image width.
+      h: target image height.
+    
+    Returns:
+      depth_img: (h, w) numpy array with depth values. Pixels with no point are set to 0.
+    """
+    fx, fy = K[0, 0], K[1, 1]
+    cx, cy = K[0, 2], K[1, 2]
+
+    # Only consider points with positive depth
+    valid = points[:, 2] > 0
+    valid_points = points[valid]
+    
+    X, Y, Z = valid_points[:, 0], valid_points[:, 1], valid_points[:, 2]
+    # Using round to get pixel coordinates
+    u = np.round((X / Z) * fx + cx).astype(np.int32)
+    v = np.round((Y / Z) * fy + cy).astype(np.int32)
+
+    mask = (u >= 0) & (u < w) & (v >= 0) & (v < h)
+    u = u[mask]
+    v = v[mask]
+    Z = Z[mask]
+
+    depth_img = np.full((h, w), np.inf, dtype=np.float32)
+    idx = v * w + u
+    order = np.argsort(Z)
+    idx = idx[order]
+    Z = Z[order]
+    u_sorted = u[order]
+    v_sorted = v[order]
+
+    _, unique_indices = np.unique(idx, return_index=True)
+    unique_u = u_sorted[unique_indices]
+    unique_v = v_sorted[unique_indices]
+    unique_Z = Z[unique_indices]
+
+    depth_img[unique_v, unique_u] = unique_Z
+    depth_img[np.isinf(depth_img)] = 0
+    return depth_img
