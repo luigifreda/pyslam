@@ -3,7 +3,6 @@ project(lietorch LANGUAGES CXX CUDA)
 
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") # We need C++17 since NVCC does not support C++20
 
-
 # Let's detect which NVCC standards are supported
 # Run "nvcc -h | grep -- '--std'" inside a Bash shell
 execute_process(
@@ -102,6 +101,18 @@ if (NOT CUDAToolkit_FOUND)
   find_package(CUDA REQUIRED)
 endif()
 
+# Check if we are in a conda/virtual environment and correctly detect it
+if(DEFINED ENV{CONDA_PREFIX})
+  set(Python3_ROOT_DIR "$ENV{CONDA_PREFIX}")
+  set(Python3_EXECUTABLE "$ENV{CONDA_PREFIX}/bin/python")
+elseif(DEFINED ENV{VIRTUAL_ENV})
+  set(Python3_ROOT_DIR "$ENV{VIRTUAL_ENV}")
+  set(Python3_EXECUTABLE "$ENV{VIRTUAL_ENV}/bin/python")
+endif()
+
+message(STATUS "Using Python3 executable: ${Python3_EXECUTABLE}")
+message(STATUS "Using Python3 root dir: ${Python3_ROOT_DIR}")
+
 # Find Python (and its development files)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
@@ -140,6 +151,7 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
+message(STATUS "Python include directory: ${Python3_INCLUDE_DIRS}")
 message(STATUS "PyTorch include directory: ${TORCH_INCLUDE_DIR}")
 message(STATUS "PyTorch library directory: ${TORCH_LIBRARY_DIR}")
 message(STATUS "PyTorch API include directory: ${TORCH_API_INCLUDE_DIR}")
