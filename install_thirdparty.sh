@@ -14,6 +14,7 @@ ROOT_DIR="$SCRIPT_DIR"
 # import the bash utils 
 . "$ROOT_DIR"/bash_utils.sh 
 
+STARTING_DIR=`pwd`  
 cd "$ROOT_DIR" 
 
 # ====================================================
@@ -21,9 +22,6 @@ cd "$ROOT_DIR"
 print_blue '================================================'
 print_blue "Building Thirdparty"
 print_blue '================================================'
-
-
-STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
@@ -64,7 +62,7 @@ print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features
 . build.sh $EXTERNAL_OPTIONS
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 print_blue '================================================'
 print_blue "Configuring and building thirdparty/Pangolin ..."
@@ -115,7 +113,7 @@ else
         #python setup.py install
     fi
 fi
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 print_blue "=================================================================="
@@ -142,7 +140,7 @@ if [ ! -f lib/g2o.cpython*.so ]; then
     cd ..
     #python3 setup.py install --user
 fi    
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 
 print_blue "=================================================================="
@@ -151,7 +149,7 @@ print_blue "Configuring and building thirdparty/pydbow3 ..."
 cd thirdparty/pydbow3
 ./build.sh $EXTERNAL_OPTIONS
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pydbow2 ..."
@@ -159,7 +157,7 @@ print_blue "Configuring and building thirdparty/pydbow2 ..."
 cd thirdparty/pydbow2
 ./build.sh $EXTERNAL_OPTIONS
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 
 print_blue "=================================================================="
@@ -168,7 +166,7 @@ print_blue "Configuring and building thirdparty/pyibow ..."
 cd thirdparty/pyibow
 ./build.sh $EXTERNAL_OPTIONS
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -179,7 +177,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     #       This happends when trying to load the open3d dynamic library.
     ./install_open3d_python.sh
 
-    cd $STARTING_DIR
+    cd $ROOT_DIR
 fi 
 
 
@@ -197,7 +195,7 @@ if [ ! -d ml_depth_pro ]; then
     source get_pretrained_models.sh   # Files will be downloaded to `ml_depth_pro/checkpoints` directory. 
 fi
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 
 
@@ -215,7 +213,7 @@ if [ ! -d depth_anything_v2 ]; then
     ./download_metric_models.py
 fi
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/raft_stereo ..."
@@ -231,7 +229,7 @@ if [ ! -d raft_stereo ]; then
     ./download_models.sh
 fi
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 
 print_blue "=================================================================="
@@ -248,7 +246,7 @@ if [ ! -d crestereo ]; then
     ./download_models.py
 fi
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/crestereo_pytorch ..."
@@ -264,7 +262,7 @@ if [ ! -d crestereo_pytorch ]; then
     ./download_models.py
 fi
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/mast3r ..."
@@ -298,7 +296,7 @@ else
     print_yellow "MASt3R requires CUDA. Skipping..."
 fi 
 
-cd $STARTING_DIR
+cd $ROOT_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/mvdust3r ..."
@@ -341,8 +339,9 @@ else
     print_yellow "MASt3R requires CUDA. Skipping..."
 fi
 
-cd $STARTING_DIR
 echo "...done with thirdparty"
+
+cd "$STARTING_DIR"
 
 
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:

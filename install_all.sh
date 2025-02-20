@@ -13,6 +13,9 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 
+STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
+
 #set -e
 
 # if we are not under docker
@@ -32,8 +35,10 @@ fi
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
     print_blue "Installing pySLAM by using conda"
-    . "$ROOT_DIR"/install_all_conda.sh
+    . install_all_conda.sh
 else
     print_blue "Installing pySLAM by using venv"
-    . "$ROOT_DIR"/install_all_venv.sh
+    . install_all_venv.sh
 fi
+
+cd "$STARTING_DIR"

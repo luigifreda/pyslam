@@ -12,9 +12,8 @@ ROOT_DIR="$SCRIPT_DIR"
 # import the bash utils 
 . "$ROOT_DIR"/bash_utils.sh 
 
+STARTING_DIR=`pwd`  
 cd "$ROOT_DIR" 
-
-STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 # ====================================================
 
@@ -43,3 +42,5 @@ if ! pyenv install --list &> /dev/null; then
     source ~/.bashrc
     export PATH=~/.pyenv/shims:$PATH
 fi
+
+cd $STARTING_DIR

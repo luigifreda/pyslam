@@ -9,16 +9,22 @@ SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symboli
 
 ROOT_DIR="$SCRIPT_DIR"
 
+STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
+
+
 case "$OSTYPE" in
   darwin*)
     echo "macOS"
-    . "$ROOT_DIR"/pyenv-venv-create-mac.sh
+    . pyenv-venv-create-mac.sh
     ;;
   linux*)
     echo "Linux"
-    . "$ROOT_DIR"/pyenv-venv-create-linux.sh 
+    . pyenv-venv-create-linux.sh 
     ;;
   *)
     echo "Unknown OS"
     ;;
 esac
+
+cd "$STARTING_DIR"

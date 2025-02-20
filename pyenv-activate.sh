@@ -11,6 +11,9 @@ ROOT_DIR="$SCRIPT_DIR"
 # import the bash utils 
 . "$ROOT_DIR"/bash_utils.sh 
 
+STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
+
 # ====================================================
 
 #set -e
@@ -25,8 +28,11 @@ fi
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
     print_blue "Activating pySLAM environment by using conda"
-    . "$ROOT_DIR"/pyenv-conda-activate.sh
+    . pyenv-conda-activate.sh
 else
     print_blue "Activating pySLAM environment by using venv"
-    . "$ROOT_DIR"/pyenv-venv-activate.sh
+    . pyenv-venv-activate.sh
 fi
+
+
+cd "$STARTING_DIR"

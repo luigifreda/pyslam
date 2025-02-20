@@ -13,6 +13,9 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 
+STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
+
 print_blue "Running install_all_venv.sh"
 
 #set -e
@@ -31,24 +34,27 @@ if command -v conda &> /dev/null; then
 fi
 
 # 1. install system packages 
-"$ROOT_DIR"/install_system_packages.sh    
+./install_system_packages.sh    
 
 # 2. create a pyslam environment within venv 
-"$ROOT_DIR"/pyenv-venv-create.sh  # NOTE: Keep the use of "./" seems. It seems crucial for the correct identification of the python libs for C++ projects 
+./pyenv-venv-create.sh  # NOTE: Keep the use of "./" seems. It seems crucial for the correct identification of the python libs for C++ projects 
 
 # 3. activate the created python virtual environment 
-. "$ROOT_DIR"/pyenv-activate.sh   
+. pyenv-activate.sh   
 
 # 4. set up git submodules (we need to install gdown before this) 
-"$ROOT_DIR"/install_git_modules.sh 
+./install_git_modules.sh 
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
  # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
-. "$ROOT_DIR"/install_pip3_packages.sh 
+. install_pip3_packages.sh 
 
 # 6. build and install cpp stuff 
-. "$ROOT_DIR"/install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
+. install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
 
 # 7. build and install thirdparty 
-. "$ROOT_DIR"/install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 
+. install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 
+
+
+cd "$STARTING_DIR"

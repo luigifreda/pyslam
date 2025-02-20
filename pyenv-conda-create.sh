@@ -11,6 +11,9 @@ ROOT_DIR="$SCRIPT_DIR"
 # import the bash utils 
 . "$ROOT_DIR"/bash_utils.sh 
 
+STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
+
 # ====================================================
 
 
@@ -51,7 +54,7 @@ fi
 . activate base    
 
 # activate created env  
-. "$ROOT_DIR"/pyenv-conda-activate.sh 
+. pyenv-conda-activate.sh 
 
 # Check if the current conda environment is "pyslam"
 if [ "$CONDA_DEFAULT_ENV" != "$ENV_NAME" ]; then
@@ -68,6 +71,8 @@ pip3 install -r requirements-pip3.txt #-vvv
 
 # install opencv python from source with non-free modules enabled (installation order does matter here!)
 #. install_opencv_python.sh
+
+cd "$STARTING_DIR"
 
 # To activate this environment, use
 #   $ conda activate pyslam

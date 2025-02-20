@@ -12,10 +12,8 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 
-#echo ROOT_DIR: $ROOT_DIR
-cd "$ROOT_DIR"  # from bash_utils.sh
-
-STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
+STARTING_DIR=`pwd`  
+cd "$ROOT_DIR"  
 
 
 #set -e
@@ -49,8 +47,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     PATH_TO_PROTOC=/usr/local/bin/protoc 
 fi 
 
-
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 cd thirdparty/tensorflow_models/research/delf 
 ${PATH_TO_PROTOC} delf/protos/*.proto --python_out=.
@@ -63,4 +60,5 @@ if [ ! -f $PARAMETERS_DIR/delf_gld_20190411.tar.gz ]; then
     tar -C $PARAMETERS_DIR -xvf $PARAMETERS_DIR/delf_gld_20190411.tar.gz
 fi 
 
-cd $STARTING_DIR
+
+cd "$STARTING_DIR"

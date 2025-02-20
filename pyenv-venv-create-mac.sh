@@ -13,8 +13,8 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 
-cd "$ROOT_DIR"
 STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
 
 export ENV_NAME=$1
 
@@ -57,7 +57,7 @@ if [ ! -d $ENV_PATH/bin ]; then
 fi 
 
 # activate the environment 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 export PYTHONPATH=""   # clean python path => for me, remove ROS stuff 
 . $ENV_PATH/bin/activate  
 
@@ -89,6 +89,9 @@ MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
 # NOTE: This another way of installing opencv and it solves some dynamic linking issues. Unfortunately, it generates other ones that are more critical with multiple intercepted QT versions. 
 # pip3 install numpy
 # . install_opencv_local.sh
+
+
+cd "$STARTING_DIR"
 
 
 # To activate the virtual environment run: 

@@ -10,6 +10,8 @@ ROOT_DIR="$SCRIPT_DIR"
 # import the bash utils 
 . "$ROOT_DIR"/bash_utils.sh 
 
+
+STARTING_DIR=`pwd`
 cd "$ROOT_DIR" 
 
 # ====================================================
@@ -101,3 +103,5 @@ else
 fi
 
 print_blue "System package configuration and installation... Done!" 
+
+cd "$STARTING_DIR"

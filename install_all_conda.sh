@@ -13,6 +13,9 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 
+STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
+
 print_blue "Running install_all_conda.sh"
 
 #set -e
@@ -51,10 +54,13 @@ fi
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
  # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
-. "$ROOT_DIR"/install_pip3_packages.sh 
+. install_pip3_packages.sh 
 
 # 6. build and install cpp stuff 
-. "$ROOT_DIR"/install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
+. install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
 
 # 7. build and install thirdparty 
-. "$ROOT_DIR"/install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 
+. install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 
+
+
+cd "$STARTING_DIR"

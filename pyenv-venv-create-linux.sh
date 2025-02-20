@@ -13,8 +13,9 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 
-cd "$ROOT_DIR"
 STARTING_DIR=`pwd`
+cd "$ROOT_DIR"
+
 
 export ENV_NAME=$1
 
@@ -71,7 +72,7 @@ if [ ! -d $ENV_PATH/bin ]; then
 fi 
 
 # activate the environment 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 export PYTHONPATH=""   # clean python path => for me, remove ROS stuff 
 source $ENV_PATH/bin/activate  
 
@@ -93,6 +94,8 @@ MAKEFLAGS_OPTION="-j$(nproc)"
 # install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
 MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
 
+
+cd "$STARTING_DIR"
 
 # To activate the virtual environment run: 
 #   $ source pyenv-activate.sh 

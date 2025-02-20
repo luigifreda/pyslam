@@ -17,8 +17,8 @@ ROOT_DIR="$SCRIPT_DIR"
 
 #set -e
 
-#echo ROOT_DIR: $ROOT_DIR
-cd "$ROOT_DIR"  # from bash_utils.sh
+STARTING_DIR=`pwd`
+cd "$ROOT_DIR" 
 
 # ====================================================
 # check if we have external options
@@ -56,7 +56,8 @@ cd cpp
 # build utils
 . build.sh $EXTERNAL_OPTIONS       # use . in order to inherit python env configuration 
 
-cd "$ROOT_DIR"
+
+cd "$STARTING_DIR"
 
 
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:

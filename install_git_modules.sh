@@ -13,10 +13,8 @@ ROOT_DIR="$SCRIPT_DIR"
 # ====================================================
 
 #set -e
-#echo ROOT_DIR: $ROOT_DIR
-cd "$ROOT_DIR"  # from bash_utils.sh
-
-STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
+STARTING_DIR=`pwd`  
+cd "$ROOT_DIR"  
 
 print_blue '================================================'
 print_blue "Checking and downloading git modules ..."
@@ -42,11 +40,11 @@ if [ ! -f d2_ots.pth ]; then
     tar -xvf d2net.tar.xz
     rm d2net.tar.xz   
 fi 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 cd thirdparty
 cd d2net
 git apply ../d2net.patch 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 # download contextdesc models 
@@ -69,7 +67,7 @@ if [ ! -d retrieval_model ]; then
     tar -xvf retrieval_model.tar.xz    
     rm retrieval_model.tar.xz 
 fi 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 # download lfnet models 
@@ -89,7 +87,7 @@ if [ ! -d pretrained/lfnet-norotaug ]; then
     wget https://cs.ubc.ca/research/kmyi_data/files/2018/lf-net/lfnet-norotaug.tar.gz -O pretrained/lfnet-norotaug.tar.gz
     tar -C pretrained/ -xf pretrained/lfnet-norotaug.tar.gz
 fi 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 # Updating keynet  
@@ -100,12 +98,12 @@ cd thirdparty
 #rsync ./keynet_changes/keynet_architecture.py ./keynet/keyNet/model/keynet_architecture.py
 cd keynet
 git apply ../keynet.patch 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 # install delf   
 ./install_delf.sh 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 # Updating vpr  
@@ -114,7 +112,7 @@ print_blue "Updating vpr ..."
 cd thirdparty
 cd vpr
 git apply ../vpr.patch 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 # Updating patch_netvlad  
@@ -123,4 +121,7 @@ print_blue "Updating patch_netvlad ..."
 cd thirdparty
 cd patch_netvlad
 git apply ../patch_netvlad.patch 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
+
+
+cd "$STARTING_DIR"

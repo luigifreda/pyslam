@@ -13,9 +13,9 @@ ROOT_DIR="$SCRIPT_DIR"
 . "$ROOT_DIR"/bash_utils.sh 
 
 
+STARTING_DIR=`pwd`  
 cd "$ROOT_DIR"  
 
-STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
 
 # ====================================================
 
@@ -89,7 +89,7 @@ pip wheel . --verbose
 # install built packages
 # pip install opencv*.whl --force-reinstall
 
-cd $STARTING_DIR
+cd "$ROOT_DIR"
 
 
 # HACK for conda issue:
@@ -109,3 +109,5 @@ if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
         fi
     fi
 fi
+
+cd "$STARTING_DIR"

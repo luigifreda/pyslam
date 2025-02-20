@@ -17,10 +17,8 @@ ROOT_DIR="$SCRIPT_DIR"
 # NOTE: this is required under mac where I got unexpected segmentation fault errors
 #       on open3d dynamic library loading
 
-#echo ROOT_DIR: $ROOT_DIR
-cd "$ROOT_DIR"  # from bash_utils.sh
-
-STARTING_DIR=`pwd`  # this should be the main folder directory of the repo
+STARTING_DIR=`pwd`  
+cd "$ROOT_DIR"  
 
 print_blue "Installing open3d-python from source"
 
@@ -63,3 +61,5 @@ make pip-package
 
 
 sudo make install
+
+cd "$STARTING_DIR"
