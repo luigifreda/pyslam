@@ -5,52 +5,52 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.5.4](#pyslam-v254)
-    - [1. Install](#1-install)
-        - [1.1. Main requirements](#11-main-requirements)
-        - [1.2. Ubuntu](#12-ubuntu)
-        - [1.3. MacOS](#13-macos)
-        - [1.4. Docker](#14-docker)
-        - [1.5. How to install non-free OpenCV modules](#15-how-to-install-non-free-opencv-modules)
-        - [1.6. Troubleshooting and performance issues](#16-troubleshooting-and-performance-issues)
-    - [2. Usage](#2-usage)
-        - [2.1. Feature tracking](#21-feature-tracking)
-        - [2.2. Loop closing](#22-loop-closing)
-            - [2.2.1. Vocabulary management](#221-vocabulary-management)
-            - [2.2.2. Vocabulary-free loop closing](#222-vocabulary-free-loop-closing)
-            - [2.2.3. Double-check your loop detection configuration and verify vocabulary compability](#223-double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
-        - [2.3. Volumetric reconstruction](#23-volumetric-reconstruction)
-            - [2.3.1. Dense reconstruction while running SLAM](#231-dense-reconstruction-while-running-slam)
-            - [2.3.2. Reload a saved sparse map and perform dense reconstruction](#232-reload-a-saved-sparse-map-and-perform-dense-reconstruction)
-            - [2.3.3. Reload and check your dense reconstruction](#233-reload-and-check-your-dense-reconstruction)
-            - [2.3.4. Controlling the spatial distribution of keyframe FOV centers](#234-controlling-the-spatial-distribution-of-keyframe-fov-centers)
-        - [2.4. Depth prediction](#24-depth-prediction)
-        - [2.5. Saving and reloading](#25-saving-and-reloading)
-            - [2.5.1. Save the a map](#251-save-the-a-map)
-            - [2.5.2. Reload a saved map and relocalize in it](#252-reload-a-saved-map-and-relocalize-in-it)
-            - [2.5.3. Trajectory saving](#253-trajectory-saving)
-        - [2.6. SLAM GUI](#26-slam-gui)
-        - [2.7. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#27-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-    - [3. System overview](#3-system-overview)
-    - [4. Supported components and models](#4-supported-components-and-models)
-        - [4.1. Supported local features](#41-supported-local-features)
-        - [4.2. Supported matchers](#42-supported-matchers)
-        - [4.3. Supported global descriptors and local descriptor aggregation methods](#43-supported-global-descriptors-and-local-descriptor-aggregation-methods)
-                - [4.3.1. Local descriptor aggregation methods](#431-local-descriptor-aggregation-methods)
-                - [4.3.2. Global descriptors](#432-global-descriptors)
-        - [4.4. Supported depth prediction models](#44-supported-depth-prediction-models)
-        - [4.5. Supported volumetric mapping methods](#45-supported-volumetric-mapping-methods)
-    - [5. Datasets](#5-datasets)
-        - [5.1. KITTI Datasets](#51-kitti-datasets)
-        - [5.2. TUM Datasets](#52-tum-datasets)
-        - [5.3. EuRoC Datasets](#53-euroc-datasets)
-        - [5.4. Replica Datasets](#54-replica-datasets)
-    - [6. Camera Settings](#6-camera-settings)
-    - [7. Comparison pySLAM vs ORB-SLAM3](#7-comparison-pyslam-vs-orb-slam3)
-    - [8. Contributing to pySLAM](#8-contributing-to-pyslam)
-    - [9. References](#9-references)
-    - [10. Credits](#10-credits)
-    - [11. License](#11-license)
-    - [12. TODOs](#12-todos)
+  - [Install](#install)
+    - [Main requirements](#main-requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+  - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
+  - [Usage](#usage)
+    - [Feature tracking](#feature-tracking)
+    - [Loop closing](#loop-closing)
+      - [Vocabulary management](#vocabulary-management)
+      - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
+      - [Double-check your loop detection configuration and verify vocabulary compability](#double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
+    - [Volumetric reconstruction](#volumetric-reconstruction)
+      - [Dense reconstruction while running SLAM](#dense-reconstruction-while-running-slam)
+      - [Reload a saved sparse map and perform dense reconstruction](#reload-a-saved-sparse-map-and-perform-dense-reconstruction)
+      - [Reload and check your dense reconstruction](#reload-and-check-your-dense-reconstruction)
+      - [Controlling the spatial distribution of keyframe FOV centers](#controlling-the-spatial-distribution-of-keyframe-fov-centers)
+    - [Depth prediction](#depth-prediction)
+    - [Saving and reloading](#saving-and-reloading)
+      - [Save the a map](#save-the-a-map)
+      - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
+      - [Trajectory saving](#trajectory-saving)
+    - [SLAM GUI](#slam-gui)
+    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+  - [System overview](#system-overview)
+  - [Supported components and models](#supported-components-and-models)
+    - [Supported local features](#supported-local-features)
+    - [Supported matchers](#supported-matchers)
+    - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
+        - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
+        - [Global descriptors](#global-descriptors)
+    - [Supported depth prediction models](#supported-depth-prediction-models)
+    - [Supported volumetric mapping methods](#supported-volumetric-mapping-methods)
+  - [Datasets](#datasets)
+    - [KITTI Datasets](#kitti-datasets)
+    - [TUM Datasets](#tum-datasets)
+    - [EuRoC Datasets](#euroc-datasets)
+    - [Replica Datasets](#replica-datasets)
+  - [Camera Settings](#camera-settings)
+  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [References](#references)
+  - [Credits](#credits)
+  - [License](#license)
+  - [TODOs](#todos)
 
 <!-- /TOC -->
  
@@ -162,9 +162,11 @@ $ python3 -c "import cv2; print(cv2.__version__)" # check opencv version
 $ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"  # check if you have non-free OpenCV module support (no errors imply success)
 ```
 
-### Troubleshooting and performance issues
+---
 
-If you run into issues or errors during the installation process or at run-time, please, check the [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) file.
+## Troubleshooting and performance issues
+
+If you run into issues or errors during the installation process or at run-time, please, check the [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) file. Before submitting a new git issue please read [here](docs/TROUBLESHOOTING.md#submitting-a-git-issue).
 
 --- 
 ## Usage
@@ -302,7 +304,7 @@ KeyFrame.maxFovCentersDistance: 0.2       # max distance between fov centers in 
 ### Depth prediction
 
 The available depth prediction models can be utilized both in the SLAM back-end and front-end. 
-- Back-end: Depth prediction can be enabled in the [volumetric reconstruction](#volumetric-reconstruction-pipeline) pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator=True` and selecting your preferred `kVolumetricIntegrationDepthEstimatorType` in `config_parameters.py`. 
+- Back-end: Depth prediction can be enabled in the [volumetric reconstruction](#volumetric-reconstruction) pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator=True` and selecting your preferred `kVolumetricIntegrationDepthEstimatorType` in `config_parameters.py`. 
 - Front-end: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `config_parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still *experimental* at present time [WIP].   
 
 Refer to the file `depth_estimation/depth_estimator_factory.py` for further details. Both stereo and monocular prediction approaches are supported. You can test depth prediction/estimation by using the script `main_depth_prediction.py`.
@@ -348,7 +350,7 @@ Note that pressing the `Save` button saves the current map, front-end, and backe
 Estimated trajectories can be saved in three **formats**: *TUM* (The Open Mapping format), *KITTI* (KITTI Odometry format), and *EuRoC* (EuRoC MAV format). pySLAM saves two **types** of trajectory estimates:
 
 - **Online**: In *online* trajectories, each pose estimate depends only on past poses. A pose estimate is saved at the end of each front-end iteration on current frame.
-- **Final**: In *final* trajectories, each pose estimate depends on both past and future poses. A pose estimate is refined multiple times by LBA windows that cover it and by GBA during loop closures.
+- **Final**: In *final* trajectories, each pose estimate depends on both past and future poses. A pose estimate is refined multiple times by LBA windows that cover it and by PGO and GBA during loop closures.
 
 
 To enable trajectory saving, open `config.yaml` and search for the `SAVE_TRAJECTORY`: set `save_trajectory: True`, select your `format_type` (`tum`, `kitti`, `euroc`), and the output filename. For instance for a `kitti` format output:   
@@ -667,13 +669,13 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 
 
-
+---
 ## License 
 
 pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modified libraries, each one coming with its license. Where nothing is specified, a GPLv3 license applies to the software.
 
 If you use pySLAM in your projects, please cite this document:
-["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*
+["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
 You may find an update version of this document [here](./docs/tex/document.pdf).
 
 ---
