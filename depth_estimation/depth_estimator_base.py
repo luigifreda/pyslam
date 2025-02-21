@@ -89,7 +89,7 @@ class DepthEstimatorSgbm(DepthEstimator):
     # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         if image_right is None:
-            message = 'Image right is None. Are you using a stereo dataset?'
+            message = 'Image right is None. Are you using a stereo dataset? If not, you cant use a stereo depth estimator here.'
             Printer.red(message)
             raise ValueError(message)
         # Compute disparity map

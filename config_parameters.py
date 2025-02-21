@@ -66,7 +66,7 @@ class Parameters:
     kInitializerNumMinFeatures = 100
     kInitializerNumMinFeaturesStereo = 500
     kInitializerNumMinTriangulatedPoints = 150
-    kInitializerNumMinTriangulatedPointsStereo = 50
+    kInitializerNumMinTriangulatedPointsStereo = 100
     kInitializerFeatureMatchRatioTest = 0.9    # ratio test used by Initializer   # TODO: put it in an table and make it configurable per descriptor
     kInitializerNumMinNumPointsForPnPWithDepth = 15 
     kInitializerUseCellCoverageCheck = True

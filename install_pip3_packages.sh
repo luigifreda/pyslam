@@ -181,15 +181,15 @@ if [ "$CUDA_VERSION" != "0" ]; then
     sudo apt install -y cuda-command-line-tools-$CUDA_VERSION_STRING_WITH_HYPHENS cuda-libraries-$CUDA_VERSION_STRING_WITH_HYPHENS
 
     #pip install git+https://github.com/princeton-vl/lietorch.git
-    if [[ ! -d "$ROOT_DIR/thirdparty/lietorch" ]]; then
-        cd "$ROOT_DIR"/thirdparty
-        #git clone --recursive https://github.com/princeton-vl/lietorch.git lietorch
-        #cd lietorch
-        #git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
-        #git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
-    fi
+    # if [[ ! -d "$ROOT_DIR/thirdparty/lietorch" ]]; then
+    #     cd "$ROOT_DIR"/thirdparty
+    #     git clone --recursive https://github.com/princeton-vl/lietorch.git lietorch
+    #     cd lietorch
+    #     git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
+    #     git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
+    # fi
     cd "$ROOT_DIR"    
-    #pip install ./thirdparty/lietorch --verbose                                # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
+    #pip install ./thirdparty/lietorch --verbose                              # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
     ./thirdparty/lietorch/build.sh                                            # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
     
     pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info

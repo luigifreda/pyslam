@@ -23,6 +23,8 @@ from matplotlib import pyplot as pl
 from utils_draw import draw_feature_matches
 from utils_img import img_from_floats
 from utils_dust3r import  dust3r_preprocess_images, invert_dust3r_preprocess_images, invert_dust3r_preprocess_depth, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
+from utils_depth import point_cloud_to_depth
+from utils_sys import Printer
 
 from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
 from utils_img import ImageTable
@@ -101,7 +103,7 @@ if __name__ == '__main__':
     
     
     # estimate focals of first image
-    h, w, _ = rgb_imgs[0].shape[0:3] # [H, W, 3]    
+    h, w = rgb_imgs[0].shape[0:2] # [H, W]    
     conf_first = conf[0].reshape(-1) # [bs, H * W]
     conf_first_sorted = conf_first.sort()[0] # [bs, h * w]
     #conf_first_thres = conf_first_sorted[int(conf_first_sorted.shape[0] * 0.03)]  # here we use a different threshold 
@@ -158,31 +160,43 @@ if __name__ == '__main__':
     matches_im0, matches_im1 = matches_im0[valid_matches], matches_im1[valid_matches]
 
     # visualize a few matches
-    n_viz_percent = 30  # percentage of shown matches
+    n_viz_percent = 50  # percentage of shown matches
     num_matches = matches_im0.shape[0]
     n_viz = int(100/n_viz_percent)
     match_idx_to_viz = np.arange(0, num_matches - 1, n_viz)  # extract 1 sample every n_viz samples
     viz_matches_im0, viz_matches_im1 = matches_im0[match_idx_to_viz], matches_im1[match_idx_to_viz]
     
-    # convert to visualizable images 
+    # convert confidence images to visualizable images 
     for i,img in enumerate(rgb_imgs):
         rgb_imgs[i] = (img*255.0).astype(np.uint8)
         print(f'conf shape: {confs[i].shape}, min: {confs[i].min()}, max: {confs[i].max()}')        
         confs[i] = img_from_floats(confs[i])
             
-    inverted_images = invert_dust3r_preprocess_images(rgb_imgs, [im.shape[0:2] for im in imgs], inference_size)
+    #inverted_images = invert_dust3r_preprocess_images(rgb_imgs, [im.shape[0:2] for im in imgs], inference_size)
 
-    # extract first image depth with mask 
-    h, w = rgb_imgs[0].shape[0:2]           
-    valid_first = mask[0].reshape(h,w)
-    depth = np.zeros(shape=(h,w),dtype=pts3d[0].dtype)
-    depth[valid_first] = pts3d[0][valid_first,2]
-    
-    depth_inv = invert_dust3r_preprocess_depth(depth, imgs[0].shape[0:2], inference_size)
-    depth_inv_img = img_from_floats(depth_inv)
-    cv2.imshow('Depth', depth_inv_img)
-    
-        
+    # extract depth at the original scale
+    h_original, w_original = imgs[0].shape[0:2]
+    h, w = rgb_imgs[0].shape[0:2] # [H, W] 
+    depth_scale_h = h_original / h
+    depth_scale_w = w_original / w
+    are_scales_equal = abs(depth_scale_h-depth_scale_w) < 1e-2
+    if not are_scales_equal:
+        Printer.yellow(f'WARNING: depth_scale_h: {depth_scale_h} != depth_scale_w: {depth_scale_w}')
+        # extract first image depth with mask 
+        valid_first = mask[0].reshape(h,w)
+        depth = np.zeros(shape=(h,w),dtype=pts3d[0].dtype)
+        depth[valid_first] = pts3d[0][valid_first,2] # extract the z-component from the point cloud
+        # extract depth at the original scale by interpolating
+        depth_map = invert_dust3r_preprocess_depth(depth, imgs[0].shape[0:2], inference_size)
+        depth_map_img = img_from_floats(depth_map)        
+    else:
+        print(f'depth_scale_h: {depth_scale_h}, depth_scale_w: {depth_scale_w}')
+        # extract depth at the original scale by projecting point cloud on the image
+        intrinsics_original = to_numpy(intrinsics)*depth_scale_h
+        depth_map = point_cloud_to_depth(global_pc.vertices.reshape(-1, 3), intrinsics_original, w_original, h_original)
+        depth_map_img = img_from_floats(depth_map)
+    cv2.imshow('Depth', depth_map_img)
+
     show_image_tables = True
     table_resize_scale=0.8    
     if show_image_tables:
@@ -200,11 +214,11 @@ if __name__ == '__main__':
         img_table.render()
         cv2.imshow('Dust3r Images', img_table.image())
         
-        img_inverted_table = ImageTable(num_columns=2, resize_scale=table_resize_scale)
-        for i, img in enumerate(inverted_images):
-            img_inverted_table.add(img)
-        img_inverted_table.render()
-        cv2.imshow('Inverted Images', img_inverted_table.image())        
+        # img_inverted_table = ImageTable(num_columns=2, resize_scale=table_resize_scale)
+        # for i, img in enumerate(inverted_images):
+        #     img_inverted_table.add(img)
+        # img_inverted_table.render()
+        # cv2.imshow('Inverted Images', img_inverted_table.image())        
         
         img_table_conf = ImageTable(num_columns=2, resize_scale=table_resize_scale)
         for i, conf in enumerate(confs):

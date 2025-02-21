@@ -38,16 +38,22 @@ import numpy as np
 import config
 config.cfg.set_lib('xfeat') 
 config.cfg.set_lib('lightglue')
+config.cfg.set_lib('mast3r')
 
 XFeat = import_from('modules.xfeat', 'XFeat')
 LightGlue = import_from('lightglue', 'LightGlue')
-
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kLogsFolder = kRootFolder + '/logs'
+kMast3rFolder = kRootFolder + '/thirdparty/mast3r'
 
+
+if os.path.exists(kMast3rFolder):
+    AsymmetricMASt3R = import_from('mast3r.model', 'AsymmetricMASt3R')
+    mast3r_inference = import_from('dust3r.inference', 'inference')
+    to_numpy = import_from('dust3r.utils.device', 'to_numpy')
 
 
 kRatioTest = Parameters.kFeatureMatchRatioTest
@@ -63,6 +69,7 @@ class FeatureMatcherTypes(SerializableEnum):
     XFEAT     = 4      # "XFeat: Accelerated Features for Lightweight Image Matching"
     LIGHTGLUE = 5      # "LightGlue: Local Feature Matching at Light Speed"
     LOFTR     = 6      # "LoFTR: Efficient Local Feature Matching with Transformers" (based on kornia)
+    MAST3R    = 7      # "Grounding Image Matching in 3D with MASt3R"
 
 
 def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, 
@@ -105,7 +112,14 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING,
                                 ratio_test=ratio_test, 
                                 matcher_type=matcher_type,
                                 detector_type=detector_type,
-                                descriptor_type=descriptor_type)    
+                                descriptor_type=descriptor_type)   
+    elif matcher_type == FeatureMatcherTypes.MAST3R:
+        return Mast3RMatcher(norm_type=norm_type, 
+                                cross_check=cross_check, 
+                                ratio_test=ratio_test, 
+                                matcher_type=matcher_type,
+                                detector_type=detector_type,
+                                descriptor_type=descriptor_type) 
     return None 
 
 
@@ -576,7 +590,12 @@ class LoFTRMatcher(FeatureMatcher):
                          detector_type=detector_type,
                          descriptor_type=descriptor_type)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        #device = 'cpu' # force cpu mode
+        #device = 'cpu' # force cpu mode        
+        if device.type == 'cuda':
+            print('LoFTRMatcher: Using CUDA')
+        else:
+            print('LoFTRMatcher: Using CPU')          
+
         self.torch_device = device
         if self.torch_device == 'cuda':
             torch.cuda.empty_cache()
@@ -584,4 +603,36 @@ class LoFTRMatcher(FeatureMatcher):
         self.matcher = KF.LoFTR('outdoor').eval().to(device)  
         self.matcher_name = 'LoFTRMatcher' 
         print('device: ', self.torch_device)    
+        Printer.green(f'matcher: {self.matcher_name}')
+
+
+# ==============================================================================
+class Mast3RMatcher(FeatureMatcher):
+    def __init__(self, 
+                 norm_type=cv2.NORM_L2, 
+                 cross_check = False, 
+                 ratio_test=kRatioTest, 
+                 matcher_type = FeatureMatcherTypes.MAST3R,
+                 detector_type=FeatureDetectorTypes.NONE,
+                 descriptor_type=FeatureDescriptorTypes.NONE):
+        super().__init__(norm_type=norm_type, 
+                         cross_check=cross_check, 
+                         ratio_test=ratio_test, 
+                         matcher_type=matcher_type,
+                         detector_type=detector_type,
+                         descriptor_type=descriptor_type)
+        if not os.path.exists(kMast3rFolder):
+            raise ValueError(f'Mast3RMatcher: Mast3R was not installed. The folder was not found: {kMast3rFolder}')
+    
+        model_name = kMast3rFolder + "/checkpoints/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth"            
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #device = 'cpu' # force cpu mode        
+        if device.type == 'cuda':
+            print('Mast3RMatcher: Using CUDA')
+        else:
+            print('Mast3RMatcher: Using CPU')  
+        model = AsymmetricMASt3R.from_pretrained(model_name).to(device)
+        model = model.to(device).eval()
+        self.matcher = model   
+        self.matcher_name = 'Mast3RMatcher'   
         Printer.green(f'matcher: {self.matcher_name}')

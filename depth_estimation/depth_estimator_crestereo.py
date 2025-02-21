@@ -112,7 +112,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
         if platform.system() != 'Darwin':
             
             if image_right is None:
-                message = 'Image right is None. Are you using a stereo dataset?'
+                message = 'Image right is None. Are you using a stereo dataset? If not, you cant use a stereo depth estimator here.'
                 Printer.red(message)
                 raise ValueError(message)
             

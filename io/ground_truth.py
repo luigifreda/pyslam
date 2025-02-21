@@ -271,7 +271,8 @@ class GroundTruth(object):
         missing_associations = [(i,a) for i,a in enumerate(first_list) if first_flag[i] is False]
         num_missing_associations = len(missing_associations)
         if num_missing_associations > 0:
-            Printer.red(f'ERROR: {num_missing_associations} missing associations!')                
+            Printer.red(f'ERROR: {num_missing_associations} missing associations!') 
+        print(f'[associate] Number of matches: {len(matches)}')               
         return matches        
     
 
@@ -282,6 +283,12 @@ class SimpleGroundTruth(GroundTruth):
         super().__init__(path, name, associations, start_frame_id, type)
         self.scale = kScaleSimple
         self.filename=path + '/' + name
+        
+        if not os.path.isfile(self.filename):
+            error_message = f'ERROR: [SimpleGroundTruth] Groundtruth file not found: {self.filename}!'
+            Printer.red(error_message)
+            sys.exit(error_message)  
+                    
         with open(self.filename) as f:
             self.data = f.readlines()
             self.data = np.array(self.data)
@@ -343,6 +350,12 @@ class KittiGroundTruth(GroundTruth):
         self.scale = kScaleKitti
         self.filename = path + '/poses/' + name + '.txt'   # N.B.: this may depend on how you deployed the groundtruth files 
         self.filename_timestamps = path + '/sequences/' + name + '/times.txt'
+        
+        if not os.path.isfile(self.filename):
+            error_message = f'ERROR: [KittiGroundTruth] Groundtruth file not found: {self.filename}!'
+            Printer.red(error_message)
+            sys.exit(error_message)  
+                    
         with open(self.filename) as f:
             self.data = f.readlines()
             self.data = np.array(self.data)
@@ -420,25 +433,32 @@ class TumGroundTruth(GroundTruth):
         self.filename = path + '/' + name + '/' + 'groundtruth.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
         self.associations_path = path + '/' + name + '/' + associations # N.B.: this may depend on how you name the associations file
         
+        if not os.path.isfile(self.filename):
+            error_message = f'ERROR: [TumGroundTruth] Groundtruth file not found: {self.filename}!'
+            Printer.red(error_message)
+            sys.exit(error_message)            
+                    
         base_path = os.path.dirname(self.filename)
-        print('base_path: ', base_path)
+        print('[TumGroundTruth] base_path: ', base_path)
                 
         with open(self.filename) as f:
             self.data = f.readlines()[3:] # skip the first three rows, which are only comments 
             self.data = [line.strip().split() for line in  self.data] 
             self.data = np.array(self.data)
         if self.data is None:
-            sys.exit('ERROR while reading groundtruth file!') 
+            sys.exit('ERROR [TumGroundTruth] while reading groundtruth file!') 
         if self.associations_path is not None: 
             with open(self.associations_path) as f:
                 self.associations_data = f.readlines()
                 self.associations_data = [line.strip().split() for line in self.associations_data] 
             if self.associations_data is None:
-                sys.exit('ERROR while reading associations file!')   
+                sys.exit('ERROR [TumGroundTruth] while reading associations file!')   
                 
         associations_file = base_path + '/gt_associations.json'
         if True: #not os.path.exists(associations_file):
-            #Printer.orange('Computing groundtruth associations (one-time operation, results will be saved)...')             
+            #Printer.orange('Computing groundtruth associations (one-time operation, results will be saved)...')  
+            if len(self.associations_data) == 0 or len(self.data) == 0:
+                Printer.orange(f'WARNING: you have #associations = {len(self.associations_data)} and #groundtruth samples = {len(self.data)}')           
             self.association_matches = self.associate(self.associations_data, self.data)
             # save associations
             with open(associations_file, 'w') as f:
@@ -655,6 +675,11 @@ class ReplicaGroundTruth(GroundTruth):
         self.Ts = ReplicaDataset.Ts 
         self.scale = kScaleTum 
         self.filename = path + '/' + name + '/' + 'traj.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
+        
+        if not os.path.exists(self.filename):
+            error_message = f'ERROR: [ReplicaGroundTruth] Groundtruth file not found: {self.filename}!'
+            Printer.red(error_message)
+            sys.exit(error_message)   
         
         base_path = os.path.dirname(self.filename)
         print('base_path: ', base_path)
