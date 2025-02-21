@@ -100,6 +100,13 @@ else
 
     install_package libomp-dev
 
+    # detect CUDA VERSION
+    . cuda_config.sh
+    if [ "$CUDA_VERSION" != "0" ]; then
+        # if CUDA is installed then install the required packages
+        sudo apt install -y cuda-command-line-tools-$CUDA_VERSION_STRING_WITH_HYPHENS cuda-libraries-$CUDA_VERSION_STRING_WITH_HYPHENS
+        sudo apt install -y libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS
+    fi
 fi
 
 print_blue "System package configuration and installation... Done!" 

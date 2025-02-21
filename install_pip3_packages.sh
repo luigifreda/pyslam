@@ -28,8 +28,6 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 . cuda_config.sh
 
 
-# N.B.: python3 is required!
-
 pip3 install --upgrade pip 
 pip3 install --upgrade setuptools wheel
 
@@ -85,7 +83,7 @@ install_pip_package importlib_metadata==8.0.0
 
 install_pip_package timm        # ml-depth-pro
 if [ "$OSTYPE" == "darwin"* ]; then
-    pip install pillow_heif==0.17.0 # ml-depth-pro
+    pip3 install pillow_heif==0.17.0 # ml-depth-pro
 else
     install_pip_package pillow_heif # ml-depth-pro
 fi
@@ -102,7 +100,7 @@ else
     #     # See also docs/TROUBLESHOOTING.md
     #     # This is to avoid the RuntimeError: "The detected CUDA version (11.8) mismatches the version that was used to compile PyTorch (12.1). Please make sure to use the same CUDA versions."
     #     print_green "Installing torch==2.2.0+cu118 and torchvision==0.17+cu118"
-    #     pip install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
+    #     pip3 install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
     # fi
     INSTALL_CUDA_SPECIFIC_TORCH=false
     if [[ "$CUDA_VERSION" != "0" && "$TORCH_CUDA_VERSION" != "$CUDA_VERSION" ]]; then
@@ -113,7 +111,7 @@ else
 
     if $INSTALL_CUDA_SPECIFIC_TORCH; then
         print_green "System CUDA_VERSION is $CUDA_VERSION but the detected TORCH CUDA version is $TORCH_CUDA_VERSION. Installing torch==2.2.0+cu${CUDA_VERSION_STRING_COMPACT} and torchvision==0.17+cu${CUDA_VERSION_STRING_COMPACT}"
-        pip install torch=="2.2.0+cu${CUDA_VERSION_STRING_COMPACT}" torchvision=="0.17+cu${CUDA_VERSION_STRING_COMPACT}" --index-url https://download.pytorch.org/whl/cu${CUDA_VERSION_STRING_COMPACT}   
+        pip3 install torch=="2.2.0+cu${CUDA_VERSION_STRING_COMPACT}" torchvision=="0.17+cu${CUDA_VERSION_STRING_COMPACT}" --index-url https://download.pytorch.org/whl/cu${CUDA_VERSION_STRING_COMPACT}   
         # check if last command was ok  (in the case we don't find the CUDA-specific torch version)
         if [[ $? -ne 0 ]]; then
             print_yellow "WARNING: Failed to install CUDA-specific torch and torchvision. Installing default versions."
@@ -126,35 +124,35 @@ else
     fi             
 fi 
 
-pip install "rerun-sdk>=0.17.0"
+pip3 install "rerun-sdk>=0.17.0"
 
 install_pip_package ujson
 install_pip_package tensorflow_hub  # required for VPR
 
-pip install protobuf==3.20.*    # for delf NN
+pip3 install protobuf==3.20.*    # for delf NN
 
-pip install einops                       # for VLAD
-pip install fast-pytorch-kmeans #==0.1.6 # for VLAD
+pip3 install einops                       # for VLAD
+pip3 install fast-pytorch-kmeans #==0.1.6 # for VLAD
  
-pip install pyflann-py3 # for loop closure database
-pip install faiss-cpu # for loop closure database
+pip3 install pyflann-py3 # for loop closure database
+pip3 install faiss-cpu # for loop closure database
 if command -v nvidia-smi &> /dev/null; then
     install_pip_package faiss-gpu  # for loop closure database on GPU
 fi 
 
 if [[ "$OSTYPE" != "darwin"* ]]; then
-    pip install open3d
+    pip3 install open3d
 fi
 
 # crestereo
 if [[ "$OSTYPE" != "darwin"* ]]; then
     # Unfortunately, megengine is not supported on macOS with arm architecture
-    pip install --upgrade cryptography pyOpenSSL
-    python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
-    #pip install megengine  # This brings issues with non-supported CUDA architecture on my machine
+    pip3 install --upgrade cryptography pyOpenSSL
+    python3 -m pip3 install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
+    #pip3 install megengine  # This brings issues with non-supported CUDA architecture on my machine
 fi
 
-pip install evo    #==1.11.0
+pip3 install evo    #==1.11.0
 
 
 # MonoGS
@@ -163,37 +161,30 @@ if [ "$CUDA_VERSION" != "0" ]; then
 
     #MAKEFLAGS_OPTION="-j$(nproc)"
     
-    pip install munch
-    pip install wandb
-    pip install plyfile
-    pip install glfw
-    pip install trimesh
-    pip install torchmetrics
-    pip install imgviz
-    pip install PyOpenGL
-    pip install PyGLM
-    pip install lpips
-    pip install rich
-    pip install ruff
+    pip3 install munch
+    pip3 install wandb
+    pip3 install plyfile
+    pip3 install glfw
+    pip3 install trimesh
+    pip3 install torchmetrics
+    pip3 install imgviz
+    pip3 install PyOpenGL
+    pip3 install PyGLM
+    pip3 install lpips
+    pip3 install rich
+    pip3 install ruff
     
-    #pip install lycon  # removed since it creates install issues under ubuntu 24.04
+    #pip3 install lycon  # removed since it creates install issues under ubuntu 24.04
     
-    sudo apt install -y cuda-command-line-tools-$CUDA_VERSION_STRING_WITH_HYPHENS cuda-libraries-$CUDA_VERSION_STRING_WITH_HYPHENS
+    #sudo apt install -y cuda-command-line-tools-$CUDA_VERSION_STRING_WITH_HYPHENS cuda-libraries-$CUDA_VERSION_STRING_WITH_HYPHENS  # moved to install_system_packages.sh
 
-    #pip install git+https://github.com/princeton-vl/lietorch.git
-    # if [[ ! -d "$ROOT_DIR/thirdparty/lietorch" ]]; then
-    #     cd "$ROOT_DIR"/thirdparty
-    #     git clone --recursive https://github.com/princeton-vl/lietorch.git lietorch
-    #     cd lietorch
-    #     git checkout 0fa9ce8ffca86d985eca9e189a99690d6f3d4df6
-    #     git apply ../lietorch.patch  # added fixes for building under ubuntu 22.04 and 24.04
-    # fi
     cd "$ROOT_DIR"    
-    #pip install ./thirdparty/lietorch --verbose                              # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
-    ./thirdparty/lietorch/build.sh                                            # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
+    #pip3 install ./thirdparty/lietorch --verbose                              # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
+
+    . thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip3 install fails)
     
-    pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
-    pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
+    pip3 install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
+    pip3 install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 else
     print_yellow "Skipping MonoGS since CUDA_VERSION is 0"
 fi
@@ -203,15 +194,15 @@ fi
 if [ "$CUDA_VERSION" != "0" ]; then
     # We need cuda for mast3r and mvdust3r
 
-    pip install gradio 
-    pip install roma 
+    pip3 install gradio 
+    pip3 install roma 
 
-    sudo apt install -y libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS
+    #sudo apt install -y libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS # moved to install_system_packages.sh
 
     #MAKEFLAGS_OPTION="-j$(nproc)"
     
     # to install from source (to avoid linking issue with CUDA)
-    pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable"    
+    pip3 install "git+https://github.com/facebookresearch/pytorch3d.git@stable"    
 else 
     print_yellow "Skipping mast3r and mvdust3r since CUDA_VERSION is 0"
 fi

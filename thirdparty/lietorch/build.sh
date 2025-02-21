@@ -6,22 +6,23 @@ SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symboli
 STARTING_DIR=`pwd`
 cd $SCRIPT_DIR
 
-# instead of building with setup.py use cmake and ninja
+# Instead of building with setup.py use cmake and ninja
 # pip install . --verbose
 
+# Create build folder and run cmake
 if [ ! -d build ]; then
     mkdir build
 fi
 cd build
 
-# get how many cores are available
+# Get how many cores are available
 cores=$(grep -c ^processor /proc/cpuinfo)
-# use half of them 
+# Use half of them 
 cores=$((cores/2))
 
 echo "Building with $cores cores"
 
-# use ninja if available 
+# Use ninja if available 
 if command -v ninja >/dev/null 2>&1; then
     cmake -G Ninja ..
     # launch parallel build with 8 threads

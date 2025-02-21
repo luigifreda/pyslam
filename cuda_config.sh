@@ -19,7 +19,18 @@ print_blue "Configuring CUDA ..."
 
 # detect CUDA VERSION
 export CUDA_VERSION=0
+
+
+HAVE_CUDA=0
 if command -v nvidia-smi &> /dev/null; then
+    HAVE_CUDA=1
+elif [[ -x /usr/local/cuda/bin/nvcc ]]; then
+    HAVE_CUDA=1   # this branch is needed at docker built time where nvidia-smi is not available
+fi
+
+echo "HAVE_CUDA=${HAVE_CUDA}"
+
+if [ $HAVE_CUDA -eq 1 ]; then
     CUDA_VERSION=$(get_cuda_version)
     echo CUDA_VERSION: $CUDA_VERSION
 
