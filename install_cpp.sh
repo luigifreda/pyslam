@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
 # export WITH_PYTHON_INTERP_CHECK=ON

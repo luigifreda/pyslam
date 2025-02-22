@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 #N.B: this install script allows you to run main_slam.py and all the scripts 
 

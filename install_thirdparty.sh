@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 #set -e
 
@@ -267,7 +269,7 @@ cd $ROOT_DIR
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/mast3r ..."
 
-if command -v nvidia-smi &> /dev/null; then
+if [ "$CUDA_VERSION" != "0" ]; then
     # we need CUDA
 
     cd thirdparty
@@ -301,7 +303,7 @@ cd $ROOT_DIR
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/mvdust3r ..."
 
-if command -v nvidia-smi &> /dev/null; then
+if [ "$CUDA_VERSION" != "0" ]; then
     # we need CUDA
 
     cd thirdparty

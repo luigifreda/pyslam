@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
@@ -136,7 +137,7 @@ pip3 install fast-pytorch-kmeans #==0.1.6 # for VLAD
  
 pip3 install pyflann-py3 # for loop closure database
 pip3 install faiss-cpu # for loop closure database
-if command -v nvidia-smi &> /dev/null; then
+if [ "$CUDA_VERSION" != "0" ]; then
     install_pip_package faiss-gpu  # for loop closure database on GPU
 fi 
 
@@ -148,7 +149,7 @@ fi
 if [[ "$OSTYPE" != "darwin"* ]]; then
     # Unfortunately, megengine is not supported on macOS with arm architecture
     pip3 install --upgrade cryptography pyOpenSSL
-    python3 -m pip3 install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
+    python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
     #pip3 install megengine  # This brings issues with non-supported CUDA architecture on my machine
 fi
 

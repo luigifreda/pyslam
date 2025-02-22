@@ -39,6 +39,22 @@ try:
 except Exception as e:
     print(f"Failed to get g++ version: {e}")
 
+
+def get_supported_architectures():
+    # Use `nvcc --list-gpu-arch` to list supported architectures
+    try:
+        result = subprocess.run(["nvcc", "--list-gpu-arch"], capture_output=True, text=True)
+        if result.returncode == 0:
+            architectures = result.stdout.splitlines()
+            return [arch.split('_')[1] for arch in architectures if arch.startswith("compute_")]
+        else:
+            print("Could not retrieve architectures. Using defaults.")
+    except FileNotFoundError:
+        print("nvcc not found. Make sure CUDA is installed and in PATH.")
+    # Return a default list if nvcc is unavailable
+    return ["60", "61", "70", "75", "80", "86"]
+
+
 # Check for nvcc version and set appropriate flags
 try:
     result = subprocess.run("nvcc -h | grep -- '--std'", shell=True, capture_output=True, text=True)
@@ -62,6 +78,12 @@ except Exception as e:
     print(f"Failed to get nvcc version: {e}")
     nvcc_flags = ['-O2', '-allow-unsupported-compiler']  # Default flags if nvcc check fails
 
+
+supported_architectures = get_supported_architectures()
+for arch in supported_architectures:
+    nvcc_flags.append(f"-gencode=arch=compute_{arch},code=sm_{arch}")
+    
+print(f"nvcc flags: {nvcc_flags}")
 
 class CustomBuildExtension(BuildExtension):
     def build_extensions(self):

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 #echo "usage: ./${0##*/} <env-name>"
 

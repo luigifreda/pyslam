@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Author: Luigi Freda 
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 #set -e
 

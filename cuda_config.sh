@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Author: Luigi Freda 
+# This file is part of https://github.com/luigifreda/pyslam
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
@@ -25,7 +27,7 @@ HAVE_CUDA=0
 if command -v nvidia-smi &> /dev/null; then
     HAVE_CUDA=1
 elif [[ -x /usr/local/cuda/bin/nvcc ]]; then
-    HAVE_CUDA=1   # this branch is needed at docker built time where nvidia-smi is not available
+    HAVE_CUDA=1   # this branch is needed at docker build time where nvidia-smi is not available
 fi
 
 echo "HAVE_CUDA=${HAVE_CUDA}"
