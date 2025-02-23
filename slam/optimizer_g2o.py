@@ -202,7 +202,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             is_stereo = edge_data
             
             edge_chi2 = edge.chi2()
-            chi2_check_failure = edge_chi2 > chi2Mono if not is_stereo else edge_chi2 > chi2Stereo
+            chi2_check_failure = (edge_chi2 > chi2Mono) if not is_stereo else (edge_chi2 > chi2Stereo)
             if chi2_check_failure or not edge.is_depth_positive():
                 edge.set_level(1)
                 num_bad_edges += 1

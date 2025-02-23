@@ -83,10 +83,6 @@ cd thirdparty/pyibow
 ./clean.sh
 cd "$ROOT_DIR"
 
-if [ -d "thirdparty/lietorch" ]; then
-    rm -rf thirdparty/lietorch
-fi 
-
 if [ -d "thirdparty/monogs/submodules/simple-knn/build" ]; then
     rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
 fi

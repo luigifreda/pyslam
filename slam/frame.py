@@ -773,9 +773,9 @@ class Frame(FrameBase):
         kps_int = np.uint32(kps_data[:,:2])
         depth_values = depth[kps_int[:, 1], kps_int[:, 0]]  # Depth at keypoint locations (v, u)     
         valid_depth_mask = depth_values > 0             
-        self.depths = np.where(valid_depth_mask, depth_values, -1) 
+        self.depths = np.where(valid_depth_mask, depth_values, -1.0) 
         safe_depth_values = np.where(valid_depth_mask, depth_values, np.inf) # to prevent division by zero 
-        self.kps_ur = np.where(valid_depth_mask, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1)   
+        self.kps_ur = np.where(valid_depth_mask, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1.0)   
         #print(f'depth: {self.depths}, kps_ur: {self.kps_ur}')  
         #compute median depth
         if Frame.is_compute_median_depth:
@@ -797,11 +797,11 @@ class Frame(FrameBase):
         if len(stereo_matching_result.idxs1)==0 or len(stereo_matching_result.idxs2)==0:
             Printer.yellow(f'[compute_stereo_matches] no stereo matches found')
             return
-        matched_kps_l = np.array(self.kps[stereo_matching_result.idxs1])
-        matched_kps_r = np.array(self.kps_r[stereo_matching_result.idxs2])         
+        matched_kps_l = np.array(self.kps[stereo_matching_result.idxs1], dtype=float)
+        matched_kps_r = np.array(self.kps_r[stereo_matching_result.idxs2], dtype=float)         
                           
         # check disparity range
-        disparities =  np.array(matched_kps_l[:,0] - matched_kps_r[:,0], dtype=np.float64) # assuming keypoints are extracted from rectified images
+        disparities =  np.array(matched_kps_l[:,0] - matched_kps_r[:,0], dtype=float) # assuming keypoints are extracted from rectified images
         good_disparities_mask = np.logical_and(disparities > min_disparity, disparities < max_disparity)
         good_disparities = disparities[good_disparities_mask]
         good_matched_idxs1 = stereo_matching_result.idxs1[good_disparities_mask]
@@ -836,7 +836,6 @@ class Frame(FrameBase):
             disparities, us_right, valid_idxs = stereo_match_subpixel_correlation(
                 self.kps[good_matched_idxs1], self.kps_r[good_matched_idxs2],
                 min_disparity=min_disparity, max_disparity=max_disparity,
-                bf=self.camera.bf, 
                 image_left=img_bw_, image_right=img_right_
             ) 
             good_disparities = disparities[valid_idxs]
@@ -868,7 +867,7 @@ class Frame(FrameBase):
         if do_chi2_check:          
             # triangulate the points    
             pose_l = np.eye(4)
-            t_rl = np.array([-self.camera.b, 0, 0])
+            t_rl = np.array([-self.camera.b, 0, 0], dtype=float)
             pose_rl = poseRt(np.eye(3),t_rl) # assuming stereo rectified images 
             #print(f'pose_l: {pose_l}, pose_lr: {pose_lr}')
             kpsn_r = self.camera.unproject_points(self.kps_r) # assuming rectified stereo images and so kps_r is undistorted

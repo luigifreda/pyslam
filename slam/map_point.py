@@ -28,6 +28,10 @@ from utils_sys import Printer
 
 from config_parameters import Parameters
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from keyframe import KeyFrame
+
 
 class MapPointBase(object):
     _id = 0                 # shared point counter 
@@ -108,12 +112,12 @@ class MapPointBase(object):
     def keyframes_iter(self):
             return iter(self._observations.keys())      
         
-    def is_in_keyframe(self, keyframe):
+    def is_in_keyframe(self, keyframe: 'KeyFrame'):
         assert(keyframe.is_keyframe)
         with self._lock_features:
             return (keyframe in self._observations)      
         
-    def get_observation_idx(self, keyframe):   
+    def get_observation_idx(self, keyframe: 'KeyFrame'):   
         assert(keyframe.is_keyframe)
         with self._lock_features:
             try:
@@ -121,7 +125,7 @@ class MapPointBase(object):
             except KeyError:
                 return -1                 
 
-    def add_observation_no_lock_(self, keyframe, idx):
+    def add_observation_no_lock_(self, keyframe: 'KeyFrame', idx):
         if keyframe not in self._observations:
             keyframe.set_point_match(self, idx) # add point association in keyframe 
             self._observations[keyframe] = idx
@@ -136,13 +140,13 @@ class MapPointBase(object):
         else: 
             return False    
         
-    def add_observation(self, keyframe, idx):         
+    def add_observation(self, keyframe: 'KeyFrame', idx):         
         assert(keyframe.is_keyframe)   
         with self._lock_features:            
             return self.add_observation_no_lock_(keyframe, idx)
         
     # return (was the observation added?, self.is_bad)
-    def add_observation_if_not_bad(self, keyframe, idx):
+    def add_observation_if_not_bad(self, keyframe: 'KeyFrame', idx):
         assert(keyframe.is_keyframe)   
         with self._lock_features:            
             if self._is_bad: 
@@ -150,7 +154,7 @@ class MapPointBase(object):
             else:
                 return (self.add_observation_no_lock_(keyframe, idx), self._is_bad)
             
-    def remove_observation(self, keyframe, idx=None):        
+    def remove_observation(self, keyframe: 'KeyFrame', idx=None):        
         assert(keyframe.is_keyframe)          
         with self._lock_features:                                
             # remove point association      

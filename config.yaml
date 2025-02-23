@@ -88,11 +88,14 @@ TUM_DATASET:
   #name: rgbd_dataset_freiburg3_long_office_household
   #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
-  #name: rgbd_dataset_freiburg1_xyz 
-  #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
+  # name: rgbd_dataset_freiburg1_xyz 
+  # settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
   name: rgbd_dataset_freiburg2_desk
   settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
+  #
+  # name: rgbd_dataset_freiburg1_desk
+  # settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file  
   #
   #name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
   #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
@@ -105,19 +108,21 @@ EUROC_DATASET:
   type: euroc
   sensor_type: stereo # Here, sensor_type can be 'mono' or 'stereo'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/euroc
+  # NOTE: The name is supposed to be one of the following: MH01, MH02, MH03, MH04, MH05, V101, V102, V103, V201, V202, V203
   #name: MH01
   #name: MH02  
   #name: MH03
-  #name: MH04      
+  name: MH04
+  #name: MH05       
   #name: V101  
-  name: V102
+  #name: V102
   #name: V202
   #name: V203   
   # 'settings' will be used when sensor_type: : 'mono'
   settings: settings/EuRoC_mono.yaml
   # 'settings_stereo' will be used when sensor_type: 'stereo' (if available)
   settings_stereo: settings/EuRoC_stereo.yaml
-  associations: associations.txt
+  associations: auto
   groundtruth_file: auto
   start_frame_id: 0
 

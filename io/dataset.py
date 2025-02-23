@@ -26,16 +26,23 @@ import glob
 import time 
 import csv
 import re 
-import datetime
+
 from multiprocessing import Process, Queue, Value 
 from utils_sys import Printer
 from utils_serialization import SerializableEnum, register_class, SerializationJSON
+from utils_string import levenshtein_distance
 
 import ujson as json
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from config import Config # Only imported when type checking, not at runtime
+
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder + '/..'
+kSettingsFolder = kRootFolder + '/settings'
 
 
 @register_class
@@ -654,14 +661,40 @@ class EurocDataset(Dataset):
         self.image_left_csv_path = '/mav0/cam0/data.csv'
         self.image_right_csv_path = '/mav0/cam1/data.csv'
         
-        # here we read and convert the timestamps to seconds
-        timestamps_and_filenames_left = self.read_data(self.path + '/' + self.name + self.image_left_csv_path)
-        timestamps_and_filenames_right = self.read_data(self.path + '/' + self.name + self.image_right_csv_path)
+        # Here we read and convert the timestamps to seconds
+        # NOTE: This is the old way. This has problem with certain Euroc sequences where associating 
+        #       the i-th row of the left csv file with the i-th row of the right csv file is not correct. 
+        #timestamps_and_filenames_left = self.read_data(self.path + '/' + self.name + self.image_left_csv_path)
+        #timestamps_and_filenames_right = self.read_data(self.path + '/' + self.name + self.image_right_csv_path)
+        
+        # Here we directly read the timestamps (and name of the images) in the image folder kSettingsFolder + '/euroc_timestamps/'
+        euroc_timestamps_names = ['MH01', 'MH02', 'MH03', 'MH04', 'MH05', 'V101', 'V102', 'V103', 'V201', 'V202', 'V203']
+        name_uc = name.upper()
+        name_euroc_timestamps = 'MH04_difficult' # name_uc
+        if name_uc in euroc_timestamps_names:
+            name_euroc_timestamps = name_uc
+        else:
+            # Find the closest match based on Levenshtein's distance
+            distances = [(candidate, levenshtein_distance(name_uc, candidate)) 
+                        for candidate in euroc_timestamps_names]
+            closest_match, _ = min(distances, key=lambda x: x[1])
+            name_euroc_timestamps = closest_match
+
+        euroc_timestamps_folder_path = kSettingsFolder + '/euroc_timestamps/'
+        euroc_timestamps_file_path = euroc_timestamps_folder_path + name_euroc_timestamps + '.txt'
+        if not os.path.exists(euroc_timestamps_file_path):
+            Printer.red(f'ERROR: [EurocDataset] Cannot find timestamps file: {euroc_timestamps_file_path}!') 
+            Printer.red(f'\t There is a problem in associating the input dataset {name} with the timestamps files in {euroc_timestamps_folder_path}.')
+            Printer.red(f'\t The Euroc sequence name is sopposed to be one of the following: {euroc_timestamps_names}.')
+            raise FileNotFoundError(f"Timestamps file does not exist: {euroc_timestamps_file_path}")
+        timestamps_and_filenames_left = self.read_single_data(euroc_timestamps_file_path)
+        timestamps_and_filenames_right = self.read_single_data(euroc_timestamps_file_path)
 
         self.timestamps = np.array([x[0] for x in timestamps_and_filenames_left])
         self.filenames = np.array([x[1] for x in timestamps_and_filenames_left])
         self.timestamps_right = np.array([x[0] for x in timestamps_and_filenames_right])
         self.filenames_right = np.array([x[1] for x in timestamps_and_filenames_right])
+        
         self.max_frame_id = len(self.timestamps)
         self.num_frames = self.max_frame_id
         
@@ -688,7 +721,7 @@ class EurocDataset(Dataset):
             self.M1r,self.M2r = cv2.initUndistortRectifyMap(K_r, D_r, R_r, P_r[0:3,0:3], (width, height), cv2.CV_32FC1)
         self.debug_rectification = False # DEBUGGING
         print('Processing Euroc Sequence of lenght: ', len(self.timestamps))
-        
+            
     def read_data(self, csv_file):
         timestamps_and_filenames = []
         with open(csv_file, 'r') as f:
@@ -701,12 +734,24 @@ class EurocDataset(Dataset):
                 timestamps_and_filenames.append((timestamp_s, filename))
         return timestamps_and_filenames
                         
+    def read_single_data(self, csv_file):
+        timestamps_and_filenames = []
+        with open(csv_file, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                timestamp_ns = int(row[0])
+                filename = row[0] + '.png'
+                timestamp_s = (timestamp_ns / 1000000000)
+                timestamps_and_filenames.append((timestamp_s, filename))
+        return timestamps_and_filenames                        
         
     def getImage(self, frame_id):
         img = None
         if frame_id < self.max_frame_id:
-            try: 
-                img = cv2.imread(self.path + '/' + self.name + self.image_left_path + self.filenames[frame_id])
+            try:
+                img_name = self.filenames[frame_id]
+                #img_name = self.get_timestamp(frame_id) + '.png'
+                img = cv2.imread(self.path + '/' + self.name + self.image_left_path + img_name)
                 if self.sensor_type == SensorType.STEREO:
                     # rectify image
                     if self.debug_rectification:
@@ -730,8 +775,11 @@ class EurocDataset(Dataset):
     def getImageRight(self, frame_id):
         img = None
         if frame_id < self.max_frame_id:        
-            try: 
-                img = cv2.imread(self.path + '/' + self.name + self.image_right_path + self.filenames_right[frame_id]) 
+            try:
+                img_name = self.filenames_right[frame_id]
+                #img_name = self.get_timestamp(frame_id) + '.png'
+                print('getImageRight: ', img_name)
+                img = cv2.imread(self.path + '/' + self.name + self.image_right_path + img_name) 
                 if self.sensor_type == SensorType.STEREO:
                     # rectify image
                     if self.debug_rectification:
