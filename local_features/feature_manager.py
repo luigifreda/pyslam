@@ -60,6 +60,7 @@ DiskFeature2D = import_from('feature_disk', 'DiskFeature2D')
 AlikedFeature2D = import_from('feature_aliked', 'AlikedFeature2D')
 LightGlueSIFTFeature2D = import_from('feature_lightglue_sift', 'LightGlueSIFTFeature2D')
 KeyNetAffNetHardNetFeature2D = import_from('feature_keynet_affnet_hardnet', 'KeyNetAffNetHardNetFeature2D')
+#Mast3rFeature2D = import_from('feature_mast3r', 'Mast3rFeature2D')
 
 kVerbose = True   
 
@@ -743,7 +744,11 @@ class FeatureManager:
                     raise ValueError("You cannot use KEYNETAFFNETHARDNET descriptor without KEYNETAFFNETHARDNET detector!\nPlease, select KEYNETAFFNETHARDNET as both descriptor and detector!")
                 self._feature_descriptor = self._feature_detector  # reuse the same detector object  
                 #
-                #                                                                                                                                                                                                                                                                          
+                #    
+            # elif self.descriptor_type == FeatureDescriptorTypes.MAST3R:
+            #     self.need_color_image = True
+            #     self.oriented_features = False
+            #     self._feature_descriptor = Mast3rFeature2D(num_features=self.num_features)                                                                                                                                                                                                                                                                      
             elif self.descriptor_type == FeatureDescriptorTypes.NONE:        
                 self._feature_descriptor = None                                              
             else:

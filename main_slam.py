@@ -36,10 +36,6 @@ from ground_truth import groundtruth_factory
 from dataset import dataset_factory, SensorType
 from trajectory_writer import TrajectoryWriter
 
-
-if platform.system()  == 'Linux':     
-    from display2D import Display2D  #  !NOTE: pygame generate troubles under macOS!
-
 from viewer3D import Viewer3D
 from utils_sys import getchar, Printer 
 from utils_img import ImgWriter
@@ -145,8 +141,11 @@ if __name__ == "__main__":
         gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
         viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=is_monocular)
     
-    if platform.system() == 'Linux':    
-        display2d = None # Display2D(camera.width, camera.height)  # pygame interface 
+    if platform.system() == 'Linux':         
+        display2d = None 
+        if False:
+            from display2D import Display2D  #  !NOTE: pygame generate troubles under macOS! 
+            display2d = Display2D(camera.width, camera.height)  # pygame interface 
     else: 
         display2d = None  # enable this if you want to use opencv window
     # if display2d is None:
@@ -208,7 +207,7 @@ if __name__ == "__main__":
                                     
                     # 3D display (map display)
                     if viewer3D is not None:
-                        viewer3D.draw_map(slam)
+                        viewer3D.draw_slam_map(slam)
 
                     img_draw = slam.map.draw_feature_trails(img)
                     img_writer.write(img_draw, f'id: {img_id}', (30, 30))

@@ -43,7 +43,19 @@ def fov2focal(fov, pixels):
 def focal2fov(focal, pixels):
     return 2.0 * math.atan(pixels / (2.0 * focal))
     
-        
+# Backproject 2d image points (pixels) into 3D points by using depth and intrinsic K
+# Input: 
+#   uv: array [N,2]
+#   depth: array [N]
+#   K: array [3,3]
+# Output:
+#   xyz: array [N,3]
+def backproject_3d(uv, depth, K):
+    uv1 = np.concatenate([uv, np.ones((uv.shape[0], 1))], axis=1)
+    p3d = depth.reshape(-1, 1) * (np.linalg.inv(K) @ uv1.T).T
+    return p3d
+
+     
 class CameraBase:
     def __init__(self):
         self.type = CameraTypes.NONE

@@ -52,7 +52,7 @@ class Parameters:
 
     # Feature management
     kSigmaLevel0 = 1.0                        # sigma of the keypoint localization at level 0 (default value is 1 for ORB detector); can be changed by selected feature    
-    kFeatureMatchRatioTest = 0.7              # TODO: put it in an table and make it configurable per descriptor
+    kFeatureMatchDefaultRatioTest = 0.7              # This is the default ratio test used by all feature matchers. It can be configured per descriptor in feature_tracker_configs.py
     #kInitializerFeatureMatchRatioTest        # ratio test used by Initializer 
     #
     kKdtNmsRadius = 3 # pixels  #3            # radius for kd-tree based Non-Maxima Suppression

@@ -701,8 +701,21 @@ class Viewer3D(object):
         pangolin.FinishFrame()
 
 
+    def draw_map(self, map_state: Viewer3DMapInput):
+        if self.qmap is None:
+            return
+        
+        if self.gt_trajectory is not None:
+            if not self._is_gt_set.value:
+                map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
+                map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
+                map_state.align_gt_with_scale = self.align_gt_with_scale
+                        
+        self.qmap.put(map_state)
+
+
     # draw sparse map
-    def draw_map(self, slam: 'Slam'):
+    def draw_slam_map(self, slam: 'Slam'):
         if self.qmap is None:
             return
         map = slam.map                     # type: Map

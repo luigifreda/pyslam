@@ -61,6 +61,7 @@ from lfnet.common.argparse_utils import *
 from utils_tf import set_tf_logging
 from utils_img import img_from_floats
 from utils_sys import Printer, print_options
+from feature_base import BaseFeature2D
 
 from utils_sys import Printer, is_opencv_version_greater_equal
 
@@ -190,8 +191,8 @@ def convert_to_keypoints(kpts, scales, orientations, heatmaps):
     return kps
     
 
-# interface for pySLAM
-class LfNetFeature2D: 
+# Interface for pySLAM
+class LfNetFeature2D(BaseFeature2D): 
     def __init__(self,
                  num_features=2000, 
                  do_tf_logging=False):  

@@ -102,6 +102,8 @@ class FeatureDescriptorTypes(SerializableEnum):
     LIGHTGLUESIFT       = 31  # To be used with LightGlue
     XFEAT               = 32  # [end-to-end] joint detector-descriptor - "XFeat: Accelerated Features for Lightweight Image Matching"
     KEYNETAFFNETHARDNET = 33  # [kornia-based] Convenience module, which implements KeyNet detector + AffNet + HardNet descriptor. "Key.Net: Keypoint Detection by Handcrafted and Learned CNN Filters"
+    #MAST3R             = 34  # "Grounding Image Matching in 3D with MASt3R"
+                              # NOTE: The extraction of independent descriptors from a single image does not make sense for the MASt3R/DUST3R model. The model ground the image matching in a 3D context defined by two images of the same place.  
 
 
 class FeatureInfo(object): 
@@ -212,3 +214,6 @@ class FeatureInfo(object):
     #       
     norm_type[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = cv2.NORM_L2           
     max_descriptor_distance[FeatureDescriptorTypes.KEYNETAFFNETHARDNET] = 2.40  # KEYNETAFFNETHARDNET      
+    #       
+    # norm_type[FeatureDescriptorTypes.MAST3R] = cv2.NORM_L2           
+    # max_descriptor_distance[FeatureDescriptorTypes.MAST3R] = 2.0               # MAST3R      

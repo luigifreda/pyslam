@@ -9,6 +9,7 @@ config.cfg.set_lib('xfeat')
 from modules.xfeat import XFeat
 from threading import RLock
 
+from feature_base import BaseFeature2D
 from utils_sys import Printer
 
 
@@ -21,18 +22,22 @@ def convert_superpts_to_keypoints(pts, scores, size=1):
         kps = [ cv2.KeyPoint(int(p[0]), int(p[1]), size=size, response=1) for p in pts ]                        
     return kps  
 
+
 def transpose_des(des):
     if des is not None: 
         return des.T 
     else: 
-        return None 
+        return None
+
+ 
 class CVWrapper():
     def __init__(self, mtd):
         self.mtd = mtd
     def detectAndCompute(self, x, mask=None):
         return self.mtd.detectAndCompute(torch.tensor(x).unsqueeze(0).float().unsqueeze(0))[0]
 
-class XFeat2D: 
+
+class XFeat2D(BaseFeature2D): 
     def __init__(self, num_features=2000): 
         self.lock = RLock()
                 
@@ -51,7 +56,7 @@ class XFeat2D:
     def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
         self.xfeat.top_k = num_features
                   
-    # compute both keypoints and descriptors       
+    # Compute both keypoints and descriptors       
     def detectAndCompute(self, frame, mask=None):  # mask is a fake input 
         with self.lock: 
             # self.frame = frame
@@ -72,7 +77,7 @@ class XFeat2D:
             #print (self.kps,self.des.shape)    
             return self.kps,self.des 
         
-    # return descriptors if available otherwise call detectAndCompute()  
+    # Return descriptors if available otherwise call detectAndCompute()  
     def compute(self, frame, kps=None, mask=None): # kps is a fake input, mask is a fake input
         with self.lock:        
             if self.frame is not frame:

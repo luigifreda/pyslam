@@ -40,8 +40,8 @@ If you work under **Ubuntu** or **MacOS**, check the specific installation proce
 ## Submitting a git issue
 
 For faster support when opening a new git issue, please provide the following information:
-- Git commit (ensure you are on lastest `master' commit)
-- Dataset used
+- Git commit (ensure you are on lastest `master' commit).
+- Dataset used (if not a standard one, it is expected the dataset is shared through a link)
 - Code configuration:
   * Modified parameters in `config.yaml`
   * Modified parameters in `config_parameters.py`

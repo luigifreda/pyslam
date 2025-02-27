@@ -31,6 +31,7 @@ from demo_superpoint import SuperPointFrontend
 from threading import RLock
 
 from utils_sys import Printer, is_opencv_version_greater_equal
+from feature_base import BaseFeature2D
 
 
 kVerbose = False   
@@ -71,8 +72,8 @@ def transpose_des(des):
         return None 
 
 
-# interface for pySLAM 
-class SuperPointFeature2D: 
+# Interface for pySLAM 
+class SuperPointFeature2D(BaseFeature2D): 
     def __init__(self, do_cuda=True): 
         if platform.system() == 'Darwin':        
             do_cuda=False

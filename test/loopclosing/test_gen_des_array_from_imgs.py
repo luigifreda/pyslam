@@ -9,7 +9,7 @@ sys.path.append("../../")
 from config import Config
 config = Config()
 
-from frame import Frame
+from frame import Frame, FeatureTrackerShared
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 

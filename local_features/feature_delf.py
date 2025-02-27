@@ -27,16 +27,12 @@ import cv2
 from threading import RLock
 from utils_sys import Printer 
 
+from feature_base import BaseFeature2D
+
 import warnings # to disable tensorflow-numpy warnings: from https://github.com/tensorflow/tensorflow/issues/30427
 warnings.filterwarnings('ignore', category=FutureWarning)
 
-import argparse
-import os
-import sys
-import time
-import json
 import numpy as np
-import h5py
 
 import tensorflow as tf
 
@@ -335,8 +331,8 @@ def convert_pts_to_keypoints(pts, scores, sizes):
     return kps         
 
 
-# interface for pySLAM 
-class DelfFeature2D: 
+# Interface for pySLAM 
+class DelfFeature2D(BaseFeature2D): 
     def __init__(self,
                  num_features=1000, 
                  score_threshold=100, 

@@ -42,6 +42,14 @@ except:
 from config_parameters import Parameters 
 
 
+# Convert keypoints to normalized coordinates in range [-1, 1]
+def normalize_keypoints(keypoints, image_size):
+    H, W = image_size
+    keypoints_norm = keypoints.copy()  # Ensure we don't modify original data
+    keypoints_norm[..., 0] = (2.0 * keypoints[..., 0] / W) - 1.0  # Normalize X
+    keypoints_norm[..., 1] = (2.0 * keypoints[..., 1] / H) - 1.0  # Normalize Y
+    return keypoints_norm
+
 
 # convert matrix of pts into list of cv2 keypoints
 def convert_pts_to_keypoints(pts, size=1): 

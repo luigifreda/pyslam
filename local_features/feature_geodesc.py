@@ -28,6 +28,8 @@ import time
 from threading import Thread
 from multiprocessing import Queue 
 
+from feature_base import BaseFeature2D
+
 import cv2
 import numpy as np
 
@@ -57,8 +59,8 @@ kVerbose = True
 
 
     
-# interface for pySLAM
-class GeodescFeature2D: 
+# Interface for pySLAM
+class GeodescFeature2D(BaseFeature2D): 
     quantize = False  # quantize or not output features: if you set this to True then you have a binary descriptor
     def __init__(self, do_tf_logging=False):  
         print('Using GeodescFeature2D')   

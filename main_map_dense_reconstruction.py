@@ -111,7 +111,7 @@ if __name__ == "__main__":
     while not viewer3D.is_running():
         time.sleep(0.1)
 
-    viewer3D.draw_map(slam)               
+    viewer3D.draw_slam_map(slam)               
             
     print(f'inserting #keyframes: {num_map_keyframes} ...')
     

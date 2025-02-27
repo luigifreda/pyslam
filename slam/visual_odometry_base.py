@@ -79,7 +79,7 @@ class VisualOdometryBase:
         
         
     # get current translation scale from ground-truth if groundtruth is not None 
-    def updateGtData(self, frame_id):  
+    def update_gt_data(self, frame_id):  
         if self.groundtruth is not None:
             self.gt_timestamp, self.gt_x, self.gt_y, self.gt_z, self.gt_qx, self.gt_qy, self.gt_qz, self.gt_qw, self.gt_scale = \
                 self.groundtruth.getTimestampPoseAndAbsoluteScale(frame_id)
@@ -89,10 +89,10 @@ class VisualOdometryBase:
             self.gt_y = 0 
             self.gt_z = 0
                 
-    def processFirstFrame(self, frame_id) -> None:
+    def process_first_frame(self, frame_id) -> None:
         pass
 
-    def processFrame(self, frame_id) -> None:
+    def process_frame(self, frame_id) -> None:
         pass
 
     def track(self, img, depth, frame_id, timestamp) -> None:
@@ -106,10 +106,10 @@ class VisualOdometryBase:
         self.cur_timestamp = timestamp
         # manage and check stage 
         if(self.state == VoState.GOT_FIRST_IMAGE):
-            self.processFrame(frame_id)
-            self.updateHistory()   
+            self.process_frame(frame_id)
+            self.update_history()   
         elif(self.state == VoState.NO_IMAGES_YET):
-            self.processFirstFrame(frame_id)
+            self.process_first_frame(frame_id)
             self.state = VoState.GOT_FIRST_IMAGE            
         self.prev_image = self.cur_image    
         self.prev_depth = self.cur_depth
@@ -118,7 +118,7 @@ class VisualOdometryBase:
         self.timer_main.refresh()  
          
 
-    def updateHistory(self) -> None:
+    def update_history(self) -> None:
         if self.init_history and (self.gt_x is not None):
             self.t0_est = np.array([self.cur_t[0], self.cur_t[1], self.cur_t[2]])  # starting translation 
             self.t0_gt  = np.array([self.gt_x, self.gt_y, self.gt_z])           # starting translation 

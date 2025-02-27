@@ -21,7 +21,10 @@ import os
 import cv2
 import numpy as np
 
+import config
+
 from utils_sys import Printer
+from feature_base import BaseFeature2D
 
 import kornia as K
 import kornia.feature as KF
@@ -36,8 +39,8 @@ import matplotlib.pyplot as plt
 kVerbose = True   
 
 
-# interface for pySLAM 
-class KeyNetAffNetHardNetFeature2D: 
+# Interface for pySLAM 
+class KeyNetAffNetHardNetFeature2D(BaseFeature2D): 
     def __init__(self, num_features=2000, device=K.utils.get_cuda_or_mps_device_if_available()): 
         print('Using KeyNetAffNetHardNetFeature2D')
         self.device = device

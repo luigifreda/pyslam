@@ -22,7 +22,7 @@ from matplotlib import pyplot as pl
 
 from utils_draw import draw_feature_matches
 from utils_img import img_from_floats
-from utils_dust3r import  dust3r_preprocess_images, invert_dust3r_preprocess_images, invert_dust3r_preprocess_depth, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
+from utils_dust3r import  Dust3rImagePreprocessor, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
 from utils_depth import point_cloud_to_depth
 from utils_sys import Printer
 
@@ -70,7 +70,9 @@ if __name__ == '__main__':
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)        
         imgs.append(img)
         
-    imgs_preproc = dust3r_preprocess_images(imgs, size=inference_size) 
+    dust3r_preprocessor = Dust3rImagePreprocessor(inference_size=inference_size)
+        
+    imgs_preproc = dust3r_preprocessor.preprocess_images(imgs) 
     
     # get inference output 
     output = inference([tuple(imgs_preproc)], model, device, batch_size=1, verbose=False)
@@ -120,7 +122,7 @@ if __name__ == '__main__':
     intrinsics[1, 2] = h / 2
     intrinsics = intrinsics.cuda()    
 
-    
+
     # estimate camera poses
     y_coords, x_coords = torch.meshgrid(torch.arange(h), torch.arange(w), indexing='ij')
     pixel_coords = torch.stack([x_coords, y_coords], dim=-1).float().cuda() # [H, W, 2]
@@ -139,6 +141,7 @@ if __name__ == '__main__':
     rgb_imgs = [to_numpy(x) for x in rgb_imgs]
     pts3d = to_numpy(pts3d)    
         
+        
     # extract the point cloud or mesh 
     as_pointcloud = True  
     global_pc, global_mesh = convert_mv_output_to_geometry(rgb_imgs, pts3d, mask, as_pointcloud)
@@ -149,6 +152,7 @@ if __name__ == '__main__':
 
     # ignore small border around the edge
     H0, W0 = view1['true_shape'][0]
+    print(f'view1 shape: {view1["true_shape"]}, rgb shape: {rgb_imgs[0].shape}')
     valid_matches_im0 = (matches_im0[:, 0] >= 3) & (matches_im0[:, 0] < int(W0) - 3) & (
         matches_im0[:, 1] >= 3) & (matches_im0[:, 1] < int(H0) - 3)
 
@@ -166,14 +170,19 @@ if __name__ == '__main__':
     match_idx_to_viz = np.arange(0, num_matches - 1, n_viz)  # extract 1 sample every n_viz samples
     viz_matches_im0, viz_matches_im1 = matches_im0[match_idx_to_viz], matches_im1[match_idx_to_viz]
     
+    
     # convert confidence images to visualizable images 
     for i,img in enumerate(rgb_imgs):
         rgb_imgs[i] = (img*255.0).astype(np.uint8)
         print(f'conf shape: {confs[i].shape}, min: {confs[i].min()}, max: {confs[i].max()}')        
         confs[i] = img_from_floats(confs[i])
             
-    #inverted_images = invert_dust3r_preprocess_images(rgb_imgs, [im.shape[0:2] for im in imgs], inference_size)
-
+    rescale_images_from_inference_size = True
+    if rescale_images_from_inference_size:
+        #inverted_images = invert_dust3r_preprocess_images(rgb_imgs, [im.shape[0:2] for im in imgs], inference_size)
+        inverted_images = dust3r_preprocessor.rescale_images(rgb_imgs)
+        
+    
     # extract depth at the original scale
     h_original, w_original = imgs[0].shape[0:2]
     h, w = rgb_imgs[0].shape[0:2] # [H, W] 
@@ -187,7 +196,8 @@ if __name__ == '__main__':
         depth = np.zeros(shape=(h,w),dtype=pts3d[0].dtype)
         depth[valid_first] = pts3d[0][valid_first,2] # extract the z-component from the point cloud
         # extract depth at the original scale by interpolating
-        depth_map = invert_dust3r_preprocess_depth(depth, imgs[0].shape[0:2], inference_size)
+        #depth_map = invert_dust3r_preprocess_depth(depth, imgs[0].shape[0:2], inference_size)
+        depth_map = dust3r_preprocessor.rescale_depth(depth, image_idx=0)
         depth_map_img = img_from_floats(depth_map)        
     else:
         print(f'depth_scale_h: {depth_scale_h}, depth_scale_w: {depth_scale_w}')
@@ -196,6 +206,7 @@ if __name__ == '__main__':
         depth_map = point_cloud_to_depth(global_pc.vertices.reshape(-1, 3), intrinsics_original, w_original, h_original)
         depth_map_img = img_from_floats(depth_map)
     cv2.imshow('Depth', depth_map_img)
+
 
     show_image_tables = True
     table_resize_scale=0.8    
@@ -214,11 +225,12 @@ if __name__ == '__main__':
         img_table.render()
         cv2.imshow('Dust3r Images', img_table.image())
         
-        # img_inverted_table = ImageTable(num_columns=2, resize_scale=table_resize_scale)
-        # for i, img in enumerate(inverted_images):
-        #     img_inverted_table.add(img)
-        # img_inverted_table.render()
-        # cv2.imshow('Inverted Images', img_inverted_table.image())        
+        if rescale_images_from_inference_size:
+            img_inverted_table = ImageTable(num_columns=2, resize_scale=table_resize_scale)
+            for i, img in enumerate(inverted_images):
+                img_inverted_table.add(img)
+            img_inverted_table.render()
+            cv2.imshow('Inverted Images', img_inverted_table.image())        
         
         img_table_conf = ImageTable(num_columns=2, resize_scale=table_resize_scale)
         for i, conf in enumerate(confs):

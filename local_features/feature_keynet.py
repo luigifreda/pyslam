@@ -17,7 +17,8 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os 
+
+import config
 import cv2
 import numpy as np
 import math
@@ -33,6 +34,8 @@ from kornia_moons.viz import *
 
 from typing_extensions import TypedDict
 import matplotlib.pyplot as plt
+
+from feature_base import BaseFeature2D
 
 
 kVerbose = True   
@@ -93,8 +96,8 @@ class KeyNetHardNet(KF.LocalFeature):
         super().__init__(detector, descriptor, scale_laf)
 
 
-# interface for pySLAM 
-class KeyNetDescFeature2D: 
+# Interface for pySLAM 
+class KeyNetDescFeature2D(BaseFeature2D): 
     def __init__(self, num_features=2000, device=K.utils.get_cuda_or_mps_device_if_available()): 
         print('Using KeyNetDescFeature2D')
         self.device = device

@@ -34,6 +34,7 @@ import cv2
 import math
 import numpy as np
 
+from feature_base import BaseFeature2D
 from utils_features import extract_patches_tensor, extract_patches_array, extract_patches_array_cpp
 
 
@@ -102,8 +103,8 @@ class L2Net(nn.Module):
         return nn.LocalResponseNorm(256,1*256,0.5,0.5)(x_features).view(input.size(0),-1)
     
     
-# interface for pySLAM
-class L2NetFeature2D: 
+# Interface for pySLAM
+class L2NetFeature2D(BaseFeature2D): 
     def __init__(self, do_cuda=True):    
         print('Using L2NetFeature2D')         
         self.model_base_path = config.cfg.root_folder + '/thirdparty/l2net/'        
@@ -138,7 +139,7 @@ class L2NetFeature2D:
             print('Extracting on GPU')
         else:
             print('Extracting on CPU')
-            self.model = model.cpu()        
+            self.model = self.model.cpu()        
         self.model.eval()            
         print('==> Successfully loaded pre-trained network.')            
             

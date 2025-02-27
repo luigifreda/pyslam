@@ -51,7 +51,7 @@ if not kVerbose:
 
 
 # BlockAdaptor divides the image in row_divs x col_divs cells and extracts features in each of these cells
-class BlockAdaptor(object): 
+class BlockAdaptor: 
     def __init__(self, 
                  detector, 
                  descriptor = None, 
@@ -146,7 +146,7 @@ class BlockAdaptor(object):
 
 # PyramidAdaptor generate a pyramid of num_levels images and extracts features in each of these images
 # TODO: check if a point on one level 'overlaps' with a point on other levels or add such option (DONE by FeatureManager.kdt_nms() )
-class PyramidAdaptor(object): 
+class PyramidAdaptor: 
     def __init__(self, 
                  detector, 
                  descriptor=None,

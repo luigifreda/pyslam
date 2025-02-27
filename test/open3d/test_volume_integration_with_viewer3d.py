@@ -124,7 +124,7 @@ if __name__ == "__main__":
                             
             # 3D display (map display)
             # if viewer3D is not None:
-            #     viewer3D.draw_map(slam)
+            #     viewer3D.draw_slam_map(slam)
 
             color_undistorted = cv2.remap(img, calib_map1, calib_map2, interpolation=cv2.INTER_LINEAR)
             color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)

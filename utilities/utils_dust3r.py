@@ -39,127 +39,280 @@ from utils_torch import to_numpy
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 
-# resize input image so that its long side size is resized to "long_edge_size"
-def _resize_cv_image(img, long_edge_size):
-    H, W = img.shape[:2]
-    S = max(H, W)
-    if S > long_edge_size:
-        interp = cv2.INTER_LANCZOS4
-    else:
-        interp = cv2.INTER_CUBIC
-    new_size = (int(round(W * long_edge_size / S)), int(round(H * long_edge_size / S)))
-    return cv2.resize(img, new_size, interpolation=interp)
+# # resize input image so that its long side size is resized to "long_edge_size"
+# def _resize_cv_image(img, long_edge_size):
+#     H, W = img.shape[:2]
+#     S = max(H, W)
+#     if S > long_edge_size:
+#         interp = cv2.INTER_LANCZOS4
+#     else:
+#         interp = cv2.INTER_CUBIC
+#     new_size = (int(round(W * long_edge_size / S)), int(round(H * long_edge_size / S)))
+#     return cv2.resize(img, new_size, interpolation=interp)
 
 
-# preprocess a list of images:
-# size can be either 224 or 512
-# resize and center crop to 224x224 or 512x512
-def dust3r_preprocess_images(imgs_raw, size, square_ok=False, verbose=True):    
-    imgs = []
-    for j,img in enumerate(imgs_raw):
-        H1, W1, _ = img.shape
-        if size == 224:
-            # resize short side to 224 (then crop)
-            img = _resize_cv_image(img, round(size * max(W1/H1, H1/W1)))
+# # preprocess a list of images:
+# # size can be either 224 or 512
+# # resize and center crop to 224x224 or 512x512
+# def dust3r_preprocess_images(imgs_raw, size, square_ok=False, verbose=True):    
+#     imgs = []
+#     for j,img in enumerate(imgs_raw):
+#         H1, W1, _ = img.shape
+#         if size == 224:
+#             # resize short side to 224 (then crop)
+#             img = _resize_cv_image(img, round(size * max(W1/H1, H1/W1)))
+#         else:
+#             # resize long side to 512
+#             #print(f'resizing {H1}x{W1} to {size}x{size}')
+#             img = _resize_cv_image(img, size)
+#         H, W, _ = img.shape
+#         cx, cy = W // 2, H // 2
+#         if size == 224:
+#             half = min(cx, cy)
+#             img = img[cy-half:cy+half, cx-half:cx+half]
+#         else:
+#             halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
+#             if not (square_ok) and W == H:
+#                 halfh = 3*halfw//4
+#             img = img[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
+
+#         H2, W2, _ = img.shape
+#         if verbose:
+#             print(f'preprocessing image {j} - resolution {W1}x{H1} --> {W2}x{H2}')        
+#         imgs.append(dict(img=ImgNorm(img)[None], true_shape=np.int32(
+#             [img.shape[:2]]), idx=len(imgs), instance=str(len(imgs))))
+#         # print('adding image', imgs[-1]['img'].shape, imgs[-1]['img'].max(), imgs[-1]['img'].min(), imgs[-1]['true_shape'], imgs[-1]['idx'], imgs[-1]['instance'])
+#         # adding image torch.Size([1, 3, 384, 512]) tensor(1.) tensor(-0.9608) [[384 512]] 3 3
+#     return imgs
+
+
+# Image processor for dust3r
+class Dust3rImagePreprocessor:
+    def __init__(self, inference_size=224, square_ok=False, verbose=True):
+        self.inference_size = inference_size
+        self.square_ok = square_ok
+        self.verbose = verbose
+        self.metadata = {}
+
+    # Resize input image so that its long side size is resized to "long_edge_size"
+    def _resize_cv_image(self, img, long_edge_size):
+        H, W = img.shape[:2]
+        S = max(H, W)
+        interp = cv2.INTER_LANCZOS4 if S > long_edge_size else cv2.INTER_CUBIC
+        new_size = (int(round(W * long_edge_size / S)), int(round(H * long_edge_size / S)))
+        return cv2.resize(img, new_size, interpolation=interp)
+    
+    # Preprocess an input image:
+    # Size can be either 224 or 512
+    # 1. Resize 
+    # 2. center crop to 224x224 or 512x512
+    # Output: a list of preprocessed torch images as required by dust3r    
+    def preprocess_image(self, img_raw, image_idx=0):
+        """Preprocess images: resize, center crop, and normalize."""
+        
+        H1, W1 = img_raw.shape[0:2]  # Original shape
+        original_shape = (H1, W1)
+
+        if self.inference_size == 224:
+            # Resize short side to 224 (then crop)
+            img_resized = self._resize_cv_image(img_raw, round(self.inference_size * max(W1 / H1, H1 / W1)))
         else:
-            # resize long side to 512
-            #print(f'resizing {H1}x{W1} to {size}x{size}')
-            img = _resize_cv_image(img, size)
-        H, W, _ = img.shape
+            # Resize long side to 512
+            img_resized = self._resize_cv_image(img_raw, self.inference_size)
+
+        H, W  = img_resized.shape[0:2]
         cx, cy = W // 2, H // 2
-        if size == 224:
+
+        # Cropping
+        if self.inference_size == 224:
             half = min(cx, cy)
-            img = img[cy-half:cy+half, cx-half:cx+half]
+            img_cropped = img_resized[cy - half:cy + half, cx - half:cx + half]
+            crop_offset = (cx - half, cy - half)                
         else:
-            halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
-            if not (square_ok) and W == H:
-                halfh = 3*halfw//4
-            img = img[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
+            halfw, halfh = ((2 * cx) // 16) * 8, ((2 * cy) // 16) * 8
+            if not self.square_ok and W == H:
+                halfh = (3 * halfw) // 4
+            img_cropped = img_resized[cy - halfh:cy + halfh, cx - halfw:cx + halfw]
+            crop_offset = (cx - halfw, cy - halfh)
 
-        H2, W2, _ = img.shape
-        if verbose:
-            print(f'preprocessing image {j} - resolution {W1}x{H1} --> {W2}x{H2}')        
-        imgs.append(dict(img=ImgNorm(img)[None], true_shape=np.int32(
-            [img.shape[:2]]), idx=len(imgs), instance=str(len(imgs))))
-        # print('adding image', imgs[-1]['img'].shape, imgs[-1]['img'].max(), imgs[-1]['img'].min(), imgs[-1]['true_shape'], imgs[-1]['idx'], imgs[-1]['instance'])
-        # adding image torch.Size([1, 3, 384, 512]) tensor(1.) tensor(-0.9608) [[384 512]] 3 3
-    return imgs
+        processed_image = img_cropped
+        processed_shape = img_cropped.shape[:2]
+        
+        if self.verbose:
+            print(f'Preprocessing image {image_idx}: {W1}x{H1} -> {processed_shape[1]}x{processed_shape[0]}')
 
+        # Store metadata for inversion
+        self.metadata[image_idx] = {
+            'original_shape': original_shape[0:2],
+            'crop_offset': crop_offset,
+            'cropped_shape': img_cropped.shape[0:2],
+            'resized_shape': img_resized.shape[0:2]
+        }
 
-# invert dust3r preprocessing
-def invert_dust3r_preprocess_images(imgs, original_shapes, size, square_ok=False, verbose=True):
-    imgs_raw = []
-    print(f'original_shapes: {original_shapes}')
-    for img, (H1, W1) in zip(imgs, original_shapes):
-        # we assume the input images have been correctly extracted and transformed back to numpy images
+        img_processed = dict(img=ImgNorm(processed_image)[None], 
+                                true_shape=np.int32([processed_image.shape[:2]]), 
+                                idx=image_idx, 
+                                instance=str(image_idx))
+        return img_processed
+
+    # Preprocess a list of input images:
+    def preprocess_images(self, imgs_raw, reset_metadata=True):
+        """Preprocess images: resize, center crop, and normalize."""
+        imgs_processed = []
+        if reset_metadata:
+            self.metadata = {}  # Reset metadata
+        for idx, img_raw in enumerate(imgs_raw):
+            img_processed = self.preprocess_image(img_raw, image_idx=idx)
+            imgs_processed.append(img_processed)
+        return imgs_processed
+        
+    # Get original-resolution images from inference-size images.
+    # This is like inverting the preprocessing above.
+    def rescale_image(self, inference_size_img, image_idx=0, original_shape=None):
+        if original_shape is None:
+            assert image_idx in self.metadata
+            original_shape = self.metadata[image_idx]['original_shape']
+
+        assert image_idx in self.metadata
+        resized_shape = self.metadata[image_idx]['resized_shape'] # Get stored shape before cropping
+
+        # we assume the input image has been correctly extracted and transformed back to numpy image
         # img = img_dict['img'].squeeze(0).permute(1, 2, 0).numpy()  # Convert back to HWC format
         # img = (img * 0.5 + 0.5) * 255  # Denormalize
         # img = img.astype(np.uint8)
-
-        H, W, _ = img.shape
         
-        if H != H1 or W != W1:
-            cx, cy = W // 2, H // 2
-
-            if size == 224:
-                half = min(cx, cy)
-                img_cropped = img[cy-half:cy+half, cx-half:cx+half]
-            else:
-                halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
-                if not (square_ok) and W == H:
-                    halfh = 3*halfw//4
-                img_cropped = img[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
-
-            # Resize back to original dimensions
-            img_resized = cv2.resize(img_cropped, (W1, H1), interpolation=cv2.INTER_CUBIC)
-
-            # Create a canvas of zeros with the original dimensions
-            img_raw = np.zeros((H1, W1, 3), dtype=np.uint8)
-
-            # Place the resized image into the canvas
-            img_raw[:H1, :W1] = img_resized
-
-            if verbose:
-                print(f'inverting preprocessing - resolution {W}x{H} --> {W1}x{H1}')
+        # Get the current dimensions
+        H, W = inference_size_img.shape[:2]
+        
+        # Undo cropping by padding
+        if resized_shape[0] == 224:
+            half = min(W, H)  # Cropped square size
+            pad_h = (resized_shape[0] - half) // 2
+            pad_w = (resized_shape[1] - half) // 2
+            pad_h = max(pad_h, 0)
+            pad_w = max(pad_w, 0)        
+            if pad_h == 0 and pad_w == 0:
+                img_padded = inference_size_img
+            else:        
+                img_padded = cv2.copyMakeBorder(inference_size_img, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_CONSTANT, value=0)
         else:
-            img_raw = img
-
-        imgs_raw.append(img_raw)
-
-    return imgs_raw
-
-
-# invert dust3r preprocessing for a depth image: from cropped-resized to original shape
-def invert_dust3r_preprocess_depth(depth, original_shape, size, square_ok=False, verbose=True):
-    H1, W1 = original_shape
-    H, W = depth.shape
-    cx, cy = W // 2, H // 2
-
-    if H != H1 or W != W1:
-        if size == 224:
-            half = min(cx, cy)
-            depth_cropped = depth[cy-half:cy+half, cx-half:cx+half]
-        else:
-            halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
-            if not (square_ok) and W == H:
+            halfw, halfh = ((2*W)//16)*8, ((2*H)//16)*8
+            if W == H:
                 halfh = 3*halfw//4
-            depth_cropped = depth[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
-
+            pad_h = (resized_shape[0] - 2*halfh) // 2
+            pad_w = (resized_shape[1] - 2*halfw) // 2
+            pad_h = max(pad_h, 0)
+            pad_w = max(pad_w, 0)   
+            if pad_h == 0 and pad_w == 0:
+                img_padded = inference_size_img
+            else:                             
+                img_padded = cv2.copyMakeBorder(inference_size_img, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_CONSTANT, value=0)
+        
         # Resize back to original dimensions
-        depth_resized = cv2.resize(depth_cropped, (W1, H1), interpolation=cv2.INTER_NEAREST)
+        img_raw = cv2.resize(img_padded, (original_shape[1], original_shape[0]), interpolation=cv2.INTER_CUBIC)
+        return img_raw    
+    
+    # Get original-resolution images from inference-size images.
+    # This is like inverting the preprocessing above.
+    def rescale_images(self, inference_size_imgs, original_shapes=None):
+        if original_shapes is None:
+            original_shapes = [self.metadata[idx]['original_shape'] for idx in range(len(inference_size_imgs))]
+        imgs_raw = []
+        for idx, inference_size_img in enumerate(inference_size_imgs):
+            img_raw = self.rescale_image(inference_size_img, image_idx=idx, original_shape=original_shapes[idx])
+            imgs_raw.append(img_raw)
+        return imgs_raw    
 
-        # Create a canvas of zeros with the original dimensions
-        depth_raw = np.zeros((H1, W1), dtype=depth.dtype)
+    # Get original-resolution depth from inference-size depth
+    def rescale_depth(self, inference_size_depth, image_idx=0, original_shape=None):
+        if original_shape is None:
+            assert image_idx in self.metadata
+            original_shape = self.metadata[image_idx]['original_shape']
 
-        # Place the resized depth map into the canvas
-        depth_raw[:H1, :W1] = depth_resized
+        resized_shape = self.metadata[image_idx]['resized_shape']  # Get stored shape before cropping
+        
+        # Get the current dimensions
+        H, W = inference_size_depth.shape[:2]
+        
+        # Undo cropping by padding
+        if resized_shape[0] == 224:
+            half = min(W, H)  # Cropped square size
+            pad_h = (resized_shape[0] - half) // 2
+            pad_w = (resized_shape[1] - half) // 2
+            pad_h = max(pad_h, 0)
+            pad_w = max(pad_w, 0)        
+            if pad_h == 0 and pad_w == 0:
+                depth_padded = inference_size_depth
+            else:            
+                depth_padded = cv2.copyMakeBorder(inference_size_depth, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_CONSTANT, 0)
+        else:
+            halfw, halfh = ((2*W)//16)*8, ((2*H)//16)*8
+            if W == H:
+                halfh = 3*halfw//4
+            pad_h = (resized_shape[0] - 2*halfh) // 2
+            pad_w = (resized_shape[1] - 2*halfw) // 2
+            pad_h = max(pad_h, 0)
+            pad_w = max(pad_w, 0)            
+            if pad_h == 0 and pad_w == 0:
+                depth_padded = inference_size_depth
+            else:                   
+                depth_padded = cv2.copyMakeBorder(inference_size_depth, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_CONSTANT, 0)
+        
+        # Resize back to original dimensions
+        depth_raw = cv2.resize(depth_padded, (original_shape[1], original_shape[0]), interpolation=cv2.INTER_NEAREST)
+        return depth_raw
 
-        if verbose:
-            print(f'inverting preprocessing - resolution {W}x{H} --> {W1}x{H1}')
-    else:
-        depth_raw = depth
+    # Rescale inference-size keypoints to original-size keypoints.
+    def rescale_keypoints(self, inference_size_kps, image_idx=0, original_shape=None):
+        if original_shape is None:
+            original_shape = self.metadata[image_idx]['original_shape']
+                       
+        resized_shape = self.metadata[image_idx]['resized_shape']  # Get stored shape before cropping
+                            
+        # First, invert cropping:
+        # Assume keypoints are given relative to the cropped image.
+        x_offset, y_offset = self.metadata[image_idx]['crop_offset']
+        keypoints_in_resized = [(x + x_offset, y + y_offset) for (x,y) in inference_size_kps]
+        
+        # Next, compute scale factor used during resizing.
+        H_raw, W_raw = original_shape
+        # Long side of raw image
+        S_raw = max(H_raw, W_raw)
+        # The resized image was computed with scale factor s: long_edge_size / S_raw
+        # For instance, if we know long_edge_size was used, then:
+        r = resized_shape[0] / H_raw if H_raw > W_raw else resized_shape[1] / W_raw
+        
+        # Now invert the resize transformation:
+        keypoints_raw = [(x / r, y / r) for (x,y) in keypoints_in_resized]
+        
+        return keypoints_raw
+    
+    #Transform keypoints from original image coordinates to processed image coordinates.
+    # Input: 
+    # - keypoints_list: List of (x, y) keypoints in the original image.
+    # - image_index: Index of the image in the batch (to access metadata).
+    # Output:
+    # - Transformed keypoints as a NumPy array of shape (N, 2).
+    def scale_down_keypoints(self, kps, image_idx=0):
+        if image_idx >= len(self.metadata):
+            raise IndexError("Image index out of range for metadata.")
 
-    return depth_raw
+        meta = self.metadata[image_idx]
+        orig_H, orig_W = meta['original_shape']
+        resized_H, resized_W = meta['resized_shape']
+        crop_x, crop_y = meta['crop_offset']
+
+        # Compute scaling factors between original and resized dimensions
+        scale_x = resized_W / orig_W
+        scale_y = resized_H / orig_H
+
+        # First, rescale keypoints to resized image coordinates.
+        keypoints_rescaled = np.array([(kp[0] * scale_x, kp[1] * scale_y) for kp in kps])
+        
+        # Next, adjust keypoints by subtracting the crop offset.
+        keypoints_transformed = keypoints_rescaled - np.array([crop_x, crop_y])
+
+        return keypoints_transformed
 
 
 # =========================================================
@@ -368,3 +521,11 @@ def convert_mv_output_to_geometry(imgs, pts3d, mask, as_pointcloud):
         global_mesh = trimesh.Trimesh(**cat_meshes(meshes)) 
 
     return global_pc, global_mesh
+
+
+
+
+
+
+
+

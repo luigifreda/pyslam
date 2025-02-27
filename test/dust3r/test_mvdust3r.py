@@ -16,14 +16,13 @@ import torch
 import torchvision.transforms as tvf
 import trimesh
 from scipy.spatial.transform import Rotation
-
-from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
-from utils_img import ImageTable
 import time
 
+from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
+
 from utils_files import select_image_files 
-from utils_dust3r import dust3r_preprocess_images, convert_mv_output_to_geometry
-from utils_img import img_from_floats
+from utils_dust3r import convert_mv_output_to_geometry, Dust3rImagePreprocessor
+from utils_img import img_from_floats, ImageTable
 
 inf = np.inf
 
@@ -33,13 +32,13 @@ import sys
 os.environ["meta_internal"] = "False"
 
 import matplotlib.pyplot as pl
-from dust3r.inference import inference, inference_mv
-from dust3r.losses import calibrate_camera_pnpransac, estimate_focal_knowing_depth
-from dust3r.model import AsymmetricCroCo3DStereoMultiView
-from dust3r.utils.device import to_numpy
+from mvdust3r.dust3r.inference import inference, inference_mv
+from mvdust3r.dust3r.losses import calibrate_camera_pnpransac, estimate_focal_knowing_depth
+from mvdust3r.dust3r.model import AsymmetricCroCo3DStereoMultiView
+from mvdust3r.dust3r.utils.device import to_numpy
 
-from dust3r.utils.image import load_images, rgb
-from dust3r.viz import add_scene_cam, CAM_COLORS, cat_meshes, OPENGL, pts3d_to_trimesh
+from mvdust3r.dust3r.utils.image import load_images, rgb
+from mvdust3r.dust3r.viz import add_scene_cam, CAM_COLORS, cat_meshes, OPENGL, pts3d_to_trimesh
 
 pl.ion()
 
@@ -426,8 +425,10 @@ if __name__ == '__main__':
         for img in imgs:
             if img.ndim == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                
+    dust3r_preprocessor = Dust3rImagePreprocessor(inference_size=args.image_size, verbose=not args.silent)
             
-    imgs_preproc = dust3r_preprocess_images(imgs, args.image_size, verbose=not args.silent)
+    imgs_preproc = dust3r_preprocessor.preprocess_images(imgs)
     print(f'done preprocessing images')
     
     # adjust the confidence threshold    

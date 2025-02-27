@@ -1,10 +1,10 @@
-# pySLAM v2.5.4
+# pySLAM v2.6.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.5.4](#pyslam-v254)
+- [pySLAM v2.6.0](#pyslam-v260)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -125,7 +125,7 @@ Once everything is completed you can jump the [usage section](#usage).
 * Tensorflow >=2.13.1
 * Kornia >=0.7.3
 * Rerun
-* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check with `./cuda_config.sh` 
+* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check it with `./cuda_config.sh` 
 
 If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
@@ -469,6 +469,7 @@ The function `feature_tracker_factory()` can be found in the file `local_feature
 * *[XFeat](https://arxiv.org/abs/2404.19174)*      
 * *[LightGlue](https://arxiv.org/abs/2306.13643)*
 * *[LoFTR](https://arxiv.org/abs/2104.00680)*
+* *[MASt3R](https://arxiv.org/abs/2406.09756)*
   
 See the file `local_features/feature_matcher.py` for further details.
 

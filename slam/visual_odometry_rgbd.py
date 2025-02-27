@@ -91,7 +91,7 @@ class VisualOdometryRgbd(VisualOdometryBase, VisualOdometryRgbdBase):
         self.o3d_camera = o3d.camera.PinholeCameraIntrinsic(width=cam.width, height=cam.height, fx=cam.fx, fy=cam.fy, cx=cam.cx, cy=cam.cy)     
         self.timer_pose_est = TimerFps('PoseEst', is_verbose = self.timer_verbose)          
                    
-    def processFirstFrame(self, frame_id) -> None:
+    def process_first_frame(self, frame_id) -> None:
         self.draw_img = self.cur_image.copy()
                 
         if self.cur_depth is None:
@@ -104,10 +104,10 @@ class VisualOdometryRgbd(VisualOdometryBase, VisualOdometryRgbdBase):
                             o3d.geometry.Image(depth_undistorted),
                             depth_scale=1.0) 
 
-    def processFrame(self, frame_id) -> None:
+    def process_frame(self, frame_id) -> None:
         self.draw_img = self.cur_image.copy()
         
-        self.updateGtData(frame_id)
+        self.update_gt_data(frame_id)
                 
         color_undistorted, depth_undistorted  = self.rectify_in_needed(self.cur_image, self.cur_depth)              
         self.cur_rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
@@ -167,7 +167,7 @@ class VisualOdometryRgbdTensor(VisualOdometryBase, VisualOdometryRgbdBase):
         else:
             raise ValueError("Odometry method does not exist!")
                             
-    def processFirstFrame(self, frame_id) -> None:
+    def process_first_frame(self, frame_id) -> None:
         self.draw_img = self.cur_image.copy()
                 
         if self.cur_depth is None:
@@ -180,10 +180,10 @@ class VisualOdometryRgbdTensor(VisualOdometryBase, VisualOdometryRgbdBase):
             o3d.t.geometry.Image(depth_undistorted).to(self.device))
 
 
-    def processFrame(self, frame_id) -> None:
+    def process_frame(self, frame_id) -> None:
         self.draw_img = self.cur_image.copy()
         
-        self.updateGtData(frame_id)
+        self.update_gt_data(frame_id)
                 
         color_undistorted, depth_undistorted  = self.rectify_in_needed(self.cur_image, self.cur_depth)              
         self.cur_rgbd = o3d.t.geometry.RGBDImage(

@@ -29,6 +29,7 @@ import cv2
 import torch
 import sosnet_model
 
+from feature_base import BaseFeature2D
 from utils_features import extract_patches_tensor, extract_patches_array, extract_patches_array_cpp
 
 
@@ -36,8 +37,8 @@ from utils_features import extract_patches_tensor, extract_patches_array, extrac
 kVerbose = True   
 
 
-# interface for pySLAM
-class SosnetFeature2D: 
+# Interface for pySLAM
+class SosnetFeature2D(BaseFeature2D): 
     def __init__(self, do_cuda=True): 
         print('Using SosnetFeature2D')   
         self.model_base_path = config.cfg.root_folder + '/thirdparty/SOSNet/'
@@ -62,7 +63,7 @@ class SosnetFeature2D:
             print('Extracting on GPU')
         else:
             print('Extracting on CPU')
-            self.model = model.cpu()        
+            self.model = self.model.cpu()        
         self.model.eval()  
         print('==> Successfully loaded pre-trained network.')
     

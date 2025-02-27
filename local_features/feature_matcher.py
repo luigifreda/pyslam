@@ -25,6 +25,7 @@ import torch
 from utils_sys import Printer, import_from
 from utils_data import AtomicCounter
 from utils_serialization import SerializableEnum, register_class
+from utils_dust3r import Dust3rImagePreprocessor
 from config_parameters import Parameters  
 
 from collections import defaultdict
@@ -50,13 +51,7 @@ kLogsFolder = kRootFolder + '/logs'
 kMast3rFolder = kRootFolder + '/thirdparty/mast3r'
 
 
-if os.path.exists(kMast3rFolder):
-    AsymmetricMASt3R = import_from('mast3r.model', 'AsymmetricMASt3R')
-    mast3r_inference = import_from('dust3r.inference', 'inference')
-    to_numpy = import_from('dust3r.utils.device', 'to_numpy')
-
-
-kRatioTest = Parameters.kFeatureMatchRatioTest
+kDefaultRatioTest = Parameters.kFeatureMatchDefaultRatioTest
 kVerbose = False
 
 
@@ -74,10 +69,11 @@ class FeatureMatcherTypes(SerializableEnum):
 
 def feature_matcher_factory(norm_type=cv2.NORM_HAMMING, 
                             cross_check=False, 
-                            ratio_test=kRatioTest, 
+                            ratio_test=kDefaultRatioTest, 
                             matcher_type=FeatureMatcherTypes.FLANN,
                             detector_type=FeatureDetectorTypes.NONE,
-                            descriptor_type=FeatureDescriptorTypes.NONE):
+                            descriptor_type=FeatureDescriptorTypes.NONE,
+                            other_data_dict={}):
     if matcher_type == FeatureMatcherTypes.BF:
         return BfFeatureMatcher(norm_type=norm_type, 
                                 cross_check=cross_check, 
@@ -98,7 +94,8 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING,
                              ratio_test=ratio_test, 
                              matcher_type=matcher_type,
                              detector_type=detector_type,
-                             descriptor_type=descriptor_type)
+                             descriptor_type=descriptor_type,
+                             other_data_dict=other_data_dict)
     elif matcher_type == FeatureMatcherTypes.LIGHTGLUE:
         return LightGlueMatcher(norm_type=norm_type, 
                                 cross_check=cross_check, 
@@ -279,7 +276,7 @@ class MatcherUtils:
     
 # ==============================================================================
 
-class FeatureMatchingResult(object): 
+class FeatureMatchingResult: 
     def __init__(self):
         self.kps1 = None          # all reference keypoints (numpy array Nx2)
         self.kps2 = None          # all current keypoints   (numpy array Nx2)
@@ -294,12 +291,12 @@ class FeatureMatchingResult(object):
 
             
 # base class 
-class FeatureMatcher(object): 
+class FeatureMatcher: 
     global_counter=AtomicCounter()
     def __init__(self,
                  norm_type=cv2.NORM_HAMMING,
                  cross_check = False,
-                 ratio_test=kRatioTest,
+                 ratio_test=kDefaultRatioTest,
                  matcher_type = FeatureMatcherTypes.BF,
                  detector_type=FeatureDetectorTypes.NONE,
                  descriptor_type=FeatureDescriptorTypes.NONE):
@@ -346,7 +343,7 @@ class FeatureMatcher(object):
             oris1 = None 
             oris2 = None
             if kps1 is None and kps2 is None:
-                print('FeatureMatcher.match: kps1 and kps2 are None')
+                Printer.red('ERROR: FeatureMatcher.match: kps1 and kps2 are None')
                 return result
             else: 
                 # convert from list of keypoints to an array of points if needed
@@ -368,6 +365,7 @@ class FeatureMatcher(object):
             if kVerbose:
                 print(f'image1.shape: {img1.shape}, image2.shape: {img2.shape}')
             img1_shape = img1.shape[0:2]
+            img2_shape = img2.shape[0:2] if img2 is not None else img1_shape
             d0={
             'keypoints': torch.tensor(kps1, device=self.torch_device).unsqueeze(0),
             'descriptors': torch.tensor(des1, device=self.torch_device).unsqueeze(0),
@@ -379,7 +377,7 @@ class FeatureMatcher(object):
             d1={
             'keypoints': torch.tensor(kps2, device=self.torch_device).unsqueeze(0),
             'descriptors': torch.tensor(des2, device=self.torch_device).unsqueeze(0),
-            'image_size': torch.tensor(img1_shape, device=self.torch_device).unsqueeze(0)
+            'image_size': torch.tensor(img2_shape, device=self.torch_device).unsqueeze(0)
             }
             if scales2 is not None and oris2 is not None:
                 d1['scales'] = torch.tensor(scales2, device=self.torch_device).unsqueeze(0)
@@ -397,20 +395,39 @@ class FeatureMatcher(object):
             return result
         # ===========================================================
         elif self.matcher_type == FeatureMatcherTypes.XFEAT:
-            d1_tensor = torch.tensor(des1, dtype=torch.float32)  # Specify dtype if needed
-            d2_tensor = torch.tensor(des2, dtype=torch.float32)  # Specify dtype if needed
-            # If the original tensors were on a GPU, you should move the new tensors to GPU as well
-            # d1_tensor = d1_tensor.to('cuda')  # Use 'cuda' or 'cuda:0' if your device is a GPU
-            # d2_tensor = d2_tensor.to('cuda') 
-            min_cossim = 0.82 # default in xfeat code 
-            idx0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, min_cossim=min_cossim)    
-            result.idxs1 = idx0.cpu()
-            result.idxs2 = idxs1.cpu()
+            d1_tensor = torch.tensor(des1, dtype=torch.float32, device=self.torch_device)  # Specify dtype if needed
+            d2_tensor = torch.tensor(des2, dtype=torch.float32, device=self.torch_device)  # Specify dtype if needed
+
+            if self.submatcher_type == 'lightglue':
+                if kps1 is None and kps2 is None:
+                    Printer.red('ERROR: FeatureMatcher.match: kps1 and kps2 are None')
+                    return result                
+                if not isinstance(kps1, np.ndarray):
+                    kps1 = np.array([x.pt for x in kps1], dtype=np.float32)
+                if not isinstance(kps2, np.ndarray):
+                    kps2 = np.array([x.pt for x in kps2], dtype=np.float32)
+                kps1_tensor = torch.tensor(kps1, device=self.torch_device)
+                kps2_tensor = torch.tensor(kps2, device=self.torch_device)   
+                H1,W1 = img1.shape[0:2]
+                H2,W2 = img2.shape[0:2]                
+                d1 = {'keypoints': kps1_tensor, 'descriptors': d1_tensor, 'image_size': (W1,H1) }
+                d2 = {'keypoints': kps2_tensor, 'descriptors': d2_tensor, 'image_size': (W2,H2) }
+                min_conf = 0.1 # default in xfeat code
+                kps1_out, kps2_out, matches_out = self.matcher.match_lighterglue(d1, d2, min_conf = min_conf)
+                idxs0 = matches_out[:, 0]
+                idxs1 = matches_out[:, 1]
+            elif self.submatcher_type == 'xfeat':
+                min_cossim = 0.82 # default in xfeat code 
+                idxs0, idxs1 = self.matcher.match(d1_tensor, d2_tensor, min_cossim=min_cossim)    
+                idxs0 = idxs0.cpu()
+                idxs1 = idxs1.cpu()
+            result.idxs1 = idxs0
+            result.idxs2 = idxs1
             if row_matching: 
                 result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)
             return result
         # ===========================================================
-        elif self.matcher_type == FeatureMatcherTypes.LOFTR:
+        elif self.matcher_type == FeatureMatcherTypes.LOFTR: # (Detector-free)
             if img1.ndim>2:
                 img1 = cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY)
             if img2.ndim>2:
@@ -431,7 +448,61 @@ class FeatureMatcher(object):
             result.idxs2 = np.arange(len(kps2), dtype=np.int32)
             if row_matching: 
                 result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)            
-            return result         
+            return result 
+        # ===========================================================    
+        elif self.matcher_type == FeatureMatcherTypes.MAST3R: # (Detector-free)    
+            if img1.ndim==2:
+                img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2RGB)
+            if img2.ndim==2:
+                img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2RGB)                                       
+            imgs = [img1, img2]    
+            dust3r_preprocessor = Dust3rImagePreprocessor(inference_size=self.inference_size)        
+            #imgs_preproc = dust3r_preprocess_images(imgs, size=self.inference_size) 
+            imgs_preproc = dust3r_preprocessor.preprocess_images(imgs)
+            output = self.mast3r_inference([tuple(imgs_preproc)], self.matcher, self.device, batch_size=1, verbose=False)
+            # check test/dust3r/test_mast3r_2images.py
+            view1, view2 = output['view1'], output['view2']
+            pred1, pred2 = output['pred1'], output['pred2']
+            # extract descriptors
+            desc1, desc2 = pred1['desc'].squeeze(0).detach(), pred2['desc'].squeeze(0).detach()
+                
+            # find 2D-2D matches between the two images
+            matches_im0, matches_im1 = self.mast3r_fast_reciprocal_NNs(desc1, desc2, subsample_or_initxy1=self.subsample_or_initxy1,
+                                                                  device=self.device, dist='dot', block_size=2**13)
+                    
+            # ignore small border around the edge
+            H0, W0 = view1['true_shape'][0]
+            valid_matches_im0 = (matches_im0[:, 0] >= 3) & (matches_im0[:, 0] < int(W0) - 3) & (
+                matches_im0[:, 1] >= 3) & (matches_im0[:, 1] < int(H0) - 3)
+
+            H1, W1 = view2['true_shape'][0]
+            valid_matches_im1 = (matches_im1[:, 0] >= 3) & (matches_im1[:, 0] < int(W1) - 3) & (
+                matches_im1[:, 1] >= 3) & (matches_im1[:, 1] < int(H1) - 3)
+
+            valid_matches = valid_matches_im0 & valid_matches_im1
+            kps1, kps2 = matches_im0[valid_matches], matches_im1[valid_matches]
+            des1, des2 = desc1[kps1[:, 1], kps1[:, 0]], desc2[kps2[:, 1], kps2[:, 0]]  # extract of independent descriptors is experiemental 
+            
+            # convert from pixel coordinates to float coordinates (we center the keypoints in the center of the pixels)
+            # kps1 = kps1.astype(np.float32) + 0.5 
+            # kps2 = kps2.astype(np.float32) + 0.5
+                
+            kps1_rescaled = dust3r_preprocessor.rescale_keypoints(kps1, 0)
+            kps2_rescale = dust3r_preprocessor.rescale_keypoints(kps2, 0)
+            
+            cvkps1_rescaled = np.array([ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps1_rescaled ])
+            cvkps2_rescaled = np.array([ cv2.KeyPoint(int(p[0]), int(p[1]), size=1, response=1) for p in kps2_rescale ])
+                        
+            result.kps1 = cvkps1_rescaled
+            result.kps2 = cvkps2_rescaled
+            result.des1 = des1
+            result.des2 = des2
+            result.idxs1 = np.arange(len(cvkps1_rescaled), dtype=np.int32)
+            result.idxs2 = np.arange(len(cvkps2_rescaled), dtype=np.int32)
+                                    
+            if row_matching: 
+                result.idxs1, result.idxs2 = MatcherUtils.filterNonRowMatches(kps1, result.idxs1, kps2, result.idxs2, max_disparity=max_disparity)            
+            return result 
         # ===========================================================      
         else:
             matcher = cv2.BFMatcher(self.norm_type, self.cross_check) #if self.parallel else self.matcher            
@@ -470,7 +541,7 @@ class BfFeatureMatcher(FeatureMatcher):
     def __init__(self, 
                  norm_type=cv2.NORM_HAMMING, 
                  cross_check = False, 
-                 ratio_test=kRatioTest, 
+                 ratio_test=kDefaultRatioTest, 
                  matcher_type = FeatureMatcherTypes.BF,
                  detector_type=FeatureDetectorTypes.NONE,
                  descriptor_type=FeatureDescriptorTypes.NONE):
@@ -491,7 +562,7 @@ class FlannFeatureMatcher(FeatureMatcher):
     def __init__(self, 
                  norm_type=cv2.NORM_HAMMING, 
                  cross_check = False, 
-                 ratio_test=kRatioTest, 
+                 ratio_test=kDefaultRatioTest, 
                  matcher_type = FeatureMatcherTypes.FLANN,
                  detector_type=FeatureDetectorTypes.NONE,
                  descriptor_type=FeatureDescriptorTypes.NONE):
@@ -523,17 +594,24 @@ class XFeatMatcher(FeatureMatcher):
     def __init__(self, 
                  norm_type=cv2.NORM_L2, 
                  cross_check = False, 
-                 ratio_test=kRatioTest, 
+                 ratio_test=kDefaultRatioTest, 
                  matcher_type = FeatureMatcherTypes.XFEAT,
                  detector_type=FeatureDetectorTypes.NONE,
-                 descriptor_type=FeatureDescriptorTypes.NONE):
+                 descriptor_type=FeatureDescriptorTypes.NONE,
+                 other_data_dict={}):
         super().__init__(norm_type=norm_type, 
                          cross_check=cross_check, 
                          ratio_test=ratio_test, 
                          matcher_type=matcher_type,
                          detector_type=detector_type,
                          descriptor_type=descriptor_type)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.torch_device = device        
         self.matcher = XFeat()    
+        self.submatcher_type = 'xfeat' 
+        if 'submatcher_type' in other_data_dict:
+            self.submatcher_type = other_data_dict['submatcher_type']
+            print(f'XFeatMatcher: submatcher_type: {self.submatcher_type}')
         self.matcher_name = 'XFeatFeatureMatcher'   
         Printer.green(f'matcher: {self.matcher_name}')
         
@@ -543,7 +621,7 @@ class LightGlueMatcher(FeatureMatcher):
     def __init__(self, 
                  norm_type=cv2.NORM_L2, 
                  cross_check = False, 
-                 ratio_test=kRatioTest, 
+                 ratio_test=kDefaultRatioTest, 
                  matcher_type = FeatureMatcherTypes.LIGHTGLUE,
                  detector_type=FeatureDetectorTypes.SUPERPOINT,
                  descriptor_type=FeatureDescriptorTypes.NONE):
@@ -579,7 +657,7 @@ class LoFTRMatcher(FeatureMatcher):
     def __init__(self, 
                  norm_type=cv2.NORM_L2, 
                  cross_check = False, 
-                 ratio_test=kRatioTest, 
+                 ratio_test=kDefaultRatioTest, 
                  matcher_type = FeatureMatcherTypes.LOFTR,
                  detector_type=FeatureDetectorTypes.NONE,
                  descriptor_type=FeatureDescriptorTypes.NONE):
@@ -611,7 +689,7 @@ class Mast3RMatcher(FeatureMatcher):
     def __init__(self, 
                  norm_type=cv2.NORM_L2, 
                  cross_check = False, 
-                 ratio_test=kRatioTest, 
+                 ratio_test=kDefaultRatioTest, 
                  matcher_type = FeatureMatcherTypes.MAST3R,
                  detector_type=FeatureDetectorTypes.NONE,
                  descriptor_type=FeatureDescriptorTypes.NONE):
@@ -621,17 +699,26 @@ class Mast3RMatcher(FeatureMatcher):
                          matcher_type=matcher_type,
                          detector_type=detector_type,
                          descriptor_type=descriptor_type)
+        # NOTE: see test/dust3r/test_mast3r_2images.py
         if not os.path.exists(kMast3rFolder):
             raise ValueError(f'Mast3RMatcher: Mast3R was not installed. The folder was not found: {kMast3rFolder}')
     
-        model_name = kMast3rFolder + "/checkpoints/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth"            
+        AsymmetricMASt3R = import_from('mast3r.model', 'AsymmetricMASt3R')
+        self.mast3r_inference = import_from('dust3r.inference', 'inference')
+        self.mast3r_fast_reciprocal_NNs = import_from('mast3r.fast_nn', 'fast_reciprocal_NNs')
+
+        self.model_name = kMast3rFolder + "/checkpoints/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth"   
+        self.min_conf_thr = 10     # percentage of the max confidence value
+        self.inference_size = 512  # can be 224 or 512  
+        self.subsample_or_initxy1 = 8  # used in fast_reciprocal_NNs        
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device
         #device = 'cpu' # force cpu mode        
         if device.type == 'cuda':
             print('Mast3RMatcher: Using CUDA')
         else:
             print('Mast3RMatcher: Using CPU')  
-        model = AsymmetricMASt3R.from_pretrained(model_name).to(device)
+        model = AsymmetricMASt3R.from_pretrained(self.model_name).to(device)
         model = model.to(device).eval()
         self.matcher = model   
         self.matcher_name = 'Mast3RMatcher'   

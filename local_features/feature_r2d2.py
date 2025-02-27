@@ -36,7 +36,7 @@ from r2d2.nets.patchnet import *
 import argparse
 
 from utils_sys import Printer 
-
+from feature_base import BaseFeature2D
 
 kVerbose = True 
 
@@ -154,8 +154,8 @@ def convert_pts_to_keypoints(pts, scores, sizes, levels):
 
  
 # TODO: fix the octave field of the output keypoints 
-# interface for pySLAM
-class R2d2Feature2D: 
+# Interface for pySLAM
+class R2d2Feature2D(BaseFeature2D): 
     def __init__(self,
                  num_features = 2000, 
                  scale_f   = 2**0.25, 

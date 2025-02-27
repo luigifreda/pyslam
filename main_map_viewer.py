@@ -77,7 +77,7 @@ if __name__ == "__main__":
         time.sleep(0.1)
                   
         # 3D display (map display)
-        viewer3D.draw_map(slam)   
+        viewer3D.draw_slam_map(slam)   
         
         is_map_save = viewer3D.is_map_save() and is_map_save == False     
         is_bundle_adjust = viewer3D.is_bundle_adjust() and is_bundle_adjust == False        

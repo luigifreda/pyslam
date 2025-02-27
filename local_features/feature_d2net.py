@@ -24,18 +24,15 @@ import config
 config.cfg.set_lib('d2net') 
 
 import os 
-import argparse
 
 import cv2 
 import numpy as np
 
-import imageio
+from feature_base import BaseFeature2D
 
 from threading import RLock
 
 import torch
-
-from tqdm import tqdm
 
 import scipy
 import scipy.io
@@ -65,11 +62,11 @@ def convert_pts_to_keypoints(pts, scores, size=1):
     return kps         
 
 
-# interface for pySLAM 
+# Interface for pySLAM 
 # from https://github.com/mihaidusmanu/d2-net
 # N.B.: The singlescale features require less than 6GB of VRAM for 1200x1600 images. 
 #       The multiscale flag can be used to extract multiscale features - for this, we recommend at least 12GB of VRAM.
-class D2NetFeature2D: 
+class D2NetFeature2D(BaseFeature2D): 
     def __init__(self, 
                  use_relu=True,             # remove ReLU after the dense feature extraction module
                  multiscale=False,          # extract multiscale features (read the note above)

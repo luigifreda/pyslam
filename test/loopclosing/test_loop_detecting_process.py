@@ -13,7 +13,7 @@ import math
 import cv2 
 import numpy as np
 
-from frame import Frame
+from frame import Frame, FeatureTrackerShared
 
 from dataset import dataset_factory
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 

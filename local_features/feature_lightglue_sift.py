@@ -17,12 +17,13 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os 
+import config
 import cv2
 import numpy as np
 import torch
 from threading import RLock
 from utils_sys import Printer, import_from, is_opencv_version_greater_equal
+from feature_base import BaseFeature2D
 
 import config
 config.cfg.set_lib('lightglue')
@@ -50,8 +51,8 @@ def convert_pts_to_keypoints(pts, scales, oris):
     return kps   
      
 
-# interface for pySLAM 
-class LightGlueSIFTFeature2D: 
+# Interface for pySLAM 
+class LightGlueSIFTFeature2D(BaseFeature2D): 
     def __init__(self,num_features=2000): 
         print('Using LightGlueSIFTFeature2D')
         self.num_features = num_features        

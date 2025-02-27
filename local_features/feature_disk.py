@@ -32,6 +32,8 @@ import cv2
 from threading import RLock
 from utils_sys import Printer 
 
+from feature_base import BaseFeature2D
+
 import torch, h5py, imageio, os, argparse
 import numpy as np
 import torch.nn.functional as F
@@ -165,10 +167,10 @@ def convert_pts_to_keypoints_with_translation(pts, scores, size, deltax, deltay)
     return kps          
 
 
-# interface for pySLAM 
+# Interface for pySLAM 
 # NOTE: from Fig. 3 in the paper "DISK: Learning local features with policy gradient" 
 # "Our approach can match many more points and produce more accurate poses. It can deal with large changes in scale (4th and 5th columns) but not in rotation..."
-class DiskFeature2D: 
+class DiskFeature2D(BaseFeature2D): 
     def __init__(self, 
                  num_features=2000,
                  nms_window_size=5,      # NMS windows size    

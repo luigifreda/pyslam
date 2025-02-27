@@ -16,16 +16,18 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
-import math 
+
+import config
 from enum import Enum
 import numpy as np 
 import cv2
 
 
+from feature_base import BaseFeature2D
 from config_parameters import Parameters  
 
 
-class ShiTomasiDetector(object): 
+class ShiTomasiDetector(BaseFeature2D): 
     def __init__(self, num_features=Parameters.kNumFeatures, quality_level = 0.01, min_coner_distance = 3):
         self.num_features = num_features
         self.quality_level = quality_level

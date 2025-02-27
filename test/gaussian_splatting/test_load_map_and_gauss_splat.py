@@ -84,7 +84,7 @@ if __name__ == "__main__":
         
     viewer3D = Viewer3D(viewer_scale)
     if viewer3D is not None:
-        viewer3D.draw_map(slam)       
+        viewer3D.draw_slam_map(slam)       
     
     gs_config = load_config(args.config)
     gsm = GaussianSplattingManager(gs_config, monocular=(slam.sensor_type == SensorType.MONOCULAR), \

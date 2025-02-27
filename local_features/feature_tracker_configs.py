@@ -28,7 +28,7 @@ from config_parameters import Parameters
 # some default parameters 
 
 kNumFeatures=Parameters.kNumFeatures    
-kRatioTest=Parameters.kFeatureMatchRatioTest
+kDefaultRatioTest=Parameters.kFeatureMatchDefaultRatioTest
 
 kTrackerType = FeatureTrackerTypes.DES_BF      # default descriptor-based, brute force matching with knn 
 #kTrackerType = FeatureTrackerTypes.DES_FLANN  # default descriptor-based, FLANN-based matching 
@@ -58,7 +58,7 @@ class FeatureTrackerConfigs(object):
                 sigma_level0 = Parameters.kSigmaLevel0, 
                 detector_type = FeatureDetectorTypes.ORB2, 
                 descriptor_type = FeatureDescriptorTypes.ORB2, 
-                match_ratio_test = kRatioTest,
+                match_ratio_test = kDefaultRatioTest,
                 tracker_type = kTrackerType)
     
     # =====================================
@@ -88,7 +88,7 @@ class FeatureTrackerConfigs(object):
                           detector_type = FeatureDetectorTypes.SHI_TOMASI, 
                           descriptor_type = FeatureDescriptorTypes.ORB, 
                           sigma_level0 = Parameters.kSigmaLevel0,                             
-                          match_ratio_test = kRatioTest,
+                          match_ratio_test = kDefaultRatioTest,
                           tracker_type = kTrackerType)
     
     SHI_TOMASI_FREAK = dict(num_features=kNumFeatures,                     
@@ -97,7 +97,7 @@ class FeatureTrackerConfigs(object):
                             detector_type = FeatureDetectorTypes.SHI_TOMASI, 
                             descriptor_type = FeatureDescriptorTypes.FREAK,
                             sigma_level0 = Parameters.kSigmaLevel0, 
-                            match_ratio_test = kRatioTest,
+                            match_ratio_test = kDefaultRatioTest,
                             tracker_type = kTrackerType)      
 
     FAST_ORB = dict(num_features=kNumFeatures,                         # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
@@ -106,7 +106,7 @@ class FeatureTrackerConfigs(object):
                     detector_type = FeatureDetectorTypes.FAST, 
                     descriptor_type = FeatureDescriptorTypes.ORB,
                     sigma_level0 = Parameters.kSigmaLevel0, 
-                    match_ratio_test = kRatioTest,                         
+                    match_ratio_test = kDefaultRatioTest,                         
                     tracker_type = kTrackerType) 
     
     FAST_FREAK = dict(num_features=kNumFeatures,                       
@@ -115,7 +115,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.FAST, 
                       descriptor_type = FeatureDescriptorTypes.FREAK,
                       sigma_level0 = Parameters.kSigmaLevel0,      
-                      match_ratio_test = kRatioTest,                          
+                      match_ratio_test = kDefaultRatioTest,                          
                       tracker_type = kTrackerType)       
 
     BRISK = dict(num_features=kNumFeatures,                     
@@ -124,7 +124,7 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.BRISK, 
                 descriptor_type = FeatureDescriptorTypes.BRISK,
                 sigma_level0 = Parameters.kSigmaLevel0, 
-                match_ratio_test = kRatioTest,                               
+                match_ratio_test = kDefaultRatioTest,                               
                 tracker_type = kTrackerType)  
     
     BRISK_TFEAT = dict(num_features=kNumFeatures,                     
@@ -133,7 +133,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.BRISK, 
                        descriptor_type = FeatureDescriptorTypes.TFEAT, 
                        sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kRatioTest,                               
+                       match_ratio_test = kDefaultRatioTest,                               
                        tracker_type = kTrackerType)        
 
     ORB = dict(num_features=kNumFeatures, 
@@ -142,7 +142,7 @@ class FeatureTrackerConfigs(object):
                detector_type = FeatureDetectorTypes.ORB, 
                descriptor_type = FeatureDescriptorTypes.ORB,
                sigma_level0 = Parameters.kSigmaLevel0, 
-               match_ratio_test = kRatioTest,                       
+               match_ratio_test = kDefaultRatioTest,                       
                tracker_type = kTrackerType)
     
     ORB2 = dict(num_features=kNumFeatures, 
@@ -151,7 +151,7 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.ORB2, 
                 descriptor_type = FeatureDescriptorTypes.ORB2,
                 sigma_level0 = Parameters.kSigmaLevel0, 
-                match_ratio_test = kRatioTest,                        
+                match_ratio_test = kDefaultRatioTest,                        
                 tracker_type = kTrackerType)    
     
     BRISK = dict(num_features=kNumFeatures,
@@ -159,7 +159,7 @@ class FeatureTrackerConfigs(object):
                  detector_type = FeatureDetectorTypes.BRISK, 
                  descriptor_type = FeatureDescriptorTypes.BRISK,
                  sigma_level0 = Parameters.kSigmaLevel0,
-                 match_ratio_test = kRatioTest,                           
+                 match_ratio_test = kDefaultRatioTest,                           
                  tracker_type = kTrackerType)   
 
     KAZE = dict(num_features=kNumFeatures,
@@ -167,7 +167,7 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.KAZE, 
                 descriptor_type = FeatureDescriptorTypes.KAZE,
                 sigma_level0 = Parameters.kSigmaLevel0, 
-                match_ratio_test = kRatioTest,                          
+                match_ratio_test = kDefaultRatioTest,                          
                 tracker_type = kTrackerType)  
     
     AKAZE = dict(num_features=kNumFeatures,
@@ -175,21 +175,21 @@ class FeatureTrackerConfigs(object):
                  detector_type = FeatureDetectorTypes.AKAZE, 
                  descriptor_type = FeatureDescriptorTypes.AKAZE,
                  sigma_level0 = Parameters.kSigmaLevel0, 
-                 match_ratio_test = kRatioTest,                          
+                 match_ratio_test = kDefaultRatioTest,                          
                  tracker_type = kTrackerType)  
                 
     SIFT = dict(num_features=kNumFeatures,    # independently computes the number of octaves
                 detector_type = FeatureDetectorTypes.SIFT, 
                 descriptor_type = FeatureDescriptorTypes.SIFT,
                 sigma_level0 = Parameters.kSigmaLevel0, 
-                match_ratio_test = kRatioTest,                         
+                match_ratio_test = kDefaultRatioTest,                         
                 tracker_type = kTrackerType)
     
     ROOT_SIFT = dict(num_features=kNumFeatures, # independently computes the number of octaves as SIFT
                      detector_type = FeatureDetectorTypes.ROOT_SIFT, 
                      descriptor_type = FeatureDescriptorTypes.ROOT_SIFT,
                      sigma_level0 = Parameters.kSigmaLevel0, 
-                     match_ratio_test = kRatioTest,                              
+                     match_ratio_test = kDefaultRatioTest,                              
                      tracker_type = kTrackerType)    
     
     # NOTE: SURF is a patented algorithm and not included in the new opencv versions 
@@ -201,7 +201,7 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.SURF, 
                 descriptor_type = FeatureDescriptorTypes.SURF,
                 sigma_level0 = Parameters.kSigmaLevel0, 
-                match_ratio_test = kRatioTest,                         
+                match_ratio_test = kDefaultRatioTest,                         
                 tracker_type = kTrackerType)
         
     SUPERPOINT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
@@ -210,7 +210,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.SUPERPOINT, 
                       descriptor_type = FeatureDescriptorTypes.SUPERPOINT,
                       sigma_level0 = Parameters.kSigmaLevel0, 
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = kDefaultRatioTest,                               
                       tracker_type = kTrackerType)
     
     XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
@@ -219,7 +219,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.XFEAT, 
                       descriptor_type = FeatureDescriptorTypes.XFEAT,
                       sigma_level0 = Parameters.kSigmaLevel0, 
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = 0.8,                               
                       tracker_type = kTrackerType)      
 
     XFEAT_XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
@@ -228,9 +228,18 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.XFEAT, 
                       descriptor_type = FeatureDescriptorTypes.XFEAT,
                       sigma_level0 = Parameters.kSigmaLevel0, 
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = 0.8,                               
                       tracker_type = FeatureTrackerTypes.XFEAT)  # <= Using XFEAT matcher here!
         
+    XFEAT_LIGHTGLUE = dict(num_features=kNumFeatures,                        # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                      num_levels = 1, 
+                      scale_factor = 1.2,
+                      detector_type = FeatureDetectorTypes.XFEAT, 
+                      descriptor_type = FeatureDescriptorTypes.XFEAT,
+                      sigma_level0 = Parameters.kSigmaLevel0, 
+                      match_ratio_test = 0.8,                               
+                      tracker_type = FeatureTrackerTypes.XFEAT,               
+                      other_data_dict=dict(submatcher_type = 'lightglue'))  # <= Using XFEAT custom LIGHTGLUE matcher here!    
         
     LIGHTGLUE = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
                       num_levels = 1, 
@@ -240,7 +249,7 @@ class FeatureTrackerConfigs(object):
                       sigma_level0 = Parameters.kSigmaLevel0,
                       match_ratio_test = 1.0,                               
                       tracker_type = FeatureTrackerTypes.LIGHTGLUE)
-    
+        
     LIGHTGLUE_DISK = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
                       num_levels = 1, 
                       scale_factor = 1.2,
@@ -274,7 +283,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.DELF, 
                        descriptor_type = FeatureDescriptorTypes.DELF,
                        sigma_level0 = Parameters.kSigmaLevel0, 
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)
     D2NET = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  
@@ -282,7 +291,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.D2NET, 
                        descriptor_type = FeatureDescriptorTypes.D2NET,
                        sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)
     
     R2D2 = dict(num_features=kNumFeatures,                   
@@ -291,7 +300,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.R2D2, 
                        descriptor_type = FeatureDescriptorTypes.R2D2,
                        sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)
     
     LFNET = dict(num_features=kNumFeatures,                   
@@ -300,7 +309,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.LFNET, 
                        descriptor_type = FeatureDescriptorTypes.LFNET,
                        sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)
     
     CONTEXTDESC = dict(num_features=kNumFeatures,                   
@@ -309,7 +318,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.CONTEXTDESC, 
                        descriptor_type = FeatureDescriptorTypes.CONTEXTDESC,
                        sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)
     
     KEYNET = dict(num_features=kNumFeatures,                   
@@ -318,7 +327,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.KEYNET, 
                        descriptor_type = FeatureDescriptorTypes.KEYNET,
                        sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)
         
     DISK = dict(num_features=kNumFeatures,                   
@@ -327,7 +336,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.DISK, 
                        descriptor_type = FeatureDescriptorTypes.DISK,
                        sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)
     ALIKED = dict(num_features=kNumFeatures,                   
                        num_levels = 1,                                  
@@ -335,7 +344,7 @@ class FeatureTrackerConfigs(object):
                        detector_type = FeatureDetectorTypes.ALIKED, 
                        descriptor_type = FeatureDescriptorTypes.ALIKED,
                        sigma_level0 = Parameters.kSigmaLevel0, 
-                       match_ratio_test = kRatioTest,
+                       match_ratio_test = kDefaultRatioTest,
                        tracker_type = kTrackerType)    
     
     KEYNETAFFNETHARDNET = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
@@ -344,7 +353,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.KEYNETAFFNETHARDNET, 
                       descriptor_type = FeatureDescriptorTypes.KEYNETAFFNETHARDNET,
                       sigma_level0 = Parameters.kSigmaLevel0,
-                      match_ratio_test = kRatioTest,                               
+                      match_ratio_test = kDefaultRatioTest,                               
                       tracker_type = kTrackerType) 
     
     # =====================================
@@ -356,7 +365,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.ORB2, 
                       descriptor_type = FeatureDescriptorTypes.FREAK,
                       sigma_level0 = Parameters.kSigmaLevel0,
-                      match_ratio_test = kRatioTest,                        
+                      match_ratio_test = kDefaultRatioTest,                        
                       tracker_type = kTrackerType)    
     
     ORB2_BEBLID = dict(num_features=kNumFeatures, 
@@ -365,7 +374,7 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.ORB2, 
                 descriptor_type = FeatureDescriptorTypes.BEBLID,
                 sigma_level0 = Parameters.kSigmaLevel0,
-                match_ratio_test = kRatioTest,                        
+                match_ratio_test = kDefaultRatioTest,                        
                 tracker_type = kTrackerType)    
     
     ORB2_HARDNET = dict(num_features=kNumFeatures, 
@@ -374,7 +383,7 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.ORB2, 
                 descriptor_type = FeatureDescriptorTypes.HARDNET,
                 sigma_level0 = Parameters.kSigmaLevel0,
-                match_ratio_test = kRatioTest,                        
+                match_ratio_test = kDefaultRatioTest,                        
                 tracker_type = kTrackerType)    
     
     ORB2_SOSNET = dict(num_features=kNumFeatures, 
@@ -383,7 +392,7 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.ORB2, 
                 descriptor_type = FeatureDescriptorTypes.SOSNET,
                 sigma_level0 = Parameters.kSigmaLevel0,
-                match_ratio_test = kRatioTest,                        
+                match_ratio_test = kDefaultRatioTest,                        
                 tracker_type = kTrackerType)   
     
     ORB2_L2NET = dict(num_features=kNumFeatures, 
@@ -392,8 +401,20 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.ORB2, 
                 descriptor_type = FeatureDescriptorTypes.L2NET,
                 sigma_level0 = Parameters.kSigmaLevel0,
-                match_ratio_test = kRatioTest,                        
+                match_ratio_test = kDefaultRatioTest,                        
                 tracker_type = kTrackerType) 
+    
+    
+    # NOTE: The extraction of independent descriptors from a single image does not make sense for the MASt3R/DUST3R model.
+    #       The model ground the image matching in a 3D context defined by two images of the same place.  
+    # MAST3R = dict(num_features=kNumFeatures, 
+    #             num_levels = 1, 
+    #             scale_factor = 1.2, 
+    #             detector_type = FeatureDetectorTypes.FAST, 
+    #             descriptor_type = FeatureDescriptorTypes.MAST3R,
+    #             sigma_level0 = Parameters.kSigmaLevel0,
+    #             match_ratio_test = 0.8,                        
+    #             tracker_type = kTrackerType)
 
     # =====================================
     # Matcher-based 'trackers' (Detector-Free)
@@ -413,5 +434,16 @@ class FeatureTrackerConfigs(object):
                 detector_type = FeatureDetectorTypes.NONE, 
                 descriptor_type = FeatureDescriptorTypes.NONE,
                 sigma_level0 = Parameters.kSigmaLevel0,
-                match_ratio_test = kRatioTest,                               
+                match_ratio_test = kDefaultRatioTest,                               
                 tracker_type = FeatureTrackerTypes.LOFTR)       
+    
+    
+    
+    MAST3R_MATCHER = dict(num_features=kNumFeatures,                  # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)
+                num_levels = 1, 
+                scale_factor = 1.2,
+                detector_type = FeatureDetectorTypes.NONE, 
+                descriptor_type = FeatureDescriptorTypes.NONE,
+                sigma_level0 = Parameters.kSigmaLevel0,
+                match_ratio_test = kDefaultRatioTest,                               
+                tracker_type = FeatureTrackerTypes.MAST3R)         

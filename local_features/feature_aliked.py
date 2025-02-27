@@ -18,8 +18,6 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-# adapted from https://github.com/cvlab-epfl/disk/blob/master/detect.py 
-
 
 import sys 
 import config
@@ -31,6 +29,8 @@ import torch
 import cv2
 from threading import RLock
 from utils_sys import Printer, import_from, is_opencv_version_greater_equal
+from feature_base import BaseFeature2D
+
 
 ALIKED = import_from('lightglue', 'ALIKED')
 
@@ -58,10 +58,10 @@ def convert_pts_to_keypoints(pts, size):
     return kps   
      
      
-# interface for pySLAM 
+# Interface for pySLAM 
 # NOTE: from Fig. 3 in the paper "ALIKED: Learning local features with policy gradient" 
 # "Our approach can match many more points and produce more accurate poses. It can deal with large changes in scale (4th and 5th columns) but not in rotation..."
-class AlikedFeature2D: 
+class AlikedFeature2D(BaseFeature2D): 
     def __init__(self, 
                  num_features=2000):  
         print('Using AlikedFeature2D')
@@ -112,15 +112,6 @@ class AlikedFeature2D:
     def compute(self, frame, kps=None, mask=None): # kps is a fake input, mask is a fake input
         with self.lock:         
             if self.frame is not frame:
-                Printer.orange('WARNING: ALIKED is recomputing both kps and des on last input frame', frame.shape)            
-                self.detectAndCompute(frame)
-            return self.kps, self.des   
-    
-    
-    # return descriptors if available otherwise call detectAndCompute()  
-    def compute(self, frame, kps=None, mask=None): # kps is a fake input, mask is a fake input
-        with self.lock:         
-            if self.frame is not frame:
                 #Printer.orange('WARNING: ALIKED is recomputing both kps and des on last input frame', frame.shape)            
                 self.detectAndCompute(frame)
-            return self.kps, self.des   
+            return self.kps, self.des 

@@ -42,6 +42,7 @@ from threading import RLock
 
 from utils_tf import set_tf_logging
 from utils_sys import Printer, print_options
+from feature_base import BaseFeature2D
 
 import tf_slim as slim 
 
@@ -151,8 +152,8 @@ def convert_pts_to_keypoints(pts, scores, sizes, levels):
     return kps         
 
 
-# interface for pySLAM 
-class KeyNetDescFeature2D: 
+# Interface for pySLAM 
+class KeyNetDescFeature2D(BaseFeature2D): 
     def __init__(self,       
                  num_features=2000,
                  num_levels=5,                   # The number of downsample levels in the pyramid.
@@ -269,7 +270,7 @@ class KeyNetDescFeature2D:
             print('Extracting torch model on GPU')
         else:
             print('Extracting torch model on CPU')
-            self.model = model.cpu()        
+            self.model = self.model.cpu()        
         self.model.eval()         
 
         # Define variables

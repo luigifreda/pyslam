@@ -32,20 +32,16 @@ import torch
 import tfeat_model
 import tfeat_utils
 
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-
+from feature_base import BaseFeature2D
 from utils_features import extract_patches_array, extract_patches_array_cpp
 
 
 kVerbose = True   
 
 
-# interface for pySLAM
-class TfeatFeature2D: 
-    def __init__(self, do_cuda=True): 
+# Interface for pySLAM
+class TfeatFeature2D(BaseFeature2D): 
+    def __init__(self, do_cuda=True):
         print('Using TfeatFeature2D')   
         self.model_base_path = config.cfg.root_folder + '/thirdparty/tfeat/'
 
@@ -70,7 +66,7 @@ class TfeatFeature2D:
             print('Extracting on GPU')
         else:
             print('Extracting on CPU')
-            self.model = model.cpu()        
+            self.model = self.model.cpu()        
         self.model.eval()  
         print('==> Successfully loaded pre-trained network.')
     

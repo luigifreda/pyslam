@@ -115,6 +115,8 @@ if __name__ == "__main__":
 
     plt3d = None
     
+    viewer3D = None 
+    
     is_draw_3d = True
     is_draw_with_rerun = kUseRerun
     if is_draw_with_rerun:
@@ -218,6 +220,8 @@ if __name__ == "__main__":
         # press 'q' to exit!
         key_cv = cv2.waitKey(1) & 0xFF
         if key == 'q' or (key_cv == ord('q')):            
+            break
+        if viewer3D and viewer3D.is_closed():
             break
         img_id += 1
 

@@ -35,6 +35,8 @@ import numpy as np
 import h5py
 from time import time
 
+from feature_base import BaseFeature2D
+
 
 from configs.defaults import _C as cfg
 #from modules.hardnet.models import HardNet  # given some matplotlib backend changes the code is repeated below
@@ -165,8 +167,8 @@ def weights_init(m):
     return
 
 
-# interface for pySLAM
-class LogpolarFeature2D: 
+# Interface for pySLAM
+class LogpolarFeature2D(BaseFeature2D): 
     def __init__(self, use_log_polar=True, do_cuda=True):    
         print('Using LogpolarFeature2D')         
         self.model_base_path = config.cfg.root_folder + '/thirdparty/logpolar/'        
@@ -211,7 +213,7 @@ class LogpolarFeature2D:
             print('Extracting on GPU')
         else:
             print('Extracting on CPU')
-            self.model = model.cpu()        
+            self.model = self.model.cpu()        
         self.model.eval()            
         print('==> Successfully loaded pre-trained network.')            
                   

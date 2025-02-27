@@ -21,26 +21,21 @@
 import config
 config.cfg.set_lib('l2net_keras') 
 
-import os
-import sys
-import time
-
-import cv2
 import numpy as np
 
 
 from L2_Net import L2Net 
 
+from feature_base import BaseFeature2D
 from utils_sys import Printer 
-
-from utils_features import extract_patches_tensor, extract_patches_array, extract_patches_array_cpp
+from utils_features import extract_patches_array, extract_patches_array_cpp
 
 
 kVerbose = True   
 
 
-# interface for pySLAM
-class L2NetKerasFeature2D: 
+# Interface for pySLAM
+class L2NetKerasFeature2D(BaseFeature2D): 
     def __init__(self, do_tf_logging=False):  
         print('Using L2NetKerasFeature2D')   
         

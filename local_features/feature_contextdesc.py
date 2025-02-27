@@ -30,6 +30,8 @@ import os
 import cv2
 import numpy as np
 
+from feature_base import BaseFeature2D
+
 if False:
     import tensorflow as tf
 else: 
@@ -51,8 +53,8 @@ from utils_sys import Printer
 kVerbose = True     
 
 
-# interface for pySLAM 
-class ContextDescFeature2D: 
+# Interface for pySLAM 
+class ContextDescFeature2D(BaseFeature2D): 
     quantize=False      #  Wheter to quantize or not the output descriptor 
     def __init__(self,
                  num_features=2000,

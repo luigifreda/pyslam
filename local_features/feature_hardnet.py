@@ -22,17 +22,14 @@
 
 import config 
 
-import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-import torch.backends.cudnn as cudnn
 import time
-import os
-import cv2
-import math
 import numpy as np
+
+from feature_base import BaseFeature2D
 
 from utils_features import extract_patches_tensor, extract_patches_array, extract_patches_array_cpp
 
@@ -101,8 +98,8 @@ class HardNet(nn.Module):
         return L2Norm()(x)
     
     
-# interface for pySLAM
-class HardnetFeature2D: 
+# Interface for pySLAM
+class HardnetFeature2D(BaseFeature2D): 
     def __init__(self, do_cuda=True):    
         print('Using HardnetFeature2D')         
         self.model_base_path = config.cfg.root_folder + '/thirdparty/hardnet/'        
@@ -132,7 +129,7 @@ class HardnetFeature2D:
             print('Extracting on GPU')
         else:
             print('Extracting on CPU')
-            self.model = model.cpu()        
+            self.model = self.model.cpu()        
         self.model.eval()            
         print('==> Successfully loaded pre-trained network.')            
             

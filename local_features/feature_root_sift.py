@@ -16,16 +16,18 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
-import sys 
-import math 
+
+import config
 from enum import Enum
 import numpy as np 
 import cv2
 
+from feature_base import BaseFeature2D
+
 
 # https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf
 # adapated from https://www.pyimagesearch.com/2015/04/13/implementing-rootsift-in-python-and-opencv/
-class RootSIFTFeature2D:
+class RootSIFTFeature2D(BaseFeature2D):
     def __init__(self, feature):
         # initialize the SIFT feature detector
         self.feature = feature

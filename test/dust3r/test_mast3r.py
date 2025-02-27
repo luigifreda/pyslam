@@ -50,7 +50,7 @@ from dust3r.viz import add_scene_cam, CAM_COLORS, OPENGL, pts3d_to_trimesh, cat_
 #from dust3r.demo import get_args_parser as dust3r_get_args_parser
 
 from utils_files import select_image_files 
-from utils_dust3r import dust3r_preprocess_images, invert_dust3r_preprocess_images, convert_mv_output_to_geometry
+from utils_dust3r import Dust3rImagePreprocessor, convert_mv_output_to_geometry
 from utils_img import img_from_floats
 
 from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
@@ -616,7 +616,8 @@ if __name__ == '__main__':
             if img.ndim == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
-    imgs_preproc = dust3r_preprocess_images(imgs, args.image_size, verbose=not args.silent)
+    dust3r_preprocessor = Dust3rImagePreprocessor(inference_size=args.image_size, verbose=not args.silent)
+    imgs_preproc = dust3r_preprocessor.preprocess_images(imgs)
     print(f'done preprocessing images')    
 
     def get_context(tmp_dir):

@@ -20,7 +20,7 @@
 import numpy as np 
 import cv2
 
-
+from camera import Camera
 from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
 from utils_geom import poseRt, is_rotation_matrix, closest_rotation_matrix
 from timer import TimerFps
@@ -50,7 +50,7 @@ kAbsoluteScaleThresholdIndoor = 0.015          # absolute translation scale; it 
 # With this very basic approach, you need to use a ground truth in order to recover a reasonable inter-frame scale $s$ and estimate a 
 # valid trajectory by composing $C_k = C_{k-1} * [R_{k-1,k}, s t_{k-1,k}]$. 
 class VisualOdometryEducational(VisualOdometryBase):
-    def __init__(self, cam, groundtruth: GroundTruth, feature_tracker: FeatureTracker):
+    def __init__(self, cam: Camera, groundtruth: GroundTruth, feature_tracker: FeatureTracker):
         super().__init__(cam=cam, groundtruth=groundtruth)      
         
         self.kps_ref = None  # reference keypoints 
@@ -95,14 +95,14 @@ class VisualOdometryEducational(VisualOdometryBase):
             if kVerbose:
                 print('removed ', n-self.kpn_cur.shape[0],' outliers')                
 
-    # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
+    # Fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
     # out: [Rrc, trc]   (with respect to 'ref' frame) 
     # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with previous estimated poses)
     # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
     # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie on a ruled quadric 
     # - degenerate motions such a pure rotation (a sufficient parallax is required) or an infinitesimal viewpoint change (where the translation is almost zero)
-    # N.B.3: the five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
-    # N.B.4: as reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation 
+    # N.B.3: The five-point algorithm (used for estimating the Essential Matrix) seems to work well in the degenerate planar cases [Five-Point Motion Estimation Made Easy, Hartley]
+    # N.B.4: As it is reported above, in case of pure rotation, this algorithm will compute a useless fundamental matrix which cannot be decomposed to return the rotation 
     def estimatePose(self, kps_ref, kps_cur):	
         kp_ref_u = self.cam.undistort_points(kps_ref)	
         kp_cur_u = self.cam.undistort_points(kps_cur)	        
@@ -111,7 +111,7 @@ class VisualOdometryEducational(VisualOdometryBase):
         if kUseEssentialMatrixEstimation:
             ransac_method = None 
             try: 
-                ransac_method = cv2.USAC_MSAC 
+                ransac_method = cv2.USAC_MAGSAC #cv2.USAC_MSAC 
             except: 
                 ransac_method = cv2.RANSAC
             # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister (see the notes and paper above )
@@ -125,7 +125,7 @@ class VisualOdometryEducational(VisualOdometryBase):
         print(f'num inliers in pose estimation: {self.pose_estimation_inliers}')
         return R,t  # Rrc, trc (with respect to 'ref' frame) 		
 
-    def processFirstFrame(self, frame_id) -> None:
+    def process_first_frame(self, frame_id) -> None:
         # convert image to gray if needed    
         if self.cur_image.ndim>2:
             self.cur_image = cv2.cvtColor(self.cur_image,cv2.COLOR_RGB2GRAY)                
@@ -135,7 +135,7 @@ class VisualOdometryEducational(VisualOdometryBase):
         self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) if self.kps_ref is not None else None
         self.draw_img = self.drawFeatureTracks(self.cur_image)
 
-    def processFrame(self, frame_id) -> None:
+    def process_frame(self, frame_id) -> None:
         # convert image to gray if needed    
         if self.cur_image.ndim>2:
             self.cur_image = cv2.cvtColor(self.cur_image,cv2.COLOR_RGB2GRAY)                
@@ -160,7 +160,7 @@ class VisualOdometryEducational(VisualOdometryBase):
             matcher_type = self.feature_tracker.matcher.matcher_type.name if self.feature_tracker.matcher is not None else self.feature_tracker.matcher_type
             print('# matched points: ', self.num_matched_kps, ', # inliers: ', self.num_inliers, ', matcher type: ', matcher_type, ', tracker type: ', self.feature_tracker.tracker_type.name)      
         # t is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with the previous estimated ones)
-        self.updateGtData(frame_id)
+        self.update_gt_data(frame_id)
         absolute_scale = self.gt_scale if kUseGroundTruthScale else 1.0
         print('absolute scale: ', absolute_scale)
         # NOTE: This simplistic estimation approach provide reasonable results with Kitti where a good ground velocity provides a decent interframe parallax. It does not work with indoor datasets. 

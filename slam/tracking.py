@@ -706,7 +706,7 @@ class Tracking:
         if self.slam.loop_closing is not None:
             return self.slam.loop_closing.relocalize(f_cur, img)
         else:
-            Printer.yellow(f'[Tracking]: WARNING you did not set any loop closing / relolize method!')
+            Printer.yellow(f'[Tracking]: WARNING you did not set any loop closing / relocalize method!')
             return False
  
                       
