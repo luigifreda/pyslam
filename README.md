@@ -18,6 +18,8 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
       - [Vocabulary management](#vocabulary-management)
       - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
       - [Double-check your loop detection configuration and verify vocabulary compability](#double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
+        - [Loop detection method based on a pre-trained vocabulary](#loop-detection-method-based-on-a-pre-trained-vocabulary)
+        - [Missing vocabulary for the selected front-end descriptor type](#missing-vocabulary-for-the-selected-front-end-descriptor-type)
     - [Volumetric reconstruction](#volumetric-reconstruction)
       - [Dense reconstruction while running SLAM](#dense-reconstruction-while-running-slam)
       - [Reload a saved sparse map and perform dense reconstruction](#reload-a-saved-sparse-map-and-perform-dense-reconstruction)
@@ -212,16 +214,16 @@ Some basic examples are available in the subfolder `test/loopclosing`. In partic
 
 ### Loop closing
 
-Different [loop closing methods](#loop-closing) are available, combining [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
+Many [loop closing methods](#loop-closing) are available, combining different [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
 
-While running full SLAM, loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `config_parameters.py`. Configuration options can be found in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py).
+While running full SLAM, loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `config_parameters.py`. Different configuration options `LoopDetectorConfigs` can be found in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py): Code comments provide additional useful details.
 
-**Examples**: Start with the examples in `test/loopclosing`, such as [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py).
+One can start experimenting with loop closing methods by using the examples in `test/loopclosing`. The example [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py) is the recommended entry point.
 
 
 #### Vocabulary management 
 
-`DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies. ORB-based vocabularies are automatically downloaded in the `data` folder (see [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py)).
+`DBoW2`, `DBoW3`, and `VLAD` require **pre-trained vocabularies**. ORB-based vocabularies are automatically downloaded in the `data` folder (see [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py)).
 
 To create a new vocabulary, follow these steps:
 
@@ -231,25 +233,32 @@ To create a new vocabulary, follow these steps:
 
 3. **VLAD vocabulary generation**: Train your target VLAD "vocabulary" by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`.
 
+Once you have trained the vocabulary, you can add it in [loop_closing/loop_detector_vocabulary.py](loop_closing/loop_detector_vocabulary.py) and correspondingly create a new loop detector configuration in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py) that uses it.
+
 #### Vocabulary-free loop closing
 
 Most methods do not require pre-trained vocabularies. Specifically:
 - `iBoW` and `OBindex2`: These methods incrementally build bags of binary words and, if needed, convert (front-end) non-binary descriptors into binary ones. 
-- Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, and `EigenPlaces` directly extract global descriptors and process them using dedicated aggregators, independently from the used front-end descriptors.
+- Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, and `EigenPlaces` directly extract their specific **global descriptors** and process them using dedicated aggregators, independently from the used front-end descriptors.
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
 
 #### Double-check your loop detection configuration and verify vocabulary compability
 
-When selecting a loop detection method based on a pre-trained vocabulary(such as `DBoW2`, `DBoW3`, and `VLAD`), ensure the following:
-1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency).
+##### Loop detection method based on a pre-trained vocabulary
+
+When selecting a **loop detection method based on a pre-trained vocabulary** (such as `DBoW2`, `DBoW3`, and `VLAD`), ensure the following:
+1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency) or their descriptor managers are independent (see further details in the configuration options `LoopDetectorConfigs` available in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py)).
 2. A corresponding pre-trained vocubulary is available. For more details, refer to the [vocabulary management section](#vocabulary-management).
 
-If you lack a compatible vocabulary for the selected front-end descriptor type, you have the following options:     
-a. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)).     
-b. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.     
-c. Select a vocabular-free loop closing method.      
-See the file `loop_detector_configs.py` for further details.
+##### Missing vocabulary for the selected front-end descriptor type
+
+If you lack a compatible vocabulary for the selected front-end descriptor type, you can follow one of the these options:     
+1. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)).     
+2. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.     
+3. Select a vocabular-free loop closing method.      
+   
+See the file [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py) for further details.
 
 
 ---

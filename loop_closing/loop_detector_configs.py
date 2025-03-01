@@ -310,6 +310,10 @@ def loop_detector_config_check(loop_detector: LoopDetectorBase, slam_feature_des
             raise ValueError(message)
                 
     if loop_detector.vocabulary_data is not None:
+        # Let's encode the fact that ORB and ORB2 are compatible 
+        if (loop_detector.vocabulary_data.descriptor_type == FeatureDescriptorTypes.ORB2 or loop_detector.vocabulary_data.descriptor_type == FeatureDescriptorTypes.ORB) and \
+           (descriptor_type_to_check == FeatureDescriptorTypes.ORB2 or descriptor_type_to_check == FeatureDescriptorTypes.ORB):
+            return
         if descriptor_type_to_check != loop_detector.vocabulary_data.descriptor_type:
             message = f'loop_detector_config_check: ERROR: incompatible vocabulary type!'
             message += f'\n\t The loaded vocabulary_data.descriptor_type is {loop_detector.vocabulary_data.descriptor_type.name}.'

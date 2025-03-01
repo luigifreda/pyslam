@@ -53,7 +53,7 @@ def focal2fov(focal, pixels):
 def backproject_3d(uv, depth, K):
     uv1 = np.concatenate([uv, np.ones((uv.shape[0], 1))], axis=1)
     p3d = depth.reshape(-1, 1) * (np.linalg.inv(K) @ uv1.T).T
-    return p3d
+    return p3d.reshape(-1, 3)
 
      
 class CameraBase:
@@ -293,12 +293,13 @@ class PinholeCamera(Camera):
         projs = np.concatenate((projs.T,ur[:, np.newaxis]),axis=1)  
         return projs, zs    
         
-    # unproject 2D point uv (pixels on image plane) on 
+    # unproject single 2D point uv (pixels on image plane) to 2D normalized point (representing 3D point on z=1 plane)
     def unproject(self, uv):
         x = (uv[0] - self.cx)/self.fx
         y = (uv[1] - self.cy)/self.fy
         return x,y
     
+    # unproject single 2D point uv (pixels on image plane) to a 3D point on z=depth plane
     def unproject_3d(self, u, v, depth):
         x = depth*(u - self.cx)/self.fx
         y = depth*(v - self.cy)/self.fy
@@ -306,12 +307,12 @@ class PinholeCamera(Camera):
         return np.array([x,y,z], dtype=np.float32).reshape(3,1)
 
     # in:  uvs [Nx2]
-    # out: xcs array [Nx2] of normalized coordinates     
+    # out: xcs array [Nx2] of 2D normalized coordinates (representing 3D points on z=1 plane)    
     def unproject_points(self, uvs):
         return np.dot(self.Kinv, add_ones(uvs).T).T[:, 0:2]        
 
     # in:  uvs [Nx2], depths [Nx1]
-    # out: xcs array [Nx3] of normalized coordinates     
+    # out: xcs array [Nx3] of backprojected 3D points      
     def unproject_points_3d(self, uvs, depths):
         return np.dot(self.Kinv, add_ones(uvs).T * depths).T[:, 0:3]    
 
