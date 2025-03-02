@@ -36,6 +36,15 @@ PYBIND11_MODULE(sim3solver, m)
         .def_readwrite("tcw2", &Sim3SolverInput::tcw2)
         .def_readwrite("fix_scale", &Sim3SolverInput::bFixScale);
 
+    py::class_<Sim3SolverInput2>(m, "Sim3SolverInput2")
+        .def(py::init<>())
+        .def_readwrite("points_3d_c1", &Sim3SolverInput2::mvX3Dc1)
+        .def_readwrite("points_3d_c2", &Sim3SolverInput2::mvX3Dc2)
+        .def_readwrite("sigmas2_1", &Sim3SolverInput2::mvSigmaSquare1)
+        .def_readwrite("sigmas2_2", &Sim3SolverInput2::mvSigmaSquare2)
+        .def_readwrite("K1", &Sim3SolverInput2::K1)
+        .def_readwrite("K2", &Sim3SolverInput2::K2)
+        .def_readwrite("fix_scale", &Sim3SolverInput2::bFixScale);
 
     py::class_<Sim3PointRegistrationSolverInput>(m, "Sim3PointRegistrationSolverInput")
         .def(py::init<>())
@@ -47,6 +56,7 @@ PYBIND11_MODULE(sim3solver, m)
 
     py::class_<Sim3Solver>(m, "Sim3Solver")
         .def(py::init<const Sim3SolverInput&>())
+        .def(py::init<const Sim3SolverInput2&>())        
         .def("set_ransac_parameters", &Sim3Solver::SetRansacParameters,
             "probability"_a = 0.99, "minInliers"_a = 6, "maxIterations"_a = 300)
         .def("find", [](Sim3Solver& s){

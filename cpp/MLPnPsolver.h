@@ -80,7 +80,7 @@ class MLPnPsolver {
 public:
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-        MLPnPsolver(const PnPsolverInput& input);
+        explicit MLPnPsolver(const PnPsolverInput& input);
 
         //~MLPnPsolver();
 

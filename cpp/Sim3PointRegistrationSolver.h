@@ -40,7 +40,8 @@ public:
 };
 
 
-// Sim3 Point Registration Solver: Estimate the Sim3 transformation between two sets of 3D points
+// Sim3 Point Registration Solver: Estimate the Sim3 transformation between two sets of 3D points.
+//                                 Inliers are evaluated using the reprojection error (3D-3D associations).
 class Sim3PointRegistrationSolver
 {
     static constexpr float kSigma = 0.03; // [m]
@@ -49,7 +50,7 @@ class Sim3PointRegistrationSolver
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
-    Sim3PointRegistrationSolver(const Sim3PointRegistrationSolverInput& input);
+    explicit Sim3PointRegistrationSolver(const Sim3PointRegistrationSolverInput& input);
 
     void SetRansacParameters(double probability = 0.99, int minInliers = 6 , int maxIterations = 300);
     void SetSigma(float sigma) { mSigma2 = sigma*sigma; }

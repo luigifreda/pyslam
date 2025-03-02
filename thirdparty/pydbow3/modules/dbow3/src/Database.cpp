@@ -563,7 +563,7 @@ void Database::queryChiSquare(const BowVector &vec,
   }
 
   // resulting "scores" are now in [-2 best .. 0 worst]
-  // we have to add +2 to the scores to obtain the chi square score
+  // we have to add +2 to the scores to obtain the chi-squared score
 
   // sort vector in ascending order of score
   std::sort(ret.begin(), ret.end());

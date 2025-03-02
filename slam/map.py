@@ -367,7 +367,7 @@ class Map(object):
                 errs1_sqr = np.sum(errs1 * errs1, axis=1)  # squared reprojection errors 
                 kps1_levels = kf1.octaves[idxs1]
                 invSigmas2_1 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kps1_levels] 
-                chis2_1_mono = errs1_sqr * invSigmas2_1         # chi square 
+                chis2_1_mono = errs1_sqr * invSigmas2_1         # chi-squared 
                                 
                 # stereo reprojection error
                 #     u   = fx*x*invz+cx
@@ -385,7 +385,7 @@ class Map(object):
                     errs1_stereo_vec = np.concatenate((errs1_mono_vec, (uvs1[:,0] - kf1.camera.bf/safe_depths1 - kp1_ur)[:, np.newaxis]), axis=1)    # stereo errors                     
                     errs1_stereo = np.where(is_stereo1[:, np.newaxis], errs1_stereo_vec, np.zeros(3)) 
                     errs1_stereo_sqr = np.sum(errs1_stereo * errs1_stereo, axis=1)  # squared reprojection errors    
-                    chis2_1_stereo = errs1_stereo_sqr * invSigmas2_1         # chi square            
+                    chis2_1_stereo = errs1_stereo_sqr * invSigmas2_1         # chi-squared            
                     bad_chis2_1 = np.logical_or(chis2_1_mono > Parameters.kChi2Mono, chis2_1_stereo > Parameters.kChi2Stereo)                                                  
                 else: 
                     bad_chis2_1 = chis2_1_mono > Parameters.kChi2Mono
@@ -396,7 +396,7 @@ class Map(object):
                 errs2_sqr = np.sum(errs2 * errs2, axis=1) # squared reprojection errors        
                 kps2_levels = kf2.octaves[idxs2]
                 invSigmas2_2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kps2_levels] 
-                chis2_2_mono = errs2_sqr * invSigmas2_2        # chi square 
+                chis2_2_mono = errs2_sqr * invSigmas2_2        # chi-squared 
                 
                 if kf2.kps_ur is not None:
                     kp2_ur = kf2.kps_ur[idxs2] if kf2.kps_ur is not None else [-1]*len(idxs2) # kp right coords if available
@@ -405,7 +405,7 @@ class Map(object):
                     errs2_stereo_vec = np.concatenate((errs2_mono_vec, (uvs2[:,0] - kf2.camera.bf/safe_depths2 - kp2_ur)[:, np.newaxis]), axis=1)    # stereo errors
                     errs2_stereo = np.where(is_stereo2[:, np.newaxis], errs2_stereo_vec, np.zeros(3)) 
                     errs2_stereo_sqr = np.sum(errs2_stereo * errs2_stereo, axis=1)  # squared reprojection errors
-                    chis2_2_stereo = errs2_stereo_sqr * invSigmas2_2         # chi square
+                    chis2_2_stereo = errs2_stereo_sqr * invSigmas2_2         # chi-squared
                     bad_chis2_2 = np.logical_or(chis2_2_mono > Parameters.kChi2Mono, chis2_2_stereo > Parameters.kChi2Stereo)
                 else: 
                     bad_chis2_2 = chis2_2_mono > Parameters.kChi2Mono  # chi-square 2 DOFs  (Hartley Zisserman pg 119)                      

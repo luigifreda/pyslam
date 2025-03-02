@@ -93,7 +93,7 @@ class __SCORING_CLASS(L1Scoring, true, L1);
 /// L2 Scoring object
 class __SCORING_CLASS(L2Scoring, true, L2);
 
-/// Chi square Scoring object
+/// chi-squared Scoring object
 class __SCORING_CLASS(ChiSquareScoring, true, L1);
 
 /// KL divergence Scoring object

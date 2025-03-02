@@ -24,7 +24,12 @@ import open3d as o3d
 from camera import backproject_3d
 from utils_serialization import SerializableEnum
 
-# NOTE: Some of following classes were inspired by the repository  https://github.com/nianticlabs/map-free-reloc
+import sim3solver
+import pnpsolver 
+
+
+# NOTE: This file collects a set of pose estimators that estimate the interframe pose between two frames starting from 2D-2D/2D-3D/3D-3D correspondences.
+#      Some of following classes were inspired by the repository  https://github.com/nianticlabs/map-free-reloc
 
 
 class PoseEstimatorType(SerializableEnum):
@@ -32,7 +37,10 @@ class PoseEstimatorType(SerializableEnum):
     ESSENTIAL_MATRIX_METRIC_SIMPLE = 1    # Start with 2D2D and then extract metric translation from depth information by averaging  
     ESSENTIAL_MATRIX_METRIC        = 2    # Start with 2D2D and then extract metric translation from depth information by using a RANSAC-like loop
     PNP                            = 3    # 2D3D
-    PROCUSTES                      = 4    # 3D3D
+    PNP_WITH_SIGMAS                = 4    # 2D3D (C++ implementation)
+    MLPNP_WITH_SIGMAS              = 5    # 2D3D (C++ implementation)
+    PROCUSTES                      = 6    # 3D3D
+    SIM3_3D3D                      = 7    # 3D3D
 
 
 def pose_estimator_factory(pose_estimator_type, K1, K2=None):
@@ -44,26 +52,38 @@ def pose_estimator_factory(pose_estimator_type, K1, K2=None):
         return EssentialMatrixMetricPoseEstimator(K1, K2)
     elif pose_estimator_type == PoseEstimatorType.PNP:
         return PnPPoseEstimator(K1, K2)
+    elif pose_estimator_type == PoseEstimatorType.PNP_WITH_SIGMAS:
+        return PnPWithSigmasPoseEstimator(K1, K2)
+    elif pose_estimator_type == PoseEstimatorType.MLPNP_WITH_SIGMAS:
+        return MlPnPWithSigmasPoseEstimator(K1, K2)
     elif pose_estimator_type == PoseEstimatorType.PROCUSTES:
         return ProcrustesPoseEstimator(K1, K2)
+    elif pose_estimator_type == PoseEstimatorType.SIM3_3D3D:
+        return Sim3PoseEstimator(K1, K2)
     else:
         raise ValueError("Unknown pose estimator type")
 
 
+# Class for hosting a "multi-modal" input for the pose estimators
 class PoseEstimatorInput:
     def __init__(self,
-                 kpts1=None, kpts2=None,    
+                 kpts1=None, kpts2=None,   
+                 sigmas2_1=None, sigmas2_2=None, 
                  depth1=None, depth2=None,
                  pts1=None, pts2=None, 
-                 K1=None, K2=None):        
-        self.kpts1 = kpts1   # 2D keypoints in image 1, numpy array of shape (N, 2)
-        self.kpts2 = kpts2   # 2D keypoints in image 2, numpy array of shape (N, 2) 
-        self.depth1 = depth1 # depth map image 1 
-        self.depth2 = depth2 # depth map image 2
-        self.pts1 = pts1     # 3D points, numpy array of shape (N, 3)
-        self.pts2 = pts2     # 3D points, numpy array of shape (N, 3)
-        self.K1 = K1         # camera matrix of the first camera, numpy array of shape (3, 3) 
+                 K1=None, K2=None,
+                 fix_scale=True):        
+        self.kpts1 = kpts1           # 2D keypoints in image 1, numpy array of shape (N, 2)
+        self.kpts2 = kpts2           # 2D keypoints in image 2, numpy array of shape (N, 2) 
+        self.sigmas2_1 = sigmas2_1   # scalar sigmas squared of 2D keypoints in image 1, numpy array of shape (N,)  [used in the reprojection error evaluation]
+        self.sigmas2_2 = sigmas2_2   # scalar sigmas squared of 2D keypoints in image 2, numpy array of shape (N,)  [used in the reprojection error evaluation]
+        self.depth1 = depth1         # depth map image 1 
+        self.depth2 = depth2         # depth map image 2
+        self.pts1 = pts1             # 3D points w.r.t frame 1, numpy array of shape (N, 3)
+        self.pts2 = pts2             # 3D points w.r.t frame 2, numpy array of shape (N, 3)
+        self.K1 = K1                 # camera matrix of the first camera, numpy array of shape (3, 3) 
         self.K2 = K2 if K2 is not None else K1 # camera matrix of the second camera, numpy array of shape (3, 3)
+        self.fix_scale = fix_scale # used by the sim3 pose estimators
         
     @staticmethod
     def from_dict(data: dict):
@@ -72,6 +92,10 @@ class PoseEstimatorInput:
             output.kpts1 = data['kpts1']
         if 'kpts2' in data:
             output.kpts2 = data['kpts2']
+        if 'sigmas2_1' in data:
+            output.sigmas2_1 = data['sigmas2_1']
+        if 'sigmas2_2' in data:
+            output.sigmas2_2 = data['sigmas2_2']
         if 'depth1' in data:
             output.depth1 = data['depth1']
         if 'depth2' in data:
@@ -84,6 +108,8 @@ class PoseEstimatorInput:
             output.K1 = data['K1']
         if 'K2' in data:
             output.K2 = data['K2']
+        if 'fix_scale' in data:
+            output.fix_scale = data['fix_scale']
         return output
     
     def to_dict(self):
@@ -92,6 +118,10 @@ class PoseEstimatorInput:
             output['kpts1'] = self.kpts1
         if self.kpts2 is not None:
             output['kpts2'] = self.kpts2
+        if self.sigmas2_1 is not None:
+            output['sigmas2_1'] = self.sigmas2_1
+        if self.sigmas2_2 is not None:
+            output['sigmas2_2'] = self.sigmas2_2
         if self.depth1 is not None:
             output['depth1'] = self.depth1
         if self.depth2 is not None:
@@ -104,10 +134,11 @@ class PoseEstimatorInput:
             output['K1'] = self.K1
         if self.K2 is not None:
             output['K2'] = self.K2
+        output['fix_scale'] = self.fix_scale
         return output
         
 
-# Base class for all pose estimators
+# Base class for all pose estimators returning a pose in SE(3) or Sim(3)
 class PoseEstimator:
     def __init__(self, K1=None, K2=None, pose_estimator_type=None):
         self.K1 = K1
@@ -201,10 +232,13 @@ class EssentialMatrixMetricSimplePoseEstimator(EssentialMatrixPoseEstimator2d2d)
 
         # Get essential matrix inlier mask from super class and get inliers depths
         mask = (self.mask.ravel() == 1)        
-        inliers_kpts1 = np.int32(kpts1[mask])
-        inliers_kpts2 = np.int32(kpts2[mask])
-        depth_inliers_1 = depth1[inliers_kpts1[:, 1], inliers_kpts1[:, 0]]
-        depth_inliers_2 = depth2[inliers_kpts2[:, 1], inliers_kpts2[:, 0]]
+        assert mask.shape[0] == kpts1.shape[0]
+        inliers_kpts1 = kpts1[mask]
+        inliers_kpts2 = kpts2[mask]
+        inliers_kpts1_int = inliers_kpts1.astype(np.int32)
+        inliers_kpts2_int = inliers_kpts2.astype(np.int32)
+        depth_inliers_1 = depth1[inliers_kpts1_int[:, 1], inliers_kpts1_int[:, 0]]
+        depth_inliers_2 = depth2[inliers_kpts2_int[:, 1], inliers_kpts2_int[:, 0]]
         
         # Check for valid depths
         valid = (depth_inliers_1 > 0) * (depth_inliers_2 > 0)
@@ -218,18 +252,21 @@ class EssentialMatrixMetricSimplePoseEstimator(EssentialMatrixPoseEstimator2d2d)
         # Backproject
         xyz1 = backproject_3d(inliers_kpts1[valid], depth_inliers_1[valid], self.K1)
         xyz2 = backproject_3d(inliers_kpts2[valid], depth_inliers_2[valid], self.K2)
-
-        # Rotate xyz1 to frame 2 (so that axes are parallel)
-        xyz1_2 = (R @ xyz1.T).T  
+        
+        xyz1 = xyz1.reshape(-1, 3)
+        xyz2 = xyz2.reshape(-1, 3)
 
         # Get average point for each camera
-        pmean1 = np.mean(xyz1_2,  axis=0)
-        pmean2 = np.mean(xyz2,    axis=0)
+        pmean1 = np.mean(xyz1,  axis=0)
+        pmean2 = np.mean(xyz2,  axis=0)
 
-        # Now, we want to minimize ||pmean1 + scale * t21 - pmean2||^2 
-        diff = (pmean1 - pmean2).ravel()
-        scale = np.dot(diff, t.ravel())   # t = t21 and we assume t21.norm()==1
-        t_metric = abs(scale) * t
+        # Now, we want to minimize J(scale) = sum_i ||R21 * p1_i + scale * t21 - p2_i||^2 
+        # This entails dJ/dscale = 0 => scale = t21.T @ (pmean2 - R21 * pmean1)/ (t21.T @ t21)
+        diff = (pmean2 - R @ pmean1).ravel()
+        #print(f't norm: {np.linalg.norm(t)}')
+        scale = np.dot(diff, t.ravel())  # t = t21 and we assume t21.norm()==1
+        t_metric = scale * t
+        #print(f'pmean diff = {diff}, t = {t}, scale = {scale}, final diff = {np.linalg.norm(t_metric - diff)}')        
         t_metric = t_metric.reshape(3, 1)
 
         return R, t_metric, inliers
@@ -270,10 +307,12 @@ class EssentialMatrixMetricPoseEstimator(EssentialMatrixPoseEstimator2d2d):
 
         # Get essential matrix inlier mask from super class and get inliers depths
         mask = self.mask.ravel() == 1      
-        inliers_kpts1 = np.int32(kpts1[mask])
-        inliers_kpts2 = np.int32(kpts2[mask])
-        depth_inliers_1 = depth1[inliers_kpts1[:, 1], inliers_kpts1[:, 0]]
-        depth_inliers_2 = depth2[inliers_kpts2[:, 1], inliers_kpts2[:, 0]]
+        inliers_kpts1 = kpts1[mask]
+        inliers_kpts2 = kpts2[mask]
+        inliers_kpts1_int = inliers_kpts1.astype(np.int32)
+        inliers_kpts2_int = inliers_kpts2.astype(np.int32)
+        depth_inliers_1 = depth1[inliers_kpts1_int[:, 1], inliers_kpts1_int[:, 0]]
+        depth_inliers_2 = depth2[inliers_kpts2_int[:, 1], inliers_kpts2_int[:, 0]]
 
         # Check for valid depths
         valid = (depth_inliers_1 > 0) * (depth_inliers_2 > 0)
@@ -287,12 +326,17 @@ class EssentialMatrixMetricPoseEstimator(EssentialMatrixPoseEstimator2d2d):
         xyz1 = backproject_3d(inliers_kpts1[valid], depth_inliers_1[valid], self.K1)
         xyz2 = backproject_3d(inliers_kpts2[valid], depth_inliers_2[valid], self.K2)
 
+        xyz1 = xyz1.reshape(-1, 3)
+        xyz2 = xyz2.reshape(-1, 3)
+        
         # Rotate xyz1 to xyz2 frame (so that axes are parallel)
         xyz1_2 = (R @ xyz1.T).T
-        diff = xyz1_2 - xyz2
+        diff = xyz2 - xyz1_2
 
         # Get individual scales (for each 3D-3D correspondence)
-        scales = np.abs(np.dot(diff.reshape(-1, 3), t.reshape(3, 1)))  # [N, 1]
+        scales = np.dot(diff.reshape(-1, 3), t.reshape(3, 1))
+        #print(f'scales = {scales}')
+        #scales = np.abs(scales)  # [N, 1]
 
         # Get the most-voted scale by using a simple RANSAC-like loop
         best_scale = None         
@@ -401,13 +445,179 @@ class PnPPoseEstimator(PoseEstimator):
         return self.estimate2d3d(data.kpts1, data.kpts2, data.depth1)
  
  
+     
+# Estimate relative metric pose by using Perspective-n-Point algorithm from a set of 2D-3D correspondences
+class PnPWithSigmasPoseEstimator(PoseEstimator):
+    def __init__(self, K1, K2=None, pose_estimator_type=PoseEstimatorType.PNP):
+        super().__init__(K1, K2, pose_estimator_type)
+
+    # get an estimate of [R21,t21] with scale from a set of 2D-3D correspondences 
+    def estimate2d3d(self, kpts1, kpts2, depth1, sigmas2_2=None):
+        kpts1_int = np.int32(kpts1)
+        if len(kpts1_int) < 4:
+            return np.full((3, 3), np.nan), np.full((3, 1), np.nan), 0
+
+        # Get depth at correspondence points
+        depth_pts1 = depth1[kpts1_int[:, 1], kpts1_int[:, 0]]
+        min_depth1 = max(0.0, np.min(depth_pts1))
+
+        # Remove invalid pts (depth == 0)
+        valid = depth_pts1 > min_depth1
+        if valid.sum() < 4:
+            return np.full((3, 3), np.nan), np.full((3, 1), np.nan), 0
+        kpts1 = kpts1[valid]
+        kpts2 = kpts2[valid]
+        depth_pts1 = depth_pts1[valid]
+
+        # Backproject points to 3D in each sensors' local coordinates
+        xyz_1 = backproject_3d(kpts1, depth_pts1, self.K1)
+        
+        num_points = xyz_1.shape[0]
+
+        solver_input = pnpsolver.PnPsolverInput()
+        solver_input.points_2d = kpts2.tolist()
+        solver_input.points_3d = xyz_1.tolist()
+        if sigmas2_2 is not None:
+            solver_input.sigmas2 = sigmas2_2
+        else:
+            solver_input.sigmas2 = [1.0 for _ in range(num_points)]
+        solver_input.fx = self.K2[0, 0]
+        solver_input.fy = self.K2[1, 1]
+        solver_input.cx = self.K2[0, 2]
+        solver_input.cy = self.K2[1, 2]        
+        solver = pnpsolver.PnPsolver(solver_input) 
+
+        # Run the PnP solver
+        ok, transformation, no_more, inliers, n_inliers = solver.iterate(5)
+        inliers = np.array(inliers).astype(bool)
+        R12 = transformation[:3, :3]
+        t12 = transformation[:3, 3]
+        R12 = R12.reshape(3, 3)
+        t12 = t12.reshape(3, 1)
+        
+        if ok:
+            R21 = R12.T
+            t21 = -R21 @ t12
+            R = R12
+            t = t12
+        else:
+            R = np.full((3, 3), np.nan)
+            t = np.full((3, 1), np.nan)
+            inliers = []
+
+        return R, t, len(inliers)
+
+    # Estimate pose [R21,t21] from data.
+    # Data PoseEstimatorInput object or dict containing the same information.
+    def estimate(self, data):
+        if isinstance(data, dict):
+            data = PoseEstimatorInput.from_dict(data)
+        if not isinstance(data, PoseEstimatorInput):
+            raise TypeError        
+        if data.K1 is not None:
+            self.K1 = data.K1
+            self.K2 = data.K2 if data.K2 is not None else data.K1        
+        assert data.kpts1 is not None and data.kpts2 is not None and \
+            data.depth1 is not None
+        num_points = data.kpts1.shape[0]
+        sigmas2_2 = [1.0 for _ in range(num_points)] if data.sigmas2_2 is None else data.sigmas2_2
+        return self.estimate2d3d(data.kpts1, data.kpts2, data.depth1, sigmas2_2)
+ 
+ 
+ 
+# Estimate relative metric pose by using Perspective-n-Point algorithm from a set of 2D-3D correspondences
+class MlPnPWithSigmasPoseEstimator(PoseEstimator):
+    def __init__(self, K1, K2=None, pose_estimator_type=PoseEstimatorType.PNP):
+        super().__init__(K1, K2, pose_estimator_type)
+        # PnP RANSAC parameters
+        self.ransac_num_iterations = 1000
+        self.reprojection_inlier_threshold = 3.0 # pixels
+        self.ransac_confidence  = 0.9999
+
+    # get an estimate of [R21,t21] with scale from a set of 2D-3D correspondences 
+    def estimate2d3d(self, kpts1, kpts2, depth1, sigmas2_2=None):
+        kpts1_int = np.int32(kpts1)
+        if len(kpts1_int) < 4:
+            return np.full((3, 3), np.nan), np.full((3, 1), np.nan), 0
+
+        # Get depth at correspondence points
+        depth_pts1 = depth1[kpts1_int[:, 1], kpts1_int[:, 0]]
+        min_depth1 = max(0.0, np.min(depth_pts1))
+
+        # Remove invalid pts (depth == 0)
+        valid = depth_pts1 > min_depth1
+        if valid.sum() < 4:
+            return np.full((3, 3), np.nan), np.full((3, 1), np.nan), 0
+        kpts1 = kpts1[valid]
+        kpts2 = kpts2[valid]
+        depth_pts1 = depth_pts1[valid]
+
+        # Backproject points to 3D in each sensors' local coordinates
+        xyz_1 = backproject_3d(kpts1, depth_pts1, self.K1)
+        
+        num_points = xyz_1.shape[0]
+
+        solver_input = pnpsolver.PnPsolverInput()
+        solver_input.points_2d = kpts2.tolist()
+        solver_input.points_3d = xyz_1.tolist()
+        if sigmas2_2 is not None:
+            solver_input.sigmas2 = sigmas2_2
+        else:
+            solver_input.sigmas2 = [1.0 for _ in range(num_points)]
+        solver_input.fx = self.K2[0, 0]
+        solver_input.fy = self.K2[1, 1]
+        solver_input.cx = self.K2[0, 2]
+        solver_input.cy = self.K2[1, 2]        
+        solver = pnpsolver.MLPnPsolver(solver_input) 
+
+        # Run the PnP solver
+        ok, transformation, no_more, inliers, n_inliers = solver.iterate(5)
+        inliers = np.array(inliers).astype(bool)
+        R12 = transformation[:3, :3]
+        t12 = transformation[:3, 3]
+        R12 = R12.reshape(3, 3)
+        t12 = t12.reshape(3, 1)
+        
+        if ok:
+            R21 = R12.T
+            t21 = -R21 @ t12
+            R = R12
+            t = t12
+        else:
+            R = np.full((3, 3), np.nan)
+            t = np.full((3, 1), np.nan)
+            inliers = []
+
+        return R, t, len(inliers)
+
+    # Estimate pose [R21,t21] from data.
+    # Data PoseEstimatorInput object or dict containing the same information.
+    def estimate(self, data):
+        if isinstance(data, dict):
+            data = PoseEstimatorInput.from_dict(data)
+        if not isinstance(data, PoseEstimatorInput):
+            raise TypeError        
+        if data.K1 is not None:
+            self.K1 = data.K1
+            self.K2 = data.K2 if data.K2 is not None else data.K1        
+        assert data.kpts1 is not None and data.kpts2 is not None and \
+            data.depth1 is not None
+        num_points = data.kpts1.shape[0]
+        sigmas2_2 = [1.0 for _ in range(num_points)] if data.sigmas2_2 is None else data.sigmas2_2
+        return self.estimate2d3d(data.kpts1, data.kpts2, data.depth1, sigmas2_2)
+    
+
 # Estimate relative metric pose by using Procrustes algorithm from a set of 3D-3D correspondences 
+# ICP is used to refine the estimate.
 class ProcrustesPoseEstimator(PoseEstimator):
     def __init__(self, K1, K2=None, pose_estimator_type=PoseEstimatorType.PROCUSTES):
         super().__init__(K1, K2, pose_estimator_type)
         # Procrustes RANSAC parameters
-        self.ransac_max_corr_distance = 0.05 # meters 
+        self.ransac_max_correspondence_distance = 0.05 # meters 
         self.refine_with_icp = True
+        self.icp_relative_fitness = 1e-4
+        self.icp_relative_rmse = 1e-4
+        self.icp_max_iterations = 30
 
     # get an estimate of [R21,t21] with scale from a set of 3D-3D correspondences
     def estimate3d3d(self, kpts1, kpts2, depth1, depth2):
@@ -449,39 +659,53 @@ class ProcrustesPoseEstimator(PoseEstimator):
         # Obtain relative pose using procrustes
         ransac_criteria = o3d.pipelines.registration.RANSACConvergenceCriteria()
         res = o3d.pipelines.registration.registration_ransac_based_on_correspondence(
-            pcl_1, pcl_2, corr_idx, self.ransac_max_corr_distance, criteria=ransac_criteria)
-        inliers = int(res.fitness * np.asarray(pcl_2.points).shape[0])
+            pcl_1, pcl_2, corr_idx, self.ransac_max_correspondence_distance, criteria=ransac_criteria)
 
-        # Refine with ICP
+        
+        # Refine with ICP using all the depth map information from both images. 
+        # We exploit the first pose estimate we obtained from the procrustes algorithm as a starting guess for ICP. 
         if self.refine_with_icp:
             # First, backproject both (whole) point clouds
-            vv, uu = np.mgrid[0:depth1.shape[0], 0:depth2.shape[1]]
-            uv_coords = np.concatenate([uu.reshape(-1, 1), vv.reshape(-1, 1)], axis=1)
+            vv1, uu1 = np.mgrid[0:depth1.shape[0], 0:depth1.shape[1]]
+            uv1_coords = np.concatenate([uu1.reshape(-1, 1), vv1.reshape(-1, 1)], axis=1).astype(np.float32)
+            uv1_coords += np.array([0.5, 0.5], dtype=np.float32)
+            
+            # First, backproject both (whole) point clouds
+            if depth2.shape[0] != depth1.shape[0] or depth2.shape[1] != depth1.shape[1]:
+                vv2, uu2 = np.mgrid[0:depth2.shape[0], 0:depth2.shape[1]]
+                uv2_coords = np.concatenate([uu2.reshape(-1, 1), vv2.reshape(-1, 1)], axis=1).astype(np.float32)
+                uv2_coords += np.array([0.5, 0.5], dtype=np.float32)  
+            else:
+                uv2_coords = uv1_coords          
 
             valid = depth1.reshape(-1) > 0
-            xyz_1 = backproject_3d(uv_coords[valid], depth1.reshape(-1)[valid], self.K1)
+            xyz_1 = backproject_3d(uv1_coords[valid], depth1.reshape(-1)[valid], self.K1)
+            #print(f'ICP xyz_1 shape: {xyz_1.shape}')
 
             valid = depth2.reshape(-1) > 0
-            xyz_2 = backproject_3d(uv_coords[valid], depth2.reshape(-1)[valid], self.K2)
+            xyz_2 = backproject_3d(uv2_coords[valid], depth2.reshape(-1)[valid], self.K2)
+            #print(f'ICP xyz_2 shape: {xyz_2.shape}')
 
             pcl_1 = o3d.geometry.PointCloud()
             pcl_1.points = o3d.utility.Vector3dVector(xyz_1)
             pcl_2 = o3d.geometry.PointCloud()
             pcl_2.points = o3d.utility.Vector3dVector(xyz_2)
 
-            icp_criteria = o3d.pipelines.registration.ICPConvergenceCriteria(relative_fitness=1e-4,
-                                                                             relative_rmse=1e-4,
-                                                                             max_iteration=30)
+            icp_criteria = o3d.pipelines.registration.ICPConvergenceCriteria(relative_fitness=self.icp_relative_fitness,
+                                                                             relative_rmse=self.icp_relative_rmse,
+                                                                             max_iteration=self.icp_max_iterations)
 
             res = o3d.pipelines.registration.registration_icp(pcl_1,
                                                               pcl_2,
-                                                              self.ransac_max_corr_distance,
+                                                              self.ransac_max_correspondence_distance,
                                                               init=res.transformation,
                                                               criteria=icp_criteria)
+     
+        inliers = int(res.fitness * np.asarray(pcl_2.points).shape[0])
 
         R = res.transformation[:3, :3]
         t = res.transformation[:3, -1].reshape(3, 1)
-        inliers = int(res.fitness * np.asarray(pcl_2.points).shape[0])
+        
         return R, t, inliers
     
     # Estimate pose [R21,t21] from data.
@@ -497,3 +721,80 @@ class ProcrustesPoseEstimator(PoseEstimator):
         assert data.kpts1 is not None and data.kpts2 is not None and \
             data.depth1 is not None and data.depth2 is not None
         return self.estimate3d3d(data.kpts1, data.kpts2, data.depth1, data.depth2)  
+    
+    
+    
+    
+# Estimate relative metric pose in Sim3 space by using 3D-3D correspondences
+class Sim3PoseEstimator(PoseEstimator):
+    def __init__(self, K1, K2=None, pose_estimator_type=PoseEstimatorType.PROCUSTES):
+        super().__init__(K1, K2, pose_estimator_type)
+        self.ransac_probability = 0.99
+        self.min_num_inliers = 20
+        self.ransac_max_num_iterations = 300
+
+
+    # get an estimate of [R21,t21] with scale from a set of 3D-3D correspondences
+    def estimate3d3d(self, pts1, pts2, fix_scale):
+        solver_input_data = sim3solver.Sim3SolverInput2()
+        assert pts1.shape[0] == pts2.shape[0]
+        num_points = pts1.shape[0]
+        solver_input_data.sigmas2_1 = np.full(num_points,1.0, dtype=np.float32)
+        solver_input_data.sigmas2_2 = solver_input_data.sigmas2_1
+        solver_input_data.fix_scale = fix_scale
+        solver_input_data.points_3d_c1 = pts1
+        solver_input_data.points_3d_c2 = pts2
+        # Create Sim3Solver object with the input data
+        solver = sim3solver.Sim3Solver(solver_input_data)
+        # Set RANSAC parameters (using defaults here)
+        solver.set_ransac_parameters(self.ransac_probability, self.min_num_inliers, self.ransac_max_num_iterations)
+        # Prepare variables for iterative solving
+        #vbInliers = [False] * len(solver_input_data2.points_3d_c1)
+        #nInliers = 0
+        #bConverged = False
+        # Test the first iteration (e.g., 10 iterations)
+        transformation, bNoMore, vbInliers, nInliers, bConverged = solver.iterate(5)
+        if False:
+            print("Estimated transformation after 10 iterations:")
+            print(transformation)
+        registration_error3d = solver.compute_3d_registration_error() 
+        R12 = solver.get_estimated_rotation()
+        t12 = solver.get_estimated_translation()
+        scale12 = solver.get_estimated_scale()
+        print(f'Sim3PoseEstimator: #inliers {nInliers}, #points {num_points}, bConverged {bConverged}, reg error 3d: {registration_error3d}')
+        
+        R12 = R12.reshape(3,3)
+        t12 = t12.reshape(3,1)
+        
+        R21 = R12.T
+        t21 = -R21 @ t12
+        R = R21
+        t = t21
+        inliers = nInliers
+        
+        return R, t, inliers
+    
+    # Estimate pose [R21,t21] from data.
+    # Data PoseEstimatorInput object or dict containing the same information.    
+    def estimate(self, data):
+        if isinstance(data, dict):
+            data = PoseEstimatorInput.from_dict(data)
+        if not isinstance(data, PoseEstimatorInput):
+            raise TypeError        
+        if data.K1 is not None:
+            self.K1 = data.K1
+            self.K2 = data.K2 if data.K2 is not None else data.K1        
+        assert (data.pts1 is not None and data.pts2 is not None) or \
+               (data.kpts1 is not None and data.kpts2 is not None and \
+                data.depth1 is not None and data.depth2 is not None)
+        fix_scale = data.fix_scale
+        if data.pts1 is not None and data.pts2 is not None:
+            return self.estimate3d3d(data.pts1, data.pts2, fix_scale)
+        else: 
+            kpts1_int = np.int32(data.kpts1)
+            kpts2_int = np.int32(data.kpts2)
+            depths1 = data.depth1[kpts1_int[:, 1], kpts1_int[:, 0]]
+            depths2 = data.depth2[kpts2_int[:, 1], kpts2_int[:, 0]]
+            pts1 = backproject_3d(data.kpts1, depths1, self.K1)
+            pts2 = backproject_3d(data.kpts2, depths2, self.K2)
+            return self.estimate3d3d(pts1, pts2, fix_scale)

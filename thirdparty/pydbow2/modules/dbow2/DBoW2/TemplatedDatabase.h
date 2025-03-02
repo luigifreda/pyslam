@@ -231,7 +231,7 @@ protected:
   void queryL2(const BowVector &vec, QueryResults &ret, 
     int max_results, int max_id) const;
   
-  /// Query with Chi square scoring
+  /// Query with chi-squared scoring
   void queryChiSquare(const BowVector &vec, QueryResults &ret, 
     int max_results, int max_id) const;
   
@@ -858,7 +858,7 @@ void TemplatedDatabase<TDescriptor, F>::queryChiSquare(const BowVector &vec,
   }
 	
   // resulting "scores" are now in [-2 best .. 0 worst]	
-  // we have to add +2 to the scores to obtain the chi square score
+  // we have to add +2 to the scores to obtain the chi-squared score
   
   // sort vector in ascending order of score
   std::sort(ret.begin(), ret.end());

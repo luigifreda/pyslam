@@ -74,6 +74,7 @@ Sim3PointRegistrationSolver::Sim3PointRegistrationSolver(const Sim3PointRegistra
     {
         mSigma2 = kSigma2;
     }
+    // 7.81 value of the inverse chi-squared cumulative distribution for 3 DOFs and alpha=0.95 
     mThChi2 = 7.81*mSigma2;
 
     mbFixScale = input.bFixScale;

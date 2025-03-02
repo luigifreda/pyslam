@@ -41,7 +41,7 @@ class PyramidType(Enum):
                            # both Pyramid.imgs and Pyramid.imgs_filtered contain filtered images in the scale space
 
 # PyramidAdaptor generate a pyramid of num_levels images and extracts features in each of these images
-class Pyramid(object): 
+class Pyramid: 
     def __init__(self, num_levels=4, scale_factor=1.2, 
                  sigma0=1.0,     # N.B.: SIFT use 1.6 for this value
                  first_level=0,  # 0: start from input image; -1: start from up-scaled image*scale_factor
@@ -74,17 +74,19 @@ class Pyramid(object):
 
 
     def compute(self, frame):
+        #print(f'Pyramid: compute, first_level: {self.first_level}, pyramid_type: {self.pyramid_type}')
         if self.first_level == -1:
             frame = self.createBaseImg(frame)  # replace the image with the new level -1 (up-resized image)
         if self.pyramid_type == PyramidType.RESIZE:
-            return self.computeResize(frame)
+            self.computeResize(frame)
         elif self.pyramid_type == PyramidType.RESIZE_AND_FILTER:          
-            return self.computeResizeAndFilter(frame)              
+            self.computeResizeAndFilter(frame)              
         elif self.pyramid_type == PyramidType.GAUSS_PYRAMID:
-            return self.computeGauss(frame) 
+            self.computeGauss(frame) 
         else: 
             Printer.orange('Pyramid - unknown type')    
-            return self.computeResizePyramid(frame)                    
+            self.computeResize(frame)
+        #print(f'Pyramid: compute done')                    
 
 
     def createBaseImg(self, frame):
@@ -99,6 +101,7 @@ class Pyramid(object):
         
     # only resize, do not filter         
     def computeResize(self, frame): 
+        #print(f'Pyramid: computeResize, num_levels: {self.num_levels}, scale_factor: {self.scale_factor},frame shape: {frame.shape}')
         inv_scale = 1./self.scale_factor
         self.imgs = []        
         self.imgs_filtered = []  
@@ -108,7 +111,9 @@ class Pyramid(object):
             self.imgs_filtered.append(pyr_cur)                     
             if i < self.num_levels-1:    
                 pyr_down = cv2.resize(pyr_cur,(0,0),fx=inv_scale,fy=inv_scale)     # resize the unfiltered frame               
-                pyr_cur  = pyr_down        
+                pyr_cur  = pyr_down     
+                #print(f'Pyramid: computeResize, level: {i}, pyr_cur shape: {pyr_cur.shape}')  
+        #print(f'Pyramid: computeResize done') 
       
       
     # keep separated resized images and filtered images: first resize than filter with constant sigma        

@@ -144,6 +144,19 @@ def check_solution(solver_input_data, scale12, Rc1c2, tc1c2):
     return average_alignment_error
 
 
+def check_solution2(solver_input_data2, scale12, Rc1c2, tc1c2):
+    # check solution 
+    
+    # transform points from world coordinates to camera coordinates
+    points_3d_c1 = solver_input_data2.points_3d_c1
+    points_3d_c2 = solver_input_data2.points_3d_c2
+
+    aligned_points_c1 = (scale12*Rc1c2 @ np.array(points_3d_c2).T + tc1c2.reshape(3,1)).T
+    average_alignment_error = np.mean(np.linalg.norm(aligned_points_c1 - points_3d_c1, axis=1))
+    print(f'[check_solution2] Average alignment error: {average_alignment_error}')
+    return average_alignment_error
+
+
 def create_mock_input():
     # Creating mock data for Sim3SolverInput
 
@@ -268,9 +281,7 @@ def create_mock_input():
     return solver_input_data
 
 
-def test_sim3solver():
-    # Create a Sim3SolverInput object with mock data
-    solver_input_data = create_mock_input()
+def test_sim3solver(solver_input_data):
     
     print('----------------------------------------------')
     
@@ -330,5 +341,68 @@ def test_sim3solver():
     # check solution 
     check_solution(solver_input_data, scale12, Rc1c2, tc1c2)
     
+    
+def test_sim3solver2(solver_input_data):
+    
+    print('----------------------------------------------')
+    
+    # Here we use a the second input data format    
+    solver_input_data2 = sim3solver.Sim3SolverInput2()
+    solver_input_data2.points_3d_c1 = (solver_input_data.Rcw1 @ np.array(solver_input_data.points_3d_w1).T + solver_input_data.tcw1.reshape(3,1)).T
+    solver_input_data2.points_3d_c2 = (solver_input_data.Rcw2 @ np.array(solver_input_data.points_3d_w2).T + solver_input_data.tcw2.reshape(3,1)).T
+    solver_input_data2.sigmas2_1 = solver_input_data.sigmas2_1
+    solver_input_data2.sigmas2_2 = solver_input_data.sigmas2_2
+    solver_input_data2.fix_scale = solver_input_data.fix_scale
+    
+    # Create Sim3Solver object with the input data
+    solver = sim3solver.Sim3Solver(solver_input_data2)
+
+    # Set RANSAC parameters (using defaults here)
+    solver.set_ransac_parameters(0.99,20,300)
+
+    # Prepare variables for iterative solving
+    vbInliers = [False] * len(solver_input_data2.points_3d_c1)
+    nInliers = 0
+    bConverged = False
+
+    # Test the first iteration (e.g., 10 iterations)
+    transformation, bNoMore, vbInliers, nInliers, bConverged = solver.iterate(5)
+
+    if False:
+        print("Estimated transformation after 10 iterations:")
+        print(transformation)
+
+    # Check if the solver returned inliers and transformation
+    print("Number of inliers:", nInliers)
+    print(f"bConverged: {bConverged}")
+    #print("Vector of inliers:", vbInliers)
+
+    # Test getting the best transformation
+    Tc1c2 = solver.get_estimated_transformation()
+    #print("Estimated transformation matrix Tc1c2:")
+    #print(Tc1c2)
+
+    # Test getting estimated rotation, translation, and scale
+    Rc1c2 = solver.get_estimated_rotation()
+    tc1c2 = solver.get_estimated_translation()
+    scale12 = solver.get_estimated_scale()
+    
+    error3d = solver.compute_3d_registration_error()
+
+    print("Estimated rotation matrix Rc1c2:")
+    print(Rc1c2)
+    print("Estimated translation vector tc1c2:")
+    print(tc1c2)
+    print("Estimated scale scale12:")
+    print(scale12)
+    print('error3d: ', error3d)
+
+    # check solution 
+    check_solution2(solver_input_data2, scale12, Rc1c2, tc1c2)    
+
 if __name__ == "__main__":
-    test_sim3solver()
+    # Create a Sim3SolverInput object with mock data
+    solver_input_data = create_mock_input()
+    
+    test_sim3solver(solver_input_data)
+    test_sim3solver2(solver_input_data)    

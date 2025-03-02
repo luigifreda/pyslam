@@ -96,11 +96,59 @@ Sim3Solver::Sim3Solver(const Sim3SolverInput& input):
 
     for(int i1=0; i1<mN; i1++)
     {
+            // 9.210 is 2-DOFs chi-squared value with alpha=0.99
             mvnMaxError1.push_back(9.210*input.mvSigmaSquare1[i1]);
             mvnMaxError2.push_back(9.210*input.mvSigmaSquare2[i1]);
 
             mvX3Dc1.push_back(Rcw1*input.mvX3Dw1[i1]+tcw1);
             mvX3Dc2.push_back(Rcw2*input.mvX3Dw2[i1]+tcw2);
+
+            mvnIndices1.push_back(i1);
+            mvAllIndices.push_back(i1);
+    }
+
+    FromCameraToImage(mvX3Dc1,mK1,mvP1im1);
+    FromCameraToImage(mvX3Dc2,mK2,mvP2im2);
+
+    SetRansacParameters();
+}
+
+
+Sim3Solver::Sim3Solver(const Sim3SolverInput2& input):
+    mnIterations(0), mnBestInliers(0)
+{
+    assert(input.mvX3Dc1.size() == input.mvX3Dc2.size());
+    assert(input.mvX3Dc1.size() == input.mvSigmaSquare1.size());
+    assert(input.mvX3Dc1.size() == input.mvSigmaSquare2.size());
+
+    mN = input.mvX3Dc1.size(); // number of correspondences
+    
+    mvnIndices1.reserve(mN);
+    mvX3Dc1 = input.mvX3Dc1;
+    mvX3Dc2 = input.mvX3Dc2;
+    
+    mK1 = input.K1;
+    mK2 = input.K2;
+    mbFixScale = input.bFixScale;
+
+    if(kVerbose)
+    {
+        std::cout << "--------------------------------" << std::endl;
+        std::cout << "Sim3Solver input:" << std::endl;
+        std::cout << "Number of correspondences: " << mN << std::endl;
+        std::cout << "Fix scale: " << mbFixScale << std::endl;
+        std::cout << "K1: " << mK1 << std::endl;
+        std::cout << "K2: " << mK2 << std::endl;
+        std::cout << "--------------------------------" << std::endl;        
+    } 
+    
+    mvAllIndices.reserve(mN);
+
+    for(int i1=0; i1<mN; i1++)
+    {
+            // 9.210 is 2-DOFs chi-squared value with alpha=0.99
+            mvnMaxError1.push_back(9.210*input.mvSigmaSquare1[i1]);
+            mvnMaxError2.push_back(9.210*input.mvSigmaSquare2[i1]);
 
             mvnIndices1.push_back(i1);
             mvAllIndices.push_back(i1);

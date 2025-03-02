@@ -129,6 +129,8 @@ Once everything is completed you can jump the [usage section](#usage).
 * Rerun
 * You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check it with `./cuda_config.sh` 
 
+The internal pySLAM libraries are imported by using a `Config` instance (from [config.py](config.py)) in the main/test scripts. 
+
 If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
 
@@ -253,13 +255,12 @@ When selecting a **loop detection method based on a pre-trained vocabulary** (su
 
 ##### Missing vocabulary for the selected front-end descriptor type
 
-If you lack a compatible vocabulary for the selected front-end descriptor type, you can follow one of the these options:     
+If you lack a compatible vocabulary for the selected front-end descriptor type, you can follow one of these options:     
 1. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)).     
 2. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.     
 3. Select a vocabular-free loop closing method.      
    
 See the file [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py) for further details.
-
 
 ---
 

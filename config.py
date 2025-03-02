@@ -38,8 +38,7 @@ __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file
 
 # Class for getting libs settings (from config.yaml) and camera settings from a yaml file.
 # The input 'config.yaml' file is supposed to be in the input root_folder.
-class Config(object):
-    location = __location__
+class Config:
     def __init__(self, root_folder = __location__, config_file='config.yaml'):
         self.root_folder = root_folder
         self.config_file_path = self.root_folder + '/' + config_file

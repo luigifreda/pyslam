@@ -64,12 +64,13 @@ kDrawOctaveColor = np.linspace(0, 255, 12)
 
 # Shared frame stuff. Normally, this information is exclusively used by SLAM.
 class FeatureTrackerShared:
-    feature_tracker      = None      # type: FeatureTracker
-    feature_manager      = None      # type: FeatureManager
-    feature_matcher      = None      # type: FeatureMatcher
-    descriptor_distance  = None
-    descriptor_distances = None
-    oriented_features    = False
+    feature_tracker       = None      # type: FeatureTracker
+    feature_manager       = None      # type: FeatureManager
+    feature_matcher       = None      # type: FeatureMatcher
+    descriptor_distance   = None
+    descriptor_distances  = None
+    oriented_features     = False
+    feature_tracker_right = None      # type: FeatureTracker
                 
     @staticmethod
     def set_feature_tracker(feature_tracker, force=False):
@@ -90,10 +91,19 @@ class FeatureTrackerShared:
            FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR:
             Frame.is_store_imgs = True
     
-
+    @staticmethod
+    def set_feature_tracker_right(feature_tracker, force=False):
+        if not force and FeatureTrackerShared.feature_tracker_right is not None:
+            raise Exception("FeatureTrackerShared: Tracker-right is already set!")
+        FeatureTrackerShared.feature_tracker_right = feature_tracker        
+        
 # for parallel stereo processing
-def detect_and_compute(img):
-    return FeatureTrackerShared.feature_tracker.detectAndCompute(img)
+def detect_and_compute(img, left=True):
+    if left:
+        return FeatureTrackerShared.feature_tracker.detectAndCompute(img)
+    else: 
+        assert FeatureTrackerShared.feature_tracker_right is not None
+        return FeatureTrackerShared.feature_tracker_right.detectAndCompute(img)
      
      
 # Base object class for frame info management; 
@@ -427,12 +437,17 @@ class Frame(FrameBase):
                                 
         if img is not None:                  
             if img_right is not None:
-                with ThreadPoolExecutor() as executor:
-                    future_l = executor.submit(detect_and_compute, img)
-                    future_r = executor.submit(detect_and_compute, img_right)
-                    self.kps, self.des = future_l.result()
-                    self.kps_r, self.des_r = future_r.result()
-                    #print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
+                do_parallel = True
+                if do_parallel:
+                    with ThreadPoolExecutor() as executor:
+                        future_l = executor.submit(detect_and_compute, img)
+                        future_r = executor.submit(detect_and_compute, img_right, left=False)
+                        self.kps, self.des = future_l.result()
+                        self.kps_r, self.des_r = future_r.result()
+                else:
+                    self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(img)
+                    self.kps_r, self.des_r = FeatureTrackerShared.feature_tracker.detectAndCompute(img_right)
+                #print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
             else: 
                 self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(img)  
                                                                                 
@@ -900,7 +915,7 @@ class Frame(FrameBase):
             errs_l_sqr = np.sum(errs_l_vec * errs_l_vec, axis=1)  # squared reprojection errors 
             kpsl_levels = self.octaves[good_matched_idxs1]
             invSigmas2_1 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kpsl_levels] 
-            chis2_l = errs_l_sqr * invSigmas2_1         # chi square 
+            chis2_l = errs_l_sqr * invSigmas2_1         # chi-squared 
             #print(f'chis2_l: {chis2_l}')
             good_chi2_l_mask = chis2_l < Parameters.kChi2Mono
             num_good_chi2_l = good_chi2_l_mask.sum()
@@ -910,7 +925,7 @@ class Frame(FrameBase):
             errs_r_sqr = np.sum(errs_r_vec * errs_r_vec, axis=1)  # squared reprojection errors 
             kpsr_levels = self.octaves_r[good_matched_idxs2]
             invSigmas2_2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kpsr_levels] 
-            chis2_r = errs_r_sqr * invSigmas2_2         # chi square 
+            chis2_r = errs_r_sqr * invSigmas2_2         # chi-squared 
             #print(f'chis2_r: {chis2_r}')
             good_chi2_r_mask = chis2_r < Parameters.kChi2Mono
             num_good_chi2_r = good_chi2_r_mask.sum()

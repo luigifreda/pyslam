@@ -305,7 +305,7 @@ protected:
   void queryL2(const BowVector &vec, QueryResults &ret, 
     int max_results, int max_id) const;
   
-  /// Query with Chi square scoring
+  /// Query with chi-squared scoring
   void queryChiSquare(const BowVector &vec, QueryResults &ret, 
     int max_results, int max_id) const;
   

@@ -138,7 +138,7 @@ public:
 
 class PnPsolver {
  public:
-  PnPsolver(const PnPsolverInput& input);
+ explicit PnPsolver(const PnPsolverInput& input);
 
   ~PnPsolver();
 

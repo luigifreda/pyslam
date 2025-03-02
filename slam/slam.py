@@ -179,7 +179,11 @@ class Slam(object):
         self.feature_tracker = feature_tracker
         # Set the static field of the class Frame and FeatureTrackerShared.
         # NOTE: Here, we set force=True since we don't care if the feature_tracker is already set.
-        FeatureTrackerShared.set_feature_tracker(feature_tracker, force=True) 
+        FeatureTrackerShared.set_feature_tracker(feature_tracker, force=True)
+        if self.sensor_type == SensorType.STEREO:
+            # In case of stereo, for thread-safety reasons, we create a second feature_tracker that we can use in parallel during stereo image processing 
+            feature_tracker_right = feature_tracker_factory(**feature_tracker_config)
+            FeatureTrackerShared.set_feature_tracker_right(feature_tracker_right, force=True)
         if kUseEssentialMatrixFitting:
             Printer.orange('SLAM: forcing feature matcher ratio_test to 0.8')
             feature_tracker.matcher.ratio_test = 0.8

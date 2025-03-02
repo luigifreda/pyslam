@@ -1546,7 +1546,7 @@ std::ostream& operator<<(std::ostream &os,
   {
     case L1_NORM: os << "L1-norm"; break;
     case L2_NORM: os << "L2-norm"; break;
-    case CHI_SQUARE: os << "Chi square distance"; break;
+    case CHI_SQUARE: os << "chi-squared distance"; break;
     case KL: os << "KL-divergence"; break;
     case BHATTACHARYYA: os << "Bhattacharyya coefficient"; break;
     case DOT_PRODUCT: os << "Dot product"; break;

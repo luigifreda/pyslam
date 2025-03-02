@@ -72,13 +72,35 @@ public:
 };
 
 
-// Sim3 Solver: Estimate the Sim3 transformation between two sets of 3D points back-projected from two camera frames
+// Input for the Sim3Solver
+class Sim3SolverInput2
+{
+public: 
+    // matches data 
+    std::vector<Eigen::Vector3f> mvX3Dc1; // matched 3D points of KF1 in KF1 frame
+    std::vector<Eigen::Vector3f> mvX3Dc2; // matched 3D points of KF2 in KF2 frame
+
+    std::vector<float> mvSigmaSquare1; //mvLevelSigma2[kp.octave] corresponding to mvX3Dw1
+    std::vector<float> mvSigmaSquare2; //mvLevelSigma2[kp.octave] corresponding to mvX3Dw2
+
+public:
+    // keyframes data
+    Eigen::Matrix3f K1;
+    Eigen::Matrix3f K2;
+
+    bool bFixScale = false;
+};
+
+
+// Sim3 Solver: Estimate the Sim3 transformation between two sets of 3D points back-projected from two camera frames.
+//              Inliers are evaluated using the reprojection error (2D-3D associations).
 class Sim3Solver
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
-    Sim3Solver(const Sim3SolverInput& input);
+    explicit Sim3Solver(const Sim3SolverInput& input);
+    explicit Sim3Solver(const Sim3SolverInput2& input);    
 
     void SetRansacParameters(double probability = 0.99, int minInliers = 6 , int maxIterations = 300);
 

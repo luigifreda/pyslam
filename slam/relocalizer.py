@@ -44,6 +44,7 @@ else:
         return
     
 
+# Relocalizer working on loop detection output 
 class Relocalizer: 
     def __init__(self):
         self.timer = TimerFps('Relocalizer', is_verbose = kTimerVerbose)

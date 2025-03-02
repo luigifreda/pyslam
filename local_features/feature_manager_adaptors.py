@@ -217,7 +217,7 @@ class PyramidAdaptor:
                  
                  
     # detect on 'unfiltered' pyramid images ('unfiltered' meanining depends on the selected pyramid type)             
-    def detect(self, frame, mask=None):      
+    def detect(self, frame, mask=None):
         if self.num_levels == 1: 
             return self.detector.detect(frame, mask)
         else:    
@@ -250,7 +250,7 @@ class PyramidAdaptor:
                 # process the blocks sequentially 
                 for i in range(0,self.num_levels):              
                     scale = self.scale_factors[i]
-                    pyr_cur  = self.pyramid.imgs[i]   
+                    pyr_cur = self.pyramid.imgs[i]   
                     detect_level(scale,pyr_cur,i)  
             else:          
                 #print('parallel computations')   
@@ -258,7 +258,7 @@ class PyramidAdaptor:
                 with ThreadPoolExecutor(max_workers = 4) as executor:
                     for i in range(0,self.num_levels):              
                         scale = self.scale_factors[i]
-                        pyr_cur  = self.pyramid.imgs[i]                       
+                        pyr_cur = self.pyramid.imgs[i]                       
                         futures.append(executor.submit(detect_level, scale, pyr_cur, i))
                     wait(futures) # wait all the task are completed                  
                                     
@@ -267,7 +267,7 @@ class PyramidAdaptor:
         
     # detect on 'unfiltered' pyramid images ('unfiltered' meanining depends on the selected pyramid type)   
     # compute descriptors on 'filtered' pyramid images ('filtered' meanining depends on the selected pyramid type)                 
-    def detectAndCompute(self, frame, mask=None):      
+    def detectAndCompute(self, frame, mask=None):
         if self.num_levels == 1: 
             return self.detector.detectAndCompute(frame, mask)
         else:    
