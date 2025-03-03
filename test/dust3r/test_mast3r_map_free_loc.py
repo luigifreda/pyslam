@@ -24,6 +24,7 @@ from utils_dust3r import  Dust3rImagePreprocessor, convert_mv_output_to_geometry
 from utils_depth import point_cloud_to_depth
 from utils_sys import Printer
 from utils_img import ImgWriter
+from utils_geom_lie import so3_log_angle
 
 from dataset import dataset_factory, SensorType
 from ground_truth import groundtruth_factory
@@ -56,6 +57,19 @@ class Mast3rOutput:
         self.global_mesh = None 
         self.matches_im0 = None
         self.matches_im1 = None
+        
+        
+class OdometryState:
+    def __init__(self):
+        self.init_pose_id = None
+        self.prev_pose_id = None
+        self.cur_pose = None
+        self.cur_pose_timestamp = None
+        self.cur_pose_id = None 
+        self.ref_pose = None
+        self.ref_pose_timestamp = None
+        self.ref_pose_id = None
+        self.poses = {}   # pose_id -> (pose, timestamp)
 
 
 def mast3r_processing(imgs_preproc, model, device, min_conf_thr):
@@ -174,31 +188,57 @@ def viz_matches(mast3r_output: Mast3rOutput, n_viz_percent = 50):
     match_idx_to_viz = np.arange(0, num_matches - 1, n_viz)  # extract 1 sample every n_viz samples
     viz_matches_im0, viz_matches_im1 = matches_im0[match_idx_to_viz], matches_im1[match_idx_to_viz]
 
-    out_img = draw_feature_matches(rgb0, rgb1, viz_matches_im0, viz_matches_im1)
+    out_img = draw_feature_matches(rgb0, rgb1, viz_matches_im0, viz_matches_im1, horizontal=True)
     return out_img
 
 
-def update_and_draw_map(cur_timestamp, cur_frame_id, viewer3D: Viewer3D, mast3r_map_state: Viewer3DMapInput, mast3r_output: Mast3rOutput):
+def update_and_draw_map(cur_timestamp, cur_frame_id, ref_frame_id, mast3r_output: Mast3rOutput, odometry_state: OdometryState, viewer3D: Viewer3D, viz_mast3r_map_state: Viewer3DMapInput):
     
-    mast3r_map_state.cur_pose = mast3r_output.cams2world[1]
-    mast3r_map_state.cur_pose_timestamp = timestamp  
-    mast3r_map_state.cur_frame_id = cur_frame_id
+    if ref_frame_id != odometry_state.init_pose_id and odometry_state.ref_pose_id != ref_frame_id:
+        print(f'Updating reference frame id: {ref_frame_id}')
+        ref_pose, ref_timestamp = odometry_state.poses[ref_frame_id]
+        odometry_state.ref_pose = ref_pose
+        odometry_state.ref_pose_timestamp = ref_timestamp
+        odometry_state.ref_pose_id = ref_frame_id
     
-    if len(mast3r_map_state.spanning_tree)==0:
-        mast3r_map_state.spanning_tree.append([*mast3r_output.cams2world[0][:3,3],*mast3r_output.cams2world[1][:3,3]])
+    
+    odometry_state.prev_pose_id = odometry_state.cur_pose_id
+    odometry_state.cur_pose = odometry_state.ref_pose @ mast3r_output.cams2world[1] if odometry_state.ref_pose is not None else mast3r_output.cams2world[1]
+    odometry_state.cur_pose_timestamp = cur_timestamp
+    odometry_state.cur_pose_id = cur_frame_id
+    odometry_state.poses[cur_frame_id] = (odometry_state.cur_pose, cur_timestamp)
+    
+    viz_mast3r_map_state.cur_pose = odometry_state.cur_pose
+    viz_mast3r_map_state.cur_pose_timestamp = timestamp  
+    viz_mast3r_map_state.cur_frame_id = cur_frame_id
+    
+    if len(viz_mast3r_map_state.spanning_tree)==0:
+        viz_mast3r_map_state.spanning_tree.append([*mast3r_output.cams2world[0][:3,3],*mast3r_output.cams2world[1][:3,3]])
     else: 
-        last_Ow = mast3r_map_state.poses[-1][:3,3]
-        mast3r_map_state.spanning_tree.append([*mast3r_output.cams2world[1][:3,3],*last_Ow])
+        #last_Ow = viz_mast3r_map_state.poses[-1][:3,3]
+        last_Ow = odometry_state.poses[odometry_state.prev_pose_id][0][:3,3]
+        cur_Ow = odometry_state.cur_pose[:3,3]
+        viz_mast3r_map_state.spanning_tree.append([*cur_Ow,*last_Ow])
     
-    mast3r_map_state.poses.append(mast3r_output.cams2world[1])
-    mast3r_map_state.pose_timestamps.append(cur_timestamp)
+    viz_mast3r_map_state.poses.append(odometry_state.cur_pose)
+    viz_mast3r_map_state.pose_timestamps.append(cur_timestamp)
       
-    viewer3D.draw_map(mast3r_map_state)
-    
+    viewer3D.draw_map(viz_mast3r_map_state)
     
     global_pc = mast3r_output.global_pc
     global_mesh = mast3r_output.global_mesh
     rgb_imgs = mast3r_output.rgb_imgs
+    
+    print(f'global_pc.vertices shape: {global_pc.vertices.shape}')
+    
+    # transform vertices into reference frame 
+    if ref_frame_id != odometry_state.init_pose_id:
+        ref_pose = odometry_state.ref_pose
+        if global_pc is not None and global_pc.vertices is not None:
+            global_pc.vertices = (ref_pose[:3, :3] @ global_pc.vertices.T + ref_pose[:3, 3].reshape(3, 1)).T
+        if global_mesh is not None and global_mesh.vertices is not None:
+            global_mesh.vertices = (ref_pose[:3, :3] @ global_mesh.vertices.T + ref_pose[:3, 3].reshape(3, 1)).T
+    
     viz_point_cloud = VizPointCloud(points=global_pc.vertices, colors=global_pc.colors, normalize_colors=True, reverse_colors=False) if global_pc is not None else None
     viz_mesh = VizMesh(vertices=global_mesh.vertices, triangles=global_mesh.faces, vertex_colors=global_mesh.visual.vertex_colors, normalize_colors=True) if global_mesh is not None else None
     viz_camera_images = []
@@ -220,6 +260,8 @@ if __name__ == '__main__':
     min_conf_thr = 50   # percentage of the max confidence value
     inference_size = 512
     matches_viz_percent = 20  # percentage of shown matches
+    delta_translation_for_new_ref = 0.2 # meters 
+    delta_angle_for_new_ref = 20 # degrees
 
     dataset = dataset_factory(config)
     is_monocular=(dataset.sensor_type==SensorType.MONOCULAR)    
@@ -247,9 +289,13 @@ if __name__ == '__main__':
         gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
         viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=is_monocular)    
     
-    mast3r_map_state = Viewer3DMapInput()
-    
+
+    viz_mast3r_map_state = Viewer3DMapInput()    
     plot_drawer = LocalizationPlotDrawer(viewer3D)
+
+    odometry_state = OdometryState()
+    odometry_state.init_pose_id = reference_img_id
+    
 
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
     while viewer3D.is_running():
@@ -262,7 +308,7 @@ if __name__ == '__main__':
 
         if img is not None:
             print('----------------------------------------')
-            print(f'processing img {img_id}')
+            print(f'processing img {img_id}, reference img {reference_img_id}')
             
             img_preproc = dust3r_preprocessor.preprocess_image(img)
             
@@ -277,12 +323,21 @@ if __name__ == '__main__':
             matches_img = viz_matches(mast3r_output, matches_viz_percent)
             cv2.imshow('matches', matches_img)
             
-            # viz map
-            update_and_draw_map(timestamp, img_id, viewer3D, mast3r_map_state, mast3r_output)
+            # viz map  
+            update_and_draw_map(timestamp, img_id, reference_img_id, mast3r_output, odometry_state, viewer3D, viz_mast3r_map_state)
             
             # viz plots
             update_and_plot(timestamp, img_id, plot_drawer, mast3r_output)
-
+            
+            # update reference image strategy 
+            delta_t_to_ref = np.linalg.norm(mast3r_output.cams2world[1][:3, 3])
+            delta_angle_to_ref = so3_log_angle(mast3r_output.cams2world[1][:3, :3])
+            print(f'delta_t: {delta_t_to_ref}, delta_angle: {delta_angle_to_ref}')
+            if delta_t_to_ref > delta_translation_for_new_ref or delta_angle_to_ref > delta_angle_for_new_ref:
+                reference_img_id = img_id
+                reference_img = img
+                reference_img_preproc = img_preproc
+            
             cv2.waitKey(1) & 0xFF
         else: 
             cv2.waitKey(100) & 0xFF

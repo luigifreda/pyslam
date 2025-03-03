@@ -111,7 +111,7 @@ class VisualOdometryEducational(VisualOdometryBase):
         if kUseEssentialMatrixEstimation:
             ransac_method = None 
             try: 
-                ransac_method = cv2.USAC_MAGSAC #cv2.USAC_MSAC 
+                ransac_method = cv2.USAC_MSAC #cv2.USAC_MSAC, cv2.USAC_MAGSAC
             except: 
                 ransac_method = cv2.RANSAC
             # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister (see the notes and paper above )

@@ -13,6 +13,9 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
   - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
   - [Usage](#usage)
+    - [Visual odometry](#visual-odometry)
+    - [Full SLAM](#full-slam)
+    - [Selecting a dataset and different configuration parameters](#selecting-a-dataset-and-different-configuration-parameters)
     - [Feature tracking](#feature-tracking)
     - [Loop closing](#loop-closing)
       - [Vocabulary management](#vocabulary-management)
@@ -175,13 +178,27 @@ If you run into issues or errors during the installation process or at run-time,
 --- 
 ## Usage
 
-Once you have run the script `install_all.sh` (follow the instructions [above](#install)), you can open a new terminal and start testing the basic **Visual Odometry** (VO):
+Open a new terminal and start experimenting with the scripts. In each new terminal you are supposed to start with this command:
+```bash
+$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+```
+The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [config_parameters.py](./config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
+
+--- 
+
+### Visual odometry
+
+The basic **Visual Odometry** (VO) can be run with the following commands:
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./main_vo.py
 ```
-This will process a default [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
+By default, this processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
 Now, with RGBD datasets, you can also test the **RGBD odometry** with the classes `VisualOdometryRgbd` or `VisualOdometryRgbdTensor` (ground truth is not required here). 
+
+--- 
+
+### Full SLAM
 
 Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ```bash
@@ -192,11 +209,19 @@ $ ./main_slam.py
 This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing/clicking on one of the opened windows and pressing the key 'Q' or closing the 3D pangolin GUI. 
 <!-- **Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). -->
 
-With both scripts, in order to process a different **dataset**, you need to update the file `config.yaml`:
+--- 
+
+### Selecting a dataset and different configuration parameters
+
+The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [config_parameters.py](./config_parameters.py). 
+
+To process a different **dataset** with both VO and SLAM scripts, you need to update the file [config.yaml](./config.yaml):
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
 * Select the `sensor_type` (`mono`, `stereo`, `rgbd`) in the chosen dataset section.  
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
 * The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `io/ground_truth.py` and `io/convert_groundtruth.py`).
+
+You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the parameters in [config_parameters.py](./config_parameters.py). 
 
 ---
 

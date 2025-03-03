@@ -191,3 +191,11 @@ LIVE_DATASET:
   name: /dev/video2
   settings: settings/WEBCAM.yaml 
   groundtruth_file: auto
+
+
+# This section allows to change and override the default values of the global parameters contained in config_parameters.py
+# In this way, this yaml configuration can be used as a unique entry-point for launching experiments. 
+GLOBAL_PARAMETERS: 
+  #kUseVolumetricIntegration: True
+  #kVolumetricIntegrationUseDepthEstimator: True
+  

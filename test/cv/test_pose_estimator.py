@@ -45,11 +45,13 @@ def random_backproject_points(K, points_2d, w, h, min_depth, max_depth):
 # back project 2d image points with given camera matrix by using their depths
 # output = [Nx3] (N = number of points)
 def backproject_points(K, points_2d, depths):
-    assert depths.shape[0] == points_2d.shape[0]
+    points_2d = np.asarray(points_2d).reshape(-1, 2)
     fx, fy = K[0, 0], K[1, 1]
     cx, cy = K[0, 2], K[1, 2]
-
     z = np.asarray(depths).reshape(-1)  # Ensure it's 1D
+    
+    assert z.shape[0] == points_2d.shape[0]
+    
     x = (points_2d[:, 0] - cx) * z / fx
     y = (points_2d[:, 1] - cy) * z / fy
 
@@ -59,6 +61,7 @@ def backproject_points(K, points_2d, depths):
 
 # project 3d points with given camera matrix and return the 2d image points, the visibility mask and the depth map
 def project_points(K, points_3d_c, width, height):
+    points_3d_c.reshape(-1, 3)
     num_points = points_3d_c.shape[0]
     points_2d = np.zeros((num_points,2), dtype=np.float32)
     mask  = np.zeros(num_points, dtype=np.int32)
@@ -123,8 +126,9 @@ def project_points_with_depth_check(K, points_3d_c, width, height, depth):
                 mask[i] = 1
     return points_2d, mask, depth
 
+
 # compute the full depth map in the second image
-def project_depth(K1, depth1, K2, R21, t21):
+def project_depth(K1, depth1, K2, R21, t21, width2, height2):
     depth1 = depth1.astype(np.float32)  # Ensure floating point depth
     vv, uu = np.mgrid[0:depth1.shape[0], 0:depth1.shape[1]]
     uv_coords = np.column_stack((uu.ravel(), vv.ravel())).astype(np.float32)
@@ -137,6 +141,7 @@ def project_depth(K1, depth1, K2, R21, t21):
     t21 = t21.reshape(3, 1) if t21.shape != (3, 1) else t21
     xyz_2 = (R21 @ xyz_1.T + t21).T
     uv_2, mask, depth2 = project_points(K2, xyz_2, depth1.shape[1], depth1.shape[0])
+    depth2.reshape(width2, height2)
     return depth2
     
 
@@ -225,7 +230,7 @@ class TestPoseEstimators(unittest.TestCase):
         points_3d_c2 = (Rc2c1 @ points_3d_c1_noisy.T + tc2c1.reshape((3, 1))).T
         points_2d_c2, mask, depth2_sparse = project_points(self.K2, points_3d_c2, self.w2, self.h2)
         depth2 = depth2_sparse  # this depth map is filled just with the depths of visible keypoints      
-        #depth2 = project_depth(self.K1, depth1, self.K2, Rc2c1, tc2c1)
+        #depth2 = project_depth(self.K1, depth1, self.K2, Rc2c1, tc2c1, self.w2, self.h2)  # [WIP]
         #points_2d_c2, mask, depth2_sparse = project_points_with_depth_check(self.K2, points_3d_c2, self.w2, self.h2, depth2)
         
         print(f'number of visible points: {mask.sum()}')  
@@ -340,6 +345,7 @@ class TestPoseEstimators(unittest.TestCase):
 
     def test_procrustes(self):
         estimator = pose_estimator_factory(PoseEstimatorType.PROCUSTES, self.K1, self.K2)
+        self.depth2 = project_depth(self.K1, self.depth1, self.K2, self.Rc2c1, self.tc2c1, self.w2, self.h2) # for gettin a meaningful ICP refinement
         R21, t21, inliers = estimator.estimate(PoseEstimatorInput(kpts1=self.kpts1, kpts2=self.kpts2, depth1=self.depth1, depth2=self.depth2))
         print(f'\n[test_procrustes]:\n R21 = {R21.flatten()},\n t21 = {t21.flatten()},\n #inliers = {inliers}')
         self.assertEqual(R21.shape, (3, 3))

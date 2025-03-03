@@ -18,7 +18,6 @@
 """
 
 
-
 # List of shared parameters for configuring SLAM modules 
 class Parameters:   
     
@@ -211,3 +210,11 @@ class Parameters:
     kChi2Mono = 5.991 # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
     kChi2Stereo = 7.815 # chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
 
+
+
+def set_from_dict(cls, config):
+    for key, value in config.items():
+        if hasattr(cls, key):  # Ensures it is a defined class attribute
+            setattr(cls, key, value)
+        else:
+            print(f"Unknown config key: {key}")

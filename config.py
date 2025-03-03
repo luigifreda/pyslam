@@ -33,16 +33,17 @@ import math
 
 
 # get the folder location of this file!
-__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-
+kThisFileLocation = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+kRootFolder = kThisFileLocation
+kDefaultConfigPath = os.path.join(kRootFolder,'config.yaml')
 
 # Class for getting libs settings (from config.yaml) and camera settings from a yaml file.
 # The input 'config.yaml' file is supposed to be in the input root_folder.
 class Config:
-    def __init__(self, root_folder = __location__, config_file='config.yaml'):
+    def __init__(self, root_folder = kRootFolder, config_path=kDefaultConfigPath):
         self.root_folder = root_folder
-        self.config_file_path = self.root_folder + '/' + config_file
-        self.config = yaml.load(open(self.config_file_path, 'r'), Loader=yaml.FullLoader)
+        self.config_path = config_path
+        self.config = yaml.load(open(self.config_path, 'r'), Loader=yaml.FullLoader)
         self.cam_settings = None
         self.system_settings = None
         self.dataset_settings = None
@@ -65,6 +66,7 @@ class Config:
         self.get_general_system_settings()        
         self.get_system_state_settings()
         self.get_trajectory_saving_settings()
+        self.get_and_set_global_parameters()
 
 
     # read core lib paths from config.yaml and set sys paths
@@ -122,7 +124,7 @@ class Config:
         self.general_settings_filepath = self.root_folder + '/' + self.config[self.dataset_type]['settings']
         if self.sensor_type == 'stereo' and 'settings_stereo' in self.config[self.dataset_type]:
             self.general_settings_filepath = self.root_folder + '/' + self.config[self.dataset_type]['settings_stereo']
-            Printer.orange('Using stereo settings file: ' + self.general_settings_filepath)
+            Printer.orange('[Config] Using stereo settings file: ' + self.general_settings_filepath)
             print('------------------------------------')          
         if(self.general_settings_filepath is not None):
             with open(self.general_settings_filepath, 'r') as stream:
@@ -139,7 +141,7 @@ class Config:
         folder_path_exists = os.path.exists(self.system_state_folder_path)
         folder_path_is_not_empty = os.path.getsize(self.system_state_folder_path) > 0 if folder_path_exists else False
         if self.system_state_load and not(folder_path_exists and folder_path_is_not_empty):
-            Printer.red('System state folder does not exist or is empty: ' + self.system_state_folder_path)
+            Printer.red('[Config] System state folder does not exist or is empty: ' + self.system_state_folder_path)
             self.system_state_load = False
 
     # get trajectory save settings
@@ -151,6 +153,15 @@ class Config:
         trajectory_online_file_path = self.trajectory_saving_settings['output_folder'] + dt_string + '/' + self.trajectory_saving_settings['basename'] + '_online.txt'  # online estimates (depend only on the past estimates)
         trajectory_final_file_path = self.trajectory_saving_settings['output_folder'] + dt_string + '/' + self.trajectory_saving_settings['basename'] + '_final.txt'    # final estimates (depend on the past and future estimates)
         return trajectory_online_file_path, trajectory_final_file_path
+
+    def get_and_set_global_parameters(self):
+        # for changing the global parameters default values from the config file
+        self.global_parameters = self.config['GLOBAL_PARAMETERS']
+        if self.global_parameters is not None:
+            Printer.orange('[Config] Setting global parameters: ', self.global_parameters)
+            from config_parameters import Parameters, set_from_dict
+            set_from_dict(Parameters, self.global_parameters)
+
 
     # calibration matrix
     @property
@@ -192,7 +203,7 @@ class Config:
             self._DistCoef = np.array([k1, k2, p1, p2, k3])
             if self.sensor_type == 'stereo':
                 self._DistCoef = np.array([0, 0, 0, 0, 0])
-                Printer.orange('WARNING: Using stereo camera, images are automatically rectified, and DistCoef is set to [0,0,0,0,0]')
+                Printer.orange('[Config] WARNING: Using stereo camera, images are automatically rectified, and DistCoef is set to [0,0,0,0,0]')
         return self._DistCoef
     
     # baseline times fx
