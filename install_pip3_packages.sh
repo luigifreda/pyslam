@@ -82,7 +82,7 @@ install_pip_package kornia==0.7.3
 install_pip_package kornia_moons==0.2.9
 install_pip_package importlib_metadata==8.0.0
 
-install_pip_package timm        # ml-depth-pro
+install_pip_package timm             # ml-depth-pro
 if [ "$OSTYPE" == "darwin"* ]; then
     pip3 install pillow_heif==0.17.0 # ml-depth-pro
 else
@@ -125,6 +125,8 @@ else
     fi             
 fi 
 
+pip3 install gtsam
+
 pip3 install "rerun-sdk>=0.17.0"
 
 install_pip_package ujson
@@ -153,8 +155,8 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     #pip3 install megengine  # This brings issues with non-supported CUDA architecture on my machine
 fi
 
-pip3 install evo    #==1.11.0
-
+pip3 install evo      #==1.11.0
+pip3 install trimesh  # for utils_dust3r.py 
 
 # MonoGS
 if [ "$CUDA_VERSION" != "0" ]; then
@@ -166,7 +168,6 @@ if [ "$CUDA_VERSION" != "0" ]; then
     pip3 install wandb
     pip3 install plyfile
     pip3 install glfw
-    pip3 install trimesh
     pip3 install torchmetrics
     pip3 install imgviz
     pip3 install PyOpenGL

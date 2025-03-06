@@ -55,7 +55,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [References](#references)
   - [Credits](#credits)
   - [License](#license)
-  - [TODOs](#todos)
+  - [Roadmap](#roadmap)
 
 <!-- /TOC -->
  
@@ -715,7 +715,7 @@ If you use pySLAM in your projects, please cite this document:
 You may find an update version of this document [here](./docs/tex/document.pdf).
 
 ---
-## TODOs
+## Roadmap
 
 Many improvements and additional features are currently under development: 
 
@@ -736,4 +736,4 @@ Many improvements and additional features are currently under development:
 - [ ] gtsam integration
 - [ ] IMU integration
 - [ ] LIDAR integration
-- [ ] XSt3r-based methods integration [WIP]
+- [x] XSt3r-based methods integration [WIP]
