@@ -30,7 +30,8 @@ message(STATUS "Detected GCC version: ${GCC_VERSION}")
 
 # Check available C++ standards
 if(NVCC_OUTPUT MATCHES "c\\+\\+20" AND GCC_MAJOR_VERSION GREATER_EQUAL 10)
-    set(CPP_STANDARD_VERSION "20")
+    #set(CPP_STANDARD_VERSION "20") # NOTE: This seems a problem under CUDA 12.8. 
+    set(CPP_STANDARD_VERSION "17")
 elseif(NVCC_OUTPUT MATCHES "c\\+\\+17")
     set(CPP_STANDARD_VERSION "17")
 elseif(NVCC_OUTPUT MATCHES "c\\+\\+14")

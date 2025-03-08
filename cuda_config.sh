@@ -62,7 +62,8 @@ fi
 if [ "$CUDA_VERSION" != "0" ]; then
     print_blue "Checking the nvidia toolkit ..."
     sudo apt-get install -y cuda-toolkit-$CUDA_VERSION_STRING_WITH_HYPHENS
-    if [ $? -ne 0 ]; then
+    INSTALL_CUDA_TOOLKIT_STATUS=$?  # Store the exit status of the last command (apt-get install)
+    if [ $INSTALL_CUDA_TOOLKIT_STATUS -ne 0 ]; then
         print_yellow "Installation of cuda-toolkit-$CUDA_VERSION_STRING_WITH_HYPHENS failed!"
         print_yellow "Something can go wrong in the install process. Please:" 
         print_yellow "1. Check you have an available cuda-toolkit versions with:$ apt-cache search cuda-toolkit"
@@ -72,6 +73,14 @@ if [ "$CUDA_VERSION" != "0" ]; then
         #exit 1  # Exit immediately with a critical error
         sleep 2
     fi
+
+    if [ $INSTALL_CUDA_TOOLKIT_STATUS -ne 0 ]; then
+        print_blue "Checking the package nvidia-cuda-dev ..."
+        # If the installation of cuda-toolkit failed, then install nvidia-cuda-dev to avoid the issue "Fatal error: cuda.h: No such file or directory"
+        # This problem seems to be critical under CUDA 12.8
+        sudo apt-get install -y nvidia-cuda-dev 
+    fi
+
 else
     print_yellow "Skipping nvidia toolkit install since CUDA_VERSION is 0"
 fi
