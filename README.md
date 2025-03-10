@@ -1,10 +1,10 @@
-# pySLAM v2.6.0
+# pySLAM v2.6.1
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.6.0](#pyslam-v260)
+- [pySLAM v2.6.1](#pyslam-v261)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)

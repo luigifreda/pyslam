@@ -92,7 +92,8 @@ if __name__ == "__main__":
     camera = PinholeCamera(config)
     
     num_features=2000 
-    if config.num_features_to_extract > 0:  # override the number of features to extract if we set something in the settings file
+    # NOTE: Here, we override the number of features with the number set in the `settings` file that is file selected in config.yaml.
+    if config.num_features_to_extract > 0:  # Check if we actually set `FeatureExtractor.nFeatures` in the `settings` file 
         num_features = config.num_features_to_extract
 
     # Select your tracker configuration (see the file feature_tracker_configs.py) 

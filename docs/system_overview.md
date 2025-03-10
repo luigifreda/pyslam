@@ -14,7 +14,7 @@
 
 <!-- /TOC -->
 
-In this document, you will find some diagram sketches that provide an overview of the main workflow, system components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted.
+This document presents some diagram sketches that provide an overview of the main workflow, system components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted.
 
 ---
 

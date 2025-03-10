@@ -62,15 +62,13 @@ def convert_pts_to_keypoints(pts, size):
 # NOTE: from Fig. 3 in the paper "ALIKED: Learning local features with policy gradient" 
 # "Our approach can match many more points and produce more accurate poses. It can deal with large changes in scale (4th and 5th columns) but not in rotation..."
 class AlikedFeature2D(BaseFeature2D): 
-    def __init__(self, 
-                 num_features=2000):  
-        print('Using AlikedFeature2D')
+    def __init__(self, num_features=2000):
         self.lock = RLock()
         self.num_features = num_features        
         config = ALIKED.default_conf.copy()  
         config['max_num_keypoints'] = self.num_features
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
-        self.ALIKED = ALIKED(conf=config).eval().to(self.device)
+        self.ALIKED = ALIKED(**config).eval().to(self.device)
         
     def setMaxFeatures(self, num_features): # use the cv2 method name for extractors (see https://docs.opencv.org/4.x/db/d95/classcv_1_1ORB.html#aca471cb82c03b14d3e824e4dcccf90b7)
         self.num_features = num_features
