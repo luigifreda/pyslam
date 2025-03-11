@@ -375,7 +375,7 @@ class FolderDataset(Dataset):
         self.listing = []    
         self.maxlen = 1000000    
         print('Processing Image Directory Input')
-        self.listing = glob.glob(path + '/' + self.name)
+        self.listing = glob.glob(path + '/' + self.name) # 'name' is used for specifying a glob pattern
         self.listing.sort()
         self.listing = self.listing[::self.skip]
         #print('list of files: ', self.listing)
@@ -387,7 +387,11 @@ class FolderDataset(Dataset):
         self._timestamp = 0.
         self.timestamps = None
         if timestamps is not None:
-            self.timestamps = self._read_timestamps(path + '/' + timestamps)
+            timestamps_path = os.path.join(path, timestamps)
+            if not os.path.exists(timestamps_path):
+                raise FileNotFoundError(f"Timestamps file does not exist: {timestamps_path}")            
+            self.timestamps = self._read_timestamps(timestamps_path)
+            Printer.green('read timestamps from ' + timestamps_path)            
         
     def getImage(self, frame_id):
         if self.i == self.maxlen:

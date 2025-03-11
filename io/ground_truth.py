@@ -277,7 +277,7 @@ class GroundTruth(object):
     
 
 # Read the ground truth from a simple file containining [timestamp, x,y,z, qx, qy, qz, qw, scale] lines
-# Use the file convert_groundtruth.py to convert a dataset into this format.
+# Use the file io/convert_groundtruth.py to convert the ground truth of a dataset into this format.
 class SimpleGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.KITTI): 
         super().__init__(path, name, associations, start_frame_id, type)

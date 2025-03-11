@@ -164,7 +164,8 @@ FOLDER_DATASET:
   name: '*png'  
   settings: settings/KITTI00-02.yaml
   groundtruth_file: groundtruth.txt
-  fps: 20 
+  fps: 20
+  #timestamps: times.txt # can be used here and to be intended as the frame timestamps 
 
 
 SYSTEM_STATE: 
