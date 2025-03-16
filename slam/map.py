@@ -42,7 +42,7 @@ import traceback
 
 import g2o
 import optimizer_g2o 
-
+import optimizer_gtsam
 
 kVerbose = True 
 kMaxLenFrameDeque = 20
@@ -589,9 +589,13 @@ class Map(object):
     # - local keyframes are adjusted, 
     # - other keyframes are fixed
     # - all points are adjusted  
-    def optimize(self, local_window=Parameters.kLargeBAWindow, verbose=False, rounds=10, use_robust_kernel=False, do_cull_points = False, abort_flag=g2o.Flag()):            
-        err = optimizer_g2o.bundle_adjustment(self.get_keyframes(), self.get_points(), local_window=local_window, \
-                                              rounds=rounds, loop_kf_id=0, use_robust_kernel=use_robust_kernel, abort_flag=abort_flag, verbose=verbose)        
+    def optimize(self, local_window=Parameters.kLargeBAWindow, verbose=False, rounds=10, use_robust_kernel=False, do_cull_points = False, abort_flag=g2o.Flag()):
+        if Parameters.kOptimizationBackEndUseGtsam:
+            bundle_adjustment_fun = optimizer_gtsam.bundle_adjustment
+        else: 
+            bundle_adjustment_fun = optimizer_g2o.bundle_adjustment               
+        err = bundle_adjustment_fun(self.get_keyframes(), self.get_points(), local_window=local_window, \
+                                    rounds=rounds, loop_kf_id=0, use_robust_kernel=use_robust_kernel, abort_flag=abort_flag, verbose=verbose)        
         if do_cull_points: 
             self.remove_points_with_big_reproj_err(self.get_points())
         return err
@@ -608,9 +612,13 @@ class Map(object):
             #print('                   points: ', sorted([p.id for p in points]))        
             #err = optimizer_g2o.optimize(frames, points, None, False, verbose, rounds)  
             # NOTE: Why do we want to use parallel multi-processing instead of multi-threading for local BA?
-            #       Unfortunately, the GIL does use a SINGLE CPU-core under multi-threading. On the other hand, multi-processing allows to distribute computation over multiple CPU-cores.
-            ba_function = optimizer_g2o.local_bundle_adjustment_parallel if Parameters.kUseParallelProcessLBA \
-                     else optimizer_g2o.local_bundle_adjustment
+            #       Unfortunately, the GIL does use a SINGLE CPU-core under multi-threading. 
+            #       On the other hand, multi-processing allows to distribute computation over multiple CPU-cores.
+            if Parameters.kOptimizationBackEndUseGtsam:
+                ba_function = optimizer_gtsam.local_bundle_adjustment  # [WIP] testing gtsam, override
+            else:
+                ba_function = optimizer_g2o.local_bundle_adjustment_parallel if Parameters.kUseParallelProcessLBA \
+                         else optimizer_g2o.local_bundle_adjustment
             err, ratio_bad_observations = ba_function(keyframes, points, ref_keyframes, False, verbose, rounds, abort_flag=abort_flag, mp_abort_flag=mp_abort_flag, map_lock=self.update_lock)
             Printer.green('local optimization - perc bad observations: %.2f %%' % (ratio_bad_observations*100) )
             return err

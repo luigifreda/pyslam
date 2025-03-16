@@ -86,7 +86,6 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
         sync_flag_thread.daemon = True  # Daemonize thread so it exits when the main thread does
         sync_flag_thread.start()          
 
-
     # create g2o optimizer
     opt = g2o.SparseOptimizer()
     #block_solver = g2o.BlockSolverSE3(g2o.LinearSolverCSparseSE3())
@@ -144,7 +143,6 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             
             #print('adding edge between point ', p.id,' and frame ', f.id)
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx]>0
-            
             invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
             
             if is_stereo_obs: 
@@ -202,7 +200,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             is_stereo = edge_data
             
             edge_chi2 = edge.chi2()
-            chi2_check_failure = (edge_chi2 > chi2Mono) if not is_stereo else (edge_chi2 > chi2Stereo)
+            chi2_check_failure = edge_chi2 > (chi2Stereo if is_stereo else chi2Mono)
             if chi2_check_failure or not edge.is_depth_positive():
                 edge.set_level(1)
                 num_bad_edges += 1
@@ -323,8 +321,8 @@ def pose_optimization(frame, verbose=False, rounds=10):
     solver = g2o.OptimizationAlgorithmLevenberg(block_solver)
     opt.set_algorithm(solver)
 
-    thHuberMono = math.sqrt(5.991)  # chi-square 2 DOFS 
-    thHuberStereo = math.sqrt(7.815) # chi-square 3 DOFS 
+    thHuberMono = math.sqrt(5.991)  # chi-squared 2 DOFS 
+    thHuberStereo = math.sqrt(7.815) # chi-squared 3 DOFS 
 
     point_edge_pairs = {}
     num_point_edges = 0
@@ -397,8 +395,8 @@ def pose_optimization(frame, verbose=False, rounds=10):
     # perform 4 optimizations: 
     # after each optimization we classify observation as inlier/outlier;
     # at the next optimization, outliers are not included, but at the end they can be classified as inliers again
-    chi2Mono = 5.991 # chi-square 2 DOFs
-    chi2Stereo = 7.815 # chi-square 3 DOFs
+    chi2Mono = 5.991 # chi-squared 2 DOFs
+    chi2Stereo = 7.815 # chi-squared 3 DOFs
     num_bad_point_edges = 0
 
     for it in range(4):
@@ -417,7 +415,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
             
             is_stereo_obs = frame.kps_ur is not None and frame.kps_ur[idx]>0
             
-            chi2_check_failure = chi2 > chi2Mono if not is_stereo_obs else chi2 > chi2Stereo
+            chi2_check_failure = chi2 > (chi2Stereo if is_stereo_obs else chi2Mono)
             if chi2_check_failure:
                 frame.outliers[idx] = True 
                 edge.set_level(1)
@@ -447,8 +445,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
         frame.update_pose(poseRt(R, t))
 
     # since we have only one frame here, each edge corresponds to a single distinct point
-    num_valid_points = num_point_edges - num_bad_point_edges   
-    
+    num_valid_points = num_point_edges - num_bad_point_edges
     mean_squared_error = opt.active_chi2()/max(num_valid_points,1)
 
     return mean_squared_error, is_ok, num_valid_points
@@ -584,7 +581,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
             #     continue 
             
             edge_chi2 = edge.chi2()
-            chi2_check_failure = edge_chi2 > chi2Mono if not is_stereo else edge_chi2 > chi2Stereo
+            chi2_check_failure = edge_chi2 > (chi2Stereo if is_stereo else chi2Mono)
             if chi2_check_failure or not edge.is_depth_positive():
                 edge.set_level(1)
                 num_bad_edges += 1
@@ -781,7 +778,7 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
                 #     continue 
                 
                 edge_chi2 = edge.chi2()
-                chi2_check_failure = edge_chi2 > chi2Mono if not is_stereo else edge_chi2 > chi2Stereo
+                chi2_check_failure = edge_chi2 > (chi2Stereo if is_stereo else chi2Mono)
                 if chi2_check_failure or not edge.is_depth_positive():
                     edge.set_level(1)
                     num_bad_edges += 1

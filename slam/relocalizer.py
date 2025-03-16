@@ -1,3 +1,22 @@
+"""
+* This file is part of PYSLAM 
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 from collections import defaultdict 
 
 import os
@@ -5,7 +24,8 @@ import numpy as np
 
 from frame import Frame, FeatureTrackerShared, compute_frame_matches, prepare_input_data_for_pnpsolver
 from rotation_histogram import filter_matches_with_histogram_orientation
-from optimizer_g2o import pose_optimization
+import optimizer_gtsam
+import optimizer_g2o
 from utils_sys import Printer, Logging
 from loop_detector_base import LoopDetectorOutput
 from search_points import search_frame_by_projection
@@ -43,6 +63,9 @@ else:
     def print(*args, **kwargs):
         return
     
+    
+pose_optimization = optimizer_gtsam.pose_optimization if Parameters.kOptimizationFrontEndUseGtsam else optimizer_g2o.pose_optimization
+
 
 # Relocalizer working on loop detection output 
 class Relocalizer: 

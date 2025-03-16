@@ -164,7 +164,7 @@ if __name__ == "__main__":
     
     key_cv = None
             
-    img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
+    img_id = 0  #210, 340, 400   # you can start from a desired frame id if needed 
     while not viewer3D.is_closed():
         
         img, img_right, depth = None, None, None    

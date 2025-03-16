@@ -733,7 +733,7 @@ Many improvements and additional features are currently under development:
 - [ ] ROS support
 - [x] gaussian splatting integration
 - [x] documentation [WIP]
-- [ ] gtsam integration
+- [x] gtsam integration [WIP]
 - [ ] IMU integration
 - [ ] LIDAR integration
 - [x] XSt3r-based methods integration [WIP]

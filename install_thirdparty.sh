@@ -182,6 +182,12 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     cd $ROOT_DIR
 fi 
 
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/gtsam ..."
+./install_gtsam.sh
+
+cd $ROOT_DIR
+
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/ml_depth_pro ..."
@@ -198,7 +204,6 @@ if [ ! -d ml_depth_pro ]; then
 fi
 
 cd $ROOT_DIR
-
 
 
 print_blue "=================================================================="

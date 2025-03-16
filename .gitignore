@@ -20,6 +20,8 @@ thirdparty/pangolin
 thirdparty/opencv-python
 thirdparty/opencv
 thirdparty/open3d
+thirdparty/gtsam
+thirdparty/gtsam_factors/lib
 thirdparty/contextdesc/pretrained 
 matches.txt 
 map.png

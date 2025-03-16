@@ -15,6 +15,7 @@ CORE_LIB_PATHS:
   viz: viz
   io: io
   dense: dense
+  gtsam_factors: thirdparty/gtsam_factors/lib
 
 LIB_PATHS:
   # The following libs are explicitely imported on demand by using, for instance:

@@ -48,7 +48,7 @@ from rotation_histogram import filter_matches_with_histogram_orientation
 
 from search_points import search_by_sim3, search_more_map_points_by_projection, search_and_fuse_for_loop_correction, search_frame_by_projection
 
-from optimizer_g2o import optimize_sim3, optimize_essential_graph, pose_optimization
+from optimizer_g2o import optimize_sim3, optimize_essential_graph
 
 from loop_detecting_process import LoopDetectingProcess
 from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorOutput

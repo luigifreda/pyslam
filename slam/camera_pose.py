@@ -23,7 +23,6 @@ import g2o
 # camera pose representation by using g2o.Isometry3d()
 class CameraPose(object):
     def __init__(self, pose=None):
-        #self._pose = None  # g2o.Isometry3d 
         if pose is None: 
             pose = g2o.Isometry3d()      
         self.set(pose)
@@ -42,22 +41,27 @@ class CameraPose(object):
         self.__dict__.update(state)
         self._pose = g2o.Isometry3d(self._pose) # set back to g2o.Isometry3d
                 
-    # input pose is expected to be an g2o.Isometry3d      
+    # input pose_cw is expected to be an g2o.Isometry3d
     def set(self, pose):
         if isinstance(pose, g2o.SE3Quat) or isinstance(pose, g2o.Isometry3d):
             self._pose = g2o.Isometry3d(pose.orientation(), pose.position())
         else:
-            self._pose = g2o.Isometry3d(pose)     # g2o.Isometry3d                          
-        #self.position = pose.position()          # np.zeros(3)
-        #self.orientation = pose.orientation()    # g2o.Quaternion(),  quat_cw     
-        self.Tcw = self._pose.matrix()     # homogeneous transformation matrix: (4, 4)   pc_ = Tcw * pw_
+            self._pose = g2o.Isometry3d(pose)     # g2o.Isometry3d
+        self.set_mat(self._pose.matrix())
+        
+    # input pose_cw is expected to be an g2o.Isometry3d        
+    def update(self,pose):
+        self.set(pose)
+        
+    def set_mat(self, Tcw):
+        self.Tcw = Tcw     # homogeneous transformation matrix: (4, 4)   pc_ = Tcw * pw_
         self.Rcw = self.Tcw[:3,:3]
         self.tcw = self.Tcw[:3,3]    #  pc = Rcw * pw + tcw
         self.Rwc = self.Rcw.T
-        self.Ow = -(self.Rwc @ self.tcw)  # origin of camera frame w.r.t world
-        
-    def update(self,pose):
-        self.set(pose)
+        self.Ow = -(self.Rwc @ self.tcw)  # origin of camera frame w.r.t world 
+                
+    def update_mat(self, Tcw):
+       self.set_matrix(Tcw)
             
     @property    
     def isometry3d(self):  # pose as g2o.Isometry3d 

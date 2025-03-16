@@ -225,7 +225,7 @@ class FrameBase(object):
         with self._lock_pose:           
             return self._pose.position    
                
-    # update pose from transformation matrix or g2o.Isometry3d
+    # update pose_cw from transformation matrix or g2o.Isometry3d, input pose 
     def update_pose(self, pose):
         with self._lock_pose:              
             self._pose.set(pose)

@@ -133,6 +133,11 @@ class Parameters:
     
     # Sparse map visualization 
     kSparseImageColorPatchDelta=1  # center +- delta
+
+
+    # Optimization engine 
+    kOptimizationFrontEndUseGtsam = False    # [WIP] Not stable yet!
+    kOptimizationBackEndUseGtsam = False     # [WIP] 
     
     
     # Bundle Adjustment (BA)
@@ -141,7 +146,13 @@ class Parameters:
     kEveryNumFramesLargeWindowBA=10   # num of frames between two large window BA  
     kLargeBAWindow=20                 #  [# frames] 
     kUseParallelProcessLBA = False    # Experimental - keep it False for the moment since it is neither faster (probably due to the overhead of copying data to multi-processing shared memory) nor stable yet! 
+
         
+    # Global Bundle Adjustment (GBA)
+    kUseGBA = True                      # Activated by loop closing
+    kGBADebugAndPrintToFile = True
+    kGBAUseRobustKernel = True
+
     
     # Loop closing
     kUseLoopClosing = True                                  # To enable/disable loop closing.
@@ -175,13 +186,7 @@ class Parameters:
     kRelocalizationMaxReprojectionDistanceMapSearchCoarse = 10    # [pixels]    o:10 
     kRelocalizationMaxReprojectionDistanceMapSearchFine = 3       # [pixels]    o:3       
     
-    
-    # Global Bundle Adjustment (GBA)
-    kUseGBA = True                      # Activated by loop closing
-    kGBADebugAndPrintToFile = True
-    kGBAUseRobustKernel = True
-    
-    
+        
     # Volumetric Integration
     kUseVolumetricIntegration = False                  # To enable/disable volumetric integration (dense mapping)  
     kVolumetricIntegrationType = "TSDF"                # "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_factory.py)

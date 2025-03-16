@@ -36,7 +36,8 @@ from map import Map
 from timer import TimerFps
 
 import g2o
-from optimizer_g2o import global_bundle_adjustment
+import optimizer_gtsam
+import optimizer_g2o
 
 from keyframe_data import KeyFrameData
 from utils_sys import Printer, Logging
@@ -337,11 +338,15 @@ class GlobalBundleAdjustment:
         result_dict = {}
         
         try:
+            if Parameters.kOptimizationBackEndUseGtsam:
+                global_bundle_adjustment_fun = optimizer_gtsam.global_bundle_adjustment
+            else: 
+                global_bundle_adjustment_fun = optimizer_g2o.global_bundle_adjustment
             mean_squared_error.value, result_dict = \
-                global_bundle_adjustment(keyframes=keyframes, points=points, rounds=rounds, \
-                                         loop_kf_id=loop_kf_id, use_robust_kernel=use_robust_kernel,\
-                                         abort_flag=opt_abort_flag, mp_abort_flag=mp_opt_abort_flag,
-                                         result_dict=result_dict, verbose=False, print=print)
+                global_bundle_adjustment_fun(keyframes=keyframes, points=points, rounds=rounds, \
+                                             loop_kf_id=loop_kf_id, use_robust_kernel=use_robust_kernel,\
+                                             abort_flag=opt_abort_flag, mp_abort_flag=mp_opt_abort_flag,
+                                             result_dict=result_dict, verbose=False, print=print)
             task_completed = True
         except Exception as e:           
             print(f'GlobalBundleAdjustment: EXCEPTION: {e} !!!')

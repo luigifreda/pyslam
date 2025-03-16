@@ -1,0 +1,63 @@
+import sys
+sys.path.append("./lib")
+
+import gtsam
+from gtsam.symbol_shorthand import X, L
+import numpy as np
+
+import gtsam_factors
+
+if __name__ == "__main__":
+    # Print gtsam version and location of library
+    print(f'gtsam location: {gtsam.__file__}')
+    
+    # Create a NonlinearFactorGraph to hold the factors
+    graph = gtsam.NonlinearFactorGraph()
+    initial = gtsam.Values()
+    
+    # Monocular Camera Calibration (Simple intrinsic parameters for demonstration)
+    K_mono = gtsam.Cal3_S2(600, 600, 0, 320, 240)
+
+    # Stereo Camera Calibration (Simple intrinsic parameters for demonstration)
+    K_stereo = gtsam.Cal3_S2Stereo(600, 600, 0, 320, 240, 0.1)
+
+    # Noise Model (Isotropic Gaussian)
+    noise_model = gtsam.noiseModel.Isotropic.Sigma(2, 2.0)  # Monocular (2D)
+    stereo_noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1.0)  # Stereo (3D)
+    
+    # Define a known 3D point in front of the camera (ensure Z > 0)
+    P = np.array([1, 2, 10], dtype=np.float64).reshape(3, 1)  # Point in front of the camera
+
+    # Define 2D projection (Monocular), make sure this projection is valid for the given P
+    p_2d = np.array([320, 240], dtype=np.float64).reshape(2, 1)
+
+    # Define StereoPoint2 (Stereo camera model)
+    p_stereo = gtsam.StereoPoint2(145, 140, 120)  # Right and Left projections
+
+    # Add Monocular Resectioning Factor (ensure the 3D point is in front of the camera)
+    factor_mono = gtsam_factors.ResectioningFactor(noise_model, 1, K_mono, p_2d, P)
+    print(f'factor_mono: {factor_mono}')
+    graph.add(factor_mono)
+    print(f'added factor_mono: {factor_mono}')
+
+    # Add Stereo Resectioning Factor (ensure the 3D point is visible from both cameras)
+    factor_stereo = gtsam_factors.ResectioningFactorStereo(stereo_noise_model, 1, K_stereo, p_stereo, P)
+    print(f'factor_stereo: {factor_stereo}')
+    graph.add(factor_stereo)
+    print(f'added factor_stereo: {factor_stereo}')
+            
+    # Initial Estimates (initial guess for pose)
+    initial_estimates = gtsam.Values()
+    initial_estimates.insert(1, gtsam.Pose3())  # Start with an identity pose as a guess
+
+    # Levenberg-Marquardt Optimizer Setup
+    params = gtsam.LevenbergMarquardtParams()
+    print(f'creating optimizer: {params}')
+    optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_estimates, params)
+    
+    # Perform Optimization
+    print(f'optimizing...')
+    result = optimizer.optimize()
+
+    # Print the result (optimized pose)
+    print("Optimized Pose:", result.atPose3(1))
