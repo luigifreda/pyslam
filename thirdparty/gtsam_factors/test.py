@@ -13,8 +13,8 @@ if __name__ == "__main__":
     
     # Create a NonlinearFactorGraph to hold the factors
     graph = gtsam.NonlinearFactorGraph()
-    initial = gtsam.Values()
-    
+    initial_estimates = gtsam.Values()
+        
     # Monocular Camera Calibration (Simple intrinsic parameters for demonstration)
     K_mono = gtsam.Cal3_S2(600, 600, 0, 320, 240)
 
@@ -35,21 +35,24 @@ if __name__ == "__main__":
     p_stereo = gtsam.StereoPoint2(145, 140, 120)  # Right and Left projections
 
     # Add Monocular Resectioning Factor (ensure the 3D point is in front of the camera)
-    factor_mono = gtsam_factors.ResectioningFactor(noise_model, 1, K_mono, p_2d, P)
+    factor_mono = gtsam_factors.ResectioningFactor(noise_model, X(1), K_mono, p_2d, P)
     print(f'factor_mono: {factor_mono}')
     graph.add(factor_mono)
     print(f'added factor_mono: {factor_mono}')
 
     # Add Stereo Resectioning Factor (ensure the 3D point is visible from both cameras)
-    factor_stereo = gtsam_factors.ResectioningFactorStereo(stereo_noise_model, 1, K_stereo, p_stereo, P)
+    factor_stereo = gtsam_factors.ResectioningFactorStereo(stereo_noise_model, X(1), K_stereo, p_stereo, P)
     print(f'factor_stereo: {factor_stereo}')
     graph.add(factor_stereo)
     print(f'added factor_stereo: {factor_stereo}')
-            
+                    
     # Initial Estimates (initial guess for pose)
-    initial_estimates = gtsam.Values()
-    initial_estimates.insert(1, gtsam.Pose3())  # Start with an identity pose as a guess
-
+    init_pose = gtsam.Pose3(np.array([0, 0, 0, 0, 0, 0], dtype=np.float64)) # Start with an identity pose as a guess
+    initial_estimates.insert(X(1), init_pose)     
+    
+    value = initial_estimates.atPose3(X(1))
+    print(type(value))  # This should print something like <class 'gtsam.Pose3'>
+                
     # Levenberg-Marquardt Optimizer Setup
     params = gtsam.LevenbergMarquardtParams()
     print(f'creating optimizer: {params}')
@@ -60,4 +63,4 @@ if __name__ == "__main__":
     result = optimizer.optimize()
 
     # Print the result (optimized pose)
-    print("Optimized Pose:", result.atPose3(1))
+    print("Optimized Pose:", result.atPose3(X(1)))

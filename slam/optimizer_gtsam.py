@@ -22,6 +22,7 @@ import numpy as np
 import sys
 import time
 
+import platform
 import threading 
 import multiprocessing as mp
 import traceback
@@ -352,7 +353,7 @@ def global_bundle_adjustment_map(map, rounds=10, loop_kf_id=0, use_robust_kernel
 
 # ------------------------------------------------------------------------------------------
 
-def resectioning_mono_factor_(
+def resectioning_mono_factor_py(
     noise_model: gtsam.noiseModel.Base,
     pose_key: int,
     calib: gtsam.Cal3_S2,
@@ -385,8 +386,17 @@ def resectioning_mono_factor_(
 
     return gtsam.CustomFactor(noise_model, gtsam.KeyVector([pose_key]), error_func)
 
+def resectioning_mono_factor(
+    noise_model: gtsam.noiseModel.Base,
+    pose_key: int,
+    calib: gtsam.Cal3_S2,
+    p: gtsam.Point2,
+    P: gtsam.Point3,
+) -> gtsam.NonlinearFactor:
+    return gtsam_factors.ResectioningFactor(noise_model, pose_key, calib, p, P)
 
-def resectioning_stereo_factor_(
+
+def resectioning_stereo_factor_py(
     noise_model: gtsam.noiseModel.Base,
     pose_key: int,
     calib: gtsam.Cal3_S2Stereo,
@@ -419,16 +429,6 @@ def resectioning_stereo_factor_(
 
     return gtsam.CustomFactor(noise_model, gtsam.KeyVector([pose_key]), error_func)
 
-
-def resectioning_mono_factor(
-    noise_model: gtsam.noiseModel.Base,
-    pose_key: int,
-    calib: gtsam.Cal3_S2,
-    p: gtsam.Point2,
-    P: gtsam.Point3,
-) -> gtsam.NonlinearFactor:
-    return gtsam_factors.ResectioningFactor(noise_model, pose_key, calib, p, P)
-
 def resectioning_stereo_factor(
     noise_model: gtsam.noiseModel.Base,
     pose_key: int,
@@ -453,6 +453,12 @@ class PoseOptimizerGTSAM:
 
         self.thHuberMono = math.sqrt(5.991)  # chi-square 2 DOFS 
         self.thHuberStereo = math.sqrt(7.815) # chi-square 3 DOFS 
+        
+        self.add_mono_factor = resectioning_mono_factor
+        self.add_stereo_factor = resectioning_stereo_factor
+        if platform.system() == "Darwin":
+            self.add_mono_factor  = resectioning_mono_factor_py 
+            self.add_stereo_factor  = resectioning_stereo_factor_py       
 
     def add_pose_node(self):
         pose_initial = gtsam.Pose3(gtsam.Rot3(self.frame.Rwc), gtsam.Point3(*self.frame.Ow))
@@ -461,7 +467,7 @@ class PoseOptimizerGTSAM:
         #noise_prior = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)  
         #self.graph.add(gtsam.PriorFactorPose3(X(0), pose_initial, noise_prior))
 
-    def add_observations(self):
+    def add_observations(self):        
         with MapPoint.global_lock:
             for idx, p in enumerate(self.frame.points):
                 if p is None:
@@ -483,11 +489,11 @@ class PoseOptimizerGTSAM:
                 
                 # Add the observation factor
                 if is_stereo_obs:
-                    robust_factor = resectioning_stereo_factor(robust_noise, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
-                    iso_factor = resectioning_stereo_factor(iso_noise, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+                    robust_factor = self.add_stereo_factor(robust_noise, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+                    iso_factor = self.add_stereo_factor(iso_noise, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
                 else:
-                    robust_factor = resectioning_mono_factor(robust_noise, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
-                    iso_factor = resectioning_mono_factor(iso_noise, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+                    robust_factor = self.add_mono_factor(robust_noise, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+                    iso_factor = self.add_mono_factor(iso_noise, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
 
                 used_factor = robust_factor if self.use_robust_factors else iso_factor
                 self.graph.add(used_factor) # initially we use robust factors 

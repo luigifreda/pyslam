@@ -44,7 +44,12 @@ using symbol_shorthand::X;
 
 template <typename T>
 boost::shared_ptr<T> create_shared_noise_model(const T& model) {
-    return boost::make_shared<T>(model);
+    return boost::make_shared<T>(model); // This makes a copy of model
+}
+
+template <typename T>
+boost::shared_ptr<T> create_shared_noise_model(const boost::shared_ptr<T>& model) {
+    return model; // No copy, just return the same shared_ptr
 }
 
 /**
@@ -119,6 +124,9 @@ PYBIND11_MODULE(gtsam_factors, m) {
     py::class_<NoiseModelFactorN<Pose3>, std::shared_ptr<NoiseModelFactorN<Pose3>>, NonlinearFactor>(m, "NoiseModelFactorN_Pose3");  
 
     py::class_<ResectioningFactor, std::shared_ptr<ResectioningFactor>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactor")
+    .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
+        return new ResectioningFactor(model, key, calib, measured_p, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
     .def(py::init([](const noiseModel::Isotropic& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
         return new ResectioningFactor(create_shared_noise_model(model), key, calib, measured_p, world_P);
     }),py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
@@ -129,6 +137,9 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def("error", &ResectioningFactor::error);
 
     py::class_<ResectioningFactorStereo, std::shared_ptr<ResectioningFactorStereo>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactorStereo")
+    .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
+        return new ResectioningFactorStereo(model, key, calib, measured_p_stereo, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
     .def(py::init([](const noiseModel::Isotropic& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
         return new ResectioningFactorStereo(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
     }),py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
@@ -137,5 +148,4 @@ PYBIND11_MODULE(gtsam_factors, m) {
     }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
     .def("evaluateError", &ResectioningFactorStereo::evaluateError)
     .def("error", &ResectioningFactorStereo::error);
-
 }

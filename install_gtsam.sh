@@ -32,6 +32,7 @@ if [ ! -d gtsam ]; then
     #git fetch --all --tags # to fetch tags 
     cd gtsam
     git checkout tags/4.2a9   
+    git apply ../gtsam.patch
     cd .. 
 fi
 cd gtsam
@@ -46,10 +47,13 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
     # https://groups.google.com/g/gtsam-users/c/jdySXchYVQg
     # https://bitbucket.org/gtborg/gtsam/issues/414/compiling-with-march-native-results-in 
     GTSAM_OPTIONS="-DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_PYTHON=ON -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES=OFF"
-    GTSAM_OPTIONS+=" -DGTSAM_THROW_CHEIRALITY_EXCEPTION=OFF"
+    GTSAM_OPTIONS+=" -DGTSAM_THROW_CHEIRALITY_EXCEPTION=OFF -DCMAKE_PYTHON_EXECUTABLE=$(which python) -DGTSAM_PYTHON_VERSION=$PYTHON_VERSION"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        GTSAM_OPTIONS+=" -DGTSAM_WITH_TBB=OFF"
+    fi 
     echo GTSAM_OPTIONS: $GTSAM_OPTIONS
     cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $GTSAM_OPTIONS $EXTERNAL_OPTION
-	make -j 8
+	make -j $(nproc)
     make install 
 fi
 

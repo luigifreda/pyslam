@@ -28,10 +28,25 @@ message(STATUS "set custom gtsam folder: ${GTSAM_DIR}")
 find_package(GTSAM REQUIRED)
 message(STATUS "gtsam include: ${GTSAM_INCLUDE_DIR}")
 message(STATUS "gtsam lib dirs: ${GTSAM_LIBRARY_DIRS}")
+message(STATUS "gtsam libs: ${GTSAM_LIBS}")
 
 find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
 message(STATUS "Boost_VERSION: ${Boost_VERSION}")
 message(STATUS "Boost includes: ${Boost_INCLUDE_DIRS}")
+
+
+# if (APPLE)
+#   find_package(TBB REQUIRED)
+#   if (TBB_FOUND)
+#     message(STATUS "TBB found")
+#     if (NOT TBB_LIBRARIES)
+#       set(TBB_LIBRARIES TBB::tbb)
+#     endif()
+#   endif()
+#   message(STATUS "TBB include: ${TBB_INCLUDE_DIRS}")
+#   message(STATUS "TBB libs: ${TBB_LIBRARIES}")
+#   message(STATUS "TBB library dirs: ${TBB_LIBRARY_DIRS}")
+# endif()
 
 # the following 2 lines are added to correctly detect the python version 
 if(WITH_PYTHON_INTERP_CHECK)
@@ -47,11 +62,12 @@ include_directories(
     ${EIGEN3_INCLUDE_DIR}
     ${GTSAM_INCLUDE_DIR}
     ${Boost_INCLUDE_DIRS}
+    ${TBB_INCLUDE_DIRS}
 )
 
-link_directories( 
-  ${GTSAM_LIBRARY_DIRS}
-)
+# link_directories( 
+#   ${GTSAM_LIBRARY_DIRS}
+# )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
@@ -61,4 +77,5 @@ pybind11_add_module(gtsam_factors gtsam_factors.cpp)
 target_link_libraries(gtsam_factors PRIVATE
   gtsam
   ${Boost_LIBRARIES}
+  ${TBB_LIBRARIES}
 )
