@@ -1,10 +1,10 @@
-# pySLAM v2.6.1
+# pySLAM v2.7.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.6.1](#pyslam-v261)
+- [pySLAM v2.7.0](#pyslam-v270)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -33,6 +33,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
       - [Save the a map](#save-the-a-map)
       - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
       - [Trajectory saving](#trajectory-saving)
+    - [Optimization engines](#optimization-engines)
     - [SLAM GUI](#slam-gui)
     - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
   - [System overview](#system-overview)
@@ -397,6 +398,17 @@ SAVE_TRAJECTORY:
   basename: trajectory           # basename of the trajectory saving output
 ```
 
+---
+
+### Optimization engines
+
+At present, pySLAM supports `g2o` and `gtsam`. Frontend pose optimization with `gtsam` is not stable yet. 
+The default optimization engine is `g2o`. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
+```python
+  # Optimization engine 
+  kOptimizationFrontEndUseGtsam = False    # [WIP] Not stable yet!
+  kOptimizationBackEndUseGtsam = False     # [WIP] 
+```
 
 ---
 
