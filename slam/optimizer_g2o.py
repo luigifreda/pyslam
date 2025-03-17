@@ -381,7 +381,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
             
             opt.add_edge(edge)
 
-            point_edge_pairs[p] = (edge, idx) # one edge per point 
+            point_edge_pairs[p] = (edge, idx, is_stereo_obs) # one edge per point 
             num_point_edges += 1
 
     if num_point_edges < 3:
@@ -407,13 +407,13 @@ def pose_optimization(frame, verbose=False, rounds=10):
         num_bad_point_edges = 0
 
         for p, edge_pair in point_edge_pairs.items(): 
-            edge, idx = edge_pair
+            edge, idx, is_stereo_obs = edge_pair
             if frame.outliers[idx]:
                 edge.compute_error()
 
             chi2 = edge.chi2()
             
-            is_stereo_obs = frame.kps_ur is not None and frame.kps_ur[idx]>0
+            #is_stereo_obs = frame.kps_ur is not None and frame.kps_ur[idx]>0
             
             chi2_check_failure = chi2 > (chi2Stereo if is_stereo_obs else chi2Mono)
             if chi2_check_failure:
