@@ -12,7 +12,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [MacOS](#macos)
     - [Docker](#docker)
     - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-  - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
+    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
   - [Usage](#usage)
     - [Visual odometry](#visual-odometry)
     - [Full SLAM](#full-slam)
@@ -175,14 +175,13 @@ $ python3 -c "import cv2; print(cv2.__version__)" # check opencv version
 $ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"  # check if you have non-free OpenCV module support (no errors imply success)
 ```
 
----
-
-## Troubleshooting and performance issues
+### Troubleshooting and performance issues
 
 If you run into issues or errors during the installation process or at run-time, please, check the [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) file. Before submitting a new git issue please read [here](docs/TROUBLESHOOTING.md#submitting-a-git-issue).
 
 --- 
-## Usage
+
+## Usage 
 
 Open a new terminal and start experimenting with the scripts. In each new terminal you are supposed to start with this command:
 ```bash
@@ -190,7 +189,7 @@ $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is o
 ```
 The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [config_parameters.py](./config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
 
---- 
+ 
 
 ### Visual odometry
 
@@ -201,8 +200,7 @@ $ ./main_vo.py
 ```
 By default, this processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
 Now, with RGBD datasets, you can also test the **RGBD odometry** with the classes `VisualOdometryRgbd` or `VisualOdometryRgbdTensor` (ground truth is not required here). 
-
---- 
+ 
 
 ### Full SLAM
 
