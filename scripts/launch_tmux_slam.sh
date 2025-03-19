@@ -5,24 +5,23 @@ ROOT_DIR="$SCRIPT_DIR/.."
 ROOT_DIR=$(realpath $ROOT_DIR)
 LOGS_DIR="$ROOT_DIR"/logs
 
-
 echo "ROOT_DIR: $ROOT_DIR"
 
 . "$ROOT_DIR"/pyenv-activate.sh 
 
-if ! -f "$LOGS_DIR/local_mapping.log"; then 
+if [ ! -f "$LOGS_DIR/local_mapping.log" ]; then 
     touch "$LOGS_DIR/local_mapping.log"
 fi 
-if ! -f "$LOGS_DIR/loop_closing.log"; then 
+if [ ! -f "$LOGS_DIR/loop_closing.log" ]; then 
     touch "$LOGS_DIR/loop_closing.log"
 fi
-if ! -f "$LOGS_DIR/loop_detecting.log"; then 
+if [ ! -f "$LOGS_DIR/loop_detecting.log" ]; then 
     touch "$LOGS_DIR/loop_detecting.log"
 fi
-if ! -f "$LOGS_DIR/gba.log"; then 
+if [ ! -f "$LOGS_DIR/gba.log" ]; then 
     touch "$LOGS_DIR/gba.log"
 fi
-if ! -f "$LOGS_DIR/volumetric_integrator.log"; then 
+if [ ! -f "$LOGS_DIR/volumetric_integrator.log" ]; then 
     touch "$LOGS_DIR/volumetric_integrator.log"
 fi
 
