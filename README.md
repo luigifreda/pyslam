@@ -5,6 +5,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.7.0](#pyslam-v270)
+  - [Overview](#overview)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -51,7 +52,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [EuRoC Datasets](#euroc-datasets)
     - [Replica Datasets](#replica-datasets)
   - [Camera Settings](#camera-settings)
-  - [Comparison pySLAM vs ORB-SLAM3](#comparison-pyslam-vs-orb-slam3)
+  - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
   - [Contributing to pySLAM](#contributing-to-pyslam)
   - [References](#references)
   - [Credits](#credits)
@@ -60,28 +61,12 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- /TOC -->
  
-**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following **features**:
+**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
 - Various loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes available depth and color images with volumetric integration and provides an output dense reconstruction. This can use **TSDF** with voxel hashing or incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
 - A collection of other useful tools for VO and SLAM.
-
-**Main Scripts**
-* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
-
-* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
-
-* `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. 
-
-* `main_depth_prediction.py` shows how to use the available depth inference models to get depth estimations from input color images.
-  
-* `main_map_viewer.py` reloads a saved map and visualizes it. Further details on how to save a map [here](#reload-a-saved-map-and-relocalize-in-it).
-
-* `main_map_dense_reconstruction.py` reloads a saved map and uses a configured volumetric integrator to obtain a dense reconstruction (see [here](#volumetric-reconstruction)). 
-
-**System overview**      
-[Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM workflow, system components, and classes relationships/dependencies.
 
 pySLAM can be used as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should note that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
@@ -99,6 +84,28 @@ pySLAM can be used as flexible baseline framework to experiment with VO/SLAM tec
 </p>
 
 <!-- <img src="./images/dense-reconstruction-euroc-width-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" /> <img src="./images/dense-reconstruction-euroc-with-depth-prediction-gsm.png" alt="Dense Reconstruction - Gaussian Splatting" height="160" border="0" /> <img src="./images/dense-reconstruction-tum-gsm.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" />  -->
+
+## Overview
+
+**Main Scripts**
+* `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
+
+* `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
+
+* `main_feature_matching.py` shows how to use the basic feature tracker capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and allows to test the different available local features. 
+
+* `main_depth_prediction.py` shows how to use the available depth inference models to get depth estimations from input color images.
+  
+* `main_map_viewer.py` reloads a saved map and visualizes it. Further details on how to save a map [here](#reload-a-saved-map-and-relocalize-in-it).
+
+* `main_map_dense_reconstruction.py` reloads a saved map and uses a configured volumetric integrator to obtain a dense reconstruction (see [here](#volumetric-reconstruction)). 
+
+Other test/example scripts are provided in the `test` folder.
+
+**System overview**      
+
+[Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM **workflow**, system **components**, and **classes** relationships/dependencies.
+
 
 --- 
 ## Install 
@@ -133,9 +140,7 @@ Once everything is completed you can jump the [usage section](#usage).
 * Rerun
 * You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check it with `./cuda_config.sh` 
 
-The internal pySLAM libraries are imported by using a `Config` instance (from [config.py](config.py)) in the main/test scripts. 
-
-If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
+The internal pySLAM libraries are imported by using a `Config` instance (from [config.py](config.py)) in the main/test scripts. If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
 
 ### Ubuntu 
@@ -153,13 +158,13 @@ Follow the instructions in this [file](./docs/MAC.md). The reported procedure wa
 ### Docker
 
 If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker): 
-- with its custom `pyslam` / `pyslam_cuda` docker files and follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam). 
-- with one of the suggested docker images (*ubuntu\*_cuda* or *ubuntu\**), where you can build and run pyslam. 
+- With its custom `pyslam` / `pyslam_cuda` docker files and follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam). 
+- With one of the suggested docker images (*ubuntu\*_cuda* or *ubuntu\**), where you can clone, build and run pyslam. 
 
 
 ### How to install non-free OpenCV modules
 
-The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
+The provided install scripts take care of installing a recent opencv version (>=**4.10**) with non-free modules enabled (see [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
 ```bash       
 $ . pyenv-activate.sh     #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 $ ./scripts/opencv_check.py
@@ -418,7 +423,7 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 - `Step`: Enter in the *Step by step mode*. Press the button `Step` a first time to pause. Then, press it again to make the pipeline process a single new frame.
 - `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `/main_map_viewer.py` (as explained above). 
 - `Reset`: Reset SLAM system. 
-- `Draw Grount Truth`:  If a ground truth dataset is loaded (e.g., from KITTI, TUM, EUROC, or REPLICA), you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and progressively aligned (approximately every 30 frames) with the estimated trajectory. The alignment improves as more samples are added to the estimated trajectory. After ~20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors (ground truth vs. estimated trajectory) along the axes.  
+- `Draw Grount Truth`:  If a ground truth dataset (e.g., KITTI, TUM, EUROC, or REPLICA) is loaded, you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and will be progressively aligned with the estimated trajectory, updating approximately every 10-30 frames. As more frames are processed, the alignment between the ground truth and estimated trajectory becomes more accurate. After about 20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors along the main axes (i.e., $e_x$, $e_y$, $e_z$) and the history of the total $RMSE$ between the ground truth and the aligned estimated trajectories.
 
 ---
 
@@ -643,11 +648,11 @@ If you want to **use your camera**, you have to:
 * Configure the `VIDEO_DATASET` section of `config.yaml` in order to point to your recorded video.
 
 --- 
-## Comparison pySLAM vs ORB-SLAM3
+## pySLAM performances and comparative evaluations 
 
-For a comparative evaluation, "**online**" trajectory estimated by pySLAM vs "**final**" trajectories estimated by ORB-SLAM3, see this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For further details about "online" and "final" trajectories, see [here](#trajectory-saving) .
+For a comparative evaluation of the "**online**" trajectory estimated by pySLAM versus the "**final**" trajectory estimated by ORB-SLAM3, check out this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For more details about "*online*" and "*final*" trajectories, refer to this [section](#trajectory-saving) 
 
-Note that pySLAM is able to save both online and final pose estimates. On the other end, ORB-SLAM3 pose estimates are saved at the end of the full dataset playback. See this [section](#trajectory-saving) for further details on how to save trajectories with pySLAM.
+**Note**: pySLAM saves both online and final pose estimates, whereas ORB-SLAM3 only saves final estimates (pose data is recorded at the end of the entire dataset playback). For instructions on how to save trajectories with pySLAM, see this [section](#trajectory-saving). When you press the GUI button `Draw Grount Truth` (see [here](#slam-gui)), you can visualize the history of the Absolute Trajectory Error (ATE or *RMSE*) and evaluate both online and offline errors. 
 
 --- 
 ## Contributing to pySLAM

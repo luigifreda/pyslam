@@ -285,7 +285,7 @@ class PinholeCamera(Camera):
     def project_stereo(self, xcs):
         # u = self.fx * xc[0]/xc[2] + self.cx
         # v = self.fy * xc[1]/xc[2] + self.cy  
-        # ur = u - bf//xc[2]
+        # ur = u - bf/xc[2]
         projs = self.K @ xcs.T     
         zs = projs[-1]      
         projs = projs[:2]/ zs 
