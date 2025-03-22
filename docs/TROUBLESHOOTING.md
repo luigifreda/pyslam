@@ -48,6 +48,7 @@ For faster support when opening a new git issue, please provide the following in
   * Any other changes made to the codebase
 - System configuration: 
   * OS, CUDA version, etc.
+  * Is your OS native, or are you using it within Windows, VirtualBox, or a similar virtualization tool?
 - Full console log (including the error messages)
 
 Providing this information is essential for reproducing and debugging the issue efficiently.

@@ -84,7 +84,8 @@
     "propagate_const": "cpp",
     "regex": "cpp",
     "scoped_allocator": "cpp",
-    "dense": "cpp"
+    "dense": "cpp",
+    "slist": "cpp"
   },
   "python.autoComplete.extraPaths": [
     "${workspaceFolder}",
