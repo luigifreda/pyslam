@@ -202,7 +202,7 @@ def create_mock_input(num_points = 100):
     
     points_3d_w1 = (Rwc1 @ points_3d_c1.T + twc1.reshape(3,1)).T
     points_3d_w2 = points_3d_w1.copy()
-    print(f'visiable 3D points shape: {points_3d_w1.shape}')
+    print(f'visible 3D points shape: {points_3d_w1.shape}')
     #print(f'points 3D: {points_3d_w1}')
     
     # check projections 

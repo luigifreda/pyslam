@@ -848,7 +848,7 @@ class Viewer3D(object):
 
     @staticmethod
     def drawPlane(num_divs=200, div_size=10, scale=1.0):
-        gl.glLineWidth(0.5)
+        gl.glLineWidth(0.3)
         # Plane parallel to x-z at origin with normal -y
         div_size = scale*div_size
         minx = -num_divs*div_size

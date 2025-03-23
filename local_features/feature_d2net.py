@@ -35,8 +35,6 @@ from threading import RLock
 import torch
 
 import scipy
-import scipy.io
-import scipy.misc
 
 from utils_sys import Printer
 

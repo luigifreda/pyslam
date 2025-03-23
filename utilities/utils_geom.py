@@ -85,12 +85,13 @@ def inv_T(T):
     ret[:3, 3] = -R_T @ t
     return ret       
 
+
 class Sim3Pose:
     def __init__(self, R: np.ndarray=np.eye(3, dtype=float), t: np.ndarray=np.zeros(3, dtype=float), s: float=1.0):
         self.R = R
         self.t = t.reshape(3,1)
         self.s = s
-        
+        assert s > 0
         self._T = None
         self._inv_T = None
 
@@ -101,7 +102,7 @@ class Sim3Pose:
         if isinstance(T, np.ndarray):
             R = T[:3, :3]
             # Compute scale as the average norm of the rows of the rotation matrix
-            self.s = np.mean([np.linalg.norm(R[i, :]) for i in range(3)])     
+            self.s = np.mean([np.linalg.norm(R[i, :]) for i in range(3)])  
             self.R = R/self.s
             self.t = T[:3, 3].reshape(3,1)
         else:
@@ -120,9 +121,12 @@ class Sim3Pose:
     # corresponding homogeneous transformation matrix (4x4)
     def matrix(self):
         if self._T is None:
-            self._T = poseRt(self.R*self.s, self.t)
+            self._T = poseRt(self.R*self.s, self.t.ravel())
         return self._T
     
+    def inverse(self):
+        return Sim3Pose(self.R.T, -1.0/self.s * self.R.T @ self.t, 1.0/self.s)
+        
     # corresponding homogeneous inverse transformation matrix (4x4)
     def inverse_matrix(self):
         if self._inv_T is None:
@@ -134,15 +138,17 @@ class Sim3Pose:
 
     def to_se3_matrix(self):
         return poseRt(self.R, self.t.squeeze()/self.s) # [R t/s;0 1]
-    
-    def inverse(self):
-        return Sim3Pose(self.R.T, -1.0/self.s * self.R.T @ self.t, 1.0/self.s)
-    
+        
     def copy(self):
         return Sim3Pose(self.R.copy(), self.t.copy(), self.s)
         
+    # map a 3D point
     def map(self, p3d):
         return (self.s * self.R @ p3d.reshape(3,1) + self.t)
+    
+    # map a set of 3D points [Nx3]
+    def map_points(self, points):
+        return (self.s * self.R @ points.T + self.t).T
         
     # Define the @ operator
     def __matmul__(self, other):
@@ -155,9 +161,10 @@ class Sim3Pose:
             result = Sim3Pose(R_res, t_res, s_res)
         elif isinstance(other, np.ndarray):
             if other.shape == (4,4):
-                # Perform matrix multiplication with numpy (4x4) matrix         
-                s_other = np.trace(other[:3, :3])/3.0
-                R_other = other[:3, :3]/s_other
+                # Perform matrix multiplication with numpy (4x4) matrix      
+                R_other = other[:3, :3]  # before scaling
+                s_other = np.mean([np.linalg.norm(R_other[i, :]) for i in range(3)])  
+                R_other = R_other/s_other
                 t_other = other[:3, 3].reshape(3,1)
                 s_res = self.s * s_other
                 R_res = self.R @ R_other
@@ -172,6 +179,9 @@ class Sim3Pose:
         else:
             raise TypeError("Unsupported operand type(s) for @: '{}' and '{}'".format(type(self), type(other)))
         return result
+    
+    def __str__(self):
+        return f"Sim3Pose(R={self.R}, t={self.t}, s={self.s})"
 
 
 def normalize_vector(v):

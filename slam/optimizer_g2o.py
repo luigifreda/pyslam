@@ -964,21 +964,22 @@ def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_
 
 # ------------------------------------------------------------------------------------------
 
-
+# The goal of this function is to estimate the Sim(3) transformation (R12,t12,s12) 
+# between two keyframes (kf1 and kf2) and their 3D matched map points in a SLAM system. 
+# This optimization compute the Sim(3) transformation that minimizes the reprojection errors 
+# of the 3D matched map points of kf1 into kf2 and the reprojection errors of the 
+# 3D matched map points of kf2 into kf1. 
 # map_point_matches12[i] = map point of kf2 matched with i-th map point of kf1  (from 1 to 2)
 # out: num_inliers, R12, t12, s12
 def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
                  map_points1,
                  map_point_matches12, 
                  R12, t12, s12,
-                 th2: float, fix_scale: bool) -> int:
+                 th2: float, 
+                 fix_scale: bool,
+                 verbose: bool = False) -> int:
 
     from loop_detecting_process import print
-
-    optimizer = g2o.SparseOptimizer()
-    solver = g2o.BlockSolverX(g2o.LinearSolverDenseX())
-    algorithm = g2o.OptimizationAlgorithmLevenberg(solver)
-    optimizer.set_algorithm(algorithm)
 
     # Calibration and Camera Poses
     cam1 = kf1.camera
@@ -986,8 +987,13 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
 
     R1w, t1w = kf1.Rcw, kf1.tcw
     R2w, t2w = kf2.Rcw, kf2.tcw
+    
+    optimizer = g2o.SparseOptimizer()
+    solver = g2o.BlockSolverX(g2o.LinearSolverDenseX())
+    algorithm = g2o.OptimizationAlgorithmLevenberg(solver)
+    optimizer.set_algorithm(algorithm)
 
-    sim3 = g2o.Sim3(R12, t12, s12)
+    sim3 = g2o.Sim3(R12, t12.ravel(), s12)
     
     # Sim3 vertex
     sim3_vertex = g2o.VertexSim3Expmap()
@@ -1007,6 +1013,9 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     num_matches = len(map_point_matches12)
     assert(num_matches == len(map_points1))
 
+    if verbose:
+        print(f'optimize_sim3: num_matches = {num_matches}')
+        
     edges_12 = []
     edges_21 = []
     vertex_indices = []
@@ -1066,8 +1075,13 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
 
             num_correspondences += 1
 
+    if verbose:
+        print(f'optimize_sim3: num_correspondences = {num_correspondences}')
+
     # Optimize
     optimizer.initialize_optimization()
+    if verbose:
+        optimizer.set_verbose(True)
     optimizer.optimize(5)
     err = optimizer.active_chi2()
 

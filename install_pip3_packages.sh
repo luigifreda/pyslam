@@ -158,6 +158,16 @@ fi
 pip3 install evo      #==1.11.0
 pip3 install trimesh  # for utils_dust3r.py 
 
+pip install jax # for autodiff with gtsam
+if [ "$CUDA_VERSION" != "0" ]; then
+    if [[ "$CUDA_VERSION" =~ ^11\. ]]; then
+        pip install --upgrade "jax[cuda11]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+    fi
+    if [[ "$CUDA_VERSION" =~ ^12\. ]]; then
+        pip install --upgrade "jax[cuda12]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+    fi
+fi
+
 # MonoGS
 if [ "$CUDA_VERSION" != "0" ]; then
     # We need cuda for MonoGS

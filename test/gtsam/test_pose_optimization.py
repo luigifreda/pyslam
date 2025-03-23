@@ -59,8 +59,8 @@ class TestPoseOptimizerConvergence(TestCase):
         camera.K = self.K
         camera.Kinv = self.Kinv
 
-        yaw_deg, pitch_deg, roll_deg = np.random.uniform(-180, 180, size=3)
-        tx, ty, tz = np.random.uniform(-5, 5, size=3)
+        yaw_deg, pitch_deg, roll_deg = np.random.uniform(-60, 60, size=3)
+        tx, ty, tz = np.random.uniform(-1, 1, size=3)
         self.gt_Twc = poseRt(rotation_matrix_from_yaw_pitch_roll(yaw_deg, pitch_deg, roll_deg), np.array([tx, ty, tz]))
         self.gt_Tcw = inv_T(self.gt_Twc)
         

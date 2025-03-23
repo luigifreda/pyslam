@@ -43,6 +43,8 @@ from frame import FeatureTrackerShared
 from map_point import MapPoint
 from keyframe import KeyFrame
 
+import jax
+import jax.numpy as jnp
 
 # gtsam helper functions 
 def vector6(x, y, z, a, b, c):
@@ -362,12 +364,15 @@ def resectioning_mono_factor_py(
 ) -> gtsam.NonlinearFactor:
 
     def error_func(this: gtsam.CustomFactor, v: gtsam.Values, H: list[np.ndarray]) -> np.ndarray:
-        pose = v.atPose3(pose_key)
-        camera = gtsam.PinholeCameraCal3_S2(pose, calib)
         try:
-            #print(f'p: {p}, proj: {camera.project(P)}')
+            pose = v.atPose3(pose_key)
+            camera = gtsam.PinholeCameraCal3_S2(pose, calib)            
+            
+            # Compute the reprojection error
             if H is None or len(H) == 0:
                 return camera.project(P) - p
+            
+            # Compute Jacobians if required            
             Dpose = np.zeros((2, 6), order="F")
             Dpoint = np.zeros((2, 3), order="F")
             Dcal = np.zeros((2, 5), order="F")
@@ -405,13 +410,16 @@ def resectioning_stereo_factor_py(
 ) -> gtsam.NonlinearFactor:
 
     def error_func(this: gtsam.CustomFactor, v: gtsam.Values, H: list[np.ndarray]) -> np.ndarray:
-        pose = v.atPose3(pose_key)
-        camera = gtsam.StereoCamera(pose, calib)
-        p_vec = p.vector()
         try:
-            #print(f'p_vec: {p_vec}, proj: {camera.project(P).vector()}')
+            pose = v.atPose3(pose_key)
+            camera = gtsam.StereoCamera(pose, calib)
+            p_vec = p.vector()            
+
+            # Compute the reprojection error
             if H is None or len(H) == 0:
                 return camera.project(P).vector() - p_vec
+
+            # Compute Jacobians if required   
             Dpose = np.zeros((3, 6), order="F")
             Dpoint = np.zeros((3, 3), order="F")
             result = camera.project2(P, Dpose, Dpoint).vector() - p_vec
@@ -457,6 +465,7 @@ class PoseOptimizerGTSAM:
         self.add_mono_factor = resectioning_mono_factor
         self.add_stereo_factor = resectioning_stereo_factor
         if platform.system() == "Darwin":
+            # NOTE: Under macOS I found some interface issues with the pybindings of the resectioning factors.
             self.add_mono_factor  = resectioning_mono_factor_py 
             self.add_stereo_factor  = resectioning_stereo_factor_py       
 
@@ -473,6 +482,7 @@ class PoseOptimizerGTSAM:
                 if p is None:
                     continue
 
+                # reset outlier flag 
                 self.frame.outliers[idx] = False
                 is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx] > 0
 
@@ -497,7 +507,7 @@ class PoseOptimizerGTSAM:
 
                 used_factor = robust_factor if self.use_robust_factors else iso_factor
                 self.graph.add(used_factor) # initially we use robust factors 
-                self.factor_tuples[p] = (robust_factor, iso_factor, idx)
+                self.factor_tuples[p] = (robust_factor, iso_factor, idx, is_stereo_obs)
                 self.num_factors += 1
 
     def optimize(self, rounds=10, verbose=False):
@@ -545,12 +555,25 @@ class PoseOptimizerGTSAM:
             num_inliers = 0  
             inlier_factors = []
 
+            # pose_wc = np.array(result.atPose3(X(0)).matrix().reshape(4,4)) # Twc
+            # pose_cw = inv_T(pose_wc)
+                            
             for p, factor_tuple in self.factor_tuples.items():
-                robust_factor, iso_factor, idx = factor_tuple
+                robust_factor, iso_factor, idx, is_stereo_obs = factor_tuple
                 used_factor = robust_factor if self.use_robust_factors else iso_factor
                 chi2 = 2.0 * used_factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
                 
-                is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx]>0
+                # sigma = FeatureTrackerShared.feature_manager.level_sigmas[self.frame.octaves[idx]]
+                # Pc = (pose_cw[:3,:3] @ p.pt.reshape(3,1) + pose_cw[:3,3].reshape(3,1)).T
+                # if is_stereo_obs:
+                #     uv, depth = self.frame.camera.project_stereo(Pc)
+                #     err = uv.flatten() - np.array([self.frame.kpsu[idx][0], self.frame.kpsu[idx][1],self.frame.kps_ur[idx]])
+                # else:
+                #     uv, depth = self.frame.camera.project(Pc) 
+                #     err = uv.flatten() - np.array([self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]]) 
+                
+                # chi2_2 = err.T @ err / sigma**2
+                # print(f'chi2: {chi2}, chi2_2: {chi2_2}, is_stereo_obs: {is_stereo_obs}')
 
                 chi2_check_failure = chi2 > (chi2Stereo if is_stereo_obs else chi2Mono)
                 if chi2_check_failure:
@@ -828,3 +851,370 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     mean_squared_error = total_error/max(num_active_edges,1) # opt.active_chi2()/max(num_active_edges,1)
 
     return mean_squared_error, num_bad_observations/max(num_edges,1)    
+
+
+# ------------------------------------------------------------------------------------------
+
+
+# use autodiff
+def sim_resectioning_factor_py(
+    noise_model: gtsam.noiseModel.Base,
+    sim_pose_key: int,
+    calib: gtsam.Cal3_S2,
+    p: gtsam.Point2,
+    P: gtsam.Point3,
+) -> gtsam.NonlinearFactor:
+
+    def error_func(this: gtsam.CustomFactor, values: gtsam.Values, H: list[np.ndarray]) -> np.ndarray:
+        sim3 = gtsam_factors.get_similarity3(values, sim_pose_key)
+        R = sim3.rotation().matrix()  # 3x3 rotation matrix
+        t = sim3.translation()  # 3x1 translation vector
+        s = sim3.scale()  # scale factor
+
+        # Convert to JAX arrays
+        R_jax = jnp.array(R)
+        t_jax = jnp.array(t)
+        P_jax = jnp.array(P)
+
+        # Init camera model
+        # pose_identity = gtsam.Pose3()
+        # camera = gtsam.PinholeCameraCal3_S2(pose_identity, calib)
+
+        # Define the transformation function
+        def transform_point(s, R_flat, t_flat, P):
+            R = R_flat.reshape(3, 3)
+            t = t_flat.reshape(3)
+            return s * (R @ P) + t
+
+        def compute_error(s, R_flat, t_flat, P):
+            # Compute transformed point using JAX
+            transformed_P_jax = transform_point(s, R_flat, t_flat, P)
+            projected_point = calib.K() @ transformed_P_jax
+            error = projected_point[:2]/projected_point[2] - p
+            return error
+
+        # Compute residual
+        error = compute_error(s, R_jax.flatten(), t_jax, P_jax)
+
+        # Compute Jacobians if required
+        if H is not None:
+            jac_fn = jax.jacfwd(compute_error, argnums=(0, 1, 2, 3))  # Compute w.r.t all params
+            jac_s, jac_R, jac_t, jac_P = jac_fn(s, R_jax.flatten(), t_jax, P_jax)
+
+            # Convert JAX arrays to NumPy only at the end
+            H[0] = np.hstack([np.array(jac_s).reshape(2, 1), np.array(jac_R).reshape(2, 9),
+                              np.array(jac_t).reshape(2, 3), np.array(jac_P).reshape(2, 3)])
+
+        return np.array(error)
+
+    return gtsam.CustomFactor(noise_model, gtsam.KeyVector([sim_pose_key]), error_func)
+
+def sim_resectioning_factor(
+    noise_model: gtsam.noiseModel.Base,
+    sim_pose_key: int,
+    calib: gtsam.Cal3_S2,
+    p: gtsam.Point2,
+    P: gtsam.Point3,
+) -> gtsam.NonlinearFactor:
+    return gtsam_factors.SimResectioningFactor(sim_pose_key, calib, p, P, noise_model)
+
+
+def sim_inv_resectioning_factor_py(
+    noise_model: gtsam.noiseModel.Base,
+    sim_pose_key: int,
+    calib: gtsam.Cal3_S2,
+    p: gtsam.Point2,
+    P: gtsam.Point3,
+) -> gtsam.NonlinearFactor:
+
+    def error_func(this: gtsam.CustomFactor, values: gtsam.Values, H: list[np.ndarray]) -> np.ndarray:
+        sim3 = gtsam_factors.get_similarity3(values, sim_pose_key)
+        R = sim3.rotation().matrix()  # 3x3 rotation matrix
+        t = sim3.translation()  # 3x1 translation vector
+        s = sim3.scale()  # scale factor
+
+        # Convert to JAX arrays
+        R_jax = jnp.array(R)
+        t_jax = jnp.array(t)
+        P_jax = jnp.array(P)
+
+        # Define inverse transformation function
+        def inverse_transform_point(s, R_flat, t_flat, P):
+            R = R_flat.reshape(3, 3)
+            t = t_flat.reshape(3)
+            R_inv = R.T / s
+            t_inv = -R_inv @ t
+            transformed_P = R_inv @ P + t_inv
+            return transformed_P
+
+        def compute_error(s, R_flat, t_flat, P):
+            # Compute transformed point using JAX
+            transformed_P_jax = inverse_transform_point(s, R_flat, t_flat, P)
+            projected_point = K = calib.K() @ transformed_P_jax
+            error = projected_point[:2]/projected_point[2] - p
+            return error
+
+        # Compute residual
+        error = compute_error(s, R_jax.flatten(), t_jax, P_jax)
+
+        # Compute Jacobians if required
+        if H is not None:
+            jac_fn = jax.jacfwd(compute_error, argnums=(0, 1, 2, 3))  # Compute w.r.t all params
+            jac_s, jac_R, jac_t, jac_P = jac_fn(s, R_jax.flatten(), t_jax, P_jax)
+
+            # Convert JAX arrays to NumPy only at the end
+            H[0] = np.hstack([np.array(jac_s).reshape(2, 1), np.array(jac_R).reshape(2, 9),
+                              np.array(jac_t).reshape(2, 3), np.array(jac_P).reshape(2, 3)])
+
+        return np.array(error)
+
+    return gtsam.CustomFactor(noise_model, gtsam.KeyVector([sim_pose_key]), error_func)
+
+def sim_inv_resectioning_factor(
+    noise_model: gtsam.noiseModel.Base,
+    sim_pose_key: int,
+    calib: gtsam.Cal3_S2,
+    p: gtsam.Point2,
+    P: gtsam.Point3,
+) -> gtsam.NonlinearFactor:
+    return gtsam_factors.SimInvResectioningFactor(sim_pose_key, calib, p, P, noise_model)
+
+
+# [WIP] Not stable yet!
+# The goal of the optimize_sim3 method is to estimate the Sim(3) transformation (R12,t12,s12) 
+# between two keyframes (kf1 and kf2) in a SLAM system. This optimization compute the Sim(3) 
+# transformation that minimizes the reprojection errors of the 3D matched map points of kf1 into kf2
+# and the reprojection errors of the 3D matched map points of kf2 into kf1.
+# map_point_matches12[i] = map point of kf2 matched with i-th map point of kf1  (from 1 to 2)
+# out: num_inliers, R12, t12, s12
+def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
+                 map_points1,
+                 map_point_matches12, 
+                 R12, t12, s12,
+                 th2: float, 
+                 fix_scale: bool,
+                 verbose: bool = False) -> int:
+
+    from loop_detecting_process import print
+    
+    sim_resectioning_factor_fn = sim_resectioning_factor
+    sim_inv_resectioning_factor_fn = sim_inv_resectioning_factor
+    if platform.system() == "Darwin":
+        # NOTE: Under macOS I found some interface issues with the pybindings of the resectioning factors.
+        sim_resectioning_factor_fn  = sim_resectioning_factor_py
+        sim_inv_resectioning_factor_fn  = sim_inv_resectioning_factor_py      
+    
+    # Calibration and Camera Poses
+    cam1 = kf1.camera
+    K1_mono = gtsam.Cal3_S2(cam1.fx, cam1.fy, 0, cam1.cx, cam1.cy)
+    
+    cam2 = kf2.camera
+    K2_mono = gtsam.Cal3_S2(cam2.fx, cam2.fy, 0, cam2.cx, cam2.cy)    
+
+    R1w, t1w = kf1.Rcw, kf1.tcw.reshape(3,1)
+    R2w, t2w = kf2.Rcw, kf2.tcw.reshape(3,1)
+        
+    graph = gtsam.NonlinearFactorGraph()
+    initial_estimate = gtsam.Values()
+
+    # Initial Sim3 transformation
+    sim3_init = gtsam.Similarity3(gtsam.Rot3(R12), gtsam.Point3(t12.ravel()), s12)
+    #initial_estimate.insert(X(0), sim3_init)
+    gtsam_factors.insert_similarity3(initial_estimate, X(0), sim3_init)
+       
+    # print(f'Inserted sim3: R: {sim3_init.rotation()}, t: {sim3_init.translation()}, s: {sim3_init.scale()}')
+    # sim3_init_back = gtsam_factors.get_similarity3(initial_estimate, X(0))    
+    # print(f'Getting back sim3: R: {sim3_init_back.rotation()}, t: {sim3_init_back.translation()}, s: {sim3_init_back.scale()}')
+    
+    if fix_scale:
+        # Create a PriorFactor to fix the scale of the Sim3 transformation
+        scale_prior = gtsam_factors.PriorFactorSimilarity3ScaleOnly(X(0),s12,1e-9)
+        graph.add(scale_prior)
+    
+    # MapPoint vertices and edges
+    if map_points1 is None:
+        map_points1 = kf1.get_points()  
+    num_matches = len(map_point_matches12)
+    assert(num_matches == len(map_points1))
+
+    factors_12_data = []
+    factors_21_data = []
+    match_idxs = []
+
+    delta_huber = np.sqrt(th2)
+        
+    num_correspondences = 0
+    for i in range(num_matches):
+        mp1 = map_points1[i]
+        if mp1 is None or mp1.is_bad:
+            continue
+        mp2 = map_point_matches12[i]  # map point of kf2 matched with i-th map point of kf1 
+        if mp2 is None or mp2.is_bad:
+            continue
+                  
+        index2 = mp2.get_observation_idx(kf2)
+        if index2 >= 0:        
+            
+            sigma2_12 = FeatureTrackerShared.feature_manager.level_sigmas[kf1.octaves[i]]
+            robust_noise_12 = gtsam.noiseModel.Robust.Create(
+                gtsam.noiseModel.mEstimator.Huber.Create(delta_huber),  
+                gtsam.noiseModel.Isotropic.Sigma(2, sigma2_12)
+            )
+            
+            sigma2_21 = FeatureTrackerShared.feature_manager.level_sigmas[kf2.octaves[index2]]
+            robust_noise_21 = gtsam.noiseModel.Robust.Create(
+                gtsam.noiseModel.mEstimator.Huber.Create(delta_huber),  
+                gtsam.noiseModel.Isotropic.Sigma(2, sigma2_21)
+            )            
+                     
+            # Create a factor 12 (project mp2_2 on camera 1 by using sim3(R12, t12, s12) to transform mp2_2 in mp2_1)    
+            p2_c2 = R2w @ mp2.pt.reshape(3,1) + t2w                  
+            factor_12 = sim_resectioning_factor_fn(robust_noise_12, X(0), K1_mono, 
+                                                   gtsam.Point2(kf1.kpsu[i].ravel()), 
+                                                   gtsam.Point3(p2_c2.ravel()))
+            graph.add(factor_12)
+            
+            # Create a factor 21 (project mp1_1 on camera 2 by using sim3(R21, t21, s21).inverse() to transform mp1_1 in mp1_2)
+            p1_c1 = R1w @ mp1.pt.reshape(3,1) + t1w            
+            factor_21 = sim_inv_resectioning_factor_fn(robust_noise_21, X(0), K2_mono, 
+                                                       gtsam.Point2(kf2.kpsu[index2].ravel()), 
+                                                       gtsam.Point3(p1_c1.ravel()))
+            graph.add(factor_21)
+            
+            factors_12_data.append((factor_12, p2_c2))
+            factors_21_data.append((factor_21, p1_c1))
+            
+            match_idxs.append(i)
+            
+            num_correspondences += 1
+    
+    if verbose:
+        print(f'optimize_sim3: num_correspondences = {num_correspondences}')
+            
+    if num_correspondences < 10:
+        print(f'optimize_sim3: Too few inliers, num_correspondences = {num_correspondences}')
+        return 0, None, None, None, 0
+    
+    intial_error = graph.error(initial_estimate)
+        
+    # Optimizer
+    params = gtsam.LevenbergMarquardtParams()
+    params.setlambdaInitial(1e-9)
+    # params.setDiagonalDamping(False)
+    # params.setRelativeErrorTol(-1e+20)
+    # params.setAbsoluteErrorTol(-1e+20)    
+    params.setMaxIterations(5)
+    if verbose:
+        params.setVerbosityLM("SUMMARY")
+            
+    optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_estimate, params)
+    result = optimizer.optimize()
+                
+    #sim3_optimized = result.at(gtsam.Similarity3, X(0))
+    sim3_optimized = gtsam_factors.get_similarity3(result, X(0))
+    R12_opt = sim3_optimized.rotation().matrix()
+    t12_opt = sim3_optimized.translation().reshape(3,1)
+    s12_opt = sim3_optimized.scale()
+    
+    R21_opt = R12_opt.T/s12_opt
+    t21_opt = (-R21_opt @ t12_opt).reshape(3,1)
+                    
+    assert len(factors_12_data) == len(factors_21_data)
+    assert len(factors_12_data) == len(match_idxs)
+                    
+    # Check inliers
+    num_bad = 0
+    good_factors_12_data = []
+    good_factors_21_data = []
+    for i in range(len(factors_12_data)):
+        factor_12, p2_c2 = factors_12_data[i]
+        factor_21, p1_c1 = factors_21_data[i]
+                
+        p2_c1 = s12_opt * R12_opt @ p2_c2.reshape(3,1) + t12_opt
+        #uv2, z2 = kf1.camera.project(p2_c1)
+        
+        p1_c2 = R21_opt @ p1_c1.reshape(3,1) + t21_opt
+        #uv1, z1 = kf2.camera.project(p1_c2)       
+        
+        chi2_12 = 2.0 * factor_12.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+        chi2_21 = 2.0 * factor_21.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+        
+        if chi2_12 > th2 or not p2_c1[2] > 0  or \
+           chi2_21 > th2 or not p1_c2[2] > 0:
+            index = match_idxs[i]
+            map_points1[index] = None
+            factors_12_data[i] = None
+            factors_21_data[i] = None
+            num_bad += 1
+        else: 
+            good_factors_12_data.append((factor_12, p2_c2))
+            good_factors_21_data.append((factor_21, p1_c1))
+
+    if verbose:
+        print(f'optimize_sim3: num_correspondences = {num_correspondences}')
+        
+    num_more_iterations = 10 if num_bad > 0 else 5            
+            
+    if num_correspondences - num_bad < 10:
+        print(f'optimize_sim3: Too few inliers, num_correspondences = {num_correspondences}, num_bad = {num_bad}')
+        return 0, None, None, None, 0 # num_inliers, R,t,scale, delta_err
+            
+    # rebuild the graph with only inlier factors (in gtsam is not possible to deactivate the outlier factors)      
+    new_graph = gtsam.NonlinearFactorGraph()
+    for i, good_factor_12_data in enumerate(good_factors_12_data):
+        new_graph.add(good_factor_12_data[0])
+        new_graph.add(good_factors_21_data[i][0])
+    graph = new_graph
+                            
+    params = gtsam.LevenbergMarquardtParams()
+    params.setlambdaInitial(1e-9)
+    #params.setDiagonalDamping(False)
+    #params.setRelativeErrorTol(-1e+20)
+    #params.setAbsoluteErrorTol(-1e+20)        
+    params.setMaxIterations(num_more_iterations)
+    if verbose:
+        params.setVerbosityLM("SUMMARY")
+            
+    initial_estimate = result           
+    optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_estimate, params)
+    result = optimizer.optimize()
+    
+    delta_err = graph.error(result) - intial_error
+    
+    sim3_optimized = gtsam_factors.get_similarity3(result, X(0))
+    R12_opt = sim3_optimized.rotation().matrix()
+    t12_opt = sim3_optimized.translation().reshape(3,1)
+    s12_opt = sim3_optimized.scale()
+    
+    R21_opt = R12_opt.T/s12_opt
+    t21_opt = (-R21_opt @ t12_opt).reshape(3,1)
+        
+    num_inliers = 0    
+    for i in range(len(factors_12_data)):   
+        f12di = factors_12_data[i]     
+        f21di = factors_21_data[i]
+        if f12di and f21di:
+            factor_12, p2_c2 = f12di
+            factor_21, p1_c1 = f21di
+                    
+            p2_c1 = (s12_opt * R12_opt @ p2_c2.reshape(3,1) + t12_opt.reshape(3,1))
+            #uv2, z2 = kf1.camera.project(p2_c1) 
+            
+            p1_c2 = (R21_opt @ p1_c1.reshape(3,1) + t21_opt.reshape(3,1))
+            #uv1, z1 = kf2.camera.project(p1_c2)       
+            
+            chi2_12 = 2.0 * factor_12.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+            chi2_21 = 2.0 * factor_21.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+                    
+            if chi2_12 > th2 or not p2_c1[2] > 0  or \
+               chi2_21 > th2 or not p1_c2[2] > 0:
+                index = match_idxs[i]
+                map_points1[index] = None
+            else: 
+                num_inliers += 1   
+                
+    # Retrieve optimized Sim3
+    #sim3_optimized = result.at(gtsam.Similarity3, X(0))
+    sim3_optimized = gtsam_factors.get_similarity3(result, X(0))
+    
+    return num_correspondences, sim3_optimized.rotation().matrix(), sim3_optimized.translation(), sim3_optimized.scale(), delta_err
