@@ -85,7 +85,8 @@
     "regex": "cpp",
     "scoped_allocator": "cpp",
     "dense": "cpp",
-    "slist": "cpp"
+    "slist": "cpp",
+    "point3.h": "c"
   },
   "python.autoComplete.extraPaths": [
     "${workspaceFolder}",

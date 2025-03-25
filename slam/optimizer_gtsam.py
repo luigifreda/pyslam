@@ -855,8 +855,6 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
 
 # ------------------------------------------------------------------------------------------
 
-
-# use autodiff
 def sim_resectioning_factor_py(
     noise_model: gtsam.noiseModel.Base,
     sim_pose_key: int,
@@ -864,48 +862,46 @@ def sim_resectioning_factor_py(
     p: gtsam.Point2,
     P: gtsam.Point3,
 ) -> gtsam.NonlinearFactor:
+    """
+    Python implementation of SimResectioningFactor with correct transformation:
+        P' = s * R * P + t
+    """
 
     def error_func(this: gtsam.CustomFactor, values: gtsam.Values, H: list[np.ndarray]) -> np.ndarray:
+        # Retrieve similarity transform
+        #sim3 = values.atSimilarity3(sim_pose_key)
         sim3 = gtsam_factors.get_similarity3(values, sim_pose_key)
+
+        # Manually apply the correct transformation: P' = s * R * P + t
+        def compute_error(sim: gtsam.Similarity3) -> np.ndarray:
+            R = sim.rotation().matrix()  # 3x3 rotation matrix
+            t = sim.translation()        # 3x1 translation vector
+            s = sim.scale()              # Scalar scale factor
+
+            transformed_P = s * (R @ P) + t  # Apply correct transformation
+            projected = calib.K() @ transformed_P
+            return projected[:2] / projected[2] - p  # Normalized projection
+
         R = sim3.rotation().matrix()  # 3x3 rotation matrix
-        t = sim3.translation()  # 3x1 translation vector
-        s = sim3.scale()  # scale factor
-
-        # Convert to JAX arrays
-        R_jax = jnp.array(R)
-        t_jax = jnp.array(t)
-        P_jax = jnp.array(P)
-
-        # Init camera model
-        # pose_identity = gtsam.Pose3()
-        # camera = gtsam.PinholeCameraCal3_S2(pose_identity, calib)
-
-        # Define the transformation function
-        def transform_point(s, R_flat, t_flat, P):
-            R = R_flat.reshape(3, 3)
-            t = t_flat.reshape(3)
-            return s * (R @ P) + t
-
-        def compute_error(s, R_flat, t_flat, P):
-            # Compute transformed point using JAX
-            transformed_P_jax = transform_point(s, R_flat, t_flat, P)
-            projected_point = calib.K() @ transformed_P_jax
-            error = projected_point[:2]/projected_point[2] - p
-            return error
-
+        t = sim3.translation()        # 3x1 translation vector
+        s = sim3.scale()              # Scalar scale factor
+        transformed_P = s * (R @ P) + t  # Apply correct transformation
+        projected = calib.K() @ transformed_P
+        uv = projected[:2] / projected[2]  # Normalized projection
+        print(f'[sim_resectioning_factor_py] P: {P.flatten()}, transformed_P: {transformed_P.flatten()}')
+        print(f'[sim_resectioning_factor_py] p: {p}, uv: {uv}, projected: {projected}')
+        
         # Compute residual
-        error = compute_error(s, R_jax.flatten(), t_jax, P_jax)
+        error = compute_error(sim3)
+        print(f'[sim_resectioning_factor_py] error: {error}')
 
-        # Compute Jacobians if required
+        # Compute Jacobian if needed
         if H is not None:
-            jac_fn = jax.jacfwd(compute_error, argnums=(0, 1, 2, 3))  # Compute w.r.t all params
-            jac_s, jac_R, jac_t, jac_P = jac_fn(s, R_jax.flatten(), t_jax, P_jax)
+            H[0] = gtsam_factors.numerical_derivative11_sim3(
+                compute_error, sim3, 1e-5
+            )
 
-            # Convert JAX arrays to NumPy only at the end
-            H[0] = np.hstack([np.array(jac_s).reshape(2, 1), np.array(jac_R).reshape(2, 9),
-                              np.array(jac_t).reshape(2, 3), np.array(jac_P).reshape(2, 3)])
-
-        return np.array(error)
+        return error
 
     return gtsam.CustomFactor(noise_model, gtsam.KeyVector([sim_pose_key]), error_func)
 
@@ -926,47 +922,37 @@ def sim_inv_resectioning_factor_py(
     p: gtsam.Point2,
     P: gtsam.Point3,
 ) -> gtsam.NonlinearFactor:
+    """
+    Python implementation of SimResectioningFactor with correct transformation:
+        P' = s * R * P + t
+    """
 
     def error_func(this: gtsam.CustomFactor, values: gtsam.Values, H: list[np.ndarray]) -> np.ndarray:
+        # Retrieve similarity transform
+        #sim3 = values.atSimilarity3(sim_pose_key)
         sim3 = gtsam_factors.get_similarity3(values, sim_pose_key)
-        R = sim3.rotation().matrix()  # 3x3 rotation matrix
-        t = sim3.translation()  # 3x1 translation vector
-        s = sim3.scale()  # scale factor
 
-        # Convert to JAX arrays
-        R_jax = jnp.array(R)
-        t_jax = jnp.array(t)
-        P_jax = jnp.array(P)
-
-        # Define inverse transformation function
-        def inverse_transform_point(s, R_flat, t_flat, P):
-            R = R_flat.reshape(3, 3)
-            t = t_flat.reshape(3)
+        # Manually apply the correct transformation: P' = s * R * P + t
+        def compute_error(sim: gtsam.Similarity3) -> np.ndarray:
+            R = sim.rotation().matrix()  # 3x3 rotation matrix
+            t = sim.translation()        # 3x1 translation vector
+            s = sim.scale()              # Scalar scale factor
             R_inv = R.T / s
             t_inv = -R_inv @ t
             transformed_P = R_inv @ P + t_inv
-            return transformed_P
-
-        def compute_error(s, R_flat, t_flat, P):
-            # Compute transformed point using JAX
-            transformed_P_jax = inverse_transform_point(s, R_flat, t_flat, P)
-            projected_point = K = calib.K() @ transformed_P_jax
-            error = projected_point[:2]/projected_point[2] - p
-            return error
+            projected = calib.K() @ transformed_P
+            return projected[:2] / projected[2] - p  # Normalized projection
 
         # Compute residual
-        error = compute_error(s, R_jax.flatten(), t_jax, P_jax)
+        error = compute_error(sim3)
 
-        # Compute Jacobians if required
+        # Compute Jacobian if needed
         if H is not None:
-            jac_fn = jax.jacfwd(compute_error, argnums=(0, 1, 2, 3))  # Compute w.r.t all params
-            jac_s, jac_R, jac_t, jac_P = jac_fn(s, R_jax.flatten(), t_jax, P_jax)
+            H[0] = gtsam_factors.numerical_derivative11_sim3(
+                compute_error, sim3, 1e-5
+            )
 
-            # Convert JAX arrays to NumPy only at the end
-            H[0] = np.hstack([np.array(jac_s).reshape(2, 1), np.array(jac_R).reshape(2, 9),
-                              np.array(jac_t).reshape(2, 3), np.array(jac_P).reshape(2, 3)])
-
-        return np.array(error)
+        return error
 
     return gtsam.CustomFactor(noise_model, gtsam.KeyVector([sim_pose_key]), error_func)
 

@@ -64,6 +64,50 @@ boost::shared_ptr<T> create_shared_noise_model(const boost::shared_ptr<T>& model
     return model; // No copy, just return the same shared_ptr
 }
 
+
+// Generalized numericalDerivative11 template
+template <typename Y, typename X>
+Eigen::MatrixXd numericalDerivative11General(
+    std::function<Y(const X&)> h, const X& x, double delta = 1e-5) {
+  
+    return numericalDerivative11<Y, X>(h, x, delta);
+}
+
+// Specialization for Similarity3 -> Vector2
+template <>
+Eigen::MatrixXd numericalDerivative11General<Vector2, Similarity3>(
+    std::function<Vector2(const Similarity3&)> h, const Similarity3& x, double delta) {
+  
+    return numericalDerivative11<Vector2, Similarity3>(h, x, delta);
+}
+
+// Python wrapper for generalized function
+Eigen::MatrixXd numericalDerivative11WrapSim3(
+    py::function py_func, const Similarity3& x, double delta = 1e-5) {
+    
+    std::function<Vector2(const Similarity3&)> func = 
+        [py_func](const Similarity3& sim) -> Vector2 {
+            return py_func(sim).cast<Vector2>();
+        };
+
+    // Generalized numerical derivative function
+    return numericalDerivative11General<Vector2, Similarity3>(func, x, delta);
+}
+
+// Python wrapper for other types, just in case
+template <typename Y, typename X>
+Eigen::MatrixXd numericalDerivative11WrapAny(
+    py::function py_func, const X& x, double delta = 1e-5) {
+    
+    std::function<Y(const X&)> func = 
+        [py_func](const X& arg) -> Y {
+            return py_func(arg).template cast<Y>();
+        };
+
+    return numericalDerivative11General<Y, X>(func, x, delta);
+}
+
+
 /**
  * Monocular Resectioning Factor
  */
@@ -188,77 +232,67 @@ public:
 
 
 class SimResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3> {
-private:
-    gtsam::Cal3_S2 calib_;  // Camera intrinsics
-    gtsam::Point2 uv_;      // Observed 2D point
-    gtsam::Point3 P_;      // 3D point
+    private:
+        const Cal3_S2& calib_;  // Camera intrinsics
+        const Point2 uv_;      // Observed 2D point
+        const Point3 P_;      // 3D point
+    
+    public:
+        SimResectioningFactor(const gtsam::Key& sim_pose_key,
+                              const gtsam::Cal3_S2& calib,
+                              const gtsam::Point2& uv,
+                              const gtsam::Point3& P,
+                              const gtsam::SharedNoiseModel& noiseModel)
+            : gtsam::NoiseModelFactor1<gtsam::Similarity3>(noiseModel, sim_pose_key),
+              calib_(calib), uv_(uv), P_(P) {}
+    
+        gtsam::Vector evaluateError(const gtsam::Similarity3& sim3,
+                                    boost::optional<gtsam::Matrix&> H = boost::none) const override {
+            auto computeError = [this](const gtsam::Similarity3& sim) {
+                const gtsam::Matrix3 R = sim.rotation().matrix();
+                const gtsam::Vector3 t = sim.translation();
+                const double s = sim.scale();
+                const gtsam::Vector3 transformed_P = s * (R * P_) + t;
+                const gtsam::Vector3 projected = calib_.K() * transformed_P;
+                const gtsam::Point2 uv = projected.head<2>() / projected[2];
+                const gtsam::Vector2 error = uv - uv_;
+                return error;
+            };
 
-public:
-    SimResectioningFactor(gtsam::Key& sim_pose_key,
-                            const gtsam::Cal3_S2& calib,
-                            const gtsam::Point2& uv,
-                            const gtsam::Point3& P,
-                            const gtsam::SharedNoiseModel& noiseModel)
-        : gtsam::NoiseModelFactor1<gtsam::Similarity3>(noiseModel, sim_pose_key),
-            calib_(calib), uv_(uv), P_(P) {}
+            const gtsam::Vector2 error = computeError(sim3);
 
-    gtsam::Vector evaluateError(const gtsam::Similarity3& sim3,
-                                boost::optional<gtsam::Matrix&> H = boost::none) const override {
-        auto functor = [this](const gtsam::Similarity3& sim) {
-            const gtsam::Matrix3 R = sim.rotation().matrix();
-            const gtsam::Vector3 t = sim.translation();
-            const double s = sim.scale();
-            const gtsam::Vector3 transformed_P = s * (R * P_) + t;
-            gtsam::Vector3 projected = calib_.K() * transformed_P;
-            return projected.head<2>() / projected(2) - uv_;
-        };
-
-        auto functorLie = [this](const gtsam::Vector7& logmap) {
-            const gtsam::Similarity3 sim = gtsam::Similarity3::Expmap(logmap);
-            const gtsam::Matrix3 R = sim.rotation().matrix();
-            const gtsam::Vector3 t = sim.translation();
-            const double s = sim.scale();
-            const gtsam::Vector3 transformed_P = s * (R * P_) + t;
-            gtsam::Vector3 projected = calib_.K() * transformed_P;
-            return projected.head<2>() / projected(2) - uv_;
-        };            
-
-        // Compute the error
-        const gtsam::Vector2 error = functor(sim3);
-        const gtsam::Vector7 logmap = gtsam::Similarity3::Logmap(sim3);
-
-        // Compute Jacobians if required
-        if (H) {    
-            *H = gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Vector7>(functorLie, logmap, 1e-5);
+            // Compute Jacobians if required
+            if (H) {    
+                *H = gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Similarity3>(computeError, sim3, 1e-5);
+            }
+    
+            return error;
         }
-
-        return error;
-    }
-
-    virtual gtsam::NonlinearFactor::shared_ptr clone() const override {
-        return boost::make_shared<SimResectioningFactor>(*this);
-    }
-};
+    
+        virtual gtsam::NonlinearFactor::shared_ptr clone() const override {
+            return boost::make_shared<SimResectioningFactor>(*this);
+        }
+    };
 
 
 class SimInvResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3> {
 private:
-    gtsam::Cal3_S2 calib_;  // Camera intrinsics
-    gtsam::Point2 uv_;      // Observed 2D pixel point
-    gtsam::Point3 P_;      // 3D camera point
+    const Cal3_S2& calib_;  // Camera intrinsics
+    const Point2 uv_;      // Observed 2D pixel point
+    const Point3 P_;      // 3D camera point
 
 public:
-    SimInvResectioningFactor(gtsam::Key& sim_pose_key,
-                                const gtsam::Cal3_S2& calib,
-                                const gtsam::Point2& p,
-                                const gtsam::Point3& P,
-                                const gtsam::SharedNoiseModel& noiseModel)
+    SimInvResectioningFactor(const gtsam::Key& sim_pose_key,
+                             const gtsam::Cal3_S2& calib,
+                             const gtsam::Point2& p,
+                             const gtsam::Point3& P,
+                             const gtsam::SharedNoiseModel& noiseModel)
         : gtsam::NoiseModelFactor1<gtsam::Similarity3>(noiseModel, sim_pose_key),
             calib_(calib), uv_(p), P_(P) {}
 
     gtsam::Vector evaluateError(const gtsam::Similarity3& sim3,
                                 boost::optional<gtsam::Matrix&> H = boost::none) const override {
-        auto functor = [this](const gtsam::Similarity3& sim) {
+        auto computeError = [this](const gtsam::Similarity3& sim) {
             const gtsam::Matrix3 R = sim.rotation().matrix();
             const gtsam::Vector3 t = sim.translation();
             const double s = sim.scale();
@@ -268,30 +302,16 @@ public:
             const gtsam::Vector3 t_inv = -s_inv * (R_inv * t);
             const gtsam::Vector3 transformed_P = s_inv * (R_inv * P_) + t_inv;
             const gtsam::Vector3 projected = calib_.K() * transformed_P;
-            return projected.head<2>() / projected(2) - uv_;
-        };
+            const gtsam::Point2 uv = projected.head<2>() / projected[2];
+            const gtsam::Vector2 error = uv - uv_;
+            return error;
+        };   
 
-        auto functorLie = [this](const gtsam::Vector7& logmap) {
-            const gtsam::Similarity3 sim = gtsam::Similarity3::Expmap(logmap);
-            const gtsam::Matrix3 R = sim.rotation().matrix();
-            const gtsam::Vector3 t = sim.translation();
-            const double s = sim.scale();
-
-            const gtsam::Matrix3 R_inv = R.transpose();
-            const double s_inv = 1.0 / s;
-            const gtsam::Vector3 t_inv = -s_inv * (R_inv * t);
-            const gtsam::Vector3 transformed_P = s_inv * (R_inv * P_) + t_inv;
-            const gtsam::Vector3 projected = calib_.K() * transformed_P;
-            return projected.head<2>() / projected(2) - uv_;
-        };            
-
-        // Compute the error
-        const gtsam::Vector2 error = functor(sim3);
-        const gtsam::Vector7 logmap = gtsam::Similarity3::Logmap(sim3);
+        const gtsam::Vector2 error = computeError(sim3);
 
         // Compute Jacobians if required
         if (H) {
-            *H = gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Vector7>(functorLie, logmap, 1e-5);
+            *H = gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Similarity3>(computeError, sim3, 1e-5);
         }
 
         return error;
@@ -319,11 +339,30 @@ gtsam::Similarity3 getSimilarity3(const gtsam::Values &values, gtsam::Key key) {
 PYBIND11_MODULE(gtsam_factors, m) {
     py::module_::import("gtsam");  // Ensure GTSAM is loaded
 
+
     // Register NoiseModelFactorN classes
     py::class_<NoiseModelFactorN<Pose3>, std::shared_ptr<NoiseModelFactorN<Pose3>>, NonlinearFactor>(m, "NoiseModelFactorN_Pose3");
     py::class_<NoiseModelFactorN<Similarity3>, std::shared_ptr<NoiseModelFactorN<Similarity3>>, NonlinearFactor>(m, "NoiseModelFactorN_Similarity3");
 
 
+    m.def("numerical_derivative11_sim3", 
+        [](py::function py_func, const Similarity3& x, double delta = 1e-5) -> Eigen::MatrixXd {
+            // Explicitly define the lambda signature
+            return numericalDerivative11WrapSim3(py_func, x, delta);
+        },
+        py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
+        "Compute numerical derivative of a function mapping Similarity3 to Vector2");
+
+    // NOTE: This does not work. We need to specialize the template for each type we are interested as it is done above for Similarity3
+    // m.def("numerical_derivative11", 
+    //     [](py::function py_func, const auto& x, double delta = 1e-5) -> Eigen::MatrixXd {
+    //         // Explicitly define the lambda signature
+    //         return numericalDerivative11WrapAny(py_func, x, delta);
+    //     },
+    //     py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
+    //     "Compute numerical derivative of a function mapping any type");
+    
+    
     py::class_<ResectioningFactor, std::shared_ptr<ResectioningFactor>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactor")
     .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
         return new ResectioningFactor(model, key, calib, measured_p, world_P);
@@ -374,28 +413,29 @@ PYBIND11_MODULE(gtsam_factors, m) {
 
 
     py::class_<SimResectioningFactor, gtsam::NoiseModelFactor, std::shared_ptr<SimResectioningFactor>>(m, "SimResectioningFactor")
-    .def(py::init<gtsam::Key&, const gtsam::Cal3_S2&, const gtsam::Point2&, const gtsam::Point3&, const gtsam::SharedNoiseModel&>(),
+    .def(py::init<const gtsam::Key&, const gtsam::Cal3_S2&, const gtsam::Point2&, const gtsam::Point3&, const gtsam::SharedNoiseModel&>(),
             py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("noise_model"))
-    .def(py::init([](gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Isotropic& model){
+    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Isotropic& model){
         return new SimResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));       
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
-    .def(py::init([](gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
+    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
         return new SimResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
     .def("evaluateError", &SimResectioningFactor::evaluateError);
 
 
     py::class_<SimInvResectioningFactor, gtsam::NoiseModelFactor, std::shared_ptr<SimInvResectioningFactor>>(m, "SimInvResectioningFactor")
-    .def(py::init<gtsam::Key&, const gtsam::Cal3_S2&, const gtsam::Point2&, const gtsam::Point3&, const gtsam::SharedNoiseModel&>(),
+    .def(py::init<const gtsam::Key&, const gtsam::Cal3_S2&, const gtsam::Point2&, const gtsam::Point3&, const gtsam::SharedNoiseModel&>(),
             py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("noise_model"))
-    .def(py::init([](gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Isotropic& model){
+    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Isotropic& model){
         return new SimInvResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));       
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
-    .def(py::init([](gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
+    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
         return new SimInvResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));       
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
     .def("evaluateError", &SimInvResectioningFactor::evaluateError);
 
+    
     m.def("insert_similarity3", &insertSimilarity3, "Insert Similarity3 into Values",
         py::arg("values"), py::arg("key"), py::arg("sim3"));    
 

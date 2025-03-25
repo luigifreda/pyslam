@@ -90,7 +90,7 @@ class TestOptimizeSim3(TestCase):
         self.K2 = camera.K  
 
         # Set a seed for reproducibility
-        #np.random.seed(0)  # You can change the seed value to any integer
+        np.random.seed(0)  # You can change the seed value to any integer
         
     def create_perfect_world(self):
         
@@ -368,8 +368,8 @@ class TestOptimizeSim3(TestCase):
                                     
         print(f'starting optimize_sim3... ')
         
-        optimize_sim3 = optimizer_g2o.optimize_sim3
-        #optimize_sim3 = optimizer_gtsam.optimize_sim3   # WIP: not yet stable
+        #optimize_sim3 = optimizer_g2o.optimize_sim3
+        optimize_sim3 = optimizer_gtsam.optimize_sim3   
                 
                 
         print(f'Rc1c2_initial: {self.Rc1c2_initial.ravel()}')
