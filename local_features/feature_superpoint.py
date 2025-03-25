@@ -55,13 +55,16 @@ class SuperPointOptions:
 # convert matrix of pts into list of keypoints
 # N.B.: pts are - 3xN numpy array with corners [x_i, y_i, confidence_i]^T.
 def convert_superpts_to_keypoints(pts, size=1): 
+    shift_int_to_float = 0.5
     kps = []
+    # for p in pts:
+    #     print(f'p: {p[0]} {p[1]} {p[2]}')
     if pts is not None: 
         # convert matrix [Nx2] of pts into list of keypoints  
         if is_opencv_version_greater_equal(4,5,3):
-            kps = [ cv2.KeyPoint(p[0], p[1], size=size, response=p[2]) for p in pts ]            
+            kps = [ cv2.KeyPoint(p[0]+shift_int_to_float, p[1]+shift_int_to_float, size=size, response=p[2]) for p in pts ]            
         else: 
-            kps = [ cv2.KeyPoint(p[0], p[1], _size=size, _response=p[2]) for p in pts ]                      
+            kps = [ cv2.KeyPoint(p[0]+shift_int_to_float, p[1]+shift_int_to_float, _size=size, _response=p[2]) for p in pts ]                      
     return kps         
 
 

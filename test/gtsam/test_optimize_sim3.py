@@ -90,7 +90,7 @@ class TestOptimizeSim3(TestCase):
         self.K2 = camera.K  
 
         # Set a seed for reproducibility
-        np.random.seed(0)  # You can change the seed value to any integer
+        #np.random.seed(0)  # You can change the seed value to any integer
         
     def create_perfect_world(self):
         

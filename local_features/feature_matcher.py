@@ -333,6 +333,7 @@ class FeatureMatcher:
                 print('kps2.shape:',kps2.shape,' kps2.dtype:',kps2.dtype)                           
         if ratio_test is None:
             ratio_test = self.ratio_test 
+            #print(f'[FeatureMatcher.match]: ratio test: {ratio_test}')
         # TODO: Use inheritance here instead of using if-else.   
         # NOTE: Not using inheritance for now since the interface is not optimal yet and it may change.
         # ===========================================================   

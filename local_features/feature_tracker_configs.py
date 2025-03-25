@@ -210,7 +210,7 @@ class FeatureTrackerConfigs(object):
                       detector_type = FeatureDetectorTypes.SUPERPOINT, 
                       descriptor_type = FeatureDescriptorTypes.SUPERPOINT,
                       sigma_level0 = Parameters.kSigmaLevel0, 
-                      match_ratio_test = kDefaultRatioTest,                               
+                      match_ratio_test = 0.9,                               
                       tracker_type = kTrackerType)
     
     XFEAT = dict(num_features=kNumFeatures,                            # N.B.: here, keypoints are not oriented! (i.e. keypoint.angle=0 always)

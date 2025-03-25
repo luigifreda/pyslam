@@ -48,7 +48,8 @@ from rotation_histogram import filter_matches_with_histogram_orientation
 
 from search_points import search_by_sim3, search_more_map_points_by_projection, search_and_fuse_for_loop_correction, search_frame_by_projection
 
-from optimizer_g2o import optimize_sim3, optimize_essential_graph
+import optimizer_gtsam
+import optimizer_g2o
 
 from loop_detecting_process import LoopDetectingProcess
 from loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorOutput
@@ -297,13 +298,18 @@ class LoopGeometryChecker:
                     map_point_matches12 = [map_points2[idx] if idx>0 else None for idx in matches12] # from 1 to 2 
                     assert(len(map_point_matches12)==n1)
 
+                    if Parameters.kOptimizationBackEndUseGtsam:
+                        optimize_sim3_fun = optimizer_gtsam.optimize_sim3
+                    else:
+                        optimize_sim3_fun = optimizer_gtsam.optimize_sim3
+
                     # optimize with all the found corrispondences
-                    num_inliers, R12, t12, scale12, delta_err = optimize_sim3(current_keyframe, kf, \
-                                                                                map_points1, \
-                                                                                map_point_matches12, \
-                                                                                R12, t12, scale12, \
-                                                                                th2=Parameters.kLoopClosingTh2, \
-                                                                                fix_scale=not self.is_monocular)
+                    num_inliers, R12, t12, scale12, delta_err = optimize_sim3_fun(current_keyframe, kf, \
+                                                                                    map_points1, \
+                                                                                    map_point_matches12, \
+                                                                                    R12, t12, scale12, \
+                                                                                    th2=Parameters.kLoopClosingTh2, \
+                                                                                    fix_scale=not self.is_monocular)
                     
                     # TODO: add a more robust error check
 
@@ -549,10 +555,10 @@ class LoopCorrector:
             
             print(f'LoopCorrector: optimizing pose graph')
             loop_keyframe = self.loop_geometry_checker.success_loop_kf
-            self.mean_graph_chi2_error = optimize_essential_graph(self.map, 
-                                                        loop_keyframe, current_keyframe, 
-                                                        self.non_corrected_sim3_map, self.corrected_sim3_map,
-                                                        loop_connections, self.fix_scale, print_fun=print)
+            self.mean_graph_chi2_error = optimizer_g2o.optimize_essential_graph(self.map, 
+                                                                                loop_keyframe, current_keyframe, 
+                                                                                self.non_corrected_sim3_map, self.corrected_sim3_map,
+                                                                                loop_connections, self.fix_scale, print_fun=print)
             
             # Add loop edge
             loop_keyframe.add_loop_edge(current_keyframe)

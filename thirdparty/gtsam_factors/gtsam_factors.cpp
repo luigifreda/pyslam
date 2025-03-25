@@ -193,7 +193,6 @@ public:
             };
             *H = gtsam::numericalDerivative11<gtsam::Vector7, gtsam::Similarity3>(functor, sim, 1e-5);
         }
-
         return error;
     }
 
@@ -221,7 +220,6 @@ public:
             J(6) = 1.0 / sim.scale();  // Derivative w.r.t. scale
             *H = J;
         }
-
         return gtsam::Vector1(scale_error);  // Return 1D error
     }
 
@@ -265,7 +263,6 @@ class SimResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3
             if (H) {    
                 *H = gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Similarity3>(computeError, sim3, 1e-5);
             }
-    
             return error;
         }
     
@@ -323,6 +320,44 @@ public:
 };
     
 
+class BetweenFactorSimilarity3 : public gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3> {
+public:
+    using Base = gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>;
+    gtsam::Similarity3 measured_; // Relative Sim3 measurement
+
+    BetweenFactorSimilarity3(gtsam::Key key1, gtsam::Key key2, const gtsam::Similarity3& measured, const gtsam::SharedNoiseModel& model)
+        : Base(model, key1, key2), measured_(measured) {}
+
+    // Compute error (7D residual)
+    gtsam::Vector evaluateError(const gtsam::Similarity3& sim3_1, const gtsam::Similarity3& sim3_2,
+                                boost::optional<gtsam::Matrix&> H1 = boost::none,
+                                boost::optional<gtsam::Matrix&> H2 = boost::none) const override {
+        // Compute predicted relative transformation
+        gtsam::Similarity3 predicted = sim3_1.inverse() * sim3_2; // Swc1.inverse() * Swc2
+        
+        // Compute the error in Sim3 space
+        gtsam::Similarity3 errorSim3 = measured_ * predicted.inverse();
+        
+        // Compute Jacobians only if needed
+        if (H1) {
+            *H1 = gtsam::numericalDerivative11<gtsam::Vector, gtsam::Similarity3>(
+                [&](const gtsam::Similarity3& s1) { 
+                    return Similarity3::Logmap(measured_ * (s1.inverse() * sim3_2).inverse()); 
+                }, sim3_1, 1e-5);
+        }
+        if (H2) {
+            *H2 = gtsam::numericalDerivative11<gtsam::Vector, gtsam::Similarity3>(
+                [&](const gtsam::Similarity3& s2) { 
+                    return Similarity3::Logmap(measured_ * (sim3_1.inverse() * s2).inverse()); 
+                }, sim3_2, 1e-5);
+        }
+
+        // Log map to get minimal 7D error representation
+        return Similarity3::Logmap(errorSim3);
+    }
+};
+
+
 // Function to insert Similarity3 into Values
 void insertSimilarity3(gtsam::Values &values, const Key& key, const gtsam::Similarity3 &sim3) {
     values.insert(key, sim3);
@@ -344,6 +379,9 @@ PYBIND11_MODULE(gtsam_factors, m) {
     py::class_<NoiseModelFactorN<Pose3>, std::shared_ptr<NoiseModelFactorN<Pose3>>, NonlinearFactor>(m, "NoiseModelFactorN_Pose3");
     py::class_<NoiseModelFactorN<Similarity3>, std::shared_ptr<NoiseModelFactorN<Similarity3>>, NonlinearFactor>(m, "NoiseModelFactorN_Similarity3");
 
+    // Register base class for BetweenFactorSimilarity3
+    py::class_<gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>,gtsam::NonlinearFactor, std::shared_ptr<gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>>>(m, "NoiseModelFactor2Similarity3")
+    .def("print", &gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>::print);
 
     m.def("numerical_derivative11_sim3", 
         [](py::function py_func, const Similarity3& x, double delta = 1e-5) -> Eigen::MatrixXd {
@@ -441,4 +479,45 @@ PYBIND11_MODULE(gtsam_factors, m) {
 
     m.def("get_similarity3", &getSimilarity3, "Get Similarity3 from Values",
         py::arg("values"), py::arg("key"));
+
+#if 0
+    // Expose BetweenFactor with Similarity3
+    py::class_<BetweenFactor<Similarity3>, gtsam::NonlinearFactor, std::shared_ptr<BetweenFactor<Similarity3>>>(m, "BetweenFactorSimilarity3")
+    .def(py::init<const Key&, const Key&, const Similarity3&>(), 
+        py::arg("key1"), py::arg("key2"), py::arg("similarity3"))
+    .def(py::init<const Key&, const Key&, const Similarity3&, const SharedNoiseModel&>(),
+        py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("noise_model"))
+    .def(py::init([](const Key& key1, const Key& key2, const Similarity3& similarity3, const noiseModel::Isotropic& model) {
+        return std::make_shared<BetweenFactor<Similarity3>>(key1, key2, similarity3, create_shared_noise_model(model));       
+    }), py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("model"))
+    .def(py::init([](const Key& key1, const Key& key2, const Similarity3& similarity3, const noiseModel::Robust& model) {
+        return std::make_shared<BetweenFactor<Similarity3>>(key1, key2, similarity3, create_shared_noise_model(model));       
+    }), py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("model"))
+    .def("evaluateError", &BetweenFactor<Similarity3>::evaluateError)
+    .def("print", &BetweenFactor<Similarity3>::print)
+    .def("measured", &BetweenFactor<Similarity3>::measured)
+    .def("__repr__", [](const BetweenFactor<Similarity3>& self) {
+        std::ostringstream ss;
+        self.print(ss.str());
+        return ss.str();
+    });
+#else 
+    py::class_<BetweenFactorSimilarity3, gtsam::NoiseModelFactor2<Similarity3, Similarity3>, std::shared_ptr<BetweenFactorSimilarity3>>(m, "BetweenFactorSimilarity3")
+    .def(py::init<const gtsam::Key&, const gtsam::Key&, const gtsam::Similarity3&, const gtsam::SharedNoiseModel&>(),
+        py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("noise_model"))
+    .def(py::init([](const gtsam::Key& key1, const gtsam::Key& key2, const gtsam::Similarity3& similarity3, const gtsam::noiseModel::Isotropic& model) {
+        return new BetweenFactorSimilarity3(key1, key2, similarity3, create_shared_noise_model(model));       
+    }), py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("model"))
+    .def(py::init([](const gtsam::Key& key1, const gtsam::Key& key2, const gtsam::Similarity3& similarity3, const gtsam::noiseModel::Robust& model) {
+        return new BetweenFactorSimilarity3(key1, key2, similarity3, create_shared_noise_model(model));       
+    }), py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("model"))
+    .def("evaluateError", &BetweenFactorSimilarity3::evaluateError)
+    .def("print", &BetweenFactorSimilarity3::print)
+    .def("__repr__", [](const BetweenFactorSimilarity3& self) {
+        std::ostringstream ss;
+        self.print(ss.str());
+        return ss.str();    
+    });
+#endif
+
 }

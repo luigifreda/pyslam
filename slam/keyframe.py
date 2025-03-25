@@ -254,7 +254,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.angles  = frame.angles     # keypoint angles                       [Nx1] 
         self.des     = frame.des        # keypoint descriptors                  [NxD] where D is the descriptor length 
         self.depths  = frame.depths     # keypoint depths                       [Nx1]
-        self.kps_ur = frame.kps_ur      # right keypoint coordinates            [Nx1]
+        self.kps_ur  = frame.kps_ur      # right keypoint coordinates            [Nx1]
         
         self.median_depth = frame.median_depth
         self.fov_center_c = frame.fov_center_c
@@ -284,7 +284,7 @@ class KeyFrame(Frame,KeyFrameGraph):
     
         # map points information arrays (copy points coming from frame)
         self.points   = frame.get_points()     # map points => self.points[idx] is the map point matched with self.kps[idx] (if is not None)
-        self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)     # used just in propagate_map_point_matches()   
+        self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool) if self.kpsu is not None else None   # used just in propagate_map_point_matches()   
                         
     def to_json(self):
         frame_json = Frame.to_json(self)
@@ -351,7 +351,11 @@ class KeyFrame(Frame,KeyFrameGraph):
         # for all map points of this keyframe check in which other keyframes they are seen
         # build a counter for these other keyframes    
         points = self.get_matched_good_points()
-        assert len(points) > 0
+        num_points = len(points)
+        if num_points == 0:
+            Printer.orange('KeyFrame: update_connections - frame without points')
+            return
+        #assert len(points) > 0
         viewing_keyframes = [kf for p in points for kf in p.keyframes() if kf.kid != self.kid] # exclude this keyframe 
         viewing_keyframes = Counter(viewing_keyframes)   
         if not viewing_keyframes: # if empty   (https://www.pythoncentral.io/how-to-check-if-a-list-tuple-or-dictionary-is-empty-in-python/)

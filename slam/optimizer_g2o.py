@@ -1133,10 +1133,12 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     return num_inliers, sim3.rotation().matrix(),sim3.translation(),sim3.scale(), delta_err
 
 
+# ------------------------------------------------------------------------------------------
+
 
 def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyframe: KeyFrame, 
                              non_corrected_sim3_map, corrected_sim3_map, 
-                             loop_connections, fix_scale: bool, print_fun=print):
+                             loop_connections, fix_scale: bool, print_fun=print, verbose=False):
 
     # Setup optimizer
     optimizer = g2o.SparseOptimizer()
@@ -1154,7 +1156,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
 
     vec_Scw = [None] * (max_keyframe_id + 1)             # use keyframe kid as index here  
     vec_corrected_Swc = [None] * (max_keyframe_id + 1)   # use keyframe kid as index here 
-    vertices = [None] * (max_keyframe_id + 1)            # use keyframe kid as index here 
+    #vertices = [None] * (max_keyframe_id + 1)            # use keyframe kid as index here 
 
     min_number_features = 100
 
@@ -1172,6 +1174,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
         except:
             Siw = Sim3Pose(keyframe.Rcw, keyframe.tcw, 1.0)
         vec_Scw[keyframe_id] = Siw
+        
         vertex_sim3.set_estimate(g2o.Sim3(Siw.R,Siw.t.ravel(),Siw.s))
 
         if keyframe == loop_keyframe:
@@ -1182,7 +1185,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
         vertex_sim3._fix_scale = fix_scale
 
         optimizer.add_vertex(vertex_sim3)
-        vertices[keyframe_id] = vertex_sim3
+        #vertices[keyframe_id] = vertex_sim3
 
 
     num_graph_edges=0
@@ -1220,16 +1223,17 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
     # Set normal edges
     for keyframe in all_keyframes:
         keyframe_id = keyframe.kid
-        try: 
-            Swi = non_corrected_sim3_map[keyframe].inverse()
-        except:
-            Swi = vec_Scw[keyframe_id].inverse()
-
         parent_keyframe = keyframe.get_parent()
 
         # Spanning tree edge
         if parent_keyframe:
             parent_id = parent_keyframe.kid
+            
+            try: 
+                Swi = non_corrected_sim3_map[keyframe].inverse()
+            except:
+                Swi = vec_Scw[keyframe_id].inverse()
+                            
             try: 
                 Sjw = non_corrected_sim3_map[parent_keyframe]
             except:
@@ -1284,6 +1288,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
                 optimizer.add_edge(edge)
                 num_graph_edges += 1
 
+    if verbose:
+        print_fun(f"[optimize_essential_graph]: Total number of graph edges: {num_graph_edges}")
+        
     # Optimize
     optimizer.initialize_optimization()
     optimizer.optimize(20)

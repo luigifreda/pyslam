@@ -261,11 +261,11 @@ if __name__ == "__main__":
             slam.save_system_state(config.system_state_folder_path)
             dataset.save_info(config.system_state_folder_path)
             groundtruth.save(config.system_state_folder_path)
-            Printer.green('uncheck pause checkbox on GUI to continue...\n')    
+            Printer.blue('\nuncheck pause checkbox on GUI to continue...\n')    
             
         if is_bundle_adjust:
             slam.bundle_adjust()    
-            Printer.green('uncheck pause checkbox on GUI to continue...\n')
+            Printer.blue('\nuncheck pause checkbox on GUI to continue...\n')
             
         if not is_paused and viewer3D.is_paused():  # when a pause is triggered
             est_poses, timestamps, ids = slam.get_final_trajectory()

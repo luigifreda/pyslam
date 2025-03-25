@@ -666,7 +666,7 @@ class Frame(FrameBase):
             
     def get_points(self):    
         with self._lock_features:                           
-            return self.points.copy()    
+            return self.points.copy() if self.points is not None else None  
                     
     def get_matched_points(self):
         with self._lock_features:                   
@@ -687,7 +687,7 @@ class Frame(FrameBase):
     
     def get_matched_good_points(self):       
         with self._lock_features:               
-            good_points = [p for p in self.points if p is not None and not p.is_bad]         
+            good_points = [p for p in self.points if p is not None and not p.is_bad] if self.points is not None else []        
             return good_points
         
     def get_matched_good_points_with_idxs(self):       

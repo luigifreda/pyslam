@@ -34,7 +34,7 @@ class Parameters:
     kNumFeatures=2000
     
     # Adaptive stats 
-    kUseDescriptorSigmaMadv2 = False                # Experimental [WIP] In theory, if we use this we should accordingly change all descriptor thresholds
+    kUseDescriptorSigmaMadv2 = False                # experimental [WIP] In theory, if we use this we should accordingly update all the current descriptor thresholds
 
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # max cos angle for triangulation (min parallax angle) in the Initializer
@@ -51,7 +51,7 @@ class Parameters:
 
     # Feature management
     kSigmaLevel0 = 1.0                        # sigma of the keypoint localization at level 0 (default value is 1 for ORB detector); can be changed by selected feature    
-    kFeatureMatchDefaultRatioTest = 0.7              # This is the default ratio test used by all feature matchers. It can be configured per descriptor in feature_tracker_configs.py
+    kFeatureMatchDefaultRatioTest = 0.7       # this is the default ratio test used by all feature matchers. It can be configured per descriptor in feature_tracker_configs.py
     #kInitializerFeatureMatchRatioTest        # ratio test used by Initializer 
     #
     kKdtNmsRadius = 3 # pixels  #3            # radius for kd-tree based Non-Maxima Suppression
