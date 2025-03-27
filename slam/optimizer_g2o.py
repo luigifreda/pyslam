@@ -292,7 +292,7 @@ def global_bundle_adjustment(keyframes, points, rounds=10, loop_kf_id=0, use_rob
 
 def global_bundle_adjustment_map(map, rounds=10, loop_kf_id=0, use_robust_kernel=False, \
                                  abort_flag=None, mp_abort_flag=None, result_dict=None, verbose=False, print=print):
-    fixed_points=False
+    #fixed_points=False
     keyframes = map.get_keyframes()
     points = map.get_points()
     return global_bundle_adjustment(keyframes=keyframes, points=points, rounds=rounds, loop_kf_id=loop_kf_id, use_robust_kernel=use_robust_kernel, \
@@ -590,6 +590,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
         # optimize again without outliers 
         opt.initialize_optimization()
         opt.optimize(rounds)
+
 
     # search for final outlier observations and clean map  
     num_bad_observations = 0  # final bad observations
@@ -1197,6 +1198,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
     for keyframe, connections in loop_connections.items():
         keyframe_id = keyframe.kid
         Siw = vec_Scw[keyframe_id]
+        if Siw is None:
+            Printer.orange(f'[optimize_essential_graph] SiW for keyframe {keyframe_id} is None')
+            continue
         Swi = Siw.inverse()
 
         for connected_keyframe in connections:

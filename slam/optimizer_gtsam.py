@@ -44,6 +44,9 @@ from map_point import MapPoint
 from keyframe import KeyFrame
 
 
+kSigmaForFixed = 1e-6
+
+
 # gtsam helper functions 
 def vector6(x, y, z, a, b, c):
     """Create 6d double numpy array."""
@@ -80,6 +83,7 @@ def sync_flag_fun(abort_flag, mp_abort_flag, print=print):
 
 # ------------------------------------------------------------------------------------------
 
+
 # optimize pixel reprojection error, bundle adjustment
 def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
                       rounds=10, loop_kf_id=0, \
@@ -113,7 +117,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     graph = gtsam.NonlinearFactorGraph()
     initial_estimates = gtsam.Values()
     
-    sigma_for_fixed = 1e-9 # sigma used for fixed entities
+    sigma_for_fixed = kSigmaForFixed # sigma used for fixed entities
         
     # Huber loss parameters for robust optimization
     th_huber_mono = np.sqrt(5.991)  # chi-square 2 DOFs
@@ -127,7 +131,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     for kf in (local_frames if fixed_points else keyframes): # if points are fixed then consider just the local frames, otherwise we need all frames or at least two frames for each point
         if kf.is_bad:
             continue
-        pose_key = gtsam.symbol('x', kf.kid)        
+        pose_key = X(kf.kid)        
         keyframe_keys[kf] = pose_key
                 
         pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc), gtsam.Point3(*kf.Ow))
@@ -143,7 +147,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     for p in points:
         if p is None or p.is_bad: # do not consider bad points   
             continue
-        point_key = gtsam.symbol('p', p.id)
+        point_key = L(p.id)
         point_keys[p] = point_key
         point_position = gtsam.Point3(p.pt[0:3])
         initial_estimates.insert(point_key, point_position)
@@ -161,29 +165,22 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             pose_key = keyframe_keys[kf]
             
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx] > 0
-            #invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
+            #invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
             sigma = FeatureTrackerShared.feature_manager.level_sigmas[kf.octaves[idx]]
             
-            robust_noise = gtsam.noiseModel.Robust.Create(
-                gtsam.noiseModel.mEstimator.Huber.Create(th_huber_mono if not is_stereo_obs else th_huber_stereo),  # You can also try gtsam.noiseModel.mEstimator.Cauchy(2.0)
-                gtsam.noiseModel.Isotropic.Sigma(2 if not is_stereo_obs else 3, sigma)
-            ) 
-            iso_noise = gtsam.noiseModel.Isotropic.Sigma(2 if not is_stereo_obs else 3, sigma)     
+            noise_model = gtsam_factors.SwitchableRobustNoiseModel(3 if is_stereo_obs else 2, sigma, th_huber_stereo if is_stereo_obs else th_huber_mono)
         
-            robust_factor, iso_factor = None, None
             if is_stereo_obs:
                 calib = gtsam.Cal3_S2Stereo(kf.camera.fx, kf.camera.fy, 0, kf.camera.cx, kf.camera.cy, kf.camera.b)
                 measurement = gtsam.StereoPoint2(kf.kpsu[idx][0], kf.kps_ur[idx], kf.kpsu[idx][1]) # uL, uR, v
-                robust_factor = gtsam.GenericStereoFactor(measurement, robust_noise, pose_key, point_key, calib)
-                iso_factor = gtsam.GenericStereoFactor(measurement, iso_noise, pose_key, point_key, calib)
+                factor = gtsam.GenericStereoFactor(measurement, noise_model, pose_key, point_key, calib)
             else:
                 calib = gtsam.Cal3_S2(kf.camera.fx, kf.camera.fy, 0, kf.camera.cx, kf.camera.cy)
                 measurement = gtsam.Point2(kf.kpsu[idx][0], kf.kpsu[idx][1])
-                robust_factor = gtsam.GenericProjectionFactorCal3_S2(measurement, robust_noise, pose_key, point_key, calib)
-                iso_factor = gtsam.GenericProjectionFactorCal3_S2(measurement, iso_noise, pose_key, point_key, calib)
+                factor = gtsam.GenericProjectionFactorCal3_S2(measurement, noise_model, pose_key, point_key, calib)
                 
-            graph.add(robust_factor)
-            graph_factors[(robust_factor,iso_factor)] = (p,kf,idx,is_stereo_obs) # one has kf.points[idx] == p
+            graph.add(factor)
+            graph_factors[factor, noise_model] = (p,kf,idx,is_stereo_obs) # one has kf.points[idx] == p
             num_edges += 1
     
     if abort_flag.value:
@@ -206,25 +203,29 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
         
         inlier_factors = []
         # check inliers observation 
-        for factor_pair, factor_data in graph_factors.items(): 
-            robust_factor, iso_factor = factor_pair
+        for factor_pair, factor_data in graph_factors.items():
+            factor, noise_model = factor_pair
             p, kf, idx, is_stereo = factor_data
             
-            chi2 = 2.0 * robust_factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+            chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
             
             chi2_check_failure = chi2 > (chi2Stereo if is_stereo else chi2Mono)
-            point_key = point_keys[p]
-            pose_key = keyframe_keys[kf]            
-            point_position = np.array(result.atPoint3(point_key)).reshape(3,1)
-            pose_wc = np.array(result.atPose3(pose_key).matrix().reshape(4,4)) # Twc
-            pose_cw = inv_T(pose_wc)
-            Pc = (pose_cw[:3,:3] @ point_position + pose_cw[:3,3].reshape(3,1)).T
-            uv, depth = kf.camera.project(Pc)
+            
+            if not chi2_check_failure:
+                point_key = point_keys[p]
+                pose_key = keyframe_keys[kf]            
+                point_position = np.asarray(result.atPoint3(point_key)).reshape(3,1)
+                pose_wc = np.asarray(result.atPose3(pose_key).matrix()) # Twc
+                pose_cw = inv_T(pose_wc)
+                Pc = (pose_cw[:3,:3] @ point_position + pose_cw[:3,3].reshape(3,1)).T
+                uv, depth = kf.camera.project(Pc)
+                chi2_check_failure = (depth <= 0)
              
-            if chi2_check_failure or not depth>0:
+            if chi2_check_failure:
                 num_bad_edges += 1
             else:
-                inlier_factors.append(iso_factor) # now we just use iso_factors
+                noise_model.use_robust_model(False)
+                inlier_factors.append(factor) # now we just use iso_factors
     else:
         result = initial_estimates
         
@@ -254,7 +255,8 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     else: 
         # use the original graph
         final_graph = graph
-                     
+       
+                         
     optimizer = gtsam.LevenbergMarquardtOptimizer(final_graph, result, params)
     new_result = optimizer.optimize()
     result = new_result
@@ -277,15 +279,13 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
         # store the updates in a dictionary
         for kf in keyframe_keys:
             pose_key = keyframe_keys[kf]
-            pose_estimated = result.atPose3(pose_key)
-            Twc = pose_estimated.matrix().reshape(4,4)
+            Twc = result.atPose3(pose_key).matrix()
             Tcw = inv_T(Twc)     
             keyframe_updates[kf.id] = Tcw
     else:
         for kf in keyframe_keys:
             pose_key = keyframe_keys[kf]
-            pose_estimated = result.atPose3(pose_key)
-            Twc = pose_estimated.matrix().reshape(4,4)
+            Twc = result.atPose3(pose_key).matrix()
             Tcw = inv_T(Twc)                
             if loop_kf_id == 0:
                 # direct update on map
@@ -301,19 +301,19 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             # store the updates in a dictionary
             for p in point_keys:
                 point_key = point_keys[p]
-                point_updates[p.id] = np.array(result.atPoint3(point_key))
+                point_updates[p.id] = np.asarray(result.atPoint3(point_key))
         else:
             if loop_kf_id == 0:
                 for p in point_keys:
                     # direct update on map
                     point_key = point_keys[p]
-                    p.update_position(np.array(result.atPoint3(point_key)))
+                    p.update_position(np.asarray(result.atPoint3(point_key)))
                     p.update_normal_and_depth(force=True)
             else: 
                 for p in point_keys:
                     # update for loop closure
                     point_key = point_keys[p]
-                    p.pt_GBA = np.array(np.array(result.atPoint3(point_key)))
+                    p.pt_GBA = np.asarray(result.atPoint3(point_key))
                     p.GBA_kf_id = loop_kf_id
             
     num_active_edges = num_edges-num_bad_edges            
@@ -325,8 +325,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
         result_dict['keyframe_updates'] = keyframe_updates
         result_dict['point_updates'] = point_updates
 
-    return mean_squared_error, result_dict
-    
+    return mean_squared_error, result_dict    
 
 # ------------------------------------------------------------------------------------------
 
@@ -344,7 +343,7 @@ def global_bundle_adjustment(keyframes, points, rounds=10, loop_kf_id=0, use_rob
 
 def global_bundle_adjustment_map(map, rounds=10, loop_kf_id=0, use_robust_kernel=False, \
                                  abort_flag=None, mp_abort_flag=None, result_dict=None, verbose=False, print=print):
-    fixed_points=False
+    #fixed_points=False
     keyframes = map.get_keyframes()
     points = map.get_points()
     return global_bundle_adjustment(keyframes=keyframes, points=points, rounds=rounds, loop_kf_id=loop_kf_id, use_robust_kernel=use_robust_kernel, \
@@ -484,28 +483,21 @@ class PoseOptimizerGTSAM:
                 self.frame.outliers[idx] = False
                 is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx] > 0
 
-                robust_factor, iso_factor = None, None
                 #invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[self.frame.octaves[idx]]
                 sigma = FeatureTrackerShared.feature_manager.level_sigmas[self.frame.octaves[idx]]
                 
-                robust_noise = gtsam.noiseModel.Robust.Create(
-                    gtsam.noiseModel.mEstimator.Huber.Create(self.thHuberMono if not is_stereo_obs else self.thHuberStereo),  # You can also try gtsam.noiseModel.mEstimator.Cauchy(2.0)
-                    gtsam.noiseModel.Isotropic.Sigma(2 if not is_stereo_obs else 3, sigma)
-                )
-                
-                iso_noise = gtsam.noiseModel.Isotropic.Sigma(2 if not is_stereo_obs else 3, sigma)
+                noise_model = gtsam_factors.SwitchableRobustNoiseModel(3 if is_stereo_obs else 2, sigma, self.thHuberStereo if is_stereo_obs else self.thHuberMono) 
                 
                 # Add the observation factor
                 if is_stereo_obs:
-                    robust_factor = self.add_stereo_factor(robust_noise, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
-                    iso_factor = self.add_stereo_factor(iso_noise, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+                    factor = self.add_stereo_factor(noise_model, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
                 else:
-                    robust_factor = self.add_mono_factor(robust_noise, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
-                    iso_factor = self.add_mono_factor(iso_noise, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+                    factor = self.add_mono_factor(noise_model, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
 
-                used_factor = robust_factor if self.use_robust_factors else iso_factor
-                self.graph.add(used_factor) # initially we use robust factors 
-                self.factor_tuples[p] = (robust_factor, iso_factor, idx, is_stereo_obs)
+                if not self.use_robust_factors:
+                    noise_model.use_robust_model(False)
+                self.graph.add(factor) 
+                self.factor_tuples[p] = (factor, noise_model, idx, is_stereo_obs)
                 self.num_factors += 1
 
     def optimize(self, rounds=10, verbose=False):
@@ -553,13 +545,11 @@ class PoseOptimizerGTSAM:
             num_inliers = 0  
             inlier_factors = []
 
-            # pose_wc = np.array(result.atPose3(X(0)).matrix().reshape(4,4)) # Twc
+            # pose_wc = np.array(result.atPose3(X(0)).matrix()) # Twc
             # pose_cw = inv_T(pose_wc)
                             
-            for p, factor_tuple in self.factor_tuples.items():
-                robust_factor, iso_factor, idx, is_stereo_obs = factor_tuple
-                used_factor = robust_factor if self.use_robust_factors else iso_factor
-                chi2 = 2.0 * used_factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+            for p, (factor, noise_model, idx, is_stereo_obs) in self.factor_tuples.items():
+                chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
                 
                 # sigma = FeatureTrackerShared.feature_manager.level_sigmas[self.frame.octaves[idx]]
                 # Pc = (pose_cw[:3,:3] @ p.pt.reshape(3,1) + pose_cw[:3,3].reshape(3,1)).T
@@ -581,7 +571,8 @@ class PoseOptimizerGTSAM:
                     self.frame.outliers[idx] = False
                     total_inlier_error += chi2  # Sum error only for inliers
                     num_inliers += 1    
-                    inlier_factors.append((robust_factor, iso_factor))
+                    noise_model.use_robust_model(self.use_robust_factors)
+                    inlier_factors.append((factor, noise_model))
             
             if num_inliers < 10:
                 Printer.red('pose_optimization: stopped - not enough edges!')  
@@ -595,10 +586,9 @@ class PoseOptimizerGTSAM:
             if it < 3:    
                 # rebuild the graph with only inlier factors (in gtsam is not possible to deactivate the outlier factors)      
                 new_graph = gtsam.NonlinearFactorGraph()
-                #print(f'pose_optimization: it {it}, #inliers {num_inliers}/{num_bad_point_edges} #pose: {current_pose_estimated.matrix().reshape(4,4)}')
-                for robust_f, iso_f in inlier_factors:
-                    f = robust_f if self.use_robust_factors else iso_f
-                    new_graph.add(f)
+                #print(f'pose_optimization: it {it}, #inliers {num_inliers}/{num_bad_point_edges} #pose: {current_pose_estimated.matrix()}')
+                for factor, noise_model in inlier_factors:
+                    new_graph.add(factor)
                 self.initial = result                      
                 self.graph = new_graph           
         
@@ -613,7 +603,7 @@ class PoseOptimizerGTSAM:
         if result is not None: 
             is_ok = True
             pose_estimated = result.atPose3(X(0))
-            Twc = pose_estimated.matrix().reshape(4,4)
+            Twc = pose_estimated.matrix()
             self.frame.update_pose(inv_T(Twc))
         else: 
             is_ok = False
@@ -642,7 +632,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     graph = gtsam.NonlinearFactorGraph()
     initial_estimates = gtsam.Values()
     
-    sigma_for_fixed = 1e-9 # sigma used for fixed points
+    sigma_for_fixed = kSigmaForFixed # sigma used for fixed points
         
     # Huber loss parameters for robust optimization
     th_huber_mono = np.sqrt(5.991)  # chi-square 2 DOFs
@@ -656,7 +646,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
 
     # Add keyframe (camera pose) vertices
     for kf in good_keyframes:
-        pose_key = gtsam.symbol('x', kf.kid)
+        pose_key = X(kf.kid)
         keyframe_keys[kf] = pose_key
         
         pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc), gtsam.Point3(*kf.Ow))
@@ -671,7 +661,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     
     # Add 3D point vertices
     for p in good_points:
-        point_key = gtsam.symbol('p', p.id)
+        point_key = L(p.id)
         point_keys[p] = point_key
         initial_estimates.insert(point_key, gtsam.Point3(p.pt[:3]))
 
@@ -689,28 +679,20 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
             
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx] > 0
             sigma = FeatureTrackerShared.feature_manager.level_sigmas[kf.octaves[p_idx]]
+               
+            noise_model = gtsam_factors.SwitchableRobustNoiseModel(3 if is_stereo_obs else 2, sigma, th_huber_stereo if is_stereo_obs else th_huber_mono) 
             
-            robust_noise = gtsam.noiseModel.Robust.Create(
-                gtsam.noiseModel.mEstimator.Huber.Create(th_huber_mono if not is_stereo_obs else th_huber_stereo),  # You can also try gtsam.noiseModel.mEstimator.Cauchy(2.0)
-                gtsam.noiseModel.Isotropic.Sigma(2 if not is_stereo_obs else 3, sigma)
-            )   
-            
-            iso_noise = gtsam.noiseModel.Isotropic.Sigma(2 if not is_stereo_obs else 3, sigma)     
-        
-            robust_factor, iso_factor = None, None
             if is_stereo_obs:
                 calib = gtsam.Cal3_S2Stereo(kf.camera.fx, kf.camera.fy, 0, kf.camera.cx, kf.camera.cy, kf.camera.b)
                 measurement = gtsam.StereoPoint2(kf.kpsu[p_idx][0], kf.kps_ur[p_idx], kf.kpsu[p_idx][1]) # uL, uR, v
-                robust_factor = gtsam.GenericStereoFactor(measurement, robust_noise, pose_key, point_key, calib)
-                iso_factor = gtsam.GenericStereoFactor(measurement, iso_noise, pose_key, point_key, calib)
+                factor = gtsam.GenericStereoFactor(measurement, noise_model, pose_key, point_key, calib)
             else:
                 calib = gtsam.Cal3_S2(kf.camera.fx, kf.camera.fy, 0, kf.camera.cx, kf.camera.cy)
                 measurement = gtsam.Point2(kf.kpsu[p_idx][0], kf.kpsu[p_idx][1])
-                robust_factor = gtsam.GenericProjectionFactorCal3_S2(measurement, robust_noise, pose_key, point_key, calib)
-                iso_factor = gtsam.GenericProjectionFactorCal3_S2(measurement, iso_noise, pose_key, point_key, calib)
+                factor = gtsam.GenericProjectionFactorCal3_S2(measurement, noise_model, pose_key, point_key, calib)
                 
-            graph.add(robust_factor)
-            graph_factors[(robust_factor,iso_factor)] = (p,kf,p_idx,is_stereo_obs) # one has kf.points[p_idx] == p
+            graph.add(factor)
+            graph_factors[(factor,noise_model)] = (p,kf,p_idx,is_stereo_obs) # one has kf.points[p_idx] == p
             num_edges += 1
 
     if abort_flag.value:
@@ -729,31 +711,31 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     result = optimizer.optimize()
             
     if not abort_flag.value:
-
         inlier_factors = []    
         # check inliers observation 
-        for factor_pair, factor_data in graph_factors.items(): 
-            robust_factor, iso_factor = factor_pair
-            p, kf, p_idx, is_stereo = factor_data
+        for (factor,noise_model), (p, kf, p_idx, is_stereo) in graph_factors.items():
             
             # if p.is_bad: # redundant check since the considered points come from good_points
             #     continue 
             
-            chi2 = 2.0 * robust_factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+            chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
             
             chi2_check_failure = chi2 > (chi2Stereo if is_stereo else chi2Mono)
-            point_key = point_keys[p]
-            pose_key = keyframe_keys[kf]
-            point_position = np.array(result.atPoint3(point_key)).reshape(3,1)
-            pose_wc = np.array(result.atPose3(pose_key).matrix().reshape(4,4)) # Twc
-            pose_cw = inv_T(pose_wc)
-            Pc = (pose_cw[:3,:3] @ point_position + pose_cw[:3,3].reshape(3,1)).T
-            uv, depth = kf.camera.project(Pc) 
+            if not chi2_check_failure:
+                point_key = point_keys[p]
+                pose_key = keyframe_keys[kf]
+                point_position = np.asarray(result.atPoint3(point_key)).reshape(3,1)
+                pose_wc = np.asarray(result.atPose3(pose_key).matrix()) # Twc
+                pose_cw = inv_T(pose_wc)
+                Pc = (pose_cw[:3,:3] @ point_position + pose_cw[:3,3].reshape(3,1)).T
+                uv, depth = kf.camera.project(Pc) 
+                chi2_check_failure = (depth <= 0)
             
-            if chi2_check_failure or not depth>0:
+            if chi2_check_failure:
                 num_bad_edges += 1
             else:
-                inlier_factors.append(iso_factor) # now we just use iso_factors              
+                noise_model.use_robust_model(False)
+                inlier_factors.append(factor) # now we just use iso_factors              
 
         # optimize again without outliers 
         
@@ -781,6 +763,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
         new_result = new_optimizer.optimize()
         result = new_result
 
+
     # search for final outlier observations and clean map  
     num_bad_observations = 0  # final bad observations
     outliers_factors_data = []
@@ -788,29 +771,29 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     total_error = 0
     num_inlier_observations = 0
     
-    for factor_pair, factor_data in graph_factors.items(): 
-        robust_factor, iso_factor = factor_pair
-        p, kf, p_idx, is_stereo = factor_data
+    for (factor,noise_model), (p, kf, p_idx, is_stereo) in graph_factors.items(): 
         
         # if p.is_bad: # redundant check since the considered points come from good_points
         #     continue         
         
         assert(kf.get_point_match(p_idx) is p) 
         
-        chi2 = 2.0 * iso_factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+        chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
         
         chi2_check_failure = chi2 > (chi2Stereo if is_stereo else chi2Mono)
-        point_key = point_keys[p]
-        pose_key = keyframe_keys[kf]
-        point_position = np.array(result.atPoint3(point_key)).reshape(3,1)
-        pose_wc = np.array(result.atPose3(pose_key).matrix().reshape(4,4)) # Twc
-        pose_cw = inv_T(pose_wc)
-        Pc = (pose_cw[:3,:3] @ point_position + pose_cw[:3,3].reshape(3,1)).T
-        uv, depth = kf.camera.project(Pc) 
+        if not chi2_check_failure:
+            point_key = point_keys[p]
+            pose_key = keyframe_keys[kf]
+            point_position = np.asarray(result.atPoint3(point_key)).reshape(3,1)
+            pose_wc = np.asarray(result.atPose3(pose_key).matrix()) # Twc
+            pose_cw = inv_T(pose_wc)
+            Pc = (pose_cw[:3,:3] @ point_position + pose_cw[:3,3].reshape(3,1)).T
+            uv, depth = kf.camera.project(Pc) 
+            chi2_check_failure = (depth <= 0)
         
-        if chi2_check_failure or not depth>0:         
+        if chi2_check_failure:         
             num_bad_observations += 1
-            outliers_factors_data.append(factor_data) 
+            outliers_factors_data.append((p, kf, p_idx, is_stereo)) 
         else:
             num_inlier_observations += 1      
             total_error += chi2
@@ -833,7 +816,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
         for kf in keyframe_keys:
             pose_key = keyframe_keys[kf]
             pose_estimated = result.atPose3(pose_key)
-            Twc = pose_estimated.matrix().reshape(4,4)
+            Twc = pose_estimated.matrix()
             kf.update_pose(inv_T(Twc))            
             kf.lba_count += 1
 
@@ -841,7 +824,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
         if not fixed_points:
             for p in point_keys:
                 point_key = point_keys[p]
-                p.update_position(np.array(result.atPoint3(point_key)))
+                p.update_position(np.asarray(result.atPoint3(point_key)))
                 p.update_normal_and_depth(force=True)
 
     num_active_edges = num_inlier_observations # num_edges-num_bad_edges
@@ -980,7 +963,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
 
     from loop_detecting_process import print
     
-    sigma_for_fixed = 1e-9 # sigma used for fixed entities    
+    sigma_for_fixed = kSigmaForFixed # sigma used for fixed entities    
     
     sim_resectioning_factor_fn = sim_resectioning_factor
     sim_inv_resectioning_factor_fn = sim_inv_resectioning_factor
@@ -1270,6 +1253,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
     for keyframe, connections in loop_connections.items():
         keyframe_id = keyframe.kid
         Siw = vec_Scw[keyframe_id]
+        if Siw is None:
+            Printer.orange(f'[optimize_essential_graph] SiW for keyframe {keyframe_id} is None')
+            continue        
         Swi = Siw.inverse()
 
         for connected_keyframe in connections:

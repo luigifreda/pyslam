@@ -108,6 +108,115 @@ Eigen::MatrixXd numericalDerivative11WrapAny(
 }
 
 
+class SwitchableRobustNoiseModel : public noiseModel::Base {
+private:
+    SharedNoiseModel robustNoiseModel_;
+    SharedNoiseModel diagonalNoiseModel_;
+    SharedNoiseModel activeNoiseModel_; // Currently active model
+
+public:
+    /// Constructor initializes both isotropic and robust models
+    SwitchableRobustNoiseModel(int dim, double sigma, double huberThreshold):Base(dim) {
+
+        // Create isotropic noise model
+        diagonalNoiseModel_ = noiseModel::Isotropic::Sigma(dim, sigma);
+
+        // Create robust noise model (Huber loss with isotropic base)
+        auto robustKernel = noiseModel::mEstimator::Huber::Create(huberThreshold);
+        robustNoiseModel_ = noiseModel::Robust::Create(robustKernel, diagonalNoiseModel_);
+
+        // Start with robust model as default
+        activeNoiseModel_ = robustNoiseModel_;
+    }
+
+    /// Constructor initializes both diagonal and robust models
+    SwitchableRobustNoiseModel(const Vector& sigmas, double huberThreshold):Base(sigmas.size()) {
+
+        // Create isotropic noise model
+        diagonalNoiseModel_ = noiseModel::Diagonal::Sigmas(sigmas);
+
+        // Create robust noise model (Huber loss with isotropic base)
+        auto robustKernel = noiseModel::mEstimator::Huber::Create(huberThreshold);
+        robustNoiseModel_ = noiseModel::Robust::Create(robustKernel, diagonalNoiseModel_);
+
+        // Start with robust model as default
+        activeNoiseModel_ = robustNoiseModel_;
+    }
+
+    /// Switch to robust/diagonal model
+    void useRobustModel(bool val) { val? activeNoiseModel_ = robustNoiseModel_ : activeNoiseModel_ = diagonalNoiseModel_; }
+
+    /// Get the currently active noise model
+    SharedNoiseModel getActiveModel() const { return activeNoiseModel_; }
+
+    /// Get the robust noise model
+    SharedNoiseModel getRobustModel() const { return robustNoiseModel_; }
+
+    /// Get the diagonal noise model
+    SharedNoiseModel getDiagonalModel() const { return diagonalNoiseModel_; }
+
+public: 
+
+    /// Override `whiten` method to delegate to active model
+    virtual Vector whiten(const Vector& v) const override {
+        return activeNoiseModel_->whiten(v);
+    }
+
+    /// Override `Whiten` method to delegate to active model
+    virtual Matrix Whiten(const Matrix& H) const override {
+        return activeNoiseModel_->Whiten(H);
+    }
+
+    /// Override `unwhiten` method to delegate to active model
+    virtual Vector unwhiten(const Vector& v) const override {
+        return activeNoiseModel_->unwhiten(v);
+    }
+
+    /// Override `whitenInPlace` method to delegate to active model
+    virtual void whitenInPlace(Vector& v) const override {
+        activeNoiseModel_->whitenInPlace(v);
+    }
+
+    /// Implement the print method for debugging/inspection
+    virtual void print(const std::string& name = "") const override {
+        std::cout << name << "SwitchableRobustNoiseModel (currently using: ";
+        if (activeNoiseModel_ == diagonalNoiseModel_) {
+            std::cout << "Diagonal model";
+        } else {
+            std::cout << "Robust model";
+        }
+        activeNoiseModel_->print();
+        std::cout << ")\n";
+    }
+
+    /// Implement the `equals` method for comparison
+    virtual bool equals(const noiseModel::Base& expected, double tol = 1e-9) const override {
+        const SwitchableRobustNoiseModel* expectedModel = dynamic_cast<const SwitchableRobustNoiseModel*>(&expected);
+        if (!expectedModel)
+            return false;
+
+        return activeNoiseModel_->equals(*expectedModel->getActiveModel(), tol);
+    }
+
+    // Implement the `WhitenSystem` methods as required by the base class
+    virtual void WhitenSystem(std::vector<Matrix>& A, Vector& b) const override {
+        activeNoiseModel_->WhitenSystem(A, b);
+    }
+
+    virtual void WhitenSystem(Matrix& A, Vector& b) const override {
+        activeNoiseModel_->WhitenSystem(A, b);
+    }
+
+    virtual void WhitenSystem(Matrix& A1, Matrix& A2, Vector& b) const override {
+        activeNoiseModel_->WhitenSystem(A1, A2, b);
+    }
+
+    virtual void WhitenSystem(Matrix& A1, Matrix& A2, Matrix& A3, Vector& b) const override {
+        activeNoiseModel_->WhitenSystem(A1, A2, A3, b);
+    }
+};
+
+
 /**
  * Monocular Resectioning Factor
  */
@@ -408,15 +517,30 @@ PYBIND11_MODULE(gtsam_factors, m) {
         py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
         "Compute numerical derivative of a function mapping Similarity3 to Vector2");
 
+
+    py::class_<SwitchableRobustNoiseModel, std::shared_ptr<SwitchableRobustNoiseModel>, noiseModel::Base>(m, "SwitchableRobustNoiseModel")
+    .def(py::init([](int dim, double sigma, double huberThreshold) {
+        return new SwitchableRobustNoiseModel(dim, sigma, huberThreshold);
+    }), py::arg("dim"), py::arg("sigma"), py::arg("huberThreshold"))
+    .def(py::init([](const Vector& sigmas, double huberThreshold) {
+        return new SwitchableRobustNoiseModel(sigmas, huberThreshold);
+    }), py::arg("sigmas"), py::arg("huberThreshold"))
+    .def("use_robust_model", &SwitchableRobustNoiseModel::useRobustModel)
+    .def("get_robust_model", &SwitchableRobustNoiseModel::getRobustModel)
+    .def("get_diagonal_model", &SwitchableRobustNoiseModel::getDiagonalModel);
+
     
     py::class_<ResectioningFactor, std::shared_ptr<ResectioningFactor>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactor")
     .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
         return new ResectioningFactor(model, key, calib, measured_p, world_P);
     }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
-    .def(py::init([](const noiseModel::Isotropic& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
+    .def(py::init([](const noiseModel::Diagonal& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
         return new ResectioningFactor(create_shared_noise_model(model), key, calib, measured_p, world_P);
     }),py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
     .def(py::init([](const noiseModel::Robust& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
+        return new ResectioningFactor(create_shared_noise_model(model), key, calib, measured_p, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
+    .def(py::init([](const SwitchableRobustNoiseModel& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
         return new ResectioningFactor(create_shared_noise_model(model), key, calib, measured_p, world_P);
     }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
     .def("evaluateError", &ResectioningFactor::evaluateError)
@@ -427,10 +551,13 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
         return new ResectioningFactorStereo(model, key, calib, measured_p_stereo, world_P);
     }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
-    .def(py::init([](const noiseModel::Isotropic& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
+    .def(py::init([](const noiseModel::Diagonal& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
         return new ResectioningFactorStereo(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
     }),py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
     .def(py::init([](const noiseModel::Robust& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
+        return new ResectioningFactorStereo(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
+    .def(py::init([](const SwitchableRobustNoiseModel& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
         return new ResectioningFactorStereo(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
     }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
     .def("evaluateError", &ResectioningFactorStereo::evaluateError)
@@ -461,7 +588,7 @@ PYBIND11_MODULE(gtsam_factors, m) {
     py::class_<SimResectioningFactor, gtsam::NoiseModelFactor, std::shared_ptr<SimResectioningFactor>>(m, "SimResectioningFactor")
     .def(py::init<const gtsam::Key&, const gtsam::Cal3_S2&, const gtsam::Point2&, const gtsam::Point3&, const gtsam::SharedNoiseModel&>(),
             py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("noise_model"))
-    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Isotropic& model){
+    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Diagonal& model){
         return new SimResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));       
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
     .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
@@ -473,7 +600,7 @@ PYBIND11_MODULE(gtsam_factors, m) {
     py::class_<SimInvResectioningFactor, gtsam::NoiseModelFactor, std::shared_ptr<SimInvResectioningFactor>>(m, "SimInvResectioningFactor")
     .def(py::init<const gtsam::Key&, const gtsam::Cal3_S2&, const gtsam::Point2&, const gtsam::Point3&, const gtsam::SharedNoiseModel&>(),
             py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("noise_model"))
-    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Isotropic& model){
+    .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Diagonal& model){
         return new SimInvResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));       
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
     .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
@@ -495,7 +622,7 @@ PYBIND11_MODULE(gtsam_factors, m) {
         py::arg("key1"), py::arg("key2"), py::arg("similarity3"))
     .def(py::init<const Key&, const Key&, const Similarity3&, const SharedNoiseModel&>(),
         py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("noise_model"))
-    .def(py::init([](const Key& key1, const Key& key2, const Similarity3& similarity3, const noiseModel::Isotropic& model) {
+    .def(py::init([](const Key& key1, const Key& key2, const Similarity3& similarity3, const noiseModel::Diagonal& model) {
         return std::make_shared<BetweenFactor<Similarity3>>(key1, key2, similarity3, create_shared_noise_model(model));       
     }), py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("model"))
     .def(py::init([](const Key& key1, const Key& key2, const Similarity3& similarity3, const noiseModel::Robust& model) {
@@ -513,7 +640,7 @@ PYBIND11_MODULE(gtsam_factors, m) {
     py::class_<BetweenFactorSimilarity3, gtsam::NoiseModelFactor2<Similarity3, Similarity3>, std::shared_ptr<BetweenFactorSimilarity3>>(m, "BetweenFactorSimilarity3")
     .def(py::init<const gtsam::Key&, const gtsam::Key&, const gtsam::Similarity3&, const gtsam::SharedNoiseModel&>(),
         py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("noise_model"))
-    .def(py::init([](const gtsam::Key& key1, const gtsam::Key& key2, const gtsam::Similarity3& similarity3, const gtsam::noiseModel::Isotropic& model) {
+    .def(py::init([](const gtsam::Key& key1, const gtsam::Key& key2, const gtsam::Similarity3& similarity3, const gtsam::noiseModel::Diagonal& model) {
         return new BetweenFactorSimilarity3(key1, key2, similarity3, create_shared_noise_model(model));       
     }), py::arg("key1"), py::arg("key2"), py::arg("similarity3"), py::arg("model"))
     .def(py::init([](const gtsam::Key& key1, const gtsam::Key& key2, const gtsam::Similarity3& similarity3, const gtsam::noiseModel::Robust& model) {
