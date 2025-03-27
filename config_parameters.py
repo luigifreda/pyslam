@@ -18,7 +18,7 @@
 """
 
 
-# List of shared parameters for configuring SLAM modules 
+# List of shared static parameters for configuring SLAM modules 
 class Parameters:   
     
     # SLAM threads 
@@ -34,49 +34,49 @@ class Parameters:
     kNumFeatures=2000
     
     # Adaptive stats 
-    kUseDescriptorSigmaMadv2 = False                # experimental [WIP] In theory, if we use this we should accordingly update all the current descriptor thresholds
+    kUseDescriptorSigmaMadv2 = False                # [Experimental, WIP] In theory, if we use this we should accordingly update all the current descriptor thresholds
 
     # Point triangulation 
-    kCosMaxParallaxInitializer=0.99998  # 0.99998   # max cos angle for triangulation (min parallax angle) in the Initializer
-    kCosMaxParallax=0.9999 # 0.9998                 # max cos angle for triangulation (min parallax angle)   
+    kCosMaxParallaxInitializer=0.99998  # 0.99998   # Max cos angle for triangulation (min parallax angle) in the Initializer
+    kCosMaxParallax=0.9999 # 0.9998                 # Max cos angle for triangulation (min parallax angle)   
     kMinRatioBaselineDepth = 0.01      
     
     
     # Point visibility 
-    kViewingCosLimitForPoint=0.5    # must be viewing cos < kViewingCosLimitForPoint (viewing angle must be less than 60 deg)
+    kViewingCosLimitForPoint=0.5    # Must be viewing cos < kViewingCosLimitForPoint (viewing angle must be less than 60 deg)
     kScaleConsistencyFactor=1.5
     kMaxDistanceToleranceFactor=1.2 
     kMinDistanceToleranceFactor=0.8   
 
 
     # Feature management
-    kSigmaLevel0 = 1.0                        # sigma of the keypoint localization at level 0 (default value is 1 for ORB detector); can be changed by selected feature    
-    kFeatureMatchDefaultRatioTest = 0.7       # this is the default ratio test used by all feature matchers. It can be configured per descriptor in feature_tracker_configs.py
-    #kInitializerFeatureMatchRatioTest        # ratio test used by Initializer 
+    kSigmaLevel0 = 1.0                        # Sigma of the keypoint localization at level 0 (default value is 1 for ORB detector); can be changed by selected feature    
+    kFeatureMatchDefaultRatioTest = 0.7       # This is the default ratio test used by all feature matchers. It can be configured per descriptor in feature_tracker_configs.py
+    #kInitializerFeatureMatchRatioTest        # Ratio test used by Initializer 
     #
-    kKdtNmsRadius = 3 # pixels  #3            # radius for kd-tree based Non-Maxima Suppression
+    kKdtNmsRadius = 3 # pixels  #3            # Radius for kd-tree based Non-Maxima Suppression
     #
     kCheckFeaturesOrientation = True 
 
 
     # Initializer 
-    kInitializerDesiredMedianDepth = 1         # when initializing, the initial median depth is computed and forced to this value (for better visualization is > 1) 
-    kInitializerMinRatioDepthBaseline = 100    # compare to 1/kMinRatioBaselineDepth
+    kInitializerDesiredMedianDepth = 1         # When initializing, the initial median depth is computed and forced to this value (for better visualization is > 1) 
+    kInitializerMinRatioDepthBaseline = 100    # Compare to 1/kMinRatioBaselineDepth
     kInitializerNumMinFeatures = 100
     kInitializerNumMinFeaturesStereo = 500
     kInitializerNumMinTriangulatedPoints = 150
     kInitializerNumMinTriangulatedPointsStereo = 100
-    kInitializerFeatureMatchRatioTest = 0.9    # ratio test used by Initializer   # TODO: put it in an table and make it configurable per descriptor
+    kInitializerFeatureMatchRatioTest = 0.9    # Ratio test used by Initializer   # TODO: put it in an table and make it configurable per descriptor
     kInitializerNumMinNumPointsForPnPWithDepth = 15 
     kInitializerUseCellCoverageCheck = True
     kInitializerUseMinFrameDistanceCheck = True
 
 
     # Tracking 
-    kUseMotionModel = True                            # use or not the motion model for computing a first guess pose (that will be optimized by pose optimization)  
-    kUseSearchFrameByProjection = True                # match frames by using frame map points projection and epipolar lines; here, the current available interframe pose estimate is used for computing the fundamental mat F
-    kMinNumMatchedFeaturesSearchFrameByProjection=20  # if the number of tracked features is below this, then the search fails 
-    kUseEssentialMatrixFitting = False                # fit an essential matrix; orientation and keypoint match inliers are estimated by fitting an essential mat (5 points algorithm), 
+    kUseMotionModel = True                            # Use or not the motion model for computing a first guess pose (that will be optimized by pose optimization)  
+    kUseSearchFrameByProjection = True                # Match frames by using frame map points projection and epipolar lines; here, the current available interframe pose estimate is used for computing the fundamental mat F
+    kMinNumMatchedFeaturesSearchFrameByProjection=20  # If the number of tracked features is below this, then the search fails 
+    kUseEssentialMatrixFitting = False                # Fit an essential matrix; orientation and keypoint match inliers are estimated by fitting an essential mat (5 points algorithm), 
                                                       # WARNING: essential matrix fitting comes with some limitations (please, read the comments of the method slam.estimate_pose_ess_mat())
     kMaxNumOfKeyframesInLocalMap = 80
     kNumBestCovisibilityKeyFrames = 10
@@ -84,13 +84,13 @@ class Parameters:
     
     
     # Keyframe generation 
-    kNumMinPointsForNewKf = 15                               # minimum number of matched map points for spawning a new KeyFrame 
-    kNumMinTrackedClosePointsForNewKfNonMonocular = 100      # minimum number of tracked close map points that for not spawning a new KeyFrame in case of a non-monocular system
-    kNumMaxNonTrackedClosePointsForNewKfNonMonocular = 70    # maximum number of non-tracked close map points for not spawning a new KeyFrame in case of a non-monocular system    
-    kThNewKfRefRatio = 0.9                                   # for determining if a new KF must be spawned, condition 3
-    kThNewKfRefRatioStereo = 0.75                            # for determining if a new KF must be spawned, condition 3, in the case non-monocular
-    kThNewKfRefRatioNonMonocualar = 0.25                     # for determining if a new KF must be spawned in case the system is not monocular, condition 2b
-    kUseFeatureCoverageControlForNewKf = False               # [experimental] check if all the matched map points in the current frame well cover the image (by using an image grid check)
+    kNumMinPointsForNewKf = 15                               # Minimum number of matched map points for spawning a new KeyFrame 
+    kNumMinTrackedClosePointsForNewKfNonMonocular = 100      # Minimum number of tracked close map points that for not spawning a new KeyFrame in case of a non-monocular system
+    kNumMaxNonTrackedClosePointsForNewKfNonMonocular = 70    # Maximum number of non-tracked close map points for not spawning a new KeyFrame in case of a non-monocular system    
+    kThNewKfRefRatio = 0.9                                   # Dor determining if a new KF must be spawned, condition 3
+    kThNewKfRefRatioStereo = 0.75                            # Dor determining if a new KF must be spawned, condition 3, in the case non-monocular
+    kThNewKfRefRatioNonMonocualar = 0.25                     # Dor determining if a new KF must be spawned in case the system is not monocular, condition 2b
+    kUseFeatureCoverageControlForNewKf = False               # [Experimental] check if all the matched map points in the current frame well cover the image (by using an image grid check)
     
     
     # Keyframe culling
@@ -101,7 +101,7 @@ class Parameters:
 
     # Stereo matching 
     kStereoMatchingMaxRowDistance = 1.1       # [pixels] 
-    kStereoMatchingShowMatchedPoints = False  # show the frame stereo matches (debug stereo matching)
+    kStereoMatchingShowMatchedPoints = False  # Show the frame stereo matches (debug stereo matching)
 
 
     # Search matches by projection 
@@ -112,10 +112,10 @@ class Parameters:
     kMaxReprojectionDistanceSim3 = 7.5        # [pixels]    o:7.5
     #
     kMatchRatioTestMap=0.8
-    kMatchRatioTestEpipolarLine=0.8      # used just for test function find_matches_along_line()
+    kMatchRatioTestEpipolarLine=0.8      # Used just for test function find_matches_along_line()
     #
     # Reference max descriptor distance (used for initial checks and then updated and adapted)                   
-    kMaxDescriptorDistance=0 # it is initialized by the first created instance of feature_manager.py at runtime 
+    kMaxDescriptorDistance=0 # It is initialized by the first created instance of feature_manager.py at runtime 
     
 
     # Search matches for triangulation by using epipolar lines 
@@ -136,16 +136,16 @@ class Parameters:
 
 
     # Optimization engine 
-    kOptimizationFrontEndUseGtsam = False    # [WIP] Not stable yet!
-    kOptimizationBackEndUseGtsam = False     # [WIP] 
+    kOptimizationFrontEndUseGtsam = False   # [Experimental, WIP] Use GTSAM in pose optimization in the frontend. Not stable yet!
+    kOptimizationBackEndUseGtsam = False    # [Experimental, WIP] Use GTSAM for BA, PGO and relocalization in the backend 
     
     
     # Bundle Adjustment (BA)
     kLocalBAWindow=20                 #  [# frames]   
     kUseLargeWindowBA=False           # True: perform BA over a large window; False: do not perform large window BA       
-    kEveryNumFramesLargeWindowBA=10   # num of frames between two large window BA  
+    kEveryNumFramesLargeWindowBA=10   # Number of frames between two large window BA  
     kLargeBAWindow=20                 #  [# frames] 
-    kUseParallelProcessLBA = False    # Experimental - keep it False for the moment since it is neither faster (probably due to the overhead of copying data to multi-processing shared memory) nor stable yet! 
+    kUseParallelProcessLBA = False    # [Experimental] Keep it False for the moment since it is neither faster (probably due to the overhead of copying data to multi-processing shared memory) nor stable yet! 
 
         
     # Global Bundle Adjustment (GBA)
@@ -211,8 +211,8 @@ class Parameters:
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
     
 
-    # other parameters 
-    kChi2Mono = 5.991 # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
+    # Other parameters 
+    kChi2Mono = 5.991   # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
     kChi2Stereo = 7.815 # chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
 
 

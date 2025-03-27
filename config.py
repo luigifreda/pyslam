@@ -336,5 +336,5 @@ class Config:
 
    
 if __name__ != "__main__":
-    # we automatically read lib path when this file is called via 'import'
+    # We automatically read and set lib paths when this file is called via 'import'
     cfg = Config()

@@ -43,8 +43,6 @@ from frame import FeatureTrackerShared
 from map_point import MapPoint
 from keyframe import KeyFrame
 
-import jax
-import jax.numpy as jnp
 
 # gtsam helper functions 
 def vector6(x, y, z, a, b, c):

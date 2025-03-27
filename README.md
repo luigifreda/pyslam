@@ -1,10 +1,10 @@
-# pySLAM v2.7.0
+# pySLAM v2.7.2
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
 <!-- TOC -->
 
-- [pySLAM v2.7.0](#pyslam-v270)
+- [pySLAM v2.7.2](#pyslam-v272)
   - [Overview](#overview)
   - [Install](#install)
     - [Main requirements](#main-requirements)
@@ -63,12 +63,12 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
  
 **pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
-- Various loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
-- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes available depth and color images with volumetric integration and provides an output dense reconstruction. This can use **TSDF** with voxel hashing or incremental **Gaussian Splatting**. 
+- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
+- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
-- A collection of other useful tools for VO and SLAM.
+- Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
 
-pySLAM can be used as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should note that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
+pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should be aware that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
 **Enjoy it!**
 
@@ -377,8 +377,8 @@ When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
 - To enable map reloading and relocalization when running `main_slam.py`, open `config.yaml` and set 
   ```bash
   SYSTEM_STATE:
-    load_state: True                  # flag to enable SLAM state reloading (map state + loop closing state)
-    folder_path: results/slam_state   # default folder path (relative to repository root) where the system state is saved or reloaded
+    load_state: True                  # Flag to enable SLAM state reloading (map state + loop closing state)
+    folder_path: results/slam_state   # Default folder path (relative to repository root) where the system state is saved or reloaded
   ```
 
 Note that pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map overwrites the current system configurations to ensure descriptor compatibility.  
@@ -396,9 +396,9 @@ To enable trajectory saving, open `config.yaml` and search for the `SAVE_TRAJECT
 ```bash
 SAVE_TRAJECTORY:
   save_trajectory: True
-  format_type: kitti             # supported formats: `tum`, `kitti`, `euroc`
-  output_folder: results/metrics # relative to pyslam root folder 
-  basename: trajectory           # basename of the trajectory saving output
+  format_type: kitti             # Supported formats: `tum`, `kitti`, `euroc`
+  output_folder: results/metrics # Relative to pyslam root folder 
+  basename: trajectory           # Basename of the trajectory saving output
 ```
 
 ---
@@ -409,8 +409,8 @@ At present, pySLAM supports `g2o` and `gtsam`. Frontend pose optimization with `
 The default optimization engine is `g2o`. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
 ```python
   # Optimization engine 
-  kOptimizationFrontEndUseGtsam = False    # [WIP] Not stable yet!
-  kOptimizationBackEndUseGtsam = False     # [WIP] 
+  kOptimizationFrontEndUseGtsam = False    # Not stable yet [WIP]
+  kOptimizationBackEndUseGtsam = False     # 
 ```
 
 ---

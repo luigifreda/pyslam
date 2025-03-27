@@ -174,6 +174,7 @@ public:
 };
 
 
+// Similarity3 prior factor with autodifferencing. Goal is to penalize all terms.
 class PriorFactorSimilarity3 : public gtsam::NoiseModelFactor1<gtsam::Similarity3> {
 public:
     using Base = gtsam::NoiseModelFactor1<gtsam::Similarity3>;
@@ -201,6 +202,8 @@ public:
     }
 };
 
+
+// Similarity3 prior factor with only scale. Goal is to only penalize scale difference.
 class PriorFactorSimilarity3ScaleOnly : public gtsam::NoiseModelFactor1<gtsam::Similarity3> {
 public:
     using Base = gtsam::NoiseModelFactor1<gtsam::Similarity3>;
@@ -229,6 +232,7 @@ public:
 };
 
 
+// Used by optimizer_gtsam.optimize_sim3()
 class SimResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3> {
     private:
         const Cal3_S2& calib_;  // Camera intrinsics
@@ -272,11 +276,12 @@ class SimResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3
     };
 
 
+// Used by optimizer_gtsam.optimize_sim3()
 class SimInvResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3> {
 private:
     const Cal3_S2& calib_;  // Camera intrinsics
-    const Point2 uv_;      // Observed 2D pixel point
-    const Point3 P_;      // 3D camera point
+    const Point2 uv_;       // Observed 2D pixel point
+    const Point3 P_;        // 3D camera point
 
 public:
     SimInvResectioningFactor(const gtsam::Key& sim_pose_key,
@@ -320,6 +325,7 @@ public:
 };
     
 
+// Custom version of BetweenFactor<Similarity3> with autodifferencing
 class BetweenFactorSimilarity3 : public gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3> {
 public:
     using Base = gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>;
@@ -333,7 +339,7 @@ public:
                                 boost::optional<gtsam::Matrix&> H1 = boost::none,
                                 boost::optional<gtsam::Matrix&> H2 = boost::none) const override {
         // Compute predicted relative transformation
-        gtsam::Similarity3 predicted = sim3_1.inverse() * sim3_2; // Swc1.inverse() * Swc2
+        gtsam::Similarity3 predicted = sim3_1.inverse() * sim3_2; // Swc1.inverse() * Swc2 = Sc1c2 = S12
         
         // Compute the error in Sim3 space
         gtsam::Similarity3 errorSim3 = measured_ * predicted.inverse();
@@ -383,6 +389,17 @@ PYBIND11_MODULE(gtsam_factors, m) {
     py::class_<gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>,gtsam::NonlinearFactor, std::shared_ptr<gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>>>(m, "NoiseModelFactor2Similarity3")
     .def("print", &gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>::print);
 
+
+    // NOTE: This does not work. We need to specialize the template for each type we are interested as it is done for Similarity3 in numerical_derivative11_sim3
+    // m.def("numerical_derivative11", 
+    //     [](py::function py_func, const auto& x, double delta = 1e-5) -> Eigen::MatrixXd {
+    //         // Explicitly define the lambda signature
+    //         return numericalDerivative11WrapAny(py_func, x, delta);
+    //     },
+    //     py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
+    //     "Compute numerical derivative of a function mapping any type");
+
+    // Specialization of numericalDerivative11 for Similarity3 -> Vector2
     m.def("numerical_derivative11_sim3", 
         [](py::function py_func, const Similarity3& x, double delta = 1e-5) -> Eigen::MatrixXd {
             // Explicitly define the lambda signature
@@ -391,15 +408,6 @@ PYBIND11_MODULE(gtsam_factors, m) {
         py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
         "Compute numerical derivative of a function mapping Similarity3 to Vector2");
 
-    // NOTE: This does not work. We need to specialize the template for each type we are interested as it is done above for Similarity3
-    // m.def("numerical_derivative11", 
-    //     [](py::function py_func, const auto& x, double delta = 1e-5) -> Eigen::MatrixXd {
-    //         // Explicitly define the lambda signature
-    //         return numericalDerivative11WrapAny(py_func, x, delta);
-    //     },
-    //     py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
-    //     "Compute numerical derivative of a function mapping any type");
-    
     
     py::class_<ResectioningFactor, std::shared_ptr<ResectioningFactor>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactor")
     .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {

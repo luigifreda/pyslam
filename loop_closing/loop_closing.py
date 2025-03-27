@@ -555,11 +555,15 @@ class LoopCorrector:
             
             print(f'LoopCorrector: optimizing pose graph')
             loop_keyframe = self.loop_geometry_checker.success_loop_kf
-            self.mean_graph_chi2_error = optimizer_g2o.optimize_essential_graph(self.map, 
-                                                                                loop_keyframe, current_keyframe, 
-                                                                                self.non_corrected_sim3_map, self.corrected_sim3_map,
-                                                                                loop_connections, self.fix_scale, print_fun=print)
-            
+            if Parameters.kOptimizationBackEndUseGtsam:
+                optimize_essential_graph_fun = optimizer_gtsam.optimize_essential_graph
+            else: 
+                optimize_essential_graph_fun = optimizer_g2o.optimize_essential_graph
+            self.mean_graph_chi2_error = optimize_essential_graph_fun(self.map, 
+                                                                      loop_keyframe, current_keyframe, 
+                                                                      self.non_corrected_sim3_map, self.corrected_sim3_map,
+                                                                      loop_connections, self.fix_scale, print_fun=print)
+
             # Add loop edge
             loop_keyframe.add_loop_edge(current_keyframe)
             current_keyframe.add_loop_edge(loop_keyframe)
