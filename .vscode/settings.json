@@ -86,7 +86,8 @@
     "scoped_allocator": "cpp",
     "dense": "cpp",
     "slist": "cpp",
-    "point3.h": "c"
+    "point3.h": "c",
+    "mprealsupport": "cpp"
   },
   "python.autoComplete.extraPaths": [
     "${workspaceFolder}",

@@ -31,6 +31,7 @@
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Cal3_S2.h>
 #include <gtsam/geometry/Cal3_S2Stereo.h>
+#include <gtsam/geometry/Cal3DS2.h>
 #include <gtsam/geometry/StereoCamera.h>
 #include <gtsam/geometry/PinholeCamera.h>
 #include <gtsam/geometry/StereoPoint2.h>
@@ -63,6 +64,9 @@ template <typename T>
 boost::shared_ptr<T> create_shared_noise_model(const boost::shared_ptr<T>& model) {
     return model; // No copy, just return the same shared_ptr
 }
+
+
+// =====================================================================================================================
 
 
 // Generalized numericalDerivative11 template
@@ -108,6 +112,10 @@ Eigen::MatrixXd numericalDerivative11WrapAny(
 }
 
 
+// =====================================================================================================================
+
+
+
 class SwitchableRobustNoiseModel : public noiseModel::Base {
 private:
     SharedNoiseModel robustNoiseModel_;
@@ -115,7 +123,7 @@ private:
     SharedNoiseModel activeNoiseModel_; // Currently active model
 
 public:
-    /// Constructor initializes both isotropic and robust models
+    /// Constructor initializes both diagonal/isotropic and robust models
     SwitchableRobustNoiseModel(int dim, double sigma, double huberThreshold):Base(dim) {
 
         // Create isotropic noise model
@@ -132,10 +140,10 @@ public:
     /// Constructor initializes both diagonal and robust models
     SwitchableRobustNoiseModel(const Vector& sigmas, double huberThreshold):Base(sigmas.size()) {
 
-        // Create isotropic noise model
+        // Create digonal noise model
         diagonalNoiseModel_ = noiseModel::Diagonal::Sigmas(sigmas);
 
-        // Create robust noise model (Huber loss with isotropic base)
+        // Create robust noise model (Huber loss with diagonal base)
         auto robustKernel = noiseModel::mEstimator::Huber::Create(huberThreshold);
         robustNoiseModel_ = noiseModel::Robust::Create(robustKernel, diagonalNoiseModel_);
 
@@ -144,7 +152,7 @@ public:
     }
 
     /// Switch to robust/diagonal model
-    void useRobustModel(bool val) { val? activeNoiseModel_ = robustNoiseModel_ : activeNoiseModel_ = diagonalNoiseModel_; }
+    void setRobustModelActive(bool val) { val? activeNoiseModel_ = robustNoiseModel_ : activeNoiseModel_ = diagonalNoiseModel_; }
 
     /// Get the currently active noise model
     SharedNoiseModel getActiveModel() const { return activeNoiseModel_; }
@@ -217,6 +225,9 @@ public:
 };
 
 
+// =====================================================================================================================
+
+
 /**
  * Monocular Resectioning Factor
  */
@@ -226,6 +237,7 @@ public:
     const Cal3_S2& K_;
     Point3 P_;
     Point2 p_;
+    double weight_ = 1.0;
 
     ResectioningFactor(const SharedNoiseModel& model, 
                        const Key& key,
@@ -237,7 +249,14 @@ public:
     Vector evaluateError(const Pose3& pose, boost::optional<Matrix&> H = boost::none) const override {
         PinholeCamera<Cal3_S2> camera(pose, K_);        
         try {
-            return camera.project(P_, H, boost::none, boost::none) - p_;
+            if (weight_ <= std::numeric_limits<double>::epsilon()) {
+                if (H) *H = Matrix::Zero(2,6);
+                return Vector::Zero(2);
+            } else {
+                Vector error = weight_ * (camera.project(P_, H, boost::none, boost::none) - p_);
+                if (H) *H *= weight_;
+                return error;
+            }
         } catch( std::exception& e) {
             if (H) *H = Matrix::Zero(2,6);
             // print in red
@@ -245,6 +264,9 @@ public:
             return Vector::Zero(2);
         }
     }
+
+    void setWeight(double weight) { assert(weight > 0.0); weight_ = weight; }
+    double getWeight() const { return weight_; }
 }; 
 
 /**
@@ -256,6 +278,7 @@ public:
     Cal3_S2Stereo::shared_ptr K_;    
     Point3 P_;
     StereoPoint2 p_stereo_;
+    double weight_ = 1.0;    
 
     ResectioningFactorStereo(const SharedNoiseModel& model, 
                              const Key& key,
@@ -269,10 +292,17 @@ public:
     Vector evaluateError(const Pose3& pose, boost::optional<Matrix&> H = boost::none) const override {
         StereoCamera camera(pose, K_);
         try {
-            StereoPoint2 projected = camera.project(P_, H, boost::none, boost::none);
-            return (Vector(3) << projected.uL() - p_stereo_.uL(),
-                                projected.uR() - p_stereo_.uR(),
-                                projected.v() - p_stereo_.v()).finished();
+            if (weight_ <= std::numeric_limits<double>::epsilon()) {
+                if (H) *H = Matrix::Zero(3,6);
+                return Vector::Zero(3);
+            } else {
+                StereoPoint2 projected = camera.project(P_, H, boost::none, boost::none);
+                Vector error = weight_ * (Vector(3) << projected.uL() - p_stereo_.uL(),
+                                                       projected.uR() - p_stereo_.uR(),
+                                                       projected.v() - p_stereo_.v()).finished();
+                if (H) *H *= weight_;
+                return error;
+            }
         } catch( std::exception& e) {
             if (H) *H = Matrix::Zero(3,6);
             // print in red
@@ -280,7 +310,391 @@ public:
             return Vector::Zero(3);
         }
     }
+
+    void setWeight(double weight) { assert(weight > 0.0); weight_ = weight; }
+    double getWeight() const { return weight_; }    
 };
+
+
+
+// =====================================================================================================================
+
+
+
+  /**
+   * Non-linear factor for a constraint derived from a 2D measurement. 
+   * A weight can be applied to the error and Jacobians in order to disable the factor or to make it less important.
+   */
+  template<class POSE, class LANDMARK, class CALIBRATION = Cal3_S2>
+  class WeightedGenericProjectionFactor: public NoiseModelFactor2<POSE, LANDMARK> {
+  protected:
+
+    // Keep a copy of measurement and calibration for I/O
+    Point2 measured_;                    ///< 2D measurement
+    boost::shared_ptr<CALIBRATION> K_;  ///< shared pointer to calibration object
+    boost::optional<POSE> body_P_sensor_; ///< The pose of the sensor in the body frame
+
+    // verbosity handling for Cheirality Exceptions
+    bool throwCheirality_; ///< If true, rethrows Cheirality exceptions (default: false)
+    bool verboseCheirality_; ///< If true, prints text for Cheirality exceptions (default: false)
+
+    double weight_ = 1.0; ///< Positive weighting factor for the error and Jacobians
+  public:
+
+    /// shorthand for base class type
+    typedef NoiseModelFactor2<POSE, LANDMARK> Base;
+
+    /// shorthand for this class
+    typedef WeightedGenericProjectionFactor<POSE, LANDMARK, CALIBRATION> This;
+
+    /// shorthand for a smart pointer to a factor
+    typedef boost::shared_ptr<This> shared_ptr;
+
+    /// Default constructor
+  WeightedGenericProjectionFactor() :
+      measured_(0, 0), throwCheirality_(false), verboseCheirality_(false) {
+  }
+
+    /**
+     * Constructor
+     * TODO: Mark argument order standard (keys, measurement, parameters)
+     * @param measured is the 2 dimensional location of point in image (the measurement)
+     * @param model is the standard deviation
+     * @param poseKey is the index of the camera
+     * @param pointKey is the index of the landmark
+     * @param K shared pointer to the constant calibration
+     * @param body_P_sensor is the transform from body to sensor frame (default identity)
+     */
+    WeightedGenericProjectionFactor(const Point2& measured, const SharedNoiseModel& model,
+        Key poseKey, Key pointKey, const boost::shared_ptr<CALIBRATION>& K,
+        boost::optional<POSE> body_P_sensor = boost::none) :
+          Base(model, poseKey, pointKey), measured_(measured), K_(K), body_P_sensor_(body_P_sensor),
+          throwCheirality_(false), verboseCheirality_(false) {}
+
+    /**
+     * Constructor with exception-handling flags
+     * TODO: Mark argument order standard (keys, measurement, parameters)
+     * @param measured is the 2 dimensional location of point in image (the measurement)
+     * @param model is the standard deviation
+     * @param poseKey is the index of the camera
+     * @param pointKey is the index of the landmark
+     * @param K shared pointer to the constant calibration
+     * @param throwCheirality determines whether Cheirality exceptions are rethrown
+     * @param verboseCheirality determines whether exceptions are printed for Cheirality
+     * @param body_P_sensor is the transform from body to sensor frame  (default identity)
+     */
+    WeightedGenericProjectionFactor(const Point2& measured, const SharedNoiseModel& model,
+        Key poseKey, Key pointKey, const boost::shared_ptr<CALIBRATION>& K,
+        bool throwCheirality, bool verboseCheirality,
+        boost::optional<POSE> body_P_sensor = boost::none) :
+          Base(model, poseKey, pointKey), measured_(measured), K_(K), body_P_sensor_(body_P_sensor),
+          throwCheirality_(throwCheirality), verboseCheirality_(verboseCheirality) {}
+
+    /** Virtual destructor */
+    virtual ~WeightedGenericProjectionFactor() {}
+
+    /// @return a deep copy of this factor
+    virtual gtsam::NonlinearFactor::shared_ptr clone() const {
+      return boost::static_pointer_cast<gtsam::NonlinearFactor>(
+          gtsam::NonlinearFactor::shared_ptr(new This(*this))); }
+
+    /**
+     * print
+     * @param s optional string naming the factor
+     * @param keyFormatter optional formatter useful for printing Symbols
+     */
+    void print(const std::string& s = "", const KeyFormatter& keyFormatter = DefaultKeyFormatter) const {
+      std::cout << s << "WeightedGenericProjectionFactor, z = ";
+      traits<Point2>::Print(measured_);
+      if(this->body_P_sensor_)
+        this->body_P_sensor_->print("  sensor pose in body frame: ");
+      Base::print("", keyFormatter);
+    }
+
+    /// equals
+    virtual bool equals(const NonlinearFactor& p, double tol = 1e-9) const {
+      const This *e = dynamic_cast<const This*>(&p);
+      return e
+          && Base::equals(p, tol)
+          && traits<Point2>::Equals(this->measured_, e->measured_, tol)
+          && this->K_->equals(*e->K_, tol)
+          && std::abs(this->weight_ - e->weight_) < tol
+          && ((!body_P_sensor_ && !e->body_P_sensor_) || (body_P_sensor_ && e->body_P_sensor_ && body_P_sensor_->equals(*e->body_P_sensor_)));
+    }
+
+    /// Evaluate error h(x)-z and optionally derivatives
+    Vector evaluateError(const Pose3& pose, const Point3& point,
+        boost::optional<Matrix&> H1 = boost::none, boost::optional<Matrix&> H2 = boost::none) const {
+      try {
+        if (weight_ <= std::numeric_limits<double>::epsilon()) { 
+            if (H1) *H1 = Matrix::Zero(2, 6);
+            if (H2) *H2 = Matrix::Zero(2, 3);
+            return Vector2::Zero();
+        }
+
+        if(body_P_sensor_) {
+          if(H1) {
+            gtsam::Matrix H0;
+            PinholeCamera<CALIBRATION> camera(pose.compose(*body_P_sensor_, H0), *K_);
+            Point2 reprojectionError(camera.project(point, H1, H2, boost::none) - measured_);
+            *H1 = *H1 * H0;
+            *H1 *= weight_;
+            return weight_ * reprojectionError;
+          } else {
+            PinholeCamera<CALIBRATION> camera(pose.compose(*body_P_sensor_), *K_);
+            Point2 reprojectionError(camera.project(point, H1, H2, boost::none) - measured_);
+            return weight_ * reprojectionError;            
+          }
+        } else {
+          PinholeCamera<CALIBRATION> camera(pose, *K_);
+          Point2 reprojectionError(camera.project(point, H1, H2, boost::none) - measured_);
+          if (H1) *H1 *= weight_;
+          if (H2) *H2 *= weight_;
+          return weight_ * reprojectionError;             
+        }
+      } catch( CheiralityException& e) {
+        if (H1) *H1 = Matrix::Zero(2,6);
+        if (H2) *H2 = Matrix::Zero(2,3);
+        if (verboseCheirality_)
+          std::cout << e.what() << ": Landmark "<< DefaultKeyFormatter(this->key2()) <<
+              " moved behind camera " << DefaultKeyFormatter(this->key1()) << std::endl;
+        if (throwCheirality_)
+          throw CheiralityException(this->key2());
+      }
+      return Vector2::Constant(2.0 * K_->fx());
+    }
+
+    /** set the weight */
+    void setWeight(double weight) { assert(weight > 0.0); weight_ = weight; }
+
+    /** return the weight */
+    double getWeight() const { return weight_; }
+
+    /** return the measurement */
+    const Point2& measured() const {
+      return measured_;
+    }
+
+    /** return the calibration object */
+    inline const boost::shared_ptr<CALIBRATION> calibration() const {
+      return K_;
+    }
+
+    /** return verbosity */
+    inline bool verboseCheirality() const { return verboseCheirality_; }
+
+    /** return flag for throwing cheirality exceptions */
+    inline bool throwCheirality() const { return throwCheirality_; }
+
+  private:
+
+    /// Serialization function
+    friend class boost::serialization::access;
+    template<class ARCHIVE>
+    void serialize(ARCHIVE & ar, const unsigned int /*version*/) {
+      ar & BOOST_SERIALIZATION_BASE_OBJECT_NVP(Base);
+      ar & BOOST_SERIALIZATION_NVP(measured_);
+      ar & BOOST_SERIALIZATION_NVP(K_);
+      ar & BOOST_SERIALIZATION_NVP(body_P_sensor_);
+      ar & BOOST_SERIALIZATION_NVP(throwCheirality_);
+      ar & BOOST_SERIALIZATION_NVP(verboseCheirality_);
+      ar & BOOST_SERIALIZATION_NVP(weight_);
+    }
+
+  public:
+    GTSAM_MAKE_ALIGNED_OPERATOR_NEW
+};
+
+using WeightedGenericProjectionFactorCal3_S2 = WeightedGenericProjectionFactor<Pose3, Point3, Cal3_S2> ;
+using WeightedGenericProjectionFactorCal3DS2 = WeightedGenericProjectionFactor<Pose3, Point3, Cal3DS2>;
+
+
+
+// =====================================================================================================================
+
+
+/**
+ * A Generic Stereo Factor
+ * A weight can be applied to the error and Jacobians in order to disable the factor or to make it less important.
+ */
+template<class POSE=Pose3, class LANDMARK=Point3>
+class WeightedGenericStereoFactor: public NoiseModelFactor2<POSE, LANDMARK> {
+private:
+
+  // Keep a copy of measurement and calibration for I/O
+  StereoPoint2 measured_;                      ///< the measurement
+  Cal3_S2Stereo::shared_ptr K_;                ///< shared pointer to calibration
+  boost::optional<POSE> body_P_sensor_;        ///< The pose of the sensor in the body frame
+
+  // verbosity handling for Cheirality Exceptions
+  bool throwCheirality_;                       ///< If true, rethrows Cheirality exceptions (default: false)
+  bool verboseCheirality_;                     ///< If true, prints text for Cheirality exceptions (default: false)
+
+  double weight_ = 1.0;                        ///< Positive weighting factor for the error and Jacobians
+public:
+
+  // shorthand for base class type
+  typedef NoiseModelFactor2<POSE, LANDMARK> Base;             ///< typedef for base class
+  typedef WeightedGenericStereoFactor<POSE, LANDMARK> This;           ///< typedef for this class (with templates)
+  typedef boost::shared_ptr<WeightedGenericStereoFactor> shared_ptr;  ///< typedef for shared pointer to this object
+  typedef POSE CamPose;                                       ///< typedef for Pose Lie Value type
+
+  /**
+   * Default constructor
+   */
+  WeightedGenericStereoFactor() : K_(new Cal3_S2Stereo(444, 555, 666, 777, 888, 1.0)),
+      throwCheirality_(false), verboseCheirality_(false) {}
+
+  /**
+   * Constructor
+   * @param measured is the Stereo Point measurement (u_l, u_r, v). v will be identical for left & right for rectified stereo pair
+   * @param model is the noise model in on the measurement
+   * @param poseKey the pose variable key
+   * @param landmarkKey the landmark variable key
+   * @param K the constant calibration
+   * @param body_P_sensor is the transform from body to sensor frame (default identity)
+   */
+  WeightedGenericStereoFactor(const StereoPoint2& measured, const SharedNoiseModel& model,
+      Key poseKey, Key landmarkKey, const Cal3_S2Stereo::shared_ptr& K,
+      boost::optional<POSE> body_P_sensor = boost::none) :
+    Base(model, poseKey, landmarkKey), measured_(measured), K_(K), body_P_sensor_(body_P_sensor),
+    throwCheirality_(false), verboseCheirality_(false) {}
+
+  /**
+   * Constructor with exception-handling flags
+   * @param measured is the Stereo Point measurement (u_l, u_r, v). v will be identical for left & right for rectified stereo pair
+   * @param model is the noise model in on the measurement
+   * @param poseKey the pose variable key
+   * @param landmarkKey the landmark variable key
+   * @param K the constant calibration
+   * @param throwCheirality determines whether Cheirality exceptions are rethrown
+   * @param verboseCheirality determines whether exceptions are printed for Cheirality
+   * @param body_P_sensor is the transform from body to sensor frame  (default identity)
+   */
+  WeightedGenericStereoFactor(const StereoPoint2& measured, const SharedNoiseModel& model,
+      Key poseKey, Key landmarkKey, const Cal3_S2Stereo::shared_ptr& K,
+      bool throwCheirality, bool verboseCheirality,
+      boost::optional<POSE> body_P_sensor = boost::none) :
+    Base(model, poseKey, landmarkKey), measured_(measured), K_(K), body_P_sensor_(body_P_sensor),
+    throwCheirality_(throwCheirality), verboseCheirality_(verboseCheirality) {}
+
+  /** Virtual destructor */
+  virtual ~WeightedGenericStereoFactor() {}
+
+  /// @return a deep copy of this factor
+  virtual gtsam::NonlinearFactor::shared_ptr clone() const {
+    return boost::static_pointer_cast<gtsam::NonlinearFactor>(
+        gtsam::NonlinearFactor::shared_ptr(new This(*this))); }
+
+  /**
+   * print
+   * @param s optional string naming the factor
+   * @param keyFormatter optional formatter useful for printing Symbols
+   */
+  void print(const std::string& s = "", const KeyFormatter& keyFormatter = DefaultKeyFormatter) const {
+    Base::print(s, keyFormatter);
+    measured_.print(s + ".z");
+    if(this->body_P_sensor_)
+      this->body_P_sensor_->print("  sensor pose in body frame: ");
+  }
+
+  /**
+   * equals
+   */
+  virtual bool equals(const NonlinearFactor& f, double tol = 1e-9) const {
+    const WeightedGenericStereoFactor* e = dynamic_cast<const WeightedGenericStereoFactor*> (&f);
+    return e
+        && Base::equals(f)
+        && measured_.equals(e->measured_, tol)
+        && std::abs(this->weight_ - e->weight_) < tol
+        && ((!body_P_sensor_ && !e->body_P_sensor_) || (body_P_sensor_ && e->body_P_sensor_ && body_P_sensor_->equals(*e->body_P_sensor_)));
+  }
+
+  /** h(x)-z */
+  Vector evaluateError(const Pose3& pose, const Point3& point,
+      boost::optional<Matrix&> H1 = boost::none, boost::optional<Matrix&> H2 = boost::none) const {
+    try {
+        if (weight_ <= std::numeric_limits<double>::epsilon()) { 
+            if (H1) *H1 = Matrix::Zero(3, 6);
+            if (H2) *H2 = Matrix::Zero(3, 3);
+            return Vector3::Zero();
+     }
+
+      if(body_P_sensor_) {
+        if(H1) {
+          gtsam::Matrix H0;
+          StereoCamera stereoCam(pose.compose(*body_P_sensor_, H0), K_);
+          StereoPoint2 reprojectionError(stereoCam.project(point, H1, H2) - measured_);
+          *H1 = *H1 * H0;
+          *H1 *= weight_;          
+          return weight_ * reprojectionError.vector();
+        } else {
+          StereoCamera stereoCam(pose.compose(*body_P_sensor_), K_);
+          StereoPoint2 reprojectionError(stereoCam.project(point, H1, H2) - measured_);
+          return weight_ * reprojectionError.vector();
+        }
+      } else {
+        StereoCamera stereoCam(pose, K_);
+        StereoPoint2 reprojectionError(stereoCam.project(point, H1, H2) - measured_);
+        if (H1) *H1 *= weight_;
+        if (H2) *H2 *= weight_;
+        return weight_ * reprojectionError.vector();
+      }
+    } catch(StereoCheiralityException& e) {
+      if (H1) *H1 = Matrix::Zero(3,6);
+      if (H2) *H2 = Z_3x3;
+      if (verboseCheirality_)
+      std::cout << e.what() << ": Landmark "<< DefaultKeyFormatter(this->key2()) <<
+          " moved behind camera " << DefaultKeyFormatter(this->key1()) << std::endl;
+      if (throwCheirality_)
+        throw StereoCheiralityException(this->key2());
+    }
+    return Vector3::Constant(2.0 * K_->fx());
+  }
+
+
+  /** set the weight */
+  void setWeight(double weight) { assert(weight > 0.0); weight_ = weight; }
+
+  /** return the weight */
+  double getWeight() const { return weight_; }
+
+  /** return the measured */
+  const StereoPoint2& measured() const {
+    return measured_;
+  }
+
+  /** return the calibration object */
+  inline const Cal3_S2Stereo::shared_ptr calibration() const {
+    return K_;
+  }
+
+  /** return verbosity */
+  inline bool verboseCheirality() const { return verboseCheirality_; }
+
+  /** return flag for throwing cheirality exceptions */
+  inline bool throwCheirality() const { return throwCheirality_; }
+
+private:
+  /** Serialization function */
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize(Archive & ar, const unsigned int /*version*/) {
+    ar & boost::serialization::make_nvp("NoiseModelFactor2",
+        boost::serialization::base_object<Base>(*this));
+    ar & BOOST_SERIALIZATION_NVP(measured_);
+    ar & BOOST_SERIALIZATION_NVP(K_);
+    ar & BOOST_SERIALIZATION_NVP(body_P_sensor_);
+    ar & BOOST_SERIALIZATION_NVP(throwCheirality_);
+    ar & BOOST_SERIALIZATION_NVP(verboseCheirality_);
+    ar & BOOST_SERIALIZATION_NVP(weight_);
+  }
+};
+
+using WeightedGenericStereoFactor3D = WeightedGenericStereoFactor<gtsam::Pose3, gtsam::Point3>;
+
+
+// =====================================================================================================================
 
 
 // Similarity3 prior factor with autodifferencing. Goal is to penalize all terms.
@@ -341,48 +755,60 @@ public:
 };
 
 
+// =====================================================================================================================
+
+
 // Used by optimizer_gtsam.optimize_sim3()
 class SimResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3> {
-    private:
-        const Cal3_S2& calib_;  // Camera intrinsics
-        const Point2 uv_;      // Observed 2D point
-        const Point3 P_;      // 3D point
-    
-    public:
-        SimResectioningFactor(const gtsam::Key& sim_pose_key,
-                              const gtsam::Cal3_S2& calib,
-                              const gtsam::Point2& uv,
-                              const gtsam::Point3& P,
-                              const gtsam::SharedNoiseModel& noiseModel)
-            : gtsam::NoiseModelFactor1<gtsam::Similarity3>(noiseModel, sim_pose_key),
-              calib_(calib), uv_(uv), P_(P) {}
-    
-        gtsam::Vector evaluateError(const gtsam::Similarity3& sim3,
-                                    boost::optional<gtsam::Matrix&> H = boost::none) const override {
-            auto computeError = [this](const gtsam::Similarity3& sim) {
-                const gtsam::Matrix3 R = sim.rotation().matrix();
-                const gtsam::Vector3 t = sim.translation();
-                const double s = sim.scale();
-                const gtsam::Vector3 transformed_P = s * (R * P_) + t;
-                const gtsam::Vector3 projected = calib_.K() * transformed_P;
-                const gtsam::Point2 uv = projected.head<2>() / projected[2];
-                const gtsam::Vector2 error = uv - uv_;
-                return error;
-            };
+private:
+    const Cal3_S2& calib_;  // Camera intrinsics
+    const Point2 uv_;       // Observed 2D point
+    const Point3 P_;        // 3D point
+    double weight_ = 1.0;   // Weight
 
-            const gtsam::Vector2 error = computeError(sim3);
+public:
+    SimResectioningFactor(const gtsam::Key& sim_pose_key,
+                            const gtsam::Cal3_S2& calib,
+                            const gtsam::Point2& uv,
+                            const gtsam::Point3& P,
+                            const gtsam::SharedNoiseModel& noiseModel)
+        : gtsam::NoiseModelFactor1<gtsam::Similarity3>(noiseModel, sim_pose_key),
+            calib_(calib), uv_(uv), P_(P) {}
 
-            // Compute Jacobians if required
-            if (H) {    
-                *H = gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Similarity3>(computeError, sim3, 1e-5);
-            }
+    gtsam::Vector evaluateError(const gtsam::Similarity3& sim3,
+                                boost::optional<gtsam::Matrix&> H = boost::none) const override {
+        auto computeError = [this](const gtsam::Similarity3& sim) {
+            const gtsam::Matrix3 R = sim.rotation().matrix();
+            const gtsam::Vector3 t = sim.translation();
+            const double s = sim.scale();
+            const gtsam::Vector3 transformed_P = s * (R * P_) + t;
+            const gtsam::Vector3 projected = calib_.K() * transformed_P;
+            const gtsam::Point2 uv = projected.head<2>() / projected[2];
+            const gtsam::Vector2 error = uv - uv_;
             return error;
+        };
+
+        const gtsam::Vector2 error = weight_ * computeError(sim3);
+
+        // Compute Jacobians if required
+        if (H) {    
+            *H = weight_ * gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Similarity3>(computeError, sim3, 1e-5);
         }
-    
-        virtual gtsam::NonlinearFactor::shared_ptr clone() const override {
-            return boost::make_shared<SimResectioningFactor>(*this);
-        }
-    };
+        return error;
+    }
+
+    void setWeight(double weight) {
+        weight_ = weight;
+    }
+
+    double getWeight() const {
+        return weight_;
+    }
+
+    virtual gtsam::NonlinearFactor::shared_ptr clone() const override {
+        return boost::make_shared<SimResectioningFactor>(*this);
+    }    
+};
 
 
 // Used by optimizer_gtsam.optimize_sim3()
@@ -391,6 +817,7 @@ private:
     const Cal3_S2& calib_;  // Camera intrinsics
     const Point2 uv_;       // Observed 2D pixel point
     const Point3 P_;        // 3D camera point
+    double weight_ = 1.0;   // Weight    
 
 public:
     SimInvResectioningFactor(const gtsam::Key& sim_pose_key,
@@ -418,14 +845,22 @@ public:
             return error;
         };   
 
-        const gtsam::Vector2 error = computeError(sim3);
+        const gtsam::Vector2 error = weight_ * computeError(sim3);
 
         // Compute Jacobians if required
         if (H) {
-            *H = gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Similarity3>(computeError, sim3, 1e-5);
+            *H = weight_ * gtsam::numericalDerivative11<gtsam::Vector2, gtsam::Similarity3>(computeError, sim3, 1e-5);
         }
 
         return error;
+    }
+
+    void setWeight(double weight) {
+        weight_ = weight;
+    }
+
+    double getWeight() const {
+        return weight_;
     }
 
     virtual gtsam::NonlinearFactor::shared_ptr clone() const override {
@@ -433,6 +868,9 @@ public:
     }
 };
     
+
+// =====================================================================================================================
+
 
 // Custom version of BetweenFactor<Similarity3> with autodifferencing
 class BetweenFactorSimilarity3 : public gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3> {
@@ -473,6 +911,9 @@ public:
 };
 
 
+// =====================================================================================================================
+
+
 // Function to insert Similarity3 into Values
 void insertSimilarity3(gtsam::Values &values, const Key& key, const gtsam::Similarity3 &sim3) {
     values.insert(key, sim3);
@@ -485,6 +926,9 @@ gtsam::Similarity3 getSimilarity3(const gtsam::Values &values, gtsam::Key key) {
     }
     return values.at<gtsam::Similarity3>(key);  // Return by value (safe)
 }
+
+// =====================================================================================================================
+
 
 PYBIND11_MODULE(gtsam_factors, m) {
     py::module_::import("gtsam");  // Ensure GTSAM is loaded
@@ -525,7 +969,7 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def(py::init([](const Vector& sigmas, double huberThreshold) {
         return new SwitchableRobustNoiseModel(sigmas, huberThreshold);
     }), py::arg("sigmas"), py::arg("huberThreshold"))
-    .def("use_robust_model", &SwitchableRobustNoiseModel::useRobustModel)
+    .def("set_robust_model_active", &SwitchableRobustNoiseModel::setRobustModelActive)
     .def("get_robust_model", &SwitchableRobustNoiseModel::getRobustModel)
     .def("get_diagonal_model", &SwitchableRobustNoiseModel::getDiagonalModel);
 
@@ -544,7 +988,9 @@ PYBIND11_MODULE(gtsam_factors, m) {
         return new ResectioningFactor(create_shared_noise_model(model), key, calib, measured_p, world_P);
     }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
     .def("evaluateError", &ResectioningFactor::evaluateError)
-    .def("error", &ResectioningFactor::error);
+    .def("error", &ResectioningFactor::error)
+    .def("set_weight", &ResectioningFactor::setWeight)
+    .def("get_weight", &ResectioningFactor::getWeight);
 
 
     py::class_<ResectioningFactorStereo, std::shared_ptr<ResectioningFactorStereo>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactorStereo")
@@ -561,7 +1007,43 @@ PYBIND11_MODULE(gtsam_factors, m) {
         return new ResectioningFactorStereo(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
     }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
     .def("evaluateError", &ResectioningFactorStereo::evaluateError)
-    .def("error", &ResectioningFactorStereo::error);
+    .def("error", &ResectioningFactorStereo::error)
+    .def("set_weight", &ResectioningFactorStereo::setWeight)
+    .def("get_weight", &ResectioningFactorStereo::getWeight);    
+
+
+    py::class_<WeightedGenericProjectionFactorCal3_S2, gtsam::NonlinearFactor, std::shared_ptr<WeightedGenericProjectionFactorCal3_S2>>(m, "WeightedGenericProjectionFactorCal3_S2")
+    .def(py::init([] (const Point2& measured, const SharedNoiseModel& model, const Key& poseKey, const Key& pointKey, const Cal3_S2& K) {
+            return new WeightedGenericProjectionFactorCal3_S2(measured, model, poseKey, pointKey, boost::make_shared<Cal3_S2>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("pointKey"), py::arg("K"))
+    .def(py::init([] (const Point2& measured, const noiseModel::Diagonal& model, const Key& poseKey, const Key& pointKey, const Cal3_S2& K) {
+        return new WeightedGenericProjectionFactorCal3_S2(measured, create_shared_noise_model(model), poseKey, pointKey, boost::make_shared<Cal3_S2>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("pointKey"), py::arg("K"))   
+    .def(py::init([] (const Point2& measured, const noiseModel::Robust& model, const Key& poseKey, const Key& pointKey, const Cal3_S2& K) {
+        return new WeightedGenericProjectionFactorCal3_S2(measured, create_shared_noise_model(model), poseKey, pointKey, boost::make_shared<Cal3_S2>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("pointKey"), py::arg("K"))    
+    .def(py::init([] (const Point2& measured, const SwitchableRobustNoiseModel& model, const Key& poseKey, const Key& pointKey, const Cal3_S2& K) {
+        return new WeightedGenericProjectionFactorCal3_S2(measured, create_shared_noise_model(model), poseKey, pointKey, boost::make_shared<Cal3_S2>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("pointKey"), py::arg("K"))         
+    .def("get_weight", &WeightedGenericProjectionFactorCal3_S2::getWeight)
+    .def("set_weight", &WeightedGenericProjectionFactorCal3_S2::setWeight);
+
+
+    py::class_<WeightedGenericStereoFactor3D, gtsam::NonlinearFactor, std::shared_ptr<WeightedGenericStereoFactor3D>>(m, "WeightedGenericStereoFactor")
+    .def(py::init([] (const StereoPoint2& measured, const SharedNoiseModel& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
+            return new WeightedGenericStereoFactor3D(measured, model, poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K")) 
+    .def(py::init([] (const StereoPoint2& measured, const noiseModel::Diagonal& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
+        return new WeightedGenericStereoFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K"))
+    .def(py::init([] (const StereoPoint2& measured, const noiseModel::Robust& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
+        return new WeightedGenericStereoFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K")) 
+    .def(py::init([] (const StereoPoint2& measured, const SwitchableRobustNoiseModel& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
+        return new WeightedGenericStereoFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+    }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K"))              
+    .def("get_weight", &WeightedGenericStereoFactor3D::getWeight)
+    .def("set_weight", &WeightedGenericStereoFactor3D::setWeight);
 
 
     py::class_<PriorFactorSimilarity3, gtsam::NoiseModelFactor1<gtsam::Similarity3>, std::shared_ptr<PriorFactorSimilarity3>>(m, "PriorFactorSimilarity3")
@@ -594,7 +1076,9 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
         return new SimResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
-    .def("evaluateError", &SimResectioningFactor::evaluateError);
+    .def("evaluateError", &SimResectioningFactor::evaluateError)
+    .def("get_weight", &SimResectioningFactor::getWeight)
+    .def("set_weight", &SimResectioningFactor::setWeight);
 
 
     py::class_<SimInvResectioningFactor, gtsam::NoiseModelFactor, std::shared_ptr<SimInvResectioningFactor>>(m, "SimInvResectioningFactor")
@@ -606,7 +1090,9 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def(py::init([](const gtsam::Key& sim_pose_key, const gtsam::Cal3_S2& calib, const gtsam::Point2& p, const gtsam::Point3& P, const gtsam::noiseModel::Robust& model){
         return new SimInvResectioningFactor(sim_pose_key, calib, p, P, create_shared_noise_model(model));       
     }), py::arg("sim_pose_key"), py::arg("calib"), py::arg("p"), py::arg("P"), py::arg("model"))
-    .def("evaluateError", &SimInvResectioningFactor::evaluateError);
+    .def("evaluateError", &SimInvResectioningFactor::evaluateError)
+    .def("get_weight", &SimInvResectioningFactor::getWeight)
+    .def("set_weight", &SimInvResectioningFactor::setWeight);
 
     
     m.def("insert_similarity3", &insertSimilarity3, "Insert Similarity3 into Values",

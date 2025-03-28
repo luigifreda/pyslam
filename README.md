@@ -405,13 +405,14 @@ SAVE_TRAJECTORY:
 
 ### Optimization engines
 
-At present, pySLAM supports `g2o` and `gtsam`. Frontend pose optimization with `gtsam` is not stable yet. 
-The default optimization engine is `g2o`. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
+Currently, pySLAM supports both `g2o` and `gtsam` for optimization, with `g2o` set as the default engine. While `gtsam` is fully supported, it remains experimental and a work in progress. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
 ```python
   # Optimization engine 
-  kOptimizationFrontEndUseGtsam = False    # Not stable yet [WIP]
-  kOptimizationBackEndUseGtsam = False     # 
+  kOptimizationFrontEndUseGtsam = False    
+  kOptimizationBackEndUseGtsam = False     
 ```
+
+Additionally, the `gtsam_factors` package provides custom Python bindings for features not included in the original gtsam framework. See [here](./thirdparty/gtsam_factors/README.md) for further details.
 
 ---
 
@@ -421,7 +422,7 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 - `Step`: Enter in the *Step by step mode*. Press the button `Step` a first time to pause. Then, press it again to make the pipeline process a single new frame.
 - `Save`: Save the map into the file `map.json`. You can visualize it back by using the script `/main_map_viewer.py` (as explained above). 
 - `Reset`: Reset SLAM system. 
-- `Draw Grount Truth`:  If a ground truth dataset (e.g., KITTI, TUM, EUROC, or REPLICA) is loaded, you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and will be progressively aligned with the estimated trajectory, updating approximately every 10-30 frames. As more frames are processed, the alignment between the ground truth and estimated trajectory becomes more accurate. After about 20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors along the main axes (i.e., $e_x$, $e_y$, $e_z$) and the history of the total $RMSE$ between the ground truth and the aligned estimated trajectories.
+- `Draw Ground Truth`:  If a ground truth dataset (e.g., KITTI, TUM, EUROC, or REPLICA) is loaded, you can visualize it by pressing this button. The ground truth trajectory will be displayed in 3D and will be progressively aligned with the estimated trajectory, updating approximately every 10-30 frames. As more frames are processed, the alignment between the ground truth and estimated trajectory becomes more accurate. After about 20 frames, if the button is pressed, a window will appear showing the Cartesian alignment errors along the main axes (i.e., $e_x$, $e_y$, $e_z$) and the history of the total $RMSE$ between the ground truth and the aligned estimated trajectories.
 
 ---
 
@@ -650,7 +651,7 @@ If you want to **use your camera**, you have to:
 
 For a comparative evaluation of the "**online**" trajectory estimated by pySLAM versus the "**final**" trajectory estimated by ORB-SLAM3, check out this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For more details about "*online*" and "*final*" trajectories, refer to this [section](#trajectory-saving) 
 
-**Note**: pySLAM saves both online and final pose estimates, whereas ORB-SLAM3 only saves final estimates (pose data is recorded at the end of the entire dataset playback). For instructions on how to save trajectories with pySLAM, see this [section](#trajectory-saving). When you press the GUI button `Draw Grount Truth` (see [here](#slam-gui)), you can visualize the history of the Absolute Trajectory Error (ATE or *RMSE*) and evaluate both online and offline errors. 
+**Note**: pySLAM saves both online and final pose estimates, whereas ORB-SLAM3 only saves final estimates (pose data is recorded at the end of the entire dataset playback). For instructions on how to save trajectories with pySLAM, see this [section](#trajectory-saving). When you press the GUI button `Draw Ground Truth` (see [here](#slam-gui)), you can visualize the history of the Absolute Trajectory Error (ATE or *RMSE*) and evaluate both online and offline errors. 
 
 --- 
 ## Contributing to pySLAM

@@ -406,8 +406,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
 
         num_bad_point_edges = 0
 
-        for p, edge_pair in point_edge_pairs.items(): 
-            edge, idx, is_stereo_obs = edge_pair
+        for p, (edge, idx, is_stereo_obs) in point_edge_pairs.items():
             if frame.outliers[idx]:
                 edge.compute_error()
 
