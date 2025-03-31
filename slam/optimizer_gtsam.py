@@ -193,7 +193,14 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     initial_mean_squared_error = graph.error(initial_estimates)/max(num_edges,1)
 
     if robust_rounds > 0:
-        params = gtsam.LevenbergMarquardtParams()
+        params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+        params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+        params.setlambdaLowerBound(1e-7)      # Prevent over-reduction
+        params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+        params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+        params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+        params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+                
         params.setMaxIterations(robust_rounds)
         if verbose:
             params.setVerbosityLM("SUMMARY")
@@ -232,7 +239,14 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     if abort_flag.value:
         return -1, result_dict        
         
-    params = gtsam.LevenbergMarquardtParams()
+    params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+    params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+    params.setlambdaLowerBound(1e-7)      # Prevent over-reduction
+    params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+    params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+    params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+    params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+            
     params.setMaxIterations(final_rounds)
     if verbose:
         params.setVerbosityLM("SUMMARY")
@@ -496,7 +510,34 @@ def resectioning_stereo_factor(
     factor = host_factor
     return factor, host_factor
 
+def resectioning_mono_factor_Tcw(
+    noise_model: gtsam.noiseModel.Base,
+    pose_key: int,
+    calib: gtsam.Cal3_S2,
+    p: gtsam.Point2,
+    P: gtsam.Point3,
+) -> gtsam.NonlinearFactor:
+    # host factor is the object that contains the actual gtsam factor
+    # here host_factor and factor are the same
+    host_factor = gtsam_factors.ResectioningFactorTcw(noise_model, pose_key, calib, p, P)
+    factor = host_factor
+    return factor, host_factor
 
+def resectioning_stereo_factor_Tcw(
+    noise_model: gtsam.noiseModel.Base,
+    pose_key: int,
+    calib: gtsam.Cal3_S2Stereo,
+    p: gtsam.StereoPoint2,
+    P: gtsam.Point3,
+) -> gtsam.NonlinearFactor:
+    # host factor is the object that contains the actual gtsam factor
+    # here host_factor and factor are the same
+    host_factor = gtsam_factors.ResectioningFactorStereoTcw(noise_model, pose_key, calib, p, P)
+    factor = host_factor
+    return factor, host_factor
+
+
+# Here the values contain the Twc poses of the keyframes
 class PoseOptimizerGTSAM:
     def __init__(self, frame, use_robust_factors=True):
         self.frame = frame
@@ -564,9 +605,17 @@ class PoseOptimizerGTSAM:
         
         is_ok = True 
     
-        params = gtsam.LevenbergMarquardtParams()
-        #params.setlambdaInitial(1e-9)
+        #params = gtsam.LevenbergMarquardtParams().LegacyDefaults() # default ones
+        params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+        params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+        params.setlambdaLowerBound(1e-8)      # Prevent over-reduction
+        params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+        params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+        params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+        params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+        
         params.setMaxIterations(rounds)
+       
         if verbose:
             params.setVerbosityLM("SUMMARY")
             
@@ -577,7 +626,8 @@ class PoseOptimizerGTSAM:
         num_inliers = 0     
               
         for it in range(4):
-            optimizer = gtsam.LevenbergMarquardtOptimizer(self.graph, self.initial, params)
+            #optimizer = gtsam.LevenbergMarquardtOptimizer(self.graph, self.initial, params)
+            optimizer = gtsam_factors.LevenbergMarquardtOptimizerG2o(self.graph, self.initial, params)
             result_prev = result
             result = optimizer.optimize()
             
@@ -651,8 +701,175 @@ class PoseOptimizerGTSAM:
         self.add_observations()
         return self.optimize(rounds, verbose)
 
+
+
+# Here the values contain the Tcw poses of the keyframes (instead of the default Twc)
+class PoseOptimizerGTSAM_Tcw:
+    def __init__(self, frame, use_robust_factors=True):
+        self.frame = frame
+        self.graph = gtsam.NonlinearFactorGraph()
+        self.initial = gtsam.Values()
+        self.factor_tuples = {}
+        self.num_factors = 0
+        self.use_robust_factors = use_robust_factors
+                
+        self.K_mono = gtsam.Cal3_S2(frame.camera.fx, frame.camera.fy, 0, frame.camera.cx, frame.camera.cy)
+        self.K_stereo = gtsam.Cal3_S2Stereo(frame.camera.fx, frame.camera.fy, 0, frame.camera.cx, frame.camera.cy, frame.camera.b)
+
+        self.thHuberMono = math.sqrt(5.991)  # chi-square 2 DOFS 
+        self.thHuberStereo = math.sqrt(7.815) # chi-square 3 DOFS 
+        
+        self.add_mono_factor = resectioning_mono_factor_Tcw
+        self.add_stereo_factor = resectioning_stereo_factor_Tcw
+        # if platform.system() == "Darwin":
+        #     # NOTE: Under macOS I found some interface issues with the pybindings of the resectioning factors.
+        #     self.add_mono_factor  = resectioning_mono_factor_py 
+        #     self.add_stereo_factor  = resectioning_stereo_factor_py      
+    
+    def add_pose_node(self):
+        pose_initial = gtsam.Pose3(gtsam.Rot3(self.frame.Rcw), gtsam.Point3(*self.frame.tcw))
+        self.initial.insert(X(0), pose_initial)
+        # NOTE: there is no need to set a prior here
+        #noise_prior = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)  
+        #self.graph.add(gtsam.PriorFactorPose3(X(0), pose_initial, noise_prior))
+
+    def add_observations(self):        
+        with MapPoint.global_lock:
+            for idx, p in enumerate(self.frame.points):
+                if p is None:
+                    continue
+
+                # reset outlier flag 
+                self.frame.outliers[idx] = False
+                is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx] > 0
+
+                #invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[self.frame.octaves[idx]]
+                sigma = FeatureTrackerShared.feature_manager.level_sigmas[self.frame.octaves[idx]]
+                
+                noise_model = gtsam_factors.SwitchableRobustNoiseModel(3 if is_stereo_obs else 2, sigma, self.thHuberStereo if is_stereo_obs else self.thHuberMono) 
+                
+                # Add the observation factor
+                if is_stereo_obs:
+                    factor, host_factor = self.add_stereo_factor(noise_model, X(0), self.K_stereo, gtsam.StereoPoint2(self.frame.kpsu[idx][0], self.frame.kps_ur[idx], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+                else:
+                    factor, host_factor = self.add_mono_factor(noise_model, X(0), self.K_mono, gtsam.Point2(self.frame.kpsu[idx][0], self.frame.kpsu[idx][1]), gtsam.Point3(*p.pt))
+
+                if not self.use_robust_factors:
+                    noise_model.set_robust_model_active(False)
+                             
+                self.graph.add(factor)
+                self.factor_tuples[p] = (factor, noise_model, idx, is_stereo_obs, host_factor)
+                self.num_factors += 1
+
+    def optimize(self, rounds=10, verbose=False):
+        if self.num_factors < 3:
+            Printer.red('pose_optimization: not enough correspondences!')
+            return 0, False, 0
+
+        chi2Mono = 5.991  # Chi-squared 2 DOFs
+        chi2Stereo = 7.815 # chi-squared 3 DOFs   
+        
+        is_ok = True 
+    
+        #params = gtsam.LevenbergMarquardtParams().LegacyDefaults() # default ones
+        params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+        params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+        params.setlambdaLowerBound(1e-10)      # Prevent over-reduction
+        params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+        params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+        params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+        params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+        
+        params.setMaxIterations(rounds)
+       
+        if verbose:
+            params.setVerbosityLM("SUMMARY")
+            
+        #initial_error = self.graph.error(self.initial)
+         
+        result, result_prev = None, None
+        cost, cost_prev = None, float("inf")
+        num_inliers = 0     
+              
+        for it in range(4):
+            #optimizer = gtsam.LevenbergMarquardtOptimizer(self.graph, self.initial, params)
+            optimizer = gtsam_factors.LevenbergMarquardtOptimizerG2o(self.graph, self.initial, params)
+            result_prev = result
+            result = optimizer.optimize()
+            
+            #marginals = gtsam.Marginals(self.graph, result)
+
+            cost = self.graph.error(result)  # Compute new cost
+            cost_change = cost_prev - cost
+            
+            # if cost_change <= 0 or np.isinf(cost):
+            #     Printer.orange(f"pose_optimization: Warning: Cost did not decrease or is not finite at iteration {it}! Previous: {cost_prev}, Current: {cost}")
+            #     result = result_prev 
+            #     is_ok = False           
+            #     break                     
+            
+            cost_prev = cost
+            
+            num_bad_point_edges = 0  
+            total_inlier_error = 0.0 
+            num_inliers = 0 
+
+            # pose_wc = np.array(result.atPose3(X(0)).matrix()) # Twc
+            # pose_cw = inv_T(pose_wc)
+                            
+            for p, (factor, noise_model, idx, is_stereo_obs, host_factor) in self.factor_tuples.items():
+                host_factor.set_weight(1.0)       # reset weight to enable back the factor and its correct error computation
+                chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
+
+                chi2_check_failure = chi2 > (chi2Stereo if is_stereo_obs else chi2Mono)
+                if chi2_check_failure:
+                    self.frame.outliers[idx] = True
+                    host_factor.set_weight(kWeightForDisabledFactor) # disable the factor
+                    num_bad_point_edges += 1                    
+                else:
+                    self.frame.outliers[idx] = False
+                    total_inlier_error += chi2  # Sum error only for inliers
+                    num_inliers += 1    
+            
+                if it ==2: 
+                    noise_model.set_robust_model_active(False) # last iterations use isotropic factors
+                            
+            if num_inliers < 10:
+                Printer.red('pose_optimization: stopped - not enough edges!')  
+                result = result_prev 
+                is_ok = False           
+                break
+                
+            self.initial = result # restart from latest computations    
+        
+        print(f'pose optimization: available {self.num_factors} points, found {num_bad_point_edges} bad points')   
+        num_valid_points = self.num_factors - num_bad_point_edges
+        if num_valid_points == 0:
+            Printer.red('pose_optimization: all the available correspondences are bad!')
+            result = result_prev
+            is_ok = False
+
+        # update pose estimation
+        if result is not None: 
+            is_ok = True
+            Tcw = result.atPose3(X(0)).matrix()  # we stored Tcw in the vertices
+            self.frame.update_pose(Tcw)
+        else: 
+            is_ok = False
+
+        mean_squared_error = total_inlier_error / max(num_inliers, 1) if num_inliers > 0 else -1
+        return mean_squared_error, is_ok, num_valid_points
+    
+    
+    def run(self, verbose=False, rounds=10):
+        self.add_pose_node()
+        self.add_observations()
+        return self.optimize(rounds, verbose)
+
+
 def pose_optimization(frame, verbose=False, rounds=10):
-    optimizer = PoseOptimizerGTSAM(frame)
+    #optimizer = PoseOptimizerGTSAM(frame)
+    optimizer = PoseOptimizerGTSAM_Tcw(frame)
     return optimizer.run(verbose, rounds)
 
 
@@ -735,7 +952,14 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     chi2Mono = 5.991 # chi-square 2 DOFs
     chi2Stereo = 7.815 # chi-square 3 DOFs
         
-    params = gtsam.LevenbergMarquardtParams()
+    params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+    params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+    params.setlambdaLowerBound(1e-7)      # Prevent over-reduction
+    params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+    params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+    params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+    params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+            
     params.setMaxIterations(5)
     if verbose:
         params.setVerbosityLM("SUMMARY")
@@ -773,7 +997,14 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
 
         # optimize again without outliers 
         
-        params = gtsam.LevenbergMarquardtParams()
+        params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+        params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+        params.setlambdaLowerBound(1e-7)      # Prevent over-reduction
+        params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+        params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+        params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+        params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+        
         params.setMaxIterations(rounds)
         if verbose:
             params.setVerbosityLM("SUMMARY")
@@ -906,7 +1137,7 @@ class SimResectioningFactor:
 
         # If Jacobian is requested, compute and weight it
         if H is not None:
-            H[0] = self.weight * gtsam_factors.numerical_derivative11_sim3(
+            H[0] = self.weight * gtsam_factors.numerical_derivative11_v2_sim3(
                 compute_error, sim3, 1e-5
             )
 
@@ -963,7 +1194,7 @@ class SimInvResectioningFactor:
         error = self.weight * compute_error(sim3)
 
         if H is not None:
-            H[0] = self.weight * gtsam_factors.numerical_derivative11_sim3(
+            H[0] = self.weight * gtsam_factors.numerical_derivative11_v2_sim3(
                 compute_error, sim3, 1e-5
             )
         return error
@@ -1134,11 +1365,14 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     intial_error = graph.error(initial_estimate)
         
     # Optimizer
-    params = gtsam.LevenbergMarquardtParams()
-    #params.setlambdaInitial(1e-9)
-    # params.setDiagonalDamping(False)
-    # params.setRelativeErrorTol(-1e+20)
-    # params.setAbsoluteErrorTol(-1e+20)    
+    params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+    params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+    params.setlambdaLowerBound(1e-7)      # Prevent over-reduction
+    params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+    params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+    params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+    params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+    
     params.setMaxIterations(5)
     if verbose:
         params.setVerbosityLM("SUMMARY")
@@ -1193,11 +1427,14 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
         return 0, None, None, None, 0 # num_inliers, R,t,scale, delta_err
             
  
-    params = gtsam.LevenbergMarquardtParams()
-    #params.setlambdaInitial(1e-9)
-    #params.setDiagonalDamping(False)
-    #params.setRelativeErrorTol(-1e+20)
-    #params.setAbsoluteErrorTol(-1e+20)        
+    params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+    params.setlambdaInitial(1e-5)         # Matches g2o’s _tau
+    params.setlambdaLowerBound(1e-7)      # Prevent over-reduction
+    params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+    params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+    params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+    params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+        
     params.setMaxIterations(num_more_iterations)
     if verbose:
         params.setVerbosityLM("SUMMARY")
@@ -1258,7 +1495,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
                              non_corrected_sim3_map, corrected_sim3_map,
                              loop_connections, fix_scale: bool, print_fun=print, verbose=False):
 
-    sigma_for_fixed = 1e-9 # sigma used for fixed entities
+    sigma_for_fixed = kSigmaForFixed # sigma used for fixed entities
     sigma_for_visual = 1 # sigma used for visual factors
         
     # Setup optimizer
@@ -1413,11 +1650,19 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
         print_fun(f"[optimize_essential_graph]: Total number of graph edges: {num_graph_edges}")
 
     # Optimize
-    params = gtsam.LevenbergMarquardtParams()
+    params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+    params.setlambdaInitial(1e-16)        # As in optimzer_g2o version of optimize_essential_graph()
+    params.setlambdaLowerBound(1e-8)      # Prevent over-reduction
+    params.setlambdaUpperBound(1e3)       # Prevent excessive increase
+    params.setlambdaFactor(2.0)           # Mimics g2o’s adaptive _ni
+    params.setDiagonalDamping(True)       # Mimics g2o’s Hessian updates
+    params.setUseFixedLambdaFactor(False) # Mimics g2o’s ni
+
     params.setMaxIterations(20)
     if verbose:
         params.setVerbosityLM("SUMMARY")    
     optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
+    #optimizer = gtsam_factors.LevenbergMarquardtOptimizerG2o(graph, initial_values, params)
     result = optimizer.optimize()
 
     # SE3 Pose Recovering.  Sim3:[sR t;0 1] -> SE3:[R t/s;0 1]
@@ -1430,10 +1675,11 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
         R = corrected_Swi.rotation().matrix()
         t = corrected_Swi.translation()
         s = corrected_Swi.scale()
-        vec_corrected_Swc[keyframe_id] = Sim3Pose(R, t, s) #.inverse() #corrected_Siw.inverse()
+        Swi = Sim3Pose(R, t, s)
+        Siw = Swi.inverse()
+        vec_corrected_Swc[keyframe_id] = Swi
 
-        Twi = poseRt(R, t/s) # [R t/s; 0 1]
-        Tiw = inv_T(Twi)
+        Tiw = poseRt(Siw.R, Siw.t.ravel()/Siw.s) # [R t/s; 0 1]
         keyframe.update_pose(Tiw)
 
     # Correct points: Transform to "non-optimized" reference keyframe pose and transform back with optimized pose
@@ -1449,6 +1695,8 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
 
         Srw = vec_Scw[reference_id]
         corrected_Swr = vec_corrected_Swc[reference_id]
+        if Srw is None or corrected_Swr is None:
+            continue
 
         P3Dw = map_point.pt
         corrected_P3Dw = corrected_Swr.map(Srw.map(P3Dw)).ravel()

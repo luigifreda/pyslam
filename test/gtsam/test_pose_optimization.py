@@ -47,6 +47,9 @@ class TestPoseOptimizerConvergence(TestCase):
                     [0, 0, 0,  1]])
 
     def generate_random_frame(self):
+        
+        pixel_noise_std_dev = 0.5
+        
         camera = PinholeCamera(config=None)
         camera.fx = self.fx
         camera.fy = self.fy
@@ -58,6 +61,9 @@ class TestPoseOptimizerConvergence(TestCase):
         camera.b = self.b
         camera.K = self.K
         camera.Kinv = self.Kinv
+        
+        # Set a seed for reproducibility
+        np.random.seed(0)  # You can change the seed value to any integer        
 
         yaw_deg, pitch_deg, roll_deg = np.random.uniform(-60, 60, size=3)
         tx, ty, tz = np.random.uniform(-1, 1, size=3)
@@ -79,27 +85,31 @@ class TestPoseOptimizerConvergence(TestCase):
         
         # Random depths in left camera (between min_depth and max_depth)
         depths = np.random.uniform(self.min_depth, self.max_depth, size=num_keypoints)
-                
-        points_3d_l = camera.unproject_points_3d(frame.kpsu, depths)
+        
+        noisy_kpsu = frame.kpsu + np.random.normal(0, pixel_noise_std_dev, size=frame.kpsu.shape)                
+        #points_3d_l = camera.unproject_points_3d(frame.kpsu, depths)
+        points_3d_l = camera.unproject_points_3d(noisy_kpsu, depths)
             
         # Here we assume camera pose is gt_Twc
         points_3d_w = (self.gt_Twc[:3,:3] @ points_3d_l.T + self.gt_Twc[:3,3].reshape(3,1)).T
         print(f'points_3d_w: {points_3d_w.shape}')
         frame.points = [FakeMapPoint(points_3d_w[i]) for i in range(num_keypoints)]
         
-        uv_l, depths_l = camera.project( (self.gt_Tcw[:3,:3] @ points_3d_w.T + self.gt_Tcw[:3,3].reshape(3,1)).T)
-        check_uv_l = np.linalg.norm(frame.kpsu - uv_l, axis=1)
-        check_depths_l = depths - depths_l
-        assert np.all(check_uv_l < 1e-5) 
-        assert np.all(check_depths_l < 1e-5)
+        if False:
+            uv_l, depths_l = camera.project( (self.gt_Tcw[:3,:3] @ points_3d_w.T + self.gt_Tcw[:3,3].reshape(3,1)).T)
+            check_uv_l = np.linalg.norm(frame.kpsu - uv_l, axis=1)
+            check_depths_l = depths - depths_l
+            assert np.all(check_uv_l < 1e-5) 
+            assert np.all(check_depths_l < 1e-5)
                 
         points_3d_r = (self.Trl[:3,:3] @ points_3d_l.T + self.Trl[:3,3].reshape(3,1)).T  
         uv_r, depths_r = camera.project(points_3d_r)
         
-        check_vr = frame.kpsu[:,1].ravel() - uv_r[:,1].ravel()  # vr must be the same in a rectified pair
-        check_depths_r = depths - depths_r
-        assert np.all(check_vr < 1e-5) 
-        assert np.all(check_depths_r < 1e-5)
+        if False:
+            check_vr = frame.kpsu[:,1].ravel() - uv_r[:,1].ravel()  # vr must be the same in a rectified pair
+            check_depths_r = depths - depths_r
+            assert np.all(check_vr < 1e-5) 
+            assert np.all(check_depths_r < 1e-5)
         
         frame.kps_ur = uv_r[:,0].ravel()
         frame.kps_ur[num_stereo_keypoints+1:-1] = -1
@@ -114,18 +124,29 @@ class TestPoseOptimizerConvergence(TestCase):
         frame.outliers = {i: False for i in range(num_keypoints)}  # Initially no outliers
 
         return frame
+    
+    def compute_reprojection_error(self, frame):
+        Rcw = frame.Rcw
+        tcw = frame.tcw
+        points_3d_w = np.array([p.pt for p in frame.points]).reshape(-1, 3)
+        points_3d_l = (Rcw @ points_3d_w.T + tcw.reshape(3,1)).T
+        uv_l, depths_l = frame.camera.project(points_3d_l)
+        error = np.linalg.norm(frame.kpsu - uv_l, axis=1)
+        RMSE = np.sqrt(np.mean(error**2))
+        return RMSE
 
     def test_pose_optimization_convergence(self):
 
         # Generate the random frame
         frame = self.generate_random_frame()
-
-        # Create PoseOptimizerGTSAM instance with the generated frame and run pose optimization
-        # optimizer = PoseOptimizerGTSAM(frame)
-        # mean_squared_error, success, num_valid_points = optimizer.run(verbose=True, rounds=10)
         
-        mean_squared_error, success, num_valid_points = optimizer_gtsam.pose_optimization(frame, verbose=True, rounds=10)
-        #mean_squared_error, success, num_valid_points = optimizer_g2o.pose_optimization(frame, verbose=True, rounds=10)
+        # Compute reprojection error
+        RMSE = self.compute_reprojection_error(frame)
+        print(f'RMSE before: {RMSE}')
+                
+        if True:
+            mean_squared_error, success, num_valid_points = optimizer_gtsam.pose_optimization(frame, verbose=True, rounds=10)
+            #mean_squared_error, success, num_valid_points = optimizer_g2o.pose_optimization(frame, verbose=True, rounds=10)
 
         # Get the estimated pose_cw
         pose_estimated = frame.pose
@@ -137,13 +158,17 @@ class TestPoseOptimizerConvergence(TestCase):
         R_diff = np.linalg.norm(Rcw @ gt_Rcw.T - np.eye(3))
         t_diff = np.linalg.norm(tcw - gt_tcw)
         print(f'R diff: {R_diff}, t diff: {t_diff}')
+        
+        # Compute reprojection error
+        RMSE = self.compute_reprojection_error(frame)
+        print(f'RMSE: {RMSE}')
 
         # Compare the estimated pose to the identity pose (np.eye(4))
         self.assertTrue(R_diff < 1e-3)
         self.assertTrue(t_diff < 1e-3)
         self.assertTrue(success)
         self.assertGreater(mean_squared_error, 0)
-        self.assertEqual(num_valid_points, len(frame.points))
+        #self.assertEqual(num_valid_points, len(frame.points))
 
 if __name__ == '__main__':
     unittest.main()

@@ -1195,6 +1195,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
 
     # Set loop edges
     for keyframe, connections in loop_connections.items():
+
         keyframe_id = keyframe.kid
         Siw = vec_Scw[keyframe_id]
         if Siw is None:
@@ -1208,6 +1209,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
             # and all the other loop edges with weight >= min_number_features
             if (keyframe_id != current_keyframe.kid or connected_id != loop_keyframe.kid) \
                 and keyframe.get_weight(connected_keyframe) < min_number_features:
+                #print(f'skipping loop edge {keyframe_id} {connected_id}')
                 continue
 
             Sjw = vec_Scw[connected_id]

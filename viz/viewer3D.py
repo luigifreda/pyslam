@@ -217,16 +217,22 @@ class Viewer3DVoInput:
         
         
 class Viewer3DCameraTrajectoriesInput: 
-    def __init__(self):
+    def __init__(self, build_trajectory_line=False): 
+        self.build_trajectory_line = build_trajectory_line
         self.camera_trajectories = []  # a list of camera trajectories (a camera trajectory is an array of np 4x4 matrices)
+        self.camera_trajectory_lines = []
         self.camera_colors = []
     
     def reset(self):
         self.camera_trajectories = []
+        self.camera_trajectory_lines = [] 
         self.camera_colors = []
         
     def add(self, camera_pose_array, camera_color=None):
         self.camera_trajectories.append(camera_pose_array)
+        if self.build_trajectory_line:
+            trajectory_line = np.array([c[:3,3] for c in camera_pose_array]).reshape(-1,3)
+            self.camera_trajectory_lines.append(trajectory_line)
         if camera_color is None:
             unused_colors = [c for c in GlColors.get_colors() if c not in self.camera_colors]
             camera_color = unused_colors[0] if len(unused_colors) > 0 else GlColors.get_random_color()
@@ -695,6 +701,11 @@ class Viewer3D(object):
                     camera_color = self.camera_trajectories_state.camera_colors[i]
                     gl.glColor3f(camera_color[0], camera_color[1], camera_color[2])
                     glutils.DrawCameras(camera_trajectory, self.scale)
+                for i in range(len(self.camera_trajectories_state.camera_trajectory_lines)):
+                    trajectory_line = self.camera_trajectories_state.camera_trajectory_lines[i]
+                    camera_color = self.camera_trajectories_state.camera_colors[i]
+                    gl.glColor3f(camera_color[0], camera_color[1], camera_color[2])
+                    glutils.DrawTrajectory(trajectory_line)
 
         # ==============================
         
@@ -815,10 +826,10 @@ class Viewer3D(object):
     # inputs:
     #   camera_trajectories: list of arrays of camera poses (np 4x4 matrices Twc), each arrays is a distinct camera 6D trajectory
     #   camera_colors: list of colors (one for each camera array, not one for each camera)
-    def draw_cameras(self, camera_trajectories, camera_colors=None):
+    def draw_cameras(self, camera_trajectories, camera_colors=None, show_trajectory_line=False):
         if self.qcams is None:
             return
-        camera_state = Viewer3DCameraTrajectoriesInput()
+        camera_state = Viewer3DCameraTrajectoriesInput(show_trajectory_line)
         if camera_colors is None:
             for ca in camera_trajectories:
                 camera_state.add(ca)

@@ -24,6 +24,10 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 
+#include "optimizers.h"
+#include "resectioning.h"
+#include "numerical_derivative.h"
+
 #include <gtsam/inference/Symbol.h>
 
 #include <gtsam/slam/BetweenFactor.h>
@@ -42,7 +46,6 @@
 
 #include <gtsam/base/Vector.h>
 #include <gtsam/base/Matrix.h>
-#include <gtsam/base/numericalDerivative.h>
 
 #include <boost/shared_ptr.hpp>  // Include Boost
 
@@ -63,52 +66,6 @@ boost::shared_ptr<T> create_shared_noise_model(const T& model) {
 template <typename T>
 boost::shared_ptr<T> create_shared_noise_model(const boost::shared_ptr<T>& model) {
     return model; // No copy, just return the same shared_ptr
-}
-
-
-// =====================================================================================================================
-
-
-// Generalized numericalDerivative11 template
-template <typename Y, typename X>
-Eigen::MatrixXd numericalDerivative11General(
-    std::function<Y(const X&)> h, const X& x, double delta = 1e-5) {
-  
-    return numericalDerivative11<Y, X>(h, x, delta);
-}
-
-// Specialization for Similarity3 -> Vector2
-template <>
-Eigen::MatrixXd numericalDerivative11General<Vector2, Similarity3>(
-    std::function<Vector2(const Similarity3&)> h, const Similarity3& x, double delta) {
-  
-    return numericalDerivative11<Vector2, Similarity3>(h, x, delta);
-}
-
-// Python wrapper for generalized function
-Eigen::MatrixXd numericalDerivative11WrapSim3(
-    py::function py_func, const Similarity3& x, double delta = 1e-5) {
-    
-    std::function<Vector2(const Similarity3&)> func = 
-        [py_func](const Similarity3& sim) -> Vector2 {
-            return py_func(sim).cast<Vector2>();
-        };
-
-    // Generalized numerical derivative function
-    return numericalDerivative11General<Vector2, Similarity3>(func, x, delta);
-}
-
-// Python wrapper for other types, just in case
-template <typename Y, typename X>
-Eigen::MatrixXd numericalDerivative11WrapAny(
-    py::function py_func, const X& x, double delta = 1e-5) {
-    
-    std::function<Y(const X&)> func = 
-        [py_func](const X& arg) -> Y {
-            return py_func(arg).template cast<Y>();
-        };
-
-    return numericalDerivative11General<Y, X>(func, x, delta);
 }
 
 
@@ -226,99 +183,6 @@ public:
 
 
 // =====================================================================================================================
-
-
-/**
- * Monocular Resectioning Factor
- */
-class ResectioningFactor : public NoiseModelFactorN<Pose3> {
-public:
-    using Base = NoiseModelFactorN<Pose3>;
-    const Cal3_S2& K_;
-    Point3 P_;
-    Point2 p_;
-    double weight_ = 1.0;
-
-    ResectioningFactor(const SharedNoiseModel& model, 
-                       const Key& key,
-                       const Cal3_S2& calib,
-                       const Point2& measured_p,
-                       const Point3& world_P)
-        : Base(model, key), K_(calib), P_(world_P), p_(measured_p) {}
-
-    Vector evaluateError(const Pose3& pose, boost::optional<Matrix&> H = boost::none) const override {
-        PinholeCamera<Cal3_S2> camera(pose, K_);        
-        try {
-            if (weight_ <= std::numeric_limits<double>::epsilon()) {
-                if (H) *H = Matrix::Zero(2,6);
-                return Vector::Zero(2);
-            } else {
-                Vector error = weight_ * (camera.project(P_, H, boost::none, boost::none) - p_);
-                if (H) *H *= weight_;
-                return error;
-            }
-        } catch( std::exception& e) {
-            if (H) *H = Matrix::Zero(2,6);
-            // print in red
-            std::cerr << "\x1b[31m [ResectioningFactor]: " << e.what() << "\x1b[0m" << std::endl;
-            return Vector::Zero(2);
-        }
-    }
-
-    void setWeight(double weight) { assert(weight > 0.0); weight_ = weight; }
-    double getWeight() const { return weight_; }
-}; 
-
-/**
- * Stereo Resectioning Factor
- */
-class ResectioningFactorStereo : public NoiseModelFactorN<Pose3> {
-public:
-    using Base = NoiseModelFactorN<Pose3>;
-    Cal3_S2Stereo::shared_ptr K_;    
-    Point3 P_;
-    StereoPoint2 p_stereo_;
-    double weight_ = 1.0;    
-
-    ResectioningFactorStereo(const SharedNoiseModel& model, 
-                             const Key& key,
-                             const Cal3_S2Stereo& calib,
-                             const StereoPoint2& measured_p_stereo,
-                             const Point3& world_P)
-        : Base(model, key), /*K_(calib),*/ P_(world_P), p_stereo_(measured_p_stereo) {
-            K_ = boost::make_shared<Cal3_S2Stereo>(calib);
-        }
-
-    Vector evaluateError(const Pose3& pose, boost::optional<Matrix&> H = boost::none) const override {
-        StereoCamera camera(pose, K_);
-        try {
-            if (weight_ <= std::numeric_limits<double>::epsilon()) {
-                if (H) *H = Matrix::Zero(3,6);
-                return Vector::Zero(3);
-            } else {
-                StereoPoint2 projected = camera.project(P_, H, boost::none, boost::none);
-                Vector error = weight_ * (Vector(3) << projected.uL() - p_stereo_.uL(),
-                                                       projected.uR() - p_stereo_.uR(),
-                                                       projected.v() - p_stereo_.v()).finished();
-                if (H) *H *= weight_;
-                return error;
-            }
-        } catch( std::exception& e) {
-            if (H) *H = Matrix::Zero(3,6);
-            // print in red
-            std::cerr << "\x1b[31m [ResectioningFactorStereo]: " << e.what() << "\x1b[0m" << std::endl;
-            return Vector::Zero(3);
-        }
-    }
-
-    void setWeight(double weight) { assert(weight > 0.0); weight_ = weight; }
-    double getWeight() const { return weight_; }    
-};
-
-
-
-// =====================================================================================================================
-
 
 
   /**
@@ -738,12 +602,21 @@ public:
     // Define error function: Only penalize scale difference
     gtsam::Vector evaluateError(const gtsam::Similarity3& sim,
                                 boost::optional<gtsam::Matrix&> H = boost::none) const override {
+#define USE_LOG_SCALE 1
+#if USE_LOG_SCALE
         double scale_error = std::log(sim.scale()) - std::log(prior_scale_);  // Log-scale difference
+#else
+        double scale_error = sim.scale() - prior_scale_;
+#endif
 
         if (H) {
             // Compute Jacobian: d(log(s)) / ds = 1 / s
             Eigen::Matrix<double, 1, 7> J = Eigen::Matrix<double, 1, 7>::Zero();
+#if USE_LOG_SCALE
             J(6) = 1.0 / sim.scale();  // Derivative w.r.t. scale
+#else
+            J(6) = 1.0;  // Derivative w.r.t. scale
+#endif
             *H = J;
         }
         return gtsam::Vector1(scale_error);  // Return 1D error
@@ -943,23 +816,49 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def("print", &gtsam::NoiseModelFactor2<gtsam::Similarity3, gtsam::Similarity3>::print);
 
 
-    // NOTE: This does not work. We need to specialize the template for each type we are interested as it is done for Similarity3 in numerical_derivative11_sim3
+    // NOTE: This does not work. We need to specialize the template for each type we are interested as it is done for Similarity3 in numerical_derivative11_v2_sim3
     // m.def("numerical_derivative11", 
     //     [](py::function py_func, const auto& x, double delta = 1e-5) -> Eigen::MatrixXd {
     //         // Explicitly define the lambda signature
-    //         return numericalDerivative11WrapAny(py_func, x, delta);
+    //         return numericalDerivative11_Any(py_func, x, delta);
     //     },
     //     py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
     //     "Compute numerical derivative of a function mapping any type");
 
+    // Specialization of numericalDerivative11 for Pose3 -> Vector2
+    m.def("numerical_derivative11_v2_pose3", 
+        [](py::function py_func, const Pose3& x, double delta = 1e-5) -> Eigen::MatrixXd {
+            // Explicitly define the lambda signature
+            return numericalDerivative11_V2_Pose3(py_func, x, delta);
+        },
+        py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
+        "Compute numerical derivative of a function mapping Pose3 to Vector2");
+
+    m.def("numerical_derivative11_v3_pose3", 
+        [](py::function py_func, const Pose3& x, double delta = 1e-5) -> Eigen::MatrixXd {
+            // Explicitly define the lambda signature
+            return numericalDerivative11_V3_Pose3(py_func, x, delta);
+        },
+        py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
+        "Compute numerical derivative of a function mapping Pose3 to Vector3");
+
     // Specialization of numericalDerivative11 for Similarity3 -> Vector2
-    m.def("numerical_derivative11_sim3", 
+    m.def("numerical_derivative11_v2_sim3", 
         [](py::function py_func, const Similarity3& x, double delta = 1e-5) -> Eigen::MatrixXd {
             // Explicitly define the lambda signature
-            return numericalDerivative11WrapSim3(py_func, x, delta);
+            return numericalDerivative11_V2_Sim3(py_func, x, delta);
         },
         py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
         "Compute numerical derivative of a function mapping Similarity3 to Vector2");
+
+    // Specialization of numericalDerivative11 for Similarity3 -> Vector3
+    m.def("numerical_derivative11_v3_sim3", 
+        [](py::function py_func, const Similarity3& x, double delta = 1e-5) -> Eigen::MatrixXd {
+            // Explicitly define the lambda signature
+            return numericalDerivative11_V3_Sim3(py_func, x, delta);
+        },
+        py::arg("func"), py::arg("x"), py::arg("delta") = 1e-5,
+        "Compute numerical derivative of a function mapping Similarity3 to Vector3");        
 
 
     py::class_<SwitchableRobustNoiseModel, std::shared_ptr<SwitchableRobustNoiseModel>, noiseModel::Base>(m, "SwitchableRobustNoiseModel")
@@ -993,6 +892,25 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def("get_weight", &ResectioningFactor::getWeight);
 
 
+    py::class_<ResectioningFactorTcw, std::shared_ptr<ResectioningFactorTcw>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactorTcw")
+    .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
+        return new ResectioningFactorTcw(model, key, calib, measured_p, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
+    .def(py::init([](const noiseModel::Diagonal& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
+        return new ResectioningFactorTcw(create_shared_noise_model(model), key, calib, measured_p, world_P);
+    }),py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
+    .def(py::init([](const noiseModel::Robust& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
+        return new ResectioningFactorTcw(create_shared_noise_model(model), key, calib, measured_p, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
+    .def(py::init([](const SwitchableRobustNoiseModel& model, const Key& key, const Cal3_S2& calib, const Point2& measured_p, const Point3& world_P) {
+        return new ResectioningFactorTcw(create_shared_noise_model(model), key, calib, measured_p, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p"), py::arg("world_P"))
+    .def("evaluateError", &ResectioningFactorTcw::evaluateError)
+    .def("error", &ResectioningFactorTcw::error)
+    .def("set_weight", &ResectioningFactorTcw::setWeight)
+    .def("get_weight", &ResectioningFactorTcw::getWeight);
+
+
     py::class_<ResectioningFactorStereo, std::shared_ptr<ResectioningFactorStereo>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactorStereo")
     .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
         return new ResectioningFactorStereo(model, key, calib, measured_p_stereo, world_P);
@@ -1010,6 +928,25 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def("error", &ResectioningFactorStereo::error)
     .def("set_weight", &ResectioningFactorStereo::setWeight)
     .def("get_weight", &ResectioningFactorStereo::getWeight);    
+
+
+    py::class_<ResectioningFactorStereoTcw, std::shared_ptr<ResectioningFactorStereoTcw>, NoiseModelFactorN<Pose3>>(m, "ResectioningFactorStereoTcw")
+    .def(py::init([](const SharedNoiseModel& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
+        return new ResectioningFactorStereoTcw(model, key, calib, measured_p_stereo, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
+    .def(py::init([](const noiseModel::Diagonal& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
+        return new ResectioningFactorStereoTcw(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
+    }),py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
+    .def(py::init([](const noiseModel::Robust& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
+        return new ResectioningFactorStereoTcw(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
+    .def(py::init([](const SwitchableRobustNoiseModel& model, const Key& key, const Cal3_S2Stereo& calib, const StereoPoint2& measured_p_stereo, const Point3& world_P) {
+        return new ResectioningFactorStereoTcw(create_shared_noise_model(model), key, calib, measured_p_stereo, world_P);
+    }), py::arg("noise_model"), py::arg("key"), py::arg("calib"), py::arg("measured_p_stereo"), py::arg("world_P"))
+    .def("evaluateError", &ResectioningFactorStereoTcw::evaluateError)
+    .def("error", &ResectioningFactorStereoTcw::error)
+    .def("set_weight", &ResectioningFactorStereoTcw::setWeight)
+    .def("get_weight", &ResectioningFactorStereoTcw::getWeight);
 
 
     py::class_<WeightedGenericProjectionFactorCal3_S2, gtsam::NonlinearFactor, std::shared_ptr<WeightedGenericProjectionFactorCal3_S2>>(m, "WeightedGenericProjectionFactorCal3_S2")
@@ -1140,5 +1077,15 @@ PYBIND11_MODULE(gtsam_factors, m) {
         return ss.str();    
     });
 #endif
+
+
+    py::class_<LevenbergMarquardtOptimizerG2o, gtsam::NonlinearOptimizer, std::shared_ptr<LevenbergMarquardtOptimizerG2o>>(m, "LevenbergMarquardtOptimizerG2o")
+    .def(py::init([](const gtsam::NonlinearFactorGraph& graph, const gtsam::Values& initialValues, const gtsam::Ordering& ordering, const gtsam::LevenbergMarquardtParams& params) {
+        return new LevenbergMarquardtOptimizerG2o(graph, initialValues, ordering, params);
+    }), py::arg("graph"), py::arg("initialValues"), py::arg("ordering"), py::arg("params"))
+    .def(py::init([](const gtsam::NonlinearFactorGraph& graph, const gtsam::Values& initialValues, const gtsam::LevenbergMarquardtParams& params) {
+        return new LevenbergMarquardtOptimizerG2o(graph, initialValues, params);
+    }), py::arg("graph"), py::arg("initialValues"), py::arg("params"))
+    .def("optimize", &LevenbergMarquardtOptimizerG2o::optimize);  
 
 }

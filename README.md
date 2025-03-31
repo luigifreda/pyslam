@@ -408,8 +408,9 @@ SAVE_TRAJECTORY:
 Currently, pySLAM supports both `g2o` and `gtsam` for optimization, with `g2o` set as the default engine. While `gtsam` is fully supported, it remains experimental and a work in progress. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
 ```python
   # Optimization engine 
-  kOptimizationFrontEndUseGtsam = False    
-  kOptimizationBackEndUseGtsam = False     
+  kOptimizationFrontEndUseGtsam = True    
+  kOptimizationBundleAdjustUseGtsam = True 
+  kOptimizationLoopClosingUseGtsam = True 
 ```
 
 Additionally, the `gtsam_factors` package provides custom Python bindings for features not included in the original gtsam framework. See [here](./thirdparty/gtsam_factors/README.md) for further details.
@@ -745,7 +746,7 @@ Many improvements and additional features are currently under development:
 - [x] 3D dense reconstruction 
 - [x] unified install procedure (single branch) for all OSs 
 - [x] trajectory saving 
-- [x] depth prediction integration
+- [x] depth prediction integration, more models: VGGT, MoGE
 - [ ] ROS support
 - [x] gaussian splatting integration
 - [x] documentation [WIP]

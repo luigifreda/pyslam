@@ -590,7 +590,7 @@ class Map(object):
     # - other keyframes are fixed
     # - all points are adjusted  
     def optimize(self, local_window=Parameters.kLargeBAWindow, verbose=False, rounds=10, use_robust_kernel=False, do_cull_points = False, abort_flag=g2o.Flag()):
-        if Parameters.kOptimizationBackEndUseGtsam:
+        if Parameters.kOptimizationBundleAdjustUseGtsam:
             bundle_adjustment_fun = optimizer_gtsam.bundle_adjustment
         else: 
             bundle_adjustment_fun = optimizer_g2o.bundle_adjustment               
@@ -614,7 +614,7 @@ class Map(object):
             # NOTE: Why do we want to use parallel multi-processing instead of multi-threading for local BA?
             #       Unfortunately, the GIL does use a SINGLE CPU-core under multi-threading. 
             #       On the other hand, multi-processing allows to distribute computation over multiple CPU-cores.
-            if Parameters.kOptimizationBackEndUseGtsam:
+            if Parameters.kOptimizationBundleAdjustUseGtsam:
                 ba_function = optimizer_gtsam.local_bundle_adjustment  # [WIP] testing gtsam, override
             else:
                 ba_function = optimizer_g2o.local_bundle_adjustment_parallel if Parameters.kUseParallelProcessLBA \

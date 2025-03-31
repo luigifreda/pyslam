@@ -298,7 +298,7 @@ class LoopGeometryChecker:
                     map_point_matches12 = [map_points2[idx] if idx>0 else None for idx in matches12] # from 1 to 2 
                     assert(len(map_point_matches12)==n1)
 
-                    if Parameters.kOptimizationBackEndUseGtsam:
+                    if Parameters.kOptimizationLoopClosingUseGtsam:
                         optimize_sim3_fun = optimizer_gtsam.optimize_sim3
                     else:
                         optimize_sim3_fun = optimizer_gtsam.optimize_sim3
@@ -465,7 +465,7 @@ class LoopCorrector:
 
                     if connected_kfi != current_keyframe:
                         Tic = Tiw @ Twc
-                        Ric = Tic[:3, :3]
+                        Ric = Tic[:3,:3]
                         tic = Tic[:3, 3]
                         Sic = Sim3Pose(Ric, tic, 1.0)
                         corrected_Siw = Sic @ Scw
@@ -555,7 +555,7 @@ class LoopCorrector:
             
             print(f'LoopCorrector: optimizing pose graph')
             loop_keyframe = self.loop_geometry_checker.success_loop_kf
-            if Parameters.kOptimizationBackEndUseGtsam:
+            if Parameters.kOptimizationLoopClosingUseGtsam:
                 optimize_essential_graph_fun = optimizer_gtsam.optimize_essential_graph
             else: 
                 optimize_essential_graph_fun = optimizer_g2o.optimize_essential_graph

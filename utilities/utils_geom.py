@@ -24,6 +24,7 @@ import math
 
 from utils_sys import Printer
 from utils_geom_lie import so3_exp, so3_log, is_so3
+from scipy.spatial.transform import Rotation 
 
 
 sign = lambda x: math.copysign(1, x)
@@ -291,11 +292,16 @@ def rotation_matrix_from_yaw_pitch_roll(yaw_degs, pitch_degs, roll_degs):
     R = Rz @ Ry @ Rx
     return R
 
+# rotation matrix to rpy
+def rpy_from_rotation_matrix(R):
+    return Rotation.from_matrix(R).as_euler('xyz', degrees=False)
+
+def euler_from_rotation(R, order='xyz'):
+    return Rotation.from_matrix(R).as_euler(order, degrees=False)
 
 # from z-vector to rotation matrix
 # input: vector is a 3x1 vector
 def get_rotation_from_z_vector(vector):
-    from scipy.spatial.transform import Rotation as R 
     # Normalize the vector
     vector = vector / np.linalg.norm(vector)
     # Reference direction (e.g., z-axis)
@@ -310,7 +316,7 @@ def get_rotation_from_z_vector(vector):
     # Compute the angle (dot product)
     angle = np.arccos(np.dot(reference, vector))
     # Create the rotation matrix
-    rotation_matrix = R.from_rotvec(angle * axis).as_matrix()
+    rotation_matrix = Rotation.from_rotvec(angle * axis).as_matrix()
     return rotation_matrix
 
     

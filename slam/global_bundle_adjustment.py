@@ -338,7 +338,7 @@ class GlobalBundleAdjustment:
         result_dict = {}
         
         try:
-            if Parameters.kOptimizationBackEndUseGtsam:
+            if Parameters.kOptimizationBundleAdjustUseGtsam:
                 global_bundle_adjustment_fun = optimizer_gtsam.global_bundle_adjustment
             else: 
                 global_bundle_adjustment_fun = optimizer_g2o.global_bundle_adjustment

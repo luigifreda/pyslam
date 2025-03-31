@@ -90,7 +90,7 @@ class TestOptimizeSim3(TestCase):
         self.K2 = camera.K  
 
         # Set a seed for reproducibility
-        #np.random.seed(0)  # You can change the seed value to any integer
+        np.random.seed(0)  # You can change the seed value to any integer
         
     def create_perfect_world(self):
         
@@ -308,7 +308,7 @@ class TestOptimizeSim3(TestCase):
                        self.K2, self.Rc2w, self.tc2w,        
                        self.gt_sc1c2, self.gt_Rc1c2 , self.gt_tc1c2)
         
-        if False:
+        if True:
             print(f'Checking solution after motion without gt corrections ...')     
             check_solution(self.points_2d_c1, self.points_3d_w1, 
                         self.points_2d_c2, self.points_3d_w2,
@@ -368,8 +368,8 @@ class TestOptimizeSim3(TestCase):
                                     
         print(f'starting optimize_sim3... ')
         
-        #optimize_sim3 = optimizer_g2o.optimize_sim3
-        optimize_sim3 = optimizer_gtsam.optimize_sim3   
+        optimize_sim3 = optimizer_g2o.optimize_sim3
+        #optimize_sim3 = optimizer_gtsam.optimize_sim3   
                 
                 
         print(f'Rc1c2_initial: {self.Rc1c2_initial.ravel()}')
