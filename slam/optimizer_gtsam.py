@@ -868,8 +868,8 @@ class PoseOptimizerGTSAM_Tcw:
 
 
 def pose_optimization(frame, verbose=False, rounds=10):
-    #optimizer = PoseOptimizerGTSAM(frame)
-    optimizer = PoseOptimizerGTSAM_Tcw(frame)
+    optimizer = PoseOptimizerGTSAM(frame)
+    #optimizer = PoseOptimizerGTSAM_Tcw(frame)
     return optimizer.run(verbose, rounds)
 
 

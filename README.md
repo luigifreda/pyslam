@@ -729,7 +729,7 @@ pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modifi
 
 If you use pySLAM in your projects, please cite this document:
 ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
-You may find an update version of this document [here](./docs/tex/document.pdf).
+You may find an updated version of this document [here](./docs/tex/document.pdf).
 
 ---
 ## Roadmap
@@ -746,7 +746,7 @@ Many improvements and additional features are currently under development:
 - [x] 3D dense reconstruction 
 - [x] unified install procedure (single branch) for all OSs 
 - [x] trajectory saving 
-- [x] depth prediction integration, more models: VGGT, MoGE
+- [x] depth prediction integration, more models: VGGT, MoGE [WIP]
 - [ ] ROS support
 - [x] gaussian splatting integration
 - [x] documentation [WIP]

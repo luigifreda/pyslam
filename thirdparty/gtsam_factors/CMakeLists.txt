@@ -73,7 +73,12 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 add_subdirectory(pybind11)
 
-pybind11_add_module(gtsam_factors gtsam_factors.cpp optimizers.h numerical_derivative.h resectioning.h)
+pybind11_add_module(gtsam_factors 
+  gtsam_factors.cpp 
+  optimizers.h 
+  numerical_derivative.h 
+  resectioning.h
+  weighted_projection_factors.h)
 target_link_libraries(gtsam_factors PRIVATE
   gtsam
   ${Boost_LIBRARIES}

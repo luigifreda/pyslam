@@ -87,7 +87,18 @@
     "dense": "cpp",
     "slist": "cpp",
     "point3.h": "c",
-    "mprealsupport": "cpp"
+    "mprealsupport": "cpp",
+    "*.traits": "cpp",
+    "superlusupport": "cpp",
+    "*.evaluator": "cpp",
+    "adolcforward": "cpp",
+    "autodiff": "cpp",
+    "bvh": "cpp",
+    "eulerangles": "cpp",
+    "kroneckerproduct": "cpp",
+    "openglsupport": "cpp",
+    "specialfunctions": "cpp",
+    "splines": "cpp"
   },
   "python.autoComplete.extraPaths": [
     "${workspaceFolder}",

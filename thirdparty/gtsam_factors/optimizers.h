@@ -1,21 +1,4 @@
-/**
- * This file is part of PYSLAM
- *
- * Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
- *
- * PYSLAM is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * PYSLAM is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
- */
+// File: LevenbergMarquardtOptimizerG2o.h
 
 #pragma once
 
@@ -23,7 +6,6 @@
 #include <gtsam/nonlinear/LevenbergMarquardtParams.h>
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/internal/NonlinearOptimizerState.h>
-
 #include <gtsam/linear/GaussianFactorGraph.h>
 #include <gtsam/linear/VectorValues.h>
 #include <gtsam/linear/JacobianFactor.h>
@@ -44,23 +26,22 @@
 using namespace gtsam;
 using boost::adaptors::map_values;
 
-class LevenbergMarquardtOptimizerG2o : public NonlinearOptimizer
-{
+
+// A custom LM optimizer that mimics the G2o implementation. 
+class LevenbergMarquardtOptimizerG2o : public NonlinearOptimizer {
 protected:
     const LevenbergMarquardtParams params_;
     boost::posix_time::ptime startTime_;
     double _tau = 1e-5;
 
-    // Internal LM state for more freely mimicking g2o algorithm
-    struct G2oLmState
-    {
+    struct G2oLmState {
         double ni = 2.0;
-        double currentLambda;
-        int maxTrialsAfterFailure;        
+        double currentLambda = 1e-5;
+        int maxTrialsAfterFailure = 10;
+        int levenbergIterations = 0;
     } _g2oLmState;
 
-    struct State : public internal::NonlinearOptimizerState
-    {
+    struct State : public internal::NonlinearOptimizerState {
         double lambda;
         double currentFactor;
         int totalNumberInnerIterations;
@@ -70,26 +51,17 @@ protected:
             : internal::NonlinearOptimizerState(initialValues, error, iterations),
               lambda(lambda), currentFactor(factor), totalNumberInnerIterations(totalInner) {}
 
-        void increaseLambda(const LevenbergMarquardtParams &params)
-        {
-            lambda *= currentFactor;
-            totalNumberInnerIterations++;
-            if (!params.useFixedLambdaFactor)
-                currentFactor *= 2.0;
-        }
-
         std::unique_ptr<State> decreaseLambda(const LevenbergMarquardtParams &params,
-                                              double rho, Values &&newValues, double newError) const
-        {
+                                              double rho, Values &&newValues, double newError) const {
             double newLambda = lambda;
             double newFactor = currentFactor;
-            if (params.useFixedLambdaFactor)
-            {
+            if (params.useFixedLambdaFactor) {
                 newLambda /= currentFactor;
-            }
-            else
-            {
-                newLambda *= std::max(1.0 / 3.0, 1.0 - std::pow(2.0 * rho - 1.0, 3));
+            } else {
+                double alpha = 1.0 - std::pow((2.0 * rho - 1.0), 3);
+                alpha = std::min(alpha, 2.0 / 3.0);
+                alpha = std::max(alpha, 1.0 / 3.0);
+                newLambda *= alpha;
                 newFactor *= 2.0;
             }
             newLambda = std::max(params.lambdaLowerBound, newLambda);
@@ -99,31 +71,28 @@ protected:
     };
 
 public:
-    LevenbergMarquardtOptimizerG2o(const NonlinearFactorGraph &graph,
-                                   const Values &initialValues,
+    LevenbergMarquardtOptimizerG2o(const NonlinearFactorGraph &graph, const Values &initialValues,
                                    const LevenbergMarquardtParams &params = LevenbergMarquardtParams())
         : NonlinearOptimizer(graph, std::make_unique<State>(initialValues, graph.error(initialValues),
                                                             params.lambdaInitial, params.lambdaFactor)),
-          params_(LevenbergMarquardtParams::EnsureHasOrdering(params, graph))
-    {
+          params_(LevenbergMarquardtParams::EnsureHasOrdering(params, graph)) {
         _g2oLmState.currentLambda = computeLambdaInit();
         _g2oLmState.maxTrialsAfterFailure = params.maxIterations;
+        startTime_ = boost::posix_time::microsec_clock::universal_time();
     }
 
-    LevenbergMarquardtOptimizerG2o(const NonlinearFactorGraph &graph,
-                                   const Values &initialValues,
+    LevenbergMarquardtOptimizerG2o(const NonlinearFactorGraph &graph, const Values &initialValues,
                                    const Ordering &ordering,
                                    const LevenbergMarquardtParams &params = LevenbergMarquardtParams())
         : NonlinearOptimizer(graph, std::make_unique<State>(initialValues, graph.error(initialValues),
                                                             params.lambdaInitial, params.lambdaFactor)),
-          params_(LevenbergMarquardtParams::ReplaceOrdering(params, ordering))
-    {
+          params_(LevenbergMarquardtParams::ReplaceOrdering(params, ordering)) {
         _g2oLmState.currentLambda = computeLambdaInit();
         _g2oLmState.maxTrialsAfterFailure = params.maxIterations;
+        startTime_ = boost::posix_time::microsec_clock::universal_time();
     }
 
-    double computeLambdaInit() const
-    {
+    double computeLambdaInit() const {
         auto linear = graph_.linearize(state_->values);
         VectorValues diag = linear->hessianDiagonal();
         double maxDiag = 0.0;
@@ -133,23 +102,19 @@ public:
         return _tau * maxDiag;
     }
 
-    double computeScale(const VectorValues &delta, const VectorValues &b) const
-    {
+    double computeScale(const VectorValues &delta, const VectorValues &b) const {
         double scale = 0.0;
-        for (const auto &[key, dx] : delta)
-        {
+        for (const auto &[key, dx] : delta) {
             const auto &bval = b.at(key);
             scale += dx.dot(_g2oLmState.currentLambda * dx + bval);
         }
-        return scale + 1e-3;
+        return std::max(scale, 1e-3);
     }
 
-    GaussianFactorGraph buildDampedSystem(const GaussianFactorGraph &linear, const VectorValues &sqrtHessianDiagonal) const
-    {
+    GaussianFactorGraph buildDampedSystem(const GaussianFactorGraph &linear, const VectorValues &sqrtHessianDiagonal) const {
         auto currentState = static_cast<const State *>(state_.get());
         GaussianFactorGraph damped = linear;
-        for (const auto &[key, diagVec] : sqrtHessianDiagonal)
-        {
+        for (const auto &[key, diagVec] : sqrtHessianDiagonal) {
             Vector diag = diagVec.cwiseSqrt();
             Matrix A = diag.asDiagonal();
             Vector b = Vector::Zero(diag.size());
@@ -159,128 +124,88 @@ public:
         return damped;
     }
 
-    GaussianFactorGraph::shared_ptr iterate() override
-    {
-        auto currentState = static_cast<State *>(state_.get());
-        gttic(LM_iterate);
-
-        auto linear = graph_.linearize(currentState->values);
-        VectorValues sqrtHessianDiagonal = linear->hessianDiagonal();
-        VectorValues b = linear->gradientAtZero();
-
-        if (currentState->totalNumberInnerIterations == 0)
-        { 
-            _g2oLmState.currentLambda = computeLambdaInit();
-
-            // write initial error
-            writeLogFile(currentState->error);
-    
-            if (params_.verbosityLM == LevenbergMarquardtParams::SUMMARY)
-            {
-                std::cout << "Initial error: " << currentState->error
-                          << ", values: " << currentState->values.size() << std::endl;
-            }
-        }
-
-        double currentChi = currentState->error;
-        double tempChi = currentChi;
+    GaussianFactorGraph::shared_ptr iterate() override {
+        double currentChi = 0.0;
+        double tempChi = 0.0;
         double rho = 0.0;
         int qmax = 0;
 
-        do
-        {
+        do {
+            auto currentState = static_cast<State *>(state_.get());
+            const Values backupValues = currentState->values;
+            const double backupError = currentState->error;
 
-        #ifdef GTSAM_USING_NEW_BOOST_TIMERS
-            boost::timer::cpu_timer lamda_iteration_timer;
-            lamda_iteration_timer.start();
-        #else
-            boost::timer lamda_iteration_timer;
-            lamda_iteration_timer.restart();
-        #endif
+            auto linear = graph_.linearize(currentState->values);
+            VectorValues sqrtHessianDiagonal = linear->hessianDiagonal();
+            VectorValues b = linear->gradientAtZero(); // -J^T * e
 
-        
+            if (currentState->totalNumberInnerIterations == 0)
+                writeLogFile(currentState->error);
+
+            currentChi = currentState->error;
+            tempChi = currentChi;
+            rho = 0.0;
+
             auto damped = buildDampedSystem(*linear, sqrtHessianDiagonal);
             VectorValues delta;
             bool success = true;
-            try
-            {
+            try {
                 delta = solve(damped, params_);
-            }
-            catch (...)
-            {
+            } catch (...) {
                 success = false;
                 tempChi = std::numeric_limits<double>::max();
             }
 
-            if (success)
-            {
+            if (success) {
                 Values newValues = currentState->values.retract(delta);
                 tempChi = graph_.error(newValues);
                 rho = (currentChi - tempChi) / computeScale(delta, b);
 
-                if (rho > 0 && std::isfinite(tempChi))
-                {
-                    _g2oLmState.currentLambda *= std::max(1.0 / 3.0, std::min(2.0 / 3.0, 1.0 - std::pow((2.0 * rho - 1.0), 3)));
+                if (rho > 0 && std::isfinite(tempChi)) {
+                    double alpha = 1.0 - std::pow((2.0 * rho - 1.0), 3);
+                    alpha = std::min(alpha, 2.0 / 3.0);
+                    alpha = std::max(alpha, 1.0 / 3.0);
+                    _g2oLmState.currentLambda *= alpha;
                     _g2oLmState.ni = 2.0;
                     currentChi = tempChi;
                     state_ = currentState->decreaseLambda(params_, rho, std::move(newValues), tempChi);
-                }
-                else
-                {
+                } else {
                     _g2oLmState.currentLambda *= _g2oLmState.ni;
                     _g2oLmState.ni *= 2.0;
+                    state_ = std::make_unique<State>(backupValues, backupError,
+                                                     currentState->lambda, currentState->currentFactor,
+                                                     currentState->iterations,
+                                                     currentState->totalNumberInnerIterations + 1);
                 }
-            }
-            else
-            {
+            } else {
                 _g2oLmState.currentLambda *= _g2oLmState.ni;
                 _g2oLmState.ni *= 2.0;
+                state_ = std::make_unique<State>(backupValues, backupError,
+                                                 currentState->lambda, currentState->currentFactor,
+                                                 currentState->iterations,
+                                                 currentState->totalNumberInnerIterations + 1);
             }
 
             if (!std::isfinite(_g2oLmState.currentLambda))
                 break;
-            qmax++;
 
-            if (params_.verbosityLM == LevenbergMarquardtParams::SUMMARY)
-            {
-        // do timing
-        #ifdef GTSAM_USING_NEW_BOOST_TIMERS
-                double iterationTime = 1e-9 * lamda_iteration_timer.elapsed().wall;
-        #else
-                double iterationTime = lamda_iteration_timer.elapsed();
-        #endif
-                if (currentState->iterations == 0)
-                    std::cout << "iter      cost      cost_change    lambda  success iter_time" << std::endl;
-                    std::cout << boost::format("% 4d % 8e   % 3.2e   % 3.2e  % 4d   % 3.2e") % currentState->iterations %
-                            tempChi % rho % currentState->lambda % success %
-                            iterationTime
-                     << std::endl;
-            }                    
+            qmax++;
+            _g2oLmState.levenbergIterations++;
+
+            if (params_.verbosityLM == LevenbergMarquardtParams::SUMMARY) {
+                std::cout << boost::format("% 4d % 8e   % 3.2e   % 3.2e  % 4d") % currentState->iterations %
+                             tempChi % rho % currentState->lambda % success
+                          << std::endl;
+            }
 
         } while (rho < 0 && qmax < _g2oLmState.maxTrialsAfterFailure);
 
-        return linear;
+        return graph_.linearize(state_->values);
     }
 
-    const LevenbergMarquardtParams &params() const { return params_; }
-
-    double lambda() const
-    {
+    void writeLogFile(double currentError) {
         auto currentState = static_cast<const State *>(state_.get());
-        return currentState->lambda;
-    }
-
-    int getInnerIterations() const
-    {
-        auto currentState = static_cast<const State *>(state_.get());
-        return currentState->totalNumberInnerIterations;
-    }
-
-    void writeLogFile(double currentError)
-    {
-        auto currentState = static_cast<const State *>(state_.get());
-        if (!params_.logFile.empty())
-        {
+        if (!params_.logFile.empty()) {
             std::ofstream os(params_.logFile, std::ios::app);
             boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
             os << currentState->totalNumberInnerIterations << ","
@@ -290,15 +215,10 @@ public:
         }
     }
 
-    GaussianFactorGraph::shared_ptr linearize() const
-    {
-        return graph_.linearize(state_->values);
-    }
+    const LevenbergMarquardtParams &params() const { return params_; }
+    double lambda() const { return static_cast<const State *>(state_.get())->lambda; }
+    int getInnerIterations() const { return static_cast<const State *>(state_.get())->totalNumberInnerIterations; }
 
 protected:
-    /** Access the parameters (base class version) */
-    const NonlinearOptimizerParams &_params() const override
-    {
-        return params_;
-    }    
+    const NonlinearOptimizerParams &_params() const override { return params_; }
 };
