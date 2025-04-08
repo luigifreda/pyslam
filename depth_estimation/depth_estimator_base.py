@@ -27,7 +27,7 @@ import config
 
 
 from camera import Camera
-from dataset import DatasetEnvironmentType
+from dataset_types import DatasetEnvironmentType
 from utils_sys import Printer
 from utils_depth import PointCloud
 

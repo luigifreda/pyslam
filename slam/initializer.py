@@ -33,7 +33,7 @@ from utils_geom_triangulation import triangulate_normalized_points
 from utils_sys import Printer
 from utils_features import ImageGrid
 from config_parameters import Parameters  
-from dataset import SensorType
+from dataset_types import SensorType
 from rotation_histogram import filter_matches_with_histogram_orientation
 
 from utils_draw import draw_feature_matches

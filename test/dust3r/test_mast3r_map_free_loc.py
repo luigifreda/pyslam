@@ -26,7 +26,8 @@ from utils_sys import Printer
 from utils_img import ImgWriter
 from utils_geom_lie import so3_log_angle
 
-from dataset import dataset_factory, SensorType
+from dataset_factory import dataset_factory
+from dataset_types import SensorType
 from ground_truth import groundtruth_factory
 
 from slam_plot_drawer import LocalizationPlotDrawer

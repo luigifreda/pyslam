@@ -280,6 +280,9 @@ class Viewer3D(object):
         self.vp.start()
         
     def set_gt_trajectory(self, gt_trajectory, gt_timestamps, align_with_scale=False):
+        if gt_trajectory is None or gt_timestamps is None:
+            Printer.yellow('Viewer3D: set_gt_trajectory: gt_trajectory or gt_timestamps is None')
+            return
         if len(gt_timestamps) > 0:
             self.gt_trajectory = gt_trajectory
             self.gt_timestamps = gt_timestamps
@@ -859,7 +862,10 @@ class Viewer3D(object):
 
     @staticmethod
     def drawPlane(num_divs=200, div_size=10, scale=1.0):
-        gl.glLineWidth(0.3)
+        #min_width = gl.glGetFloatv(gl.GL_ALIASED_LINE_WIDTH_RANGE)[0]
+        #max_width = gl.glGetFloatv(gl.GL_ALIASED_LINE_WIDTH_RANGE)[1]
+        #print(f"Line width supported range: {min_width} - {max_width}")
+        gl.glLineWidth(0.1)
         # Plane parallel to x-z at origin with normal -y
         div_size = scale*div_size
         minx = -num_divs*div_size

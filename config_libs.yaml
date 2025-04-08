@@ -1,0 +1,55 @@
+
+CORE_LIB_PATHS:
+  # Core libs/modules are automatically imported by using: 
+  # import config 
+  g2o: thirdparty/g2opy/lib
+  pangolin: thirdparty/pangolin
+  orb_features: thirdparty/orbslam2_features/lib
+  pyslam_utils: cpp/lib
+  thirdparty: thirdparty  # considering the folders in thirdparty as modules
+  utilities: utilities
+  depth_estimation: depth_estimation 
+  local_features: local_features
+  loop_closing: loop_closing
+  slam: slam
+  viz: viz
+  io: io
+  dense: dense
+  gtsam_factors: thirdparty/gtsam_factors/lib
+
+LIB_PATHS:
+  # The following libs/modiles are explicitely imported on demand by using, for instance:
+  # import config \ config.cfg.set_lib('tfeat')
+  lightglue: thirdparty/LightGlue
+  xfeat: thirdparty/accelerated_features
+  superpoint: thirdparty/superpoint
+  hardnet: thirdparty/hardnet
+  tfeat: thirdparty/tfeat
+  geodesc: thirdparty/geodesc
+  sosnet: thirdparty/SOSNet/codes 
+  l2net: thirdparty/l2net
+  l2net_keras: thirdparty/l2net_keras/src 
+  logpolar: thirdparty/logpolar
+  d2net: thirdparty/d2net 
+  delf: thirdparty/tensorflow_models/research/delf,thirdparty/tensorflow_models/research/slim,thirdparty/tensorflow_models/research/
+  contextdesc: thirdparty/contextdesc
+  lfnet: thirdparty/lfnet
+  r2d2: thirdparty/r2d2
+  keynet: thirdparty/keynet
+  disk: thirdparty/disk
+  torch-dimcheck: thirdparty/disk/submodules/torch-dimcheck
+  torch-localize: thirdparty/disk/submodules/torch-localize
+  unets: thirdparty/disk/submodules/unets
+  pydbow3: thirdparty/pydbow3/lib
+  pydbow2: thirdparty/pydbow2/lib
+  pyibow: thirdparty/pyibow/lib
+  pyobindex2: thirdparty/pyibow/lib
+  vpr: thirdparty/vpr, thirdparty/patch_netvlad
+  depth_pro: thirdparty/ml_depth_pro/src
+  depth_anything_v2: thirdparty/depth_anything_v2/metric_depth
+  raft_stereo: thirdparty/raft_stereo, thirdparty/raft_stereo/core
+  crestereo: thirdparty/crestereo
+  crestereo_pytorch: thirdparty/crestereo_pytorch 
+  gaussian_splatting: thirdparty/monogs
+  mvdust3r: thirdparty/mvdust3r
+  mast3r: thirdparty/mast3r

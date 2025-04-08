@@ -15,7 +15,8 @@ from config import Config
 
 from slam import Slam, SlamState
 from camera  import PinholeCamera
-from dataset import dataset_factory, SensorType
+from dataset_factory import dataset_factory
+from dataset_types import SensorType
 from ground_truth import groundtruth_factory
 
 from viewer3D import Viewer3D

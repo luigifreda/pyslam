@@ -116,6 +116,9 @@ class GroundTruth(object):
     
     # convert the dataset into 'Simple' format [timestamp, x,y,z, qx,qy,qz,qw, scale]
     def convertToSimpleDataset(self, filename='groundtruth.txt'):
+        if self.data is None:
+            Printer.yellow('[GroundTruth] convertToSimpleDataset: data is None')
+            return 
         out_file = open(filename,"w")
         num_lines = len(self.data)
         for ii in range(num_lines):
@@ -127,6 +130,9 @@ class GroundTruth(object):
         out_file.close()
 
     def getNumSamples(self): 
+        if self.data is None:
+            Printer.yellow('[GroundTruth] getNumSamples: data is None')
+            return 0        
         num_lines = len(self.data)
         return num_lines
     
@@ -153,6 +159,9 @@ class GroundTruth(object):
     def getFull3dTrajectory(self):
         if self.trajectory is not None and self.timestamps is not None:
             return self.trajectory, self.timestamps
+        if self.data is None:
+            Printer.yellow('[GroundTruth] getNumSamples: data is None')
+            return self.trajectory, self.timestamps             
         num_lines = len(self.data)
         self.trajectory = []
         self.timestamps = []
@@ -171,6 +180,9 @@ class GroundTruth(object):
     def getFull6dTrajectory(self):
         if self.trajectory is not None and self.poses is not None and self.timestamps is not None:
             return self.trajectory, self.poses, self.timestamps
+        if self.data is None:
+            Printer.yellow('[GroundTruth] getNumSamples: data is None')
+            return self.trajectory, self.poses, self.timestamps         
         num_lines = len(self.data)
         self.trajectory = []
         self.poses = []

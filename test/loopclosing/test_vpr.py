@@ -16,7 +16,8 @@ from utils_sys import getchar, Printer
 from utils_img import float_to_color, float_to_color_array, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
 
 
-from dataset import dataset_factory
+from dataset_factory import dataset_factory
+from dataset_types import SensorType
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 

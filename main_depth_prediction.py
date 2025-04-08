@@ -33,7 +33,8 @@ from camera  import PinholeCamera
 
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 
-from dataset import dataset_factory, DatasetType, SensorType, DatasetEnvironmentType
+from dataset_types import DatasetType, SensorType, DatasetEnvironmentType
+from dataset_factory import dataset_factory
 from frame import Frame, FeatureTrackerShared
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs

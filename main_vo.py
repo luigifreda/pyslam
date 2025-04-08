@@ -31,7 +31,8 @@ from visual_odometry import VisualOdometryEducational
 from visual_odometry_rgbd import VisualOdometryRgbd, VisualOdometryRgbdTensor
 from camera  import PinholeCamera
 from ground_truth import groundtruth_factory
-from dataset import dataset_factory, SensorType
+from dataset_factory import dataset_factory
+from dataset_types import DatasetType, SensorType
 
 from mplot_thread import Mplot2d, Mplot3d
 from qplot_thread import Qplot2d

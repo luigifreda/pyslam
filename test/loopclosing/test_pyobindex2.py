@@ -14,7 +14,8 @@ import math
 import cv2 
 import numpy as np
 
-from dataset import dataset_factory
+from dataset_factory import dataset_factory
+from dataset_types import SensorType
 from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
 from feature_tracker_configs import FeatureTrackerConfigs
 from feature_types import FeatureInfo

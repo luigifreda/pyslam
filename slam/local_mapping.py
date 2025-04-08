@@ -32,7 +32,7 @@ from queue import Queue
 
 from config_parameters import Parameters  
 
-from dataset import SensorType
+from dataset_types import SensorType
 from frame import compute_frame_matches
 from search_points import search_frame_for_triangulation, search_and_fuse
 

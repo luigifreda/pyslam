@@ -53,3 +53,8 @@ class Display2D(object):
 
         # blit
         pygame.display.flip()
+        
+    def get_key(self):
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                return event.key

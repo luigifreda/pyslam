@@ -33,6 +33,7 @@ from utils_serialization import SerializableEnum, register_class, SerializationJ
 from utils_string import levenshtein_distance
 
 import ujson as json
+from dataset_types import DatasetType, SensorType, DatasetEnvironmentType, MinimalDatasetConfig
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -43,115 +44,6 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kSettingsFolder = kRootFolder + '/settings'
-
-
-@register_class
-class DatasetType(SerializableEnum):
-    NONE = 1
-    KITTI = 2
-    TUM = 3
-    EUROC = 4
-    REPLICA = 5
-    VIDEO = 6
-    FOLDER = 7  # generic folder of pics
-    LIVE = 8
-
-    
-@register_class
-class DatasetEnvironmentType(SerializableEnum):
-    INDOOR = 1
-    OUTDOOR = 2
-
-
-@register_class
-class SensorType(SerializableEnum):
-    MONOCULAR=0,
-    STEREO=1,
-    RGBD=2
-
-
-# A minimal dataset config for serialization
-class MinimalDatasetConfig:
-    def __init__(self, config:'Config' =None, dataset_settings=None, cam_settings=None, cam_stereo_settings=None):
-        self.dataset_settings = config.dataset_settings if config is not None else dataset_settings
-        self.cam_settings = config.cam_settings if config is not None else cam_settings
-        self.cam_stereo_settings = config.cam_stereo_settings if config is not None else cam_stereo_settings
-
-    def to_json(self):
-        return {
-            'dataset_settings': SerializationJSON.serialize(self.dataset_settings),
-            'cam_settings': SerializationJSON.serialize(self.cam_settings),
-            'cam_stereo_settings': SerializationJSON.serialize(self.cam_stereo_settings),
-        }
-        
-    @staticmethod
-    def from_json(json_str):
-        return MinimalDatasetConfig(
-            dataset_settings=SerializationJSON.deserialize(json_str['dataset_settings']), 
-            cam_settings=SerializationJSON.deserialize(json_str['cam_settings']), 
-            cam_stereo_settings=SerializationJSON.deserialize(json_str['cam_stereo_settings']))
-
-
-def dataset_factory(config:'Config'):
-    dataset_settings = config.dataset_settings
-    type = DatasetType.NONE
-    associations = None  # name of the file with the associations
-    timestamps = None    
-    path = None 
-    is_color = None  # used for kitti datasets
-
-    type = dataset_settings['type'].lower()
-    name = dataset_settings['name']    
-    
-    sensor_type = SensorType.MONOCULAR
-    if 'sensor_type' in dataset_settings:
-        if dataset_settings['sensor_type'].lower() == 'mono':
-            sensor_type = SensorType.MONOCULAR
-        if dataset_settings['sensor_type'].lower() == 'stereo':
-            sensor_type = SensorType.STEREO
-        if dataset_settings['sensor_type'].lower() == 'rgbd':
-            sensor_type = SensorType.RGBD
-    Printer.green(f'dataset_factory - sensor_type: {sensor_type.name}')
-    
-    path = dataset_settings['base_path'] 
-    path = os.path.expanduser(path)
-    
-    start_frame_id = 0
-    if 'start_frame_id' in dataset_settings:
-        Printer.green(f'dataset_factory - start_frame_id: {dataset_settings["start_frame_id"]}')
-        start_frame_id = int(dataset_settings['start_frame_id'])
-    
-    if 'associations' in dataset_settings:
-        associations = dataset_settings['associations']
-    if 'timestamps' in dataset_settings:
-        timestamps = dataset_settings['timestamps']
-    if 'is_color' in dataset_settings:
-        is_color = dataset_settings['is_color']
-
-    dataset = None 
-
-    if type == 'kitti':
-        dataset = KittiDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.KITTI)
-        dataset.set_is_color(is_color)   
-    if type == 'tum':
-        dataset = TumDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.TUM)
-    if type == 'euroc':
-        dataset = EurocDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.EUROC, config) 
-    if type == 'replica':
-        dataset = ReplicaDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.REPLICA)
-    if type == 'video':
-        dataset = VideoDataset(path, name, sensor_type, associations, timestamps, start_frame_id, DatasetType.VIDEO)   
-    if type == 'folder':
-        fps = 10 # a default value 
-        if 'fps' in dataset_settings:
-            fps = int(dataset_settings['fps'])
-        dataset = FolderDataset(path, name, sensor_type, fps, associations, timestamps, start_frame_id, DatasetType.FOLDER)      
-    if type == 'live':
-        dataset = LiveDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.LIVE)   
-           
-    dataset.minimal_config = MinimalDatasetConfig(config=config)
-
-    return dataset 
 
 
 class Dataset(object):
@@ -263,15 +155,16 @@ class Dataset(object):
     def to_json(self):
         return self.minimal_config.to_json()
         
-    @staticmethod
-    def from_json(json_str):
-        minimal_config = MinimalDatasetConfig.from_json(json_str)
-        return dataset_factory(minimal_config)
+    # @staticmethod
+    # def from_json(json_str):
+    #     minimal_config = MinimalDatasetConfig.from_json(json_str)
+    #     return dataset_factory(minimal_config)
         
     def save_info(self, path):
         filename = path + '/dataset_info.json'
         with open(filename, 'w') as f:
             json.dump(self.to_json(), f, indent=4)
+
 
 
 class VideoDataset(Dataset): 
@@ -616,6 +509,7 @@ class TumDataset(Dataset):
 
     def getImage(self, frame_id):
         img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
         if frame_id < self.max_frame_id:
             file = self.base_path + self.associations_data[frame_id].strip().split()[1]
             img = cv2.imread(file)
@@ -751,6 +645,7 @@ class EurocDataset(Dataset):
         
     def getImage(self, frame_id):
         img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
         if frame_id < self.max_frame_id:
             try:
                 img_name = self.filenames[frame_id]
@@ -778,6 +673,7 @@ class EurocDataset(Dataset):
 
     def getImageRight(self, frame_id):
         img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
         if frame_id < self.max_frame_id:        
             try:
                 img_name = self.filenames_right[frame_id]
@@ -828,6 +724,7 @@ class ReplicaDataset(Dataset):
 
     def getImage(self, frame_id):
         img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
         if frame_id < self.max_frame_id:
             file = self.base_path + f'results/frame{str(frame_id).zfill(6)}.jpg'
             img = cv2.imread(file)

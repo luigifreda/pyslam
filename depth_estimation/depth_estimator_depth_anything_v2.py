@@ -29,7 +29,7 @@ config.cfg.set_lib('depth_anything_v2')
 
 
 from camera import Camera
-from dataset import DatasetEnvironmentType
+from dataset_types import DatasetEnvironmentType
 from utils_serialization import SerializableEnum, register_class
 from utils_depth import img_from_depth 
 from utils_sys import Printer, set_rlimit

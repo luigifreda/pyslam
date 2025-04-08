@@ -31,7 +31,7 @@ import numpy as np
 from camera import Camera
 from map import Map
 
-from dataset import DatasetEnvironmentType, SensorType
+from dataset_types import DatasetEnvironmentType, SensorType
 
 from utils_geom import inv_T
 from utils_sys import Printer

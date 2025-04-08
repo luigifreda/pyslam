@@ -40,7 +40,7 @@ from local_mapping import LocalMapping
 
 from loop_closing import LoopClosing
 
-from dataset import SensorType, DatasetEnvironmentType
+from dataset_types import SensorType, DatasetEnvironmentType
 
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from feature_tracker import feature_tracker_factory, FeatureTracker, FeatureTrackerTypes 
@@ -90,13 +90,15 @@ class Slam(object):
                  sensor_type=SensorType.MONOCULAR, 
                  environment_type=DatasetEnvironmentType.OUTDOOR,
                  slam_mode=SlamMode.SLAM,
-                 config:'Config' =None):
+                 config:'Config' =None,
+                 headless=False):
         self.camera = camera 
         self.feature_tracker_config = feature_tracker_config
         self.loop_detector_config = loop_detector_config
         self.sensor_type = sensor_type  
         self.environment_type = environment_type
         self.slam_mode = slam_mode
+        self.headless = headless
           
         self.feature_tracker = None
         self.init_feature_tracker(feature_tracker_config)
@@ -111,7 +113,7 @@ class Slam(object):
                     
         if slam_mode == SlamMode.SLAM:
             self.init_volumetric_integrator() 
-            self.init_loop_closing(loop_detector_config)     
+            self.init_loop_closing(loop_detector_config, headless=headless)     
                 
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
@@ -190,11 +192,11 @@ class Slam(object):
         if feature_tracker.tracker_type == FeatureTrackerTypes.LK:
             raise ValueError("SLAM: At present time, you cannot use Lukas-Kanade feature_tracker in this SLAM framework!")  
         
-    def init_loop_closing(self, loop_detector_config):
+    def init_loop_closing(self, loop_detector_config, headless=False):
         if Parameters.kUseLoopClosing and loop_detector_config is not None:
             if self.loop_closing is not None: 
                 self.loop_closing.quit()
-            self.loop_closing = LoopClosing(self, loop_detector_config)
+            self.loop_closing = LoopClosing(self, loop_detector_config, headless=headless)
             self.GBA = self.loop_closing.GBA
             self.loop_closing.start()
             time.sleep(1)             

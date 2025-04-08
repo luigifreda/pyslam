@@ -28,7 +28,7 @@ from threading import RLock, Thread, current_thread
 from scipy.spatial import cKDTree
 from timer import Timer
 
-from dataset import SensorType
+from dataset_types import SensorType
 from config_parameters import Parameters  
 
 from camera import Camera, PinholeCamera

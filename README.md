@@ -51,6 +51,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [TUM Datasets](#tum-datasets)
     - [EuRoC Datasets](#euroc-datasets)
     - [Replica Datasets](#replica-datasets)
+    - [ROS1 bags](#ros1-bags)
   - [Camera Settings](#camera-settings)
   - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
   - [Contributing to pySLAM](#contributing-to-pyslam)
@@ -581,9 +582,10 @@ Dataset | type in `config.yaml`
 [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)  | `type: KITTI_DATASET` 
 [TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                           | `type: TUM_DATASET` 
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
-[REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)        | `type: REPLICA_DATASET` 
+[REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 Video file                                                                                            | `type: VIDEO_DATASET` 
 Folder of images                                                                                      | `type: FOLDER_DATASET` 
+ROS1  bags                                                                                            | `type: ROS1BAG_DATASET` 
 
 Use the download scripts available in the folder `scripts` to download some of the following datasets.
 
@@ -602,7 +604,7 @@ pySLAM code expects the following structure in the specified KITTI path folder (
 ```
 1. Download the dataset (grayscale images) from http://www.cvlibs.net/datasets/kitti/eval_odometry.php and prepare the KITTI folder as specified above
 
-2. Select the corresponding calibration settings file (section `KITTI_DATASET: cam_settings:` in the file `config.yaml`)
+2. Select the corresponding calibration settings file (section `KITTI_DATASET: settings:` in the file `config.yaml`)
 
 
 ### TUM Datasets 
@@ -611,17 +613,17 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 
 1. Download a sequence from http://vision.in.tum.de/data/datasets/rgbd-dataset/download and uncompress it.
 2. Associate RGB images and depth images using the python script [associate.py](http://vision.in.tum.de/data/datasets/rgbd-dataset/tools). You can generate your `associations.txt` file by executing:
-```bash
-$ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt
-```
-3. Select the corresponding calibration settings file (section `TUM_DATASET: cam_settings:` in the file `config.yaml`).
+    ```bash
+    $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt      # pay attention to the order!
+    ```
+3. Select the corresponding calibration settings file (section `TUM_DATASET: settings:` in the file `config.yaml`).
 
 
 ### EuRoC Datasets
 
 1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
 2. Use the script `io/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
-3. Select the corresponding calibration settings file (section `EUROC_DATASET: cam_settings:` in the file `config.yaml`).
+3. Select the corresponding calibration settings file (section `EUROC_DATASET: settings:` in the file `config.yaml`).
 
 
 ### Replica Datasets
@@ -629,7 +631,14 @@ $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > asso
 1. You can download the zip file containing all the sequences by running:    
    `$ wget https://cvg-data.inf.ethz.ch/nice-slam/data/Replica.zip`    
 2. Then, uncompress it and deploy the files as you wish.
-3. Select the corresponding calibration settings file (section `REPLICA_DATASET: cam_settings:` in the file `config.yaml`).
+3. Select the corresponding calibration settings file (section `REPLICA_DATASET: settings:` in the file `config.yaml`).
+
+
+### ROS1 bags
+
+1. Source the main ROS1 `setup.bash` after you have source the `pyslam` python environment.
+2. Set the paths and `ROS1BAG_DATASET: ros_parameters` in the file `config.yaml`.
+3. Select/prepare the correspoding calibration settings file (section `ROS1BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
 --- 
 ## Camera Settings
@@ -747,7 +756,7 @@ Many improvements and additional features are currently under development:
 - [x] unified install procedure (single branch) for all OSs 
 - [x] trajectory saving 
 - [x] depth prediction integration, more models: VGGT, MoGE [WIP]
-- [ ] ROS support
+- [x] ROS support [WIP]
 - [x] gaussian splatting integration
 - [x] documentation [WIP]
 - [x] gtsam integration [WIP]

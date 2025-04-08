@@ -36,14 +36,22 @@ import math
 kThisFileLocation = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 kRootFolder = kThisFileLocation
 kDefaultConfigPath = os.path.join(kRootFolder,'config.yaml')
+kDefaultConfigLibsPath = os.path.join(kRootFolder,'config_libs.yaml')
 
-# Class for getting libs settings (from config.yaml) and camera settings from a yaml file.
-# The input 'config.yaml' file is supposed to be in the input root_folder.
+# Class for reading libs, dataset, system, and camera settings (from config.yaml) from yaml files.
+# Input: 
+#   config_path: path to config yaml file where dataset, system, and camera settings are stored
+#   config_libs_path: path to config libs yaml file where lib paths are stored
 class Config:
-    def __init__(self, root_folder = kRootFolder, config_path=kDefaultConfigPath):
+    def __init__(self, 
+                 config_path=kDefaultConfigPath, 
+                 config_libs_path=kDefaultConfigLibsPath, 
+                 root_folder=kRootFolder):
         self.root_folder = root_folder
-        self.config_path = config_path
+        self.config_path = config_path              # path to config.yaml: dataset, system, and camera settings
+        self.config_libs_path = config_libs_path    # path to config_libs.yaml: lib paths
         self.config = yaml.load(open(self.config_path, 'r'), Loader=yaml.FullLoader)
+        self.config_libs = yaml.load(open(self.config_libs_path, 'r'), Loader=yaml.FullLoader)
         self.cam_settings = None
         self.system_settings = None
         self.dataset_settings = None
@@ -52,6 +60,7 @@ class Config:
         self.system_state_settings = None
         self.system_state_folder_path = None
         self.system_state_load = False
+        self.ros_settings = {}
         
         self.trajectory_saving_settings = None
         
@@ -71,7 +80,7 @@ class Config:
 
     # read core lib paths from config.yaml and set sys paths
     def set_core_lib_paths(self):
-        self.core_lib_paths = self.config['CORE_LIB_PATHS']
+        self.core_lib_paths = self.config_libs['CORE_LIB_PATHS']
         for path in self.core_lib_paths:
             ext_path = self.root_folder + '/' + self.core_lib_paths[path]
             #print( "importing path: ", ext_path )
@@ -79,7 +88,7 @@ class Config:
             
     # read lib paths from config.yaml 
     def read_lib_paths(self):
-        self.lib_paths = self.config['LIB_PATHS']
+        self.lib_paths = self.config_libs['LIB_PATHS']
         
     # set sys path of lib 
     def set_lib(self,lib_name,prepend=False,verbose=False):
@@ -117,6 +126,10 @@ class Config:
         self.dataset_path = self.dataset_settings['base_path']
         self.dataset_settings['base_path'] = os.path.join( self.root_folder, self.dataset_path)
         #print('dataset_settings: ', self.dataset_settings)
+        str_dataset_settings_type = self.dataset_settings['type'].lower()
+        if str_dataset_settings_type == 'ros1bag' or str_dataset_settings_type == 'ros2bag':
+            self.get_ros_bag_settings()
+            
                     
     # get general system settings
     def get_general_system_settings(self):
@@ -162,6 +175,10 @@ class Config:
             from config_parameters import Parameters, set_from_dict
             set_from_dict(Parameters, self.global_parameters)
 
+    def get_ros_bag_settings(self):
+        self.ros_settings = self.config[self.dataset_type]['ros_settings']
+        self.ros_settings['bag_path'] = os.path.join( self.dataset_settings['base_path'], self.dataset_settings['name'])
+        #print(f'ROS settings: {self.ros_settings}')
 
     # calibration matrix
     @property

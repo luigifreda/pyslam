@@ -27,7 +27,7 @@ import numpy as np
 
 from slam import Slam
 from viewer3D import Viewer3D
-from dataset import SensorType
+from dataset_types import SensorType
 from mplot_thread import Mplot2d
 from qplot_thread import Qplot2d
 import matplotlib.colors as mcolors
@@ -182,8 +182,9 @@ class SlamPlotDrawer:
             # draw trajectory and alignment error    
             # NOTE: we must empty the alignment queue in any case
             new_alignment_data = None
-            while not self.viewer3D.alignment_gt_data_queue.empty():
-                new_alignment_data = self.viewer3D.alignment_gt_data_queue.get_nowait()
+            if self.viewer3D is not None:
+                while not self.viewer3D.alignment_gt_data_queue.empty():
+                    new_alignment_data = self.viewer3D.alignment_gt_data_queue.get_nowait()
             if self.traj_error_plt is not None and new_alignment_data is not None:
                 num_samples = len(new_alignment_data.timestamps_associations)                
                 new_alignment_timestamp = new_alignment_data.timestamps_associations[-1] if num_samples > 20 else None
@@ -353,8 +354,9 @@ class LocalizationPlotDrawer:
             # draw trajectory and alignment error    
             # NOTE: we must empty the alignment queue in any case
             new_alignment_data = None
-            while not self.viewer3D.alignment_gt_data_queue.empty():
-                new_alignment_data = self.viewer3D.alignment_gt_data_queue.get_nowait()
+            if self.viewer3D:
+                while not self.viewer3D.alignment_gt_data_queue.empty():
+                    new_alignment_data = self.viewer3D.alignment_gt_data_queue.get_nowait()
             if self.traj_error_plt is not None and new_alignment_data is not None:
                 num_samples = len(new_alignment_data.timestamps_associations)                
                 new_alignment_timestamp = new_alignment_data.timestamps_associations[-1] if num_samples > 20 else None

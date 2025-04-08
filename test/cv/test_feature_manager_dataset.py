@@ -10,7 +10,8 @@ from config import Config
 from mplot_figure import MPlotFigure
 from feature_manager import feature_manager_factory
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from dataset import dataset_factory, SensorType
+from dataset_factory import dataset_factory
+from dataset_types import SensorType
 
 from collections import defaultdict, Counter
 

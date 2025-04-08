@@ -43,7 +43,7 @@ from keyframe import KeyFrame
 from frame import Frame, FeatureTrackerShared, compute_frame_matches, prepare_input_data_for_sim3solver, prepare_input_data_for_pnpsolver
 from map import Map
 from global_bundle_adjustment import GlobalBundleAdjustment
-from dataset import SensorType
+from dataset_types import SensorType
 from rotation_histogram import filter_matches_with_histogram_orientation
 
 from search_points import search_by_sim3, search_more_map_points_by_projection, search_and_fuse_for_loop_correction, search_frame_by_projection
@@ -594,7 +594,7 @@ class LoopCorrector:
 # (3) verifying them by checking their geometry consistency => LoopGeometryChecker
 # (4) finally correcting the loop => LoopCorrector
 class LoopClosing:
-    def __init__(self, slam: 'Slam', loop_detector_config=LoopDetectorConfigs.DBOW3):
+    def __init__(self, slam: 'Slam', loop_detector_config=LoopDetectorConfigs.DBOW3, headless=False):
         self.slam = slam
         self.sensor_type = slam.sensor_type
         self.is_monocular = (self.sensor_type == SensorType.MONOCULAR)
@@ -603,6 +603,8 @@ class LoopClosing:
         
         #self.keyframes_map = slam.map.keyframes_map
         self.last_loop_kf_id = 0
+        
+        self.headless = headless
         
         # to nicely visualize loop candidates in a single image
         self.loop_consistent_candidate_imgs = LoopCandidateImgs() if Parameters.kLoopClosingDebugWithLoopConsistencyCheckImages else None 
@@ -909,6 +911,8 @@ class LoopClosing:
                      
                             
     def draw_loop_detection_output_imgs(self, img_cur, img_id, detection_output: LoopDetectorOutput):
+        if self.headless:
+            return
         draw = False
         use_cv2_for_drawing = platform.system() != 'Darwin' # under mac we can't use cv2 imshow here
         if self.loop_consistent_candidate_imgs is not None:

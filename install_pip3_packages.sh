@@ -155,6 +155,13 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     #pip3 install megengine  # This brings issues with non-supported CUDA architecture on my machine
 fi
 
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    # for ROS
+    pip3 install pycryptodomex
+    pip3 install gnupg
+    pip3 install rospkg
+fi
+
 pip3 install evo      #==1.11.0
 pip3 install trimesh  # for utils_dust3r.py 
 

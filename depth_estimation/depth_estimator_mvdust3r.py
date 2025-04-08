@@ -46,7 +46,7 @@ from utils_img import img_from_floats
 from utils_depth import img_from_depth, PointCloud, point_cloud_to_depth
 
 from camera import Camera
-from dataset import DatasetEnvironmentType
+from dataset_types import DatasetEnvironmentType
 from depth_estimator_base import DepthEstimator
 
 

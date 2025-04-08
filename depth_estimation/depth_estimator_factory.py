@@ -28,7 +28,7 @@ import torch
 import platform
 
 from camera import Camera
-from dataset import DatasetEnvironmentType
+from dataset_types import DatasetEnvironmentType
 from utils_sys import import_from
 
 from utils_serialization import SerializableEnum, register_class
