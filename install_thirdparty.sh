@@ -188,6 +188,12 @@ print_blue "Configuring and building thirdparty/gtsam ..."
 
 cd $ROOT_DIR
 
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/ros2_pybindings ..."
+cd thirdparty/ros2_pybindings
+./build.sh
+
+cd $ROOT_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/ml_depth_pro ..."

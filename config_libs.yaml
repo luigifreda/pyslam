@@ -16,6 +16,8 @@ CORE_LIB_PATHS:
   io: io
   dense: dense
   gtsam_factors: thirdparty/gtsam_factors/lib
+  ros2_pybindings: thirdparty/ros2_pybindings/lib
+
 
 LIB_PATHS:
   # The following libs/modiles are explicitely imported on demand by using, for instance:

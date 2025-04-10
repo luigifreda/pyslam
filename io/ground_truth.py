@@ -22,6 +22,7 @@ import sys
 import csv
 import json
 import numpy as np 
+import traceback
 
 from enum import Enum
 
@@ -73,13 +74,17 @@ def groundtruth_factory(settings):
         return EurocGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.EUROC)
     if type == 'replica':         
         return ReplicaGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.REPLICA)
-    if type == 'video' or type == 'folder':   
-        name = settings['groundtruth_file']
-        return SimpleGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.SIMPLE)     
-    else:
-        print('not using groundtruth')
-        print('if you are using main_vo.py, your estimated trajectory will not make sense!')          
-        return GroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.NONE)
+    if type == 'video' or type == 'folder':  
+        if 'groundtruth_file' in settings:
+            name = settings['groundtruth_file']
+            return SimpleGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.SIMPLE)  
+    if type == 'ros1bag':
+        if 'groundtruth_file' in settings:
+            name = settings['groundtruth_file']
+            return SimpleGroundTruth(None, name, associations, start_frame_id, type=GroundTruthType.SIMPLE)  
+    print('[groundtruth_factory] Not using groundtruth')
+    print('[groundtruth_factory] If you are using main_vo.py, your estimated trajectory will not make sense!')          
+    return GroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.NONE)
 
 
 # base class 
@@ -122,11 +127,16 @@ class GroundTruth(object):
         out_file = open(filename,"w")
         num_lines = len(self.data)
         for ii in range(num_lines):
-            timestamp,x,y,z, qx,qy,qz,qw, scale = self.getTimestampPoseAndAbsoluteScale(ii)
-            if ii == 0:
-                scale = 1 # first sample: we do not have a relative 
-            print(f'writing timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, qx: {qx:.15f}, qy: {qy:.15f}, qz: {qz:.15f}, qw: {qw:.15f}, scale: {scale:.15f}')
-            out_file.write( f"{timestamp:.15f} {x:.15f} {y:.15f} {z:.15f} {qx:.15f} {qy:.15f} {qz:.15f} {qw:.15f} {scale:.15f}\n" ) # (timestamp,x,y,z,scale) )
+            try:
+                timestamp,x,y,z, qx,qy,qz,qw, scale = self.getTimestampPoseAndAbsoluteScale(ii)
+                if ii == 0:
+                    scale = 1 # first sample: we do not have a relative 
+                print(f'writing timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, qx: {qx:.15f}, qy: {qy:.15f}, qz: {qz:.15f}, qw: {qw:.15f}, scale: {scale:.15f}')
+                out_file.write( f"{timestamp:.15f} {x:.15f} {y:.15f} {z:.15f} {qx:.15f} {qy:.15f} {qz:.15f} {qw:.15f} {scale:.15f}\n" ) # (timestamp,x,y,z,scale) )
+            except:
+                pass
+                #print(f'error in line {ii}')
+                #print(traceback.format_exc())
         out_file.close()
 
     def getNumSamples(self): 
@@ -289,12 +299,15 @@ class GroundTruth(object):
     
 
 # Read the ground truth from a simple file containining [timestamp, x,y,z, qx, qy, qz, qw, scale] lines
-# Use the file io/convert_groundtruth.py to convert the ground truth of a dataset into this format.
+# Use the file io/convert_kitti_groundtruth_to_simple.py to convert the ground truth of a dataset into this format.
 class SimpleGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.KITTI): 
         super().__init__(path, name, associations, start_frame_id, type)
         self.scale = kScaleSimple
-        self.filename=path + '/' + name
+        if path is not None:
+            self.filename=path + '/' + name
+        else: 
+            self.filename=name
         
         if not os.path.isfile(self.filename):
             error_message = f'ERROR: [SimpleGroundTruth] Groundtruth file not found: {self.filename}!'

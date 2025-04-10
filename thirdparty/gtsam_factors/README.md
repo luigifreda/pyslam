@@ -12,10 +12,10 @@ First build and install gtsam along with its Python bindings:
 <pyslam_root>/install_gtsam.h
 ```
 
-Then, open a terminal in this folder and run 
+Then, open a terminal in the folder containing this document and run 
 ```
 . <pyslam_root>/pyenv-activate.sh
-./buil.sh
+./build.sh
 ```
 
 ## Overview 

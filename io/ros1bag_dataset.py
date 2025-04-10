@@ -69,14 +69,14 @@ class Ros1bagSyncReaderATS:
         
         self.topic_counts = None
         self.topic_timestamps = None
-        self.get_topic_stats()
+        self.get_topic_timestamps_and_counts()
 
     def reset(self):
         self._synced_msgs = []
         self._bag = rosbag.Bag(self.bag_path, 'r')
         self._bag_iter = self._bag.read_messages(topics=self.topics)
     
-    def get_topic_stats(self):
+    def get_topic_timestamps_and_counts(self):
         # Initialize structures
         timestamps = {topic: [] for topic in self.topics}
         counts = {topic: 0 for topic in self.topics}
@@ -139,8 +139,9 @@ class Ros1bagDataset(Dataset):
                  type=DatasetType.ROS1BAG, 
                  environment_type=DatasetEnvironmentType.INDOOR,
                  fps=30,
-                 ros_settings=None): 
+                 config=None): 
         super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        ros_settings = config.ros_settings
         assert ros_settings is not None
         self.ros_settings = ros_settings
         
@@ -151,6 +152,8 @@ class Ros1bagDataset(Dataset):
         self.topics_dict = ros_settings['topics']
         self.topics_list = list(self.topics_dict.values())
         
+        print(f'[Ros1bagDataset]: Bag: {self.bag_path}, Topics: {self.topics_dict}')
+        
         self.sync_queue_size = int(self.ros_settings['sync_queue_size'])
         self.sync_slop = float(self.ros_settings['sync_slop']) 
         self.depth_factor = float(self.ros_settings['depth_factor']) if 'depth_factor' in self.ros_settings else 1.0
@@ -159,8 +162,14 @@ class Ros1bagDataset(Dataset):
         
         self.color_image_topic = self.topics_dict['color_image'] if 'color_image' in self.topics_dict else None
         self.depth_image_topic = self.topics_dict['depth_image'] if 'depth_image' in self.topics_dict else None
-        self.left_color_image_topic = self.topics_dict['left_color_image'] if 'left_color_image' in self.topics_dict else None
+        self.right_color_image_topic = self.topics_dict['right_color_image'] if 'right_color_image' in self.topics_dict else None
         self.imu_topic = self.topics_dict['imu'] if 'imu' in self.topics_dict else None
+        
+        assert self.color_image_topic is not None, "Color image topic not found"
+        if self.sensor_type == SensorType.STEREO:
+            assert self.right_color_image_topic is not None, "Right color image topic not found"
+        if self.sensor_type == SensorType.RGBD:
+            assert self.depth_image_topic is not None, "Depth image topic not found"
         
         self.reader = Ros1bagSyncReaderATS(
             bag_path=self.bag_path ,
@@ -188,6 +197,29 @@ class Ros1bagDataset(Dataset):
         print(f'Number of timestamps: {num_timestamps}')
         assert num_timestamps == self.num_frames
         
+        # in case of stereo mode, we rectify the stereo images
+        self.cam_stereo_settings = config.cam_stereo_settings
+        if self.sensor_type == SensorType.STEREO:
+            Printer.yellow('[Ros1bagDataset] automatically rectifying the stereo images')
+            if self.cam_stereo_settings is None: 
+                sys.exit('ERROR: we are missing stereo settings in Euroc YAML settings!')   
+            width = config.cam_settings['Camera.width'] 
+            height = config.cam_settings['Camera.height']         
+            
+            K_l = self.cam_stereo_settings['left']['K']
+            D_l = self.cam_stereo_settings['left']['D']
+            R_l = self.cam_stereo_settings['left']['R']
+            P_l = self.cam_stereo_settings['left']['P']
+            
+            K_r = self.cam_stereo_settings['right']['K']
+            D_r = self.cam_stereo_settings['right']['D']
+            R_r = self.cam_stereo_settings['right']['R']
+            P_r = self.cam_stereo_settings['right']['P']
+            
+            self.M1l,self.M2l = cv2.initUndistortRectifyMap(K_l, D_l, R_l, P_l[0:3,0:3], (width, height), cv2.CV_32FC1)
+            self.M1r,self.M2r = cv2.initUndistortRectifyMap(K_r, D_r, R_r, P_r[0:3,0:3], (width, height), cv2.CV_32FC1)
+        self.debug_rectification = False # DEBUGGING
+                
         self.count = -1
         self.color_img = None 
         self.depth_img = None
@@ -201,12 +233,23 @@ class Ros1bagDataset(Dataset):
             if self.color_image_topic:
                 color_img_msg = synced[self.color_image_topic]
                 self.color_img = self.bridge.imgmsg_to_cv2(color_img_msg, desired_encoding="bgr8")
+                print(f'[read] color image shape: {self.color_img.shape}')
             if self.depth_image_topic:
+                #depth_msg = synced[self.depth_image_topic]
+                #print(f"Depth encoding: {depth_msg.encoding}")   
+                #print(f"Width: {depth_msg.width}, Height: {depth_msg.height}, Step: {depth_msg.step}, Endianness: {depth_msg.is_bigendian}, Encoding: {depth_msg.encoding}, expected step: {depth_msg.width * 4}")
                 depth_msg = synced[self.depth_image_topic]
                 self.depth_img = self.depth_factor * self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
-            if self.left_color_image_topic:
-                left_color_img_msg = synced[self.left_color_image_topic]
+                #self.depth_img = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
+                if False:
+                    valid_depths = self.depth_img[np.isfinite(self.depth_img)]
+                    print("Depth range:", np.min(valid_depths), np.max(valid_depths))
+                    print("Depth nans:", np.isnan(self.depth_img).sum(), " zeros:", np.count_nonzero(self.depth_img == 0))             
+                print(f'[read] depth image shape: {self.depth_img.shape}, type: {self.depth_img.dtype}')
+            if self.right_color_image_topic:
+                left_color_img_msg = synced[self.right_color_image_topic]
                 self.right_color_img = self.bridge.imgmsg_to_cv2(left_color_img_msg, desired_encoding="bgr8")
+                print(f'[read] left color image shape: {self.right_color_img.shape}')
             self.count += 1
             self.is_ok = True
         else:
@@ -224,6 +267,15 @@ class Ros1bagDataset(Dataset):
                 print(f'[getImage] frame_id: {frame_id}, count: {self.count}')
                 self.read()
             img = self.color_img
+            if self.sensor_type == SensorType.STEREO:
+                # rectify image
+                if self.debug_rectification:
+                    imgs = img 
+                img = cv2.remap(img,self.M1l,self.M2l,cv2.INTER_LINEAR)
+                if self.debug_rectification: 
+                    imgs = np.concatenate((imgs,img),axis=1)
+                    cv2.imshow('left raw and rectified images',imgs)
+                    cv2.waitKey(1)            
             self.is_ok = (img is not None)
             if frame_id + 1 < self.max_frame_id: 
                 self._next_timestamp = self.topic_timestamps[self.color_image_topic][frame_id+1]
@@ -234,8 +286,37 @@ class Ros1bagDataset(Dataset):
             self._timestamp = None                  
         return img 
 
-    def getDepth(self, frame_id):
+    def getImageRight(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
+            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)        
+        img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
+        if frame_id < self.max_frame_id:
+            while self.count < frame_id and self.is_ok:
+                print(f'[getImageRight] frame_id: {frame_id}, count: {self.count}')                
+                self.read()
+            img = self.right_color_img
+            if self.sensor_type == SensorType.STEREO:
+                # rectify image
+                if self.debug_rectification:
+                    imgs = img                     
+                img = cv2.remap(img,self.M1r,self.M2r,cv2.INTER_LINEAR)
+                if self.debug_rectification: 
+                    imgs = np.concatenate((imgs,img),axis=1)
+                    cv2.imshow('right raw and rectified images',imgs)
+                    cv2.waitKey(1)              
+            self.is_ok = (img is not None)
+            if frame_id + 1 < self.max_frame_id: 
+                self._next_timestamp = self.topic_timestamps[self.right_color_image_topic][frame_id+1]
+            else:
+                self._next_timestamp = self._timestamp + self.Ts                 
+        else:
+            self.is_ok = False      
+            self._timestamp = None                       
+        return img   
+    
+    def getDepth(self, frame_id):
+        if self.sensor_type != SensorType.RGBD:
             return None # force a monocular camera if required (to get a monocular tracking even if depth is available)
         frame_id += self.start_frame_id
         img = None
@@ -253,22 +334,3 @@ class Ros1bagDataset(Dataset):
             self.is_ok = False      
             self._timestamp = None                       
         return img 
-    
-    
-    def getImageRight(self, frame_id):
-        if self.sensor_type == SensorType.MONOCULAR:
-            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)        
-        img = None
-        if frame_id < self.max_frame_id:
-            while self.count < frame_id and self.is_ok:
-                self.read()
-            img = self.right_color_img
-            self.is_ok = (img is not None)
-            if frame_id + 1 < self.max_frame_id: 
-                self._next_timestamp = self.topic_timestamps[self.left_color_image_topic][frame_id+1]
-            else:
-                self._next_timestamp = self._timestamp + self.Ts                 
-        else:
-            self.is_ok = False      
-            self._timestamp = None                       
-        return img   

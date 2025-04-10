@@ -119,10 +119,18 @@ def dataset_factory(config:'Config'):
         fps = 10 # a default value 
         if 'fps' in dataset_settings:
             fps = int(dataset_settings['fps'])        
-        dataset = Ros1bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, config.ros_settings)   
-    # if type == 'ros2bag':
-    #     dataset = Ros2bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS2BAG)
-           
+        dataset = Ros1bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, config)   
+    if type == 'ros2bag':
+        from ros2bag_dataset import Ros2bagDataset
+        fps = 10 # fps default value 
+        rate = 1.0 # rate multiplier default value 
+        if 'fps' in dataset_settings:
+            fps = int(dataset_settings['fps']) 
+        if 'rate' in dataset_settings:
+            rate = float(dataset_settings['rate'])       
+        #dataset = Ros2bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, rate, config)
+        dataset = Ros2bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, config)           
+               
     dataset.minimal_config = MinimalDatasetConfig(config=config)
 
     return dataset 

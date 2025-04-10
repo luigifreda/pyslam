@@ -52,6 +52,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
     - [EuRoC Datasets](#euroc-datasets)
     - [Replica Datasets](#replica-datasets)
     - [ROS1 bags](#ros1-bags)
+    - [ROS2 bags](#ros2-bags)
   - [Camera Settings](#camera-settings)
   - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
   - [Contributing to pySLAM](#contributing-to-pyslam)
@@ -121,7 +122,7 @@ Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
 $ ./install_all.sh
 ```
-This install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. 
+This install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. An internet connection is required.
 
 Refer to these links for further details about the specific install procedures that are supported.
 - **Ubuntu**  [=>](#ubuntu)
@@ -224,7 +225,7 @@ To process a different **dataset** with both VO and SLAM scripts, you need to up
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
 * Select the `sensor_type` (`mono`, `stereo`, `rgbd`) in the chosen dataset section.  
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
-* The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `io/ground_truth.py` and `io/convert_groundtruth.py`).
+* The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `io/ground_truth.py` and `io/convert_kitti_groundtruth_to_simple.py`).
 
 You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the parameters in [config_parameters.py](./config_parameters.py). 
 
@@ -586,6 +587,8 @@ Dataset | type in `config.yaml`
 Video file                                                                                            | `type: VIDEO_DATASET` 
 Folder of images                                                                                      | `type: FOLDER_DATASET` 
 ROS1  bags                                                                                            | `type: ROS1BAG_DATASET` 
+ROS2  bags                                                                                            | `type: ROS2BAG_DATASET` 
+
 
 Use the download scripts available in the folder `scripts` to download some of the following datasets.
 
@@ -639,6 +642,13 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 1. Source the main ROS1 `setup.bash` after you have source the `pyslam` python environment.
 2. Set the paths and `ROS1BAG_DATASET: ros_parameters` in the file `config.yaml`.
 3. Select/prepare the correspoding calibration settings file (section `ROS1BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
+
+
+### ROS2 bags
+
+1. Source the main ROS2 `setup.bash` after you have source the `pyslam` python environment.
+2. Set the paths and `ROS2BAG_DATASET: ros_parameters` in the file `config.yaml`.
+3. Select/prepare the correspoding calibration settings file (section `ROS2BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
 --- 
 ## Camera Settings

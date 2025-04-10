@@ -6,22 +6,9 @@ from dataset_factory import dataset_factory
 from dataset_types import SensorType, DatasetType, DatasetEnvironmentType
 from dataset import Dataset
 
-from ros1bag_dataset import Ros1bagSyncReaderATS, Ros1bagDataset
-
 import numpy as np
 import os
 import cv2
-
-import rosbag
-import rospy
-from cv_bridge import CvBridge
-
-if not rospy.core.is_initialized():
-    rospy.Time.now = lambda: rospy.Time.from_sec(0)
-from message_filters import ApproximateTimeSynchronizer, SimpleFilter
-from collections import defaultdict
-
-
     
     
 if __name__ == "__main__":

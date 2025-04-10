@@ -82,7 +82,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.config_path:
-        config = Config(args.config_path)
+        config = Config(args.config_path) # use the custom configuration path file
     else:
         config = Config()
 
