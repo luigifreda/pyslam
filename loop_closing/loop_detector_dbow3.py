@@ -58,10 +58,6 @@ kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
 
-
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print   
-                 
                  
 # At present just working with ORB local features.
 # NOTE: Under mac, loading the vocabulary is very slow (both from text and from boost archive).
@@ -71,12 +67,12 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         super().__init__()
         self.local_feature_manager = local_feature_manager              
         self.voc = dbow3.Vocabulary()  
-        print(f'LoopDetectorDBoW3: downloading vocabulary...')
+        LoopDetectorBase.print(f'LoopDetectorDBoW3: downloading vocabulary...')
         vocabulary_data.check_download()
-        print(f'LoopDetectorDBoW3: loading vocabulary {vocabulary_data.vocab_file_path}...')
+        LoopDetectorBase.print(f'LoopDetectorDBoW3: loading vocabulary {vocabulary_data.vocab_file_path}...')
         use_boost = True if vocabulary_data.vocab_file_path.endswith('.dbow3') else False        
         self.voc.load(vocabulary_data.vocab_file_path, use_boost=use_boost)
-        print(f'LoopDetectorDBoW3: ...done')
+        LoopDetectorBase.print(f'LoopDetectorDBoW3: ...done')
         self.db = dbow3.Database()
         self.db.setVocabulary(self.voc)      
         
@@ -86,17 +82,17 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         
     def save(self, path):
         filepath = path + '/loop_closing.db'
-        print(f'LoopDetectorDBoW3: saving database to {filepath}...')
-        print(f'\t Dabased size: {self.db.size()}')        
+        LoopDetectorBase.print(f'LoopDetectorDBoW3: saving database to {filepath}...')
+        LoopDetectorBase.print(f'\t Dabased size: {self.db.size()}')        
         self.db.save(filepath, save_voc=False)
         
     def load(self, path): 
         filepath = path + '/loop_closing.db'        
-        print(f'LoopDetectorDBoW3: loading database from {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorDBoW3: loading database from {filepath}...')
         self.db.setVocabulary(self.voc)
         self.db.load(filepath, load_voc=False)
         self.db.print_status()
-        print(f'LoopDetectorDBoW3: ...done')
+        LoopDetectorBase.print(f'LoopDetectorDBoW3: ...done')
         
     def compute_global_des(self, local_des, img):  
         #print(f'computing global descriptors... voc empty: {self.voc.empty()}')     
@@ -110,7 +106,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         return results    
                 
     def run_task(self, task: LoopDetectorTask):                        
-        print(f'LoopDetectorDBoW3: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')      
+        LoopDetectorBase.print(f'LoopDetectorDBoW3: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')      
         keyframe = task.keyframe_data             
         frame_id = keyframe.id
         
@@ -122,7 +118,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         
         # compute global descriptor
         if keyframe.g_des is None:
-            print(f'LoopDetectorDBoW3: computing global descriptor for keyframe {keyframe.id}')
+            LoopDetectorBase.print(f'LoopDetectorDBoW3: computing global descriptor for keyframe {keyframe.id}')
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get bow vector
             g_des_vec = keyframe.g_des.toVec() # transform it to a vector(numpy array) to make it pickable
         else: 
@@ -148,7 +144,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:         
             if self.entry_id >= 1:
                 results = self.db_query(keyframe.g_des, frame_id, max_num_results=kMaxResultsForLoopClosure) 
-                print(f'LoopDetectorDBoW3: Relocalization: frame: {frame_id}, candidate keyframes: {[r.id for r in results]}')
+                LoopDetectorBase.print(f'LoopDetectorDBoW3: Relocalization: frame: {frame_id}, candidate keyframes: {[r.id for r in results]}')
                 for r in results:
                     r_frame_id = self.map_entry_id_to_frame_id[r.id] # get the image id of the keyframe from it's internal image count
                     candidate_idxs.append(r_frame_id)
@@ -161,7 +157,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
                             
             # Compute reference BoW similarity score as the lowest score to a connected keyframe in the covisibility graph.
             min_score = self.compute_reference_similarity_score(task, dbow3.BowVector, score_fun=self.voc.score)
-            print(f'LoopDetectorDBoW3: min_score = {min_score}')
+            LoopDetectorBase.print(f'LoopDetectorDBoW3: min_score = {min_score}')
                                                                     
             if self.entry_id >= 1:
                 results = self.db_query(keyframe.g_des, frame_id, max_num_results=kMaxResultsForLoopClosure) 

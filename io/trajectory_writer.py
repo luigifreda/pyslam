@@ -46,7 +46,7 @@ class TrajectoryWriter:
     }
 
     def __init__(self, format_type: str, filename: str = None) -> None:
-        self.filename = filename or self.generate_filename()
+        self.filename = filename if filename is not None else self.generate_filename()
         self.file = None
         self.open_file()        
         self.set_format_type(format_type)      

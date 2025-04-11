@@ -5,61 +5,62 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 <!-- TOC -->
 
 - [pySLAM v2.7.2](#pyslam-v272)
-  - [Overview](#overview)
-  - [Install](#install)
-    - [Main requirements](#main-requirements)
-    - [Ubuntu](#ubuntu)
-    - [MacOS](#macos)
-    - [Docker](#docker)
-    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
-    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
-  - [Usage](#usage)
-    - [Visual odometry](#visual-odometry)
-    - [Full SLAM](#full-slam)
-    - [Selecting a dataset and different configuration parameters](#selecting-a-dataset-and-different-configuration-parameters)
-    - [Feature tracking](#feature-tracking)
-    - [Loop closing](#loop-closing)
-      - [Vocabulary management](#vocabulary-management)
-      - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
-      - [Double-check your loop detection configuration and verify vocabulary compability](#double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
-        - [Loop detection method based on a pre-trained vocabulary](#loop-detection-method-based-on-a-pre-trained-vocabulary)
-        - [Missing vocabulary for the selected front-end descriptor type](#missing-vocabulary-for-the-selected-front-end-descriptor-type)
-    - [Volumetric reconstruction](#volumetric-reconstruction)
-      - [Dense reconstruction while running SLAM](#dense-reconstruction-while-running-slam)
-      - [Reload a saved sparse map and perform dense reconstruction](#reload-a-saved-sparse-map-and-perform-dense-reconstruction)
-      - [Reload and check your dense reconstruction](#reload-and-check-your-dense-reconstruction)
-      - [Controlling the spatial distribution of keyframe FOV centers](#controlling-the-spatial-distribution-of-keyframe-fov-centers)
-    - [Depth prediction](#depth-prediction)
-    - [Saving and reloading](#saving-and-reloading)
-      - [Save the a map](#save-the-a-map)
-      - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
-      - [Trajectory saving](#trajectory-saving)
-    - [Optimization engines](#optimization-engines)
-    - [SLAM GUI](#slam-gui)
-    - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-  - [System overview](#system-overview)
-  - [Supported components and models](#supported-components-and-models)
-    - [Supported local features](#supported-local-features)
-    - [Supported matchers](#supported-matchers)
-    - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
-        - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
-        - [Global descriptors](#global-descriptors)
-    - [Supported depth prediction models](#supported-depth-prediction-models)
-    - [Supported volumetric mapping methods](#supported-volumetric-mapping-methods)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-    - [EuRoC Datasets](#euroc-datasets)
-    - [Replica Datasets](#replica-datasets)
-    - [ROS1 bags](#ros1-bags)
-    - [ROS2 bags](#ros2-bags)
-  - [Camera Settings](#camera-settings)
-  - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
-  - [References](#references)
-  - [Credits](#credits)
-  - [License](#license)
-  - [Roadmap](#roadmap)
+    - [1. Overview](#1-overview)
+    - [2. Install](#2-install)
+        - [2.1. Main requirements](#21-main-requirements)
+        - [2.2. Ubuntu](#22-ubuntu)
+        - [2.3. MacOS](#23-macos)
+        - [2.4. Docker](#24-docker)
+        - [2.5. How to install non-free OpenCV modules](#25-how-to-install-non-free-opencv-modules)
+        - [2.6. Troubleshooting and performance issues](#26-troubleshooting-and-performance-issues)
+    - [3. Usage](#3-usage)
+        - [3.1. Visual odometry](#31-visual-odometry)
+        - [3.2. Full SLAM](#32-full-slam)
+        - [3.3. Selecting a dataset and different configuration parameters](#33-selecting-a-dataset-and-different-configuration-parameters)
+        - [3.4. Feature tracking](#34-feature-tracking)
+        - [3.5. Loop closing](#35-loop-closing)
+            - [3.5.1. Vocabulary management](#351-vocabulary-management)
+            - [3.5.2. Vocabulary-free loop closing](#352-vocabulary-free-loop-closing)
+            - [3.5.3. Double-check your loop detection configuration and verify vocabulary compability](#353-double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
+                - [3.5.3.1. Loop detection method based on a pre-trained vocabulary](#3531-loop-detection-method-based-on-a-pre-trained-vocabulary)
+                - [3.5.3.2. Missing vocabulary for the selected front-end descriptor type](#3532-missing-vocabulary-for-the-selected-front-end-descriptor-type)
+        - [3.6. Volumetric reconstruction](#36-volumetric-reconstruction)
+            - [3.6.1. Dense reconstruction while running SLAM](#361-dense-reconstruction-while-running-slam)
+            - [3.6.2. Reload a saved sparse map and perform dense reconstruction](#362-reload-a-saved-sparse-map-and-perform-dense-reconstruction)
+            - [3.6.3. Reload and check your dense reconstruction](#363-reload-and-check-your-dense-reconstruction)
+            - [3.6.4. Controlling the spatial distribution of keyframe FOV centers](#364-controlling-the-spatial-distribution-of-keyframe-fov-centers)
+        - [3.7. Depth prediction](#37-depth-prediction)
+        - [3.8. Saving and reloading](#38-saving-and-reloading)
+            - [3.8.1. Save the a map](#381-save-the-a-map)
+            - [3.8.2. Reload a saved map and relocalize in it](#382-reload-a-saved-map-and-relocalize-in-it)
+            - [3.8.3. Trajectory saving](#383-trajectory-saving)
+        - [3.9. Optimization engines](#39-optimization-engines)
+        - [3.10. SLAM GUI](#310-slam-gui)
+        - [3.11. Monitor the logs for tracking, local mapping, and loop closing simultaneously](#311-monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+    - [4. System overview](#4-system-overview)
+    - [5. Supported components and models](#5-supported-components-and-models)
+        - [5.1. Supported local features](#51-supported-local-features)
+        - [5.2. Supported matchers](#52-supported-matchers)
+        - [5.3. Supported global descriptors and local descriptor aggregation methods](#53-supported-global-descriptors-and-local-descriptor-aggregation-methods)
+                - [5.3.1. Local descriptor aggregation methods](#531-local-descriptor-aggregation-methods)
+                - [5.3.2. Global descriptors](#532-global-descriptors)
+        - [5.4. Supported depth prediction models](#54-supported-depth-prediction-models)
+        - [5.5. Supported volumetric mapping methods](#55-supported-volumetric-mapping-methods)
+    - [6. Datasets](#6-datasets)
+        - [6.1. KITTI Datasets](#61-kitti-datasets)
+        - [6.2. TUM Datasets](#62-tum-datasets)
+        - [6.3. ICL-NUIM Datasets](#63-icl-nuim-datasets)
+        - [6.4. EuRoC Datasets](#64-euroc-datasets)
+        - [6.5. Replica Datasets](#65-replica-datasets)
+        - [6.6. ROS1 bags](#66-ros1-bags)
+        - [6.7. ROS2 bags](#67-ros2-bags)
+    - [7. Camera Settings](#7-camera-settings)
+    - [8. pySLAM performances and comparative evaluations](#8-pyslam-performances-and-comparative-evaluations)
+    - [9. Contributing to pySLAM](#9-contributing-to-pyslam)
+    - [10. References](#10-references)
+    - [11. Credits](#11-credits)
+    - [12. License](#12-license)
+    - [13. Roadmap](#13-roadmap)
 
 <!-- /TOC -->
  
@@ -576,12 +577,13 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 --- 
 ## Datasets
 
-Five different types of datasets are available:
+The following datasets are supported:
 
 Dataset | type in `config.yaml`
 --- | --- 
 [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)  | `type: KITTI_DATASET` 
 [TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                           | `type: TUM_DATASET` 
+[ICL-NUIM dataset](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)                              | `type: ICL_NUIM_DATASET` 
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 Video file                                                                                            | `type: VIDEO_DATASET` 
@@ -620,6 +622,11 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
     $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt      # pay attention to the order!
     ```
 3. Select the corresponding calibration settings file (section `TUM_DATASET: settings:` in the file `config.yaml`).
+
+
+### ICL-NUIM Datasets 
+
+Follow the same instructions provided for the TUM datasets. 
 
 
 ### EuRoC Datasets

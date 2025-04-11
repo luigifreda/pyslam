@@ -652,7 +652,8 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
 # This function will handle the multiprocessing part of the optimization. 
 # it is launched by local_bundle_adjustment_parallel()
 def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes_ref, good_points, fixed_points, verbose, rounds, mp_abort_flag):
-    from local_mapping import print
+    from local_mapping import LocalMapping
+    print = LocalMapping.print
     try:
         print('lba_optimization_process: starting...')
         
@@ -868,7 +869,8 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
         
 
 def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_points=False, verbose=False, rounds=10, abort_flag=g2o.Flag(), mp_abort_flag=None, map_lock=None):
-    from local_mapping import print 
+    from local_mapping import LocalMapping
+    print = LocalMapping.print
             
     # NOTE: we need a keyframe map (kf.id->kf) in order to be able retrieve and discard the outlier-edge keyframes after optimization
     good_keyframes = {kf.kid: kf for kf in keyframes if not kf.is_bad}
@@ -979,7 +981,8 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
                  fix_scale: bool,
                  verbose: bool = False) -> int:
 
-    from loop_detecting_process import print
+    from loop_detector_base import LoopDetectorBase
+    print = LoopDetectorBase.print
 
     # Calibration and Camera Poses
     cam1 = kf1.camera

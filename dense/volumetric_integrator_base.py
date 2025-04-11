@@ -30,6 +30,7 @@ from map import Map
 from dataset_types import DatasetEnvironmentType, SensorType
 
 from utils_sys import Printer, set_rlimit, FileLogger, LoggerQueue
+from utils_files import create_folder
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue, push_to_front, static_fields_to_dict
 from utils_depth import filter_shadow_points
@@ -61,34 +62,10 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
-kLogsFolder = kRootFolder + '/logs'
 
 
 kVolumetricIntegratorProcessName = 'VolumetricIntegratorProcess'
-logging_manager, logger = None, None
 
-if kVerbose:
-    if Parameters.kUseVolumetricIntegration and Parameters.kVolumetricIntegrationDebugAndPrintToFile:
-        # redirect the prints of volumetric integration to the file logs/volumetric_integration.log 
-        # you can watch the output in separate shell by running:
-        # $ tail -f logs/volumetric_integration.log 
-                
-        logging_file=kLogsFolder + '/volumetric_integrator.log'
-        if logging_manager is None:
-            logging_manager = LoggerQueue.get_instance(logging_file)
-            logger = logging_manager.get_logger("volumetric_integrator_main")
-                        
-        # if logger is None:
-        #     logger = FileLogger(logging_file)
-            
-        def print(*args, **kwargs):
-            if logger is not None:
-                message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
-                return logger.info(message, **kwargs)
-else:
-    def print(*args, **kwargs):
-        return
-    
 
 class VolumetricIntegrationTaskType(Enum):
     NONE            = 0
@@ -165,6 +142,8 @@ class VolumetricIntegrationOutput:
         
 
 class VolumetricIntegratorBase:
+    print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
+    logging_manager, logger = None, None
     def __init__(self, camera, environment_type, sensor_type):        
         import torch.multiprocessing as mp
         # NOTE: The following set_start_method() is needed by multiprocessing for using CUDA acceleration (for instance with torch).        
@@ -220,9 +199,36 @@ class VolumetricIntegratorBase:
         
         self.is_running  = mp.Value('i',0)
         
+        self.init_print()
         self.start()
         
         
+    def init_print(self):
+        if kVerbose:
+            if Parameters.kUseVolumetricIntegration: 
+                if Parameters.kVolumetricIntegrationDebugAndPrintToFile:
+                    # redirect the prints of volumetric integration to the file (by default) logs/volumetric_integration.log 
+                    # you can watch the output in separate shell by running:
+                    # $ tail -f logs/volumetric_integration.log  
+                            
+                    logging_file = Parameters.kLogsFolder + '/volumetric_integrator.log'
+                    create_folder(logging_file)
+                    if VolumetricIntegratorBase.logging_manager is None:
+                        VolumetricIntegratorBase.logging_manager = LoggerQueue.get_instance(logging_file)
+                        VolumetricIntegratorBase.logger = VolumetricIntegratorBase.logging_manager.get_logger("volumetric_integrator_main")
+                        
+                    def print_file(*args, **kwargs):
+                        if VolumetricIntegratorBase.logger is not None:
+                            message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                            return VolumetricIntegratorBase.logger.info(message, **kwargs)
+                else:
+                    def print_file(*args, **kwargs):
+                        message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                        return print(message, **kwargs)
+
+                VolumetricIntegratorBase.print = staticmethod(print_file)
+                
+                
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
@@ -262,10 +268,10 @@ class VolumetricIntegratorBase:
 
 
     def save(self, path):
-        print('VolumetricIntegratorBase: saving...')
+        VolumetricIntegratorBase.print('VolumetricIntegratorBase: saving...')
         try:
             if self.save_request_completed.value == 0:
-                print('VolumericIntegratorBase: saving: already saving...')
+                VolumetricIntegratorBase.print('VolumericIntegratorBase: saving: already saving...')
                 return
             filepath = path + '/dense_map.ply'        
             task_type = VolumetricIntegrationTaskType.SAVE
@@ -275,12 +281,12 @@ class VolumetricIntegratorBase:
             with self.save_request_condition:
                 while self.save_request_completed.value == 0:
                     self.save_request_condition.wait()
-            print('VolumetricIntegratorBase: saving done')
+            VolumetricIntegratorBase.print('VolumetricIntegratorBase: saving done')
         except Exception as e:
-            print(f'VolumetricIntegratorBase: EXCEPTION: {e} !!!')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+                VolumetricIntegratorBase.print(f'\t traceback details: {traceback_details}')
         
     
     def load(self, path):
@@ -296,10 +302,10 @@ class VolumetricIntegratorBase:
 
 
     def request_reset(self):
-        print('VolumetricIntegratorBase: Requesting reset...')
+        VolumetricIntegratorBase.print('VolumetricIntegratorBase: Requesting reset...')
         with self.reset_mutex:
             if self.reset_requested.value == 1:
-                print('VolumetricIntegratorBase: reset already requested...')
+                VolumetricIntegratorBase.print('VolumetricIntegratorBase: reset already requested...')
                 return
             self.reset_requested.value = 1
         while True:
@@ -310,7 +316,7 @@ class VolumetricIntegratorBase:
                     break
             time.sleep(0.1)
         self.keyframe_queue.clear()
-        print('VolumetricIntegratorBase: ...Reset done.')
+        VolumetricIntegratorBase.print('VolumetricIntegratorBase: ...Reset done.')
         
         
     def reset_if_requested(self, reset_mutex, reset_requested, \
@@ -319,7 +325,7 @@ class VolumetricIntegratorBase:
         # acting within the launched process with the passed mp.Value() (received in input)      
         with reset_mutex:
             if reset_requested.value == 1:
-                print('VolumetricIntegratorBase: reset_if_requested()...')                
+                VolumetricIntegratorBase.print('VolumetricIntegratorBase: reset_if_requested()...')                
                 with q_in_condition:
                     empty_queue(q_in)
                     q_in_condition.notify_all()
@@ -330,17 +336,17 @@ class VolumetricIntegratorBase:
                 try:
                     self.volume.reset()
                 except Exception as e:
-                    print(f'VolumetricIntegratorBase: reset_if_requested: Exception: {e}')
+                    VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: reset_if_requested: Exception: {e}')
                     if kPrintTrackebackDetails:
                         traceback_details = traceback.format_exc()
-                        print(f'\t traceback details: {traceback_details}')
+                        VolumetricIntegratorBase.print(f'\t traceback details: {traceback_details}')
                 reset_requested.value = 0
         
     
     def quit(self):
         try: 
             if self.is_running.value == 1:
-                print('VolumetricIntegratorBase: quitting...')
+                VolumetricIntegratorBase.print('VolumetricIntegratorBase: quitting...')
                 self.is_running.value = 0
                 self.keyframe_queue_timer.stop()            
                 with self.q_in_condition:
@@ -352,12 +358,12 @@ class VolumetricIntegratorBase:
                 if self.process.is_alive():
                     Printer.orange("Warning: Volumetric integration process did not terminate in time, forced kill.")  
                     self.process.terminate()    
-                print('VolumetricIntegratorBase: done')    
+                VolumetricIntegratorBase.print('VolumetricIntegratorBase: done')    
         except Exception as e:
-            print(f'VolumetricIntegratorBase: quit: Exception: {e}')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: quit: Exception: {e}')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+                VolumetricIntegratorBase.print(f'\t traceback details: {traceback_details}')
     
     
     def init(self, camera: Camera, environment_type: DatasetEnvironmentType, sensor_type: SensorType, parameters_dict):
@@ -384,13 +390,13 @@ class VolumetricIntegratorBase:
                 Printer.red('you are using a MONOCULAR SLAM system: The scale of the metric depth estimator will')
                 Printer.red('conflict with the independent scale of the SLAM system!')
                 Printer.red("*************************************************************************************")
-            print(f'VolumetricIntegratorBase: init: depth_estimator_type={depth_estimator_type}, min_depth={min_depth}, max_depth={max_depth}, precision={precision}')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: init: depth_estimator_type={depth_estimator_type}, min_depth={min_depth}, max_depth={max_depth}, precision={precision}')
             self.depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, 
                                                     min_depth=min_depth, max_depth=max_depth,
                                                     dataset_env_type=environment_type, precision=precision,
                                                     camera=camera)
         else: 
-            print(f'VolumetricIntegratorBase: init: depth_estimator=None, depth_estimator_type={depth_estimator_type}')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: init: depth_estimator=None, depth_estimator_type={depth_estimator_type}')
         
         # Prepare maps to undistort color and depth images
         h, w = camera.height, camera.width
@@ -416,7 +422,7 @@ class VolumetricIntegratorBase:
             time_volumetric_integration, \
             parameters_dict):
         
-        print('VolumetricIntegratorBase: starting...')
+        VolumetricIntegratorBase.print('VolumetricIntegratorBase: starting...')
         self.init(camera, environment_type, sensor_type, parameters_dict)
         
         # main loop
@@ -425,14 +431,14 @@ class VolumetricIntegratorBase:
                 
                 with q_in_condition:
                     while q_in.empty() and is_running.value == 1 and reset_requested.value != 1:
-                        print('VolumetricIntegratorBase: waiting for new task...')
+                        VolumetricIntegratorBase.print('VolumetricIntegratorBase: waiting for new task...')
                         q_in_condition.wait()
                 if not q_in.empty():
                     # check q_in size and dump a warn message if it is too big
                     q_in_size = q_in.qsize()
                     if q_in_size >= 10: 
                         warn_msg = f'!VolumetricIntegratorBase: WARNING: q_in size: {q_in_size}'
-                        print(warn_msg)
+                        VolumetricIntegratorBase.print(warn_msg)
                         Printer.orange(warn_msg)
         
                     self.volume_integration(q_in, q_out, q_out_condition, is_running, \
@@ -441,12 +447,12 @@ class VolumetricIntegratorBase:
                                         time_volumetric_integration)
                                                         
                 else: 
-                    print('VolumetricIntegratorBase: q_in is empty...')
+                    VolumetricIntegratorBase.print('VolumetricIntegratorBase: q_in is empty...')
                     time.sleep(0.1) # sleep for a bit before checking the queue again
                 self.reset_if_requested(reset_mutex, reset_requested, q_in, q_in_condition, q_out, q_out_condition)
             
             except Exception as e:
-                print('VolumetricIntegratorBase: Exception: ', e)
+                VolumetricIntegratorBase.print('VolumetricIntegratorBase: Exception: ', e)
                 traceback.print_exc()
                 
         # Stop the volume integrator: This is expected to be an implementation-specific operation
@@ -454,7 +460,7 @@ class VolumetricIntegratorBase:
             
         empty_queue(q_in) # empty the queue before exiting
         empty_queue(q_out) # empty the queue before exiting   
-        print('VolumetricIntegratorBase: loop exit...')         
+        VolumetricIntegratorBase.print('VolumetricIntegratorBase: loop exit...')         
 
 
     def estimate_depth_if_needed_and_rectify(self, keyframe_data: VolumetricIntegrationKeyframeData):
@@ -476,7 +482,7 @@ class VolumetricIntegratorBase:
                     if self.sensor_type == SensorType.MONOCULAR:
                         Printer.error('VolumetricIntegratorBase: You cannot use a MONOCULAR depth estimator in the back-end with a MONOCULAR SLAM system!\n\t Their scale factors will be inconsistent!')                                    
                     depth, pts3d = self.depth_estimator.infer(color, color_right)
-                    print(f'VolumetricIntegratorBase: depth inference time: {time.time() - inference_start_time}')
+                    VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: depth inference time: {time.time() - inference_start_time}')
                     if self.parameters_dict['kVolumetricIntegrationDepthEstimationFilterShadowPoints']:
                         depth = filter_shadow_points(depth, delta_depth=None)
                     
@@ -515,7 +521,7 @@ class VolumetricIntegratorBase:
                 kf_to_process = self.keyframe_queue[i]
                 # We integrate only the keyframes that have been processed by LBA at least once.
                 if kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes:
-                    print(f'VolumetricIntegratorBase: Adding integration task with keyframe id: {kf_to_process.id} (kid: {kf_to_process.kid})')
+                    VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: Adding integration task with keyframe id: {kf_to_process.id} (kid: {kf_to_process.kid})')
                     task_type = VolumetricIntegrationTaskType.INTEGRATE
                     task = VolumetricIntegrationTask(kf_to_process, task_type=task_type)      
                     self.add_task(task)
@@ -526,7 +532,7 @@ class VolumetricIntegratorBase:
     def add_keyframe(self, keyframe: KeyFrame, img, img_right, depth, print=print):
         use_depth_estimator = Parameters.kVolumetricIntegrationUseDepthEstimator          
         if depth is None and not use_depth_estimator:
-            print(f'VolumetricIntegratorBase: add_keyframe: depth is None -> skipping frame {keyframe.id}')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: add_keyframe: depth is None -> skipping frame {keyframe.id}')
             return
         try:
             # We accumulate the keyframe in a queue. 
@@ -535,10 +541,10 @@ class VolumetricIntegratorBase:
             self.flush_keyframe_queue()    
             
         except Exception as e:
-            print(f'VolumetricIntegratorBase: EXCEPTION: {e} !!!')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+                VolumetricIntegratorBase.print(f'\t traceback details: {traceback_details}')
                         
     def add_task(self, task: VolumetricIntegrationTask, front=True):
         if self.is_running.value == 1:
@@ -556,8 +562,8 @@ class VolumetricIntegratorBase:
                 self.q_in_condition.notify_all()
                 
     def rebuild(self, map: Map):
-        print('')
-        print(f'VolumetricIntegratorBase: rebuild() rebuilding volumetric mapping...')
+        VolumetricIntegratorBase.print('')
+        VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: rebuild() rebuilding volumetric mapping...')
         if self.is_running.value == 1:
             task = VolumetricIntegrationTask(task_type=VolumetricIntegrationTaskType.RESET)      
             self.add_task(task) 
@@ -566,7 +572,7 @@ class VolumetricIntegratorBase:
             for kf in map.keyframes:
                 if not kf.is_bad and kf.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes:
                     if kf.depth_img is None:
-                        print(f'VolumetricIntegratorBase: rebuild: depth is None -> skipping frame {kf.id}')
+                        VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: rebuild: depth is None -> skipping frame {kf.id}')
                         continue
                     self.keyframe_queue.append(kf)
             self.flush_keyframe_queue()
@@ -581,12 +587,12 @@ class VolumetricIntegratorBase:
             while q_out.empty() and self.is_running.value == 1:
                 ok = q_out_condition.wait(timeout=timeout)
                 if not ok: 
-                    print('VolumetricIntegratorBase: pop_output: timeout')
+                    VolumetricIntegratorBase.print('VolumetricIntegratorBase: pop_output: timeout')
                     break # Timeout occurred
         if q_out.empty():
             return None
         try:
             return q_out.get(timeout=timeout)
         except Exception as e:
-            print(f'VolumetricIntegratorBase: pop_output: encountered exception: {e}')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorBase: pop_output: encountered exception: {e}')
             return None

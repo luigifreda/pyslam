@@ -23,7 +23,7 @@ from enum import Enum
 
 import base64
 
-#import json
+import json as json_
 import ujson as json
 
 from utils_sys import Printer
@@ -100,6 +100,13 @@ class SerializableEnum(Enum):
                 return value
         return value
 
+class SerializableEnumEncoder(json_.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, SerializableEnum):
+            return obj.to_json()
+        if isinstance(obj, Serializable):
+            return json.loads(obj.to_json())
+        return super().default(obj)
 
 # Define Serializable for regular objects with nested structures
 # NOTE: each child class must use @register_class to get registered in the class registry

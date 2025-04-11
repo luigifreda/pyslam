@@ -3,6 +3,7 @@ DATASET:
   #type: EUROC_DATASET  
   #type: KITTI_DATASET
   #type: TUM_DATASET
+  #type: ICL_NUIM_DATASET
   #type: REPLICA_DATASET
   type: VIDEO_DATASET
   #type: ROS1BAG_DATASET
@@ -50,6 +51,18 @@ TUM_DATASET:
   groundtruth_file: auto
 
 
+ICL_NUIM_DATASET:
+  type: tum         # Same format as TUM
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: /home/luigi/Work/datasets/rgbd_datasets/icl_nuim
+  #
+  name: living_room_traj0_frei_png  
+  settings: settings/ICL_NUIM.yaml # do not forget to set the corresponding camera settings file 
+  #
+  associations: associations.txt
+  groundtruth_file: auto
+
+
 EUROC_DATASET:
   type: euroc
   sensor_type: stereo # Here, sensor_type can be 'mono' or 'stereo'
@@ -60,7 +73,7 @@ EUROC_DATASET:
   #name: MH03
   #name: MH04
   #name: MH05       
-  #name: V101  
+  name: V101  
   #name: V102
   #name: V202
   #name: V203   
@@ -209,4 +222,5 @@ SAVE_TRAJECTORY:
 GLOBAL_PARAMETERS: 
   #kUseVolumetricIntegration: True
   #kVolumetricIntegrationUseDepthEstimator: True
+  #kLogsFolder: /tmp/pyslam_logs       # to redirect the prints of SLAM to the set folder
   

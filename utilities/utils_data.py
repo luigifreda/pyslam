@@ -228,3 +228,25 @@ class FakeQueue:
         return True
 
 
+# Recursively merge two dictionaries without data sharing between them.
+# No side effects on the two input dictionaries.
+def merge_dicts(a, b):
+    merged_dict = {}
+    for key in a:
+        if key in b:
+            if isinstance(a[key], dict) and isinstance(b[key], dict):
+                merged_dict[key] = merge_dicts(a[key].copy(), b[key].copy())
+            elif isinstance(a[key], list) and isinstance(b[key], list):
+                merged_dict[key] = []
+                merged_dict[key].extend([x for x in a[key] if x not in merged_dict[key]])
+                merged_dict[key].extend([x for x in b[key] if x not in merged_dict[key]])
+            elif a[key] == b[key]:
+                merged_dict[key] = copy.deepcopy(a[key])  # same leaf value
+            else:
+                merged_dict[key] = copy.deepcopy(b[key])  # replace value
+        else:
+            merged_dict[key] = copy.deepcopy(a[key])      # add key
+    for key in b:
+        if key not in a:
+            merged_dict[key] = copy.deepcopy(b[key])
+    return merged_dict

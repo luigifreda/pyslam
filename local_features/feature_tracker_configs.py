@@ -23,6 +23,7 @@ from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureI
 from feature_matcher import FeatureMatcherTypes
 
 from config_parameters import Parameters  
+from utils_sys import Printer
 
 
 # some default parameters 
@@ -37,15 +38,15 @@ kTrackerType = FeatureTrackerTypes.DES_BF      # default descriptor-based, brute
 """
 A collection of ready-to-used feature tracker configurations 
 """
-class FeatureTrackerConfigs(object):   
+class FeatureTrackerConfigs:   
     
     @staticmethod
     def get_config_from_name(config_name):
         config_dict = getattr(FeatureTrackerConfigs, config_name, None)
         if config_dict is not None:
-            print("FeatureTrackerConfigs: Configuration loaded:", config_dict)
+            Printer.cyan("FeatureTrackerConfigs: Configuration loaded:", config_dict)
         else:
-            print(f"FeatureTrackerConfigs: No configuration found for '{config_name}'")
+            Printer.red(f"FeatureTrackerConfigs: No configuration found for '{config_name}'")
         return config_dict
         
         

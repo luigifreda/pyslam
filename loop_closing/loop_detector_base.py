@@ -54,23 +54,7 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
-kLogsFolder = kRootFolder + '/logs'
 
-
-if kVerbose:
-    if Parameters.kLoopClosingDebugAndPrintToFile:
-        # redirect the prints of local mapping to the file logs/loop_detecting.log 
-        # you can watch the output in separate shell by running:
-        # $ tail -f logs/loop_detecting.log 
-
-        logging_file=kLogsFolder + '/loop_detecting.log'
-        local_logger = Logging.setup_file_logger('loop_detecting_logger', logging_file, formatter=Logging.simple_log_formatter)
-        def print(*args, **kwargs):
-            message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
-            return local_logger.info(message, **kwargs)  
-else:
-    def print(*args, **kwargs):
-        return
 
         
 class LoopDetectorTaskType(Enum):
@@ -147,6 +131,8 @@ class LoopDetectorOutput:
         
 # Base class for loop detectors
 class LoopDetectorBase:
+    print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
+        
     def __init__(self):
         self.entry_id = 0 # this corresponds to the internal detector entry counter (incremented only when a new keyframe is added to the detector database)
         self.map_entry_id_to_frame_id = {}
@@ -172,7 +158,26 @@ class LoopDetectorBase:
             
         # to nicely visualize current loop candidates in a single image
         self.loop_detection_imgs = LoopCandidateImgs() if Parameters.kLoopClosingDebugWithLoopDetectionImages else None 
-                
+        self.init_print()
+             
+    def init_print(self):
+        if kVerbose:
+            if Parameters.kLoopClosingDebugAndPrintToFile:
+                # redirect the prints of local mapping to the file logs/loop_detecting.log (by default)
+                # you can watch the output in separate shell by running:
+                # $ tail -f logs/loop_detecting.log 
+
+                logging_file = Parameters.kLogsFolder + '/loop_detecting.log'
+                LoopDetectorBase.local_logger = Logging.setup_file_logger('loop_detecting_logger', logging_file, formatter=Logging.simple_log_formatter)
+                def print_file(*args, **kwargs):
+                    message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                    return LoopDetectorBase.local_logger.info(message, **kwargs) 
+            else:
+                def print_file(*args, **kwargs):
+                    message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                    return print(message, **kwargs)
+            LoopDetectorBase.print = staticmethod(print_file) 
+            
     def save(self, path):
         pass
     
@@ -186,9 +191,9 @@ class LoopDetectorBase:
     def load_db_maps(self, path):
         load_path = path + '/loop_closing_db_maps.json'
         if not os.path.exists(load_path):
-            print(f'LoopDetectorBase: database maps do not exist: {load_path}')
+            LoopDetectorBase.print(f'LoopDetectorBase: database maps do not exist: {load_path}')
             return
-        print(f'LoopDetectorBase: loading database maps from {load_path}...')        
+        LoopDetectorBase.print(f'LoopDetectorBase: loading database maps from {load_path}...')        
         with open(load_path, 'rb') as f:
             output = json.load(f)
         self.entry_id = output['entry_id']
@@ -199,13 +204,13 @@ class LoopDetectorBase:
         self.map_frame_id_to_img = NumpyB64Json.map_id2img_from_json(output['map_frame_id_to_img'])
         self.map_frame_id_to_entry_id = convert_dict(output['map_frame_id_to_entry_id'])
         # for k, v in self.map_frame_id_to_img.items():
-        #     print(f'LoopDetectorBase: loaded img id: {k}, shape: {v.shape}, dtype: {v.dtype}')       
-        print(f'LoopDetectorBase: ...database maps successfully loaded from: {load_path}')
+        #     LoopDetectorBase.print(f'LoopDetectorBase: loaded img id: {k}, shape: {v.shape}, dtype: {v.dtype}')       
+        LoopDetectorBase.print(f'LoopDetectorBase: ...database maps successfully loaded from: {load_path}')
         
     # Save the maps used by the loop detector database
     def save_db_maps(self, path):
         save_path = path + '/loop_closing_db_maps.json'
-        print(f'LoopDetectorBase: saving database maps to {save_path}...')        
+        LoopDetectorBase.print(f'LoopDetectorBase: saving database maps to {save_path}...')        
         output = {}
         output['entry_id'] = self.entry_id
         output['map_entry_id_to_frame_id'] = self.map_entry_id_to_frame_id
@@ -213,7 +218,7 @@ class LoopDetectorBase:
         output['map_frame_id_to_entry_id'] = self.map_frame_id_to_entry_id
         with open(save_path, 'w') as f:
             f.write(json.dumps(output))
-        print(f'LoopDetectorBase: ...database maps successfully saved to: {save_path}')     
+        LoopDetectorBase.print(f'LoopDetectorBase: ...database maps successfully saved to: {save_path}')     
         
     def reset(self):
         self.entry_id = 0
@@ -233,7 +238,7 @@ class LoopDetectorBase:
         if self.local_feature_manager is not None:
             kps, des = self.local_feature_manager.compute(task.keyframe_data.img, task.keyframe_data.kps)
             task.keyframe_data.des = des
-            print(f'LoopDetectorBase: re-computed {des.shape[0]} local descriptors ({self.local_feature_manager.descriptor_type.name}) for keyframe {task.keyframe_data.id}')
+            LoopDetectorBase.print(f'LoopDetectorBase: re-computed {des.shape[0]} local descriptors ({self.local_feature_manager.descriptor_type.name}) for keyframe {task.keyframe_data.id}')
    
     # Compute global descriptors from local descriptors and input image
     def compute_global_des(self, local_des, img): 
@@ -259,14 +264,14 @@ class LoopDetectorBase:
                         cov_kf.img = self.map_frame_id_to_img[cov_kf.id]
                         #print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no img, loaded from map: shape: {cov_kf.img.shape}, dtype: {cov_kf.img.dtype}')
                 except:
-                    print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no img')
+                    LoopDetectorBase.print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no img')
                 # if we don't have the global descriptor yet, we need to compute it    
                 if cov_kf.img is not None:
                     #print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no g_des, computing on img shape: {cov_kf.img.shape}, dtype: {cov_kf.img.dtype}')
                     if cov_kf.img.dtype != np.uint8:                    
-                        print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has img dtype: {cov_kf.img.dtype}, converting to uint8')
+                        LoopDetectorBase.print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has img dtype: {cov_kf.img.dtype}, converting to uint8')
                         cov_kf.img = cov_kf.img.astype(np.uint8)
-                print(f'LoopDetectorBase: computing global descriptor for keyframe {cov_kf.id}')            
+                LoopDetectorBase.print(f'LoopDetectorBase: computing global descriptor for keyframe {cov_kf.id}')            
                 cov_kf.g_des = self.compute_global_des(cov_kf.des, cov_kf.img)
             if cov_kf.g_des is not None:             
                 if not isinstance(cov_kf.g_des, vector_type):
@@ -275,7 +280,7 @@ class LoopDetectorBase:
                 score = score_fun(cov_kf.g_des, keyframe.g_des)
                 min_score = min(min_score, score)
             else: 
-                print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no g_des')
+                LoopDetectorBase.print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no g_des')
                                             
         return min_score      
     

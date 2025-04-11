@@ -35,7 +35,7 @@ import logging
 import torch.multiprocessing as mp
 from utils_sys import Logging, locally_configure_qt_environment
 from utils_mp import MultiprocessingManager
-    
+from config_parameters import Parameters
     
 kPlotSleep = 0.04
 kVerbose = False 
@@ -50,14 +50,14 @@ kUseFigCanvasDrawIdle = True
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
-kLogsFolder = kRootFolder + '/logs'
+#kLogsFolder = kRootFolder + '/logs'
 
 
 if kVerbose and kDebugAndPrintToFile:
     # redirect the prints of local mapping to the file logs/local_mapping.log 
     # you can watch the output in separate shell by running:
     # $ tail -f logs/mplot_thread.log 
-    logging_file=kLogsFolder + '/mplot_thread.log'
+    logging_file = Parameters.kLogsFolder + '/mplot_thread.log'
     local_logger = Logging.setup_file_logger('mplot_thread_logger', logging_file, formatter=Logging.simple_log_formatter)
     def print(*args, **kwargs):
         message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                

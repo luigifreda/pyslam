@@ -46,41 +46,46 @@ kPrintTrackebackDetails = True
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
-kLogsFolder = kRootFolder + '/logs'
 
-if kVerbose:
-    if Parameters.kRelocalizationDebugAndPrintToFile:
-        # redirect the prints of local mapping to the file logs/relocalization.log 
-        # you can watch the output in separate shell by running:
-        # $ tail -f logs/relocalization.log 
-        
-        logging_file=kLogsFolder + '/relocalization.log'
-        local_logger = Logging.setup_file_logger('relocalization_logger', logging_file, formatter=Logging.simple_log_formatter)
-        def print(*args, **kwargs):
-            message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
-            return local_logger.info(message, **kwargs)  
-else:
-    def print(*args, **kwargs):
-        return
-    
     
 pose_optimization = optimizer_gtsam.pose_optimization if Parameters.kOptimizationFrontEndUseGtsam else optimizer_g2o.pose_optimization
 
 
 # Relocalizer working on loop detection output 
 class Relocalizer: 
+    print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op    
+    
     def __init__(self):
         self.timer = TimerFps('Relocalizer', is_verbose = kTimerVerbose)
+        self.init_print()
         
-                 
+    def init_print(self):
+        if kVerbose:
+            if Parameters.kRelocalizationDebugAndPrintToFile:
+                # redirect the prints of local mapping to the file logs/relocalization.log 
+                # you can watch the output in separate shell by running:
+                # $ tail -f logs/relocalization.log 
+                
+                logging_file = Parameters.kLogsFolder + '/relocalization.log'
+                Relocalizer.local_logger = Logging.setup_file_logger('relocalization_logger', logging_file, formatter=Logging.simple_log_formatter)
+                def print_file(*args, **kwargs):
+                    message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                    return Relocalizer.local_logger.info(message, **kwargs)
+            else:
+                def print_file(*args, **kwargs):
+                    message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                    return print(message, **kwargs)
+            Relocalizer.print = staticmethod(print_file)  
+
+
     def relocalize(self, frame: Frame, detection_output: LoopDetectorOutput, keyframes_map: dict): 
         try:        
             if detection_output is None or len(detection_output.candidate_idxs) == 0:
                 msg = 'None output' if detection_output is None else 'No candidates'
-                print(f'Relocalizer: {msg} with frame {frame.id}')
+                Relocalizer.print(f'Relocalizer: {msg} with frame {frame.id}')
                 return False 
             
-            print(f'Relocalizer: Detected candidates: {frame.id} with {detection_output.candidate_idxs}')
+            Relocalizer.print(f'Relocalizer: Detected candidates: {frame.id} with {detection_output.candidate_idxs}')
             reloc_candidate_kfs = [keyframes_map[idx] for idx in detection_output.candidate_idxs if idx in keyframes_map] # get back the keyframes from their ids
             
             kp_match_idxs = defaultdict(lambda: (None,None))   # dictionary of keypointmatches  (kf_i, kf_j) -> (idxs_i,idxs_j)              
@@ -114,10 +119,10 @@ class Relocalizer:
                     #print(f'Relocalizer: rotation histogram filter: #matches ({frame.id},{kf.id}): before {num_matches_before}, after {len(idxs_frame)}')             
                 
                 num_matches = len(idxs_frame)
-                print(f'Relocalizer: num_matches ({frame.id},{kf.id}): {num_matches}')
+                Relocalizer.print(f'Relocalizer: num_matches ({frame.id},{kf.id}): {num_matches}')
                 
                 if(num_matches<Parameters.kRelocalizationMinKpsMatches):
-                    print(f'Relocalizer: skipping keyframe {kf.id} with too few matches ({num_matches}) (min: {Parameters.kRelocalizationMinKpsMatches})')
+                    Relocalizer.print(f'Relocalizer: skipping keyframe {kf.id} with too few matches ({num_matches}) (min: {Parameters.kRelocalizationMinKpsMatches})')
                     continue 
                 
                 points_3d_w, points_2d, sigmas2, idxs1, idxs2 = \
@@ -138,7 +143,7 @@ class Relocalizer:
                 
                 num_correspondences = len(points_2d)
                 if num_correspondences < 4:
-                    print(f'Relocalizer: skipping keyframe {kf.id} with too few correspondences ({num_correspondences}) (min: 4)')
+                    Relocalizer.print(f'Relocalizer: skipping keyframe {kf.id} with too few correspondences ({num_correspondences}) (min: 4)')
                     continue                
                 
                 #print(f'Relocalizer: initializing MLPnPsolver for keyframe {kf.id}, num correspondences: {num_correspondences}')                
@@ -153,7 +158,7 @@ class Relocalizer:
             success_relocalization_kf = None
             for i, kf in enumerate(considered_candidates):
                 # perform 5 ransac iterations on each solver
-                print(f'Relocalizer: performing MLPnPsolver iterations for keyframe {kf.id}')                      
+                Relocalizer.print(f'Relocalizer: performing MLPnPsolver iterations for keyframe {kf.id}')                      
                 ok, Tcw, is_no_more, inlier_flags, num_inliers = solvers[i].iterate(5)
                 if not ok or is_no_more:
                     continue                 
@@ -172,7 +177,7 @@ class Relocalizer:
                         
                 pose_before=frame.pose.copy()        
                 mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
-                print(f'Relocalizer: pos opt1: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+                Relocalizer.print(f'Relocalizer: pos opt1: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
                 
                 if not pose_is_ok: 
                     # if current pose optimization failed, reset f_cur pose             
@@ -198,7 +203,7 @@ class Relocalizer:
                     if num_matched_map_points + num_new_found_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
                         pose_before=frame.pose.copy()        
                         mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
-                        print(f'Relocalizer: pos opt2: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+                        Relocalizer.print(f'Relocalizer: pos opt2: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
                         
                         if not pose_is_ok: 
                             # if current pose optimization failed, reset f_cur pose             
@@ -221,7 +226,7 @@ class Relocalizer:
                             if num_matched_map_points + num_new_found_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
                                 pose_before=frame.pose.copy()        
                                 mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
-                                print(f'Relocalizer: pos opt3: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+                                Relocalizer.print(f'Relocalizer: pos opt3: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
                                 
                                 if not pose_is_ok: 
                                     # if current pose optimization failed, reset f_cur pose             
@@ -234,21 +239,21 @@ class Relocalizer:
             
             res = False    
             if success_relocalization_kf is None:
-                print('Relocalizer: failed')
+                Relocalizer.print('Relocalizer: failed')
                 res = False
             else:
                 frame.kf_ref = success_relocalization_kf
-                print(f'Relocalizer: success: connected frame id: {frame.id} to keyframe id: {frame.kf_ref.id}')
+                Relocalizer.print(f'Relocalizer: success: connected frame id: {frame.id} to keyframe id: {frame.kf_ref.id}')
                 res = True                                                       
                 
             self.timer.refresh()
-            print(f'Relocalizer: elapsed time: {self.timer.last_elapsed}')
+            Relocalizer.print(f'Relocalizer: elapsed time: {self.timer.last_elapsed}')
             return res
                 
         except Exception as e:           
-            print(f'Relocalizer: EXCEPTION: {e} !!!')   
+            Relocalizer.print(f'Relocalizer: EXCEPTION: {e} !!!')   
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+                Relocalizer.print(f'\t traceback details: {traceback_details}')
                 
         return False              

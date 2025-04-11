@@ -94,7 +94,7 @@ RIGHT.P:  #!!opencv-matrix
 # Features extraction 
 #--------------------------------------------------------------------------------------------
 
-FeatureExtractor.nFeatures: 1200
+FeatureTrackerConfig.nFeatures: 1200
 
 #--------------------------------------------------------------------------------------------
 # Matching (Data Association)

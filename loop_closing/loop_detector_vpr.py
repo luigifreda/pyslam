@@ -60,10 +60,6 @@ kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
 
 
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print        
-
-
 # To combine HDC with any feature manager 
 class HdcAdaptor:
     def __init__(self, feature_manager):
@@ -142,7 +138,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
                      #       initialize the global feature extractor in the potentially launched parallel process.
                      #       This is required to avoid pickling problem when multiprocessing is used in combination 
                      #       with torch and CUDA.   
-        print(f'LoopDetectorVprBase: global_descriptor_name: {global_descriptor_name}')            
+        LoopDetectorBase.print(f'LoopDetectorVprBase: global_descriptor_name: {global_descriptor_name}')            
     
     def reset(self):
         LoopDetectorBase.reset(self)
@@ -153,19 +149,19 @@ class LoopDetectorVprBase(LoopDetectorBase):
         
     def save(self, path):
         filepath = path + '/loop_closing.db'
-        print(f'LoopDetectorVprBase: saving database to {filepath}...')
-        print(f'\t Dabased size: {self.global_db.size()}')        
+        LoopDetectorBase.print(f'LoopDetectorVprBase: saving database to {filepath}...')
+        LoopDetectorBase.print(f'\t Dabased size: {self.global_db.size()}')        
         self.global_db.save(filepath)
         
     def load(self, path): 
         filepath = path + '/loop_closing.db'
         if not os.path.exists(filepath):
-            print(f'LoopDetectorVprBase: database does not exist: {filepath}')
+            LoopDetectorBase.print(f'LoopDetectorVprBase: database does not exist: {filepath}')
             return
-        print(f'LoopDetectorVprBase: loading database from {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorVprBase: loading database from {filepath}...')
         self.global_db.load(filepath)
-        print(f'\t Dabased size: {self.global_db.size()}')             
-        print(f'LoopDetectorVprBase: ...done')        
+        LoopDetectorBase.print(f'\t Dabased size: {self.global_db.size()}')             
+        LoopDetectorBase.print(f'LoopDetectorVprBase: ...done')        
     
     def init(self):
         try:
@@ -174,20 +170,20 @@ class LoopDetectorVprBase(LoopDetectorBase):
             if self.global_feature_extractor is None:
                 self.global_feature_extractor = self.init_global_feature_extractor(self.global_descriptor_name)
         except Exception as e:
-            print(f'LoopDetectorVprBase: init: Exception: {e}')
+            LoopDetectorBase.print(f'LoopDetectorVprBase: init: Exception: {e}')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')                    
+                LoopDetectorBase.print(f'\t traceback details: {traceback_details}')                    
     
     def init_db(self):
-        print(f'LoopDetectorVprBase: init_db()')
+        LoopDetectorBase.print(f'LoopDetectorVprBase: init_db()')
         #global_db = SimpleDatabase(self.score)  # simple implementation, not ideal with large datasets
         #global_db = FlannDatabase(self.score)                                  
         global_db = FaissDatabase(self.score)
         return global_db 
             
     def init_global_feature_extractor(self, global_descriptor_name):
-        print(f'LoopDetectorVprBase: init_global_feature_extractor: global_descriptor_name: {global_descriptor_name}')
+        LoopDetectorBase.print(f'LoopDetectorVprBase: init_global_feature_extractor: global_descriptor_name: {global_descriptor_name}')
         global_feature_extractor = None
         if global_descriptor_name.lower() == 'hdc-delf':
             from feature_extraction.feature_extractor_holistic import HDCDELF
@@ -202,7 +198,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
             from feature_extraction.feature_extractor_patchnetvlad import PatchNetVLADFeatureExtractor
             from patchnetvlad.tools import PATCHNETVLAD_ROOT_DIR
             import configparser
-            print(f'PatchNetVLADFeatureExtractor: {PATCHNETVLAD_ROOT_DIR}')
+            LoopDetectorBase.print(f'PatchNetVLADFeatureExtractor: {PATCHNETVLAD_ROOT_DIR}')
             configfile = os.path.join(PATCHNETVLAD_ROOT_DIR, 'configs/netvlad_extract.ini')
             assert os.path.isfile(configfile)
             config = configparser.ConfigParser()
@@ -226,12 +222,12 @@ class LoopDetectorVprBase(LoopDetectorBase):
             return g_des
         else:
             message = 'LoopDetectorVprBase.compute_global_des: img is None'
-            print(message)
+            LoopDetectorBase.print(message)
             Printer.orange(message)
             return None   
             
     def run_task(self, task: LoopDetectorTask):
-        print(f'{self.name}: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')   
+        LoopDetectorBase.print(f'{self.name}: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')   
                 
         self.init()  # initialize from the potentially launched parallel process or thread at the first run_task() call
                    
@@ -246,7 +242,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
 
         # compute global descriptor
         if keyframe.g_des is None:
-            print(f'LoopDetectorVprBase: computing global descriptor for keyframe {keyframe.id}')
+            LoopDetectorBase.print(f'LoopDetectorVprBase: computing global descriptor for keyframe {keyframe.id}')
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get global descriptor
         
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
@@ -270,7 +266,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:         
             if self.entry_id >= 1:
                 best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to frame_id
-                print(f'LoopDetectorVprBase: Relocalization: frame: {frame_id}, candidate keyframes: {best_idxs}')
+                LoopDetectorBase.print(f'LoopDetectorVprBase: Relocalization: frame: {frame_id}, candidate keyframes: {best_idxs}')
                 for idx, score in zip(best_idxs, best_scores):
                     other_entry_id = idx
                     other_frame_id = self.map_entry_id_to_frame_id[idx] # get the image id of the keyframe from it's internal image count                
@@ -284,7 +280,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
                             
             # Compute reference BoW similarity score as the lowest score to a connected keyframe in the covisibility graph.
             min_score = self.compute_reference_similarity_score(task, type(keyframe.g_des), score_fun=self.score)
-            print(f'{self.name}: min_score = {min_score}')
+            LoopDetectorBase.print(f'{self.name}: min_score = {min_score}')
                                                                     
             if self.entry_id >= 1:
                 best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to frame_id

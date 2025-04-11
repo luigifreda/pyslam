@@ -104,7 +104,6 @@ kNumMinObsForKeyFrameDefault = 3
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
-kLogsFolder = kRootFolder + '/logs'
 
 
 if not kVerbose:
@@ -215,7 +214,7 @@ class Tracking:
         self.gt_x, self.gt_y, self.gt_z = None, None, None
         
         if kLogKFinfoToFile:
-            self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', kLogsFolder + '/kf_info.log', formatter=Logging.simple_log_formatter)
+            self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', Parameters.kLogsFolder + '/kf_info.log', formatter=Logging.simple_log_formatter)
                  
                  
     @property

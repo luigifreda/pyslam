@@ -17,9 +17,18 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
+
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder
+
 
 # List of shared static parameters for configuring SLAM modules 
 class Parameters:   
+
+    kLogsFolder = kRootFolder + '/logs'              # Folder where logs are stored. This can be change by config.py to redirect the logs in a different folder.
     
     # SLAM threads 
     kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
@@ -31,7 +40,7 @@ class Parameters:
     
     
     # Number of desired keypoints per frame 
-    kNumFeatures=2000
+    kNumFeatures=2000                               # Default number of keypoints (can be overridden by settings file)
     
     # Adaptive stats 
     kUseDescriptorSigmaMadv2 = False                # [Experimental, WIP] In theory, if we use this we should accordingly update all the current descriptor thresholds
@@ -119,7 +128,7 @@ class Parameters:
     
 
     # Search matches for triangulation by using epipolar lines 
-    kMinDistanceFromEpipole=10             # [pixels] Used with search by epipolar lines 
+    kMinDistanceFromEpipole=10            # [pixels] Used with search by epipolar lines 
 
 
     # Local Mapping 

@@ -58,10 +58,6 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
-
-
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print       
         
 
 # At present just working with ORB local features.
@@ -72,12 +68,12 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         super().__init__()
         self.local_feature_manager = local_feature_manager        
         self.voc = dbow2.BinaryVocabulary()
-        print(f'LoopDetectorDBoW2: downloading vocabulary...')
+        LoopDetectorBase.print(f'LoopDetectorDBoW2: downloading vocabulary...')
         vocabulary_data.check_download()
-        print(f'LoopDetectorDBoW2: loading vocabulary...')
+        LoopDetectorBase.print(f'LoopDetectorDBoW2: loading vocabulary...')
         use_boost = True if vocabulary_data.vocab_file_path.endswith('.dbow2') else False    
         self.voc.load(vocabulary_data.vocab_file_path, use_boost=use_boost)
-        print(f'...done')
+        LoopDetectorBase.print(f'...done')
         
         self.use_kf_database = True     # use dbow2.KeyFrameDatabase() or a simple database implementation (as a simple list of bow vectors)
         self.kf_database = dbow2.KeyFrameOrbDatabase(self.voc)      
@@ -90,18 +86,18 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         
     def save(self, path):
         filepath = path + '/loop_closing.db'
-        print(f'LoopDetectorDBoW2: saving database to {filepath}...')
-        print(f'\t Dabased size: {self.kf_database.size()}')        
+        LoopDetectorBase.print(f'LoopDetectorDBoW2: saving database to {filepath}...')
+        LoopDetectorBase.print(f'\t Dabased size: {self.kf_database.size()}')        
         self.kf_database.save(filepath)
         
     def load(self, path): 
         filepath = path + '/loop_closing.db'        
-        print(f'LoopDetectorDBoW2: loading database from {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorDBoW2: loading database from {filepath}...')
         self.kf_database.set_vocabulary(self.voc)
         self.kf_database.load(filepath)
         self.kf_database.print_status()
-        print(f'\t Dabased size: {self.kf_database.size()}')         
-        print(f'LoopDetectorDBoW2: ...done')
+        LoopDetectorBase.print(f'\t Dabased size: {self.kf_database.size()}')         
+        LoopDetectorBase.print(f'LoopDetectorDBoW2: ...done')
                 
     def compute_global_des(self, local_des, img):
         # Feature vector associate features with nodes in the 4th level (from leaves up)
@@ -136,7 +132,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         return best_idxs, best_scores
                 
     def run_task(self, task: LoopDetectorTask):    
-        print(f'LoopDetectorDBoW2: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')            
+        LoopDetectorBase.print(f'LoopDetectorDBoW2: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')            
         keyframe = task.keyframe_data          
         frame_id = keyframe.id
         
@@ -148,7 +144,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         
         # compute global descriptor
         if keyframe.g_des is None:
-            print(f'LoopDetectorDBoW2: computing global descriptor for keyframe {keyframe.id}')            
+            LoopDetectorBase.print(f'LoopDetectorDBoW2: computing global descriptor for keyframe {keyframe.id}')            
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get bow vector
             g_des_vec = keyframe.g_des.toVec() # transform it to vector(numpy array) to make it pickable
         else: 
@@ -179,7 +175,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
                 min_score = -sys.float_info.max
                 connected_keyframes_ids = []
                 best_idxs, best_scores = self.db_query(keyframe.g_des, frame_id, connected_keyframes_ids, min_score, max_num_results=kMaxResultsForLoopClosure) 
-                print(f'LoopDetectorDBoW2: Relocalization: frame: {frame_id}, candidate keyframes: {[idx for idx in best_idxs]}')
+                LoopDetectorBase.print(f'LoopDetectorDBoW2: Relocalization: frame: {frame_id}, candidate keyframes: {[idx for idx in best_idxs]}')
                 for other_frame_id, score in zip(best_idxs, best_scores):  
                     if self.use_kf_database: 
                         other_entry_id = self.map_frame_id_to_entry_id[other_frame_id]
@@ -196,7 +192,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
                             
             # Compute reference BoW similarity score as the lowest score to a connected keyframe in the covisibility graph.
             min_score = self.compute_reference_similarity_score(task, dbow2.BowVector, score_fun=self.voc.score)
-            print(f'LoopDetectorDBoW2: min_score = {min_score}')
+            LoopDetectorBase.print(f'LoopDetectorDBoW2: min_score = {min_score}')
                                     
             if self.entry_id >= 1:
                 best_idxs, best_scores = self.db_query(keyframe.g_des, frame_id, task.connected_keyframes_ids, min_score, max_num_results=kMaxResultsForLoopClosure)
