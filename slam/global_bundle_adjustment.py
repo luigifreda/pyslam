@@ -59,28 +59,14 @@ kPrintTrackebackDetails = True
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
-kLogsFolder = kRootFolder + '/logs'
 
-
-if kVerbose:
-    if Parameters.kGBADebugAndPrintToFile:
-        # redirect the prints of GBA to the file logs/gba.log
-        # you can watch the output in separate shell by running:
-        # $ tail -f logs/gba.log 
-        
-        logging_file=kLogsFolder + '/gba.log'
-        local_logger = Logging.setup_file_logger('gba_logger', logging_file, formatter=Logging.simple_log_formatter)
-        def print(*args, **kwargs):
-            message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
-            return local_logger.info(message, **kwargs)  
-else:
-    def print(*args, **kwargs):
-        return
-    
     
 class GlobalBundleAdjustment:
+    print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
+        
     def __init__(self, slam: 'Slam', use_multiprocessing=True):
-        print(f'GlobalBundleAdjustment: starting with use_multiprocessing: {use_multiprocessing}')
+        self.init_print()        
+        GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: starting with use_multiprocessing: {use_multiprocessing}')
         #self.slam = slam
         self.map = slam.map    # type: Map
         self.local_mapping = slam.local_mapping
@@ -91,7 +77,7 @@ class GlobalBundleAdjustment:
         self.loop_kf_id = -1
         self.rounds = 10
         self.use_robust_kernel = Parameters.kGBAUseRobustKernel
-                
+                        
         self.process = None
                 
         if use_multiprocessing:
@@ -113,6 +99,23 @@ class GlobalBundleAdjustment:
             self.q_message = []
             self.result_dict_queue = []
     
+    def init_print(self):
+        if kVerbose:
+            if Parameters.kGBADebugAndPrintToFile:
+                # redirect the prints of GBA to the file logs/gba.log
+                # you can watch the output in separate shell by running:
+                # $ tail -f logs/gba.log 
+                
+                logging_file = Parameters.kLogsFolder + '/gba.log'
+                GlobalBundleAdjustment.local_logger = Logging.setup_file_logger('gba_logger', logging_file, formatter=Logging.simple_log_formatter)
+                def print_file(*args, **kwargs):
+                    message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                    return GlobalBundleAdjustment.local_logger.info(message, **kwargs)  
+            else: 
+                def print_file(*args, **kwargs):
+                    message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+                    return print(message, **kwargs)
+            GlobalBundleAdjustment.print = staticmethod(print_file)
     
     def start(self, loop_kf_id):
         if self.is_running():
@@ -145,12 +148,12 @@ class GlobalBundleAdjustment:
                                               
         if self.use_multiprocessing:     
             # launch child process
-            print('GlobalBundleAdjustment: starting child process...')
+            GlobalBundleAdjustment.print('GlobalBundleAdjustment: starting child process...')
             self.process = mp.Process(target=self.run, args=args)
             self.process.daemon = True
         else: 
             # launch thread
-            print('GlobalBundleAdjustment: starting thread...')
+            GlobalBundleAdjustment.print('GlobalBundleAdjustment: starting thread...')
             self.process = threading.Thread(target=self.run, args=args)
           
         self.process.start()
@@ -159,7 +162,7 @@ class GlobalBundleAdjustment:
         return (self._is_running.value == 1)
     
     def abort(self):
-        print('GlobalBundleAdjustment: interrupting GBA...')
+        GlobalBundleAdjustment.print('GlobalBundleAdjustment: interrupting GBA...')
         if self.use_multiprocessing:               
             self.mp_opt_abort_flag.value = True   
         else:
@@ -167,13 +170,13 @@ class GlobalBundleAdjustment:
     
     def quit(self):
         if self.is_running():
-            print('GlobalBundleAdjustment: quitting...')
+            GlobalBundleAdjustment.print('GlobalBundleAdjustment: quitting...')
             self.abort()
             if self.process.is_alive():                               
                 self.process.join(timeout=1)
             if self.process.is_alive():
                 message = 'GlobalBundleAdjustment: WARNING: GBA process did not terminate in time, forced kill.'
-                print(message)
+                GlobalBundleAdjustment.print(message)
                 Printer.orange(message)  
                 self.process.terminate()
             if self.use_multiprocessing:
@@ -181,7 +184,7 @@ class GlobalBundleAdjustment:
             else: 
                 self.q_message.clear()
             self._is_running.value = 0      
-            print('GlobalBundleAdjustment: done')  
+            GlobalBundleAdjustment.print('GlobalBundleAdjustment: done')  
                    
     def check_GBA_has_finished_and_correct_if_needed(self):            
         if not self.is_running() and (self.q_message.qsize() if self.use_multiprocessing else len(self.q_message)) > 0:
@@ -189,14 +192,14 @@ class GlobalBundleAdjustment:
             try: 
                 return self.correct_after_GBA()
             except Exception as e:
-                print(f'GlobalBundleAdjustment: check_GBA_has_finished_and_correct_if_needed: encountered exception: {e}')
+                GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: check_GBA_has_finished_and_correct_if_needed: encountered exception: {e}')
                 if kPrintTrackebackDetails:
                     traceback_details = traceback.format_exc()
-                    print(f'\t traceback details: {traceback_details}')
+                    GlobalBundleAdjustment.print(f'\t traceback details: {traceback_details}')
         return False                       
             
     def correct_after_GBA(self):
-        print(f'GlobalBundleAdjustment: correct after GBA...')
+        GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: correct after GBA...')
         
         # Send a stop signal to Local Mapping
         # Avoid new keyframes are inserted while correcting the loop
@@ -204,7 +207,7 @@ class GlobalBundleAdjustment:
         # wait till local mapping is idle
         self.local_mapping.wait_idle(timeout=1.0, print=print)  
         
-        print('GlobalBundleAdjustment: starting correction ...')
+        GlobalBundleAdjustment.print('GlobalBundleAdjustment: starting correction ...')
         # get the updates from GBA results and put them in their temporary fields in the map
         loop_kf_id = self.loop_kf_id
         is_result_dict_queue_empty = self.result_dict_queue.empty() if self.use_multiprocessing else len(self.result_dict_queue) == 0
@@ -245,8 +248,8 @@ class GlobalBundleAdjustment:
                 #print(f'GlobalBundleAdjustment: point {p.id} not in point_updates')
                 num_pt_without_updates += 1
                         
-        print(f'GlobalBundleAdjustment: got {num_kf_updates} keyframe updates and {num_pt_updates} point updates after GBA.')
-        print(f'GlobalBundleAdjustment: {num_kf_without_updates} keyframes without updates and {num_pt_without_updates} points without updates.')
+        GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: got {num_kf_updates} keyframe updates and {num_pt_updates} point updates after GBA.')
+        GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: {num_kf_without_updates} keyframes without updates and {num_pt_without_updates} points without updates.')
         
         # Update all MapPoints and KeyFrames.
         # Local Mapping was active during BA, that means that there might be new keyframes
@@ -264,7 +267,7 @@ class GlobalBundleAdjustment:
                     Twc = keyframe.Twc
 
                     if keyframe.Tcw_GBA is None:
-                        print(f'GlobalBundleAdjustment: WARNING: keyframe {keyframe.id} (is_bad: {keyframe.is_bad}) with empty Tcw_GBA!')              
+                        GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: WARNING: keyframe {keyframe.id} (is_bad: {keyframe.is_bad}) with empty Tcw_GBA!')              
                         
                     # propagate the correction to children
                     for child in child_keyframes:
@@ -291,7 +294,7 @@ class GlobalBundleAdjustment:
                         # Update according to the correction of its reference keyframe
                         ref_keyframe = map_point.get_reference_keyframe()
                         if ref_keyframe is None:
-                            print(f'GlobalBundleAdjustment: WARNING: MapPoint {map_point.id} has no reference keyframe!')
+                            GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: WARNING: MapPoint {map_point.id} has no reference keyframe!')
                             continue
 
                         if ref_keyframe.GBA_kf_id != self.loop_kf_id:
@@ -312,14 +315,14 @@ class GlobalBundleAdjustment:
 
                 self.local_mapping.release()
 
-                print(f'GlobalBundleAdjustment: map updated!')
+                GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: map updated!')
                 return True
             
         except Exception as e:
-            print(f'GlobalBundleAdjustment: EXCEPTION: {e} !!!')
+            GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+                GlobalBundleAdjustment.print(f'\t traceback details: {traceback_details}')
                 
         return False
           
@@ -327,7 +330,7 @@ class GlobalBundleAdjustment:
     def run(self, keyframes, points, loop_kf_id, rounds, use_robust_kernel, 
             q_message, result_dict_queue, is_running, time_GBA, mean_squared_error, 
             opt_abort_flag, mp_opt_abort_flag):
-        print(f'GlobalBundleAdjustment: starting global bundle adjustment with loop_kf_id {loop_kf_id}...')        
+        GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: starting global bundle adjustment with loop_kf_id {loop_kf_id}...')        
         is_running.value = 1   
              
         timer = TimerFps("GlobalBundleAdjustment", is_verbose = kTimerVerbose)
@@ -349,10 +352,10 @@ class GlobalBundleAdjustment:
                                              result_dict=result_dict, verbose=False, print=print)
             task_completed = True
         except Exception as e:           
-            print(f'GlobalBundleAdjustment: EXCEPTION: {e} !!!')
+            GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}') 
+                GlobalBundleAdjustment.print(f'\t traceback details: {traceback_details}') 
             mean_squared_error.value = -1
             time_GBA.value = -1
             
@@ -371,4 +374,4 @@ class GlobalBundleAdjustment:
                 q_message.append("Finished")
         
         is_running.value = 0
-        print(f'GlobalBundleAdjustment: task completed {task_completed}, mean_squared_error: {mean_squared_error.value}, elapsed time: {time_GBA.value}')
+        GlobalBundleAdjustment.print(f'GlobalBundleAdjustment: task completed {task_completed}, mean_squared_error: {mean_squared_error.value}, elapsed time: {time_GBA.value}')

@@ -50,6 +50,6 @@ ThDepth: 35.0
 # Features extraction 
 #--------------------------------------------------------------------------------------------
 
-FeatureExtractor.nFeatures: 1200
+FeatureTrackerConfig.nFeatures: 1200
 
 

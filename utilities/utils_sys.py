@@ -153,8 +153,31 @@ class Printer(object):
     def error(*args, **kwargs):
         print(Colors.fg.red, *args, **kwargs, file=sys.stderr)
         print(Colors.reset, end="")        
+        
+    @staticmethod
+    def warning(*args, **kwargs):
+        print(Colors.fg.yellow, *args, **kwargs)
+        print(Colors.reset, end="")  
+        
+    @staticmethod
+    def info(*args, **kwargs):
+        print(Colors.fg.cyan, *args, **kwargs)
+        print(Colors.reset, end="")                  
 
+    @staticmethod
+    def bold(*args, **kwargs):
+        print(Colors.bold, *args, **kwargs)
+        print(Colors.reset, end="")
 
+    def bold_blue(*args, **kwargs):
+        print(f"{Colors.bold}{Colors.fg.blue}", *args, **kwargs)
+        print(Colors.reset, end="")
+
+    def bold_green(*args, **kwargs):
+        print(f"{Colors.bold}{Colors.fg.green}", *args, **kwargs)
+        print(Colors.reset, end="")
+        
+        
 # test class with termcolor
 class Printer_old(object):
     @staticmethod
@@ -203,6 +226,8 @@ class Logging(object):
     @staticmethod
     def setup_file_logger(name, log_file, level=logging.INFO, mode='+w', formatter=time_log_formatter): # to file 
         """To setup as many loggers as you want with a selected formatter"""
+        if not os.path.exists(os.path.dirname(log_file)):
+            os.makedirs(os.path.dirname(log_file))
         handler = logging.FileHandler(log_file, mode=mode)        
         handler.setFormatter(formatter)
         logger = logging.getLogger(name)

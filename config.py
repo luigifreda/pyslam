@@ -134,7 +134,10 @@ class Config:
     # get general system settings
     def get_general_system_settings(self):
         self.system_settings = None
-        self.general_settings_filepath = self.root_folder + '/' + self.config[self.dataset_type]['settings']
+        input_settings_path = self.config[self.dataset_type]['settings']
+        if not os.path.isabs(input_settings_path):
+            input_settings_path = os.path.join(self.root_folder, input_settings_path)
+        self.general_settings_filepath = input_settings_path
         if self.sensor_type == 'stereo' and 'settings_stereo' in self.config[self.dataset_type]:
             self.general_settings_filepath = self.root_folder + '/' + self.config[self.dataset_type]['settings_stereo']
             Printer.orange('[Config] Using stereo settings file: ' + self.general_settings_filepath)
@@ -163,9 +166,10 @@ class Config:
         
     def get_trajectory_saving_paths(self, datatime_string=None):
         dt_string = '' if datatime_string is None else '_' + datatime_string
-        trajectory_online_file_path = self.trajectory_saving_settings['output_folder'] + dt_string + '/' + self.trajectory_saving_settings['basename'] + '_online.txt'  # online estimates (depend only on the past estimates)
-        trajectory_final_file_path = self.trajectory_saving_settings['output_folder'] + dt_string + '/' + self.trajectory_saving_settings['basename'] + '_final.txt'    # final estimates (depend on the past and future estimates)
-        return trajectory_online_file_path, trajectory_final_file_path
+        trajectory_saving_base_path = self.trajectory_saving_settings['output_folder'] + dt_string
+        trajectory_online_file_path = trajectory_saving_base_path + '/' + self.trajectory_saving_settings['basename'] + '_online.txt'  # online estimates (depend only on the past estimates)
+        trajectory_final_file_path = trajectory_saving_base_path + '/' + self.trajectory_saving_settings['basename'] + '_final.txt'    # final estimates (depend on the past and future estimates)
+        return trajectory_online_file_path, trajectory_final_file_path, trajectory_saving_base_path
 
     def get_and_set_global_parameters(self):
         # for changing the global parameters default values from the config file
@@ -260,8 +264,7 @@ class Config:
             else:
                 self._depth_factor = 1.0
         return self._depth_factor
-    
-    # depth threshold 
+     
     @property
     def depth_threshold(self):
         if not hasattr(self, '_depth_threshold'):
@@ -271,16 +274,33 @@ class Config:
                 self._depth_threshold = float('inf')
         return self._depth_threshold
 
-    # num features to extract 
     @property
     def num_features_to_extract(self):
         if not hasattr(self, '_num_features_to_extract'):
-            if 'FeatureExtractor.nFeatures' in self.system_settings:
-                self._num_features_to_extract = self.system_settings['FeatureExtractor.nFeatures']
+            if 'FeatureTrackerConfig.nFeatures' in self.system_settings:
+                self._num_features_to_extract = self.system_settings['FeatureTrackerConfig.nFeatures']
             else:
                 self._num_features_to_extract = 0
         return self._num_features_to_extract    
+    
+    @property
+    def feature_tracker_config_name(self):
+        if not hasattr(self, '_feature_tracker_config_name'):
+            if 'FeatureTrackerConfig.name' in self.system_settings:
+                self._feature_tracker_config_name = self.system_settings['FeatureTrackerConfig.name']
+            else:
+                self._feature_tracker_config_name = None
+        return self._feature_tracker_config_name        
 
+    @property
+    def loop_detection_config_name(self):
+        if not hasattr(self, '_loop_detection_config_name'):
+            if 'LoopDetectionConfig.name' in self.system_settings:
+                self._loop_detection_config_name = self.system_settings['LoopDetectionConfig.name']
+            else:
+                self._loop_detection_config_name = None
+        return self._loop_detection_config_name
+    
     @property 
     def far_points_threshold(self):
         if not hasattr(self, '_far_points_threshold'):

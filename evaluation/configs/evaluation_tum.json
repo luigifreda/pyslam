@@ -1,0 +1,76 @@
+{
+    "num_threads": 2,
+    "dataset_base_path": "/home/luigi/Work/datasets/rgbd_datasets/tum",
+    "dataset_type": "TUM_DATASET",
+    "number_of_runs_per_dataset": 2,
+    "datasets": [
+      { "name": "rgbd_dataset_freiburg1_360", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg1_desk", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg1_desk2", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg1_floor", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg1_plant", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg1_room", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg1_teddy", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg1_xyz", "settings_path": "settings/TUM1.yaml" },
+      { "name": "rgbd_dataset_freiburg2_360_hemisphere", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_360_kidnap", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_coke", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_desk", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_dishes", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_large_no_loop", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_large_with_loop", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_metallic_sphere", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_metallic_sphere2", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_pioneer_360", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_pioneer_slam", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_pioneer_slam2", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_pioneer_slam3", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_rpy", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg2_xyz", "settings_path": "settings/TUM2.yaml" },
+      { "name": "rgbd_dataset_freiburg3_cabinet", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_large_cabinet", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_long_office_household", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_nostructure_notexture_far", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_nostructure_notexture_near_withloop", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_nostructure_texture_far", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_nostructure_texture_near_withloop", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_structure_notexture_far", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_structure_notexture_near", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_structure_texture_far", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_structure_texture_near", "settings_path": "settings/TUM3.yaml" },
+      { "name": "rgbd_dataset_freiburg3_teddy", "settings_path": "settings/TUM3.yaml" }
+    ],
+    "presets": [
+      {
+        "name": "baseline"
+      },
+      {
+        "name": "test",
+        "custom_parameters": {
+          "config": {
+            "GLOBAL_PARAMETERS": {
+              // "kNumMinPointsForNewKf": 15
+            }
+          },
+          "settings": {
+            "FeatureTrackerConfig.nFeatures": 1200,
+            "FeatureTrackerConfig.name": "ROOT_SIFT",
+            "LoopDetectionConfig.name": "DBOW3_INDEPENDENT"
+          }
+        }
+      }
+    ],
+    // "common_parameters": {
+    //   "config": {
+    //     "GLOBAL_PARAMETERS": {
+    //       "kNumMinPointsForNewKf": 15
+    //     }
+    //   },
+    //   "settings": {
+    //     "FeatureTrackerConfig.nFeatures": 1000
+    //   }
+    // },
+    "output_path": "tum",
+    "saved_trajectory_format_type": "kitti"
+  }
+  

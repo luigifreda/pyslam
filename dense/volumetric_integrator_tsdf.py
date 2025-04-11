@@ -50,8 +50,6 @@ import logging
 import open3d as o3d
 
 from volumetric_integrator_base import VolumetricIntegrationTaskType, VolumetricIntegrationOutput, VolumetricIntegrationMesh, VolumetricIntegrationPointCloud, VolumetricIntegratorBase
-if Parameters.kUseVolumetricIntegration and Parameters.kVolumetricIntegrationDebugAndPrintToFile:
-    from volumetric_integrator_base import print
 
 
 kVerbose = True
@@ -63,11 +61,6 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
-
-
-if not kVerbose:
-    def print(*args, **kwargs):
-        return
 
 
 class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
@@ -113,7 +106,7 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                         pose = keyframe_data.pose # Tcw
                         #inv_pose = inv_T(pose)   # Twc
                         
-                        print(f'VolumetricIntegratorTsdf: keyframe id: {keyframe_data.id}, depth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}')
+                        VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: keyframe id: {keyframe_data.id}, depth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}')
                                                                                 
                         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
                             o3d.geometry.Image(color_undistorted), 
@@ -135,12 +128,12 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                     elif self.last_input_task.task_type == VolumetricIntegrationTaskType.SAVE:
                         save_path = self.last_input_task.load_save_path
                         if Parameters.kVolumetricIntegrationExtractMesh:
-                            print(f'VolumetricIntegratorTsdf: saving mesh to: {save_path}')
+                            VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: saving mesh to: {save_path}')
                             mesh = self.volume.extract_triangle_mesh()
                             #mesh.compute_vertex_normals()
                             o3d.io.write_triangle_mesh(save_path, mesh)
                         else:
-                            print(f'VolumetricIntegratorTsdf: saving point cloud to: {save_path}')
+                            VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: saving point cloud to: {save_path}')
                             point_cloud = self.volume.extract_point_cloud()
                             o3d.io.write_point_cloud(save_path, point_cloud) 
                                 
@@ -158,11 +151,11 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                             mesh = self.volume.extract_triangle_mesh()
                             #mesh.compute_vertex_normals()
                             mesh_out = VolumetricIntegrationMesh(mesh)
-                            print(f'VolumetricIntegratorTsdf: id: {self.last_integrated_id} -> Mesh: points: {mesh_out.vertices.shape}')
+                            VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: id: {self.last_integrated_id} -> Mesh: points: {mesh_out.vertices.shape}')
                         else: 
                             point_cloud = self.volume.extract_point_cloud()
                             pc_out = VolumetricIntegrationPointCloud(point_cloud)
-                            print(f'VolumetricIntegratorTsdf: id: {self.last_integrated_id} -> PointCloud: points: {pc_out.points.shape}')                                  
+                            VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: id: {self.last_integrated_id} -> PointCloud: points: {pc_out.points.shape}')                                  
 
                         last_output = VolumetricIntegrationOutput(self.last_input_task.task_type, 
                                                                 self.last_integrated_id, 
@@ -170,7 +163,7 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                                                                 mesh_out)
                         self.last_output = last_output
                         
-                        print(f'VolumetricIntegratorTsdf: last output id: {last_output.id if last_output is not None else None}')     
+                        VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: last output id: {last_output.id if last_output is not None else None}')     
                     
                                               
                     if is_running.value == 1 and last_output is not None:
@@ -181,19 +174,19 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                                 last_output.timestamp = time.perf_counter()
                                 q_out.put(last_output)
                                 q_out_condition.notify_all()
-                                print(f'VolumetricIntegratorTsdf: pushed new output to q_out size: {q_out.qsize()}')
+                                VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: pushed new output to q_out size: {q_out.qsize()}')
                         elif last_output.task_type == VolumetricIntegrationTaskType.SAVE:
                             with save_request_condition:
                                 save_request_completed.value = 1
                                 save_request_condition.notify_all()
             
         except Exception as e:
-            print(f'VolumetricIntegratorTsdf: EXCEPTION: {e} !!!')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+                VolumetricIntegratorBase.print(f'\t traceback details: {traceback_details}')
 
         timer.refresh()
         time_volumetric_integration.value = timer.last_elapsed
         id_info = f'last output id: {self.last_output.id}' if self.last_output is not None else ''
-        print(f'VolumetricIntegratorTsdf: {id_info}, last integrated id: {self.last_integrated_id}, q_in size: {q_in.qsize()}, q_out size: {q_out.qsize()}, volume-integration elapsed time: {time_volumetric_integration.value}')
+        VolumetricIntegratorBase.print(f'VolumetricIntegratorTsdf: {id_info}, last integrated id: {self.last_integrated_id}, q_in size: {q_in.qsize()}, q_out size: {q_out.qsize()}, volume-integration elapsed time: {time_volumetric_integration.value}')

@@ -47,7 +47,6 @@ LightGlue = import_from('lightglue', 'LightGlue')
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
-kLogsFolder = kRootFolder + '/logs'
 kMast3rFolder = kRootFolder + '/thirdparty/mast3r'
 
 

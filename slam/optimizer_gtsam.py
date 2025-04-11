@@ -1260,7 +1260,8 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
                  fix_scale: bool,
                  verbose: bool = False) -> int:
 
-    from loop_detecting_process import print
+    from loop_detector_base import LoopDetectorBase
+    print = LoopDetectorBase.print
     
     sigma_for_fixed = kSigmaForFixed # sigma used for fixed entities    
     

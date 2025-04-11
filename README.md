@@ -2,9 +2,38 @@
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
+ 
+**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
+- A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
+- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
+- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
+- Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
+- Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
+
+pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should be aware that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
+
+**Enjoy it!**
+
+<p align="center" style="margin:0">
+<img src="./images/feature-matching.png" alt="Feature Matching" height="160" border="0" /> <img src="./images/main-feature-matching.png" alt="Feature matching and Visual Odometry" height="160" border="0" /> <img src="./images/main-vo-rerun.png" alt="Feature matching and Visual Odometry" height="160" border="0" /> 
+<img src="./images/STEREO.png" alt="Visual Odometry" height="160" border="0" /> <img src="./images/RGBD2.png" alt="SLAM" height="160" border="0" /> <img src="images/kitti-stereo.png" alt="Stereo SLAM" height="160" border="0" /> 
+<img src="./images/loop-detection2.png" alt="Loop detection" height="160" border="0" /> <img src="./images/depth-prediction.png" alt="Depth Prediction" height="160" border="0" /> 
+<img src="./images/dense-reconstruction-with-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" height="160" border="0" /> <img src="./images/dense-reconstruction2.png" alt="Dense Reconstruction" height="160" border="0" /> 
+</p>
+
+<p align="center" style="margin:0">
+<img src="./images/dense-reconstruction-composition.gif" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" width="600" border="0" /> 
+</p>
+
+<!-- <img src="./images/dense-reconstruction-euroc-width-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" /> <img src="./images/dense-reconstruction-euroc-with-depth-prediction-gsm.png" alt="Dense Reconstruction - Gaussian Splatting" height="160" border="0" /> <img src="./images/dense-reconstruction-tum-gsm.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" />  -->
+
+
+## Table of contents
+
 <!-- TOC -->
 
 - [pySLAM v2.7.2](#pyslam-v272)
+  - [Table of contents](#table-of-contents)
   - [Overview](#overview)
   - [Install](#install)
     - [Main requirements](#main-requirements)
@@ -49,12 +78,15 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [Datasets](#datasets)
     - [KITTI Datasets](#kitti-datasets)
     - [TUM Datasets](#tum-datasets)
+    - [ICL-NUIM Datasets](#icl-nuim-datasets)
     - [EuRoC Datasets](#euroc-datasets)
     - [Replica Datasets](#replica-datasets)
     - [ROS1 bags](#ros1-bags)
     - [ROS2 bags](#ros2-bags)
   - [Camera Settings](#camera-settings)
-  - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
+  - [Evaluating SLAM](#evaluating-slam)
+    - [Run a SLAM evaluation](#run-a-slam-evaluation)
+    - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
   - [Contributing to pySLAM](#contributing-to-pyslam)
   - [References](#references)
   - [Credits](#credits)
@@ -62,30 +94,6 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
   - [Roadmap](#roadmap)
 
 <!-- /TOC -->
- 
-**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
-- A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
-- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
-- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
-- Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
-- Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
-
-pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should be aware that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
-
-**Enjoy it!**
-
-<p align="center" style="margin:0">
-<img src="./images/feature-matching.png" alt="Feature Matching" height="160" border="0" /> <img src="./images/main-feature-matching.png" alt="Feature matching and Visual Odometry" height="160" border="0" /> <img src="./images/main-vo-rerun.png" alt="Feature matching and Visual Odometry" height="160" border="0" /> 
-<img src="./images/STEREO.png" alt="Visual Odometry" height="160" border="0" /> <img src="./images/RGBD2.png" alt="SLAM" height="160" border="0" /> <img src="images/kitti-stereo.png" alt="Stereo SLAM" height="160" border="0" /> 
-<img src="./images/loop-detection2.png" alt="Loop detection" height="160" border="0" /> <img src="./images/depth-prediction.png" alt="Depth Prediction" height="160" border="0" /> 
-<img src="./images/dense-reconstruction-with-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" height="160" border="0" /> <img src="./images/dense-reconstruction2.png" alt="Dense Reconstruction" height="160" border="0" /> 
-</p>
-
-<p align="center" style="margin:0">
-<img src="./images/dense-reconstruction-composition.gif" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" width="600" border="0" /> 
-</p>
-
-<!-- <img src="./images/dense-reconstruction-euroc-width-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" /> <img src="./images/dense-reconstruction-euroc-with-depth-prediction-gsm.png" alt="Dense Reconstruction - Gaussian Splatting" height="160" border="0" /> <img src="./images/dense-reconstruction-tum-gsm.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" />  -->
 
 ## Overview
 
@@ -101,6 +109,8 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 * `main_map_viewer.py` reloads a saved map and visualizes it. Further details on how to save a map [here](#reload-a-saved-map-and-relocalize-in-it).
 
 * `main_map_dense_reconstruction.py` reloads a saved map and uses a configured volumetric integrator to obtain a dense reconstruction (see [here](#volumetric-reconstruction)). 
+
+* `main_evaluation.py` enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets (see [here](#evaluating-slam)).
 
 Other test/example scripts are provided in the `test` folder.
 
@@ -576,12 +586,13 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 --- 
 ## Datasets
 
-Five different types of datasets are available:
+The following datasets are supported:
 
 Dataset | type in `config.yaml`
 --- | --- 
 [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)  | `type: KITTI_DATASET` 
 [TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                           | `type: TUM_DATASET` 
+[ICL-NUIM dataset](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)                              | `type: ICL_NUIM_DATASET` 
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 Video file                                                                                            | `type: VIDEO_DATASET` 
@@ -620,6 +631,11 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
     $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt      # pay attention to the order!
     ```
 3. Select the corresponding calibration settings file (section `TUM_DATASET: settings:` in the file `config.yaml`).
+
+
+### ICL-NUIM Datasets 
+
+Follow the same instructions provided for the TUM datasets. 
 
 
 ### EuRoC Datasets
@@ -667,7 +683,13 @@ If you want to **use your camera**, you have to:
 * Configure the `VIDEO_DATASET` section of `config.yaml` in order to point to your recorded video.
 
 --- 
-## pySLAM performances and comparative evaluations 
+## Evaluating SLAM
+
+### Run a SLAM evaluation 
+
+The main_evaluation.py script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
+
+### pySLAM performances and comparative evaluations 
 
 For a comparative evaluation of the "**online**" trajectory estimated by pySLAM versus the "**final**" trajectory estimated by ORB-SLAM3, check out this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For more details about "*online*" and "*final*" trajectories, refer to this [section](#trajectory-saving) 
 
@@ -773,3 +795,4 @@ Many improvements and additional features are currently under development:
 - [ ] IMU integration
 - [ ] LIDAR integration
 - [x] XSt3r-based methods integration [WIP]
+- [x] evaluation scripts 

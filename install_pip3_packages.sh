@@ -82,6 +82,9 @@ install_pip_package kornia==0.7.3
 install_pip_package kornia_moons==0.2.9
 install_pip_package importlib_metadata==8.0.0
 
+install_pip_package hjson    # for reading hjson files (https://hjson.github.io/)
+install_pip_package jinja2
+
 install_pip_package timm             # ml-depth-pro
 if [ "$OSTYPE" == "darwin"* ]; then
     pip3 install pillow_heif==0.17.0 # ml-depth-pro

@@ -15,6 +15,7 @@ CORE_LIB_PATHS:
   viz: viz
   io: io
   dense: dense
+  evaluation: evaluation
   gtsam_factors: thirdparty/gtsam_factors/lib
   ros2_pybindings: thirdparty/ros2_pybindings/lib
 

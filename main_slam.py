@@ -43,6 +43,7 @@ from utils_img import ImgWriter
 from utils_eval import eval_ate
 from utils_geom_trajectory import find_poses_associations
 from utils_colors import GlColors
+from utils_serialization import SerializableEnumEncoder
 
 from feature_tracker_configs import FeatureTrackerConfigs
 
@@ -78,6 +79,7 @@ def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
 if __name__ == "__main__":   
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config_path', type=str, default=None, help='Optional path for custom configuration file')
+    parser.add_argument('--no_output_date', action='store_true', help='Do not append date to output directory')
     parser.add_argument('--headless', action='store_true', help='Run in headless mode')    
     args = parser.parse_args()
     
@@ -85,40 +87,48 @@ if __name__ == "__main__":
         config = Config(args.config_path) # use the custom configuration path file
     else:
         config = Config()
-
-    metrics_save_dir = config.root_folder + '/results' + '/metrics_' + datetime_string
+        
+    if args.no_output_date:
+        print('Not appending date to output directory')
+        datetime_string = None
 
     dataset = dataset_factory(config)
     is_monocular=(dataset.sensor_type==SensorType.MONOCULAR)    
+    num_total_frames = dataset.num_frames
 
     online_trajectory_writer = None
     final_trajectory_writer = None
     if config.trajectory_saving_settings['save_trajectory']:
-        trajectory_online_file_path, trajectory_final_file_path = config.get_trajectory_saving_paths(datetime_string)
+        trajectory_online_file_path, trajectory_final_file_path, trajectory_saving_base_path = config.get_trajectory_saving_paths(datetime_string)
         online_trajectory_writer = TrajectoryWriter(format_type=config.trajectory_saving_settings['format_type'], filename=trajectory_online_file_path)
         final_trajectory_writer = TrajectoryWriter(format_type=config.trajectory_saving_settings['format_type'], filename=trajectory_final_file_path)
-    
+    metrics_save_dir = trajectory_saving_base_path
+        
     groundtruth = groundtruth_factory(config.dataset_settings)
 
     camera = PinholeCamera(config)
-    
-    num_features=2000 
-    # NOTE: Here, we override the number of features with the number set in the `settings` file that is file selected in config.yaml.
-    if config.num_features_to_extract > 0:  # Check if we actually set `FeatureExtractor.nFeatures` in the `settings` file 
-        num_features = config.num_features_to_extract
 
     # Select your tracker configuration (see the file feature_tracker_configs.py) 
     # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
     # WARNING: At present, SLAM does not support LOFTR and other "pure" image matchers (further details in the commenting notes about LOFTR in feature_tracker_configs.py).
     feature_tracker_config = FeatureTrackerConfigs.ORB2
-    feature_tracker_config['num_features'] = num_features
-    Printer.green('feature_tracker_config: ',feature_tracker_config)    
-    
+        
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW2_INDEPENDENT, DBOW3, DBOW3_INDEPENDENT, IBOW, OBINDEX2, VLAD, HDC_DELF, SAD, ALEXNET, NETVLAD, COSPLACE, EIGENPLACES  etc.
     # NOTE: under mac, the boost/text deserialization used by DBOW2 and DBOW3 may be very slow.
     loop_detection_config = LoopDetectorConfigs.DBOW3
-    Printer.green('loop_detection_config: ',loop_detection_config)
+
+    # Override the feature tracker and loop detector configuration from the `settings` file
+    if config.feature_tracker_config_name is not None:  # Check if we set `FeatureTrackerConfig.name` in the `settings` file 
+        feature_tracker_config = FeatureTrackerConfigs.get_config_from_name(config.feature_tracker_config_name) # Override the feature tracker configuration from the `settings` file
+    if config.num_features_to_extract > 0:             # Check if we set `FeatureTrackerConfig.nFeatures` in the `settings` file 
+        Printer.yellow('Setting feature_tracker_config num_features from settings: ',config.num_features_to_extract)
+        feature_tracker_config['num_features'] = config.num_features_to_extract  # Override the number of features from the `settings` file
+    if config.loop_detection_config_name is not None:  # Check if we set `LoopDetectorConfig.name` in the `settings` file 
+        loop_detection_config = LoopDetectorConfigs.get_config_from_name(config.loop_detection_config_name) # Override the loop detector configuration from the `settings` file
+        
+    Printer.green('feature_tracker_config: ',json.dumps(feature_tracker_config, indent=4, cls=SerializableEnumEncoder))          
+    Printer.green('loop_detection_config: ',json.dumps(loop_detection_config, indent=4, cls=SerializableEnumEncoder))
         
     # Select your depth estimator in the front-end (EXPERIMENTAL, WIP)
     depth_estimator = None
@@ -172,6 +182,9 @@ if __name__ == "__main__":
     
     key = None
     key_cv = None
+    
+    num_tracking_lost = 0
+    num_frames = 0
             
     img_id = 0  #210, 340, 400, 770   # you can start from a desired frame id if needed 
     while not is_viewer_closed:
@@ -240,6 +253,7 @@ if __name__ == "__main__":
                         time.sleep(frame_duration-duration) 
                     
                 img_id += 1 
+                num_frames += 1
             else: 
                 time.sleep(0.1)     # img is None
                 if args.headless:
@@ -260,7 +274,10 @@ if __name__ == "__main__":
             # manage SLAM states 
             if slam.tracking.state==SlamState.LOST:
                 #key_cv = cv2.waitKey(0) & 0xFF   # wait key for debugging
-                key_cv = cv2.waitKey(500) & 0xFF                                 
+                key_cv = cv2.waitKey(500) & 0xFF   
+                
+        if slam.tracking.state==SlamState.LOST:
+            num_tracking_lost += 1                              
                 
         # manage interface infos  
         if is_map_save:
@@ -308,6 +325,13 @@ if __name__ == "__main__":
         if final_trajectory_writer:
             final_trajectory_writer.write_full_trajectory(est_poses, timestamps)
             final_trajectory_writer.close_file()
+            
+        other_metrics_file_path = os.path.join(metrics_save_dir, 'other_metrics_info.txt')
+        with open(other_metrics_file_path, 'w') as f:
+            f.write(f'num_total_frames: {num_total_frames}\n')
+            f.write(f'num_processed_frames: {num_frames}\n')
+            f.write(f'num_lost_frames: {num_tracking_lost}\n')
+            f.write(f'percent_lost: {num_tracking_lost/num_total_frames*100:.2f}\n')
         
     except Exception as e:
         print('Exception while computing metrics: ', e)

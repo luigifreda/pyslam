@@ -49,7 +49,7 @@ ThDepth: 40
 # Features extraction 
 #--------------------------------------------------------------------------------------------
 
-FeatureExtractor.nFeatures: 2000
+FeatureTrackerConfig.nFeatures: 2000
 
 #--------------------------------------------------------------------------------------------
 # Matching (Data Association)

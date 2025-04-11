@@ -43,7 +43,7 @@ import faiss
 import pickle
 
 from loop_detector_score import ScoreBase, ScoreSad, ScoreCosine, ScoreTorchCosine
-
+from loop_detector_base import LoopDetectorBase
 
 kVerbose = True
 
@@ -56,10 +56,6 @@ kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
-
-
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print
 
 
 # abstract class
@@ -199,7 +195,7 @@ class FlannDatabase(Database):
         assert(self.num_trees is not None)        
         assert(self.des_dim is not None)
         if len(self.global_des_database)>0:
-            print('FlannFastDatabase: building index...')
+            LoopDetectorBase.print('FlannFastDatabase: building index...')
             if not isinstance(self.global_des_database, np.ndarray):
                 self.global_des_database = np.array(self.global_des_database).reshape(-1, self.des_dim) 
             self.flann_index = self.flann.build_index(self.global_des_database, algorithm="kdtree", trees=self.num_trees)
@@ -305,7 +301,7 @@ class FlannDatabase(Database):
         state = {
             "global_des_database": self.global_des_database,
             "recent_descriptors": self.recent_descriptors,
-            "score": self.score,  # Assumes ScoreCosine is pickleable            
+            "score": self.score,  # Assumes ScoreCosine is pickable            
             "rebuild_threshold": self.rebuild_threshold,
             "des_dim": self.des_dim,
             "num_trees": self.num_trees,
@@ -341,7 +337,7 @@ class FaissDatabase(Database):
     def build_index(self):
         assert self.des_dim is not None
         if len(self.global_des_database) > 0:
-            print('FaissDatabase: building index...')
+            LoopDetectorBase.print('FaissDatabase: building index...')
             # Convert to numpy array
             self.global_des_database = np.array(self.global_des_database).astype(np.float32).reshape(-1, self.des_dim)
             # Build the FAISS index

@@ -72,7 +72,14 @@ def check_dir(dir):
     if not os.path.isdir(dir):
         os.mkdir(dir)
         
+def create_folder(file):
+    if not file: 
+        return
+    path = os.path.dirname(file)
+    if path and not os.path.exists(path):
+        os.makedirs(path)
         
+
 def list_dir(root, prefix=False):
     ### List all directories at a given root
     # root (str): Path to directory whose folders need to be listed

@@ -60,9 +60,6 @@ kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
 
 
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print  
-
 
 # NOTE: It does not need any prebuilt vocubulary. It works with non-binary descriptors by internally converting them to binary ones.
 class LoopDetectorOBIndex2(LoopDetectorBase): 
@@ -80,19 +77,19 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         
     def save(self, path):
         filepath = path + '/loop_closing.db'
-        print(f'LoopDetectorOBIndex2: saving database to {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorOBIndex2: saving database to {filepath}...')
         self.index.print_status()     
         self.index.save(filepath)
         
     def load(self, path): 
         filepath = path + '/loop_closing.db'        
-        print(f'LoopDetectorOBIndex2: loading database from {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorOBIndex2: loading database from {filepath}...')
         self.index.load(filepath)
         self.index.print_status()      
-        print(f'LoopDetectorOBIndex2: ...done')
+        LoopDetectorBase.print(f'LoopDetectorOBIndex2: ...done')
                 
     def run_task(self, task: LoopDetectorTask):
-        print(f'LoopDetectorOBIndex2: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')              
+        LoopDetectorBase.print(f'LoopDetectorOBIndex2: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')              
         keyframe = task.keyframe_data     
         frame_id = keyframe.id
         
@@ -126,7 +123,7 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
         detection_output = LoopDetectorOutput(task_type=task.task_type, g_des_vec=g_des, frame_id=frame_id, img=keyframe.img)                                              
                                 
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:
-            print(f'LoopDetectorOBIndex2: relocalization task')            
+            LoopDetectorBase.print(f'LoopDetectorOBIndex2: relocalization task')            
             # Search the query descriptors against the features in the index
             matches_feats = self.index.searchDescriptors(des_,2, 64)
         
@@ -155,7 +152,7 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
             # NOTE: we do not push the relocalization frames into the database, only the keyframes
                                                                                      
         elif task.task_type == LoopDetectorTaskType.LOOP_CLOSURE and self.entry_id >= 1:
-            print(f'LoopDetectorOBIndex2: loop closure task: {task.task_type.name}')               
+            LoopDetectorBase.print(f'LoopDetectorOBIndex2: loop closure task: {task.task_type.name}')               
             # Search the query descriptors against the features in the index
             matches_feats = self.index.searchDescriptors(des_,2, 64)
         
@@ -194,17 +191,17 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
             self.index.addImage(self.entry_id, kps_, des_, matches)
             
         else: 
-            print(f'LoopDetectorOBIndex2: loop closure task: {task.task_type.name}')              
+            LoopDetectorBase.print(f'LoopDetectorOBIndex2: loop closure task: {task.task_type.name}')              
             # if we just wanted to compute the global descriptor (LoopDetectorTaskType.COMPUTE_GLOBAL_DES), we don't have to do anything            
             self.index.addImage(self.entry_id, kps_, des_)              
                                         
         # Reindex features every 500 images
         if self.entry_id % 250 == 0 and self.entry_id>0:
-            print("------ Rebuilding indices ------")
+            LoopDetectorBase.print("------ Rebuilding indices ------")
             self.index.rebuild() 
         
         if len(candidate_idxs)>0:
-            print(f'LoopDetectorOBIndex2: candidate_idxs: {candidate_idxs}')
+            LoopDetectorBase.print(f'LoopDetectorOBIndex2: candidate_idxs: {candidate_idxs}')
         
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
             # NOTE: with relocalization we don't need to increment the entry_id since we don't add frames to database        

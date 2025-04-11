@@ -49,10 +49,6 @@ kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
 
 
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print
-
-
 class SCoreType(Enum):
     COSINE = 0
     SAD = 1

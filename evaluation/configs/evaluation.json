@@ -1,0 +1,63 @@
+{
+  "num_threads" : 2, // Number of parallel threads 
+  
+  "dataset_base_path": "/home/luigi/Work/datasets/rgbd_datasets/tum", 
+  "dataset_type": "TUM_DATASET", // Only one type of dataset supported
+
+  "number_of_runs_per_dataset": 2,
+
+  "datasets": [
+    // {
+    //   "name": "rgbd_dataset_freiburg1_room",
+    //   "settings_path": "settings/TUM1.yaml",     // Relative to root folder
+    // },
+    {
+      "name": "rgbd_dataset_freiburg1_xyz",
+      "settings_path": "settings/TUM1.yaml",      // Relative to root folder
+    }
+  ],
+
+
+  // Each preset configures a SLAM pipeline that will be run on each dataset
+  "presets": [
+    {
+      "name": "baseline"
+    },
+    {
+      "name": "test",
+      
+      // Custom parameters for this preset
+      "custom_parameters": { 
+        "config": {
+          "GLOBAL_PARAMETERS": {          // This affects the global parameters in config_parameters.py
+            //"kNumMinPointsForNewKf": 15   // Minimum number of matched map points for spawning a new KeyFrame 
+          }
+        },
+        "settings":{                      // This affects the settings in the yaml file
+          "FeatureTrackerConfig.nFeatures": 1200,
+          "FeatureTrackerConfig.name": "ROOT_SIFT",
+          "LoopDetectionConfig.name": "DBOW3_INDEPENDENT"
+        }
+      }            
+    }
+  ],
+
+
+  // Common parameters for all presets 
+  "common_parameters": {
+    "config": {
+      "GLOBAL_PARAMETERS": {          // This affects the global parameters in config_parameters.py 
+        "kNumMinPointsForNewKf": 15   // Minimum number of matched map points for spawning a new KeyFrame 
+      }
+    },
+    "settings": {                     // This affects the settings in the yaml file
+      "FeatureTrackerConfig.nFeatures": 1000,
+      //"FeatureTrackerConfig.name": "ORB2"
+    }
+  },
+
+  "output_path": "tum",                    // Relative to the evaluation folder in the results folder
+  "saved_trajectory_format_type": "kitti"
+}
+
+

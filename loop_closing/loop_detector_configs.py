@@ -123,8 +123,17 @@ Template configuration:
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.XXX,
         vocabulary_data = XXX)                                                     # Must be a vocabulary built with the frontend local descriptor type (see the file loop_detector_vocabulary.py)
 """
-class LoopDetectorConfigs(object):
+class LoopDetectorConfigs:
     
+    @staticmethod
+    def get_config_from_name(config_name):
+        config_dict = getattr(LoopDetectorConfigs, config_name, None)
+        if config_dict is not None:
+            Printer.cyan("LoopDetectorConfigs: Configuration loaded:", config_dict)
+        else:
+            Printer.red(f"LoopDetectorConfigs: No configuration found for '{config_name}'")
+        return config_dict
+        
     # NOTE: Under mac, loading the DBOW2 vocabulary may be very slow (both from text and from boost archive).
     DBOW2 = dict(
         global_descriptor_type = GlobalDescriptorType.DBOW2,

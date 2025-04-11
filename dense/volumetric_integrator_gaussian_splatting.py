@@ -54,8 +54,6 @@ import logging
 import open3d as o3d
 
 from volumetric_integrator_base import VolumetricIntegrationTaskType, VolumetricIntegrationOutput, VolumetricIntegrationMesh, VolumetricIntegrationPointCloud, VolumetricIntegratorBase
-if Parameters.kUseVolumetricIntegration and Parameters.kVolumetricIntegrationDebugAndPrintToFile:
-    from volumetric_integrator_base import print
             
 from monogs.gaussian_splatting_manager import GaussianSplattingManager
 from monogs.utils.config_utils import load_config
@@ -73,11 +71,6 @@ kDataFolder = kRootFolder + '/data'
 kGaussianSplattingOutputFolder = kRootFolder + '/results/gaussian_splatting'
 
 kGaussianSplattingConfigDefaultPath = kRootFolder + '/settings/gaussian_splatting_base_config.yaml'
-
-
-if not kVerbose:
-    def print(*args, **kwargs):
-        return
 
     
 class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
@@ -136,7 +129,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                         pose = keyframe_data.pose # Tcw
                         #inv_pose = inv_T(pose)   # Twc
                         
-                        print(f'VolumetricIntegratorGaussianSplatting: keyframe id: {keyframe_data.id}, depth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}')
+                        VolumetricIntegratorBase.print(f'VolumetricIntegratorGaussianSplatting: keyframe id: {keyframe_data.id}, depth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}')
                                                                                 
                         self.gsm.add_keyframe(keyframe_data.id, keyframe_data.camera, \
                                               color_undistorted, depth_undistorted, pose=pose, gt_pose=None)
@@ -150,7 +143,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                                 do_output = False
                         
                     elif self.last_input_task.task_type == VolumetricIntegrationTaskType.SAVE:
-                        print('VolumetricIntegratorGaussianSplatting: saving rough point cloud to {save_path}...')
+                        VolumetricIntegratorBase.print('VolumetricIntegratorGaussianSplatting: saving rough point cloud to {save_path}...')
                         save_path = self.last_input_task.load_save_path
                         
                         # This is just a rough point cloud for visualization purposes.
@@ -158,7 +151,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                         # by the GaussianSplattingManager.
                         points, colors = self.volume.extract_point_cloud()
                         pc_out = VolumetricIntegrationPointCloud(points=points, colors=colors)
-                        print(f'VolumetricIntegratorGaussianSplatting: saving rough point cloud to: {save_path}')
+                        VolumetricIntegratorBase.print(f'VolumetricIntegratorGaussianSplatting: saving rough point cloud to: {save_path}')
                         o3d.io.write_point_cloud(save_path, pc_out.to_o3d())
                         
                         folder_save_path = os.path.dirname(save_path)
@@ -167,7 +160,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                         last_output = VolumetricIntegrationOutput(self.last_input_task.task_type)      
                         
                     elif self.last_input_task.task_type == VolumetricIntegrationTaskType.RESET:
-                        print('VolumetricIntegratorGaussianSplatting: resetting...')
+                        VolumetricIntegratorBase.print('VolumetricIntegratorGaussianSplatting: resetting...')
                         self.volume.reset()                                           
                     elif self.last_input_task.task_type == VolumetricIntegrationTaskType.UPDATE_OUTPUT:
                         do_output = True                        
@@ -178,7 +171,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                             if points.shape[0] > 0:
                             
                                 pc_out = VolumetricIntegrationPointCloud(points=points, colors=colors)
-                                print(f'VolumetricIntegratorGaussianSplatting: id: {self.last_integrated_id} -> PointCloud: points: {pc_out.points.shape}')                                  
+                                VolumetricIntegratorBase.print(f'VolumetricIntegratorGaussianSplatting: id: {self.last_integrated_id} -> PointCloud: points: {pc_out.points.shape}')                                  
 
                                 last_output = VolumetricIntegrationOutput(self.last_input_task.task_type, 
                                                                         self.last_integrated_id, 
@@ -193,19 +186,19 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                                 # push the computed output in the output queue (for viz or other tasks)
                                 q_out.put(last_output)
                                 q_out_condition.notify_all()
-                                print(f'VolumetricIntegratorGaussianSplatting: pushed new output to q_out size: {q_out.qsize()}')
+                                VolumetricIntegratorBase.print(f'VolumetricIntegratorGaussianSplatting: pushed new output to q_out size: {q_out.qsize()}')
                         elif last_output.task_type == VolumetricIntegrationTaskType.SAVE:
                             with save_request_condition:
                                 save_request_completed.value = 1
                                 save_request_condition.notify_all()
             
         except Exception as e:
-            print(f'VolumetricIntegratorGaussianSplatting: EXCEPTION: {e} !!!')
+            VolumetricIntegratorBase.print(f'VolumetricIntegratorGaussianSplatting: EXCEPTION: {e} !!!')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')
+                VolumetricIntegratorBase.print(f'\t traceback details: {traceback_details}')
 
         timer.refresh()
         time_volumetric_integration.value = timer.last_elapsed
         id_info = f'last output id: {self.last_output.id}' if self.last_output is not None else ''
-        print(f'VolumetricIntegratorGaussianSplatting: {id_info}, last integrated id: {self.last_integrated_id}, q_in size: {q_in.qsize()}, q_out size: {q_out.qsize()}, volume-integration elapsed time: {time_volumetric_integration.value}')
+        VolumetricIntegratorBase.print(f'VolumetricIntegratorGaussianSplatting: {id_info}, last integrated id: {self.last_integrated_id}, q_in size: {q_in.qsize()}, q_out size: {q_out.qsize()}, volume-integration elapsed time: {time_volumetric_integration.value}')

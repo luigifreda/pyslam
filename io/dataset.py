@@ -46,6 +46,7 @@ kRootFolder = kScriptFolder + '/..'
 kSettingsFolder = kRootFolder + '/settings'
 
 
+# Base class for implementing datasets
 class Dataset(object):
     def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, fps=None, associations=None, start_frame_id=0, 
                  type=DatasetType.NONE, environment_type=DatasetEnvironmentType.OUTDOOR):

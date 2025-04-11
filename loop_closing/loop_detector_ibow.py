@@ -61,9 +61,6 @@ kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
 
 
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print
-
 # NOTE: It does not need any prebuilt vocubulary. It works with non-binary descriptors by internally converting them to binary ones.
 class LoopDetectorIBow(LoopDetectorBase): 
     def __init__(self, local_feature_manager=None, slam_info: 'SlamFeatureManagerInfo'=None):
@@ -72,7 +69,7 @@ class LoopDetectorIBow(LoopDetectorBase):
         self.slam_info = slam_info          
         self.lc_detector_parameters = ibow.LCDetectorParams()
         self.lc_detector_parameters.p = 50 # default in ibow: 250
-        print(f'LoopDetectorIBow: min number of images to start detecting loops: {self.lc_detector_parameters.p}')    
+        LoopDetectorBase.print(f'LoopDetectorIBow: min number of images to start detecting loops: {self.lc_detector_parameters.p}')    
         self.lc_detector = ibow.LCDetector(self.lc_detector_parameters)
         
     def reset(self):
@@ -85,19 +82,19 @@ class LoopDetectorIBow(LoopDetectorBase):
             Printer.red(f'\t You wont be able to relocalize in the saved map!!!')
             return        
         filepath = path + '/loop_closing.db'
-        print(f'LoopDetectorIBow: saving database to {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorIBow: saving database to {filepath}...')
         self.lc_detector.print_status()     
         self.lc_detector.save(filepath)
         
     def load(self, path): 
         filepath = path + '/loop_closing.db'        
-        print(f'LoopDetectorIBow: loading database from {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorIBow: loading database from {filepath}...')
         self.lc_detector.load(filepath)
         self.lc_detector.print_status()      
-        print(f'LoopDetectorIBow: ...done')
+        LoopDetectorBase.print(f'LoopDetectorIBow: ...done')
                 
     def run_task(self, task: LoopDetectorTask):
-        print(f'LoopDetectorIBow: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')              
+        LoopDetectorBase.print(f'LoopDetectorIBow: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')              
         keyframe = task.keyframe_data     
         frame_id = keyframe.id
         
@@ -133,11 +130,11 @@ class LoopDetectorIBow(LoopDetectorBase):
         result = None
                  
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:
-            print(f'LoopDetectorIBow: relocalization task')
+            LoopDetectorBase.print(f'LoopDetectorIBow: relocalization task')
             if kps_ is None or len(kps_) == 0:
-                print(f'LoopDetectorIBow: relocalization task: no keypoints')
+                LoopDetectorBase.print(f'LoopDetectorIBow: relocalization task: no keypoints')
             if des_ is None or des_.shape[0] == 0:
-                print(f'LoopDetectorIBow: relocalization task: no descriptors')
+                LoopDetectorBase.print(f'LoopDetectorIBow: relocalization task: no descriptors')
             result = self.lc_detector.process_without_pushing(self.entry_id, kps_, des_)
             other_entry_id = result.train_id
             other_frame_id = self.map_entry_id_to_frame_id[other_entry_id]
@@ -150,7 +147,7 @@ class LoopDetectorIBow(LoopDetectorBase):
             detection_output.candidate_scores = candidate_scores 
                                               
         else:
-            print(f'LoopDetectorIBow: loop closure task: {task.task_type.name}')                                                                     
+            LoopDetectorBase.print(f'LoopDetectorIBow: loop closure task: {task.task_type.name}')                                                                     
             result = self.lc_detector.process(self.entry_id, kps_, des_)
             other_entry_id = result.train_id
             other_frame_id = self.map_entry_id_to_frame_id[other_entry_id]
@@ -175,19 +172,19 @@ class LoopDetectorIBow(LoopDetectorBase):
             if result.status == ibow.LCDetectorStatus.LC_DETECTED:
                 # NOTE: it's normal to get zero inliers in some cases where the loop is detected, for instance: 
                 #       consecutive_loops_ > min_consecutive_loops_ and island.overlaps(last_lc_island_)
-                print(f'LoopDetectorIBow: Loop detected: {result.train_id}, #inliers: {result.inliers}, score: {result.score}')
+                LoopDetectorBase.print(f'LoopDetectorIBow: Loop detected: {result.train_id}, #inliers: {result.inliers}, score: {result.score}')
             elif result.status == ibow.LCDetectorStatus.LC_NOT_DETECTED:
-                print('LoopDetectorIBow: No loop found')
+                LoopDetectorBase.print('LoopDetectorIBow: No loop found')
             elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_IMAGES:
-                print(f'LoopDetectorIBow: Not enough images to found a loop, min number of processed images for loop: {self.lc_detector_parameters.p}, number of pushed images: {self.lc_detector.num_pushed_images()}')
+                LoopDetectorBase.print(f'LoopDetectorIBow: Not enough images to found a loop, min number of processed images for loop: {self.lc_detector_parameters.p}, number of pushed images: {self.lc_detector.num_pushed_images()}')
             elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_ISLANDS:
-                print('LoopDetectorIBow: Not enough islands to found a loop')
+                LoopDetectorBase.print('LoopDetectorIBow: Not enough islands to found a loop')
             elif result.status == ibow.LCDetectorStatus.LC_NOT_ENOUGH_INLIERS:
-                print('LoopDetectorIBow: Not enough inliers')
+                LoopDetectorBase.print('LoopDetectorIBow: Not enough inliers')
             elif result.status == ibow.LCDetectorStatus.LC_TRANSITION:
-                print('LoopDetectorIBow: Transitional loop closure')
+                LoopDetectorBase.print('LoopDetectorIBow: Transitional loop closure')
             else:
-                print('LoopDetectorIBow: No status information')
+                LoopDetectorBase.print('LoopDetectorIBow: No status information')
                          
 
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:

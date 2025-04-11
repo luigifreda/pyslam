@@ -1,0 +1,6 @@
+Dataset,baseline,test,Extra1,Extra2,Extra3,Extra4,Extra5,Extra6,Extra7
+rgbd_dataset_freiburg1_xyz,0.00935,0.01228,0.2,0.4,0.6,0.8,1.0,1.2,1.4
+Average,0.00935,0.01228,0.4,0.8,1.2,1.6,2.0,2.4,2.8
+Std,0.00042,0.00033,0.6,1.2,1.8,2.4,3.0,3.6,4.2
+Best Preset,test,,0.8,1.6,2.4,3.2,4.0,4.8,5.6
+Best Metric,0.01228,,1.0,2.0,3.0,4.0,5.0,6.0,7.0

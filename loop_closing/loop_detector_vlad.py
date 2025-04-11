@@ -59,9 +59,6 @@ kRootFolder = kScriptFolder + '/..'
 kDataFolder = kRootFolder + '/data'
 
 
-if Parameters.kLoopClosingDebugAndPrintToFile:
-    from loop_detector_base import print        
-
 
 # NOTE: Check in the README how to generate an array of descriptors and train your vocabulary.
 class LoopDetectorVlad(LoopDetectorBase): 
@@ -78,7 +75,7 @@ class LoopDetectorVlad(LoopDetectorBase):
         self.local_feature_manager = local_feature_manager        
         self.use_torch_vectors = False # use torch vectors with a simple database implementation
                       
-        print(f'LoopDetectorVlad: checking vocabulary...')
+        LoopDetectorBase.print(f'LoopDetectorVlad: checking vocabulary...')
         vocabulary_data.check_download()
         self.vocabulary_data = vocabulary_data
                                       
@@ -99,16 +96,16 @@ class LoopDetectorVlad(LoopDetectorBase):
     
     def save(self, path):
         filepath = path + '/loop_closing.db'
-        print(f'LoopDetectorVlad: saving database to {filepath}...')
-        print(f'\t Dabased size: {self.global_db.size()}')        
+        LoopDetectorBase.print(f'LoopDetectorVlad: saving database to {filepath}...')
+        LoopDetectorBase.print(f'\t Dabased size: {self.global_db.size()}')        
         self.global_db.save(filepath)
         
     def load(self, path): 
         filepath = path + '/loop_closing.db'        
-        print(f'LoopDetectorVlad: loading database from {filepath}...')
+        LoopDetectorBase.print(f'LoopDetectorVlad: loading database from {filepath}...')
         self.global_db.load(filepath)
-        print(f'\t Dabased size: {self.global_db.size()}')          
-        print(f'LoopDetectorVlad: ...done')
+        LoopDetectorBase.print(f'\t Dabased size: {self.global_db.size()}')          
+        LoopDetectorBase.print(f'LoopDetectorVlad: ...done')
             
     def init(self):
         try:
@@ -118,13 +115,13 @@ class LoopDetectorVlad(LoopDetectorBase):
                 self.global_feature_extractor = VLAD(desc_dim=self.vocabulary_data.descriptor_dimension,num_clusters=8)
                 self.global_feature_extractor.load(self.vocabulary_data.vocab_file_path)
         except Exception as e:
-            print(f'LoopDetectorVlad: init: Exception: {e}')
+            LoopDetectorBase.print(f'LoopDetectorVlad: init: Exception: {e}')
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
-                print(f'\t traceback details: {traceback_details}')                    
+                LoopDetectorBase.print(f'\t traceback details: {traceback_details}')                    
     
     def init_db(self):
-        print(f'LoopDetectorVlad: init_db()')
+        LoopDetectorBase.print(f'LoopDetectorVlad: init_db()')
         if self.use_torch_vectors:
             global_db = SimpleTorchDatabase(self.score)  # simple implementation, not ideal with large datasets
         else:
@@ -141,7 +138,7 @@ class LoopDetectorVlad(LoopDetectorBase):
             return res.detach().cpu().numpy().reshape(1,-1)
             
     def run_task(self, task: LoopDetectorTask):
-        print(f'LoopDetectorVlad: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')
+        LoopDetectorBase.print(f'LoopDetectorVlad: running task {task.keyframe_data.id}, entry_id = {self.entry_id}, task_type = {task.task_type.name}')
         keyframe = task.keyframe_data     
         frame_id = keyframe.id
         
@@ -153,7 +150,7 @@ class LoopDetectorVlad(LoopDetectorBase):
 
         # compute global descriptor
         if keyframe.g_des is None:
-            print(f'LoopDetectorVlad: computing global descriptor for keyframe {keyframe.id}')
+            LoopDetectorBase.print(f'LoopDetectorVlad: computing global descriptor for keyframe {keyframe.id}')
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img) # get global descriptor
         
         #print(f'LoopDetectorVlad: g_des = {keyframe.g_des}, type: {type(keyframe.g_des)}, shape: {keyframe.g_des.shape}, dim: {keyframe.g_des.dim()}')
@@ -175,7 +172,7 @@ class LoopDetectorVlad(LoopDetectorBase):
         if task.task_type == LoopDetectorTaskType.RELOCALIZATION:  
             if self.entry_id >= 1:             
                 best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to frame_id
-                print(f'LoopDetectorVlad: Relocalization: frame: {frame_id}, candidate keyframes: {best_idxs}')
+                LoopDetectorBase.print(f'LoopDetectorVlad: Relocalization: frame: {frame_id}, candidate keyframes: {best_idxs}')
                 for idx, score in zip(best_idxs, best_scores):
                     other_entry_id = idx
                     other_frame_id = self.map_entry_id_to_frame_id[idx] # get the image id of the keyframe from it's internal image count
@@ -189,7 +186,7 @@ class LoopDetectorVlad(LoopDetectorBase):
                             
             # Compute reference BoW similarity score as the lowest score to a connected keyframe in the covisibility graph.
             min_score = self.compute_reference_similarity_score(task, type(keyframe.g_des), score_fun=self.score)
-            print(f'LoopDetectorVlad: min_score = {min_score}')
+            LoopDetectorBase.print(f'LoopDetectorVlad: min_score = {min_score}')
                                                                     
             if self.entry_id >= 1:
                 best_idxs, best_scores = self.global_db.query(keyframe.g_des, max_num_results=kMaxResultsForLoopClosure+1) # we need plus one since we eliminate the best trivial equal to frame_id

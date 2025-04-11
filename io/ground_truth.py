@@ -455,7 +455,9 @@ class TumGroundTruth(GroundTruth):
     def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.TUM): 
         super().__init__(path, name, associations, start_frame_id, type)
         self.scale = kScaleTum 
-        self.filename = path + '/' + name + '/' + 'groundtruth.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
+        self.filename = path + '/' + name + '/' + 'groundtruth.txt'     # N.B.: this may depend on how you deployed the groundtruth files
+        if not os.path.isfile(self.filename):
+            self.filename = path + '/' + name + '/' + 'gt.freiburg'     # For ICL-NUIM support
         self.associations_path = path + '/' + name + '/' + associations # N.B.: this may depend on how you name the associations file
         
         if not os.path.isfile(self.filename):
