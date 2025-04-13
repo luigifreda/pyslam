@@ -1,4 +1,4 @@
-# pySLAM v2.7.2
+# pySLAM v2.7.3
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -32,9 +32,11 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 <!-- TOC -->
 
-- [pySLAM v2.7.2](#pyslam-v272)
+- [pySLAM v2.7.3](#pyslam-v273)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
+    - [Main Scripts](#main-scripts)
+    - [System overview](#system-overview)
   - [Install](#install)
     - [Main requirements](#main-requirements)
     - [Ubuntu](#ubuntu)
@@ -66,7 +68,6 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
     - [Optimization engines](#optimization-engines)
     - [SLAM GUI](#slam-gui)
     - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
-  - [System overview](#system-overview)
   - [Supported components and models](#supported-components-and-models)
     - [Supported local features](#supported-local-features)
     - [Supported matchers](#supported-matchers)
@@ -97,7 +98,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 ## Overview
 
-**Main Scripts**
+### Main Scripts
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
@@ -114,7 +115,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 Other test/example scripts are provided in the `test` folder.
 
-**System overview**      
+### System overview      
 
 [Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM **workflow**, system **components**, and **classes** relationships/dependencies.
 
@@ -150,9 +151,9 @@ Once everything is completed you can jump the [usage section](#usage).
 * Tensorflow >=2.13.1
 * Kornia >=0.7.3
 * Rerun
-* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit**. You can check it with `./cuda_config.sh` 
+* You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit** by running `./cuda_config.sh` 
 
-The internal pySLAM libraries are imported by using a `Config` instance (from [config.py](config.py)) in the main/test scripts. If you encounter any issues or performance problems, refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
+The internal pySLAM libraries are imported by using a `Config` instance (from [config.py](config.py)) in the main or test scripts. If you encounter any issues or performance problems, please refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
 
 ### Ubuntu 
@@ -170,7 +171,7 @@ Follow the instructions in this [file](./docs/MAC.md). The reported procedure wa
 ### Docker
 
 If you prefer docker or you have an OS that is not supported yet, you can use [rosdocker](https://github.com/luigifreda/rosdocker): 
-- With its custom `pyslam` / `pyslam_cuda` docker files and follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam). 
+- With its custom `pyslam` / `pyslam_cuda` docker files (follow the instructions [here](https://github.com/luigifreda/rosdocker#pyslam)). 
 - With one of the suggested docker images (*ubuntu\*_cuda* or *ubuntu\**), where you can clone, build and run pyslam. 
 
 
@@ -449,11 +450,9 @@ To launch slam and check all logs in a single tmux, run:
 `$ ./scripts/launch_tmux_slam.sh`      
 Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
----
-
-## System overview
+<!-- ## System overview
       
-[Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM workflow, system components, and classes relationships/dependencies. Documentation is a work in progress.
+[Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM workflow, system components, and classes relationships/dependencies. Documentation is a work in progress. -->
 
 ---
 
@@ -655,14 +654,14 @@ Follow the same instructions provided for the TUM datasets.
 
 ### ROS1 bags
 
-1. Source the main ROS1 `setup.bash` after you have source the `pyslam` python environment.
+1. Source the main ROS1 `setup.bash` after you have sourced the `pyslam` python environment.
 2. Set the paths and `ROS1BAG_DATASET: ros_parameters` in the file `config.yaml`.
 3. Select/prepare the correspoding calibration settings file (section `ROS1BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
 
 ### ROS2 bags
 
-1. Source the main ROS2 `setup.bash` after you have source the `pyslam` python environment.
+1. Source the main ROS2 `setup.bash` after you have sourced the `pyslam` python environment.
 2. Set the paths and `ROS2BAG_DATASET: ros_parameters` in the file `config.yaml`.
 3. Select/prepare the correspoding calibration settings file (section `ROS2BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
@@ -687,7 +686,7 @@ If you want to **use your camera**, you have to:
 
 ### Run a SLAM evaluation 
 
-The main_evaluation.py script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
+The `main_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
 
 ### pySLAM performances and comparative evaluations 
 
