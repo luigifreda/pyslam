@@ -10,7 +10,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
 
-pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. Users should be aware that pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
+pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
 **Enjoy it!**
 
@@ -68,6 +68,9 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
     - [Optimization engines](#optimization-engines)
     - [SLAM GUI](#slam-gui)
     - [Monitor the logs for tracking, local mapping, and loop closing simultaneously](#monitor-the-logs-for-tracking-local-mapping-and-loop-closing-simultaneously)
+    - [Evaluating SLAM](#evaluating-slam)
+      - [Run a SLAM evaluation](#run-a-slam-evaluation)
+      - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
   - [Supported components and models](#supported-components-and-models)
     - [Supported local features](#supported-local-features)
     - [Supported matchers](#supported-matchers)
@@ -76,22 +79,21 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
         - [Global descriptors](#global-descriptors)
     - [Supported depth prediction models](#supported-depth-prediction-models)
     - [Supported volumetric mapping methods](#supported-volumetric-mapping-methods)
-  - [Datasets](#datasets)
-    - [KITTI Datasets](#kitti-datasets)
-    - [TUM Datasets](#tum-datasets)
-    - [ICL-NUIM Datasets](#icl-nuim-datasets)
-    - [EuRoC Datasets](#euroc-datasets)
-    - [Replica Datasets](#replica-datasets)
-    - [ROS1 bags](#ros1-bags)
-    - [ROS2 bags](#ros2-bags)
-  - [Camera Settings](#camera-settings)
-  - [Evaluating SLAM](#evaluating-slam)
-    - [Run a SLAM evaluation](#run-a-slam-evaluation)
-    - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
-  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [Configuration](#configuration)
+    - [Main configuration file](#main-configuration-file)
+    - [Datasets](#datasets)
+      - [KITTI Datasets](#kitti-datasets)
+      - [TUM Datasets](#tum-datasets)
+      - [ICL-NUIM Datasets](#icl-nuim-datasets)
+      - [EuRoC Datasets](#euroc-datasets)
+      - [Replica Datasets](#replica-datasets)
+      - [ROS1 bags](#ros1-bags)
+      - [ROS2 bags](#ros2-bags)
+    - [Camera Settings](#camera-settings)
   - [References](#references)
   - [Credits](#credits)
   - [License](#license)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
   - [Roadmap](#roadmap)
 
 <!-- /TOC -->
@@ -230,7 +232,7 @@ This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti
 
 ### Selecting a dataset and different configuration parameters
 
-The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [config_parameters.py](./config_parameters.py). 
+The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system, the target dataset and its global configuration parameters set in [config_parameters.py](./config_parameters.py). 
 
 To process a different **dataset** with both VO and SLAM scripts, you need to update the file [config.yaml](./config.yaml):
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
@@ -238,7 +240,7 @@ To process a different **dataset** with both VO and SLAM scripts, you need to up
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
 * The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `io/ground_truth.py` and `io/convert_kitti_groundtruth_to_simple.py`).
 
-You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the parameters in [config_parameters.py](./config_parameters.py). 
+You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the global configuration parameters set in [config_parameters.py](./config_parameters.py). In particular, this is useful when running a [SLAM evaluation](#evaluating-slam).
 
 ---
 
@@ -454,6 +456,20 @@ Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
       
 [Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM workflow, system components, and classes relationships/dependencies. Documentation is a work in progress. -->
 
+--- 
+
+### Evaluating SLAM
+
+#### Run a SLAM evaluation 
+
+The `main_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
+
+#### pySLAM performances and comparative evaluations 
+
+For a comparative evaluation of the "**online**" trajectory estimated by pySLAM versus the "**final**" trajectory estimated by ORB-SLAM3, check out this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For more details about "*online*" and "*final*" trajectories, refer to this [section](#trajectory-saving) 
+
+**Note**: pySLAM saves both online and final pose estimates, whereas ORB-SLAM3 only saves final estimates (pose data is recorded at the end of the entire dataset playback). For instructions on how to save trajectories with pySLAM, see this [section](#trajectory-saving). When you press the GUI button `Draw Ground Truth` (see [here](#slam-gui)), you can visualize the history of the Absolute Trajectory Error (ATE or *RMSE*) and evaluate both online and offline errors. 
+
 ---
 
 ## Supported components and models
@@ -583,7 +599,14 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 * Incremental 3D Gaussian Splatting. See [here](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) and [MonoGS](https://arxiv.org/abs/2312.06741) for a description of its backend.
 
 --- 
-## Datasets
+
+## Configuration 
+
+### Main configuration file
+
+Refer to [this section](#selecting-a-dataset-and-different-configuration-parameters) for how to update the main configuration file [config.yaml](./config.yaml) and affect the configuration parameters in [config_parameters.py](./config_parameters.py).
+
+### Datasets
 
 The following datasets are supported:
 
@@ -602,7 +625,7 @@ ROS2  bags                                                                      
 
 Use the download scripts available in the folder `scripts` to download some of the following datasets.
 
-### KITTI Datasets
+#### KITTI Datasets
 
 pySLAM code expects the following structure in the specified KITTI path folder (specified in the section `KITTI_DATASET` of the file `config.yaml`). : 
 ```bash
@@ -620,7 +643,7 @@ pySLAM code expects the following structure in the specified KITTI path folder (
 2. Select the corresponding calibration settings file (section `KITTI_DATASET: settings:` in the file `config.yaml`)
 
 
-### TUM Datasets 
+#### TUM Datasets 
 
 pySLAM code expects a file `associations.txt` in each TUM dataset folder (specified in the section `TUM_DATASET:` of the file `config.yaml`). 
 
@@ -632,19 +655,19 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 3. Select the corresponding calibration settings file (section `TUM_DATASET: settings:` in the file `config.yaml`).
 
 
-### ICL-NUIM Datasets 
+#### ICL-NUIM Datasets 
 
 Follow the same instructions provided for the TUM datasets. 
 
 
-### EuRoC Datasets
+#### EuRoC Datasets
 
 1. Download a sequence (ASL format) from http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets (check this direct [link](http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/))
 2. Use the script `io/generate_euroc_groundtruths_as_tum.sh` to generate the TUM-like groundtruth files `path + '/' + name + '/mav0/state_groundtruth_estimate0/data.tum'` that are required by the `EurocGroundTruth` class.
 3. Select the corresponding calibration settings file (section `EUROC_DATASET: settings:` in the file `config.yaml`).
 
 
-### Replica Datasets
+#### Replica Datasets
 
 1. You can download the zip file containing all the sequences by running:    
    `$ wget https://cvg-data.inf.ethz.ch/nice-slam/data/Replica.zip`    
@@ -652,21 +675,21 @@ Follow the same instructions provided for the TUM datasets.
 3. Select the corresponding calibration settings file (section `REPLICA_DATASET: settings:` in the file `config.yaml`).
 
 
-### ROS1 bags
+#### ROS1 bags
 
 1. Source the main ROS1 `setup.bash` after you have sourced the `pyslam` python environment.
 2. Set the paths and `ROS1BAG_DATASET: ros_parameters` in the file `config.yaml`.
 3. Select/prepare the correspoding calibration settings file (section `ROS1BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
 
-### ROS2 bags
+#### ROS2 bags
 
 1. Source the main ROS2 `setup.bash` after you have sourced the `pyslam` python environment.
 2. Set the paths and `ROS2BAG_DATASET: ros_parameters` in the file `config.yaml`.
 3. Select/prepare the correspoding calibration settings file (section `ROS2BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
 --- 
-## Camera Settings
+### Camera Settings
 
 The folder `settings` contains the camera settings files which can be used for testing the code. These are the same used in the framework [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2). You can easily modify one of those files for creating your own new calibration file (for your new datasets).
 
@@ -680,24 +703,6 @@ If you want to **use your camera**, you have to:
 * Calibrate it and configure [WEBCAM.yaml](./settings/WEBCAM.yaml) accordingly
 * Record a video (for instance, by using `save_video.py` in the folder `calibration`)
 * Configure the `VIDEO_DATASET` section of `config.yaml` in order to point to your recorded video.
-
---- 
-## Evaluating SLAM
-
-### Run a SLAM evaluation 
-
-The `main_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
-
-### pySLAM performances and comparative evaluations 
-
-For a comparative evaluation of the "**online**" trajectory estimated by pySLAM versus the "**final**" trajectory estimated by ORB-SLAM3, check out this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For more details about "*online*" and "*final*" trajectories, refer to this [section](#trajectory-saving) 
-
-**Note**: pySLAM saves both online and final pose estimates, whereas ORB-SLAM3 only saves final estimates (pose data is recorded at the end of the entire dataset playback). For instructions on how to save trajectories with pySLAM, see this [section](#trajectory-saving). When you press the GUI button `Draw Ground Truth` (see [here](#slam-gui)), you can visualize the history of the Absolute Trajectory Error (ATE or *RMSE*) and evaluate both online and offline errors. 
-
---- 
-## Contributing to pySLAM
-
-If you like pySLAM and would like to contribute to the code base, you can report bugs, leave comments and proposing new features through issues and pull requests on github. Feel free to get in touch at *luigifreda(at)gmail[dot]com*. Thank you!
 
 --- 
 ## References
@@ -770,6 +775,12 @@ pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modifi
 If you use pySLAM in your projects, please cite this document:
 ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
 You may find an updated version of this document [here](./docs/tex/document.pdf).
+
+--- 
+## Contributing to pySLAM
+
+If you like pySLAM and would like to contribute to the code base, you can report bugs, leave comments and proposing new features through issues and pull requests on github. Feel free to get in touch at *luigifreda(at)gmail[dot]com*. Thank you!
+
 
 ---
 ## Roadmap
