@@ -5,6 +5,7 @@ DATASET:
   #type: TUM_DATASET
   #type: ICL_NUIM_DATASET
   #type: REPLICA_DATASET
+  #type: TARTANAIR_DATASET
   type: VIDEO_DATASET
   #type: ROS1BAG_DATASET
   #type: ROS2BAG_DATASET  
@@ -91,8 +92,18 @@ REPLICA_DATASET:
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/replica
   name: 'office0'
-  settings: settings/REPLICA.yaml # do not forget to correctly set the corresponding camera settings file
+  settings: settings/REPLICA.yaml 
   groundtruth_file: auto
+
+
+TARTANAIR_DATASET:
+  type: tartanair
+  sensor_type: stereo # Here, 'sensor_type' can be 'mono', 'stereo' or 'rgbd'
+  base_path: /home/luigi/Work/datasets/rgbd_datasets/tartanair/abandonedfactory_sample_P001
+  name: 'P001'
+  settings: settings/TARTANAIR.yaml 
+  groundtruth_file: auto
+  environment_type: outdoor
 
 
 VIDEO_DATASET:

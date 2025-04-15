@@ -35,7 +35,7 @@ from utils_string import levenshtein_distance
 import ujson as json
 
 from dataset_types import DatasetType, SensorType, DatasetEnvironmentType, MinimalDatasetConfig
-from dataset import Dataset, FolderDataset, FolderDatasetParallel, KittiDataset, TumDataset, EurocDataset, ReplicaDataset, VideoDataset, LiveDataset
+from dataset import Dataset, FolderDataset, FolderDatasetParallel, KittiDataset, TumDataset, EurocDataset, ReplicaDataset, TartanairDataset, VideoDataset, LiveDataset
 
 
 from typing import TYPE_CHECKING
@@ -105,6 +105,8 @@ def dataset_factory(config:'Config'):
         dataset = EurocDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.EUROC, config) 
     if type == 'replica':
         dataset = ReplicaDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.REPLICA)
+    if type == 'tartanair':
+        dataset = TartanairDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.TARTANAIR, environment_type)
     if type == 'video':
         dataset = VideoDataset(path, name, sensor_type, associations, timestamps, start_frame_id, DatasetType.VIDEO)   
     if type == 'folder':

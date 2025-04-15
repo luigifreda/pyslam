@@ -28,29 +28,30 @@ if TYPE_CHECKING:
 
 @register_class
 class DatasetType(SerializableEnum):
-    NONE = 1
-    KITTI = 2
-    TUM = 3
-    EUROC = 4
-    REPLICA = 5
-    VIDEO = 6
-    FOLDER = 7  # generic folder of pics
-    ROS1BAG = 8
-    ROS2BAG = 9
-    LIVE = 10
+    NONE        = 1
+    KITTI       = 2
+    TUM         = 3
+    EUROC       = 4
+    REPLICA     = 5
+    TARTANAIR   = 6
+    VIDEO       = 7
+    FOLDER      = 8  # generic folder of pics
+    ROS1BAG     = 9
+    ROS2BAG     = 10
+    LIVE        = 11
 
     
 @register_class
 class DatasetEnvironmentType(SerializableEnum):
-    INDOOR = 1
+    INDOOR  = 1
     OUTDOOR = 2
 
 
 @register_class
 class SensorType(SerializableEnum):
-    MONOCULAR=0,
-    STEREO=1,
-    RGBD=2
+    MONOCULAR = 0,
+    STEREO    = 1,
+    RGBD      = 2
 
 
 

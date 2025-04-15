@@ -1,4 +1,4 @@
-# pySLAM v2.7.3
+# pySLAM v2.7.4
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -9,6 +9,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
+- Built-in support for over 10 [dataset types](#datasets).
 
 pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
@@ -32,7 +33,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 <!-- TOC -->
 
-- [pySLAM v2.7.3](#pyslam-v273)
+- [pySLAM v2.7.4](#pyslam-v274)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -87,6 +88,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
       - [ICL-NUIM Datasets](#icl-nuim-datasets)
       - [EuRoC Datasets](#euroc-datasets)
       - [Replica Datasets](#replica-datasets)
+      - [Tartanair Datasets](#tartanair-datasets)
       - [ROS1 bags](#ros1-bags)
       - [ROS2 bags](#ros2-bags)
     - [Camera Settings](#camera-settings)
@@ -617,10 +619,12 @@ Dataset | type in `config.yaml`
 [ICL-NUIM dataset](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)                              | `type: ICL_NUIM_DATASET` 
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
-Video file                                                                                            | `type: VIDEO_DATASET` 
-Folder of images                                                                                      | `type: FOLDER_DATASET` 
-ROS1  bags                                                                                            | `type: ROS1BAG_DATASET` 
-ROS2  bags                                                                                            | `type: ROS2BAG_DATASET` 
+[TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
+[ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
+[ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
+Video file                                                                                                                                   | `type: VIDEO_DATASET` 
+Folder of images                                                                                                                             | `type: FOLDER_DATASET` 
+
 
 
 Use the download scripts available in the folder `scripts` to download some of the following datasets.
@@ -674,6 +678,12 @@ Follow the same instructions provided for the TUM datasets.
 2. Then, uncompress it and deploy the files as you wish.
 3. Select the corresponding calibration settings file (section `REPLICA_DATASET: settings:` in the file `config.yaml`).
 
+
+#### Tartanair Datasets
+
+1. You can download the datasets from https://theairlab.org/tartanair-dataset/     
+2. Then, uncompress them and deploy the files as you wish.
+3. Select the corresponding calibration settings file (section `TARTANAIR_DATASET: settings:` in the file `config.yaml`).
 
 #### ROS1 bags
 

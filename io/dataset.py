@@ -90,6 +90,9 @@ class Dataset(object):
     def getDepth(self, frame_id):
         return None        
 
+    def getDepthRight(self, frame_id):
+        return None    
+    
     # Adjust frame id with start frame id only here
     def getImageColor(self, frame_id):
         frame_id += self.start_frame_id
@@ -752,3 +755,96 @@ class ReplicaDataset(Dataset):
             self.is_ok = False      
             self._timestamp = None                       
         return img 
+    
+    
+    
+# Tartanair 
+# GT format: tx ty tz qx qy qz qw
+# References: 
+# https://github.com/castacks/tartanair_tools/blob/master/data_type.md
+# https://www.aicrowd.com/challenges/tartanair-visual-slam-stereo-track
+class TartanairDataset(Dataset):
+    fps = 25
+    Ts = 1./fps
+    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.TARTANAIR, environment_type = DatasetEnvironmentType.INDOOR): 
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = environment_type
+        # if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+        #     raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
+        self.fps = TartanairDataset.fps
+        self.Ts = TartanairDataset.Ts
+        self.scale_viewer_3d = 0.1
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05             
+        print('Processing Replica Sequence')        
+        self.base_path = self.path + '/' + self.name + '/'
+        # count the number of frames in the path 
+        self.gt_left_file_path = self.base_path + '/pose_left.txt'
+        self.max_frame_id = sum(1 for line in open(self.gt_left_file_path))
+        self.num_frames = self.max_frame_id
+                
+        self.left_color_path = self.base_path + '/image_left'
+        self.right_color_path = self.base_path + '/image_right'
+        self.left_depth_path = self.base_path + '/depth_left'
+        self.right_depth_path = self.base_path + '/depth_right'        
+        print(f'Number of frames: {self.max_frame_id}')  
+
+    def getImage(self, frame_id):
+        img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
+        if frame_id < self.max_frame_id:
+            file = self.left_color_path + f'/{str(frame_id).zfill(6)}_left.png'
+            img = cv2.imread(file)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts              
+        else:
+            self.is_ok = False     
+            self._timestamp = None                  
+        return img 
+
+    def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            file = self.left_depth_path + f'/{str(frame_id).zfill(6)}_left_depth.npy'
+            img = np.load(file)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts                
+        else:
+            self.is_ok = False      
+            self._timestamp = None                       
+        return img 
+    
+    def getImageRight(self, frame_id):
+        img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
+        if frame_id < self.max_frame_id:        
+            file = self.right_color_path + f'/{str(frame_id).zfill(6)}_right.png'
+            img = cv2.imread(file)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts                
+        else:
+            self.is_ok = False      
+            self._timestamp = None          
+        return img     
+    
+    def getDepthRight(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            file = self.left_depth_path + f'/{str(frame_id).zfill(6)}_right_depth.npy'
+            img = np.load(file)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts                
+        else:
+            self.is_ok = False      
+            self._timestamp = None                       
+        return img     

@@ -54,6 +54,15 @@ REPLICA_DATASET:
   groundtruth_file: auto
 
 
+TARTANAIR_DATASET:
+  type: tartanair
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono', 'stereo' or 'rgbd'
+  base_path: %dataset_base_path%
+  name: %dataset_name%
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  groundtruth_file: auto
+
+
 VIDEO_DATASET:
   type: video
   sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 

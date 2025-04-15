@@ -41,12 +41,13 @@ kScaleReplica = 1.0
 
 @register_class
 class GroundTruthType(SerializableEnum):
-    NONE = 1
-    KITTI = 2
-    TUM = 3
-    EUROC = 4
-    REPLICA = 5
-    SIMPLE = 6
+    NONE       = 1
+    KITTI      = 2
+    TUM        = 3
+    EUROC      = 4
+    REPLICA    = 5
+    TARTANAIR  = 6
+    SIMPLE     = 7
 
 
 def groundtruth_factory(settings):
@@ -74,6 +75,8 @@ def groundtruth_factory(settings):
         return EurocGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.EUROC)
     if type == 'replica':         
         return ReplicaGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.REPLICA)
+    if type == 'tartanair':         
+        return TartanairGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.TARTANAIR)
     if type == 'video' or type == 'folder':  
         if 'groundtruth_file' in settings:
             name = settings['groundtruth_file']
@@ -339,7 +342,7 @@ class SimpleGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z,abs_scale 
     
@@ -365,7 +368,7 @@ class SimpleGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp, x,y,z, qx,qy,qz,qw, abs_scale     
 
 
@@ -445,7 +448,7 @@ class KittiGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         timestamp = float(self.data_timestamps[frame_id].strip())
         #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z, q[0],q[1],q[2],q[3], abs_scale     
@@ -516,7 +519,7 @@ class TumGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z,abs_scale 
         
     # return timestamp, x,y,z, qx,qy,qz,qw, scale
@@ -541,7 +544,7 @@ class TumGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z, qx,qy,qz,qw,abs_scale
 
 class EurocGroundTruth(GroundTruth):
@@ -662,7 +665,7 @@ class EurocGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else: 
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         #print(f'abs_scale: {abs_scale}')
         # from https://www.researchgate.net/profile/Michael-Burri/publication/291954561_The_EuRoC_micro_aerial_vehicle_datasets/links/56af0c6008ae19a38516937c/The-EuRoC-micro-aerial-vehicle-datasets.pdf
         return timestamp, x,y,z, abs_scale
@@ -689,7 +692,7 @@ class EurocGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z, qx,qy,qz,qw,abs_scale        
     
     
@@ -743,7 +746,7 @@ class ReplicaGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z,abs_scale 
         
     # return timestamp, x,y,z, qx,qy,qz,qw, scale
@@ -762,6 +765,78 @@ class ReplicaGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp,x,y,z, q[0],q[1],q[2],q[3],abs_scale    
     
+
+
+# Read the ground truth from files containining [x,y,z, qx, qy, qz, qw, scale] lines
+class TartanairGroundTruth(GroundTruth):
+    def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.KITTI): 
+        super().__init__(path, name, associations, start_frame_id, type)
+        from dataset import TartanairDataset
+        self.Ts = TartanairDataset.Ts         
+        self.scale = kScaleSimple
+        if path is not None:
+            self.filename=path + '/' + name + '/' + 'pose_left.txt'
+        else: 
+            self.filename=name
+        
+        if not os.path.isfile(self.filename):
+            error_message = f'ERROR: [SimpleGroundTruth] Groundtruth file not found: {self.filename}!'
+            Printer.red(error_message)
+            sys.exit(error_message)  
+                    
+        with open(self.filename) as f:
+            self.data = f.readlines()
+            self.data = np.array(self.data)
+            self.found = True 
+        if self.data is None:
+            sys.exit('ERROR while reading groundtruth file: please, check how you deployed the files and if the code is consistent with this!') 
+
+    # return timestamp,x,y,z,scale
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1)
+            x_prev = self.scale*float(ss[0])
+            y_prev = self.scale*float(ss[1])
+            z_prev = self.scale*float(ss[2])
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        ss = self.getDataLine(frame_id)
+        timestamp = frame_id*self.Ts
+        x = self.scale*float(ss[0])
+        y = self.scale*float(ss[1])
+        z = self.scale*float(ss[2])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
+        return timestamp,x,y,z,abs_scale 
+    
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1)
+            x_prev = self.scale*float(ss[0])
+            y_prev = self.scale*float(ss[1])
+            z_prev = self.scale*float(ss[2])
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        ss = self.getDataLine(frame_id)
+        timestamp = frame_id*self.Ts
+        x = self.scale*float(ss[0])
+        y = self.scale*float(ss[1])
+        z = self.scale*float(ss[2])
+        qx = float(ss[3])
+        qy = float(ss[4])
+        qz = float(ss[5])
+        qw = float(ss[6])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x,y,z, qx,qy,qz,qw, abs_scale  
