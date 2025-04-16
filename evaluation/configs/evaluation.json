@@ -1,20 +1,22 @@
 {
-  "num_threads" : 2, // Number of parallel threads 
+  "num_threads" : 2, // Number of parallel threads (results may get worse with more threads)
   
   "dataset_base_path": "/home/luigi/Work/datasets/rgbd_datasets/tum", 
   "dataset_type": "TUM_DATASET", // Only one type of dataset supported
 
-  "number_of_runs_per_dataset": 2,
+  "number_of_runs_per_dataset": 5,
 
+  "sensor_type": "rgbd",
+  
   "datasets": [
-    // {
-    //   "name": "rgbd_dataset_freiburg1_room",
-    //   "settings_path": "settings/TUM1.yaml",     // Relative to root folder
-    // },
     {
-      "name": "rgbd_dataset_freiburg1_xyz",
-      "settings_path": "settings/TUM1.yaml",      // Relative to root folder
-    }
+      "name": "rgbd_dataset_freiburg1_room",
+      "settings_path": "settings/TUM1.yaml",     // Relative to root folder
+    },
+    // {
+    //   "name": "rgbd_dataset_freiburg1_xyz",
+    //   "settings_path": "settings/TUM1.yaml",      // Relative to root folder
+    // }
   ],
 
 
@@ -24,7 +26,7 @@
       "name": "baseline"
     },
     {
-      "name": "test",
+      "name": "root_sift",
       
       // Custom parameters for this preset
       "custom_parameters": { 
@@ -34,7 +36,7 @@
           }
         },
         "settings":{                      // This affects the settings in the yaml file
-          "FeatureTrackerConfig.nFeatures": 1200,
+          //"FeatureTrackerConfig.nFeatures": 1200,
           "FeatureTrackerConfig.name": "ROOT_SIFT",
           "LoopDetectionConfig.name": "DBOW3_INDEPENDENT"
         }
@@ -47,11 +49,11 @@
   "common_parameters": {
     "config": {
       "GLOBAL_PARAMETERS": {          // This affects the global parameters in config_parameters.py 
-        "kNumMinPointsForNewKf": 15   // Minimum number of matched map points for spawning a new KeyFrame 
+        //"kNumMinPointsForNewKf": 15   // Minimum number of matched map points for spawning a new KeyFrame 
       }
     },
     "settings": {                     // This affects the settings in the yaml file
-      "FeatureTrackerConfig.nFeatures": 1000,
+      //"FeatureTrackerConfig.nFeatures": 1000,
       //"FeatureTrackerConfig.name": "ORB2"
     }
   },

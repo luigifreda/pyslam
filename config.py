@@ -138,8 +138,12 @@ class Config:
         if not os.path.isabs(input_settings_path):
             input_settings_path = os.path.join(self.root_folder, input_settings_path)
         self.general_settings_filepath = input_settings_path
+        # If sensor is stereo and stereo settings exist, use stereo settings
         if self.sensor_type == 'stereo' and 'settings_stereo' in self.config[self.dataset_type]:
-            self.general_settings_filepath = self.root_folder + '/' + self.config[self.dataset_type]['settings_stereo']
+            input_stereo_settings_path = self.config[self.dataset_type]['settings_stereo']
+            if not os.path.isabs(input_stereo_settings_path):
+                input_stereo_settings_path = os.path.join(self.root_folder, input_stereo_settings_path)
+            self.general_settings_filepath = input_stereo_settings_path
             Printer.orange('[Config] Using stereo settings file: ' + self.general_settings_filepath)
             print('------------------------------------')          
         if(self.general_settings_filepath is not None):

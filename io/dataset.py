@@ -447,7 +447,7 @@ class KittiDataset(Dataset):
             self.scale_viewer_3d = 1          
         self.image_left_path = '/image_0/'
         self.image_right_path = '/image_1/'           
-        self.timestamps = np.loadtxt(self.path + '/sequences/' + self.name + '/times.txt', dtype=np.float64)
+        self.timestamps = np.loadtxt(self.path + '/sequences/' + str(self.name) + '/times.txt', dtype=np.float64)
         self.max_frame_id = len(self.timestamps)
         self.num_frames = self.max_frame_id
         print('Processing KITTI Sequence of lenght: ', len(self.timestamps))

@@ -38,7 +38,7 @@ from dataset_types import DatasetType, SensorType
 from trajectory_writer import TrajectoryWriter
 
 from viewer3D import Viewer3D
-from utils_sys import getchar, Printer 
+from utils_sys import getchar, Printer, force_kill_all_and_exit
 from utils_img import ImgWriter
 from utils_eval import eval_ate
 from utils_geom_trajectory import find_poses_associations
@@ -346,3 +346,6 @@ if __name__ == "__main__":
     
     if not args.headless:
         cv2.destroyAllWindows()
+
+    if args.headless:
+        force_kill_all_and_exit(verbose=False) # just in case

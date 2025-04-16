@@ -4,38 +4,41 @@ DATASET:
 
 KITTI_DATASET:
   type: kitti
-  sensor_type: stereo # Here, 'sensor_type' can be 'mono' or 'stereo'
+  sensor_type: %sensor_type%     # Here, 'sensor_type' can be 'mono' or 'stereo'
   base_path: %dataset_base_path%
   name: %dataset_name%
   settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
-  is_color: %kitti_is_color%      # do you have the color images for the kitti dataset? (image2 and image3 folders)
+  is_color: %is_color%      # do you have the color images for the kitti dataset? (image2 and image3 folders)
   groundtruth_file: auto
-
+  start_frame_id: %start_frame_id%
 
 TUM_DATASET:
   type: tum
-  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: %dataset_base_path%
   name: %dataset_name%
   settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
   associations: associations.txt
   groundtruth_file: auto
+  start_frame_id: %start_frame_id%
 
 
 ICL_NUIM_DATASET:
   type: tum         # Same format as TUM
-  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: %dataset_base_path%
   name: %dataset_name%
   settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
   associations: associations.txt
   groundtruth_file: auto
+  start_frame_id: %start_frame_id%
 
 
 EUROC_DATASET:
   type: euroc
-  sensor_type: stereo # Here, sensor_type can be 'mono' or 'stereo'
+  sensor_type: %sensor_type% # Here, sensor_type can be 'mono' or 'stereo'
   base_path: %dataset_base_path%
+  name: %dataset_name%  
   # 'settings' will be used when sensor_type: : 'mono'
   settings: %settings_path%
   # 'settings_stereo' will be used when sensor_type: 'stereo' (if available)
@@ -47,35 +50,38 @@ EUROC_DATASET:
 
 REPLICA_DATASET:
   type: replica
-  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: %dataset_base_path%
   name: %dataset_name%
   settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
   groundtruth_file: auto
+  start_frame_id: %start_frame_id%
 
 
 TARTANAIR_DATASET:
   type: tartanair
-  sensor_type: rgbd # Here, 'sensor_type' can be 'mono', 'stereo' or 'rgbd'
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono', 'stereo' or 'rgbd'
   base_path: %dataset_base_path%
   name: %dataset_name%
   settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
   groundtruth_file: auto
+  start_frame_id: %start_frame_id%
 
 
 VIDEO_DATASET:
   type: video
-  sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 
+  sensor_type: %sensor_type%   # Here, 'sensor_type' can be only 'mono' 
   base_path: %dataset_base_path%
   name: %dataset_name%
   settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
   groundtruth_file: groundtruth.txt
   timestamps: %timestamps_path% # to be intended as the frame timestamps
+  start_frame_id: %start_frame_id%
 
 
 FOLDER_DATASET:
   type: folder 
-  sensor_type: mono   # Here, 'sensor_type' can be only 'mono' 
+  sensor_type: %sensor_type%   # Here, 'sensor_type' can be only 'mono' 
   base_path: %dataset_base_path%
   # 'name' is used for specifying a glob pattern, e.g. *png, *jpeg, etc...
   name: %dataset_images_glob_pattern%  
@@ -87,7 +93,7 @@ FOLDER_DATASET:
 
 ROS1BAG_DATASET:
   type: ros1bag 
-  sensor_type: rgbd # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
   base_path: %dataset_base_path%    # path of the folder containing the bag
   name: %dataset_name%                                                 # file name of the bag
   settings: %settings_path%                   # do not forget to correctly set the corresponding camera settings file
@@ -107,7 +113,7 @@ ROS1BAG_DATASET:
 
 ROS2BAG_DATASET:
   type: ros2bag 
-  sensor_type: rgbd # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
   base_path: %dataset_base_path%    # path of the folder containing the bag
   name: %dataset_name%                                                 # file name of the bag
   settings: %settings_path%                   # do not forget to correctly set the corresponding camera settings file

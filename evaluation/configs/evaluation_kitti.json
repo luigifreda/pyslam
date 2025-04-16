@@ -1,0 +1,56 @@
+{
+    "num_threads" : 2, // Number of parallel threads (results may get worse with more threads)
+
+    "dataset_base_path": "/home/luigi/Work/datasets/rgbd_datasets/kitti_color/dataset",
+    "dataset_type": "KITTI_DATASET",
+
+    "number_of_runs_per_dataset": 5,
+
+    "sensor_type": "stereo",
+    
+    "datasets": [
+        { "name": "00", "settings_path": "settings/KITTI00-02.yaml", "is_color": true },
+        { "name": "01", "settings_path": "settings/KITTI00-02.yaml", "is_color": true },
+        { "name": "02", "settings_path": "settings/KITTI00-02.yaml", "is_color": true },
+        { "name": "03", "settings_path": "settings/KITTI03.yaml",    "is_color": true },
+        { "name": "04", "settings_path": "settings/KITTI04-12.yaml", "is_color": true },
+        { "name": "05", "settings_path": "settings/KITTI04-12.yaml", "is_color": true },
+        { "name": "06", "settings_path": "settings/KITTI04-12.yaml", "is_color": true },
+        { "name": "07", "settings_path": "settings/KITTI04-12.yaml", "is_color": true },
+        { "name": "08", "settings_path": "settings/KITTI04-12.yaml", "is_color": true },
+        { "name": "09", "settings_path": "settings/KITTI04-12.yaml", "is_color": true },
+        { "name": "10", "settings_path": "settings/KITTI04-12.yaml", "is_color": true }
+    ],
+    "presets": [
+      {
+        "name": "baseline"
+      },
+      {
+        "name": "root_sift",
+          "settings": {
+            "FeatureTrackerConfig.name": "ROOT_SIFT",
+            "LoopDetectionConfig.name": "DBOW3_INDEPENDENT"
+          }
+        },
+        {
+        "name": "superpoint",
+          "settings": {
+            "FeatureTrackerConfig.name": "SUPERPOINT",
+            "LoopDetectionConfig.name": "DBOW3_INDEPENDENT"
+          }
+        }      
+    ],
+    // "common_parameters": {
+    //   "config": {
+    //     "GLOBAL_PARAMETERS": {
+    //       "kNumMinPointsForNewKf": 15
+    //     }
+    //   },
+    //   "settings": {
+    //     "FeatureTrackerConfig.nFeatures": 1000
+    //   }
+    // },
+    "output_path": "kitti",
+    "saved_trajectory_format_type": "kitti"
+  }
+  

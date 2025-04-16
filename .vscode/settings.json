@@ -111,7 +111,8 @@
     "${workspaceFolder}/loop_closing",
     "${workspaceFolder}/dense",
     "${workspaceFolder}/thirdparty",
-    "${workspaceFolder}/cpp"
+    "${workspaceFolder}/cpp",
+    "${workspaceFolder}/evaluation",
   ],
   "python.analysis.extraPaths": [
     "${workspaceFolder}",
@@ -124,7 +125,8 @@
     "${workspaceFolder}/loop_closing",
     "${workspaceFolder}/dense",
     "${workspaceFolder}/thirdparty",
-    "${workspaceFolder}/cpp"
+    "${workspaceFolder}/cpp",
+    "${workspaceFolder}/evaluation",
   ],
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",

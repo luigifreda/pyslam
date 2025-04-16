@@ -23,36 +23,41 @@ import time
 
 
 def run_command_sync(command, debug=False):
-  """ runs command and returns the output."""
-  if debug:
-      print("$ {}".format(command))
-  p = subprocess.Popen(command, shell=True, executable='/bin/bash')
-  return p 
+    """ runs command and returns the output."""
+    if debug:
+        print("$ {}".format(command))
+    p = subprocess.Popen(command, shell=True, executable='/bin/bash')
+    return p 
     
 
-def run_command_async(command, output_log_filename=None):
-  # Redirect the standard output and standard error output if specifying an output file
-  redirected_std_out = subprocess.PIPE
-  redirected_std_err = subprocess.PIPE
-  if output_log_filename:
-      output_log_file = open(output_log_filename, "wb")
-      redirected_std_out = output_log_file
-      redirected_std_err = output_log_file  
-  process = subprocess.Popen(
-      command,
-      shell = True,
-      stdout = redirected_std_out,
-      stderr = redirected_std_err,
-      text = True  # Use text=True to get text output
-  )
-  stdout, stderr = process.communicate()
-  return process.returncode, stdout, stderr
+def run_command_async(command, output_log_filename=None, verbose=False, msg=None):
+    # Redirect the standard output and standard error output if specifying an output file
+    redirected_std_out = subprocess.PIPE
+    redirected_std_err = subprocess.PIPE
+    if output_log_filename:
+        output_log_file = open(output_log_filename, "wb")
+        redirected_std_out = output_log_file
+        redirected_std_err = output_log_file  
+    if verbose: 
+        if msg:
+            print(f"[{msg}]$ {command}")
+        else:
+            print("$ {}".format(command))
+    process = subprocess.Popen(
+        command,
+        shell = True,
+        stdout = redirected_std_out,
+        stderr = redirected_std_err,
+        text = True  # Use text=True to get text output
+    )
+    stdout, stderr = process.communicate()
+    return process.returncode, stdout, stderr
   
 
 def kill_processes_matching_cmd(keywords, time_sleep=2.0):
     """
     Kill processes whose command line contains all the specified keywords (substring match).
-    
+
     Args:
         keywords (list of str): List of strings that must all appear in the cmdline string.
     """

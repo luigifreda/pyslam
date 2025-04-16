@@ -35,6 +35,7 @@ import shutil
 import yaml
 import json 
 import concurrent.futures
+from pathlib import Path
 
 from utils_data import merge_dicts
 from utils_sys import Printer
@@ -61,20 +62,37 @@ date_time_now_string = date_time_now.strftime('%Y_%m_%d-%H_%M_%S')
 eval_path_prefix = kResultsFolder + "/eval_" + date_time_now_string
 
 config_dir_path = os.path.abspath(os.path.join(kEvaluationFolder, 'configs'))
-default_config_file_path= os.path.join(config_dir_path, 'evaluation.json')
+default_config_file_path= os.path.join(config_dir_path, 'evaluation_tum.json')
 default_template_config_file_path = os.path.abspath(os.path.join(config_dir_path, 'config.template.yaml'))
      
   
 # Run an evaluation by calling main_slam.py on a set of datasets with a set of presets.
+# $ ./main_slam_evaluation.py -c configs/evaluation_<my awesome dataset>.json 
+# If you need you can also create a report from an existing data folder
+# $ ./main_slam_evaluation.py --just-create-report -o <path to results folder containing evaluation*.json>
 # Then, create a summary table.
 if __name__ == '__main__':
   argparser = argparse.ArgumentParser(description='Run a set of evaluations by calling main_slam.py on a set of datasets. Finally, create a summary table.')
   argparser.add_argument("-c", "--config-file", type=str, default=default_config_file_path, help="Path of the input configuration file for the evaluations.")
   argparser.add_argument("-t", "--template-config-file", type=str, default=default_template_config_file_path, help="Path of the template configuration file for the evaulations.")
+  #
+  argparser.add_argument("--just-create-report", action='store_true', help="Create a report from the results folder")  
+  argparser.add_argument("-o", "--output-path", type=str, default="/home/luigi/Work/slam_wss/pyslam-master-new/results/eval_2025_04_13-21_16_14/tum", help="Path of the output folder")
   args = argparser.parse_args()
 
-  evaluation_manager = SlamEvaluationManager(args.config_file, args.template_config_file)
-  evaluation_manager.run_evaluation()
+  if args.just_create_report:
+    # just create a report from an existing data folder     
+    assert args.output_path, "Please specify the output path"
+    folder = Path(args.output_path)
+    config_json_file = json_file = next(folder.glob("evaluation*.json"), None)
+    evaluation_manager = SlamEvaluationManager(str(config_json_file), args.template_config_file, just_create_report=args.just_create_report)
+    print(f'Creating a report from the results folder: {args.output_path}')
+    evaluation_manager.output_path = args.output_path
+  else:
+    # run the evaluation
+    evaluation_manager = SlamEvaluationManager(args.config_file, args.template_config_file, just_create_report=args.just_create_report)
+    evaluation_manager.run_evaluation()
+  
   evaluation_manager.create_final_table()
     
   print("Done.")

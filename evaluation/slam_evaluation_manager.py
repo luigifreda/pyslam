@@ -59,10 +59,14 @@ template_entry_regex = re.compile(r'%(\w+)%')
 
 
 def replace_template_entries(string, vocabulary):
-    # Step 1: Replace known entries
-    replaced_string = re.sub(template_entry_regex, lambda match: vocabulary.get(match.group(1), match.group(0)), string)
-    # Step 2: Remove all *unmatched* placeholders
-    cleaned_string = re.sub(template_entry_regex, "Not found", replaced_string)
+    try:
+      # Step 1: Replace known entries
+      replaced_string = re.sub(template_entry_regex, lambda match: vocabulary.get(match.group(1), match.group(0)), string)
+      # Step 2: Remove all *unmatched* placeholders
+      cleaned_string = re.sub(template_entry_regex, "Not found", replaced_string)
+    except Exception as e:
+      print("Error in replace_template_entries: " + str(e))
+      print(traceback.format_exc())
     return cleaned_string
       
 
@@ -97,7 +101,7 @@ def update_yaml_dict(yaml_dict, vocabulary):
 # A final table is created with the results.
 # See test/evaluation/test_run_evaluations.py
 class SlamEvaluationManager:
-  def __init__(self, evaluation_config_path, template_config_file_path):
+  def __init__(self, evaluation_config_path, template_config_file_path, just_create_report=False):
     if not os.path.exists(evaluation_config_path):
       raise Exception(f"Config file {evaluation_config_path} does not exist")
     self.evaluation_config_path = evaluation_config_path
@@ -116,19 +120,22 @@ class SlamEvaluationManager:
 
     self.presets = []
     self.datasets = []
-    self.metrics = {}    # metrics[preset][dataset][iteration][metric_name] -> value 
+    self.metrics = {}    # metrics[preset][dataset][iteration][metric_name] -> metric_value 
       
     self.output_path = os.path.abspath(os.path.join(eval_path_prefix, json_data["output_path"]))
-    if not os.path.exists(self.output_path):
-      os.makedirs(self.output_path)
+    if not just_create_report:
+      if not os.path.exists(self.output_path):
+        os.makedirs(self.output_path)
             
     self.dataset_base_path = json_data["dataset_base_path"]
     self.dataset_type = json_data["dataset_type"]
+    self.sensor_type = json_data["sensor_type"]
     self.number_of_runs_per_dataset = json_data["number_of_runs_per_dataset"]
     self.preset_common_parameters = json_data["common_parameters"] if "common_parameters" in json_data else {}
     self.saved_trajectory_format_type = json_data["saved_trajectory_format_type"]
         
-    shutil.copy(self.evaluation_config_path, self.output_path)
+    if not just_create_report:        
+      shutil.copy(self.evaluation_config_path, self.output_path)
     
     self.presets = [preset for preset in json_data["presets"]]
     self.datasets = [dataset for dataset in json_data["datasets"]]
@@ -179,14 +186,13 @@ class SlamEvaluationManager:
       
     # ------
     # Prepare the stereo settings file and update it with the preset parameters
-    if 'settings_stereo' in preset_parameters:
+    if 'settings_stereo_path' in dataset:
       dataset_settings_stereo_path = dataset['settings_stereo_path']
       if not os.path.exists(dataset_settings_stereo_path):
         raise Exception(f"Dataset settings stereo file {dataset_settings_stereo_path} does not exist")
-      dataset_settings_stereo = yaml.load(open(dataset_settings_stereo_path, 'r'), Loader=yaml.FullLoader)
-      preset_dataset_settings_stereo = preset_parameters['settings_stereo']
-      if preset_dataset_settings_stereo:
-        dataset_settings_stereo = update_yaml_dict(dataset_settings_stereo, preset_dataset_settings_stereo)
+      dataset_settings_stereo = yaml.load(open(dataset_settings_stereo_path, 'r'), Loader=yaml.FullLoader)      
+      if preset_dataset_settings:
+        dataset_settings_stereo = update_yaml_dict(dataset_settings_stereo, preset_dataset_settings)
       current_settings_stereo_file_path = os.path.join(iteration_output_path, "settings_stereo.yaml")
       with open(current_settings_stereo_file_path, "w") as f:
         yaml.dump(dataset_settings_stereo, f)
@@ -196,22 +202,31 @@ class SlamEvaluationManager:
     # Replace the template entries in the config file.
     config_vocabulary = {
       'dataset_type': self.dataset_type,
+      'sensor_type': self.sensor_type,
       'output_path': iteration_output_path,
       'dataset_base_path': dataset_base_path,
-      'dataset_name': dataset_name,
+      'dataset_name': f"\"{dataset_name}\"",   # wrap in quotes to avoid issues with names that contain only numbers
       'settings_path': current_settings_file_path,
       'saved_trajectory_format_type': self.saved_trajectory_format_type,
       'logs_path': log_output_path
     }
-    if 'settings_stereo' in preset_parameters:
+    if 'settings_stereo_path' in dataset:
       config_vocabulary['settings_stereo_path'] = current_settings_stereo_file_path
+    if 'is_color' in dataset:
+      config_vocabulary['is_color'] = str(dataset['is_color'])
+    if 'start_frame_id' in dataset:
+      config_vocabulary['start_frame_id'] = dataset['start_frame_id']
+    else: 
+      config_vocabulary['start_frame_id'] = '0'
     
     current_config_file_str = replace_template_entries(self.template_config, config_vocabulary)
-    #print(f"current_config_file: {current_config_file_str}")
+    #print(f"current_config_file_str: {current_config_file_str}")
+    
     # Load as dictionary
     current_config_file = yaml.safe_load(current_config_file_str)
     # Clean up unused dataset sections
     current_config_file = remove_unused_datasets(current_config_file)
+    #print(f'current_config_file: {current_config_file}')
     
     # Save the config file to be used
     current_config_file = yaml.dump(current_config_file, sort_keys=False)  # Get it back as a string
@@ -256,26 +271,35 @@ class SlamEvaluationManager:
     futures = []
     results = []
     future_to_command = {}
+    future_to_msg = {}  # map futures to (command, label)
+    
+    num_tasks = len(commands)
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         # Submit tasks to the thread pool
-        num_tasks = 0
-        num_completed_tasks = 0
+        Printer.bold(f'Submitting {len(commands)} tasks to the thread pool with {num_threads} threads...')
+        num_started_tasks = 1
         for item_run_command, item_log_output_path in commands:
-          item_future = executor.submit(run_command_async, item_run_command, item_log_output_path)
+          msg = f"{num_started_tasks}/{num_tasks}"
+          item_future = executor.submit(run_command_async, item_run_command, item_log_output_path, True, msg)
           futures.append(item_future) 
           future_to_command[item_future] = item_run_command
-          num_tasks += 1
-        Printer.bold(f"\nSubmitted {num_tasks} tasks to the thread pool with {num_threads} threads.\n")
+          future_to_msg[item_future] = msg
+          num_started_tasks += 1
+        #Printer.bold(f"\nSubmitted {num_tasks} tasks to the thread pool with {num_threads} threads.\n")
         # Wait for all tasks to complete
+        num_completed_tasks = 0
         for future in concurrent.futures.as_completed(futures):
           num_completed_tasks += 1
           item_run_command = future_to_command[future]        
           results.append(future.result())
           (returncode, stdout, stderr) = future.result()
+          msg = future_to_msg[future]
           if returncode == 0:
-            Printer.green(f"{num_completed_tasks}/{num_tasks} Command \"{item_run_command}\" returned {returncode}")
+            Printer.green(f"Command {msg} \"{item_run_command}\" returned {returncode}, (completed {num_completed_tasks}/{num_tasks})")
           else: 
-            Printer.red(f"{num_completed_tasks}/{num_tasks} Command \"{item_run_command}\" returned {returncode}")
+            Printer.red(f"Command {msg} \"{item_run_command}\" returned {returncode}, (completed {num_completed_tasks}/{num_tasks})")
+    print(f'------------------------------------------------------------------------------------')
+    print(f'{num_completed_tasks}/{num_tasks} tasks completed')
           
   
   def collect_metrics(self, output_folder, preset_name, dataset_name, iteration_idx, metrics_vocabulary):
@@ -331,8 +355,8 @@ class SlamEvaluationManager:
     
 
   def write_comparative_table(self, output_path, metric_name, presets, datasets, number_of_runs_per_dataset, metrics, precision=5):
-    # Check if the provided metric is available before generating the table
-    flag_metric_available = False
+    # Before generating the table, let's check if the provided metric is available 
+    is_metric_available = False
     for preset in presets:
       preset_name = preset["name"]
       if preset_name in metrics:
@@ -341,15 +365,16 @@ class SlamEvaluationManager:
           if dataset_name in metrics[preset_name]:
             for iteration_idx in range(number_of_runs_per_dataset):
               if metric_name in metrics[preset_name][dataset_name][iteration_idx]:
-                flag_metric_available = True
+                is_metric_available = True
                 break
-    if not flag_metric_available:
+    if not is_metric_available:
       Printer.yellow(f"Metric name \"{metric_name}\" is not available. Skipping table generation for this metric name.")
       return {}, None
-
+    
+    # Generate the table  
     output_table_path = output_path + "/table_" + metric_name.replace(" ","") + ".csv"
-    csvfile = open(output_table_path, 'w')
-    writer = csv.writer(csvfile, delimiter=',')
+    csv_file = open(output_table_path, 'w')
+    writer = csv.writer(csv_file, delimiter=',')
     first_row = ["Dataset"]
     for preset in presets:
       first_row.append(preset["name"])
@@ -372,12 +397,11 @@ class SlamEvaluationManager:
         else:
           row.append("N/A")
       writer.writerow(row)
-    # add an empty row
-    writer.writerow([])
+    writer.writerow([])  # add an empty row
     # add rows with the average and std 
     row_average = ["Average"]
     row_std_dev = ["Std Dev"]
-    preset_to_average = {}
+    map_preset_to_average = {}
     for preset in presets:
       preset_name = preset["name"]    
       if preset_name in metrics:
@@ -393,27 +417,26 @@ class SlamEvaluationManager:
         row_average.append(round(mean,precision))
         std = np.std(val_arrays)
         row_std_dev.append(round(std,precision))
-        preset_to_average[preset_name] = mean
+        map_preset_to_average[preset_name] = mean
       else:
         row_average.append("N/A")
         row_std_dev.append("N/A")
     writer.writerow(row_average)
     writer.writerow(row_std_dev)  
-    # add empty row
-    writer.writerow([])       
-    # add final rows with best preset and corresponding average
-    row_best_preset = ["Best Preset"]
-    row_best_average = ["Best Metric"]
+    writer.writerow([])     # add an empty row    
+    # add final rows with best preset (with best average) and corresponding average 
+    row_best_preset = ["Best (Average) Preset"]
+    row_best_average = ["Best (Average) Metric"]
     best_preset_name = ""
     best_average = float("inf")
-    for preset_name, average in preset_to_average.items():
+    for preset_name, average in map_preset_to_average.items():
       if average < best_average:
         best_preset_name = preset_name
         best_average = average
     writer.writerow(row_best_preset + [best_preset_name])
     writer.writerow(row_best_average + [round(best_average,precision)]) 
     Printer.yellow(f"Generated table for metric \"{metric_name}\" in {output_table_path}") 
-    return preset_to_average, output_table_path
+    return map_preset_to_average, output_table_path
 
             
   def create_final_table(self):  
@@ -422,10 +445,10 @@ class SlamEvaluationManager:
         for iteration_idx in range(self.number_of_runs_per_dataset):
             self.collect_metrics(self.output_path, preset["name"], dataset["name"], iteration_idx, self.metrics)
           
-    preset_to_ATE, out_table_ATE = self.write_comparative_table(self.output_path, "rmse", self.presets, self.datasets, self.number_of_runs_per_dataset, self.metrics)
-    preset_to_max, out_table_max = self.write_comparative_table(self.output_path, "max", self.presets, self.datasets, self.number_of_runs_per_dataset, self.metrics) 
-    preset_to_percent_lost, out_table_percent_lost = self.write_comparative_table(self.output_path, "percent_lost", self.presets, self.datasets, self.number_of_runs_per_dataset, self.metrics)
-    table_paths = [out_table_ATE, out_table_max, out_table_percent_lost]
+    map_preset_to_ATE, out_table_ATE_path = self.write_comparative_table(self.output_path, "rmse", self.presets, self.datasets, self.number_of_runs_per_dataset, self.metrics)
+    map_preset_to_max, out_table_max_path = self.write_comparative_table(self.output_path, "max", self.presets, self.datasets, self.number_of_runs_per_dataset, self.metrics) 
+    map_preset_to_percent_lost, out_table_percent_lost_path = self.write_comparative_table(self.output_path, "percent_lost", self.presets, self.datasets, self.number_of_runs_per_dataset, self.metrics)
+    table_paths = [out_table_ATE_path, out_table_max_path, out_table_percent_lost_path]
     
     try:
       from utils_eval_latex import csv_list_to_pdf 

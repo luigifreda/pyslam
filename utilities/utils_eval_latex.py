@@ -97,7 +97,7 @@ def clean_non_ascii(df):
     return df.map(lambda x: re.sub(r'[^\x20-\x7E]', '', str(x)))
 
 
-def compute_column_widths(df, max_total_width_cm=15.5, max_chars_per_col=50, col_scale=0.6):
+def compute_column_widths(df, max_total_width_cm=15.5, max_chars_per_col=50, first_col_scale=0.9, col_scale=0.6):
     header_lens = [len(str(col)) for col in df.columns]
     content_lens = [
         min(max(df[col].astype(str).map(len)), max_chars_per_col)
@@ -108,7 +108,10 @@ def compute_column_widths(df, max_total_width_cm=15.5, max_chars_per_col=50, col
 
     # Scale down the columns
     for i,col_length in enumerate(col_lengths):
-        col_lengths[i] = int(col_length * col_scale)
+        if i == 0:
+            col_lengths[i] = int(col_length * first_col_scale)
+        else:
+            col_lengths[i] = int(col_length * col_scale)
 
     total_chars = sum(col_lengths)
 
@@ -155,13 +158,13 @@ def csv_list_to_pdf(csv_paths, output_pdf_path, title="CSV Tables", open_pdf_out
     rendered_latex = template.render(tables=latex_tables, title=title, user=author_name)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        tex_path = Path(tmpdir) / "document.tex"
+        tex_path = Path(tmpdir) / "report.tex"
         with open(tex_path, "w") as f:
             f.write(rendered_latex)
 
         try:
             output_path = os.path.dirname(output_pdf_path)
-            output_latex_file_path = os.path.join(output_path, f"document.tex")
+            output_latex_file_path = os.path.join(output_path, f"report.tex")
             Path(output_latex_file_path).write_bytes(tex_path.read_bytes())
             print(f"✅ Successfully saved tex: {output_latex_file_path}")
         except Exception as e:
@@ -174,7 +177,7 @@ def csv_list_to_pdf(csv_paths, output_pdf_path, title="CSV Tables", open_pdf_out
             print(tex_path.read_text())
             return
         
-        pdf_path = Path(tmpdir) / "document.pdf"
+        pdf_path = Path(tmpdir) / "report.pdf"
         Path(output_pdf_path).write_bytes(pdf_path.read_bytes())
         print(f"✅ Successfully created PDF: {output_pdf_path}")
         if open_pdf_output:
