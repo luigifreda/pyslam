@@ -50,7 +50,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
     - [Full SLAM](#full-slam)
     - [Selecting a dataset and different configuration parameters](#selecting-a-dataset-and-different-configuration-parameters)
     - [Feature tracking](#feature-tracking)
-    - [Loop closing](#loop-closing)
+    - [Loop closing and relocalization](#loop-closing-and-relocalization)
       - [Vocabulary management](#vocabulary-management)
       - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
       - [Double-check your loop detection configuration and verify vocabulary compability](#double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
@@ -91,6 +91,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
       - [Tartanair Datasets](#tartanair-datasets)
       - [ROS1 bags](#ros1-bags)
       - [ROS2 bags](#ros2-bags)
+      - [Video and Folder Datasets](#video-and-folder-datasets)
     - [Camera Settings](#camera-settings)
   - [References](#references)
   - [Credits](#credits)
@@ -240,9 +241,9 @@ To process a different **dataset** with both VO and SLAM scripts, you need to up
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
 * Select the `sensor_type` (`mono`, `stereo`, `rgbd`) in the chosen dataset section.  
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
-* The `groudtruth_file` accordingly (further details in the section *[Datasets](#datasets)* below and check the files `io/ground_truth.py` and `io/convert_kitti_groundtruth_to_simple.py`).
+* Set the `groudtruth_file` accordingly. Further details in the section *[Datasets](#datasets)* below  (see also the files `io/ground_truth.py`, `io/convert_groundtruth_to_simple.py`).
 
-You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the global configuration parameters set in [config_parameters.py](./config_parameters.py). In particular, this is useful when running a [SLAM evaluation](#evaluating-slam).
+You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the global configuration parameters set in [config_parameters.py](./config_parameters.py). This is particularly useful when running a [SLAM evaluation](#evaluating-slam).
 
 ---
 
@@ -260,7 +261,7 @@ Some basic examples are available in the subfolder `test/cv`. In particular, as 
 
 ---
 
-### Loop closing
+### Loop closing and relocalization
 
 Many [loop closing methods](#loop-closing) are available, combining different [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
 
@@ -464,7 +465,7 @@ Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 #### Run a SLAM evaluation 
 
-The `main_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
+The `main_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF, LaTeX, and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
 
 #### pySLAM performances and comparative evaluations 
 
@@ -697,6 +698,11 @@ Follow the same instructions provided for the TUM datasets.
 1. Source the main ROS2 `setup.bash` after you have sourced the `pyslam` python environment.
 2. Set the paths and `ROS2BAG_DATASET: ros_parameters` in the file `config.yaml`.
 3. Select/prepare the correspoding calibration settings file (section `ROS2BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
+
+
+#### Video and Folder Datasets
+
+You can use the `VIDEO_DATASET` and `FOLDER_DATASET` types to read generic video files and image folders (specifying a glob pattern), respectively. A companion ground truth file can be set in the simple format type: Refer to the class `SimpleGroundTruth` in `io/ground_truth.py` and check the script `io/convert_groundtruth_to_simple.py`.  
 
 --- 
 ### Camera Settings
