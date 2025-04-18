@@ -1,0 +1,122 @@
+
+\documentclass{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{ltablex}
+\usepackage{caption}
+\usepackage{capt-of}
+\usepackage{textcomp}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{adjustbox}
+\keepXColumns
+\renewcommand{\arraystretch}{1.2}
+
+\title{ pySLAM Evaluation Report }
+\author{ Luigi \\ Commit: f7c9a13 }
+\begin{document}
+
+\maketitle
+
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{ Table Rmse }\label{tab:table_rmse}
+
+
+
+\fontsize{9pt}{10pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.08819 & 0.08816 & 0.08834 \\
+V102 & 0.06852 & 0.06609 & 0.06694 \\
+V201 & 0.07062 & 0.06409 & 0.09735 \\
+V202 & 0.62539 & 0.56925 & 0.53736 \\
+MH01 & 0.03775 & 0.03781 & 0.04172 \\
+MH02 & 0.04217 & 0.0456 & 0.04177 \\
+MH03 & 0.0512 & 0.04905 & 0.04882 \\
+MH04 & 0.0702 & 0.05907 & 0.0646 \\
+MH05 & 0.08177 & 0.06607 & 0.07131 \\
+Average & 0.1262 & 0.11613 & 0.11758 \\
+Std Dev & 0.19831 & 0.17517 & 0.15435 \\
+Best (Average) Preset & root\_sift &  &  \\
+Best (Average) Metric & 0.11613 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{ Table Max }\label{tab:table_max}
+
+
+
+\fontsize{9pt}{10pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.16335 & 0.163 & 0.16208 \\
+V102 & 0.14545 & 0.12379 & 0.13136 \\
+V201 & 0.15864 & 0.18921 & 0.22163 \\
+V202 & 2.06607 & 2.52628 & 1.97847 \\
+MH01 & 0.09141 & 0.10259 & 0.21303 \\
+MH02 & 0.11922 & 0.1318 & 0.11196 \\
+MH03 & 0.19995 & 0.17533 & 0.14082 \\
+MH04 & 0.32021 & 0.27938 & 0.26722 \\
+MH05 & 0.24828 & 0.17474 & 0.18991 \\
+Average & 0.39029 & 0.42957 & 0.37961 \\
+Std Dev & 0.67128 & 0.75543 & 0.6093 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.37961 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{ Table Percent Lost }\label{tab:table_percent_lost}
+
+
+
+\fontsize{9pt}{10pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.0 & 0.0 & 0.0 \\
+V102 & 0.0 & 0.0 & 0.0 \\
+V201 & 0.04 & 0.04 & 0.04 \\
+V202 & 0.146 & 0.138 & 0.112 \\
+MH01 & 0.05 & 0.074 & 0.08 \\
+MH02 & 0.018 & 0.026 & 0.012 \\
+MH03 & 0.046 & 0.03 & 0.032 \\
+MH04 & 0.0 & 0.01 & 0.0 \\
+MH05 & 0.07 & 0.016 & 0.034 \\
+Average & 0.04111 & 0.03711 & 0.03444 \\
+Std Dev & 0.05351 & 0.04829 & 0.04435 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.03444 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+
+\end{document}

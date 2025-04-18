@@ -54,7 +54,7 @@ latex_template = r"""
 \renewcommand{\arraystretch}{1.2}
 
 \title{ {{ title }} }
-\author{ {{ user }} }
+\author{ {{ user }} \\ Commit: {{ git_hash }} }
 \begin{document}
 
 \maketitle
@@ -125,7 +125,7 @@ def compute_column_widths(df, max_total_width_cm=15.5, max_chars_per_col=50, fir
     return widths
 
 
-def csv_list_to_pdf(csv_paths, output_pdf_path, title="CSV Tables", open_pdf_output=True):
+def csv_list_to_pdf(csv_paths, output_pdf_path, title="CSV Tables", git_commit_hash=None, open_pdf_output=True):
     latex_tables = []
 
     for i,csv_path in enumerate(csv_paths):
@@ -148,6 +148,8 @@ def csv_list_to_pdf(csv_paths, output_pdf_path, title="CSV Tables", open_pdf_out
         print(f"🧪 Table {table_data['label']} columns: {table_data['columns']}")
         print(f"📐 Widths: {table_data['widths']}")
         print(f"📊 Caption: {table_data['caption']}")
+        if git_commit_hash:
+            print(f"🔑 Git commit hash: {git_commit_hash}")
         latex_tables.append(table_data)
 
     author_name = getpass.getuser().capitalize()
@@ -155,7 +157,7 @@ def csv_list_to_pdf(csv_paths, output_pdf_path, title="CSV Tables", open_pdf_out
     env = Environment()
     env.filters['escape'] = escape_latex
     template = env.from_string(latex_template)
-    rendered_latex = template.render(tables=latex_tables, title=title, user=author_name)
+    rendered_latex = template.render(tables=latex_tables, title=title, user=author_name, git_hash=git_commit_hash)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = Path(tmpdir) / "report.tex"

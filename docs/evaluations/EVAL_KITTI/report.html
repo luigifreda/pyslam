@@ -1,0 +1,667 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>pySLAM Evaluation Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f9f9f9;
+            padding: 2rem;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .table-wrapper {
+            margin-bottom: 2.5rem;
+        }
+        .caption {
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            color: #222;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            background: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 0.8rem;  /* Smaller font for table content */
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5rem 0.6rem;
+            text-align: left;
+        }
+        thead th {
+            background: #007acc;
+            color: white;
+            font-weight: 600;
+        }
+        tbody tr:nth-child(even) {
+            background: #f5faff;
+        }
+    </style>
+</head>
+<body>
+
+<h1>pySLAM Evaluation Report</h1>
+<div style="text-align: center; font-size: 0.85rem;  margin-bottom: 2rem;">
+    Luigi &nbsp;|&nbsp; 2025-04-18 09:32:38 &nbsp;|&nbsp; Commit: <code>f7c9a13</code>
+</div>
+
+
+<div class="table-wrapper">
+    <div class="caption">Table Rmse</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>00</td>
+                
+                <td>3.947</td>
+                
+                <td>3.24849</td>
+                
+                <td>3.93432</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>01</td>
+                
+                <td>21.60014</td>
+                
+                <td>21.86468</td>
+                
+                <td>23.37292</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>02</td>
+                
+                <td>6.1194</td>
+                
+                <td>5.6707</td>
+                
+                <td>10.14455</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>03</td>
+                
+                <td>5.96451</td>
+                
+                <td>5.92601</td>
+                
+                <td>5.88895</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>04</td>
+                
+                <td>1.74556</td>
+                
+                <td>1.76121</td>
+                
+                <td>1.65506</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>05</td>
+                
+                <td>2.13915</td>
+                
+                <td>2.11047</td>
+                
+                <td>2.52263</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>06</td>
+                
+                <td>2.74011</td>
+                
+                <td>2.73981</td>
+                
+                <td>2.6784</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>07</td>
+                
+                <td>1.12358</td>
+                
+                <td>1.12823</td>
+                
+                <td>1.09496</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>08</td>
+                
+                <td>3.99078</td>
+                
+                <td>4.13702</td>
+                
+                <td>4.14543</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>09</td>
+                
+                <td>4.26068</td>
+                
+                <td>4.35988</td>
+                
+                <td>4.06244</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>10</td>
+                
+                <td>2.22097</td>
+                
+                <td>2.25127</td>
+                
+                <td>2.27694</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>5.07744</td>
+                
+                <td>5.01798</td>
+                
+                <td>5.61605</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>5.47265</td>
+                
+                <td>5.63609</td>
+                
+                <td>6.77</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>root_sift</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>5.01798</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<div class="table-wrapper">
+    <div class="caption">Table Max</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>00</td>
+                
+                <td>6.82983</td>
+                
+                <td>5.8663</td>
+                
+                <td>7.04067</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>01</td>
+                
+                <td>33.32903</td>
+                
+                <td>33.85867</td>
+                
+                <td>36.62253</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>02</td>
+                
+                <td>13.97623</td>
+                
+                <td>9.47974</td>
+                
+                <td>21.05188</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>03</td>
+                
+                <td>10.16642</td>
+                
+                <td>10.16978</td>
+                
+                <td>10.06014</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>04</td>
+                
+                <td>3.09135</td>
+                
+                <td>3.0576</td>
+                
+                <td>2.87271</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>05</td>
+                
+                <td>3.81484</td>
+                
+                <td>3.77687</td>
+                
+                <td>4.9547</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>06</td>
+                
+                <td>6.53758</td>
+                
+                <td>5.14239</td>
+                
+                <td>5.11673</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>07</td>
+                
+                <td>1.84418</td>
+                
+                <td>1.82355</td>
+                
+                <td>1.8655</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>08</td>
+                
+                <td>10.809</td>
+                
+                <td>11.23635</td>
+                
+                <td>10.75959</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>09</td>
+                
+                <td>8.53888</td>
+                
+                <td>8.70237</td>
+                
+                <td>8.31166</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>10</td>
+                
+                <td>4.13901</td>
+                
+                <td>4.37849</td>
+                
+                <td>4.27905</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>9.37058</td>
+                
+                <td>8.86292</td>
+                
+                <td>10.26683</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>8.62548</td>
+                
+                <td>8.62145</td>
+                
+                <td>12.23529</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>root_sift</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>8.86292</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<div class="table-wrapper">
+    <div class="caption">Table Percent Lost</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>00</td>
+                
+                <td>0.0</td>
+                
+                <td>0.038</td>
+                
+                <td>0.012</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>01</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>02</td>
+                
+                <td>0.012</td>
+                
+                <td>0.004</td>
+                
+                <td>0.004</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>03</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>04</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>05</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.028</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>06</td>
+                
+                <td>0.108</td>
+                
+                <td>0.018</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>07</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>08</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>09</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>10</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>0.01091</td>
+                
+                <td>0.00545</td>
+                
+                <td>0.004</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>0.07244</td>
+                
+                <td>0.02373</td>
+                
+                <td>0.0196</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>superpoint</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>0.004</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+
+</body>
+</html>

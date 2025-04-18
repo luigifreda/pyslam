@@ -1,0 +1,56 @@
+{
+    "num_threads" : 2, // Number of parallel threads (results may get worse with more threads)
+
+    "dataset_base_path": "/home/luigi/Work/datasets/rgbd_datasets/euroc",
+    "dataset_type": "EUROC_DATASET",
+
+    "number_of_runs_per_dataset": 5,
+
+    "sensor_type": "stereo",
+    
+    "datasets": [
+        { "name": "V101", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "V102", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        //{ "name": "V103", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "V201", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "V202", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        //{ "name": "V203", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "MH01", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "MH02", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "MH03", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "MH04", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" },
+        { "name": "MH05", "settings_path": "settings/EuRoC_mono.yaml", "settings_stereo_path": "settings/EuRoC_stereo.yaml" }
+    ],
+    "presets": [
+      {
+        "name": "baseline"
+      },
+      {
+        "name": "root_sift",
+          "settings": {
+            "FeatureTrackerConfig.name": "ROOT_SIFT",
+            "LoopDetectionConfig.name": "DBOW3_INDEPENDENT"
+          }
+        },
+        {
+        "name": "superpoint",
+          "settings": {
+            "FeatureTrackerConfig.name": "SUPERPOINT",
+            "LoopDetectionConfig.name": "DBOW3_INDEPENDENT"
+          }
+        }      
+    ],
+    // "common_parameters": {
+    //   "config": {
+    //     "GLOBAL_PARAMETERS": {
+    //       "kNumMinPointsForNewKf": 15
+    //     }
+    //   },
+    //   "settings": {
+    //     "FeatureTrackerConfig.nFeatures": 1000
+    //   }
+    // },
+    "output_path": "kitti",
+    "saved_trajectory_format_type": "kitti"
+  }
+  

@@ -25,7 +25,7 @@ import math
 import os
 from datetime import datetime
 import shutil
-
+import subprocess
 import yaml
 import json 
 import concurrent.futures
@@ -34,6 +34,7 @@ from utils_data import merge_dicts
 from utils_sys import Printer
 from utils_run import run_command_async, run_command_sync
 import traceback
+from pathlib import Path
 
 try:
   import hjson
@@ -56,6 +57,16 @@ eval_path_prefix = kResultsFolder + "/eval_" + date_time_now_string
 log_folder_name = "logs"
 template_entry_regex = re.compile(r'%(\w+)%')
   
+
+def get_git_short_hash(repo_dir=None):
+    try:
+        repo_dir = repo_dir or Path(__file__).resolve().parent
+        return subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=repo_dir
+        ).decode().strip()
+    except subprocess.CalledProcessError:
+        return None
 
 
 def replace_template_entries(string, vocabulary):
@@ -450,16 +461,19 @@ class SlamEvaluationManager:
     map_preset_to_percent_lost, out_table_percent_lost_path = self.write_comparative_table(self.output_path, "percent_lost", self.presets, self.datasets, self.number_of_runs_per_dataset, self.metrics)
     table_paths = [out_table_ATE_path, out_table_max_path, out_table_percent_lost_path]
     
+    git_commit_hash = get_git_short_hash()
+    print("git commit hash: ", git_commit_hash)
+    
     try:
       from utils_eval_latex import csv_list_to_pdf 
-      csv_list_to_pdf(table_paths, self.output_path + "/report.pdf", title="pySLAM Evaluation Report")
+      csv_list_to_pdf(table_paths, self.output_path + "/report.pdf", title="pySLAM Evaluation Report", git_commit_hash=git_commit_hash)
     except Exception as e:
       print("Error converting tables to pdf report: ", e)
       print(traceback.format_exc())
       
     try:
       from utils_eval_html import csv_list_to_html
-      csv_list_to_html(table_paths, self.output_path + "/report.html", title="pySLAM Evaluation Report")
+      csv_list_to_html(table_paths, self.output_path + "/report.html", title="pySLAM Evaluation Report", git_commit_hash=git_commit_hash)
     except Exception as e:
       print("Error converting tables to html report: ", e)
       print(traceback.format_exc())

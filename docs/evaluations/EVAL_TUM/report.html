@@ -1,0 +1,523 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>pySLAM Evaluation Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f9f9f9;
+            padding: 2rem;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .table-wrapper {
+            margin-bottom: 2.5rem;
+        }
+        .caption {
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            color: #222;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            background: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 0.8rem;  /* Smaller font for table content */
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5rem 0.6rem;
+            text-align: left;
+        }
+        thead th {
+            background: #007acc;
+            color: white;
+            font-weight: 600;
+        }
+        tbody tr:nth-child(even) {
+            background: #f5faff;
+        }
+    </style>
+</head>
+<body>
+
+<h1>pySLAM Evaluation Report</h1>
+<div style="text-align: center; font-size: 0.85rem;  margin-bottom: 2rem;">
+    Luigi &nbsp;|&nbsp; 2025-04-18 09:34:10 &nbsp;|&nbsp; Commit: <code>f7c9a13</code>
+</div>
+
+
+<div class="table-wrapper">
+    <div class="caption">Table Rmse</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_desk</td>
+                
+                <td>0.06634</td>
+                
+                <td>0.05289</td>
+                
+                <td>0.04815</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_desk2</td>
+                
+                <td>0.04645</td>
+                
+                <td>0.06255</td>
+                
+                <td>0.03868</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_room</td>
+                
+                <td>0.05885</td>
+                
+                <td>0.07968</td>
+                
+                <td>0.07199</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_xyz</td>
+                
+                <td>0.01196</td>
+                
+                <td>0.01758</td>
+                
+                <td>0.01726</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_long_office_household</td>
+                
+                <td>0.00921</td>
+                
+                <td>0.00982</td>
+                
+                <td>0.00952</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_nostructure_texture_far</td>
+                
+                <td>0.08397</td>
+                
+                <td>0.11342</td>
+                
+                <td>0.12118</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_nostructure_texture_near_withloop</td>
+                
+                <td>0.02245</td>
+                
+                <td>0.05022</td>
+                
+                <td>0.05037</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>0.04275</td>
+                
+                <td>0.05517</td>
+                
+                <td>0.05102</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>0.0362</td>
+                
+                <td>0.04531</td>
+                
+                <td>0.04503</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>baseline</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>0.04275</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<div class="table-wrapper">
+    <div class="caption">Table Max</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_desk</td>
+                
+                <td>0.326</td>
+                
+                <td>0.19361</td>
+                
+                <td>0.22686</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_desk2</td>
+                
+                <td>0.44543</td>
+                
+                <td>0.28865</td>
+                
+                <td>0.38157</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_room</td>
+                
+                <td>0.14959</td>
+                
+                <td>0.2838</td>
+                
+                <td>0.17632</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_xyz</td>
+                
+                <td>0.06059</td>
+                
+                <td>0.0677</td>
+                
+                <td>0.0635</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_long_office_household</td>
+                
+                <td>0.03609</td>
+                
+                <td>0.03543</td>
+                
+                <td>0.04005</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_nostructure_texture_far</td>
+                
+                <td>0.29727</td>
+                
+                <td>0.4361</td>
+                
+                <td>0.70826</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_nostructure_texture_near_withloop</td>
+                
+                <td>0.09011</td>
+                
+                <td>0.13774</td>
+                
+                <td>0.11602</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>0.20073</td>
+                
+                <td>0.20615</td>
+                
+                <td>0.24465</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>0.18661</td>
+                
+                <td>0.18182</td>
+                
+                <td>0.26334</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>baseline</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>0.20073</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<div class="table-wrapper">
+    <div class="caption">Table Percent Lost</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_desk</td>
+                
+                <td>1.364</td>
+                
+                <td>1.502</td>
+                
+                <td>1.674</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_desk2</td>
+                
+                <td>0.548</td>
+                
+                <td>1.55</td>
+                
+                <td>0.612</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_room</td>
+                
+                <td>0.074</td>
+                
+                <td>0.148</td>
+                
+                <td>0.088</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg1_xyz</td>
+                
+                <td>0.05</td>
+                
+                <td>0.076</td>
+                
+                <td>0.078</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_long_office_household</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_nostructure_texture_far</td>
+                
+                <td>0.622</td>
+                
+                <td>0.622</td>
+                
+                <td>0.666</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>rgbd_dataset_freiburg3_nostructure_texture_near_withloop</td>
+                
+                <td>0.024</td>
+                
+                <td>0.036</td>
+                
+                <td>0.036</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>0.38314</td>
+                
+                <td>0.562</td>
+                
+                <td>0.45057</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>0.50438</td>
+                
+                <td>0.82947</td>
+                
+                <td>0.59847</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>baseline</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>0.38314</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+
+</body>
+</html>

@@ -3,6 +3,8 @@ from pathlib import Path
 from jinja2 import Template
 import webbrowser
 import html
+from datetime import datetime
+import getpass
 
 
 html_template = """
@@ -58,6 +60,9 @@ html_template = """
 <body>
 
 <h1>{{ title }}</h1>
+<div style="text-align: center; font-size: 0.85rem;  margin-bottom: 2rem;">
+    {{ user }} &nbsp;|&nbsp; {{ date }} &nbsp;|&nbsp; Commit: <code>{{ git_hash }}</code>
+</div>
 
 {% for table in tables %}
 <div class="table-wrapper">
@@ -90,8 +95,9 @@ html_template = """
 def escape_html_df(df: pd.DataFrame) -> pd.DataFrame:
     return df.applymap(lambda x: html.escape(str(x)) if pd.notna(x) else "")
 
-def csv_list_to_html(csv_paths, output_html_path, title="Evaluation Report", open_browser=True):
+def csv_list_to_html(csv_paths, output_html_path, title="Evaluation Report", git_commit_hash=None, open_browser=True):
     tables = []
+    author_name = getpass.getuser().capitalize()
     for csv_path in csv_paths:
         df = pd.read_csv(csv_path, keep_default_na=False, na_values=[])
         if df.empty:
@@ -100,12 +106,12 @@ def csv_list_to_html(csv_paths, output_html_path, title="Evaluation Report", ope
         table_data = {
             "caption": Path(csv_path).stem.replace("_", " ").title(),
             "columns": escaped_df.columns.tolist(),
-            "data": escaped_df.values.tolist()
+            "data": escaped_df.values.tolist(),
         }
         tables.append(table_data)
 
     template = Template(html_template)
-    rendered_html = template.render(tables=tables, title=title)
+    rendered_html = template.render(tables=tables, title=title, user=author_name, date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"), git_hash=git_commit_hash)
 
     Path(output_html_path).write_text(rendered_html, encoding="utf-8")
     print(f"✅ HTML report saved to: {output_html_path}")

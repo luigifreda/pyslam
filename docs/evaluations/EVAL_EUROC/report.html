@@ -1,0 +1,595 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>pySLAM Evaluation Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f9f9f9;
+            padding: 2rem;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .table-wrapper {
+            margin-bottom: 2.5rem;
+        }
+        .caption {
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            color: #222;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            background: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 0.8rem;  /* Smaller font for table content */
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.5rem 0.6rem;
+            text-align: left;
+        }
+        thead th {
+            background: #007acc;
+            color: white;
+            font-weight: 600;
+        }
+        tbody tr:nth-child(even) {
+            background: #f5faff;
+        }
+    </style>
+</head>
+<body>
+
+<h1>pySLAM Evaluation Report</h1>
+<div style="text-align: center; font-size: 0.85rem;  margin-bottom: 2rem;">
+    Luigi &nbsp;|&nbsp; 2025-04-18 09:30:30 &nbsp;|&nbsp; Commit: <code>f7c9a13</code>
+</div>
+
+
+<div class="table-wrapper">
+    <div class="caption">Table Rmse</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>V101</td>
+                
+                <td>0.08819</td>
+                
+                <td>0.08816</td>
+                
+                <td>0.08834</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V102</td>
+                
+                <td>0.06852</td>
+                
+                <td>0.06609</td>
+                
+                <td>0.06694</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V201</td>
+                
+                <td>0.07062</td>
+                
+                <td>0.06409</td>
+                
+                <td>0.09735</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V202</td>
+                
+                <td>0.62539</td>
+                
+                <td>0.56925</td>
+                
+                <td>0.53736</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH01</td>
+                
+                <td>0.03775</td>
+                
+                <td>0.03781</td>
+                
+                <td>0.04172</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH02</td>
+                
+                <td>0.04217</td>
+                
+                <td>0.0456</td>
+                
+                <td>0.04177</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH03</td>
+                
+                <td>0.0512</td>
+                
+                <td>0.04905</td>
+                
+                <td>0.04882</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH04</td>
+                
+                <td>0.0702</td>
+                
+                <td>0.05907</td>
+                
+                <td>0.0646</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH05</td>
+                
+                <td>0.08177</td>
+                
+                <td>0.06607</td>
+                
+                <td>0.07131</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>0.1262</td>
+                
+                <td>0.11613</td>
+                
+                <td>0.11758</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>0.19831</td>
+                
+                <td>0.17517</td>
+                
+                <td>0.15435</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>root_sift</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>0.11613</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<div class="table-wrapper">
+    <div class="caption">Table Max</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>V101</td>
+                
+                <td>0.16335</td>
+                
+                <td>0.163</td>
+                
+                <td>0.16208</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V102</td>
+                
+                <td>0.14545</td>
+                
+                <td>0.12379</td>
+                
+                <td>0.13136</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V201</td>
+                
+                <td>0.15864</td>
+                
+                <td>0.18921</td>
+                
+                <td>0.22163</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V202</td>
+                
+                <td>2.06607</td>
+                
+                <td>2.52628</td>
+                
+                <td>1.97847</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH01</td>
+                
+                <td>0.09141</td>
+                
+                <td>0.10259</td>
+                
+                <td>0.21303</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH02</td>
+                
+                <td>0.11922</td>
+                
+                <td>0.1318</td>
+                
+                <td>0.11196</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH03</td>
+                
+                <td>0.19995</td>
+                
+                <td>0.17533</td>
+                
+                <td>0.14082</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH04</td>
+                
+                <td>0.32021</td>
+                
+                <td>0.27938</td>
+                
+                <td>0.26722</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH05</td>
+                
+                <td>0.24828</td>
+                
+                <td>0.17474</td>
+                
+                <td>0.18991</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>0.39029</td>
+                
+                <td>0.42957</td>
+                
+                <td>0.37961</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>0.67128</td>
+                
+                <td>0.75543</td>
+                
+                <td>0.6093</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>superpoint</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>0.37961</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<div class="table-wrapper">
+    <div class="caption">Table Percent Lost</div>
+    <table>
+        <thead>
+            <tr>
+                
+                <th>Dataset</th>
+                
+                <th>baseline</th>
+                
+                <th>root_sift</th>
+                
+                <th>superpoint</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                
+                <td>V101</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V102</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V201</td>
+                
+                <td>0.04</td>
+                
+                <td>0.04</td>
+                
+                <td>0.04</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>V202</td>
+                
+                <td>0.146</td>
+                
+                <td>0.138</td>
+                
+                <td>0.112</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH01</td>
+                
+                <td>0.05</td>
+                
+                <td>0.074</td>
+                
+                <td>0.08</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH02</td>
+                
+                <td>0.018</td>
+                
+                <td>0.026</td>
+                
+                <td>0.012</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH03</td>
+                
+                <td>0.046</td>
+                
+                <td>0.03</td>
+                
+                <td>0.032</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH04</td>
+                
+                <td>0.0</td>
+                
+                <td>0.01</td>
+                
+                <td>0.0</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>MH05</td>
+                
+                <td>0.07</td>
+                
+                <td>0.016</td>
+                
+                <td>0.034</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Average</td>
+                
+                <td>0.04111</td>
+                
+                <td>0.03711</td>
+                
+                <td>0.03444</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Std Dev</td>
+                
+                <td>0.05351</td>
+                
+                <td>0.04829</td>
+                
+                <td>0.04435</td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Preset</td>
+                
+                <td>superpoint</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+            <tr>
+                
+                <td>Best (Average) Metric</td>
+                
+                <td>0.03444</td>
+                
+                <td></td>
+                
+                <td></td>
+                
+            </tr>
+            
+        </tbody>
+    </table>
+</div>
+
+
+</body>
+</html>

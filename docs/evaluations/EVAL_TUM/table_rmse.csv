@@ -1,0 +1,14 @@
+Dataset,baseline,root_sift,superpoint
+rgbd_dataset_freiburg1_desk,0.06634,0.05289,0.04815
+rgbd_dataset_freiburg1_desk2,0.04645,0.06255,0.03868
+rgbd_dataset_freiburg1_room,0.05885,0.07968,0.07199
+rgbd_dataset_freiburg1_xyz,0.01196,0.01758,0.01726
+rgbd_dataset_freiburg3_long_office_household,0.00921,0.00982,0.00952
+rgbd_dataset_freiburg3_nostructure_texture_far,0.08397,0.11342,0.12118
+rgbd_dataset_freiburg3_nostructure_texture_near_withloop,0.02245,0.05022,0.05037
+
+Average,0.04275,0.05517,0.05102
+Std Dev,0.0362,0.04531,0.04503
+
+Best (Average) Preset,baseline
+Best (Average) Metric,0.04275

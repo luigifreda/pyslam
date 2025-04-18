@@ -467,6 +467,8 @@ Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 The `main_slam_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets. The input evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) specifies the datasets and presets to be used. For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both PDF, LaTeX, and HTML formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics.
 
+You can find some obtained evaluation results [here](./docs/evaluations/evaluations.md).
+
 #### pySLAM performances and comparative evaluations 
 
 For a comparative evaluation of the "**online**" trajectory estimated by pySLAM versus the "**final**" trajectory estimated by ORB-SLAM3, check out this nice [notebook](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb). For more details about "*online*" and "*final*" trajectories, refer to this [section](#trajectory-saving).

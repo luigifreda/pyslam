@@ -1,0 +1,116 @@
+
+\documentclass{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{ltablex}
+\usepackage{caption}
+\usepackage{capt-of}
+\usepackage{textcomp}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{adjustbox}
+\keepXColumns
+\renewcommand{\arraystretch}{1.2}
+
+\title{ pySLAM Evaluation Report }
+\author{ Luigi \\ Commit: f7c9a13 }
+\begin{document}
+
+\maketitle
+
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{ Table Rmse }\label{tab:table_rmse}
+
+
+
+\fontsize{9pt}{10pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 11.25cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 0.06634 & 0.05289 & 0.04815 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.04645 & 0.06255 & 0.03868 \\
+rgbd\_dataset\_freiburg1\_room & 0.05885 & 0.07968 & 0.07199 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.01196 & 0.01758 & 0.01726 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.00921 & 0.00982 & 0.00952 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.08397 & 0.11342 & 0.12118 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.02245 & 0.05022 & 0.05037 \\
+Average & 0.04275 & 0.05517 & 0.05102 \\
+Std Dev & 0.0362 & 0.04531 & 0.04503 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.04275 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{ Table Max }\label{tab:table_max}
+
+
+
+\fontsize{9pt}{10pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 11.25cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 0.326 & 0.19361 & 0.22686 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.44543 & 0.28865 & 0.38157 \\
+rgbd\_dataset\_freiburg1\_room & 0.14959 & 0.2838 & 0.17632 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.06059 & 0.0677 & 0.0635 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.03609 & 0.03543 & 0.04005 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.29727 & 0.4361 & 0.70826 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.09011 & 0.13774 & 0.11602 \\
+Average & 0.20073 & 0.20615 & 0.24465 \\
+Std Dev & 0.18661 & 0.18182 & 0.26334 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.20073 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{ Table Percent Lost }\label{tab:table_percent_lost}
+
+
+
+\fontsize{9pt}{10pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 11.25cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 1.364 & 1.502 & 1.674 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.548 & 1.55 & 0.612 \\
+rgbd\_dataset\_freiburg1\_room & 0.074 & 0.148 & 0.088 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.05 & 0.076 & 0.078 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.0 & 0.0 & 0.0 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.622 & 0.622 & 0.666 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.024 & 0.036 & 0.036 \\
+Average & 0.38314 & 0.562 & 0.45057 \\
+Std Dev & 0.50438 & 0.82947 & 0.59847 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.38314 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+
+\end{document}
