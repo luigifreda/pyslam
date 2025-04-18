@@ -3,8 +3,7 @@
 <!-- TOC -->
 
 - [System Overview](#system-overview)
-  - [SLAM Workflow](#slam-workflow)
-  - [SLAM Components](#slam-components)
+  - [SLAM Workflow and Components](#slam-workflow-and-components)
   - [Main System Components](#main-system-components)
     - [Feature Tracker](#feature-tracker)
     - [Feature Matcher](#feature-matcher)
@@ -14,25 +13,37 @@
 
 <!-- /TOC -->
 
-This document presents some diagram sketches that provide an overview of the main workflow, system components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted.
+This document presents a system overview and diagrams that outline the main workflow, its components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted. A **pdf version** of this presentation (with futher details) is available [here](./tex/document.pdf).
 
 ---
 
-## SLAM Workflow
+## SLAM Workflow and Components
 
 <p align="center">
 <img src="./images/slam_workflow.png" alt="SLAM Workflow"  /> 
 </p>
 
----
-## SLAM Components
+This figure illustrates the SLAM workflow, which is composed of **five main parallel processing modules**:
+- *Tracking*: estimates the camera pose for each incoming frame by extracting and matching local features to the local map, followed by minimizing the reprojection error through motion-only Bundle Adjustment (BA). It includes components such as pose prediction (or relocalization), feature tracking, local map tracking, and keyframe decision-making.
+- *Local Mapping*: updates and refines the local map by processing new keyframes. This involves culling redundant map points, creating new points via temporal triangulation, fusing nearby map points, performing Local BA, and pruning redundant local keyframes.
+- *Loop Closing*: detects and validates loop closures to correct drift accumulated over time. Upon loop detection, it performs loop group consistency checks and geometric verification, applies corrections, and then launches Pose Graph Optimization (PGO) followed by a full Global Bundle Adjustment (GBA). Loop detection itself is delegated to a parallel process, the *Loop Detector*, which operates independently for better responsiveness and concurrency.
+- *Global Bundle Adjustment*: triggered by the Loop Closing module after PGO, this step globally optimizes the trajectory and the sparse structure of the map to ensure consistency across the entire sequence.
+- *Volumetric Integration*: uses the keyframes, with their estimated poses and back-projected point clouds, to reconstruct a dense 3D map of the environment. This module optionally integrates predicted depth maps and maintains a volumetric representation such as a TSDF or Gaussian Splatting-based volume.
+
+The first four modules follow the established PTAM and ORB-SLAM paradigm. Here, the Tracking module serves as the front-end, while the remaining modules operate as part of the back-end.
+
+In parallel, the system constructs two types of maps:
+- The sparse map ${\cal M}_s = ({\cal K}, {\cal P})$, composed of a set of keyframes ${\cal K}$ and 3D points ${\cal P}$ derived from matched features.
+- The volumetric/dense map ${\cal M}_v$, constructed by the Volumetric Integration module, which fuses back-projected point clouds from the keyframes ${\cal K}$ into a dense 3D model.
+
+To ensure consistency between the sparse and volumetric representations, the volumetric map is updated or re-integrated whenever global pose adjustments occur (e.g., after loop closures).
 
 <p align="center">
 <img src="./images/slam_components.png" alt="SLAM Components"  /> 
 </p>
 
 
-**Note**: In some case, **Processes** were used instead of **Threads** because in Python 3.8 (used by pySLAM) the Global Interpreter Lock (GIL) allows only one thread can execute at a time within a single process. Multiprocessing avoids this limitation and enables better parallelism, though it involves data duplication via pickling. See this related nice [post](https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder).
+This other figure details the internal components and interactions of the above modules. In certain cases, **processes** are employed instead of **threads**. This is due to Python's Global Interpreter Lock (GIL), which prevents concurrent execution of multiple threads in a single process. The use of multiprocessing circumvents this limitation, enabling true parallelism at the cost of some inter-process communication overhead (e.g., via pickling). For an insightful discussion, see this related [post](https://www.theserverside.com/blog/Coffee-Talk-Java-News-Stories-and-Opinions/Is-Pythons-GIL-the-software-worlds-biggest-blunder).
 
 
 ---
@@ -45,6 +56,21 @@ This document presents some diagram sketches that provide an overview of the mai
 <img src="./images/feature_tracker.png" alt="Feature Tracker"  /> 
 </p>
 
+The *Feature Tracker* consists of the following key sub-components:
+
+- **Feature Extractor**: identifies salient and repeatable keypoints in the image, such as corners or blobs, which are likely to be robust under viewpoint and illumination changes.
+
+- **Feature Detector**: computes a distinctive descriptor for each detected keypoint, encoding its local appearance to enable robust matching across frames. Examples include ORB, SIFT, or SuperPoint descriptors.
+
+- **Feature Matcher**: establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refer to Section [Feature Matcher](#feature-matcher) below for further details.
+
+The section [Supported local features](../README.md#supported-local-features) reports the list of supported local feature extractors and detectors.
+
+The last diagram above presents the architecture of the *Feature Tracker* system. It is structured around a `feature_tracker_factory`, which instantiates specific tracker types such as `LK`, `DES_BF`, `DES_FLANN`, `XFEAT`, `LIGHTGLUE`, and `LOFTR`. Each tracker type creates a corresponding implementation (e.g., `LKFeatureTracker`, `DescriptorFeatureTracker`, etc.), all of which inherit from a common `FeatureTracker` interface.
+
+The `FeatureTracker` class is composed of several key sub-components, including a `FeatureManager`, `FeatureDetector`, `FeatureDescriptor`, `PyramidAdaptor`, `BlockAdaptor`, and `FeatureMatcher`. The `FeatureManager` itself also encapsulates instances of the detector, descriptor, and adaptors, highlighting the modular and reusable design of the tracking pipeline.
+
+
 
 ### Feature Matcher
 
@@ -53,18 +79,35 @@ This document presents some diagram sketches that provide an overview of the mai
 </p>
 
 
+This last diagram illustrates the architecture of the *Feature Matcher* module. At its core is the `feature_matcher_factory`, which instantiates matchers based on a specified `matcher_type`, such as `BF`, `FLANN`, `XFEAT`, `LIGHTGLUE`, and `LOFTR`. Each of these creates a corresponding matcher implementation (e.g., `BfFeatureMatcher`, `FlannFeatureMatcher`, etc.), all inheriting from a common `FeatureMatcher` interface.
+
+The `FeatureMatcher` class encapsulates several configuration parameters and components, including the matcher engine (`cv2.BFMatcher`, `FlannBasedMatcher`, `xfeat.XFeat`, etc.), as well as the `matcher_type`, `detector_type`, `descriptor_type`, `norm_type`, and `ratio_test` fields. This modular structure supports extensibility and facilitates switching between traditional and learning-based feature matching backends.
+
+The section [Supported matchers](../README.md#supported-matchers) reports a list of supported feature matchers.
+
 ### Loop Detector 
 
 <p align="center">
 <img src="./images/loop_detector.png" alt="Loop Detector"  /> 
 </p>
 
+This diagram shows the architecture of the *Loop Detector* component. A central `loop_detector_factory` instantiates loop detectors based on the selected `global_descriptor_type`, which may include traditional descriptors (e.g., `DBOW2`, `VLAD`, `IBOW`) or deep learning-based embeddings (e.g., `NetVLAD`, `CosPlace`, `EigenPlaces`).
+
+Each descriptor type creates a corresponding loop detector implementation (e.g., `LoopDetectorDBoW2`, `LoopDetectorNetVLAD`), all of which inherit from a base class hierarchy. Traditional methods inherit directly from `LoopDetectorBase`, while deep learning-based approaches inherit from `LoopDetectorVprBase`, which itself extends `LoopDetectorBase`. This design supports modular integration of diverse place recognition techniques within a unified loop closure framework.
+
+The section [Supported loop closing methods](../README.md#supported-global-descriptors-and-local-descriptor-aggregation-methods) reports a list of supported loop closure methods with the adopted global descriptors and local descriptor aggregation methods.
 
 ### Depth Estimator 
 
 <p align="center">
 <img src="./images/depth_estimator.png" alt="Depth Estimator"  /> 
 </p>
+
+The last diagram illustrates the architecture of the *Depth Estimator* module. A central `depth_estimator_factory` creates instances of various depth estimation backends based on the selected `depth_estimator_type`, including both traditional and learning-based methods such as `DEPTH_SGBM`, `DEPTH_RAFT_STEREO`, `DEPTH_ANYTHING_V2`, `DEPTH_MAST3R`, and `DEPTH_MVDUST3R`.
+
+Each estimator type instantiates a corresponding implementation (e.g., `DepthEstimatorSgbm`, `DepthEstimatorCrestereo`, etc.), all inheriting from a common `DepthEstimator` interface. This base class encapsulates shared dependencies such as the `camera`, `device`, and `model` components, allowing for modular integration of heterogeneous depth estimation techniques across stereo, monocular, and multi-view pipelines.
+
+Section [Supported depth prediction models](../README.md#supported-depth-prediction-models) provides a list of supported depth estimation/prediction models.
 
 
 ### Volumetric Integrator
@@ -74,3 +117,8 @@ This document presents some diagram sketches that provide an overview of the mai
 </p>
 
 
+This diagram illustrates the structure of the *Volumetric Integrator* module. At its core, the `volumetric_integrator_factory` generates specific volumetric integrator instances based on the selected `volumetric_integrator_type`, such as `TSDF` and `GAUSSIAN_SPLATTING`.
+
+Each type instantiates a dedicated implementation (e.g., `VolumetricIntegratorTSDF`, `VolumetricIntegratorGaussianSplatting`), which inherits from a common `VolumetricIntegratorBase`. This base class encapsulates key components including the `camera`, a `keyframe_queue`, and the `volume`, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
+
+Section [Supported volumetric mapping methods](../README.md#supported-volumetric-mapping-methods) provides a list of supported volume integration methods.

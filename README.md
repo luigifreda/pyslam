@@ -9,7 +9,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
-- Built-in support for over 10 [dataset types](#datasets).
+- Built-in support for over [10 dataset types](#datasets).
 
 pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
@@ -122,7 +122,7 @@ Other test/example scripts are provided in the `test` folder.
 
 ### System overview      
 
-[Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM **workflow**, system **components**, and **classes** relationships/dependencies.
+[Here](./docs/system_overview.md) you can find a system overview and diagrams that outline the main SLAM **workflow**, its **components**, and **classes** relationships/dependencies.
 
 
 --- 
@@ -806,22 +806,23 @@ If you like pySLAM and would like to contribute to the code base, you can report
 
 Many improvements and additional features are currently under development: 
 
-- [x] loop closing
-- [x] relocalization 
-- [x] stereo and RGBD support
-- [x] map saving/loading 
-- [x] modern DL matching algorithms 
-- [ ] object detection 
-- [ ] semantic segmentation 
+- [x] Loop closing
+- [x] Relocalization 
+- [x] Stereo and RGBD support
+- [x] Map saving/loading 
+- [x] Modern DL matching algorithms 
+- [ ] Object detection 
+- [ ] Semantic segmentation 
 - [x] 3D dense reconstruction 
-- [x] unified install procedure (single branch) for all OSs 
-- [x] trajectory saving 
-- [x] depth prediction integration, more models: VGGT, MoGE [WIP]
+- [x] Unified install procedure (single branch) for all OSs 
+- [x] Trajectory saving 
+- [x] Depth prediction integration, more models: VGGT, MoGE [WIP]
 - [x] ROS support [WIP]
-- [x] gaussian splatting integration
-- [x] documentation [WIP]
-- [x] gtsam integration [WIP]
+- [x] Gaussian splatting integration
+- [x] Documentation [WIP]
+- [x] GTSAM integration [WIP]
 - [ ] IMU integration
 - [ ] LIDAR integration
 - [x] XSt3r-based methods integration [WIP]
-- [x] evaluation scripts 
+- [x] Evaluation scripts 
+- [ ] More camera models

@@ -277,7 +277,8 @@ class Initializer(object):
         else: 
             pts3d, mask_pts3d = triangulate_normalized_points(kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idxs_cur_inliers], kf_ref.kpsn[idxs_ref_inliers])
 
-        new_pts_count, mask_points, added_map_points = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idxs_cur_inliers, idxs_ref_inliers, img_cur, do_check=do_check, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
+        new_pts_count, mask_points, added_map_points = map.add_points(pts3d, mask_pts3d, kf_cur, kf_ref, idxs_cur_inliers, idxs_ref_inliers, 
+                                                                      img_cur, do_check=do_check, cos_max_parallax=Parameters.kCosMaxParallaxInitializer)
         print("Initializer: # triangulated points: ", new_pts_count)   
                         
         if new_pts_count > self.num_min_triangulated_points:   

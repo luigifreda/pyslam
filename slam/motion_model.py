@@ -31,14 +31,13 @@ class MotionModelBase(object):
 
         self.timestamp = timestamp
         if initial_position is not None: 
-            self.position = initial_position
+            self.position = np.array(initial_position)
         else:
             self.position = np.zeros(3)
         if initial_orientation is not None: 
             self.orientation = initial_orientation
         else:
             self.orientation = g2o.Quaternion()            
-        self.orientation = initial_orientation
         self.covariance = initial_covariance    # pose covariance
 
         self.is_ok = False 

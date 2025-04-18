@@ -1,12 +1,12 @@
 DATASET:
   # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
-  type: KITTI_DATASET
+  #type: KITTI_DATASET
   #type: TUM_DATASET
   #type: ICL_NUIM_DATASET
   #type: REPLICA_DATASET
   #type: TARTANAIR_DATASET
-  #type: VIDEO_DATASET
+  type: VIDEO_DATASET
   #type: ROS1BAG_DATASET
   #type: ROS2BAG_DATASET  
   #type: FOLDER_DATASET
@@ -33,8 +33,8 @@ TUM_DATASET:
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
-  #name: rgbd_dataset_freiburg3_long_office_household
-  #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
+  name: rgbd_dataset_freiburg3_long_office_household
+  settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   # name: rgbd_dataset_freiburg1_xyz 
   # settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
@@ -42,8 +42,8 @@ TUM_DATASET:
   #name: rgbd_dataset_freiburg2_desk
   #settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
   #
-  name: rgbd_dataset_freiburg1_desk
-  settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file  
+  # name: rgbd_dataset_freiburg1_desk
+  # settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file  
   #
   # name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
   # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
