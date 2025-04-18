@@ -65,12 +65,12 @@ config_dir_path = os.path.abspath(os.path.join(kEvaluationFolder, 'configs'))
 default_config_file_path= os.path.join(config_dir_path, 'evaluation_tum.json')
 default_template_config_file_path = os.path.abspath(os.path.join(config_dir_path, 'config.template.yaml'))
      
-  
-# Run an evaluation by calling main_slam.py on a set of datasets with a set of presets.
-# $ ./main_slam_evaluation.py -c configs/evaluation_<my awesome dataset>.json 
-# If you need you can also create a report from an existing data folder
-# $ ./main_slam_evaluation.py --just-create-report -o <path to results folder containing evaluation*.json>
-# Then, create a summary table.
+
+# You can use this script for two objectives:  
+# 1. Run an evaluation by calling main_slam.py on a set of datasets with a set of presets.
+#   $ ./main_slam_evaluation.py -c configs/evaluation_<my awesome dataset>.json 
+# 2. If needed, you can also create a report from an existing data folder without running an evaluation (a bit hacky, for instance, after having merged data results from previous evaluation runs)
+#   $ ./main_slam_evaluation.py --just-create-report -o <path to results folder containing evaluation*.json>
 if __name__ == '__main__':
   argparser = argparse.ArgumentParser(description='Run a set of evaluations by calling main_slam.py on a set of datasets. Finally, create a summary table.')
   argparser.add_argument("-c", "--config-file", type=str, default=default_config_file_path, help="Path of the input configuration file for the evaluations.")

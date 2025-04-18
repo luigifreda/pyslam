@@ -22,7 +22,7 @@ class VolumetricIntegratorType(SerializableEnum):
                               # "ASH: A Modern Framework for Parallel Spatial Hashing in 3D Perception"
     GAUSSIAN_SPLATTING = 1    # Incremental Gaussian Splatting by leveraging MonoGS backend: pySLAM keyframes are passed as posed input frames to MonoGS backend.
                               # You need CUDA to run Gaussian Splatting.
-                              # As for MonoGS backend, see the following paper: "Gaussian Splatting SLAM".    
+                              # As for MonoGS backend, see the paper: "Gaussian Splatting SLAM".    
     
     @staticmethod
     def from_string(name: str):
