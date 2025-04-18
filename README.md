@@ -66,7 +66,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
       - [Save the a map](#save-the-a-map)
       - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
       - [Trajectory saving](#trajectory-saving)
-    - [Optimization engines](#optimization-engines)
+    - [Graph optimization engines](#graph-optimization-engines)
     - [SLAM GUI](#slam-gui)
     - [Monitor the logs of tracking, local mapping, loop closing and volumetric mapping simultaneously](#monitor-the-logs-of-tracking-local-mapping-loop-closing-and-volumetric-mapping-simultaneously)
     - [Evaluating SLAM](#evaluating-slam)
@@ -421,9 +421,9 @@ SAVE_TRAJECTORY:
 
 ---
 
-### Optimization engines
+### Graph optimization engines
 
-Currently, pySLAM supports both `g2o` and `gtsam` for optimization, with `g2o` set as the default engine. While `gtsam` is fully supported, it remains experimental and a work in progress. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
+Currently, pySLAM supports both `g2o` and `gtsam` for graph optimization, with `g2o` set as the default engine. While `gtsam` is fully supported, it remains experimental and a work in progress. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
 ```python
   # Optimization engine 
   kOptimizationFrontEndUseGtsam = True    
