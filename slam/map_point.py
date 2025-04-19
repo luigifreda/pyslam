@@ -67,6 +67,7 @@ class MapPointBase(object):
         # for loop correction 
         self.corrected_by_kf = 0       # use kf.kid here!
         self.corrected_reference = 0   # use kf.kid here!
+        self.kf_ref = None             # reference keyframe 
         
     def __hash__(self):
         return self.id
@@ -265,7 +266,7 @@ class MapPointBase(object):
             
     def get_found_ratio(self):
         with self._lock_features:       
-            return self.num_times_found/self.num_times_visible                              
+            return self.num_times_found/self.num_times_visible                       
 
 
 # A Point is a 3-D point in the world
@@ -551,7 +552,7 @@ class MapPoint(MapPointBase):
         if skip or len(observations)==0:
             return 
                      
-        normals = np.array([normalize_vector2(position-kf.Ow) for kf,idx in observations])
+        normals = np.array([normalize_vector2(position-kf.Ow) for kf,idx in observations]).reshape(-1,3)
         normal = normalize_vector2(np.mean(normals,axis=0))
         #print('normals: ', normals)
         #print('mean normal: ', self.normal)        

@@ -112,7 +112,7 @@ class MotionModel(MotionModelBase):
         self.covariance = new_covariance
         self.initialized = True
 
-    # correction= Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
+    # correction = Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
     def apply_correction(self, correction):     # corr: g2o.Isometry3d or matrix44
         '''
         Reset the model given a new camera pose.
@@ -127,7 +127,7 @@ class MotionModel(MotionModelBase):
         self.position = current.position()
         self.orientation = current.orientation()
 
-        # correction= Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
+        # correction = Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
         self.delta_orientation = correction.orientation() * self.delta_orientation    
         self.delta_position = correction.orientation() * self.delta_position
 
@@ -203,7 +203,7 @@ class MotionModelDamping(MotionModelBase):
         self.covariance = new_covariance
         self.initialized = True        
 
-    # correction= Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
+    # correction = Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
     def apply_correction(self, correction):     # corr: g2o.Isometry3d or matrix44
         '''
         Reset the model given a new camera pose.
