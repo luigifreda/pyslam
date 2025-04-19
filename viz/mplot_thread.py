@@ -337,13 +337,13 @@ class Mplot3d:
         self.process.start()
 
     def quit(self):
-        print(f'Mplot3d \"{self.title}\" closing...')
+        print(f'Mplot3d {self.title} closing...')
         self.is_running.value = 0
-        self.process.join(timeout=5)     
+        self.process.join(timeout=5)
         if self.process.is_alive():
-            print("Warning: Mplot3d \"{self.title}\" process did not terminate in time, forced kill.")          
-            self.process.terminate()        
-        
+            print(f'Warning: Mplot3d {self.title} process did not terminate in time, forced kill.')
+            self.process.terminate()
+        print(f'Mplot2d {self.title} closed')
 
     def init(self, figure_num, lock):
         lock.acquire()
