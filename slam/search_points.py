@@ -121,7 +121,10 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
         backward = trc[2] < -f_cur.camera.b
           
     # get all matched points of f_ref which are non-outlier 
-    matched_ref_idxs = np.flatnonzero( (f_ref.points!=None) & (f_ref.outliers==False)) 
+    if isinstance(f_ref.points, np.ndarray):
+        matched_ref_idxs = np.flatnonzero( (f_ref.points!=None) & (f_ref.outliers==False)) 
+    else:
+        matched_ref_idxs = [i for i, p in enumerate(f_ref.points) if p is not None and not p.is_outlier]
     
     # if we have some already matched points in reference frame, remove them from the list
     if already_matched_ref_idxs is not None:
@@ -595,7 +598,10 @@ def search_and_fuse(points, keyframe: KeyFrame,
         return fused_pts_count
         
     # get all matched points of keyframe 
-    good_pts_idxs = np.flatnonzero(points!=None) 
+    if isinstance(points, np.ndarray):
+        good_pts_idxs = np.flatnonzero(points!=None) 
+    else:
+        good_pts_idxs = [i for i, p in enumerate(points) if p is not None]
     good_pts = points[good_pts_idxs] 
      
     if len(good_pts_idxs) == 0:
@@ -939,7 +945,7 @@ def search_by_sim3(kf1: KeyFrame, kf2: KeyFrame,
                     best_idx = kd1_idx
 
             if best_dist <= max_descriptor_distance:
-                if new_matches12[best_idx]==-1:
+                if new_matches12[best_idx] == -1:
                     new_matches21[unmatched_idxs2[i2]] = best_idx
 
     # if print_fun is not None:    

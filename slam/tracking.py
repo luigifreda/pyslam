@@ -371,9 +371,9 @@ class Tracking:
             print('search frame by projection') 
             search_radius = Parameters.kMaxReprojectionDistanceFrame  
             
-            # NOTE: the following two lines are commented for the moment since they seem to provide less stable tracking
+            # NOTE: the following two lines are commented for the moment since they seem to provide less stable tracking [WIP]
             # if self.sensor_type != SensorType.STEREO:
-            #     search_radius = 2*Parameters.kMaxReprojectionDistanceFrame        
+            #     search_radius = 2*Parameters.kMaxReprojectionDistanceFrame + 1        
             
             f_cur.reset_points()               
             self.timer_seach_frame_proj.start()
@@ -391,7 +391,8 @@ class Tracking:
                 f_cur.reset_points()   
                 idxs_ref, idxs_cur, num_found_map_pts = search_frame_by_projection(f_ref, f_cur,
                                                                                  max_reproj_distance=2*search_radius,
-                                                                                 max_descriptor_distance=0.5*self.descriptor_distance_sigma,
+                                                                                 # max_descriptor_distance=0.5*self.descriptor_distance_sigma,  # [WIP] previous version
+                                                                                 max_descriptor_distance=self.descriptor_distance_sigma,   # PERFORMANCE IMPACT
                                                                                  is_monocular=(self.sensor_type == SensorType.MONOCULAR))
                 self.num_matched_kps = len(idxs_cur)    
                 Printer.orange("# matched map points in prev frame (wider search 1): %d " % self.num_matched_kps)                   
@@ -733,7 +734,9 @@ class Tracking:
         # create new map points where the depth is smaller than the prefixed depth threshold 
         #        or at least N new points with the closest depths
         mask_depths_smaller_than_th = sorted_z_values < self.f_ref.camera.depth_threshold
-        mask_first_N_points = np.zeros(len(sorted_z_values), dtype=bool)[:min(N, len(sorted_z_values))] = True
+        #mask_first_N_points = np.zeros(len(sorted_z_values), dtype=bool)[:min(N, len(sorted_z_values))] = True
+        mask_first_N_points = np.zeros(len(sorted_z_values), dtype=bool)
+        mask_first_N_points[:min(N, len(sorted_z_values))] = True
         mask_first_selection = np.logical_or(mask_depths_smaller_than_th, mask_first_N_points)
         
         sorted_z_values = sorted_z_values[mask_first_selection]
@@ -941,6 +944,8 @@ class Tracking:
         f_ref = self.map.get_frame(-1) 
         #f_ref_2 = self.map.get_frame(-2)
         self.f_ref = f_ref 
+        
+        assert f_ref.img_id == f_cur.img_id - 1
         
         # add current frame f_cur to map                  
         self.map.add_frame(f_cur)          

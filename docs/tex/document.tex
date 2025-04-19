@@ -140,12 +140,14 @@
 \end{center}
 
 \begin{abstract}
-pySLAM is an open-source Python framework for Visual SLAM, supporting monocular, stereo, and RGB-D cameras. It provides a flexible interface for integrating both classical and modern local features, making it adaptable to various SLAM tasks. The framework includes different loop closure methods, a volumetric reconstruction pipeline, and support for depth prediction models. Additionally, it offers a suite of tools for visual odometry and SLAM applications. Designed for both beginners and experienced researchers, pySLAM encourages community contributions, fostering collaborative development in the field of Visual SLAM. This document presents the pySLAM framework, its main features, and usage.
+pySLAM is an open-source Python framework for Visual SLAM that supports monocular, stereo, and RGB-D camera inputs. It offers a flexible and modular interface, integrating a broad range of both classical and learning-based local features. The framework includes multiple loop closure strategies, a volumetric reconstruction pipeline, and support for depth prediction models. It also offers a comprehensive set of tools for the experimentation and evaluation of visual odometry and SLAM modules.
+Designed for both beginners and experienced researchers, pySLAM emphasizes rapid prototyping, extensibility, and reproducibility across diverse datasets. Its modular architecture facilitates the integration of custom components and encourages research that bridges traditional and deep learning-based approaches. Community contributions are welcomed, fostering collaborative development and innovation in the field of Visual SLAM.
+This document presents the pySLAM framework, outlining its main components, features, and usage.
 \end{abstract}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.6\textwidth]{images_tex/pyslam-teaser-rect.png}
+  \includegraphics[width=0.55\textwidth]{images_tex/pyslam-teaser-rect.png}
   \label{fig:teaser}
 \end{figure}
 
@@ -320,12 +322,16 @@ Fig.~\ref{Fig:SLAMComponents} details the internal components and interactions o
 
 The \textit{Feature Tracker} consists of the following key sub-components:
 
+\begin{itemize} 
+\item \textit{Feature Manager}: Manages local feature operations. It includes the \texttt{FeatureDetector}, \texttt{FeatureDescriptor}, and adaptors for pyramid management and image tiling. 
 \begin{itemize}
-\item \textit{Feature Extractor}: identifies salient and repeatable keypoints in the image, such as corners or blobs, which are likely to be robust under viewpoint and illumination changes. 
+\item \textit{Feature Detector}: Identifies salient and repeatable keypoints in the image, such as corners or blobs, which are likely to be robust under viewpoint and illumination changes. 
 
-\item \textit{Feature Detector}: computes a distinctive descriptor for each detected keypoint, encoding its local appearance to enable robust matching across frames. Examples include ORB~\cite{rublee2011orb}, SIFT~\cite{lowe1999object}, or SuperPoint~\cite{detone18superpoint} descriptors.
+\item \textit{Feature Descriptor}: Computes a distinctive descriptor for each detected keypoint, encoding its local appearance to enable robust matching across frames. Examples include ORB~\cite{rublee2011orb}, SIFT~\cite{lowe1999object}, or SuperPoint~\cite{detone18superpoint} descriptors.
 
-\item \textit{Feature Matcher}: establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refere to Sect.~\ref{Sect:FeatureMatcher} for futher details.
+\end{itemize}
+
+\item \textit{Feature Matcher}: Establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors or directly inferring matches from image content. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refere to Sect.~\ref{Sect:FeatureMatcher} for futher details.
 \end{itemize}
 
 Sect.~\ref{supported-local-features} reports the list of supported local feature extractors and detectors.

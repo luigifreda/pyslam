@@ -13,7 +13,7 @@
 
 <!-- /TOC -->
 
-This document presents a system overview and diagrams that outline the main workflow, its components, and class relationships/dependencies. To make the diagrams more readable, some minor components and arrows have been omitted. A **pdf version** of this presentation (with futher details) is available [here](./tex/document.pdf).
+This document provides a high-level system overview, including diagrams that illustrate the main workflow, key components, and class relationships or dependencies. For clarity, some minor elements and arrows have been omitted from the diagrams. A more detailed version of this presentation is available as a [PDF document](./tex/document.pdf).
 
 ---
 
@@ -58,17 +58,17 @@ This other figure details the internal components and interactions of the above 
 
 The *Feature Tracker* consists of the following key sub-components:
 
-- **Feature Extractor**: identifies salient and repeatable keypoints in the image, such as corners or blobs, which are likely to be robust under viewpoint and illumination changes.
+- *Feature Manager*: Manages local feature operations. It includes the `FeatureDetector`, `FeatureDescriptor`, and adaptors for pyramid management and image tiling.  
+  - *Feature Detector*: Identifies salient and repeatable keypoints in the image—such as corners or blobs, that are likely to be robust under viewpoint and illumination changes.  
+  - *Feature Descriptor*: Computes a distinctive descriptor for each detected keypoint, capturing its local appearance to enable robust matching across frames. Examples include `ORB2`, `SIFT`, and `SuperPoint`.
 
-- **Feature Detector**: computes a distinctive descriptor for each detected keypoint, encoding its local appearance to enable robust matching across frames. Examples include ORB, SIFT, or SuperPoint descriptors.
+- *Feature Matcher*: Establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors or directly inferring matches from image content. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refer to the section [Feature Matcher](#feature-matcher) below for more details.
 
-- **Feature Matcher**: establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refer to Section [Feature Matcher](#feature-matcher) below for further details.
+See the section [Supported local features](../README.md#supported-local-features) for a list of supported feature detectors and descriptors.
 
-The section [Supported local features](../README.md#supported-local-features) reports the list of supported local feature extractors and detectors.
+The last diagram above presents the architecture of the *Feature Tracker* system. It is organized around a `feature_tracker_factory`, which instantiates specific tracker types such as `LK`, `DES_BF`, `DES_FLANN`, `XFEAT`, `LIGHTGLUE`, and `LOFTR`. Each tracker type creates a corresponding implementation (e.g., `LKFeatureTracker`, `DescriptorFeatureTracker`, etc.), all of which inherit from a common `FeatureTracker` interface.
 
-The last diagram above presents the architecture of the *Feature Tracker* system. It is structured around a `feature_tracker_factory`, which instantiates specific tracker types such as `LK`, `DES_BF`, `DES_FLANN`, `XFEAT`, `LIGHTGLUE`, and `LOFTR`. Each tracker type creates a corresponding implementation (e.g., `LKFeatureTracker`, `DescriptorFeatureTracker`, etc.), all of which inherit from a common `FeatureTracker` interface.
-
-The `FeatureTracker` class is composed of several key sub-components, including a `FeatureManager`, `FeatureDetector`, `FeatureDescriptor`, `PyramidAdaptor`, `BlockAdaptor`, and `FeatureMatcher`. The `FeatureManager` itself also encapsulates instances of the detector, descriptor, and adaptors, highlighting the modular and reusable design of the tracking pipeline.
+The `FeatureTracker` class is composed of several key sub-components, including a `FeatureManager`, `FeatureDetector`, `FeatureDescriptor`, `PyramidAdaptor`, `BlockAdaptor`, and `FeatureMatcher`. The `FeatureManager` itself encapsulates instances of the detector, descriptor, and adaptors, highlighting the modular and reusable design of the tracking pipeline.
 
 
 
