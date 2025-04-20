@@ -21,7 +21,9 @@
 
 from datetime import datetime
 import quaternion
+import numpy as np
 import os
+
 
 
 class UnsupportedFormatException(Exception):
@@ -48,15 +50,15 @@ class TrajectoryWriter:
     def __init__(self, format_type: str, filename: str = None) -> None:
         self.filename = filename if filename is not None else self.generate_filename()
         self.file = None
-        self.open_file()        
-        self.set_format_type(format_type)      
-        
+        self.open_file()
+        self.set_format_type(format_type)
+
     def __del__(self):
         self.close_file()
 
     def open_file(self):
         folder_path = os.path.dirname(self.filename)
-        if not os.path.exists(folder_path):
+        if folder_path and not os.path.exists(folder_path):
             os.makedirs(folder_path)
         if not self.file:
             self.file = open(self.filename, 'w')
@@ -69,14 +71,14 @@ class TrajectoryWriter:
             self.file.close()
             self.file = None
             print(f'Trajectory saved to {self.filename}')
-            
+
     def set_format_type(self, format_type):
-        self.format_type = format_type.lower()     
+        self.format_type = format_type.lower()
         write_func_name = self.FORMAT_FUNCTIONS.get(self.format_type)
         if write_func_name:
             self.write_function = getattr(self, write_func_name)
         else:
-            raise UnsupportedFormatException(self.format_type)             
+            raise UnsupportedFormatException(self.format_type)
 
     def write_full_trajectory(self, poses, timestamps):
         for i in range(len(poses)):
@@ -88,20 +90,45 @@ class TrajectoryWriter:
     def write_trajectory(self, R, t, timestamp):
         self.write_function(R, t, timestamp)
 
+    def _get_format_func(self, array_or_scalar):
+        """Return appropriate format function based on dtype or type."""
+        if isinstance(array_or_scalar, np.ndarray):
+            dtype = array_or_scalar.dtype
+        elif isinstance(array_or_scalar, (np.float32, np.float64)):
+            dtype = array_or_scalar.dtype
+        elif isinstance(array_or_scalar, float):
+            dtype = np.dtype('float64')  # Python float is 64-bit
+        else:
+            dtype = np.dtype(type(array_or_scalar))
+
+        if dtype == np.float32:
+            return lambda x: f"{x:.7g}"
+        else:
+            return lambda x: f"{x:.17g}"
+
     def _write_kitti_trajectory(self, R, t, timestamp) -> None:
-        self.file.write(f"{R[0, 0]:.9f} {R[0, 1]:.9f} {R[0, 2]:.9f} {t[0]:.9f} " \
-               f"{R[1, 0]:.9f} {R[1, 1]:.9f} {R[1, 2]:.9f} {t[1]:.9f} " \
-               f"{R[2, 0]:.9f} {R[2, 1]:.9f} {R[2, 2]:.9f} {t[2]:.9f}\n")
+        fmt = self._get_format_func(R)
+        elements = [
+            R[0, 0], R[0, 1], R[0, 2], t[0],
+            R[1, 0], R[1, 1], R[1, 2], t[1],
+            R[2, 0], R[2, 1], R[2, 2], t[2]
+        ]
+        self.file.write(' '.join(fmt(x) for x in elements) + '\n')
 
     def _write_tum_trajectory(self, R, t, timestamp) -> None:
+        fmt = self._get_format_func(t)
+        timestamp_fmt = self._get_format_func(timestamp)
         q = quaternion.from_rotation_matrix(R)
-        self.file.write(f"{timestamp:.6f} {t[0]:.9f} {t[1]:.9f} {t[2]:.9f} {q.x:.9f} {q.y:.9f} {q.z:.9f} {q.w:.9f}\n")
+        elements = [timestamp, t[0], t[1], t[2], q.x, q.y, q.z, q.w]
+        self.file.write(' '.join(fmt(x) if i else timestamp_fmt(x) for i, x in enumerate(elements)) + '\n')
 
     def _write_euroc_trajectory(self, R, t, timestamp) -> None:
-        t_str = ', '.join(map(str, t))
+        fmt = self._get_format_func(t)
+        timestamp_fmt = self._get_format_func(timestamp)
         q = quaternion.from_rotation_matrix(R)
-        pose_line = f"{timestamp:.6f}, {t_str}, {q.x:.9f}, {q.y:.9f}, {q.z:.9f}, {q.w:.9f}"
-        self.file.write(pose_line + '\n')
+        t_str = ', '.join(fmt(x) for x in t)
+        q_str = ', '.join(fmt(x) for x in [q.x, q.y, q.z, q.w])
+        self.file.write(f"{timestamp_fmt(timestamp)}, {t_str}, {q_str}\n")
 
     @staticmethod
     def generate_filename():
