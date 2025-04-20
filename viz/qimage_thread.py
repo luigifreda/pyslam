@@ -54,7 +54,7 @@ class Resizer:
         
     def reset_max_size(self):
         if kVerbose:
-            print(f'Resizer: {self.name} reset max size')
+            print(f'Resizer: \"{self.name}\" reset max size')
         self.window.setMaximumSize(self.screen_width, self.screen_height)   
         
     def mousePressEvent(self, event):
@@ -99,7 +99,7 @@ class Resizer:
         self.reset_timer.start(100)  # Restart the timer to remove the fixed size (100ms delay)
 
         if kVerbose:    
-            print(f'Resizer: {self.name} resize event {width}x{height} -> current size: {current_size.width()}x{current_size.height()}, new size: {new_width}x{new_height}, desired aspect ratio: {self.aspect_ratio:.2f}, actual aspect ratio: {new_width/new_height:.2f}')
+            print(f'Resizer: \"{self.name}\" resize event {width}x{height} -> current size: {current_size.width()}x{current_size.height()}, new size: {new_width}x{new_height}, desired aspect ratio: {self.aspect_ratio:.2f}, actual aspect ratio: {new_width/new_height:.2f}')
         self.in_resize_event = False  # Reset flag
         event.accept()    
 

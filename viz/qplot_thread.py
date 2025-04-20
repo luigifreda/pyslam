@@ -130,6 +130,7 @@ class Qplot2d:
         
         self.lock = SharedSingletonLock().get_lock
         
+        self.win = None
         self.initialized = False  # New flag to track figure initialization
                 
         args = (self.figure_num, self.queue, self.lock, self.key, self.is_running, self.key_queue,)
@@ -137,13 +138,13 @@ class Qplot2d:
         self.process.start()
 
     def quit(self):
-        print(f'Qplot2d "{self.title}" closing...')
+        print(f'Qplot2d \"{self.title}\" closing...')
         self.is_running.value = 0
         self.process.join(timeout=5)     
         if self.process.is_alive():
             print(f"Warning: Qplot2d \"{self.title}\" process did not terminate in time, forced kill.")         
             self.process.terminate()
-        print(f'Qplot2d "{self.title}" closed')
+        print(f'Qplot2d \"{self.title}\" closed')
 
 
     def init(self, figure_num, lock):    
@@ -207,7 +208,7 @@ class Qplot2d:
         
     def run(self, figure_num, queue, lock, key, is_running, key_queue):
         if kVerbose:
-            print(f'Qplot2d {self.title}: starting run on figure ', figure_num.value)        
+            print(f'Qplot2d \"{self.title}\": starting run on figure ', figure_num.value)        
         self.key = key  
         self.key_queue_thread = key_queue        
         #self.init(figure_num.value, lock) 
@@ -217,8 +218,9 @@ class Qplot2d:
                 time.sleep(0.02)  # Slow the loop down for real-time effect
 
         empty_queue(queue)  # Empty the queue before exiting 
-        print(f"{mp.current_process().name} - Qplot2d '{self.title}': closing plot")  
-        self.win.close()  # Close the PyQtGraph window              
+        print(f"{mp.current_process().name} - Qplot2d \"{self.title}\": closing plot")  
+        if self.win:
+            self.win.close()  # Close the PyQtGraph window              
 
     def drawer_refresh(self, queue, lock, figure_num):            
         while not queue.empty():      

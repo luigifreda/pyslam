@@ -149,13 +149,13 @@ class Mplot2d:
         self.process.start()
 
     def quit(self):
-        print(f'Mplot2d {self.title} closing...')
+        print(f'Mplot2d \"{self.title}\" closing...')
         self.is_running.value = 0
         self.process.join(timeout=5)     
         if self.process.is_alive():
-            print(f'Warning: Mplot2d {self.title} process did not terminate in time, forced kill.')         
+            print(f'Warning: Mplot2d \"{self.title}\" process did not terminate in time, forced kill.')         
             self.process.terminate()
-        print(f'Mplot2d {self.title} closed')
+        print(f'Mplot2d \"{self.title}\" closed')
 
     def init(self, figure_num, lock):    
         lock.acquire()      
@@ -186,7 +186,7 @@ class Mplot2d:
         
     def run(self, figure_num, queue, lock, key, is_running, key_queue):  
         if kVerbose:
-            print(f'Mplot2d {self.title}: starting run on figure ', figure_num.value)
+            print(f'Mplot2d \"{self.title}\": starting run on figure ', figure_num.value)
         self.key_queue_thread = key_queue        
         #self.init(figure_num.value, lock) 
         while is_running.value == 1:
@@ -196,7 +196,7 @@ class Mplot2d:
             if kUseFigCanvasDrawIdle:               
                 time.sleep(kPlotSleep) 
         empty_queue(queue)  # empty the queue before exiting 
-        print(mp.current_process().name,f' - Mplot2d {self.title}: closing fig {self.fig}')  
+        print(mp.current_process().name,f' - Mplot2d \"{self.title}\": closing fig {self.fig}')  
         plt.close(self.fig)              
 
     def drawer_refresh(self, queue, lock):            
@@ -226,17 +226,17 @@ class Mplot2d:
             self.plot_refresh(lock)
 
     def on_key_press(self, event):
-        print(mp.current_process().name,f' - Mplot2d {self.title}: key event pressed...  {event.key}')     
+        print(mp.current_process().name,f' - Mplot2d \"{self.title}\": key event pressed...  {event.key}')     
         self.key.value = ord(event.key) # conver to int 
         self.key_queue_thread.put(self.key.value)
         
     def on_key_release(self, event):
-        print(mp.current_process().name,f' - Mplot2d {self.title}: key event released... {event.key}')             
+        print(mp.current_process().name,f' - Mplot2d \"{self.title}\": key event released... {event.key}')             
         self.key.value = 0  # reset to no key symbol
         
     def on_close(self, event):
         self.is_running.value = 0
-        print(mp.current_process().name,f' - Mplot2d {self.title} closed figure')
+        print(mp.current_process().name,f' - Mplot2d \"{self.title}\" closed figure')
      
     def get_key(self):
         if not self.key_queue.empty():
@@ -257,7 +257,7 @@ class Mplot2d:
         if self.queue is None:
             return
         if kVerbose:        
-            print(mp.current_process().name,f'Mplot2d {self.title} draw ')     
+            print(mp.current_process().name,f'Mplot2d \"{self.title}\" draw ')     
         self.queue.put((xy_signal, name, color, marker, linestyle, append))
 
     def updateMinMax(self, np_signal):
@@ -287,7 +287,7 @@ class Mplot2d:
 
     def plot_refresh(self, lock):
         if kVerbose:        
-            print(mp.current_process().name,f'Mplot2d {self.title} refreshing ')            
+            print(mp.current_process().name,f'Mplot2d \"{self.title}\" refreshing ')            
         lock.acquire()
         if self.is_running.value == 1:           
             self.setAxis()
@@ -376,7 +376,7 @@ class Mplot3d:
             if kUseFigCanvasDrawIdle:               
                 time.sleep(kPlotSleep)
         empty_queue(queue)  # empty the queue before exiting  
-        print(mp.current_process().name,f" - Mplot3d \'{self.title}\': closing fig ", self.fig)  
+        print(mp.current_process().name,f" - Mplot3d \"{self.title}\": closing fig ", self.fig)  
         plt.close(self.fig)                                 
 
     def drawer_refresh(self, queue, lock):            
@@ -398,7 +398,7 @@ class Mplot3d:
             self.plot_refresh(lock)          
                 
     def on_key_press(self, event):
-        print(mp.current_process().name,f" - Mplot3d \'{self.title}\': key event pressed...", event.key)     
+        print(mp.current_process().name,f" - Mplot3d \"{self.title}\": key event pressed...", event.key)     
         self.key.value = ord(event.key) # conver to int 
         self.key_queue_thread.put(self.key.value)
         
