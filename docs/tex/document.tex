@@ -1022,9 +1022,9 @@ Press \texttt{CTRL+A} and then \texttt{CTRL+Q} to exit from
 
 The \texttt{main\_slam\_evaluation.py} script enables automated SLAM
 evaluation by executing \texttt{main\_slam.py} across a collection of
-datasets and configuration presets. The input evaluation configuration
-file (e.g., \texttt{evaluation/configs/evaluation.json}) specifies the
-datasets and presets to be used. For each evaluation run, results are
+\textit{datasets} and configuration \textit{presets}. The main input to the script is an evaluation configuration file (e.g., \texttt{evaluation/configs/evaluation.json}) that specifies which datasets and presets to be used. For convenience, sample configurations for the datasets \texttt{TUM}, \texttt{EUROC} and \texttt{KITTI} datasets are already provided in the \texttt{evaluation/configs/} directory.
+
+For each evaluation run, results are
 stored in a dedicated subfolder within the \texttt{results} directory,
 containing all the computed metrics. These metrics are then processed
 and compared. The final output is a report, available in both PDF,
@@ -1039,13 +1039,12 @@ You can find some obtained evaluation results on this
 \subsubsection{pySLAM performances and comparative
 evaluations}\label{pyslam-performances-and-comparative-evaluations}}
 
-For a comparative evaluation of the ``\textbf{online}'' trajectory
-estimated by pySLAM versus the ``\textbf{final}'' trajectory estimated
+For a comparative evaluation of the ``\textit{online}'' trajectory
+estimated by pySLAM versus the ``\textit{final}'' trajectory estimated
 by ORB-SLAM3, check out this nice
 \href{https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb}{notebook}.
-For more details about ``\emph{online}'' and ``\emph{final}''
-trajectories, refer to this
-\protect\hyperlink{trajectory-saving}{section}.
+For more details about ``online'' and ``final''
+trajectories, refer to Section~\ref{trajectory-saving}.
 
 \textbf{Note}: Unlike ORB-SLAM3, which only saves the final pose
 estimates (recorded after the entire dataset has been processed), pySLAM
