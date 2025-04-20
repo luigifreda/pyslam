@@ -285,7 +285,7 @@ class LoopGeometryChecker:
                     if Parameters.kOptimizationLoopClosingUseGtsam:
                         optimize_sim3_fun = optimizer_gtsam.optimize_sim3
                     else:
-                        optimize_sim3_fun = optimizer_gtsam.optimize_sim3
+                        optimize_sim3_fun = optimizer_g2o.optimize_sim3
 
                     # optimize with all the found corrispondences
                     num_inliers, R12, t12, scale12, delta_err = optimize_sim3_fun(current_keyframe, kf, \
