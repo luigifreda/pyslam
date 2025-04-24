@@ -886,7 +886,7 @@ class Tracking:
 
 
     # @ main track method @
-    def track(self, img, img_right, depth, img_id, timestamp=None):
+    def track(self, img, img_right, depth, img_id, timestamp=None, semantics=None):
         Printer.cyan(f'@tracking {self.sensor_type.name}, img id: {img_id}, frame id: {Frame.next_id()}, state: {self.state.name}')
         time_start = time.time()
                 
@@ -896,6 +896,8 @@ class Tracking:
             print("depth.shape: ", depth.shape)
         if img_right is not None:
             print("img_right.shape: ", img_right.shape)
+        if semantics is not None:
+            print("semantics.shape: ", semantics.shape)
         assert img.shape[0:2] == (self.camera.height, self.camera.width)   
         if timestamp is not None: 
             print('timestamp: ', timestamp)  
@@ -910,7 +912,7 @@ class Tracking:
 
         # build current frame 
         self.timer_frame.start()        
-        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id) 
+        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, semantics=semantics, timestamp=timestamp, img_id=img_id) 
         self.f_cur = f_cur 
         #print("frame: ", f_cur.id)        
         self.timer_frame.refresh()   
