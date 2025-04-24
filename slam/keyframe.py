@@ -210,7 +210,7 @@ class KeyFrameGraph(object):
                             
 
 class KeyFrame(Frame,KeyFrameGraph):
-    def __init__(self, frame: Frame, img=None, img_right=None, depth=None):
+    def __init__(self, frame: Frame, img=None, img_right=None, depth=None, semantics=None):
         KeyFrameGraph.__init__(self)
         Frame.__init__(self, img=None, camera=frame.camera, pose=frame.pose, id=frame.id, timestamp=frame.timestamp, img_id=frame.img_id)   # here we MUST have img=None in order to avoid recomputing keypoint info
                 
@@ -231,6 +231,12 @@ class KeyFrame(Frame,KeyFrameGraph):
         else:
             if depth is not None:
                 self.set_depth_img(depth) 
+        
+        if frame.semantic_img is not None: 
+            self.semantic_img = frame.semantic_img
+        else:
+            if semantics is not None:
+                self.set_semantic_img(semantics)
                 
         self.map = None 
                 
@@ -249,6 +255,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.kps     = frame.kps        # keypoint coordinates                  [Nx2]
         self.kpsu    = frame.kpsu       # [u]ndistorted keypoint coordinates    [Nx2]
         self.kpsn    = frame.kpsn       # [n]ormalized keypoint coordinates     [Nx2] (Kinv * [kp,1])    
+        self.kps_sem = frame.kps_sem    # [sem]antic keypoint information       [NxD] where D is the semantic information length
         self.octaves = frame.octaves    # keypoint octaves                      [Nx1]
         self.sizes   = frame.sizes      # keypoint sizes                        [Nx1] 
         self.angles  = frame.angles     # keypoint angles                       [Nx1] 
