@@ -351,7 +351,7 @@ class Frame(FrameBase):
     is_store_imgs           = False     # to store images when needed for debugging or processing purposes
     is_compute_median_depth = False     # to compute median depth when needed
     def __init__(self, camera: Camera, 
-                 img, img_right=None, depth=None, 
+                 img, img_right=None, depth=None, semantics=None,
                  pose=None, id=None, timestamp=None, img_id=None,
                  frame_data_dict=None):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
@@ -367,6 +367,7 @@ class Frame(FrameBase):
         self.kps_r     = None      # righ keypoint coordinates (extracted on right image)           [Nx2]        
         self.kpsu      = None      # [u]ndistorted keypoint coordinates                             [Nx2] 
         self.kpsn      = None      # [n]ormalized keypoint coordinates                              [Nx2] (Kinv * [kp,1])    
+        self.kps_sem   = None      # [sem]antic keypoint information                                [NxD] where D is the semantic information length
         self.octaves   = None      # keypoint octaves                                               [Nx1]
         self.octaves_r = None      # keypoint octaves                                               [Nx1]        
         self.sizes     = None      # keypoint sizes                                                 [Nx1] 
@@ -385,7 +386,8 @@ class Frame(FrameBase):
         self.img = None          # image (copy of img if available)
         self.img_right = None    # right image (copy of img_right if available)       
         self.depth_img = None    # depth (copy of depth if available)
-
+        self.semantic_img = None # semantic (copy of semantics if available)
+        
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
             if Frame.is_store_imgs: 
@@ -401,6 +403,10 @@ class Frame(FrameBase):
             if Frame.is_store_imgs: 
                 self.depth_img = depth.copy()
                         
+        if semantics is not None:
+            if Frame.is_store_imgs: 
+                self.semantic_img = semantics.copy()
+
         if frame_data_dict is not None:
             self.is_keyframe = frame_data_dict['is_keyframe']
             self.median_depth = frame_data_dict['median_depth']
@@ -411,6 +417,7 @@ class Frame(FrameBase):
             self.kps_r     = frame_data_dict['kps_r']
             self.kpsu      = frame_data_dict['kpsu']
             self.kpsn      = frame_data_dict['kpsn']
+            self.kps_sem   = frame_data_dict['kps_sem']
             self.octaves   = frame_data_dict['octaves']
             self.octaves_r = frame_data_dict['octaves_r']
             self.sizes     = frame_data_dict['sizes']
@@ -433,6 +440,9 @@ class Frame(FrameBase):
                 
             if self.depth_img is None:
                 self.depth_img = frame_data_dict['depth_img']
+
+            if self.semantic_img is None:
+                self.semantic_img = frame_data_dict['semantic_img']
             return                        
                                 
         if img is not None:                  
@@ -477,6 +487,9 @@ class Frame(FrameBase):
                     self.depths = np.full(len(self.kps), -1, dtype=float)     
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
+                
+                if self.semantic_img is not None:
+                    self.kps_sem = self.semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
            
     def set_img_right(self, img_right): 
         self.img_right = img_right.copy()
@@ -489,7 +502,10 @@ class Frame(FrameBase):
             message = 'Frame.set_depth_img: camera is None or depth_factor is not set'
             Printer.error(message)
             raise Exception(message)
-        
+
+    def set_semantic_img(self, semantic_img):
+        self.semantic_img = semantic_img.copy()
+
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
@@ -524,6 +540,7 @@ class Frame(FrameBase):
                 'kps_r': json.dumps(self.kps_r.astype(float).tolist() if self.kps_r is not None else None),
                 'kpsu': json.dumps(self.kpsu.astype(float).tolist()) if self.kpsu is not None else None,
                 'kpsn': json.dumps(self.kpsn.astype(float).tolist()) if self.kpsn is not None else None,
+                'kps_sem': json.dumps(self.kps_sem.astype(float).tolist()) if self.kps_sem is not None else None,
                 'octaves': json.dumps(self.octaves.tolist()) if self.octaves is not None else None,
                 'octaves_r': json.dumps(self.octaves_r.tolist() if self.octaves_r is not None else None),
                 'sizes': json.dumps(self.sizes.tolist()) if self.sizes is not None else None,
@@ -542,7 +559,8 @@ class Frame(FrameBase):
                 
                 'img': json.dumps(NumpyB64Json.numpy_to_json(self.img)) if self.img is not None else None,
                 'depth_img': json.dumps(NumpyB64Json.numpy_to_json(self.depth_img)) if self.depth_img is not None else None,
-                'img_right': json.dumps(NumpyB64Json.numpy_to_json(self.img_right)) if self.img_right is not None else None
+                'img_right': json.dumps(NumpyB64Json.numpy_to_json(self.img_right)) if self.img_right is not None else None,
+                'semantic_img': json.dumps(NumpyB64Json.numpy_to_json(self.semantic_img)) if self.semantic_img is not None else None
                 }
         return ret
         
@@ -567,6 +585,7 @@ class Frame(FrameBase):
         frame_data_dict['kps_r'] = np.array(json.loads(json_str['kps_r'])) if json_str['kps_r'] is not None else None
         frame_data_dict['kpsu'] = np.array(json.loads(json_str['kpsu'])) if json_str['kpsu'] is not None else None
         frame_data_dict['kpsn'] = np.array(json.loads(json_str['kpsn'])) if json_str['kpsn'] is not None else None
+        frame_data_dict['kps_sem'] = np.array(json.loads(json_str['kps_sem'])) if json_str['kps_sem'] is not None else None
         frame_data_dict['octaves'] = np.array(json.loads(json_str['octaves'])) if json_str['octaves'] is not None else None
         frame_data_dict['octaves_r'] = np.array(json.loads(json_str['octaves_r'])) if json_str['octaves_r'] is not None else None
         frame_data_dict['sizes'] = np.array(json.loads(json_str['sizes'])) if json_str['sizes'] is not None else None
@@ -586,12 +605,13 @@ class Frame(FrameBase):
         frame_data_dict['img'] = NumpyB64Json.json_to_numpy(json.loads(json_str['img'])) if json_str['img'] is not None else None
         frame_data_dict['depth_img'] = NumpyB64Json.json_to_numpy(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
         frame_data_dict['img_right'] = NumpyB64Json.json_to_numpy(json.loads(json_str['img_right'])) if json_str['img_right'] is not None else None
+        frame_data_dict['semantic_img'] = NumpyB64Json.json_to_numpy(json.loads(json_str['semantic_img'])) if json_str['semantic_img'] is not None else None
                 
         if 'kps' in frame_data_dict and 'points' in frame_data_dict: 
             assert(len(frame_data_dict['kps']) == len(frame_data_dict['points']))
         
         f = Frame(camera=camera,
-                  img=None, img_right=None, depth=None,
+                  img=None, img_right=None, depth=None, semantics=None,
                   pose = pose, 
                   id=json_str['id'], 
                   timestamp=json_str['timestamp'],
