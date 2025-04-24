@@ -9,6 +9,7 @@ CORE_LIB_PATHS:
   thirdparty: thirdparty  # considering the folders in thirdparty as modules
   utilities: utilities
   depth_estimation: depth_estimation 
+  semantics: semantics
   local_features: local_features
   loop_closing: loop_closing
   slam: slam

@@ -52,6 +52,9 @@ from loop_detector_configs import LoopDetectorConfigs
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 from utils_depth import img_from_depth, filter_shadow_points
 
+from semantic_estimator_factory import semantic_estimator_factory, SemanticEstimatorType
+from utils_semantics import labels_to_image
+
 from config_parameters import Parameters  
 
 from rerun_interface import Rerun
@@ -141,7 +144,13 @@ if __name__ == "__main__":
         depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, max_depth=max_depth,
                                                   dataset_env_type=dataset.environmentType(), camera=camera) 
         Printer.green(f'Depth_estimator_type: {depth_estimator_type.name}, max_depth: {max_depth}')       
-                
+
+    semantic_estimator = None
+    if Parameters.kUseSemanticEstimator:
+        semantic_estimator_type = SemanticEstimatorType.SEGFORMER
+        semantic_estimator = semantic_estimator_factory(semantic_estimator_type=semantic_estimator_type)
+        Printer.green(f'Semantic_estimator_type: {semantic_estimator_type.name}')
+
     # create SLAM object
     slam = Slam(camera, feature_tracker_config, 
                 loop_detection_config, dataset.sensorType(), 
@@ -205,7 +214,9 @@ if __name__ == "__main__":
                 img = dataset.getImageColor(img_id)
                 depth = dataset.getDepth(img_id)
                 img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
-            
+                #TODO(@dvdmc): Get semantics if GT
+                semantics = None
+
             if img is not None:
                 timestamp = dataset.getTimestamp()          # get current timestamp 
                 next_timestamp = dataset.getNextTimestamp() # get next timestamp 
@@ -227,14 +238,23 @@ if __name__ == "__main__":
                         if not args.headless:
                             depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
                             cv2.imshow("depth prediction", depth_img)
-                                  
+            
+                    if semantics is None and semantic_estimator:
+                        semantic_prediction = semantic_estimator.infer(img)           
+                        if not args.headless:
+                            semantic_img = labels_to_image(semantic_prediction, semantic_estimator.semantics_map)
+                            cv2.imshow("semantic prediction", semantic_img)
+
+                    #TODO(@dvdmc): Add semantics            
                     slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
                                     
                     # 3D display (map display)
                     if viewer3D:
+                        #TODO(@dvdmc): add semantics
                         viewer3D.draw_slam_map(slam)
 
                     if not args.headless:
+                        #TODO(@dvdmc): add semantics
                         img_draw = slam.map.draw_feature_trails(img)
                         img_writer.write(img_draw, f'id: {img_id}', (30, 30))
                         # 2D display (image display)
@@ -261,6 +281,7 @@ if __name__ == "__main__":
                 
             # 3D display (map display)
             if viewer3D:
+                #TODO(@dvdmc): add semantics
                 viewer3D.draw_dense_map(slam)  
                               
         else:
@@ -322,6 +343,8 @@ if __name__ == "__main__":
                  curr_frame_id=img_id, is_final=is_final, is_monocular=is_monocular, save_dir=metrics_save_dir)
         Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
         
+        #TODO(@dvdmc): add semantics evaluation
+
         if final_trajectory_writer:
             final_trajectory_writer.write_full_trajectory(est_poses, timestamps)
             final_trajectory_writer.close_file()
