@@ -351,7 +351,7 @@ class Frame(FrameBase):
     is_store_imgs           = False     # to store images when needed for debugging or processing purposes
     is_compute_median_depth = False     # to compute median depth when needed
     def __init__(self, camera: Camera, 
-                 img, img_right=None, depth=None, semantics=None,
+                 img, img_right=None, depth=None, semantic_img=None,
                  pose=None, id=None, timestamp=None, img_id=None,
                  frame_data_dict=None):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
@@ -386,7 +386,7 @@ class Frame(FrameBase):
         self.img = None          # image (copy of img if available)
         self.img_right = None    # right image (copy of img_right if available)       
         self.depth_img = None    # depth (copy of depth if available)
-        self.semantic_img = None # semantic (copy of semantics if available)
+        self.semantic_img = None # semantics (copy of semantic_img if available)
         
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
@@ -403,9 +403,9 @@ class Frame(FrameBase):
             if Frame.is_store_imgs: 
                 self.depth_img = depth.copy()
                         
-        if semantics is not None:
+        if semantic_img is not None:
             if Frame.is_store_imgs: 
-                self.semantic_img = semantics.copy()
+                self.semantic_img = semantic_img.copy()
 
         if frame_data_dict is not None:
             self.is_keyframe = frame_data_dict['is_keyframe']
@@ -611,7 +611,7 @@ class Frame(FrameBase):
             assert(len(frame_data_dict['kps']) == len(frame_data_dict['points']))
         
         f = Frame(camera=camera,
-                  img=None, img_right=None, depth=None, semantics=None,
+                  img=None, img_right=None, depth=None, semantic_img=None,
                   pose = pose, 
                   id=json_str['id'], 
                   timestamp=json_str['timestamp'],

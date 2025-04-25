@@ -210,7 +210,7 @@ class KeyFrameGraph(object):
                             
 
 class KeyFrame(Frame,KeyFrameGraph):
-    def __init__(self, frame: Frame, img=None, img_right=None, depth=None, semantics=None):
+    def __init__(self, frame: Frame, img=None, img_right=None, depth=None, semantic_img=None):
         KeyFrameGraph.__init__(self)
         Frame.__init__(self, img=None, camera=frame.camera, pose=frame.pose, id=frame.id, timestamp=frame.timestamp, img_id=frame.img_id)   # here we MUST have img=None in order to avoid recomputing keypoint info
                 
@@ -235,8 +235,8 @@ class KeyFrame(Frame,KeyFrameGraph):
         if frame.semantic_img is not None: 
             self.semantic_img = frame.semantic_img
         else:
-            if semantics is not None:
-                self.set_semantic_img(semantics)
+            if semantic_img is not None:
+                self.set_semantic_img(semantic_img)
                 
         self.map = None 
                 
