@@ -37,6 +37,7 @@ from keyframe import KeyFrame
 from map_point import MapPoint, MapPointBase
 
 from utils_sys import Printer
+from utils_semantics import single_label_to_color
 
 import traceback
 
@@ -432,6 +433,7 @@ class Map(object):
                 # end if do_check
                 
             # get color patches
+            # Q(@luigifreda): this gets img_coords from kf1 but kf_ref in MapPoint is kf2
             img_coords = np.rint(kf1.kps[idxs1]).astype(np.intp) # image keypoints coordinates 
             # build img patches coordinates 
             delta = Parameters.kSparseImageColorPatchDelta    
@@ -481,9 +483,14 @@ class Map(object):
                 except IndexError:
                     Printer.orange('color out of range')
                     color = (255, 0, 0)
+
+                # get semantics of the point TODO(@dvdmc): currently is only labels of kf2, but should be optimized based on observations
+                semantic_des = None
+                if kf2.kps_sem is not None:
+                    semantic_des = kf2.kps_sem[idxs2[i]]
                     
                 # add the point to this map                 
-                mp = MapPoint(p[0:3], color, kf2, idx2_i) 
+                mp = MapPoint(p[0:3], color, kf2, idx2_i, semantic_des=semantic_des) 
                 self.add_point(mp) # add point to this map 
                 mp.add_observation(kf1, idx1_i)                    
                 mp.add_observation(kf2, idx2_i)                   
@@ -528,9 +535,13 @@ class Map(object):
                 except IndexError:
                     Printer.orange('color out of range')
                     color = (255, 0, 0)
-                    
+                
+                semantic_des = None
+                if kf.kps_sem is not None:
+                    semantic_des = kf.kps_sem[idxs[i]]
+
                 # add the point to this map                 
-                mp = MapPoint(p[0:3], color, kf, idxs[i]) 
+                mp = MapPoint(p[0:3], color, kf, idxs[i], semantic_des=semantic_des) 
                 
                 # we need to add the point both the originary frame and the newly created keyframe
                 f.points[idxs[i]] = mp # add point to the frame

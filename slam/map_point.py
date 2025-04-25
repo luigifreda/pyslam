@@ -51,6 +51,9 @@ class MapPointBase(object):
         
         self._observations = dict() # keyframe observations (used by mapping methods)
                                     # for kf, kidx in self._observations.items(): kf.points[kidx] = this point
+
+        self._semantic_observations = dict() # keyframe semantic observtions (used by mapping methods)
+                                    # for kf, kidx in self._semantic_observations.items(): kf.semantic_points[kidx] = this point
         
         self._frame_views = dict()  # frame observations (used for drawing the tracking keypoint trails, frame by frame)
                                     # for f, idx in self._frame_views.items(): f.points[idx] = this point
@@ -273,11 +276,12 @@ class MapPointBase(object):
 # Each Point is observed in multiple Frames
 class MapPoint(MapPointBase):
     global_lock = RLock()      # shared global lock for blocking point position update     
-    def __init__(self, position, color, keyframe=None, idxf=None, id=None):
+    def __init__(self, position, color, keyframe=None, idxf=None, id=None, semantic_des=None):
         super().__init__(id)
         self._pt = np.array(position)  # position in the world frame
 
         self.color = color
+        self.semantic_des = semantic_des
             
         self.des = None  # best descriptor (continuously updated)
         self._min_distance, self._max_distance = 0, float('inf')  # depth infos 
@@ -334,6 +338,7 @@ class MapPoint(MapPointBase):
                 'last_frame_id_seen': self.last_frame_id_seen,
                 'pt': self.pt.tolist(),
                 'color': self.color,
+                'semantic_des': self.semantic_des,
                 'des': self.des.tolist(),
                 '_min_distance': self._min_distance,
                 '_max_distance': self._max_distance,
@@ -344,7 +349,7 @@ class MapPoint(MapPointBase):
         
     @staticmethod 
     def from_json(json_str):
-        p = MapPoint(json_str['pt'], json_str['color'], keyframe=None, idxf=None, id=json_str['id'])
+        p = MapPoint(json_str['pt'], json_str['color'], keyframe=None, idxf=None, id=json_str['id'], semantic_des=json_str['semantic_des'])
         
         p._observations = json_str['_observations']
         p._frame_views = json_str['_frame_views']
