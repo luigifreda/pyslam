@@ -215,7 +215,7 @@ if __name__ == "__main__":
                 depth = dataset.getDepth(img_id)
                 img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
                 #TODO(@dvdmc): Get semantics if GT
-                semantics = None
+                semantic_prediction = None
 
             if img is not None:
                 timestamp = dataset.getTimestamp()          # get current timestamp 
@@ -239,14 +239,14 @@ if __name__ == "__main__":
                             depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
                             cv2.imshow("depth prediction", depth_img)
             
-                    if semantics is None and semantic_estimator:
+                    if semantic_prediction is None and semantic_estimator:
                         semantic_prediction = semantic_estimator.infer(img)           
                         if not args.headless:
-                            semantic_img = labels_to_image(semantic_prediction, semantic_estimator.semantics_map)
-                            cv2.imshow("semantic prediction", semantic_img)
+                            semantic_color_img = labels_to_image(semantic_prediction, semantic_estimator.semantics_map)
+                            cv2.imshow("semantic prediction", semantic_color_img)
 
                     #TODO(@dvdmc): Add semantics            
-                    slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
+                    slam.track(img, img_right, depth, img_id, timestamp, semantic_prediction)  # main SLAM function 
                                     
                     # 3D display (map display)
                     if viewer3D:
