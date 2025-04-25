@@ -222,6 +222,7 @@ class Parameters:
     # Semantic estimator. NOTE: By activating the semantic estimator, semantics will be used
     #                           for the whole SLAM pipeline
     kUseSemanticEstimator = True
+    kDatasetName="cityscapes"       # This is a config parameter but this allows to use the semantics color map statically
 
     # Other parameters 
     kChi2Mono = 5.991   # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

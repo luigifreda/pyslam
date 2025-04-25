@@ -41,6 +41,7 @@ from utils_sys import Printer
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
 from utils_colors import GlColors
+from utils_semantics import labels_to_image
 
 import sim3solver
 
@@ -768,8 +769,10 @@ class Viewer3D(object):
             for i,p in enumerate(map.get_points()):                
                 map_state.points.append(p.pt)           
                 map_state.colors.append(np.flip(p.color))              
+                breakpoint()
         map_state.points = np.array(map_state.points)          
-        map_state.colors = np.array(map_state.colors)/256. 
+        map_state.colors = np.array(map_state.colors)/256.
+        # map_state.colors = np.array() 
         
         for kf in keyframes:
             for kf_cov in kf.get_covisible_by_weight(kMinWeightForDrawingCovisibilityEdge):

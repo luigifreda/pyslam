@@ -64,11 +64,15 @@ def rgb_to_class(rgb_labels, label_map):
 
     return class_image.reshape(rgb_np.shape[:2])
 
-def labels_map_factory(dataset_name="voc"):
+def single_label_to_color(label, dataset_name="cityscapes"):
+    semantics_map = labels_map_factory(dataset_name)
+    return semantics_map[label]
+
+def labels_map_factory(dataset_name="cityscapes"):
     if dataset_name == "voc":
-        return get_voc_labels()
+        return get_voc_labels(True)
     elif dataset_name == "cityscapes":
-        return get_cityscapes_labels()
+        return get_cityscapes_labels(True)
     else:
         raise ValueError("Unknown dataset name: {}".format(dataset_name))
     
@@ -106,7 +110,7 @@ def get_voc_labels(bgr=False):
         color_map = color_map[:, ::-1]
     return color_map
 
-def get_cityscapes_labels(bgr=True):
+def get_cityscapes_labels(bgr=False):
     """Load the mapping that associates cityscapes classes with label colors
     Returns:
         np.ndarray with dimensions (19, 3)
