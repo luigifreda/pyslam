@@ -28,6 +28,7 @@ from PIL import Image
 from torchvision import transforms
 
 from semantic_estimator_base import SemanticEstimator
+from semantic_feature_types import SemanticFeatureTypes
 from utils_semantics import labels_map_factory
 
 kScriptPath = os.path.realpath(__file__)
@@ -57,7 +58,9 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         ('b4', (512, 512), 'ade'),
         ('b5', (1024, 1024), 'cityscapes'),
     ]
-    def __init__(self, device=None, encoder_name='b0', dataset_name='cityscapes', image_size=(512, 1024), model_path=''):
+    feature_type_configs = [SemanticFeatureTypes.LABEL, SemanticFeatureTypes.PROBABILITY_VECTOR]
+
+    def __init__(self, device=None, encoder_name='b0', dataset_name='cityscapes', image_size=(512, 1024), model_path='', semantic_feature_type=SemanticFeatureTypes.LABEL):
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if device.type != 'cuda':
@@ -83,7 +86,11 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         transform = AutoImageProcessor.from_pretrained(f"nvidia/segformer-{encoder_name}-finetuned-{dataset_name}-{image_size[0]}-{image_size[1]}")
         model = model.to(device).eval()
         semantics_rgb_map = labels_map_factory(dataset_name)
-        super().__init__(model, transform, device, semantics_rgb_map)
+        
+        if semantic_feature_type not in self.feature_type_configs:
+            raise ValueError(f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}")
+
+        super().__init__(model, transform, device, semantics_rgb_map, semantic_feature_type)
 
     def infer(self, image):
         prev_width = image.shape[1]
