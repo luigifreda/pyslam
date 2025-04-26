@@ -21,7 +21,7 @@ import numpy as np
 
 # create a scaled image of uint8 from a image of semantics 
 # TODO(@dvdmc): this might be labels, probs, features. For now: labels
-def labels_to_image(label_img, label_map, ignore_labels=[], rgb_image=None):
+def labels_to_image(label_img, semantics_rgb_map, bgr=False, ignore_labels=[], rgb_image=None):
     """
     Converts a class label image to an RGB image.
     Args:
@@ -31,8 +31,11 @@ def labels_to_image(label_img, label_map, ignore_labels=[], rgb_image=None):
         rgb_output: RGB image as a NumPy array.
     """
 
-    label_map = np.array(label_map, dtype=np.uint8)
-    rgb_output = label_map[label_img]
+    semantics_rgb_map = np.array(semantics_rgb_map, dtype=np.uint8)
+    if bgr:
+        semantics_rgb_map = semantics_rgb_map[:, ::-1]
+
+    rgb_output = semantics_rgb_map[label_img]
 
     if len(ignore_labels) > 0:
         if rgb_image is None:
@@ -64,19 +67,21 @@ def rgb_to_class(rgb_labels, label_map):
 
     return class_image.reshape(rgb_np.shape[:2])
 
-def single_label_to_color(label, dataset_name="cityscapes", bgr=True):
-    semantics_map = labels_map_factory(dataset_name, bgr)
-    return semantics_map[label]
+def single_label_to_color(label, semantics_rgb_map, bgr=False):
+    color = semantics_rgb_map[label]
+    if bgr:
+        color = color[::-1]
+    return color
 
-def labels_map_factory(dataset_name="cityscapes", bgr=True):
+def labels_map_factory(dataset_name="cityscapes"):
     if dataset_name == "voc":
-        return get_voc_labels(bgr)
+        return get_voc_labels()
     elif dataset_name == "cityscapes":
-        return get_cityscapes_labels(bgr)
+        return get_cityscapes_labels()
     else:
         raise ValueError("Unknown dataset name: {}".format(dataset_name))
     
-def get_voc_labels(bgr=False):
+def get_voc_labels():
     """Load the mapping that associates pascal VOC classes with label colors
     Returns:
         np.ndarray with dimensions (21, 3)
@@ -106,11 +111,9 @@ def get_voc_labels(bgr=False):
             [0, 64, 128],  # 20=tv/monitor
         ]
     )
-    if bgr:
-        color_map = color_map[:, ::-1]
     return color_map
 
-def get_cityscapes_labels(bgr=False):
+def get_cityscapes_labels():
     """Load the mapping that associates cityscapes classes with label colors
     Returns:
         np.ndarray with dimensions (19, 3)
@@ -138,6 +141,4 @@ def get_cityscapes_labels(bgr=False):
         [119, 11, 32],     # 18=bicycle
     ]
     )
-    if bgr:
-        color_map = color_map[:, ::-1]
     return color_map
