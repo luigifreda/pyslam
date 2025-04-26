@@ -64,15 +64,15 @@ def rgb_to_class(rgb_labels, label_map):
 
     return class_image.reshape(rgb_np.shape[:2])
 
-def single_label_to_color(label, dataset_name="cityscapes"):
-    semantics_map = labels_map_factory(dataset_name)
+def single_label_to_color(label, dataset_name="cityscapes", bgr=True):
+    semantics_map = labels_map_factory(dataset_name, bgr)
     return semantics_map[label]
 
-def labels_map_factory(dataset_name="cityscapes"):
+def labels_map_factory(dataset_name="cityscapes", bgr=True):
     if dataset_name == "voc":
-        return get_voc_labels(True)
+        return get_voc_labels(bgr)
     elif dataset_name == "cityscapes":
-        return get_cityscapes_labels(True)
+        return get_cityscapes_labels(bgr)
     else:
         raise ValueError("Unknown dataset name: {}".format(dataset_name))
     
