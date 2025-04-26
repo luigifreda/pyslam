@@ -812,8 +812,12 @@ Many improvements and additional features are currently under development:
 - [x] Stereo and RGBD support
 - [x] Map saving/loading 
 - [x] Modern DL matching algorithms 
-- [ ] Object detection 
-- [ ] Semantic segmentation 
+- [ ] Object detection [WIP by @dvdmc]
+  - [ ] Open vocabulary segment (object) detection
+- [ ] Semantic segmentation [WIP by @dvdmc]
+  - [X] Dense closed-set labels
+  - [ ] Dense closed-set probability vectors
+  - [ ] Dense open vocabulary feature vectors
 - [x] 3D dense reconstruction 
 - [x] Unified install procedure (single branch) for all OSs 
 - [x] Trajectory saving 
