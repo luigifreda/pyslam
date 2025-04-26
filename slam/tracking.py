@@ -760,7 +760,7 @@ class Tracking:
             color = (0, 0, 255)
 
             semantic_des = None
-            if self.f_ref.semantic_img is not None:
+            if self.f_ref.kps_sem is not None:
                 semantic_des = self.f_ref.kps_sem[sorted_idx_values[i]]
 
             # add the point to this map                 
@@ -887,7 +887,7 @@ class Tracking:
 
         # build current frame 
         self.timer_frame.start()        
-        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, semantic_img=semantic_img, timestamp=timestamp, img_id=img_id) 
+        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, semantic_img=semantic_img, timestamp=timestamp, img_id=img_id)
         self.f_cur = f_cur 
         #print("frame: ", f_cur.id)        
         self.timer_frame.refresh()   

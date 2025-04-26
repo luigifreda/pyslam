@@ -26,6 +26,7 @@ import random
 
 import torch.multiprocessing as mp 
 
+from config_parameters import Parameters
 import pypangolin as pangolin
 import glutils 
 import OpenGL.GL as gl
@@ -41,7 +42,7 @@ from utils_sys import Printer
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
 from utils_colors import GlColors
-from utils_semantics import labels_to_image
+from utils_semantics import labels_to_image, single_label_to_color
 
 import sim3solver
 
@@ -192,6 +193,7 @@ class Viewer3DMapInput:
         self.pose_timestamps = []
         self.points = [] 
         self.colors = []
+        self.semantic_colors = []
         self.fov_centers = [] 
         self.fov_centers_colors = []        
         self.covisibility_graph = []
@@ -397,7 +399,8 @@ class Viewer3D(object):
         self.draw_loops = True   
         self.draw_dense = True
         self.draw_sparse = True
-        
+        self.color_semantics = False
+
         self.draw_wireframe = False             
 
         #self.button = pangolin.VarBool('ui.Button', value=False, toggle=False)
@@ -413,6 +416,7 @@ class Viewer3D(object):
         self.checkboxFovCenters = pangolin.VarBool('ui.Draw Fov Centers', value=False, toggle=True)        
         self.checkboxDrawSparseCloud = pangolin.VarBool('ui.Draw Sparse Map', value=True, toggle=True)        
         self.checkboxDrawDenseCloud = pangolin.VarBool('ui.Draw Dense Map', value=True, toggle=True)                               
+        self.checkboxColorSemantics = pangolin.VarBool('ui.Color Semantics', value=False, toggle=True)                               
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
         self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
         self.buttonSave = pangolin.VarBool('ui.Save', value=False, toggle=False)   
@@ -474,6 +478,7 @@ class Viewer3D(object):
         self.draw_wireframe = self.checkboxWireframe.Get()
         self.draw_dense = self.checkboxDrawDenseCloud.Get()
         self.draw_sparse = self.checkboxDrawSparseCloud.Get()
+        self.color_semantics = self.checkboxColorSemantics.Get()
         
         #if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
@@ -619,8 +624,12 @@ class Viewer3D(object):
                 # draw keypoints with their color
                 gl.glPointSize(self.sparsePointSize)
                 #gl.glColor3f(1.0, 0.0, 0.0)
-                glutils.DrawPoints(self.map_state.points, self.map_state.colors)    
-                
+                if self.color_semantics:
+                    colors = self.map_state.semantic_colors
+                else:
+                    colors = self.map_state.colors
+                glutils.DrawPoints(self.map_state.points, colors)    
+            
             if self.map_state.reference_pose is not None and kDrawReferenceCamera:
                 # draw predicted pose in purple
                 gl.glColor3f(0.5, 0.0, 0.5)
@@ -767,12 +776,16 @@ class Viewer3D(object):
         num_map_points = map.num_points()
         if num_map_points>0:
             for i,p in enumerate(map.get_points()):                
-                map_state.points.append(p.pt)           
+                map_state.points.append(p.pt)
                 map_state.colors.append(np.flip(p.color))              
-                breakpoint()
+                if p.semantic_des is not None:
+                  map_state.semantic_colors.append(single_label_to_color(p.semantic_des, dataset_name=Parameters.kDatasetName, bgr=False))
+                else:
+                  map_state.semantic_colors.append(np.array([0.0,0.0,0.0]))
+
         map_state.points = np.array(map_state.points)          
         map_state.colors = np.array(map_state.colors)/256.
-        # map_state.colors = np.array() 
+        map_state.semantic_colors = np.array(map_state.semantic_colors)/256.
         
         for kf in keyframes:
             for kf_cov in kf.get_covisible_by_weight(kMinWeightForDrawingCovisibilityEdge):

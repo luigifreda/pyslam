@@ -488,8 +488,8 @@ class Frame(FrameBase):
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
                 
-                if self.semantic_img is not None:
-                    self.kps_sem = self.semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
+                if semantic_img is not None:
+                    self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
            
     def set_img_right(self, img_right): 
         self.img_right = img_right.copy()
