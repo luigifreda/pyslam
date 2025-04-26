@@ -21,17 +21,20 @@ import numpy as np
 import os
 import sys
 
+import semantic_feature_types
+
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 
 # Base class for semantic estimators via inference
 class SemanticEstimator:
-    def __init__(self, model, transform, device, semantics_rgb_map):
+    def __init__(self, model, transform, device, semantics_rgb_map, semantic_feature_type):
         self.model = model
         self.transform = transform
         self.device = device
         self.semantics_rgb_map = semantics_rgb_map
+        self.semantic_feature_type = semantic_feature_type
 
         self.semantics = None
 
