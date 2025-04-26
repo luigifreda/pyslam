@@ -27,11 +27,11 @@ kRootFolder = kScriptFolder + '/..'
 
 # Base class for semantic estimators via inference
 class SemanticEstimator:
-    def __init__(self, model, transform, device, semantics_map):
+    def __init__(self, model, transform, device, semantics_rgb_map):
         self.model = model
         self.transform = transform
         self.device = device
-        self.semantics_map = semantics_map
+        self.semantics_rgb_map = semantics_rgb_map
 
         self.semantics = None
 
