@@ -171,7 +171,8 @@ if __name__ == "__main__":
         viewer3D = None
         plot_drawer = None        
     else:
-        viewer3D = Viewer3D(scale=dataset.scale_viewer_3d) 
+        viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
+        viewer3D.set_semantics_rgb_map(semantic_estimator.semantics_rgb_map)
         plot_drawer = SlamPlotDrawer(slam, viewer3D)
         img_writer = ImgWriter(font_scale=0.7)
         if False:
@@ -242,7 +243,7 @@ if __name__ == "__main__":
                     if semantic_prediction is None and semantic_estimator:
                         semantic_prediction = semantic_estimator.infer(img)           
                         if not args.headless:
-                            semantic_color_img = labels_to_image(semantic_prediction, semantic_estimator.semantics_map)
+                            semantic_color_img = labels_to_image(semantic_prediction, semantic_estimator.semantics_rgb_map, bgr=True)
                             cv2.imshow("semantic prediction", semantic_color_img)
 
                     #TODO(@dvdmc): Add semantics            

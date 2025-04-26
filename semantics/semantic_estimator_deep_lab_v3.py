@@ -58,8 +58,8 @@ class SemanticEstimatorDeepLabV3(SemanticEstimator):
             model.load_state_dict(torch.load(model_path, map_location='cpu'))
         model = model.to(device).eval()
         transform = self.model_configs[encoder_name]['weights'].transforms()
-        semantics_map = labels_map_factory(dataset_name)
-        super().__init__(model, transform, device, semantics_map)
+        semantics_rgb_map = labels_map_factory(dataset_name)
+        super().__init__(model, transform, device, semantics_rgb_map)
 
     def infer(self, image):
         prev_width = image.shape[1]

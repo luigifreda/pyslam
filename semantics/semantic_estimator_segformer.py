@@ -82,8 +82,8 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         
         transform = AutoImageProcessor.from_pretrained(f"nvidia/segformer-{encoder_name}-finetuned-{dataset_name}-{image_size[0]}-{image_size[1]}")
         model = model.to(device).eval()
-        semantics_map = labels_map_factory(dataset_name)
-        super().__init__(model, transform, device, semantics_map)
+        semantics_rgb_map = labels_map_factory(dataset_name)
+        super().__init__(model, transform, device, semantics_rgb_map)
 
     def infer(self, image):
         prev_width = image.shape[1]
