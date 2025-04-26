@@ -11,3 +11,16 @@ index 5bad53988..c692f2aa2 100644
  # new feature to Cmake Version > 2.8.12
  # Mac ONLY. Define Relative Path on Mac OS
  if(NOT DEFINED CMAKE_MACOSX_RPATH)
+diff --git a/gtsam/3rdparty/Spectra/MatOp/internal/ArnoldiOp.h b/gtsam/3rdparty/Spectra/MatOp/internal/ArnoldiOp.h
+index 68654aafd..cbcb77c89 100644
+--- a/gtsam/3rdparty/Spectra/MatOp/internal/ArnoldiOp.h
++++ b/gtsam/3rdparty/Spectra/MatOp/internal/ArnoldiOp.h
+@@ -105,7 +105,7 @@ private:
+     OpType& m_op;
+ 
+ public:
+-    ArnoldiOp<Scalar, OpType, IdentityBOp>(OpType* op, IdentityBOp* /*Bop*/) :
++    ArnoldiOp(OpType* op, IdentityBOp* /*Bop*/) :
+         m_op(*op)
+     {}
+ 
