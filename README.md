@@ -466,7 +466,7 @@ Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 The `main_slam_evaluation.py` script enables automated SLAM evaluation by executing `main_slam.py` across a collection of **datasets** and configuration **presets**. The main input to the script is an evaluation configuration file (e.g., `evaluation/configs/evaluation.json`) that specifies which datasets and presets to be used. For convenience, sample configurations for the datasets `TUM`, `EUROC` and `KITTI` datasets are already provided in the `evaluation/configs/` directory.
 
-For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in both `PDF`, `LaTeX`, and `HTML` formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics. 
+For each evaluation run, results are stored in a dedicated subfolder within the `results` directory, containing all the computed metrics. These metrics are then processed and compared. The final output is a report, available in `PDF`, `LaTeX`, and `HTML` formats, that includes comparison tables summarizing the *Absolute Trajectory Error* (ATE), the maximum deviation from the ground truth trajectory and other metrics. 
 
 You can find some obtained evaluation results [here](./docs/evaluations/evaluations.md).
 
