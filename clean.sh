@@ -83,6 +83,17 @@ cd thirdparty/pyibow
 ./clean.sh
 cd "$ROOT_DIR"
 
+if [ -d "thirdparty/gtsam" ]; then
+    rm -Rf thirdparty/gtsam
+fi
+cd "$ROOT_DIR"
+
+if [ -d "thirdparty/gtsam_factors" ]; then
+    cd thirdparty/gtsam_factors
+    ./clean.sh
+    cd "$ROOT_DIR"
+fi
+
 if [ -d "thirdparty/monogs/submodules/simple-knn/build" ]; then
     rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
 fi

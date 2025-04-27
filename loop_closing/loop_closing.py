@@ -46,7 +46,7 @@ from global_bundle_adjustment import GlobalBundleAdjustment
 from dataset_types import SensorType
 from rotation_histogram import filter_matches_with_histogram_orientation
 
-from search_points import search_by_sim3, search_more_map_points_by_projection, search_and_fuse_for_loop_correction, search_frame_by_projection
+from search_points import search_by_sim3, search_more_map_points_by_projection, search_and_fuse_for_loop_correction
 
 import optimizer_gtsam
 import optimizer_g2o
