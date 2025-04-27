@@ -1,6 +1,6 @@
 # Documentation 
 
-- A document presenting pySLAM is available [here](./tex/document.pdf).
+- A pdf document presenting pySLAM is available [here](./tex/document.pdf).
 - [System Overview](./system_overview.md)
 - [Python virtual environments](./PYTHON-VIRTUAL-ENVS.md)
 - [Python conda environments](./CONDA.md)
