@@ -88,7 +88,8 @@ def propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur,
 
   
 # search by projection matches between {map points of f_ref} and {keypoints of f_cur},  (access frames from tracking thread, no need to lock)
-def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
+def search_frame_by_projection(f_ref: Frame, 
+                               f_cur: Frame,
                                max_reproj_distance=Parameters.kMaxReprojectionDistanceFrame,
                                max_descriptor_distance=None,
                                ratio_test=Parameters.kMatchRatioTestMap,
@@ -104,10 +105,12 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
     rot_histo = RotationHistogram()
     check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features    
     
+    check_forward_backward = not is_monocular
+    
     trc = None
     forward = False
     backward = False
-    if not is_monocular:
+    if check_forward_backward:
         Tcw = f_cur.pose
         Rcw = Tcw[:3,:3]
         tcw = Tcw[:3,3]
@@ -177,15 +180,17 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
                     continue          
     
             p_f_cur_octave = f_cur.octaves[kd_idx]
-            if is_monocular:
-                if p_f_cur_octave < (kp_ref_octave-1) or p_f_cur_octave > (kp_ref_octave+1):
-                    continue
-            else:
+            
+            # check if point is in the same octave as the reference point
+            if check_forward_backward:
                 if backward and p_f_cur_octave > kp_ref_octave:
                     continue
                 elif forward and p_f_cur_octave < kp_ref_octave:
                     continue
                 elif p_f_cur_octave < (kp_ref_octave-1) or p_f_cur_octave > (kp_ref_octave+1):
+                    continue
+            else:
+                if p_f_cur_octave < (kp_ref_octave-1) or p_f_cur_octave > (kp_ref_octave+1):
                     continue
                                        
             if do_check_stereo_reproj_err:
@@ -241,8 +246,119 @@ def search_frame_by_projection(f_ref: Frame, f_cur: Frame,
     #return idxs_ref, idxs_cur, found_pts_count 
 
 
+# Search by projection between {keyframe map points} and {current frame keypoints}
+def search_keyframe_by_projection(kf_ref: KeyFrame,
+                                  f_cur: Frame,
+                                  max_reproj_distance=Parameters.kMaxDescriptorDistance,
+                                  max_descriptor_distance=None,
+                                  ratio_test=Parameters.kMatchRatioTestMap,
+                                  already_matched_ref_idxs=None):
+    if max_descriptor_distance is None:
+        max_descriptor_distance = Parameters.kMaxDescriptorDistance
+        
+    assert kf_ref.is_keyframe, '[search_keyframe_by_projection] kf_ref must be a KeyFrame'
+
+    found_pts_count = 0
+    idxs_ref = []
+    idxs_cur = []
+
+    rot_histo = RotationHistogram()
+    check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features
+
+    Tcw = f_cur.pose
+    Rcw = Tcw[:3, :3]
+    tcw = Tcw[:3, 3]
+    Ow = -Rcw.T @ tcw  # camera center in world coords
+
+    ref_mps = kf_ref.get_map_point_matches()
+
+    if len(ref_mps) == 0:
+        return np.array([]), np.array([]), 0
+
+    # Get valid map points (non-bad, non-outliers)
+    matched_ref_idxs = [i for i, p in enumerate(ref_mps) if p is not None and not p.is_bad]
+
+    # Remove already matched points if given
+    if already_matched_ref_idxs is not None:
+        matched_ref_idxs = np.setdiff1d(matched_ref_idxs, already_matched_ref_idxs)
+
+    matched_ref_points = [ref_mps[i] for i in matched_ref_idxs]
+    if len(matched_ref_points) == 0:
+        return np.array([]), np.array([]), 0
+
+    points_w = np.array([p.pos for p in matched_ref_points])
+
+    # Project points
+    projs, depths = f_cur.project_map_points(points_w, f_cur.camera.is_stereo())
+    is_visible = f_cur.are_visible(projs, depths)
+
+    # Predict detection levels
+    dists = np.linalg.norm(points_w - Ow, axis=1)
+    predicted_levels = np.array([p.predict_scale(dist, f_cur) for p, dist in zip(matched_ref_points, dists)])
+    kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]
+    radiuses = max_reproj_distance * kp_scale_factors
+    kd_cur_idxs = f_cur.kd.query_ball_point(projs[:, :2], radiuses)
+
+    for j, (ref_idx, mp) in enumerate(zip(matched_ref_idxs, matched_ref_points)):
+        if not is_visible[j]:
+            continue
+
+        predicted_level = predicted_levels[j]
+        kd_indices = kd_cur_idxs[j]
+
+        best_dist = math.inf
+        best_dist2 = math.inf
+        best_level = -1
+        best_level2 = -1
+        best_k_idx = -1
+
+        for idx2 in kd_indices:
+            if f_cur.points[idx2] is not None:
+                continue  # already matched
+
+            kp_level = f_cur.octaves[idx2]
+            if (kp_level < predicted_level - 1) or (kp_level > predicted_level + 1):
+                continue
+
+            descriptor_dist = mp.min_des_distance(f_cur.des[idx2])
+
+            if descriptor_dist < best_dist:
+                best_dist2 = best_dist
+                best_level2 = best_level
+                best_dist = descriptor_dist
+                best_level = kp_level
+                best_k_idx = idx2
+            elif descriptor_dist < best_dist2:
+                best_dist2 = descriptor_dist
+                best_level2 = kp_level
+
+        if best_dist < max_descriptor_distance:
+            if (best_level == best_level2) and (best_dist > best_dist2 * ratio_test):
+                continue
+
+            if mp.add_frame_view(f_cur, best_k_idx):
+                found_pts_count += 1
+                idxs_ref.append(ref_idx)
+                idxs_cur.append(best_k_idx)
+
+                if check_orientation:
+                    rot = kf_ref.angles[ref_idx] - f_cur.angles[best_k_idx]
+                    rot_histo.push(rot, len(idxs_cur) - 1)
+
+    if check_orientation:
+        valid_match_idxs = rot_histo.get_valid_idxs()
+        print('checking orientation consistency - valid matches %:', len(valid_match_idxs) / max(1, len(idxs_cur)) * 100, '% of', len(idxs_cur), 'matches')
+
+        idxs_ref = np.array(idxs_ref)[valid_match_idxs]
+        idxs_cur = np.array(idxs_cur)[valid_match_idxs]
+        found_pts_count = len(valid_match_idxs)
+
+    return np.array(idxs_ref), np.array(idxs_cur), found_pts_count
+
+
 # search by projection matches between {input map points} and {unmatched keypoints of frame f_cur}, (access frame from tracking thread, no need to lock)
-def search_map_by_projection(points, f_cur: Frame, 
+def search_map_by_projection(points, 
+                             f_cur: Frame, 
                              max_reproj_distance=Parameters.kMaxReprojectionDistanceMap, 
                              max_descriptor_distance=None,
                              ratio_test=Parameters.kMatchRatioTestMap,
@@ -340,11 +456,10 @@ def search_local_frames_by_projection(map, f_cur, local_window=Parameters.kLocal
         max_descriptor_distance = Parameters.kMaxDescriptorDistance
         
     # take the points in the last N frame 
-    points = []
     frames = map.keyframes[-local_window:]
     f_points = set([p for f in frames for p in f.get_points() if (p is not None)])
-    print('searching %d map points' % len(points))
-    return search_map_by_projection(points, f_cur, max_descriptor_distance=max_descriptor_distance)  
+    print('searching %d map points' % len(f_points))
+    return search_map_by_projection(list(f_points), f_cur, max_descriptor_distance=max_descriptor_distance)  
 
 
 # search by projection matches between {all map points} and {unmatched keypoints of f_cur}
@@ -395,6 +510,7 @@ def search_more_map_points_by_projection(points: set,
     if not isinstance(points, set):
         points = set(points)
     target_points = points.difference([p for p in f_cur_matched_points if p is not None])    
+    target_points = list(target_points)
     
     if len(target_points) == 0:
         if print_fun is not None:

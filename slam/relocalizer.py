@@ -28,7 +28,7 @@ import optimizer_gtsam
 import optimizer_g2o
 from utils_sys import Printer, Logging
 from loop_detector_base import LoopDetectorOutput
-from search_points import search_frame_by_projection
+from search_points import search_frame_by_projection, search_keyframe_by_projection
 
 from timer import TimerFps
 from config_parameters import Parameters
@@ -193,7 +193,7 @@ class Relocalizer:
             
                 # if few inliers, search by projection in a coarse window and optimize again
                 if num_matched_map_points < Parameters.kRelocalizationDoPoseOpt2NumInliers:
-                    idxs_kf, idxs_frame, num_new_found_map_points = search_frame_by_projection(kf, frame,
+                    idxs_kf, idxs_frame, num_new_found_map_points = search_keyframe_by_projection(kf, frame,
                                                                     max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchCoarse,
                                                                     max_descriptor_distance=Parameters.kMaxDescriptorDistance,
                                                                     ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,
@@ -215,7 +215,7 @@ class Relocalizer:
                         if num_matched_map_points>30 and num_matched_map_points<Parameters.kRelocalizationDoPoseOpt2NumInliers: 
                             matched_ref_idxs = np.flatnonzero(frame.points!=None)
                             
-                            idxs_kf, idxs_frame, num_new_found_map_points = search_frame_by_projection(kf, frame,
+                            idxs_kf, idxs_frame, num_new_found_map_points = search_keyframe_by_projection(kf, frame,
                                                                             max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchFine,
                                                                             max_descriptor_distance=0.7*Parameters.kMaxDescriptorDistance,
                                                                             ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,

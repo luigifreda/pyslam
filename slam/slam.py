@@ -33,9 +33,6 @@ from map_point import MapPoint
 from map import Map
 from camera import Camera
 
-from search_points import propagate_map_point_matches
-from search_points import search_map_by_projection, search_frame_by_projection
-
 from local_mapping import LocalMapping
 
 from loop_closing import LoopClosing

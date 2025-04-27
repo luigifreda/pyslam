@@ -28,7 +28,7 @@ kRootFolder = kScriptFolder
 # List of shared static parameters for configuring SLAM modules 
 class Parameters:   
 
-    kLogsFolder = kRootFolder + '/logs'              # Folder where logs are stored. This can be change by config.py to redirect the logs in a different folder.
+    kLogsFolder = kRootFolder + '/logs'              # Folder where logs are stored. This can be changed by config.py to redirect the logs in a different folder.
     
     # SLAM threads 
     kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
@@ -47,7 +47,7 @@ class Parameters:
 
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # Max cos angle for triangulation (min parallax angle) in the Initializer
-    kCosMaxParallax=0.9999 # 0.9998                 # Max cos angle for triangulation (min parallax angle)   
+    kCosMaxParallax=0.99981 # 0.9999, 0.9998                 # Max cos angle for triangulation (min parallax angle)   
     kMinRatioBaselineDepth = 0.01      
     
     
