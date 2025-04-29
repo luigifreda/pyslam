@@ -43,7 +43,6 @@ from utils_sys import Printer
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
 from utils_colors import GlColors
-from utils_semantics import sigle_semantic_to_color
 
 import sim3solver
 
@@ -779,7 +778,7 @@ class Viewer3D(object):
             for i,p in enumerate(map.get_points()):                
                 map_state.points.append(p.pt)
                 map_state.colors.append(np.flip(p.color))              
-                if p.semantic_des is not None and self.semantics_rgb_map is not None:
+                if p.semantic_des is not None:
                   map_state.semantic_colors.append(SemanticEstimatorShared.single_to_rgb(p.semantic_des, bgr=False))
                 else:
                   map_state.semantic_colors.append(np.array([0.0,0.0,0.0]))
