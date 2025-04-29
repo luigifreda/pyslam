@@ -22,6 +22,7 @@ import time
 import numpy as np
 from threading import RLock, Lock, Thread
 
+from semantic_estimator_shared import SemanticEstimatorShared
 from utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
 from frame import Frame, FeatureTrackerShared
 from utils_sys import Printer
@@ -585,6 +586,8 @@ class MapPoint(MapPointBase):
         if skip or len(observations)==0:
             return 
         descriptors = [kf.des[idx] for kf,idx in observations if not kf.is_bad]
+        semantics = [kf.kps_sem[idx] for kf, idx in observations if kf.kps_sem is not None]
+
         N = len(descriptors)
         if N > 2:
             #median_distances = [ np.median([FeatureTrackerShared.descriptor_distance(d, descriptors[i]) for d in descriptors]) for i in range(N) ]
@@ -595,6 +598,8 @@ class MapPoint(MapPointBase):
             #print('median_distances: ', median_distances)
             #print('des: ', self.des)        
 
+        if len(semantics) > 2:
+            self.semantic_des = SemanticEstimatorShared.semantic_fusion_method(semantics)
 
     def update_info(self):
         #if self._is_bad:
