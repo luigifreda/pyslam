@@ -21,16 +21,8 @@ import numpy as np
 
 from semantic_feature_types import SemanticFeatureTypes
 
-def semantics_to_image(semantics_img, semantics_type, **kwargs):
-    if semantics_type == SemanticFeatureTypes.LABEL:
-        return labels_to_image(semantics_img, **kwargs)
-    elif semantics_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
-        label_img = np.argmax(semantics_img, axis=-1)
-        return labels_to_image(label_img, **kwargs)
-    # TODO(@dvdmc): add PCA for open vocab semantics
-    else:
-        raise ValueError(f"Unknown semantics type: {semantics_type}")
-    
+# TODO(@dvdmc): add PCA for open vocab semantics
+  
 # create a scaled image of uint8 from a image of semantics
 def labels_to_image(label_img, semantics_rgb_map, bgr=False, ignore_labels=[], rgb_image=None):
     """
@@ -77,15 +69,6 @@ def rgb_to_class(rgb_labels, label_map):
 
     return class_image.reshape(rgb_np.shape[:2])
 
-def sigle_semantic_to_color(semantic_des, semantic_feature_type, **kwargs):
-    if semantic_feature_type == SemanticFeatureTypes.LABEL:
-        return single_label_to_color(semantic_des, **kwargs)
-    elif semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
-        return single_label_to_color(np.argmax(semantic_des), **kwargs)
-    # TODO(@dvdmc): add PCA for open vocab semantics
-    else:
-        raise ValueError(f"Unknown semantics type: {semantic_feature_type}")
-    
 def single_label_to_color(label, semantics_rgb_map, bgr=False):
     color = semantics_rgb_map[label]
     if bgr:
@@ -161,3 +144,56 @@ def get_cityscapes_labels():
     ]
     )
     return color_map
+
+def information_weights_factory(dataset_name="cityscapes"):
+    if dataset_name == "voc":
+        return get_voc_information_weights()
+    elif dataset_name == "cityscapes":
+        return get_cityscapes_information_weights()
+    else:
+        raise ValueError("Unknown dataset name: {}".format(dataset_name))
+    
+def get_voc_information_weights():
+    return [1.0, # aeroplane
+            1.0, # bicycle
+            1.0, # bird
+            1.0, # boat
+            1.0, # bottle
+            1.0, # bus
+            1.0, # car
+            1.0, # cat
+            1.0, # chair
+            1.0, # cow
+            1.0, # diningtable
+            1.0, # dog
+            1.0, # horse
+            1.0, # motorbike
+            1.0, # person
+            1.0, # pottedplant
+            1.0, # sheep
+            1.0, # sofa
+            1.0, # train
+            1.0, # tvmonitor
+            ]
+
+def get_cityscapes_information_weights():
+    return [1.0, # road
+            1.0, # sidewalk
+            1.0, # building
+            1.0, # wall
+            1.0, # fence
+            1.0, # pole
+            1.0, # traffic light
+            1.0, # traffic sign
+            0.001, # vegetation
+            1.0, # terrain
+            1.0, # sky
+            0.04, # person
+            0.002, # rider
+            0.002, # car
+            0.002, # truck
+            0.002, # bus
+            0.002, # train
+            0.002, # motorcycle
+            0.002, # bicycle
+            ]

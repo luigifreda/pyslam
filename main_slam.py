@@ -244,7 +244,7 @@ if __name__ == "__main__":
                     if semantic_prediction is None and semantic_estimator:
                         semantic_prediction = semantic_estimator.infer(img)           
                         if not args.headless:
-                            semantic_color_img = labels_to_image(semantic_prediction, semantic_estimator.semantics_rgb_map, bgr=True)
+                            semantic_color_img = semantic_estimator.to_rgb(semantic_prediction, bgr=True)
                             cv2.imshow("semantic prediction", semantic_color_img)
 
                     #TODO(@dvdmc): Add semantics            
