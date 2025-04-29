@@ -29,6 +29,7 @@ import platform
 
 from config import Config
 
+from semantic_estimator_shared import SemanticEstimatorShared
 from slam import Slam, SlamState
 from slam_plot_drawer import SlamPlotDrawer
 from camera  import PinholeCamera
@@ -149,6 +150,7 @@ if __name__ == "__main__":
     if Parameters.kUseSemanticEstimator:
         semantic_estimator_type = SemanticEstimatorType.SEGFORMER
         semantic_estimator = semantic_estimator_factory(semantic_estimator_type=semantic_estimator_type)
+        SemanticEstimatorShared.set_semantic_estimator(semantic_estimator) # Used in SLAM and 3D Visualizer
         Printer.green(f'Semantic_estimator_type: {semantic_estimator_type.name}')
 
     # create SLAM object
@@ -172,7 +174,6 @@ if __name__ == "__main__":
         plot_drawer = None        
     else:
         viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
-        viewer3D.set_semantics_rgb_map(semantic_estimator.semantics_rgb_map)
         plot_drawer = SlamPlotDrawer(slam, viewer3D)
         img_writer = ImgWriter(font_scale=0.7)
         if False:

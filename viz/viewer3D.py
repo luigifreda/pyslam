@@ -36,13 +36,14 @@ import numpy as np
 
 from map import Map
 
+from semantic_estimator_shared import SemanticEstimatorShared
 from utils_geom import poseRt, inv_poseRt, inv_T
 from utils_geom_trajectory import find_trajectories_associations, align_3d_points_with_svd, align_trajectories_with_svd, TrajectoryAlignementData
 from utils_sys import Printer
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
 from utils_colors import GlColors
-from utils_semantics import single_label_to_color
+from utils_semantics import sigle_semantic_to_color
 
 import sim3solver
 
@@ -258,7 +259,7 @@ class Viewer3D(object):
         #self.estimated_trajectory_timestamps = None
 
         # For mapping semantic values to colors
-        self.semantics_rgb_map = None
+        self.semantics_rgb_map = SemanticEstimatorShared.semantics_rgb_map
 
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
         self.mp_manager = MultiprocessingManager()
@@ -284,9 +285,6 @@ class Viewer3D(object):
                                 self._is_map_save, self._is_bundle_adjust, self._do_step, self._do_reset, self._is_gt_set, self.alignment_gt_data_queue))
         self.vp.daemon = True
         self.vp.start()
-    
-    def set_semantics_rgb_map(self, semantics_rgb_map):
-        self.semantics_rgb_map = semantics_rgb_map
 
     def set_gt_trajectory(self, gt_trajectory, gt_timestamps, align_with_scale=False):
         if gt_trajectory is None or gt_timestamps is None:
@@ -785,7 +783,7 @@ class Viewer3D(object):
                 map_state.points.append(p.pt)
                 map_state.colors.append(np.flip(p.color))              
                 if p.semantic_des is not None and self.semantics_rgb_map is not None:
-                  map_state.semantic_colors.append(single_label_to_color(p.semantic_des, self.semantics_rgb_map, bgr=False))
+                  map_state.semantic_colors.append(sigle_semantic_to_color(p.semantic_des, SemanticEstimatorShared.semantic_feature_type, semantics_rgb_map=self.semantics_rgb_map, bgr=False))
                 else:
                   map_state.semantic_colors.append(np.array([0.0,0.0,0.0]))
 

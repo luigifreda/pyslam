@@ -28,17 +28,20 @@ kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 
 # Base class for semantic estimators via inference
-class SemanticEstimator:
-    def __init__(self, model, transform, device, semantics_rgb_map, semantic_feature_type, semantic_fusion_method):
-        self.model = model
-        self.transform = transform
-        self.device = device
-        self.semantic_feature_type = semantic_feature_type
-        self.semantics_rgb_map = semantics_rgb_map
-        self.semantic_fusion_method = semantic_fusion_method
+class SemanticEstimatorShared:
+    
+    semantic_estimator           = None
+    semantic_feature_type        = None
+    semantics_rgb_map            = None
+    fuse_semantic_descriptors    = None
 
-        self.semantics = None
+    @staticmethod
+    def set_semantic_estimator(self, semantic_estimator, force=False):
 
-    # Return the predicted semantic map
-    def infer(self, image):
-        raise NotImplementedError
+        if not force and SemanticEstimatorShared.semantic_estimator is not None:
+            raise Exception("SemanticEstimatorShared: Semantic Estimator is already set!")
+        
+        SemanticEstimatorShared.semantic_estimator          = semantic_estimator
+        SemanticEstimatorShared.semantic_feature_type       = semantic_estimator.semantic_feature_type
+        SemanticEstimatorShared.semantics_rgb_map           = semantic_estimator.semantics_rgb_map
+        SemanticEstimatorShared.semantic_fusion_method      = semantic_estimator.semantic_fusion_method

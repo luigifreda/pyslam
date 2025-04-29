@@ -47,7 +47,7 @@ class SemanticEstimatorType(SerializableEnum):
         except KeyError:
             raise ValueError(f"Invalid SemanticEstimatorType: {name}")
         
-def semantic_estimator_factory(semantic_estimator_type=SemanticEstimatorType.DEEPLABV3,
+def semantic_estimator_factory(semantic_estimator_type=SemanticEstimatorType.SEGFORMER,
                                device=None):
     if semantic_estimator_type == SemanticEstimatorType.DEEPLABV3:
         return SemanticEstimatorDeepLabV3(device=device)

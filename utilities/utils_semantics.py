@@ -19,8 +19,19 @@
 
 import numpy as np
 
-# create a scaled image of uint8 from a image of semantics 
-# TODO(@dvdmc): this might be labels, probs, features. For now: labels
+from semantic_feature_types import SemanticFeatureTypes
+
+def semantics_to_image(semantics_img, semantics_type, **kwargs):
+    if semantics_type == SemanticFeatureTypes.LABEL:
+        return labels_to_image(semantics_img, **kwargs)
+    elif semantics_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+        label_img = np.argmax(semantics_img, axis=-1)
+        return labels_to_image(label_img, **kwargs)
+    # TODO(@dvdmc): add PCA for open vocab semantics
+    else:
+        raise ValueError(f"Unknown semantics type: {semantics_type}")
+    
+# create a scaled image of uint8 from a image of semantics
 def labels_to_image(label_img, semantics_rgb_map, bgr=False, ignore_labels=[], rgb_image=None):
     """
     Converts a class label image to an RGB image.
@@ -30,7 +41,6 @@ def labels_to_image(label_img, semantics_rgb_map, bgr=False, ignore_labels=[], r
     Returns:
         rgb_output: RGB image as a NumPy array.
     """
-
     semantics_rgb_map = np.array(semantics_rgb_map, dtype=np.uint8)
     if bgr:
         semantics_rgb_map = semantics_rgb_map[:, ::-1]
@@ -67,6 +77,15 @@ def rgb_to_class(rgb_labels, label_map):
 
     return class_image.reshape(rgb_np.shape[:2])
 
+def sigle_semantic_to_color(semantic_des, semantic_feature_type, **kwargs):
+    if semantic_feature_type == SemanticFeatureTypes.LABEL:
+        return single_label_to_color(semantic_des, **kwargs)
+    elif semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+        return single_label_to_color(np.argmax(semantic_des), **kwargs)
+    # TODO(@dvdmc): add PCA for open vocab semantics
+    else:
+        raise ValueError(f"Unknown semantics type: {semantic_feature_type}")
+    
 def single_label_to_color(label, semantics_rgb_map, bgr=False):
     color = semantics_rgb_map[label]
     if bgr:

@@ -29,6 +29,7 @@ from torchvision import transforms
 
 from semantic_estimator_base import SemanticEstimator
 from semantic_feature_types import SemanticFeatureTypes
+from semantic_fusion_methods import bayesian_fusion, count_labels
 from utils_semantics import labels_map_factory
 
 kScriptPath = os.path.realpath(__file__)
@@ -58,9 +59,11 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         ('b4', (512, 512), 'ade'),
         ('b5', (1024, 1024), 'cityscapes'),
     ]
-    feature_type_configs = [SemanticFeatureTypes.LABEL, SemanticFeatureTypes.PROBABILITY_VECTOR]
-
-    def __init__(self, device=None, encoder_name='b0', dataset_name='cityscapes', image_size=(512, 1024), model_path='', semantic_feature_type=SemanticFeatureTypes.LABEL):
+    feature_type_configs = {
+        'label': {'type':SemanticFeatureTypes.LABEL, 'fusion':count_labels}, 
+        'probability_vector': {'type':SemanticFeatureTypes.PROBABILITY_VECTOR, 'fusion':bayesian_fusion}
+    }
+    def __init__(self, device=None, encoder_name='b0', dataset_name='cityscapes', image_size=(512, 1024), model_path='', semantic_feature_type='label'):
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if device.type != 'cuda':
@@ -89,8 +92,9 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         
         if semantic_feature_type not in self.feature_type_configs:
             raise ValueError(f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}")
-
-        super().__init__(model, transform, device, semantics_rgb_map, semantic_feature_type)
+        
+        semantic_type_config = self.feature_type_configs[semantic_feature_type]
+        super().__init__(model, transform, device, semantics_rgb_map, semantic_type_config['type'], semantic_type_config['fusion'])
 
     def infer(self, image):
         prev_width = image.shape[1]
@@ -101,5 +105,9 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         prediction = self.model(**batch).logits
         probs = prediction.softmax(dim=1)
         probs = recover_size(probs[0])
-        self.semantics = probs.argmax(dim=0).cpu().numpy() # Labels in this case
+        
+        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
+            self.semantics = probs.argmax(dim=0).cpu().numpy()
+        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+            self.semantics = probs.permute(1, 2, 0).cpu().numpy()
         return self.semantics
