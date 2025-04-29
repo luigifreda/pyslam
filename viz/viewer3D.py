@@ -258,9 +258,6 @@ class Viewer3D(object):
         #self.estimated_trajectory = None
         #self.estimated_trajectory_timestamps = None
 
-        # For mapping semantic values to colors
-        self.semantics_rgb_map = SemanticEstimatorShared.semantics_rgb_map
-
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
         self.mp_manager = MultiprocessingManager()
         self.qmap = self.mp_manager.Queue()
@@ -783,7 +780,7 @@ class Viewer3D(object):
                 map_state.points.append(p.pt)
                 map_state.colors.append(np.flip(p.color))              
                 if p.semantic_des is not None and self.semantics_rgb_map is not None:
-                  map_state.semantic_colors.append(sigle_semantic_to_color(p.semantic_des, SemanticEstimatorShared.semantic_feature_type, semantics_rgb_map=self.semantics_rgb_map, bgr=False))
+                  map_state.semantic_colors.append(SemanticEstimatorShared.single_to_rgb(p.semantic_des, bgr=False))
                 else:
                   map_state.semantic_colors.append(np.array([0.0,0.0,0.0]))
 

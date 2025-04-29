@@ -36,7 +36,7 @@ class SemanticEstimatorShared:
     fuse_semantic_descriptors    = None
 
     @staticmethod
-    def set_semantic_estimator(self, semantic_estimator, force=False):
+    def set_semantic_estimator(semantic_estimator, force=False):
 
         if not force and SemanticEstimatorShared.semantic_estimator is not None:
             raise Exception("SemanticEstimatorShared: Semantic Estimator is already set!")
@@ -45,3 +45,7 @@ class SemanticEstimatorShared:
         SemanticEstimatorShared.semantic_feature_type       = semantic_estimator.semantic_feature_type
         SemanticEstimatorShared.semantics_rgb_map           = semantic_estimator.semantics_rgb_map
         SemanticEstimatorShared.semantic_fusion_method      = semantic_estimator.semantic_fusion_method
+        SemanticEstimatorShared.semantic_sigma2_factor      = semantic_estimator.semantic_sigma2_factor
+        SemanticEstimatorShared.to_rgb                      = semantic_estimator.to_rgb
+        SemanticEstimatorShared.single_to_rgb               = semantic_estimator.single_to_rgb
+        SemanticEstimatorShared.get_semantic_weight         = semantic_estimator.get_semantic_weight
