@@ -188,12 +188,12 @@ def get_cityscapes_information_weights():
             0.001, # vegetation
             1.0, # terrain
             1.0, # sky
-            0.04, # person
-            0.002, # rider
-            0.002, # car
-            0.002, # truck
-            0.002, # bus
-            0.002, # train
-            0.002, # motorcycle
-            0.002, # bicycle
+            1.0, # person
+            1.0, # rider
+            1.0, # car
+            1.0, # truck
+            1.0, # bus
+            1.0, # train
+            1.0, # motorcycle
+            1.0, # bicycle
             ]

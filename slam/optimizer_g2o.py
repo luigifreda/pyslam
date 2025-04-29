@@ -26,8 +26,10 @@ import threading
 import multiprocessing as mp
 import traceback
 
+from config_parameters import Parameters # TODO(@dvdmc): do we want parameters to be used in this file?
 import g2o
 
+from semantic_estimator_shared import SemanticEstimatorShared # TODO(@dvdmc): do we want semnatics to be used in this file?
 from utils_geom import poseRt, Sim3Pose
 from utils_sys import Printer
 from utils_mp import MultiprocessingManager
@@ -144,7 +146,10 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             #print('adding edge between point ', p.id,' and frame ', f.id)
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx]>0
             invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
-            
+
+            if Parameters.kUseSemanticsInOptimiztion and kf.kps_sem is not None:
+                invSigma2 *= SemanticEstimatorShared.get_semantic_weight(kf.kps_sem[idx])
+
             if is_stereo_obs: 
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
                 edge.set_vertex(0, v_p)
@@ -346,7 +351,10 @@ def pose_optimization(frame, verbose=False, rounds=10):
             # add edge
             edge = None 
             invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[frame.octaves[idx]]
-                        
+            
+            if Parameters.kUseSemanticsInOptimiztion and frame.kps_sem is not None:
+                invSigma2 *= SemanticEstimatorShared.get_semantic_weight(frame.kps_sem[idx])
+
             if is_stereo_obs: 
                 #print('adding stereo edge between point ', p.id,' and frame ', frame.id)
                 edge = g2o.EdgeStereoSE3ProjectXYZOnlyPose()
@@ -532,6 +540,9 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx]>0
             invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
             
+            if Parameters.kUseSemanticsInOptimiztion and kf.kps_sem is not None:
+                invSigma2 *= SemanticEstimatorShared.get_semantic_weight(kf.kps_sem[p_idx])
+
             if is_stereo_obs:
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
                 obs = [kf.kpsu[p_idx][0], kf.kpsu[p_idx][1], kf.kps_ur[p_idx]]
@@ -722,6 +733,9 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
                 is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx] > 0
                 invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
 
+                if Parameters.kUseSemanticsInOptimiztion and kf.kps_sem is not None:
+                    invSigma2 *= SemanticEstimatorShared.get_semantic_weight(kf.kps_sem[p_idx])
+                        
                 if is_stereo_obs:
                     edge = g2o.EdgeStereoSE3ProjectXYZ()
                     obs = [kf.kpsu[p_idx][0], kf.kpsu[p_idx][1], kf.kps_ur[p_idx]]
@@ -1058,6 +1072,10 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_12.set_vertex(1, optimizer.vertex(0))
             edge_12.set_measurement(kf1.kpsu[i])
             invSigma2_12 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf1.octaves[i]]
+
+            if Parameters.kUseSemanticsInOptimiztion and kf1.kps_sem is not None:
+                invSigma2_12 *= SemanticEstimatorShared.get_semantic_weight(kf1.kps_sem[i])
+            
             edge_12.set_information(np.eye(2) * invSigma2_12)
             edge_12.set_robust_kernel(g2o.RobustKernelHuber(delta_huber))
             optimizer.add_edge(edge_12)
@@ -1068,6 +1086,10 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_21.set_vertex(1, optimizer.vertex(0))
             edge_21.set_measurement(kf2.kpsu[index2])
             invSigma2_21 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf2.octaves[index2]]
+            
+            if Parameters.kUseSemanticsInOptimiztion and kf2.kps_sem is not None:
+                invSigma2_21 *= SemanticEstimatorShared.get_semantic_weight(kf2.kps_sem[i])
+            
             edge_21.set_information(np.eye(2) * invSigma2_21)                
             edge_21.set_robust_kernel(g2o.RobustKernelHuber(delta_huber))
             optimizer.add_edge(edge_21)
