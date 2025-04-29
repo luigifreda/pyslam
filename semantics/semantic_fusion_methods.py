@@ -18,27 +18,19 @@
 """
 
 import numpy as np
-import os
-import sys
 
-import semantic_feature_types
+def count_labels(labels):
+    unique_labels = np.unique(labels)
+    label_count = np.zeros(len(unique_labels))
+    for i in range(len(unique_labels)):
+        label_count[i] = np.sum(labels == unique_labels[i])
+    return unique_labels[label_count.argmax()]
 
-kScriptPath = os.path.realpath(__file__)
-kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder + '/..'
+def bayesian_fusion(probs):
+    prior = np.ones(probs.shape[0]) / probs.shape[0]
+    posterior = prior
+    for obs in probs:
+        posterior *= obs
+    return posterior
 
-# Base class for semantic estimators via inference
-class SemanticEstimator:
-    def __init__(self, model, transform, device, semantics_rgb_map, semantic_feature_type, semantic_fusion_method):
-        self.model = model
-        self.transform = transform
-        self.device = device
-        self.semantic_feature_type = semantic_feature_type
-        self.semantics_rgb_map = semantics_rgb_map
-        self.semantic_fusion_method = semantic_fusion_method
-
-        self.semantics = None
-
-    # Return the predicted semantic map
-    def infer(self, image):
-        raise NotImplementedError
+    
