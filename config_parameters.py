@@ -224,7 +224,8 @@ class Parameters:
     # Semantic estimator. NOTE: By activating the semantic estimator, semantics will be used
     #                           for the whole SLAM pipeline
     kUseSemanticEstimator = True
-
+    kUseSemanticsInOptimiztion = False
+    
     # Other parameters 
     kChi2Mono = 5.991   # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
     kChi2Stereo = 7.815 # chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
