@@ -29,12 +29,11 @@ kRootFolder = kScriptFolder + '/..'
 
 # Base class for semantic estimators via inference
 class SemanticEstimator:
-    def __init__(self, model, transform, device, semantics_rgb_map, semantic_feature_type, semantic_fusion_method):
+    def __init__(self, model, transform, device, semantic_feature_type, semantic_fusion_method):
         self.model = model
         self.transform = transform
         self.device = device
         self.semantic_feature_type = semantic_feature_type
-        self.semantics_rgb_map = semantics_rgb_map
         self.semantic_fusion_method = semantic_fusion_method
 
         self.semantics = None
@@ -42,3 +41,12 @@ class SemanticEstimator:
     # Return the predicted semantic map
     def infer(self, image):
         raise NotImplementedError
+    
+    def to_rgb(self, semantics, bgr=False):
+        return NotImplementedError
+    
+    def single_to_rgb(self, semantic_des, bgr=False):
+        return NotImplementedError
+    
+    def get_semantic_weight(self, semantic_des):
+        return NotImplementedError

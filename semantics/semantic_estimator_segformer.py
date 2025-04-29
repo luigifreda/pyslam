@@ -30,7 +30,7 @@ from torchvision import transforms
 from semantic_estimator_base import SemanticEstimator
 from semantic_feature_types import SemanticFeatureTypes
 from semantic_fusion_methods import bayesian_fusion, count_labels
-from utils_semantics import labels_map_factory
+from utils_semantics import information_weights_factory, labels_map_factory, labels_to_image, single_label_to_color
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -88,13 +88,15 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         
         transform = AutoImageProcessor.from_pretrained(f"nvidia/segformer-{encoder_name}-finetuned-{dataset_name}-{image_size[0]}-{image_size[1]}")
         model = model.to(device).eval()
-        semantics_rgb_map = labels_map_factory(dataset_name)
         
+        self.semantics_rgb_map = labels_map_factory(dataset_name)
+        self.semantic_sigma2_factor = information_weights_factory(dataset_name)
+
         if semantic_feature_type not in self.feature_type_configs:
             raise ValueError(f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}")
         
         semantic_type_config = self.feature_type_configs[semantic_feature_type]
-        super().__init__(model, transform, device, semantics_rgb_map, semantic_type_config['type'], semantic_type_config['fusion'])
+        super().__init__(model, transform, device, semantic_type_config['type'], semantic_type_config['fusion'])
 
     def infer(self, image):
         prev_width = image.shape[1]
@@ -111,3 +113,21 @@ class SemanticEstimatorSegformer(SemanticEstimator):
         elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
             self.semantics = probs.permute(1, 2, 0).cpu().numpy()
         return self.semantics
+        
+    def to_rgb(self, semantics, bgr=False):
+        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
+            return labels_to_image(semantics, self.semantics_rgb_map, bgr=bgr)
+        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+            return labels_to_image(np.argmax(semantics, axis=-1), self.semantics_rgb_map, bgr=bgr)
+        
+    def single_to_rgb(self, semantic_des, bgr=False):
+        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
+            return single_label_to_color(semantic_des, self.semantics_rgb_map, bgr=bgr)
+        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+            return single_label_to_color(np.argmax(semantic_des, axis=-1), self.semantics_rgb_map, bgr=bgr)
+        
+    def get_semantic_weight(self, semantic_des):
+        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
+            return self.semantic_sigma2_factor[semantic_des]
+        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+            return self.semantic_sigma2_factor[np.argmax(semantic_des, axis=-1)]
