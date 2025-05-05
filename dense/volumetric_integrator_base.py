@@ -29,6 +29,7 @@ from map import Map
 
 from dataset_types import DatasetEnvironmentType, SensorType
 
+from semantic_estimator_shared import SemanticEstimatorShared
 from utils_sys import Printer, set_rlimit, FileLogger, LoggerQueue
 from utils_files import create_folder
 from utils_mp import MultiprocessingManager
@@ -78,7 +79,7 @@ class VolumetricIntegrationTaskType(Enum):
 
 # keyframe (pickable) data that are needed for volumetric integration
 class VolumetricIntegrationKeyframeData:
-    def __init__(self, keyframe: KeyFrame, img=None, img_right=None, depth=None):
+    def __init__(self, keyframe: KeyFrame, img=None, img_right=None, depth=None, semantic_img=None):
         # keyframe data
         self.id = keyframe.id if keyframe is not None else -1
         self.kid = keyframe.kid if keyframe is not None else -1
@@ -89,13 +90,14 @@ class VolumetricIntegrationKeyframeData:
         
         self.img = img if img is not None else (keyframe.img if keyframe is not None else None)
         self.img_right = img_right if img_right is not None else (keyframe.img_right if keyframe is not None else None)
-        self.depth = depth if depth is not None else (keyframe.depth_img if keyframe is not None else None)      
+        self.depth = depth if depth is not None else (keyframe.depth_img if keyframe is not None else None)
+        self.semantic_img = semantic_img if semantic_img is not None else (keyframe.semantic_img if keyframe is not None else None)
 
 
 class VolumetricIntegrationTask: 
-    def __init__(self, keyframe: KeyFrame=None, img=None, img_right=None, depth=None, task_type=VolumetricIntegrationTaskType.NONE, load_save_path=None):
+    def __init__(self, keyframe: KeyFrame=None, img=None, img_right=None, depth=None, semantic_img=None, task_type=VolumetricIntegrationTaskType.NONE, load_save_path=None):
         self.task_type = task_type
-        self.keyframe_data = VolumetricIntegrationKeyframeData(keyframe, img, img_right, depth)
+        self.keyframe_data = VolumetricIntegrationKeyframeData(keyframe, img, img_right, depth, semantic_img)
         self.load_save_path = load_save_path   
         
         
@@ -467,7 +469,8 @@ class VolumetricIntegratorBase:
         color = keyframe_data.img
         color_right = keyframe_data.img_right
         depth = keyframe_data.depth    
-        
+        semantic = keyframe_data.semantic_img
+
         pts3d = None
     
         if depth is None: 
@@ -492,15 +495,22 @@ class VolumetricIntegratorBase:
         if self.calib_map1 is not None and self.calib_map2 is not None:
             color_undistorted = cv2.remap(color, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_LINEAR)
             depth_undistorted = cv2.remap(depth, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_NEAREST)
+            if semantic is not None:
+                semantic_undistorted = cv2.remap(semantic, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_NEAREST)
         else: 
             color_undistorted = color
             depth_undistorted = depth
+            semantic_undistorted = semantic
             
         if self.depth_estimator is not None:
             if not keyframe_data.id in self.img_id_to_depth:
                 self.img_id_to_depth[keyframe_data.id] = depth_undistorted
-                                
-        color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
+
+        if semantic is None:
+            color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
+        else:
+            color_undistorted = SemanticEstimatorShared.to_rgb(semantic_undistorted, bgr=True)
+
         return color_undistorted, depth_undistorted, pts3d
 
 
