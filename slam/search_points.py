@@ -249,7 +249,7 @@ def search_frame_by_projection(f_ref: Frame,
 # Search by projection between {keyframe map points} and {current frame keypoints}
 def search_keyframe_by_projection(kf_ref: KeyFrame,
                                   f_cur: Frame,
-                                  max_reproj_distance=Parameters.kMaxDescriptorDistance,
+                                  max_reproj_distance=None,
                                   max_descriptor_distance=None,
                                   ratio_test=Parameters.kMatchRatioTestMap,
                                   already_matched_ref_idxs=None):
@@ -270,7 +270,7 @@ def search_keyframe_by_projection(kf_ref: KeyFrame,
     tcw = Tcw[:3, 3]
     Ow = -Rcw.T @ tcw  # camera center in world coords
 
-    ref_mps = kf_ref.get_map_point_matches()
+    ref_mps = kf_ref.get_matched_points()
 
     if len(ref_mps) == 0:
         return np.array([]), np.array([]), 0
@@ -286,15 +286,17 @@ def search_keyframe_by_projection(kf_ref: KeyFrame,
     if len(matched_ref_points) == 0:
         return np.array([]), np.array([]), 0
 
-    points_w = np.array([p.pos for p in matched_ref_points])
+    points_w = np.array([p for p in matched_ref_points])
 
     # Project points
-    projs, depths = f_cur.project_map_points(points_w, f_cur.camera.is_stereo())
-    is_visible = f_cur.are_visible(projs, depths)
+    # projs, depths = f_cur.project_map_points(points_w, f_cur.camera.is_stereo())
+    # is_visible = f_cur.are_visible(projs, depths)
+    is_visible, projs, depths, dists = f_cur.are_visible(matched_ref_points)
 
     # Predict detection levels
-    dists = np.linalg.norm(points_w - Ow, axis=1)
-    predicted_levels = np.array([p.predict_scale(dist, f_cur) for p, dist in zip(matched_ref_points, dists)])
+    #dists = np.linalg.norm(points_w - Ow, axis=1)
+    #predicted_levels = np.array([p.predict_scale(dist, f_cur) for p, dist in zip(matched_ref_points, dists)])
+    predicted_levels = predict_detection_levels(matched_ref_points, dists)     
     kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]
     radiuses = max_reproj_distance * kp_scale_factors
     kd_cur_idxs = f_cur.kd.query_ball_point(projs[:, :2], radiuses)
@@ -443,11 +445,9 @@ def search_map_by_projection(points,
             #reproj_dists.append(np.linalg.norm(projs[i] - f_cur.kpsu[best_k_idx]))   
             
     # if len(reproj_dists) > 1:        
-    #     reproj_dist_sigma = 1.4826 * np.median(reproj_dists)    
-    # else:
-    reproj_dist_sigma = max_descriptor_distance
+    #     reproj_dist_sigma = 1.4826 * np.median(reproj_dists)
                        
-    return found_pts_count, reproj_dist_sigma, found_pts_fidxs   
+    return found_pts_count, found_pts_fidxs   
 
 
 # search by projection matches between {map points of last frames} and {unmatched keypoints of f_cur}, (access frame from tracking thread, no need to lock)

@@ -86,7 +86,7 @@ kTrackingWaitForLocalMappingToGetIdle = Parameters.kTrackingWaitForLocalMappingT
 
 kLogKFinfoToFile = True 
 
-kUseDynamicDesDistanceTh = True  
+kUseDynamicDesDistanceTh = Parameters.kUseDynamicDesDistanceTh  
 
 kRansacThresholdNormalized = 0.0004  # 0.0003 # metric threshold used for normalized image coordinates 
 kRansacProb = 0.999
@@ -96,7 +96,7 @@ kUseGroundTruthScale = False
 
 kNumMinInliersPoseOptimizationTrackFrame = 10
 kNumMinInliersPoseOptimizationTrackLocalMap = 20
-kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 50 # defines bad/weak tracking condition
+kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 60 # defines bad/weak tracking condition
 
 
 kUseMotionModel = Parameters.kUseMotionModel or Parameters.kUseSearchFrameByProjection
@@ -377,8 +377,8 @@ class Tracking:
             search_radius = Parameters.kMaxReprojectionDistanceFrame  
             
             # NOTE: The following two lines are commented for the moment since they seem to provide less stable tracking and they do not bring any clear benefits [WIP]
-            # if self.sensor_type != SensorType.STEREO:
-            #     search_radius = 2*Parameters.kMaxReprojectionDistanceFrame + 1        
+            if self.sensor_type == SensorType.RGBD:     #if self.sensor_type != SensorType.STEREO:
+                search_radius = 2*Parameters.kMaxReprojectionDistanceFrame       
             
             f_cur.reset_points()               
             self.timer_seach_frame_proj.start()
@@ -433,7 +433,8 @@ class Tracking:
                 #print('     # matched points: %d' % (self.num_matched_map_points) )
                                       
                 if not self.pose_is_ok or self.num_matched_map_points < kNumMinInliersPoseOptimizationTrackFrame:
-                    Printer.red(f'failure in tracking previous frame, # matched map points: {self.num_matched_map_points}')                    
+                #if not self.pose_is_ok or self.num_matched_map_points_in_last_pose_opt < kNumMinInliersPoseOptimizationTrackFrame:
+                    Printer.red(f'failure in tracking previous frame, # matched map points: {self.num_matched_map_points}, # matched map points in last pose opt: {self.num_matched_map_points_in_last_pose_opt}')                    
                     self.pose_is_ok = False                                                                                                   
         
         if not use_search_frame_by_projection or is_search_frame_by_projection_failure:
@@ -442,7 +443,7 @@ class Tracking:
                                                            
     # track camera motion of f_cur w.r.t. f_ref
     # estimate motion by matching keypoint descriptors                    
-    def track_reference_frame(self, f_ref, f_cur, name=''):
+    def track_reference_frame(self, f_ref: Frame, f_cur: Frame, name=''):
         print('>>>> tracking reference %d ...' %(f_ref.id))        
         if f_ref is None:
             return 
@@ -500,7 +501,9 @@ class Tracking:
         self.num_matched_map_points = f_cur.clean_outlier_map_points()   
         #print('     # num_matched_map_points_in_last_pose_opt: %d' % (self.num_matched_map_points_in_last_pose_opt) ) 
         #print('     # matched points: %d' % (self.num_matched_map_points) )               
+        
         if not self.pose_is_ok or self.num_matched_map_points < kNumMinInliersPoseOptimizationTrackFrame:
+        #if not self.pose_is_ok or self.num_matched_map_points_in_last_pose_opt < kNumMinInliersPoseOptimizationTrackFrame:
             f_cur.remove_frame_views(idxs_cur)
             f_cur.reset_points()               
             Printer.red(f'failure in tracking reference {f_ref.id}, # matched map points: {self.num_matched_map_points}')  
@@ -534,9 +537,15 @@ class Tracking:
             self.pose_is_ok = False
             return
         
+        self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMap 
+        if self.sensor_type == SensorType.RGBD:
+            self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapRgbd
+        if f_cur.id < self.last_reloc_frame_id + 2:
+            self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapReloc
+        
         # use the updated local map to search for matches between {local map points} and {unmatched keypoints of f_cur}
-        num_found_map_pts, reproj_err_frame_map_sigma, matched_points_frame_idxs = search_map_by_projection(self.local_points, f_cur,
-                                    max_reproj_distance=self.reproj_err_frame_map_sigma, #Parameters.kMaxReprojectionDistanceMap, 
+        num_found_map_pts, matched_points_frame_idxs = search_map_by_projection(self.local_points, f_cur,
+                                    max_reproj_distance=self.reproj_err_frame_map_sigma, 
                                     max_descriptor_distance=self.descriptor_distance_sigma,
                                     ratio_test=Parameters.kMatchRatioTestMap,
                                     far_points_threshold=self.far_points_threshold)          
@@ -738,6 +747,7 @@ class Tracking:
     def create_vo_points_on_last_frame(self):
         if self.sensor_type == SensorType.MONOCULAR or self.kf_last.id == self.f_ref.id or self.f_ref.depths is None: 
             return
+        print('Creating VO points...')
         # Create "visual odometry" MapPoints
         # Sort points according to their measured depth by the stereo/RGB-D sensor
         valid_depths_and_idxs = [(z, i) for i, z in enumerate(self.f_ref.depths) if z > 0]
@@ -832,7 +842,7 @@ class Tracking:
     # N.B.: this function must be called outside 'with self.map.update_lock' blocks, 
     #       since both self.track() and the local-mapping optimization use the RLock 'map.update_lock'    
     #       => they cannot wait for each other once map.update_lock is locked (deadlock)                        
-    def wait_for_local_mapping(self, timeout=1.0):                   
+    def wait_for_local_mapping(self, timeout=1.5):                   
         if kTrackingWaitForLocalMappingToGetIdle:                        
             #while not self.local_mapping.is_idle() or self.local_mapping.queue_size()>0:       
             if not self.local_mapping.is_idle():       
@@ -1016,7 +1026,6 @@ class Tracking:
                     # use reference frame pose as initial guess 
                     f_cur.update_pose(f_ref.pose)
                                      
-                           
                 if not self.motion_model.is_ok or f_cur.id < self.last_reloc_frame_id+2: 
                     # track the camera motion from kf_ref to f_cur 
                     self.track_keyframe(self.kf_ref, f_cur)

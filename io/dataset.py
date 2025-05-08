@@ -299,7 +299,10 @@ class FolderDataset(Dataset):
         if self.timestamps is not None:
             # read timestamps from timestamps file
             self._timestamp = float(self.timestamps[self.i])
-            self._next_timestamp = float(self.timestamps[self.i + 1])
+            if self.i < len(self.timestamps) - 1:
+                self._next_timestamp = float(self.timestamps[self.i + 1])
+            else:
+                self._next_timestamp = self._timestamp + self.Ts            
 
         elif pattern.search(image_file.split('/')[-1].split('.')[0]):
             # read timestamps from image filename
@@ -839,7 +842,7 @@ class TartanairDataset(Dataset):
         frame_id += self.start_frame_id
         img = None
         if frame_id < self.max_frame_id:
-            file = self.left_depth_path + f'/{str(frame_id).zfill(6)}_right_depth.npy'
+            file = self.right_depth_path + f'/{str(frame_id).zfill(6)}_right_depth.npy'
             img = np.load(file)
             self.is_ok = (img is not None)
             self._timestamp = frame_id * self.Ts

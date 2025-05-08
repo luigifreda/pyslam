@@ -43,11 +43,12 @@ class Parameters:
     kNumFeatures=2000                               # Default number of keypoints (can be overridden by settings file)
     
     # Adaptive stats 
+    kUseDynamicDesDistanceTh = True                 # Use dynamic descriptor distance threshold
     kUseDescriptorSigmaMadv2 = False                # [Experimental, WIP] In theory, if we use this we should accordingly update all the current descriptor thresholds
 
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # Max cos angle for triangulation (min parallax angle) in the Initializer
-    kCosMaxParallax=0.99981 # 0.9999, 0.9998                 # Max cos angle for triangulation (min parallax angle)   
+    kCosMaxParallax=0.9999 # 0.9999, 0.9998                 # Max cos angle for triangulation (min parallax angle)   
     kMinRatioBaselineDepth = 0.01      
     
     
@@ -116,7 +117,8 @@ class Parameters:
     # Search matches by projection 
     kMaxReprojectionDistanceFrame = 7    #7   # [pixels]    o:7
     kMaxReprojectionDistanceMap = 3      #3   # [pixels]    o:1,(rgbd)3,(reloc)5 => mainly 2.5*th where th acts as a multiplicative factor 
-    kMaxReprojectionDistanceMapRgbd = 5  #5   # [pixels]    o:5
+    kMaxReprojectionDistanceMapRgbd = 3  #5   # [pixels]    o:5
+    kMaxReprojectionDistanceMapReloc = 5 #5   # [pixels]    o:5
     kMaxReprojectionDistanceFuse = 3     #3   # [pixels]    o:3
     kMaxReprojectionDistanceSim3 = 7.5        # [pixels]    o:7.5
     #
