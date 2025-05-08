@@ -734,6 +734,7 @@ class Frame(FrameBase):
     # reset outliers detected in last pose optimization       
     def clean_outlier_map_points(self):
         num_matched_points = 0        
+        assert len(self.outliers) == len(self.points), 'len(self.outliers) == len(self.points)'
         with self._lock_features:          
             for i,p in enumerate(self.points):
                 if p is not None:
@@ -790,7 +791,9 @@ class Frame(FrameBase):
         valid_depth_mask = depth_values > 0             
         self.depths = np.where(valid_depth_mask, depth_values, -1.0) 
         safe_depth_values = np.where(valid_depth_mask, depth_values, np.inf) # to prevent division by zero 
-        self.kps_ur = np.where(valid_depth_mask, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1.0)   
+        self.kps_ur = np.where(valid_depth_mask, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1.0)  
+        assert len(self.depths) == len(self.kps_ur)
+        assert len(self.kps_ur) == len(self.kpsu)
         #print(f'depth: {self.depths}, kps_ur: {self.kps_ur}')  
         #compute median depth
         if Frame.is_compute_median_depth:

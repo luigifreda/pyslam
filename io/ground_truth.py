@@ -415,7 +415,7 @@ class KittiGroundTruth(GroundTruth):
         if x_prev is None:
             abs_scale = 1
         else:
-                    abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         timestamp = float(self.data_timestamps[frame_id].strip())
         #print(f'reading frame {frame_id}, timestamp: {timestamp:.15f}, x: {x:.15f}, y: {y:.15f}, z: {z:.15f}, scale: {abs_scale:.15f}')
         return timestamp,x,y,z,abs_scale 

@@ -255,7 +255,7 @@ class LoopGeometryChecker:
                 # perform 5 ransac iterations on each solver
                 transformation, is_no_more, inlier_flags, num_inliers, is_converged = solvers[i].iterate(5)
                 inlier_flags = np.array(inlier_flags,dtype=bool)  # from from int8 to bool
-                if is_converged and not is_no_more:     # is_no_more becomes true when the all the iterations are peformed in the attempt to converge
+                if is_converged and not is_no_more:     # is_no_more becomes true when the all the iterations have been peformed in the attempt to converge
                     R12 = solvers[i].get_estimated_rotation()
                     t12 = solvers[i].get_estimated_translation()
                     scale12 = solvers[i].get_estimated_scale()

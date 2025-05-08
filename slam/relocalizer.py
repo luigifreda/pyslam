@@ -197,7 +197,6 @@ class Relocalizer:
                                                                     max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchCoarse,
                                                                     max_descriptor_distance=Parameters.kMaxDescriptorDistance,
                                                                     ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,
-                                                                    is_monocular=True, # must be True
                                                                     already_matched_ref_idxs=idxs_kf_inliers)
                     
                     if num_matched_map_points + num_new_found_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
@@ -219,7 +218,6 @@ class Relocalizer:
                                                                             max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchFine,
                                                                             max_descriptor_distance=0.7*Parameters.kMaxDescriptorDistance,
                                                                             ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,
-                                                                            is_monocular=True, # must be True
                                                                             already_matched_ref_idxs=matched_ref_idxs)
                                                 
                             # final optimization 

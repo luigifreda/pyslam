@@ -56,7 +56,7 @@ class MapPointBase(object):
                                     # for f, idx in self._frame_views.items(): f.points[idx] = this point
                 
         self._is_bad = False        # a map point becomes bad when its num_observations < 2 (cannot be considered for bundle ajustment or other related operations)
-        self._num_observations = 0   # number of keyframe observations 
+        self._num_observations = 0  # number of keyframe observations 
         self.num_times_visible = 1  # number of times the point is visible in the camera 
         self.num_times_found = 1    # number of times the point was actually matched and not rejected as outlier by the pose optimization in Tracking.track_local_map()
         self.last_frame_id_seen =-1 # last frame id in which this point was seen    
@@ -130,7 +130,7 @@ class MapPointBase(object):
         if keyframe not in self._observations:
             keyframe.set_point_match(self, idx) # add point association in keyframe 
             self._observations[keyframe] = idx
-            if keyframe.kps_ur is not None and keyframe.kps_ur[idx]>0:
+            if keyframe.kps_ur is not None and keyframe.kps_ur[idx]>=0:
                 self._num_observations += 2
             else:
                 self._num_observations += 1      
@@ -169,7 +169,7 @@ class MapPointBase(object):
                 keyframe.remove_point(self)                
             try:
                 del self._observations[keyframe]
-                if keyframe.kps_ur is not None and keyframe.kps_ur[idx]>0:
+                if keyframe.kps_ur is not None and keyframe.kps_ur[idx]>=0:
                     self._num_observations = max(0, self._num_observations-2)
                 else: 
                     self._num_observations = max(0, self._num_observations-1)
