@@ -227,7 +227,7 @@ class Mplot2d:
 
     def on_key_press(self, event):
         print(mp.current_process().name,f' - Mplot2d \"{self.title}\": key event pressed...  {event.key}')     
-        self.key.value = ord(event.key) # conver to int 
+        self.key.value = ord(event.key) # convert to int
         self.key_queue_thread.put(self.key.value)
         
     def on_key_release(self, event):
@@ -337,13 +337,13 @@ class Mplot3d:
         self.process.start()
 
     def quit(self):
-        print(f'Mplot3d \"{self.title}\" closing...')
+        print(f'Mplot3d {self.title} closing...')
         self.is_running.value = 0
-        self.process.join(timeout=5)     
+        self.process.join(timeout=5)
         if self.process.is_alive():
-            print("Warning: Mplot3d \"{self.title}\" process did not terminate in time, forced kill.")          
-            self.process.terminate()        
-        
+            print(f'Warning: Mplot3d {self.title} process did not terminate in time, forced kill.')
+            self.process.terminate()
+        print(f'Mplot2d {self.title} closed')
 
     def init(self, figure_num, lock):
         lock.acquire()
@@ -399,7 +399,7 @@ class Mplot3d:
                 
     def on_key_press(self, event):
         print(mp.current_process().name,f" - Mplot3d \"{self.title}\": key event pressed...", event.key)     
-        self.key.value = ord(event.key) # conver to int 
+        self.key.value = ord(event.key) # convert to int
         self.key_queue_thread.put(self.key.value)
         
     def on_key_release(self, event):
