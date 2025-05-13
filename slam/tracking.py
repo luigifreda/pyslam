@@ -789,12 +789,8 @@ class Tracking:
                 continue
             color = (0, 0, 255)
 
-            semantic_des = None
-            if self.f_ref.kps_sem is not None:
-                semantic_des = self.f_ref.kps_sem[sorted_idx_values[i]]
-
             # add the point to this map                 
-            mp = MapPoint(p[0:3], color, self.f_ref, sorted_idx_values[i], semantic_des=semantic_des) 
+            mp = MapPoint(p[0:3], color, self.f_ref, sorted_idx_values[i]) 
             self.f_ref.points[sorted_idx_values[i]] = mp # add point to the frame
             num_added_points += 1
         print(f'Added #new VO points: {num_added_points}')
@@ -891,7 +887,7 @@ class Tracking:
 
 
     # @ main track method @
-    def track(self, img, img_right, depth, img_id, timestamp=None, semantic_img=None):
+    def track(self, img, img_right, depth, img_id, timestamp=None):
         Printer.cyan(f'@tracking {self.sensor_type.name}, img id: {img_id}, frame id: {Frame.next_id()}, state: {self.state.name}')
         time_start = time.time()
                 
@@ -901,8 +897,6 @@ class Tracking:
             print("depth.shape: ", depth.shape)
         if img_right is not None:
             print("img_right.shape: ", img_right.shape)
-        if semantic_img is not None:
-            print("semantic_img.shape: ", semantic_img.shape)
         assert img.shape[0:2] == (self.camera.height, self.camera.width)   
         if timestamp is not None: 
             print('timestamp: ', timestamp)  
@@ -917,7 +911,7 @@ class Tracking:
 
         # build current frame 
         self.timer_frame.start()        
-        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, semantic_img=semantic_img, timestamp=timestamp, img_id=img_id)
+        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id)
         self.f_cur = f_cur 
         #print("frame: ", f_cur.id)        
         self.timer_frame.refresh()   
