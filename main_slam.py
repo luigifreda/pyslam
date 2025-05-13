@@ -29,7 +29,7 @@ import platform
 
 from config import Config
 
-from semantic_estimator_shared import SemanticEstimatorShared
+from semantic_mapping_configs import SemanticMappingConfigs
 from slam import Slam, SlamState
 from slam_plot_drawer import SlamPlotDrawer
 from camera  import PinholeCamera
@@ -52,9 +52,6 @@ from loop_detector_configs import LoopDetectorConfigs
 
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 from utils_depth import img_from_depth, filter_shadow_points
-
-from semantic_estimator_factory import semantic_estimator_factory, SemanticEstimatorType
-from utils_semantics import labels_to_image
 
 from config_parameters import Parameters  
 
@@ -122,6 +119,9 @@ if __name__ == "__main__":
     # NOTE: under mac, the boost/text deserialization used by DBOW2 and DBOW3 may be very slow.
     loop_detection_config = LoopDetectorConfigs.DBOW3
 
+    # Select your semantic mapping configuration (see the file semantic_mapping_configs.py). Set it to None to disable semantic mapping.
+    semantic_mapping_config = SemanticMappingConfigs.SEGFORMER
+    
     # Override the feature tracker and loop detector configuration from the `settings` file
     if config.feature_tracker_config_name is not None:  # Check if we set `FeatureTrackerConfig.name` in the `settings` file 
         feature_tracker_config = FeatureTrackerConfigs.get_config_from_name(config.feature_tracker_config_name) # Override the feature tracker configuration from the `settings` file
@@ -130,10 +130,13 @@ if __name__ == "__main__":
         feature_tracker_config['num_features'] = config.num_features_to_extract  # Override the number of features from the `settings` file
     if config.loop_detection_config_name is not None:  # Check if we set `LoopDetectorConfig.name` in the `settings` file 
         loop_detection_config = LoopDetectorConfigs.get_config_from_name(config.loop_detection_config_name) # Override the loop detector configuration from the `settings` file
-        
+    if config.semantic_mapping_config_name is not None:  # Check if we set `SemanticMappingConfig.name` in the `settings` file 
+        semantic_mapping_config = SemanticMappingConfigs.get_config_from_name(config.semantic_mapping_config_name) # Override the semantic mapping configuration from the `settings` file
+    
     Printer.green('feature_tracker_config: ',json.dumps(feature_tracker_config, indent=4, cls=SerializableEnumEncoder))          
     Printer.green('loop_detection_config: ',json.dumps(loop_detection_config, indent=4, cls=SerializableEnumEncoder))
-        
+    Printer.green('semantic_mapping_config: ',json.dumps(semantic_mapping_config, indent=4, cls=SerializableEnumEncoder))
+
     # Select your depth estimator in the front-end (EXPERIMENTAL, WIP)
     depth_estimator = None
     if Parameters.kUseDepthEstimatorInFrontEnd:
@@ -146,16 +149,10 @@ if __name__ == "__main__":
                                                   dataset_env_type=dataset.environmentType(), camera=camera) 
         Printer.green(f'Depth_estimator_type: {depth_estimator_type.name}, max_depth: {max_depth}')       
 
-    semantic_estimator = None
-    if Parameters.kUseSemanticEstimator:
-        semantic_estimator_type = SemanticEstimatorType.SEGFORMER
-        semantic_estimator = semantic_estimator_factory(semantic_estimator_type=semantic_estimator_type)
-        SemanticEstimatorShared.set_semantic_estimator(semantic_estimator) # Used in SLAM and 3D Visualizer
-        Printer.green(f'Semantic_estimator_type: {semantic_estimator_type.name}')
-
     # create SLAM object
     slam = Slam(camera, feature_tracker_config, 
-                loop_detection_config, dataset.sensorType(), 
+                loop_detection_config, semantic_mapping_config, 
+                dataset.sensorType(), 
                 environment_type=dataset.environmentType(), 
                 config=config,
                 headless=args.headless)
@@ -217,7 +214,7 @@ if __name__ == "__main__":
                 depth = dataset.getDepth(img_id)
                 img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
                 #TODO(@dvdmc): Get semantics if GT
-                semantic_prediction = None
+                gt_semantics = None
 
             if img is not None:
                 timestamp = dataset.getTimestamp()          # get current timestamp 
@@ -241,22 +238,13 @@ if __name__ == "__main__":
                             depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
                             cv2.imshow("depth prediction", depth_img)
             
-                    if semantic_prediction is None and semantic_estimator:
-                        semantic_prediction = semantic_estimator.infer(img)           
-                        if not args.headless:
-                            semantic_color_img = semantic_estimator.to_rgb(semantic_prediction, bgr=True)
-                            cv2.imshow("semantic prediction", semantic_color_img)
-
-                    #TODO(@dvdmc): Add semantics            
-                    slam.track(img, img_right, depth, img_id, timestamp, semantic_prediction)  # main SLAM function 
+                    slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
                                     
                     # 3D display (map display)
                     if viewer3D:
-                        #TODO(@dvdmc): add semantics
                         viewer3D.draw_slam_map(slam)
 
                     if not args.headless:
-                        #TODO(@dvdmc): add semantics
                         img_draw = slam.map.draw_feature_trails(img)
                         img_writer.write(img_draw, f'id: {img_id}', (30, 30))
                         # 2D display (image display)

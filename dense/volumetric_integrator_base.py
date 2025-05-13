@@ -29,7 +29,6 @@ from map import Map
 
 from dataset_types import DatasetEnvironmentType, SensorType
 
-from semantic_estimator_shared import SemanticEstimatorShared
 from utils_sys import Printer, set_rlimit, FileLogger, LoggerQueue
 from utils_files import create_folder
 from utils_mp import MultiprocessingManager
@@ -506,12 +505,9 @@ class VolumetricIntegratorBase:
             if not keyframe_data.id in self.img_id_to_depth:
                 self.img_id_to_depth[keyframe_data.id] = depth_undistorted
 
-        if semantic is None:
-            color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
-        else:
-            color_undistorted = SemanticEstimatorShared.to_rgb(semantic_undistorted, bgr=True)
+        color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
 
-        return color_undistorted, depth_undistorted, pts3d
+        return color_undistorted, depth_undistorted, pts3d, semantic_undistorted
 
 
     def volume_integration(self, q_in, q_out, q_out_condition, is_running, \

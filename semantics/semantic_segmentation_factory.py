@@ -25,33 +25,35 @@ import config
 import torch
 import platform
 
+from semantic_types import SemanticFeatureTypes
 from utils_sys import import_from
 
 from utils_serialization import SerializableEnum, register_class
 
-from semantic_estimator_deep_lab_v3 import SemanticEstimatorDeepLabV3
-from semantic_estimator_segformer import SemanticEstimatorSegformer
+from semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
+from semantic_segmentation_segformer import SemanticSegmentationSegformer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 
 @register_class
-class SemanticEstimatorType(SerializableEnum):
+class SemanticSegmentationType(SerializableEnum):
     DEEPLABV3     = 0     # Semantics from torchvision DeepLab's v3
     SEGFORMER     = 1     # Semantics from transformer's Segformer
     @staticmethod
     def from_string(name: str):
         try:
-            return SemanticEstimatorType[name]
+            return SemanticSegmentationType[name]
         except KeyError:
-            raise ValueError(f"Invalid SemanticEstimatorType: {name}")
+            raise ValueError(f"Invalid SemanticSegmentationType: {name}")
         
-def semantic_estimator_factory(semantic_estimator_type=SemanticEstimatorType.SEGFORMER,
-                               device=None):
-    if semantic_estimator_type == SemanticEstimatorType.DEEPLABV3:
-        return SemanticEstimatorDeepLabV3(device=device)
-    elif semantic_estimator_type == SemanticEstimatorType.SEGFORMER:
-        return SemanticEstimatorSegformer(device=device)
+def semantic_segmentation_factory(semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                               semantic_feature_type=SemanticFeatureTypes.LABEL,
+                               dataset_name='cityscapes', device=None):
+    if semantic_segmentation_type == SemanticSegmentationType.DEEPLABV3:
+        return SemanticSegmentationDeepLabV3(device=device, dataset_name=dataset_name, semantic_feature_type=semantic_feature_type)
+    elif semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
+        return SemanticSegmentationSegformer(device=device, dataset_name=dataset_name, semantic_feature_type=semantic_feature_type)
     else:
-        raise ValueError(f'Invalid depth estimator type: {semantic_estimator_type}')
+        raise ValueError(f'Invalid semantic segmentation type: {semantic_segmentation_type}')

@@ -19,8 +19,6 @@
 
 import numpy as np
 
-from semantic_feature_types import SemanticFeatureTypes
-
 # TODO(@dvdmc): add PCA for open vocab semantics
   
 # create a scaled image of uint8 from a image of semantics

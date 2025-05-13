@@ -36,7 +36,7 @@ import numpy as np
 
 from map import Map
 
-from semantic_estimator_shared import SemanticEstimatorShared
+from semantic_mapping_shared import SemanticMappingShared
 from utils_geom import poseRt, inv_poseRt, inv_T
 from utils_geom_trajectory import find_trajectories_associations, align_3d_points_with_svd, align_trajectories_with_svd, TrajectoryAlignementData
 from utils_sys import Printer
@@ -779,7 +779,7 @@ class Viewer3D(object):
                 map_state.points.append(p.pt)
                 map_state.colors.append(np.flip(p.color))              
                 if p.semantic_des is not None:
-                  map_state.semantic_colors.append(SemanticEstimatorShared.single_to_rgb(p.semantic_des, bgr=False))
+                  map_state.semantic_colors.append(SemanticMappingShared.sem_des_to_rgb(p.semantic_des, bgr=False))
                 else:
                   map_state.semantic_colors.append(np.array([0.0,0.0,0.0]))
 

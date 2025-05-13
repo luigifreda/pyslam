@@ -305,6 +305,15 @@ class Config:
                 self._loop_detection_config_name = None
         return self._loop_detection_config_name
     
+    @property
+    def semantic_mapping_config_name(self):
+        if not hasattr(self, '_semantic_mapping_config_name'):
+            if 'SemanticMappingConfig.name' in self.system_settings:
+                self._semantic_mapping_config_name = self.system_settings['SemanticMappingConfig.name']
+            else:
+                self._semantic_mapping_config_name = None
+        return self._semantic_mapping_config_name
+    
     @property 
     def far_points_threshold(self):
         if not hasattr(self, '_far_points_threshold'):

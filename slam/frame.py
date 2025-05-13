@@ -351,7 +351,7 @@ class Frame(FrameBase):
     is_store_imgs           = False     # to store images when needed for debugging or processing purposes
     is_compute_median_depth = False     # to compute median depth when needed
     def __init__(self, camera: Camera, 
-                 img, img_right=None, depth=None, semantic_img=None,
+                 img, img_right=None, depth=None,
                  pose=None, id=None, timestamp=None, img_id=None,
                  frame_data_dict=None):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
@@ -402,10 +402,6 @@ class Frame(FrameBase):
                 depth = depth * self.camera.depth_factor        
             if Frame.is_store_imgs: 
                 self.depth_img = depth.copy()
-                        
-        if semantic_img is not None:
-            if Frame.is_store_imgs: 
-                self.semantic_img = semantic_img.copy()
 
         if frame_data_dict is not None:
             self.is_keyframe = frame_data_dict['is_keyframe']
@@ -487,9 +483,6 @@ class Frame(FrameBase):
                     self.depths = np.full(len(self.kps), -1, dtype=float)     
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
-                
-                if semantic_img is not None:
-                    self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
            
     def set_img_right(self, img_right): 
         self.img_right = img_right.copy()
@@ -503,8 +496,12 @@ class Frame(FrameBase):
             Printer.error(message)
             raise Exception(message)
 
-    def set_semantic_img(self, semantic_img):
-        self.semantic_img = semantic_img.copy()
+    def set_semantics(self, semantic_img):
+        if Frame.is_store_imgs: 
+            self.semantic_img = semantic_img.copy()
+        if self.kps is not None:
+            with self._lock_features: 
+                self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
 
     def __getstate__(self):
         # Create a copy of the instance's __dict__

@@ -21,32 +21,28 @@ import numpy as np
 import os
 import sys
 
-import semantic_feature_types
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 
 # Base class for semantic estimators via inference
-class SemanticEstimator:
-    def __init__(self, model, transform, device, semantic_feature_type, semantic_fusion_method):
-        self.model = model
-        self.transform = transform
-        self.device = device
-        self.semantic_feature_type = semantic_feature_type
-        self.semantic_fusion_method = semantic_fusion_method
+class SemanticMappingShared:
+    
+    semantic_mapping             = None
+    semantic_feature_type        = None
+    semantic_fusion_method       = None
+    sem_des_to_rgb               = None
+    get_semantic_weight          = None
 
-        self.semantics = None
+    @staticmethod
+    def set_semantic_mapping(semantic_mapping, force=False):
 
-    # Return the predicted semantic map
-    def infer(self, image):
-        raise NotImplementedError
-    
-    def to_rgb(self, semantics, bgr=False):
-        return NotImplementedError
-    
-    def single_to_rgb(self, semantic_des, bgr=False):
-        return NotImplementedError
-    
-    def get_semantic_weight(self, semantic_des):
-        return NotImplementedError
+        if not force and SemanticMappingShared.semantic_mapping is not None:
+            raise Exception("SemanticMappingShared: Semantic Estimator is already set!")
+        
+        SemanticMappingShared.semantic_mapping            = semantic_mapping
+        SemanticMappingShared.semantic_feature_type       = semantic_mapping.semantic_feature_type
+        SemanticMappingShared.semantic_fusion_method      = semantic_mapping.semantic_fusion_method
+        SemanticMappingShared.sem_des_to_rgb               = semantic_mapping.sem_des_to_rgb
+        SemanticMappingShared.get_semantic_weight         = semantic_mapping.get_semantic_weight

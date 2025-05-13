@@ -221,11 +221,15 @@ class Parameters:
                                                         # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
     
-    # Semantic estimator. NOTE: By activating the semantic estimator, semantics will be used
+    # Semantic mapping. NOTE: By activating the semantic mapping, semantics will be used
     #                           for the whole SLAM pipeline
-    kUseSemanticEstimator = True
+    kDoSemanticMapping = True
+    kSemanticMappingOnSeparateThread = True
+    kSemanticMappingDebugAndPrintToFile = True
     kUseSemanticsInOptimiztion = False
-    
+    kSemanticMappingTimeoutPopKeyframe=0.5 # [s]
+    kSemanticMappingNumNeighborKeyFrames=10                   #  [# frames]   only used in object-based to decide the best semantic descriptor       
+
     # Other parameters 
     kChi2Mono = 5.991   # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
     kChi2Stereo = 7.815 # chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
