@@ -483,14 +483,9 @@ class Map(object):
                 except IndexError:
                     Printer.orange('color out of range')
                     color = (255, 0, 0)
-
-                # get semantics of the point TODO(@dvdmc): currently is only labels of kf2, but should be optimized based on observations
-                semantic_des = None
-                if kf2.kps_sem is not None:
-                    semantic_des = kf2.kps_sem[idxs2[i]]
                     
                 # add the point to this map                 
-                mp = MapPoint(p[0:3], color, kf2, idx2_i, semantic_des=semantic_des) 
+                mp = MapPoint(p[0:3], color, kf2, idx2_i) 
                 self.add_point(mp) # add point to this map 
                 mp.add_observation(kf1, idx1_i)                    
                 mp.add_observation(kf2, idx2_i)                   
@@ -535,13 +530,9 @@ class Map(object):
                 except IndexError:
                     Printer.orange('color out of range')
                     color = (255, 0, 0)
-                
-                semantic_des = None
-                if kf.kps_sem is not None:
-                    semantic_des = kf.kps_sem[idxs[i]]
 
                 # add the point to this map                 
-                mp = MapPoint(p[0:3], color, kf, idxs[i], semantic_des=semantic_des) 
+                mp = MapPoint(p[0:3], color, kf, idxs[i]) 
                 
                 # we need to add the point both the originary frame and the newly created keyframe
                 f.points[idxs[i]] = mp # add point to the frame

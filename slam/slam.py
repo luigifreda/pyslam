@@ -45,6 +45,8 @@ from dataset_types import SensorType, DatasetEnvironmentType
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from feature_tracker import feature_tracker_factory, FeatureTracker, FeatureTrackerTypes 
 
+from semantic_mapping import semantic_mapping_factory
+from semantic_mapping_shared import SemanticMappingShared
 from utils_serialization import SerializableEnum, SerializationJSON, register_class
 from utils_sys import Printer, getchar, Logging
 from utils_mp import MultiprocessingManager
@@ -87,6 +89,7 @@ class Slam(object):
     def __init__(self, camera: Camera, 
                  feature_tracker_config: dict, 
                  loop_detector_config=None, 
+                 semantic_mapping_config=None,
                  sensor_type=SensorType.MONOCULAR, 
                  environment_type=DatasetEnvironmentType.OUTDOOR,
                  slam_mode=SlamMode.SLAM,
@@ -105,6 +108,8 @@ class Slam(object):
         
         self.map = Map()
         self.local_mapping = LocalMapping(self)        
+
+        self.semantic_mapping = None
         self.loop_closing = None
         self.GBA = None
         self.GBA_on_demand = None    # used independently when pressing "Bundle Adjust" button on GUI
@@ -112,11 +117,14 @@ class Slam(object):
         self.reset_requested = False
                     
         if slam_mode == SlamMode.SLAM:
+            self.init_semantic_mapping(semantic_mapping_config, headless=headless)
             self.init_volumetric_integrator() 
             self.init_loop_closing(loop_detector_config, headless=headless)     
                 
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
+        
+        self.tracking = None
                      
         self.tracking = Tracking(self) # after all the other initializations
         
@@ -149,6 +157,8 @@ class Slam(object):
 
     def reset(self):
         self.local_mapping.request_reset()
+        if self.semantic_mapping is not None:
+            self.semantic_mapping.request_reset()
         if self.loop_closing is not None:
             self.loop_closing.request_reset()
         if self.volumetric_integrator is not None:
@@ -158,6 +168,8 @@ class Slam(object):
         
     def reset_session(self):
         self.local_mapping.request_reset()
+        if self.semantic_mapping is not None:
+            self.semantic_mapping.request_reset()
         # See the discussion here: https://github.com/luigifreda/pyslam/issues/131 
         # if self.loop_closing is not None:
         #     self.loop_closing.request_reset()
@@ -169,7 +181,9 @@ class Slam(object):
     def quit(self):
         print('SLAM: quitting ...')
         if kLocalMappingOnSeparateThread:
-            self.local_mapping.quit()  
+            self.local_mapping.quit()
+        if self.semantic_mapping is not None:
+            self.semantic_mapping.quit()
         if self.loop_closing is not None:
             self.loop_closing.quit()
         if self.volumetric_integrator is not None:
@@ -191,6 +205,13 @@ class Slam(object):
             feature_tracker.matcher.ratio_test = 0.8
         if feature_tracker.tracker_type == FeatureTrackerTypes.LK:
             raise ValueError("SLAM: At present time, you cannot use Lukas-Kanade feature_tracker in this SLAM framework!")  
+    
+    def init_semantic_mapping(self, semantic_mapping_config, headless=False):
+        if Parameters.kDoSemanticMapping:
+            self.semantic_mapping = semantic_mapping_factory(slam=self, headless=headless, **semantic_mapping_config)
+            SemanticMappingShared.set_semantic_mapping(self.semantic_mapping)
+            if Parameters.kSemanticMappingOnSeparateThread:
+                self.semantic_mapping.start()
         
     def init_loop_closing(self, loop_detector_config, headless=False):
         if Parameters.kUseLoopClosing and loop_detector_config is not None:
@@ -208,8 +229,8 @@ class Slam(object):
             self.volumetric_integrator = volumetric_integrator_factory(self.volumetric_integrator_type, self.camera, self.environment_type, self.sensor_type)
         
     # @ main track method @
-    def track(self, img, img_right, depth, img_id, timestamp=None, semantic_img=None):
-        return self.tracking.track(img, img_right, depth, img_id, timestamp, semantic_img)
+    def track(self, img, img_right, depth, img_id, timestamp=None):
+        return self.tracking.track(img, img_right, depth, img_id, timestamp)
     
     def set_tracking_state(self, state: SlamState):
         self.tracking.state = state

@@ -22,7 +22,6 @@ import time
 import numpy as np
 from threading import RLock, Lock, Thread
 
-from semantic_estimator_shared import SemanticEstimatorShared
 from utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
 from frame import Frame, FeatureTrackerShared
 from utils_sys import Printer
@@ -52,10 +51,6 @@ class MapPointBase(object):
         
         self._observations = dict() # keyframe observations (used by mapping methods)
                                     # for kf, kidx in self._observations.items(): kf.points[kidx] = this point
-
-        self._semantic_observations = dict() # keyframe semantic observtions (used by mapping methods)
-                                    # for kf, kidx in self._semantic_observations.items(): kf.semantic_points[kidx] = this point
-        
         self._frame_views = dict()  # frame observations (used for drawing the tracking keypoint trails, frame by frame)
                                     # for f, idx in self._frame_views.items(): f.points[idx] = this point
                 
@@ -277,12 +272,12 @@ class MapPointBase(object):
 # Each Point is observed in multiple Frames
 class MapPoint(MapPointBase):
     global_lock = RLock()      # shared global lock for blocking point position update     
-    def __init__(self, position, color, keyframe=None, idxf=None, id=None, semantic_des=None):
+    def __init__(self, position, color, keyframe=None, idxf=None, id=None):
         super().__init__(id)
         self._pt = np.array(position)  # position in the world frame
 
         self.color = color
-        self.semantic_des = semantic_des
+        self.semantic_des = None
             
         self.des = None  # best descriptor (continuously updated)
         self._min_distance, self._max_distance = 0, float('inf')  # depth infos 
@@ -307,6 +302,7 @@ class MapPoint(MapPointBase):
   
         self.num_observations_on_last_update_des = 1       # must be 1!    
         self.num_observations_on_last_update_normals = 1   # must be 1!
+        self.num_observations_on_last_update_semantics = 1 # must be 1!    
         
         # for GBA
         self.pt_GBA = None
@@ -586,7 +582,6 @@ class MapPoint(MapPointBase):
         if skip or len(observations)==0:
             return 
         descriptors = [kf.des[idx] for kf,idx in observations if not kf.is_bad]
-        semantics = [kf.kps_sem[idx] for kf, idx in observations if kf.kps_sem is not None]
 
         N = len(descriptors)
         if N > 2:
@@ -598,8 +593,23 @@ class MapPoint(MapPointBase):
             #print('median_distances: ', median_distances)
             #print('des: ', self.des)        
 
+    def update_semantics(self, semantic_fusion_method, force=False):
+        skip = False
+        with self._lock_features:
+            if self._is_bad:
+                return                          
+            if self._num_observations > self.num_observations_on_last_update_semantics or force:    # implicit if self._num_observations > 1   
+                self.num_observations_on_last_update_semantics = self._num_observations      
+                observations = list(self._observations.items())
+            else: 
+                skip = True
+        if skip or len(observations)==0:
+            return 
+        semantics = [kf.kps_sem[idx] for kf, idx in observations if kf.kps_sem is not None]
         if len(semantics) > 2:
-            self.semantic_des = SemanticEstimatorShared.semantic_fusion_method(semantics)
+            fused_semantics = semantic_fusion_method(semantics)
+            with self._lock_features:
+                self.semantic_des = fused_semantics
 
     def update_info(self):
         #if self._is_bad:
