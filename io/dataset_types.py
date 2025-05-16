@@ -39,6 +39,7 @@ class DatasetType(SerializableEnum):
     ROS1BAG     = 9
     ROS2BAG     = 10
     LIVE        = 11
+    SCANNET     = 12
 
     
 @register_class

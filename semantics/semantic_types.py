@@ -22,18 +22,18 @@ from utils_serialization import SerializableEnum, register_class
 '''
 NOTES:
 In order to add a new SEMANTIC representation:
-- add a new enum in SemanticFeatureTypes
+- add a new enum in SemanticFeatureType
 - configure it in your semantic_segmentation*
 - adds its usage in the semantic_mapping* class that you want to use
 '''
 
 @register_class
-class SemanticFeatureTypes(SerializableEnum):
+class SemanticFeatureType(SerializableEnum):
   LABEL               = 0 # [1] One value with the categorical label of the class
   PROBABILITY_VECTOR  = 1 # [N] A vector of distribution parameters (categorical or Dirichlet) over N categorical classes
   FEATURE_VECTOR      = 2 # [D] A feature vector from an encoder (e.g., CLIP or DiNO) with D dimensions
 
 @register_class
-class SemanticEntityTypes(SerializableEnum):
+class SemanticEntityType(SerializableEnum):
   POINT               = 0 # The semantics are associated to each point
   OBJECT              = 1 # The semantics are associated to each object

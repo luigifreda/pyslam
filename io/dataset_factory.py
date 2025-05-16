@@ -35,7 +35,7 @@ from utils_string import levenshtein_distance
 import ujson as json
 
 from dataset_types import DatasetType, SensorType, DatasetEnvironmentType, MinimalDatasetConfig
-from dataset import Dataset, FolderDataset, FolderDatasetParallel, KittiDataset, TumDataset, EurocDataset, ReplicaDataset, TartanairDataset, VideoDataset, LiveDataset
+from dataset import Dataset, FolderDataset, FolderDatasetParallel, KittiDataset, ScannetDataset, TumDataset, EurocDataset, ReplicaDataset, TartanairDataset, VideoDataset, LiveDataset
 
 
 from typing import TYPE_CHECKING
@@ -132,6 +132,8 @@ def dataset_factory(config:'Config'):
             rate = float(dataset_settings['rate'])       
         #dataset = Ros2bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, rate, config)
         dataset = Ros2bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, config)           
+    if type == 'scannet':
+        dataset = ScannetDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.SCANNET, (config.width, config.height))
                
     dataset.minimal_config = MinimalDatasetConfig(config=config)
 
