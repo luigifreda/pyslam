@@ -37,7 +37,6 @@ from keyframe import KeyFrame
 from map_point import MapPoint, MapPointBase
 
 from utils_sys import Printer
-from utils_semantics import single_label_to_color
 
 import traceback
 
