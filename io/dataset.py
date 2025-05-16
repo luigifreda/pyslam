@@ -69,7 +69,7 @@ class Dataset(object):
         self._timestamp = None       # current timestamp if available [s]
         self._next_timestamp = None  # next timestamp if available otherwise an estimate [s]
         self.associations = associations  # name of the file with the associations
-        
+        self.has_gt_semantics = False # false by default and can be changed to true by certain datasets (replica, scannet, etc.)
         self.minimal_config = MinimalDatasetConfig()
         
     def isOk(self):
