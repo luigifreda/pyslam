@@ -29,6 +29,7 @@ import platform
 
 from config import Config
 
+from semantic_mapping import SemanticMappingType
 from semantic_mapping_configs import SemanticMappingConfigs
 from slam import Slam, SlamState
 from slam_plot_drawer import SlamPlotDrawer
@@ -213,8 +214,6 @@ if __name__ == "__main__":
                 img = dataset.getImageColor(img_id)
                 depth = dataset.getDepth(img_id)
                 img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
-                #TODO(@dvdmc): Get semantics if GT
-                gt_semantics = None
 
             if img is not None:
                 timestamp = dataset.getTimestamp()          # get current timestamp 
@@ -334,6 +333,24 @@ if __name__ == "__main__":
         Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
         
         #TODO(@dvdmc): add semantics evaluation
+        if Parameters.kDoSemanticMapping and dataset.has_gt_semantics and slam.semantic_mapping.semantic_mapping_type == SemanticMappingType.DENSE:
+          # Get all the KFs
+          keyframes = slam.map.get_keyframes()
+          # Get all the final MPs that project on it
+          for kf in keyframes:
+            # Recover image
+            rgb_img = dataset.getImageColor(kf.id)
+            semantic_gt = dataset.getSemanticGroundTruth(kf.id)
+            # Get the gt semantic label for projected MPs
+            gt_semantic_des = [semantic_gt[kps[0], kps[1]] for idx, kps in enumerate(kf.kps) if kf.points[idx] is not None]
+            # Get the semantic_des of projected points
+            points = kf.get_points()
+            mp_semantic_des = [p.semantic_des for p in points if p is not None]
+            # Get the predicted semantic label for the MP projection (baseline)
+            predicted_semantics = slam.semantic_mapping.semantic_segmentation.infer()
+            predicted_semantic_des = [predicted_semantics[kps[0], kps[1]] for idx, kps in enumerate(kf.kps) if kf.points[idx] is not None]
+            # Compare the label of the projected MP with the GT semantics (ours)
+            # Compare the label of the predicted semantic label with the GT semantics (baseline)
 
         if final_trajectory_writer:
             final_trajectory_writer.write_full_trajectory(est_poses, timestamps)
