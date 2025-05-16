@@ -27,9 +27,8 @@ from torchvision.models.segmentation import deeplabv3_resnet50, deeplabv3_resnet
 from torchvision import transforms
 
 from semantic_segmentation_base import SemanticSegmentationBase
-from semantic_types import SemanticFeatureTypes
-from semantic_fusion_methods import bayesian_fusion, count_labels
-from utils_semantics import information_weights_factory, labels_map_factory, labels_to_image, single_label_to_color
+from semantic_types import SemanticFeatureType
+from semantic_conversions import SemanticDatasetType, labels_color_map_factory, labels_to_image
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -37,25 +36,25 @@ kRootFolder = kScriptFolder + '/..'
 
 class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
     model_configs = {
-        'resnet50': {'encoder': 'resnet50', 'model': deeplabv3_resnet50, 'weights': DeepLabV3_ResNet50_Weights.DEFAULT},
-        'resnet101': {'encoder': 'resnet101', 'model': deeplabv3_resnet101, 'weights': DeepLabV3_ResNet101_Weights.DEFAULT},
-        'mobilenetv3': {'encoder': 'mobilenetv3', 'model': deeplabv3_mobilenet_v3_large, 'weights': DeepLabV3_MobileNet_V3_Large_Weights.DEFAULT},
+        'resnet50': {'encoder': 'resnet50', 'model': deeplabv3_resnet50, 'weights': DeepLabV3_ResNet50_Weights.DEFAULT, 'dataset': SemanticDatasetType.VOC, 'image_size': (512, 512)},
+        'resnet101': {'encoder': 'resnet101', 'model': deeplabv3_resnet101, 'weights': DeepLabV3_ResNet101_Weights.DEFAULT, 'dataset': SemanticDatasetType.VOC, 'image_size': (512, 512)},
+        'mobilenetv3': {'encoder': 'mobilenetv3', 'model': deeplabv3_mobilenet_v3_large, 'weights': DeepLabV3_MobileNet_V3_Large_Weights.DEFAULT, 'dataset': SemanticDatasetType.VOC, 'image_size': (512, 512)},
     }
-    supported_feature_types = [SemanticFeatureTypes.LABEL, SemanticFeatureTypes.PROBABILITY_VECTOR]
-    def __init__(self, device=None, encoder_name='resnet50', model_path='', dataset_name='cityscapes', semantic_feature_type=SemanticFeatureTypes.LABEL):
+    supported_feature_types = [SemanticFeatureType.LABEL, SemanticFeatureType.PROBABILITY_VECTOR]
+    def __init__(self, device=None, encoder_name='resnet50', model_path='', semantic_dataset_type=SemanticDatasetType.VOC, image_size=(512, 512), semantic_feature_type=SemanticFeatureType.LABEL):
         
         device = self.init_device(device)
 
-        model, transform = self.init_model(device, encoder_name, model_path)
+        model, transform = self.init_model(device, encoder_name, model_path, semantic_dataset_type)
         
-        self.semantics_rgb_map = labels_map_factory(dataset_name)
+        self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
 
         if semantic_feature_type not in self.supported_feature_types:
             raise ValueError(f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}")
 
         super().__init__(model, transform, device, semantic_feature_type)
 
-    def init_model(self, device, encoder_name, model_path):
+    def init_model(self, device, encoder_name, model_path, semantic_dataset_type):
         if encoder_name not in self.model_configs:
             raise ValueError(f"Encoder name {encoder_name} is not supported for {self.__class__.__name__}")
         model = self.model_configs[encoder_name]['model'](self.model_configs[encoder_name]['weights'])
@@ -90,15 +89,15 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
         probs = prediction.softmax(dim=1)
         probs = recover_size(probs[0])
         
-        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
+        if self.semantic_feature_type == SemanticFeatureType.LABEL:
             self.semantics = probs.argmax(dim=0).cpu().numpy()
-        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+        elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             self.semantics = probs.cpu().numpy()
 
         return self.semantics
     
     def to_rgb(self, semantics, bgr=False):
-        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
-            return labels_to_image(semantics, self.semantics_rgb_map, bgr=bgr)
-        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
-            return labels_to_image(np.argmax(semantics, axis=-1), self.semantics_rgb_map, bgr=bgr)
+        if self.semantic_feature_type == SemanticFeatureType.LABEL:
+            return labels_to_image(semantics, self.semantics_color_map, bgr=bgr)
+        elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
+            return labels_to_image(np.argmax(semantics, axis=-1), self.semantics_color_map, bgr=bgr)

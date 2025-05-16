@@ -550,6 +550,61 @@ class TumDataset(Dataset):
             self._timestamp = None                       
         return img 
 
+class ScannetDataset(Dataset):
+    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.SCANNET, image_size=(640, 480)): 
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+            raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
+        self.fps = 30 #TODO(@dvdmc): I couldn't find this anywhere (paper, code, etc.)
+        self.scale_viewer_3d = 0.1
+        self.depthmap_factor = 1 #TODO(@dvdmc): I don't know why this is 1. It's supposed to be 1000. since the depth is in mm. Did they change it?
+        # NOTE: We need the following to resize the RGB images to have the same size as the depth images
+        # Other intrinsics are changed in the settings file (see settings/SCANNET.yaml)
+        self.image_size = image_size 
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05             
+        print('Processing ScanNet Sequence')        
+        self.base_path = self.path + '/scans/' + self.name + '/'
+        # count the number of frames in the path 
+        self.color_paths = sorted(glob.glob(f'{self.base_path}/color/*.jpg'))
+        self.depth_paths = sorted(glob.glob(f'{self.base_path}/depth/*.png'))  
+        self.max_frame_id = len(self.color_paths)   
+        self.num_frames = self.max_frame_id
+        print(f'Number of frames: {self.max_frame_id}')  
+
+    def getImage(self, frame_id):
+        img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
+        if frame_id < self.max_frame_id:
+            file = self.base_path + f'/color/{str(frame_id)}.jpg'
+            img = cv2.imread(file)
+            img = cv2.resize(img, self.image_size)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts              
+        else:
+            self.is_ok = False     
+            self._timestamp = None                  
+        return img 
+
+
+    def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            file = self.base_path + f'/depth/{str(frame_id)}.png'
+            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+            img = (img/self.depthmap_factor).astype(np.float32)
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts                
+        else:
+            self.is_ok = False      
+            self._timestamp = None                       
+        return img 
 
 class EurocDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.EUROC, config=None): 

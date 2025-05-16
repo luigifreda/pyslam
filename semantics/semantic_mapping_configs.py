@@ -21,10 +21,12 @@
 """
 A collection of ready-to-used semantic mapping configurations 
 """
+from dataset_types import DatasetType
+from semantic_conversions import SemanticDatasetType
 from semantic_mapping import SemanticMappingType
 from semantic_segmentation_factory import SemanticSegmentationType
+from semantic_types import SemanticFeatureType
 from utils_sys import Printer
-
 
 class SemanticMappingConfigs:
 
@@ -32,20 +34,83 @@ class SemanticMappingConfigs:
     def get_config_from_name(config_name):
         config_dict = getattr(SemanticMappingConfigs, config_name, None)
         if config_dict is not None:
-            Printer.cyan("FeatureTrackerConfigs: Configuration loaded:", config_dict)
+            Printer.cyan("SemanticMappingConfigs: Configuration loaded:", config_dict)
         else:
-            Printer.red(f"FeatureTrackerConfigs: No configuration found for '{config_name}'")
+            Printer.red(f"SemanticMappingConfigs: No configuration found for '{config_name}'")
         return config_dict
     
+    # For convenience, we offer already prepared configurations for some SLAM datasets
+    @staticmethod
+    def get_config_from_slam_dataset(slam_dataset_name):
+        if(slam_dataset_name == DatasetType.KITTI):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.TUM):
+            Printer.red("Semantics in TUM dataset will be bad with current model!")
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.EUROC):
+            Printer.red("Semantics in TUM dataset will be bad with current model!")
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.REPLICA):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.TARTANAIR):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.VIDEO):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.FOLDER):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.ROS1BAG):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.ROS2BAG):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.LIVE):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        elif(slam_dataset_name == DatasetType.SCANNET):
+            return dict(semantic_mapping_type=SemanticMappingType.DENSE,
+                        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_feature_type=SemanticFeatureType.LABEL)
+        else:
+            raise ValueError(f"SemanticMappingConfigs: No configuration found for SLAM dataset '{slam_dataset_name}'")
+
     # =====================================
     # Dense-based semantic mapping
 
     SEGFORMER = dict(semantic_mapping_type=SemanticMappingType.DENSE,
                      semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                     dataset_name='cityscapes',
-                     semantic_feature_type='label')
+                     semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+                     semantic_feature_type=SemanticFeatureType.LABEL)
     
     DEEPLABV3 = dict(semantic_mapping_type=SemanticMappingType.DENSE,
                      semantic_segmentation_type=SemanticSegmentationType.DEEPLABV3,
-                     dataset_name='cityscapes',
-                     semantic_feature_type='label')
+                     semantic_dataset_type=SemanticDatasetType.VOC,
+                     semantic_feature_type=SemanticFeatureType.LABEL)

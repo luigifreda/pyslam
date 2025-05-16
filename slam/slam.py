@@ -205,7 +205,9 @@ class Slam(object):
     
     def init_semantic_mapping(self, semantic_mapping_config, headless=False):
         if Parameters.kDoSemanticMapping:
-            self.semantic_mapping = semantic_mapping_factory(slam=self, headless=headless, **semantic_mapping_config)
+            self.semantic_mapping = semantic_mapping_factory(slam=self, headless=headless, 
+                                                             image_size=(self.camera.width, self.camera.height), 
+                                                             **semantic_mapping_config)
             SemanticMappingShared.set_semantic_mapping(self.semantic_mapping)
             if Parameters.kSemanticMappingOnSeparateThread:
                 self.semantic_mapping.start()

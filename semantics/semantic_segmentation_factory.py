@@ -25,8 +25,9 @@ import config
 import torch
 import platform
 
-from semantic_types import SemanticFeatureTypes
-from utils_sys import import_from
+from semantic_conversions import SemanticDatasetType
+from semantic_types import SemanticFeatureType
+from utils_sys import Printer, import_from
 
 from utils_serialization import SerializableEnum, register_class
 
@@ -49,11 +50,12 @@ class SemanticSegmentationType(SerializableEnum):
             raise ValueError(f"Invalid SemanticSegmentationType: {name}")
         
 def semantic_segmentation_factory(semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                               semantic_feature_type=SemanticFeatureTypes.LABEL,
-                               dataset_name='cityscapes', device=None):
+                               semantic_feature_type=SemanticFeatureType.LABEL,
+                               semantic_dataset_type=SemanticDatasetType.CITYSCAPES, image_size=(512, 512), device=None):
+    Printer.purple(f"Initializing semantic segmentation: {semantic_segmentation_type}, {semantic_feature_type}, {semantic_dataset_type}, {image_size}")
     if semantic_segmentation_type == SemanticSegmentationType.DEEPLABV3:
-        return SemanticSegmentationDeepLabV3(device=device, dataset_name=dataset_name, semantic_feature_type=semantic_feature_type)
+        return SemanticSegmentationDeepLabV3(device=device, semantic_dataset_type=semantic_dataset_type, image_size=image_size, semantic_feature_type=semantic_feature_type)
     elif semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
-        return SemanticSegmentationSegformer(device=device, dataset_name=dataset_name, semantic_feature_type=semantic_feature_type)
+        return SemanticSegmentationSegformer(device=device, semantic_dataset_type=semantic_dataset_type, image_size=image_size, semantic_feature_type=semantic_feature_type)
     else:
         raise ValueError(f'Invalid semantic segmentation type: {semantic_segmentation_type}')

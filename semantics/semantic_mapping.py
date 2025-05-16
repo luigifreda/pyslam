@@ -31,10 +31,10 @@ from config_parameters import Parameters
 from semantic_segmentation_factory import SemanticSegmentationType, semantic_segmentation_factory
 from semantic_fusion_methods import bayesian_fusion, count_labels
 
-from semantic_types import SemanticFeatureTypes
+from semantic_types import SemanticFeatureType
+from semantic_conversions import SemanticDatasetType, information_weights_factory, labels_color_map_factory, single_label_to_color
 from timer import TimerFps
 from utils_serialization import SerializableEnum, register_class
-from utils_semantics import information_weights_factory, labels_map_factory, single_label_to_color
 from utils_sys import Printer, Logging
 from utils_mp import MultiprocessingManager
 from utils_data import empty_queue
@@ -61,6 +61,7 @@ class SemanticMappingType(SerializableEnum):
     DENSE = 0 # Pixel-wise segmentation to points maps
 
 def semantic_mapping_factory(slam: 'Slam', headless=False, 
+                             image_size=(512, 512),
                              **kwargs):
 
     semantic_mapping_type = kwargs.get('semantic_mapping_type')
@@ -69,9 +70,10 @@ def semantic_mapping_factory(slam: 'Slam', headless=False,
     
     if semantic_mapping_type == SemanticMappingType.DENSE:
         #TODO(@dvdmc): fix this with a better approach that checks for existence of configs
-        return SemanticMappingDense(slam=slam, headless=headless, 
+        return SemanticMappingDense(slam=slam, headless=headless,  
+                                   image_size=image_size,
                                    semantic_segmentation_type=kwargs.get('semantic_segmentation_type'),
-                                   dataset_name=kwargs.get('dataset_name'),
+                                   semantic_dataset_type=kwargs.get('semantic_dataset_type'),
                                    semantic_feature_type=kwargs.get('semantic_feature_type'))
     else:
         raise ValueError(f'Invalid semantic mapping type: {semantic_mapping_type}')
@@ -334,26 +336,29 @@ class SemanticMappingBase:
 class SemanticMappingDense(SemanticMappingBase):
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
     
-    # TODO(@dvdmc): modify to the *_config approach (see LoopDetectionConfig)
+    # TODO(@dvdmc): move to types since this is static. Discuss if we want to support different fusion methods for the same semantic feature type
     feature_type_configs = {
-        'label': {'type':SemanticFeatureTypes.LABEL, 'fusion':count_labels}, 
-        'probability_vector': {'type':SemanticFeatureTypes.PROBABILITY_VECTOR, 'fusion':bayesian_fusion}
+        SemanticFeatureType.LABEL: count_labels, 
+        SemanticFeatureType.PROBABILITY_VECTOR: bayesian_fusion
     }
     
     def __init__(self, slam: 'Slam', semantic_segmentation_type=SemanticSegmentationType.SEGFORMER, 
-                 dataset_name='cityscapes', semantic_feature_type='label', headless=False):
+                 semantic_dataset_type=SemanticDatasetType.CITYSCAPES, semantic_feature_type=SemanticFeatureType.LABEL, image_size=(512, 512), headless=False):
         
         if semantic_feature_type not in self.feature_type_configs:
             raise ValueError(f'Invalid semantic feature type: {semantic_feature_type}')
-        self.semantic_feature_type = self.feature_type_configs[semantic_feature_type]['type']
-        self.semantic_fusion_method = self.feature_type_configs[semantic_feature_type]['fusion']
+        self.semantic_feature_type = semantic_feature_type
+        self.semantic_fusion_method = self.feature_type_configs[semantic_feature_type]
 
         self.semantic_segmentation_type = semantic_segmentation_type
-        self.semantic_segmentation = semantic_segmentation_factory(semantic_segmentation_type=semantic_segmentation_type, semantic_feature_type=self.semantic_feature_type)
+        self.semantic_segmentation = semantic_segmentation_factory(semantic_segmentation_type=semantic_segmentation_type, 
+                                                                   semantic_feature_type=self.semantic_feature_type, 
+                                                                   semantic_dataset_type=semantic_dataset_type, 
+                                                                   image_size=image_size)
         Printer.green(f'semantic_segmentation_type: {semantic_segmentation_type.name}')
         
-        self.semantics_rgb_map = labels_map_factory(dataset_name)
-        self.semantic_sigma2_factor = information_weights_factory(dataset_name)
+        self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
+        self.semantic_sigma2_factor = information_weights_factory(semantic_dataset_type)
 
         self.timer_verbose = kTimerVerbose
         self.timer_inference = TimerFps('Inference', is_verbose=self.timer_verbose)
@@ -417,13 +422,13 @@ class SemanticMappingDense(SemanticMappingBase):
                 p.update_semantics(self.semantic_fusion_method)
 
     def sem_des_to_rgb(self, semantic_des, bgr=False):
-        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
-            return single_label_to_color(semantic_des, self.semantics_rgb_map, bgr=bgr)
-        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
-            return single_label_to_color(np.argmax(semantic_des, axis=-1), self.semantics_rgb_map, bgr=bgr)
+        if self.semantic_feature_type == SemanticFeatureType.LABEL:
+            return single_label_to_color(semantic_des, self.semantics_color_map, bgr=bgr)
+        elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
+            return single_label_to_color(np.argmax(semantic_des, axis=-1), self.semantics_color_map, bgr=bgr)
         
     def get_semantic_weight(self, semantic_des):
-        if self.semantic_feature_type == SemanticFeatureTypes.LABEL:
+        if self.semantic_feature_type == SemanticFeatureType.LABEL:
             return self.semantic_sigma2_factor[semantic_des]
-        elif self.semantic_feature_type == SemanticFeatureTypes.PROBABILITY_VECTOR:
+        elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             return self.semantic_sigma2_factor[np.argmax(semantic_des, axis=-1)]

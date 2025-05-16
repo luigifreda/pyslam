@@ -44,5 +44,5 @@ class SemanticMappingShared:
         SemanticMappingShared.semantic_mapping            = semantic_mapping
         SemanticMappingShared.semantic_feature_type       = semantic_mapping.semantic_feature_type
         SemanticMappingShared.semantic_fusion_method      = semantic_mapping.semantic_fusion_method
-        SemanticMappingShared.sem_des_to_rgb               = semantic_mapping.sem_des_to_rgb
+        SemanticMappingShared.sem_des_to_rgb              = semantic_mapping.sem_des_to_rgb
         SemanticMappingShared.get_semantic_weight         = semantic_mapping.get_semantic_weight

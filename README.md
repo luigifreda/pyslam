@@ -625,6 +625,7 @@ Dataset | type in `config.yaml`
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
+[ScanNet dataset](https://www.scannet.org/)                                                                                                  | `type: SCANNET_DATASET`
 [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
 [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
 Video file                                                                                                                                   | `type: VIDEO_DATASET` 
@@ -689,6 +690,12 @@ Follow the same instructions provided for the TUM datasets.
 1. You can download the datasets from https://theairlab.org/tartanair-dataset/     
 2. Then, uncompress them and deploy the files as you wish.
 3. Select the corresponding calibration settings file (section `TARTANAIR_DATASET: settings:` in the file `config.yaml`).
+
+#### ScanNet Datasets
+
+1. You can download the datasets following instructions in https://www.scannet.org/. You will need to request the dataset from the authors. 
+2. Select some id scenes and follow the [extraction instructions](https://github.com/ScanNet/ScanNet/tree/master/SensReader/python) to obtain the format we assume. It's common to use scenes from the [validation set](https://github.com/ScanNet/ScanNet/blob/master/Tasks/Benchmark/scannetv2_val.txt) for evaluation.
+3.  Select the corresponding calibration settings file (section `SCANNET_DATASET: settings:` in the file `config.yaml`).
 
 #### ROS1 bags
 
