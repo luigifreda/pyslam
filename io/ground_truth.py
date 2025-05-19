@@ -26,6 +26,8 @@ import traceback
 
 from enum import Enum
 
+import quaternion
+
 from utils_sys import Printer 
 from utils_geom import rotmat2qvec, xyzq2Tmat
 
@@ -37,6 +39,7 @@ kScaleKitti = 1.0
 kScaleTum = 1.0    
 kScaleEuroc = 1.0
 kScaleReplica = 1.0
+kScaleScannet = 1.0
 
 
 @register_class
@@ -48,6 +51,7 @@ class GroundTruthType(SerializableEnum):
     REPLICA    = 5
     TARTANAIR  = 6
     SIMPLE     = 7
+    SCANNET    = 8
 
 
 def groundtruth_factory(settings):
@@ -77,6 +81,8 @@ def groundtruth_factory(settings):
         return ReplicaGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.REPLICA)
     if type == 'tartanair':         
         return TartanairGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.TARTANAIR)
+    if type == 'scannet':         
+        return ScannetGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.SCANNET)
     if type == 'video' or type == 'folder':  
         if 'groundtruth_file' in settings:
             name = settings['groundtruth_file']
@@ -840,3 +846,72 @@ class TartanairGroundTruth(GroundTruth):
         else:
             abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp, x,y,z, qx,qy,qz,qw, abs_scale  
+    
+class ScannetGroundTruth(GroundTruth):
+        def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.SCANNET): 
+            super().__init__(path, name, associations, start_frame_id, type)
+            from dataset import ScannetDataset
+            self.Ts = ScannetDataset.Ts
+            self.scale = kScaleScannet
+            self.poses_path = path + '/scans/' + name + '/pose/'
+
+            if not os.path.exists(self.poses_path) or os.listdir(self.poses_path) == []:
+                error_message = f'ERROR: [ScannetGroundTruth] Groundtruth directory not found: {self.poses_path}!'
+                Printer.red(error_message)
+                sys.exit(error_message)  
+            
+            base_path = os.path.dirname(self.poses_path)
+            print('base_path: ', base_path)
+            self.poses_ = []
+            self.timestamps_ = []
+            self.data = []
+            # List poses files in directory. 
+            # To get the correct order we need to sort according to the integer name before .txt
+            file_names = sorted(os.listdir(self.poses_path), key=lambda x: int(x.split('.')[0]))
+            for file_name in file_names:
+                pose = np.loadtxt(self.poses_path + file_name)
+                self.poses_.append(pose)
+                self.timestamps_.append(int(file_name.split('.')[0]) * self.Ts)
+                self.data.append(pose)
+            self.data = np.array(self.data)
+            print(f'Number of poses: {len(self.poses_)}')
+            if self.data is None:
+                sys.exit('ERROR while reading groundtruth file!')
+
+        def getDataLine(self, frame_id):
+            return super().getDataLine(frame_id)
+        
+        # return timestamp,x,y,z,scale
+        def getTimestampPositionAndAbsoluteScale(self, frame_id):
+            frame_id+=self.start_frame_id
+            try:
+                pos_prev = self.poses_[frame_id-1][0:3,3]*self.scale
+                x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+            except:
+                x_prev, y_prev, z_prev = None, None, None
+            timestamp = self.timestamps_[frame_id]
+            pos = self.poses_[frame_id][0:3,3]*self.scale
+            x, y, z = pos[0], pos[1], pos[2]
+            if x_prev is None:
+                abs_scale = 1
+            else:
+                abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            return timestamp,x,y,z,abs_scale
+        
+        # return timestamp, x,y,z, qx,qy,qz,qw, scale
+        def getTimestampPoseAndAbsoluteScale(self, frame_id):
+            frame_id+=self.start_frame_id
+            try:
+                pos_prev = self.poses_[frame_id-1]
+                x_prev, y_prev, z_prev = pos_prev[0:3,3]*self.scale
+            except:
+                x_prev, y_prev, z_prev = None, None, None
+            timestamp = self.timestamps_[frame_id]
+            pos = self.poses_[frame_id]
+            x, y, z = pos[0:3,3]*self.scale
+            qx, qy, qz, qw = pos[0:4,0]
+            if x_prev is None:
+                abs_scale = 1
+            else:
+                abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+            return timestamp, x,y,z, qx,qy,qz,qw, abs_scale
