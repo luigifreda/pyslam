@@ -551,12 +551,15 @@ class TumDataset(Dataset):
         return img 
 
 class ScannetDataset(Dataset):
+    fps = 30 #TODO(@dvdmc): I couldn't find this anywhere (paper, code, etc.)
+    Ts = 1./fps
     def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.SCANNET, image_size=(640, 480)): 
         super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
         self.environment_type = DatasetEnvironmentType.INDOOR
+        self.fps = ScannetDataset.fps
+        self.Ts = ScannetDataset.Ts
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
             raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
-        self.fps = 30 #TODO(@dvdmc): I couldn't find this anywhere (paper, code, etc.)
         self.scale_viewer_3d = 0.1
         self.depthmap_factor = 1 #TODO(@dvdmc): I don't know why this is 1. It's supposed to be 1000. since the depth is in mm. Did they change it?
         # NOTE: We need the following to resize the RGB images to have the same size as the depth images
