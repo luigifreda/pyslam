@@ -98,6 +98,7 @@ class Slam(object):
         self.camera = camera 
         self.feature_tracker_config = feature_tracker_config
         self.loop_detector_config = loop_detector_config
+        self.semantic_mapping_config = semantic_mapping_config
         self.sensor_type = sensor_type  
         self.environment_type = environment_type
         self.slam_mode = slam_mode
@@ -256,6 +257,8 @@ class Slam(object):
         map_json = self.map.to_json()
         feature_tracker_config_json = SerializationJSON.serialize(self.feature_tracker_config)
         loop_detector_config_json = SerializationJSON.serialize(self.loop_detector_config)
+        #TODO(dvdmc): needs testing
+        semantic_mapping_config_json = SerializationJSON.serialize(self.semantic_mapping_config)
         
         map_out_json['sensor_type'] = SerializationJSON.serialize(self.sensor_type)
         map_out_json['environment_type'] = SerializationJSON.serialize(self.environment_type)
@@ -266,6 +269,7 @@ class Slam(object):
         
         config_out_json['feature_tracker_config'] = feature_tracker_config_json
         config_out_json['loop_detector_config'] = loop_detector_config_json
+        config_out_json['semantic_mapping_config'] = semantic_mapping_config_json
         
         map_file_path = path + '/map.json'       
         with open(map_file_path, 'w') as f:
@@ -281,6 +285,8 @@ class Slam(object):
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.save(path)
             
+        #TODO(dvdmc): missing save for semantic mapping
+
         Printer.green(f'SLAM: ...system state successfully saved to: {path}')        
     
     def load_system_state(self, path):
@@ -316,6 +322,10 @@ class Slam(object):
             loop_detector_config = SerializationJSON.deserialize(loaded_json['loop_detector_config'])
             print(f'SLAM: loaded loop detector config: {loop_detector_config}')
             print()
+
+            #TODO(dvdmc): missing testing load for semantic mapping          
+            semantic_mapping_config = SerializationJSON.deserialize(loaded_json['semantic_mapping_config'])
+            print(f'SLAM: loaded semantic mapping config: {semantic_mapping_config}')
             
             print(f'SLAM: initializing feature tracker: {feature_tracker_config}')
             self.init_feature_tracker(feature_tracker_config)

@@ -28,6 +28,7 @@ import csv
 import re 
 
 from multiprocessing import Process, Queue, Value 
+from semantic_utils import SemanticDatasetType
 from utils_sys import Printer
 from utils_serialization import SerializableEnum, register_class, SerializationJSON
 from utils_string import levenshtein_distance
@@ -70,6 +71,7 @@ class Dataset(object):
         self._next_timestamp = None  # next timestamp if available otherwise an estimate [s]
         self.associations = associations  # name of the file with the associations
         self.has_gt_semantics = False # false by default and can be changed to true by certain datasets (replica, scannet, etc.)
+        self.ignore_label = None # ignored if none
         self.minimal_config = MinimalDatasetConfig()
         
     def isOk(self):
@@ -550,18 +552,33 @@ class TumDataset(Dataset):
 class ScannetDataset(Dataset):
     fps = 30 #TODO(@dvdmc): I couldn't find this anywhere (paper, code, etc.)
     Ts = 1./fps
-    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.SCANNET, image_size=(640, 480)): 
+    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.SCANNET, config=None): 
         super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        
         self.environment_type = DatasetEnvironmentType.INDOOR
+        
+        # Config semantics
+        self.has_gt_semantics = True
+        # NOTE: We use the NYU40 as the scannet label. Some works use a reduced scannet20 instead. Raw scannet labels use scannet labels (around 1000 classes)
+        self.semantic_dataset = SemanticDatasetType.NYU40 
+        self.num_labels = 41 #TODO(@dvdmc): Move to another file (semantic_conversions.py?)
+        self.ignore_label = 0
+        self.label_version = config.dataset_settings['label_version'] # If nyu40 do nothing, if scannet map them to nyu40
+        if self.label_version == 'scannet':
+            # Load the mapping from scannet to nyu40
+            self.load_scannet_to_nyu40(config)        
+
         self.fps = ScannetDataset.fps
         self.Ts = ScannetDataset.Ts
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
-            raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
+            raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')      
         self.scale_viewer_3d = 0.1
         self.depthmap_factor = 1 #TODO(@dvdmc): I don't know why this is 1. It's supposed to be 1000. since the depth is in mm. Did they change it?
         # NOTE: We need the following to resize the RGB images to have the same size as the depth images
-        # Other intrinsics are changed in the settings file (see settings/SCANNET.yaml)
-        self.image_size = image_size 
+        self.image_size = (640, 480)
+        if config is not None:
+            # NOTE: If you modify the image size, remember to change the intrinsics in the settings file (see settings/SCANNET.yaml)
+            self.image_size = (config.cam_settings['Camera.width'] , config.cam_settings['Camera.height'])
         if sensor_type == SensorType.MONOCULAR:
             self.scale_viewer_3d = 0.05             
         print('Processing ScanNet Sequence')        
@@ -572,6 +589,34 @@ class ScannetDataset(Dataset):
         self.max_frame_id = len(self.color_paths)   
         self.num_frames = self.max_frame_id
         print(f'Number of frames: {self.max_frame_id}')  
+
+    def load_scannet_to_nyu40(self, config):
+        if 'scannetv2_labels_combined_path' in config.dataset_settings:
+            scannet_to_nyu40_path = config.dataset_settings['scannetv2_labels_combined_path']
+        else:
+            # Get path of current script
+            scannet_to_nyu40_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scannetv2-labels.combined.tsv')
+
+        with open(scannet_to_nyu40_path) as f:
+            rd = csv.reader(f, delimiter='\t')
+            header = next(rd)
+            data = {column: [] for column in header}
+            for row in rd:
+                for column, value in zip(header, row):
+                    try :
+                        value = int(value)
+                    except:
+                        pass
+                    data[column].append(value)
+            
+            scannet_ids = np.array(data['id'])
+            num_scannet_ids = scannet_ids.max() + 1
+            #NOTE: We use a np.array instead of a dict to make the conversion efficient
+            self.scannet_to_nyu40 = - np.ones(num_scannet_ids, dtype=np.int32)
+            self.scannet_to_nyu40[0] = 0 # 0 is unlabeled
+            for scannet_id, nyu40_id in zip(scannet_ids, data['nyu40id']):
+                self.scannet_to_nyu40[scannet_id] = nyu40_id
+
 
     def getImage(self, frame_id):
         img = None
@@ -603,8 +648,25 @@ class ScannetDataset(Dataset):
             self._next_timestamp = self._timestamp + self.Ts                
         else:
             self.is_ok = False      
-            self._timestamp = None                       
+            self._timestamp = None                    
         return img 
+    
+    def getSemanticGroundTruth(self, frame_id):
+        if frame_id < self.max_frame_id:
+            file = self.base_path + f'/label/{str(frame_id)}.png'
+            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+            img = cv2.resize(img, self.image_size, interpolation=cv2.INTER_NEAREST)
+            if self.label_version == 'scannet':
+                img = self.scannet_to_nyu40[img]
+                if (img == -1).any():
+                    Printer.red('Wrong label in raw data!')
+            self.is_ok = (img is not None)
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts                
+        else:
+            self.is_ok = False      
+            self._timestamp = None  
+        return img
 
 class EurocDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.EUROC, config=None): 

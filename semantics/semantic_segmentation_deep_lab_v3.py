@@ -28,7 +28,7 @@ from torchvision import transforms
 
 from semantic_segmentation_base import SemanticSegmentationBase
 from semantic_types import SemanticFeatureType
-from semantic_conversions import SemanticDatasetType, labels_color_map_factory, labels_to_image
+from semantic_utils import SemanticDatasetType, labels_color_map_factory, labels_to_image
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -49,6 +49,8 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
         
         self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
 
+        self.semantic_dataset_type = semantic_dataset_type
+        
         if semantic_feature_type not in self.supported_feature_types:
             raise ValueError(f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}")
 
@@ -79,6 +81,7 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
             print('SemanticSegmentationDeepLabV3: Using CPU')
         return device
 
+    @torch.no_grad()
     def infer(self, image):
         prev_width = image.shape[1]
         prev_height = image.shape[0]
@@ -92,7 +95,7 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
             self.semantics = probs.argmax(dim=0).cpu().numpy()
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
-            self.semantics = probs.cpu().numpy()
+            self.semantics = probs.permute(1, 2, 0).cpu().numpy()
 
         return self.semantics
     

@@ -29,10 +29,10 @@ from queue import Queue
 from config_parameters import Parameters  
 
 from semantic_segmentation_factory import SemanticSegmentationType, semantic_segmentation_factory
-from semantic_fusion_methods import bayesian_fusion, count_labels
+from semantic_fusion_methods import average_fusion, bayesian_fusion, count_labels
 
 from semantic_types import SemanticFeatureType
-from semantic_conversions import SemanticDatasetType, information_weights_factory, labels_color_map_factory, single_label_to_color
+from semantic_utils import SemanticDatasetType, information_weights_factory, labels_color_map_factory, single_label_to_color, similarity_heatmap_point
 from timer import TimerFps
 from utils_serialization import SerializableEnum, register_class
 from utils_sys import Printer, Logging
@@ -69,7 +69,7 @@ def semantic_mapping_factory(slam: 'Slam', headless=False,
         raise ValueError('semantic_mapping_type is not specified in semantic_mapping_config')
     
     if semantic_mapping_type == SemanticMappingType.DENSE:
-        #TODO(@dvdmc): fix this with a better approach that checks for existence of configs
+        #TODO(dvdmc): fix this with a better approach that checks for existence of configs
         return SemanticMappingDense(slam=slam, headless=headless,  
                                    image_size=image_size,
                                    semantic_segmentation_type=kwargs.get('semantic_segmentation_type'),
@@ -78,13 +78,14 @@ def semantic_mapping_factory(slam: 'Slam', headless=False,
     else:
         raise ValueError(f'Invalid semantic mapping type: {semantic_mapping_type}')
     
-# TODO(@dvdmc): some missing features are:
+# TODO(dvdmc): some missing features are:
 # - Warm start when loading a new local map (not tested)
 class SemanticMappingBase:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
 
-    def __init__(self, slam: 'Slam'):
+    def __init__(self, slam: 'Slam', semantic_mapping_type):
         self.slam = slam
+        self.semantic_mapping_type = semantic_mapping_type
 
         self.queue = Queue()
         self.queue_condition = Condition()
@@ -330,8 +331,13 @@ class SemanticMappingBase:
     def sem_des_to_rgb(self, semantic_des, bgr=False):
         return NotImplementedError
     
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        return NotImplementedError
+    
     def get_semantic_weight(self, semantic_des):
         return NotImplementedError
+    
+    #TODO(dvdmc): Missing save and load functions
 
 class SemanticMappingDense(SemanticMappingBase):
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
@@ -339,7 +345,8 @@ class SemanticMappingDense(SemanticMappingBase):
     # TODO(@dvdmc): move to types since this is static. Discuss if we want to support different fusion methods for the same semantic feature type
     feature_type_configs = {
         SemanticFeatureType.LABEL: count_labels, 
-        SemanticFeatureType.PROBABILITY_VECTOR: bayesian_fusion
+        SemanticFeatureType.PROBABILITY_VECTOR: bayesian_fusion,
+        SemanticFeatureType.FEATURE_VECTOR: average_fusion
     }
     
     def __init__(self, slam: 'Slam', semantic_segmentation_type=SemanticSegmentationType.SEGFORMER, 
@@ -357,8 +364,13 @@ class SemanticMappingDense(SemanticMappingBase):
                                                                    image_size=image_size)
         Printer.green(f'semantic_segmentation_type: {semantic_segmentation_type.name}')
         
-        self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
-        self.semantic_sigma2_factor = information_weights_factory(semantic_dataset_type)
+        self.semantic_dataset_type = semantic_dataset_type
+        if semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY:
+            self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
+            self.semantic_sigma2_factor = information_weights_factory(semantic_dataset_type)
+        else:
+            self.semantics_color_map = None
+            self.semantic_sigma2_factor = [1.0]
 
         self.timer_verbose = kTimerVerbose
         self.timer_inference = TimerFps('Inference', is_verbose=self.timer_verbose)
@@ -368,7 +380,7 @@ class SemanticMappingDense(SemanticMappingBase):
         self.headless = headless
         self.draw_semantic_mapping_init = False
 
-        super().__init__(slam)
+        super().__init__(slam, SemanticMappingType.DENSE)
         
     def semantic_mapping_impl(self):
 
@@ -376,22 +388,30 @@ class SemanticMappingDense(SemanticMappingBase):
         self.timer_inference.start()        
         self.curr_semantic_prediction = self.semantic_segmentation.infer(self.img_cur)    
         self.timer_inference.refresh() 
-        # TODO(@dvdmc): the prints don't work for some reason. They block the Thread   
+        Printer.green(f'#semantic inference, timing: {self.timer_inference.last_elapsed}')
+        # TODO(dvdmc): the prints don't work for some reason. They block the Thread   
         # SemanticMappingDense.print(f'#semantic inference, timing: {self.timer_pts_culling.last_elapsed}')                 
 
         # update keypoints of current keyframe
         self.timer_update_keyframe.start()
         self.kf_cur.set_semantics(self.curr_semantic_prediction)
         self.timer_update_keyframe.refresh()
+        Printer.green(f'#set KF semantics, timing: {self.timer_update_keyframe.last_elapsed}')
         # SemanticMappingDense.print(f'#keypoints: {self.kf_cur.num_keypoints()}, timing: {self.timer_update_keyframe.last_elapsed}') 
         
         # update map points of current keyframe
         self.timer_update_mappoints.start()
         self.update_map_points()
         self.timer_update_mappoints.refresh()
+        Printer.green(f'#set MPs semantics, timing: {self.timer_update_mappoints.last_elapsed}')
         # SemanticMappingDense.print(f'#map points: {self.kf_cur.num_points()}, timing: {self.timer_update_mappoints.last_elapsed}')
 
-        self.draw_semantic_prediction()
+        try:
+            self.draw_semantic_prediction()
+        except Exception as e:
+            import traceback
+            print(f"[Threaded Error] Failed to permute and convert semantics: {e}")
+            traceback.print_exc()
 
     def draw_semantic_prediction(self):
         if self.headless:
@@ -426,9 +446,27 @@ class SemanticMappingDense(SemanticMappingBase):
             return single_label_to_color(semantic_des, self.semantics_color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             return single_label_to_color(np.argmax(semantic_des, axis=-1), self.semantics_color_map, bgr=bgr)
+        elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
+            if self.semantic_dataset_type == SemanticDatasetType.FEATURE_SIMILARITY:
+                sims = self.semantic_segmentation.features_to_sims(semantic_des)
+                return similarity_heatmap_point(sims, colormap=cv2.COLORMAP_JET, sim_scale=self.semantic_segmentation.sim_scale, bgr=bgr)
+            else:
+                label = self.semantic_segmentation.features_to_labels(semantic_des)
+                return single_label_to_color(label, self.semantics_color_map, bgr=bgr)
+            
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        return self.semantic_segmentation.to_rgb(semantic_img, bgr=bgr)
         
     def get_semantic_weight(self, semantic_des):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
             return self.semantic_sigma2_factor[semantic_des]
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             return self.semantic_sigma2_factor[np.argmax(semantic_des, axis=-1)]
+        elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
+            return self.semantic_sigma2_factor[self.semantic_segmentation.features_to_labels(semantic_des)]
+        
+    def set_query_word(self, query_word):
+        if self.semantic_dataset_type == SemanticDatasetType.FEATURE_SIMILARITY:
+            self.semantic_segmentation.set_query_word(query_word)
+        else:
+            raise NotImplementedError
