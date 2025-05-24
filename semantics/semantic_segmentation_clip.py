@@ -123,7 +123,7 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
         if model_path == '': # Load pre-trained models
             model, preprocess = f3rm_clip.load(encoder_name, device)
         else:
-            raise NotImplementedError("Segformer only supports pre-trained model for now") #TODO(@dvdmc): allow to load a custom model
+            raise NotImplementedError("Segformer only supports pre-trained model for now") #TODO(dvdmc): allow to load a custom model
         model = model.eval()
 
         return model, preprocess
