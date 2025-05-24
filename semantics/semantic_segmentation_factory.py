@@ -25,7 +25,7 @@ import config
 import torch
 import platform
 
-from semantic_conversions import SemanticDatasetType
+from semantic_utils import SemanticDatasetType
 from semantic_types import SemanticFeatureType
 from utils_sys import Printer, import_from
 
@@ -33,6 +33,7 @@ from utils_serialization import SerializableEnum, register_class
 
 from semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
 from semantic_segmentation_segformer import SemanticSegmentationSegformer
+from semantic_segmentation_clip import SemanticSegmentationCLIP
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -42,6 +43,7 @@ kRootFolder = kScriptFolder + '/..'
 class SemanticSegmentationType(SerializableEnum):
     DEEPLABV3     = 0     # Semantics from torchvision DeepLab's v3
     SEGFORMER     = 1     # Semantics from transformer's Segformer
+    CLIP          = 2     # Semantics from CLIP's segmentation head
     @staticmethod
     def from_string(name: str):
         try:
@@ -49,13 +51,16 @@ class SemanticSegmentationType(SerializableEnum):
         except KeyError:
             raise ValueError(f"Invalid SemanticSegmentationType: {name}")
         
+#TODO(dvdmc): Not all properties of the semantic segmentation modules are exposed (e.g. encoder_name, sim_text_query).
 def semantic_segmentation_factory(semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
                                semantic_feature_type=SemanticFeatureType.LABEL,
                                semantic_dataset_type=SemanticDatasetType.CITYSCAPES, image_size=(512, 512), device=None):
-    Printer.purple(f"Initializing semantic segmentation: {semantic_segmentation_type}, {semantic_feature_type}, {semantic_dataset_type}, {image_size}")
+    Printer.green(f"Initializing semantic segmentation: {semantic_segmentation_type}, {semantic_feature_type}, {semantic_dataset_type}, {image_size}")
     if semantic_segmentation_type == SemanticSegmentationType.DEEPLABV3:
         return SemanticSegmentationDeepLabV3(device=device, semantic_dataset_type=semantic_dataset_type, image_size=image_size, semantic_feature_type=semantic_feature_type)
     elif semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
         return SemanticSegmentationSegformer(device=device, semantic_dataset_type=semantic_dataset_type, image_size=image_size, semantic_feature_type=semantic_feature_type)
+    elif semantic_segmentation_type == SemanticSegmentationType.CLIP:
+        return SemanticSegmentationCLIP(device=device, semantic_dataset_type=semantic_dataset_type, image_size=image_size, semantic_feature_type=semantic_feature_type)
     else:
         raise ValueError(f'Invalid semantic segmentation type: {semantic_segmentation_type}')

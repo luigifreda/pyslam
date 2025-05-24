@@ -38,10 +38,13 @@ def count_labels(labels):
     return unique_labels[label_count.argmax()]
 
 def bayesian_fusion(probs):
-    prior = np.ones(probs.shape[0]) / probs.shape[0]
+    num_classes = probs[0].shape[-1]
+    prior = np.ones(num_classes)/num_classes
     posterior = prior
     for obs in probs:
         posterior *= obs
+        # normalize
+        posterior /= np.sum(posterior)
     return posterior
 
 def average_fusion(features):

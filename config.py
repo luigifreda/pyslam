@@ -25,9 +25,10 @@ if sys.version_info[0] != 3:
 import os
 import yaml
 import numpy as np
+# from utilities.utils_serialization import SerializationJSON
 from utilities.utils_sys import Printer, locally_configure_qt_environment
 import math
-
+# import json
 
 # N.B.: this file must stay in the root folder of the repository 
 
@@ -61,6 +62,9 @@ class Config:
         self.system_state_folder_path = None
         self.system_state_load = False
         self.ros_settings = {}
+        self.feature_tracker_config = None
+        self.loop_detection_config = None
+        self.semantic_mapping_config = None
         
         self.trajectory_saving_settings = None
         
@@ -384,6 +388,46 @@ class Config:
         #print(f'[config] stereo settings: {self._cam_stereo_settings}')
         return self._cam_stereo_settings
 
+# TODO(dvdmc): needs testing but it should be added for evaluation
+# def dump_config_to_json(config, output_path: str):
+#     print("STARTING DUMP")
+#     feature_tracker_config_json = SerializationJSON.serialize(config.feature_tracker_config)
+#     data = {
+#         "config_path": config.config_path,
+#         "config_libs_path": config.config_libs_path,
+#         "dataset_type": config.dataset_type,
+#         "sensor_type": config.sensor_type,
+#         "dataset_settings": SerializationJSON.serialize(config.dataset_settings),
+#         "system_settings": SerializationJSON.serialize(config.system_settings),
+#         "cam_settings": SerializationJSON.serialize(config.cam_settings),
+#         "ros_settings": SerializationJSON.serialize(config.ros_settings),
+#         "feature_tracker_config": SerializationJSON.serialize(config.feature_tracker_config),
+#         "loop_detection_config": SerializationJSON.serialize(config.loop_detection_config),
+#         "semantic_mapping_config": SerializationJSON.serialize(config.semantic_mapping_config),
+#         "trajectory_saving_settings": SerializationJSON.serialize(config.trajectory_saving_settings),
+#         "system_state_settings": SerializationJSON.serialize(config.system_state_settings),
+#         "K": SerializationJSON.serialize(config.K),
+#         "Kinv": SerializationJSON.serialize(config.Kinv),
+#         "DistCoef": SerializationJSON.serialize(config.DistCoef),
+#         "bf": SerializationJSON.serialize(config.bf),
+#         "width": SerializationJSON.serialize(config.width),
+#         "height": SerializationJSON.serialize(config.height),
+#         "fps": SerializationJSON.serialize(config.fps),
+#         "depth_factor": SerializationJSON.serialize(config.depth_factor),
+#         "depth_threshold": SerializationJSON.serialize(config.depth_threshold),
+#         "num_features_to_extract": SerializationJSON.serialize(config.num_features_to_extract),
+#         "feature_tracker_config_name": SerializationJSON.serialize(config.feature_tracker_config_name),
+#         "loop_detection_config_name": SerializationJSON.serialize(config.loop_detection_config_name),
+#         "semantic_mapping_config_name": SerializationJSON.serialize(config.semantic_mapping_config_name),
+#         "far_points_threshold": SerializationJSON.serialize(config.far_points_threshold),
+#         "use_fov_centers_based_kf_generation": SerializationJSON.serialize(config.use_fov_centers_based_kf_generation),
+#         "max_fov_centers_distance": SerializationJSON.serialize(config.max_fov_centers_distance),
+#         "cam_stereo_settings": SerializationJSON.serialize(config.cam_stereo_settings),
+#     }
+#     with open(output_path, "w") as f:
+#         f.write(json.dumps(data, indent=4))
+
+#     Printer.green(f"Configuration dumped to {output_path}")
    
 if __name__ != "__main__":
     # We automatically read and set lib paths when this file is called via 'import'

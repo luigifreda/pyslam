@@ -22,7 +22,7 @@
 A collection of ready-to-used semantic mapping configurations 
 """
 from dataset_types import DatasetType
-from semantic_conversions import SemanticDatasetType
+from semantic_utils import SemanticDatasetType
 from semantic_mapping import SemanticMappingType
 from semantic_segmentation_factory import SemanticSegmentationType
 from semantic_types import SemanticFeatureType
@@ -51,7 +51,7 @@ class SemanticMappingConfigs:
             Printer.red("Semantics in TUM dataset will be bad with current model!")
             return dict(semantic_mapping_type=SemanticMappingType.DENSE,
                         semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_dataset_type=SemanticDatasetType.NYU40,
                         semantic_feature_type=SemanticFeatureType.LABEL)
         elif(slam_dataset_name == DatasetType.EUROC):
             Printer.red("Semantics in TUM dataset will be bad with current model!")
@@ -62,7 +62,7 @@ class SemanticMappingConfigs:
         elif(slam_dataset_name == DatasetType.REPLICA):
             return dict(semantic_mapping_type=SemanticMappingType.DENSE,
                         semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_dataset_type=SemanticDatasetType.NYU40,
                         semantic_feature_type=SemanticFeatureType.LABEL)
         elif(slam_dataset_name == DatasetType.TARTANAIR):
             return dict(semantic_mapping_type=SemanticMappingType.DENSE,
@@ -82,22 +82,22 @@ class SemanticMappingConfigs:
         elif(slam_dataset_name == DatasetType.ROS1BAG):
             return dict(semantic_mapping_type=SemanticMappingType.DENSE,
                         semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_dataset_type=SemanticDatasetType.NYU40,
                         semantic_feature_type=SemanticFeatureType.LABEL)
         elif(slam_dataset_name == DatasetType.ROS2BAG):
             return dict(semantic_mapping_type=SemanticMappingType.DENSE,
                         semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_dataset_type=SemanticDatasetType.NYU40,
                         semantic_feature_type=SemanticFeatureType.LABEL)
         elif(slam_dataset_name == DatasetType.LIVE):
             return dict(semantic_mapping_type=SemanticMappingType.DENSE,
                         semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_dataset_type=SemanticDatasetType.NYU40,
                         semantic_feature_type=SemanticFeatureType.LABEL)
         elif(slam_dataset_name == DatasetType.SCANNET):
             return dict(semantic_mapping_type=SemanticMappingType.DENSE,
                         semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-                        semantic_dataset_type=SemanticDatasetType.ADE20K,
+                        semantic_dataset_type=SemanticDatasetType.NYU40,
                         semantic_feature_type=SemanticFeatureType.LABEL)
         else:
             raise ValueError(f"SemanticMappingConfigs: No configuration found for SLAM dataset '{slam_dataset_name}'")
