@@ -550,7 +550,7 @@ class TumDataset(Dataset):
         return img 
 
 class ScannetDataset(Dataset):
-    fps = 30 #TODO(@dvdmc): I couldn't find this anywhere (paper, code, etc.)
+    fps = 30 #TODO(dvdmc): I couldn't find this anywhere (paper, code, etc.)
     Ts = 1./fps
     def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.SCANNET, config=None): 
         super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
@@ -561,7 +561,7 @@ class ScannetDataset(Dataset):
         self.has_gt_semantics = True
         # NOTE: We use the NYU40 as the scannet label. Some works use a reduced scannet20 instead. Raw scannet labels use scannet labels (around 1000 classes)
         self.semantic_dataset = SemanticDatasetType.NYU40 
-        self.num_labels = 41 #TODO(@dvdmc): Move to another file (semantic_conversions.py?)
+        self.num_labels = 41 #TODO(dvdmc): Move to another file (semantic_conversions.py?)
         self.ignore_label = 0
         self.label_version = config.dataset_settings['label_version'] # If nyu40 do nothing, if scannet map them to nyu40
         if self.label_version == 'scannet':
@@ -573,7 +573,7 @@ class ScannetDataset(Dataset):
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
             raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')      
         self.scale_viewer_3d = 0.1
-        self.depthmap_factor = 1 #TODO(@dvdmc): I don't know why this is 1. It's supposed to be 1000. since the depth is in mm. Did they change it?
+        self.depthmap_factor = 1 #TODO(dvdmc): I don't know why this is 1. It's supposed to be 1000. since the depth is in mm. Did they change it?
         # NOTE: We need the following to resize the RGB images to have the same size as the depth images
         self.image_size = (640, 480)
         if config is not None:

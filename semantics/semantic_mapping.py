@@ -172,7 +172,7 @@ class SemanticMappingBase:
         SemanticMappingBase.print('SemanticMapping: done')   
     
     # push the new keyframe and its image into the queue
-    # TODO(@dvdmc): currently, we execute semantic mapping in a Thread.
+    # TODO(dvdmc): currently, we execute semantic mapping in a Thread.
     # VolumetricIntegrator and LoopDetection uses MultiProcessing (mp) and
     # sends tasks. In the future, we should move this to mp.
     # Check volumetric_integrator.py "add_keyframe" and "flush_keyframe_queue"
@@ -342,7 +342,7 @@ class SemanticMappingBase:
 class SemanticMappingDense(SemanticMappingBase):
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
     
-    # TODO(@dvdmc): move to types since this is static. Discuss if we want to support different fusion methods for the same semantic feature type
+    # TODO(dvdmc): move to types since this is static. Discuss if we want to support different fusion methods for the same semantic feature type
     feature_type_configs = {
         SemanticFeatureType.LABEL: count_labels, 
         SemanticFeatureType.PROBABILITY_VECTOR: bayesian_fusion,
@@ -406,12 +406,7 @@ class SemanticMappingDense(SemanticMappingBase):
         Printer.green(f'#set MPs semantics, timing: {self.timer_update_mappoints.last_elapsed}')
         # SemanticMappingDense.print(f'#map points: {self.kf_cur.num_points()}, timing: {self.timer_update_mappoints.last_elapsed}')
 
-        try:
-            self.draw_semantic_prediction()
-        except Exception as e:
-            import traceback
-            print(f"[Threaded Error] Failed to permute and convert semantics: {e}")
-            traceback.print_exc()
+        self.draw_semantic_prediction()
 
     def draw_semantic_prediction(self):
         if self.headless:
