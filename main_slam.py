@@ -281,7 +281,7 @@ if __name__ == "__main__":
                 
             # 3D display (map display)
             if viewer3D:
-                #TODO(@dvdmc): add semantics
+                #TODO(dvdmc): add semantics
                 viewer3D.draw_dense_map(slam)  
                               
         else:
@@ -409,7 +409,7 @@ if __name__ == "__main__":
             Printer.orange(f"Number of projected MPs: {len(labels_2d)}")
             Printer.orange(f"Number of projected MPs (3D): {len(labels_3d)}")
             Printer.orange(f"Number of GT MPs: {len(gt_labels)}")
-            Printer.orange(f"Number of evaluated MPs: {len(total_mps)}")
+            Printer.orange(f"Number of evaluated MPs: {total_mps}")
             Printer.orange(f"Number of evaluated KFs: {len(keyframes)}")
             from sklearn.metrics import (
                 classification_report,
@@ -485,7 +485,7 @@ if __name__ == "__main__":
                 f.write("Evaluated labels: " + str(present_labels) + "\n")
                 f.write(f"Feature type: {slam.semantic_mapping.semantic_feature_type}\n")
                 f.write(f"Number of KFs: {len(keyframes)}\n")
-                f.write(f"Number of MPs: {len(total_mps)}\n")
+                f.write(f"Number of MPs: {total_mps}\n")
                 f.write(f"Number of GT labels {len(gt_labels)}\n")
                 f.write(f"Number of estimated labels 2D: {len(labels_2d)}\n")
                 f.write(f"Number of estimated labels 3D: {len(labels_3d)}\n")
