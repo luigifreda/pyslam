@@ -249,6 +249,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.kps     = frame.kps        # keypoint coordinates                  [Nx2]
         self.kpsu    = frame.kpsu       # [u]ndistorted keypoint coordinates    [Nx2]
         self.kpsn    = frame.kpsn       # [n]ormalized keypoint coordinates     [Nx2] (Kinv * [kp,1])    
+        self.kps_sem = frame.kps_sem    # [sem]antic keypoint information       [NxD] where D is the semantic information length
         self.octaves = frame.octaves    # keypoint octaves                      [Nx1]
         self.sizes   = frame.sizes      # keypoint sizes                        [Nx1] 
         self.angles  = frame.angles     # keypoint angles                       [Nx1] 

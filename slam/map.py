@@ -432,6 +432,7 @@ class Map(object):
                 # end if do_check
                 
             # get color patches
+            # Q(@luigifreda): this gets img_coords from kf1 but kf_ref in MapPoint is kf2
             img_coords = np.rint(kf1.kps[idxs1]).astype(np.intp) # image keypoints coordinates 
             # build img patches coordinates 
             delta = Parameters.kSparseImageColorPatchDelta    
@@ -528,7 +529,7 @@ class Map(object):
                 except IndexError:
                     Printer.orange('color out of range')
                     color = (255, 0, 0)
-                    
+
                 # add the point to this map                 
                 mp = MapPoint(p[0:3], color, kf, idxs[i]) 
                 

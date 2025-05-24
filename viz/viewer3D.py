@@ -26,6 +26,7 @@ import random
 
 import torch.multiprocessing as mp 
 
+from config_parameters import Parameters
 import pypangolin as pangolin
 import glutils 
 import OpenGL.GL as gl
@@ -35,6 +36,7 @@ import numpy as np
 
 from map import Map
 
+from semantic_mapping_shared import SemanticMappingShared
 from utils_geom import poseRt, inv_poseRt, inv_T
 from utils_geom_trajectory import find_trajectories_associations, align_3d_points_with_svd, align_trajectories_with_svd, TrajectoryAlignementData
 from utils_sys import Printer
@@ -191,6 +193,7 @@ class Viewer3DMapInput:
         self.pose_timestamps = []
         self.points = [] 
         self.colors = []
+        self.semantic_colors = []
         self.fov_centers = [] 
         self.fov_centers_colors = []        
         self.covisibility_graph = []
@@ -254,6 +257,9 @@ class Viewer3D(object):
         #self.estimated_trajectory = None
         #self.estimated_trajectory_timestamps = None
 
+        # TODO(dvdmc): to customize the visualization from the UI, we need to create mp variables accesible from the refresh to the viewer thread
+        # We would need a query word and a heatmap scale.
+
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
         self.mp_manager = MultiprocessingManager()
         self.qmap = self.mp_manager.Queue()
@@ -278,7 +284,7 @@ class Viewer3D(object):
                                 self._is_map_save, self._is_bundle_adjust, self._do_step, self._do_reset, self._is_gt_set, self.alignment_gt_data_queue))
         self.vp.daemon = True
         self.vp.start()
-        
+
     def set_gt_trajectory(self, gt_trajectory, gt_timestamps, align_with_scale=False):
         if gt_trajectory is None or gt_timestamps is None:
             Printer.yellow('Viewer3D: set_gt_trajectory: gt_trajectory or gt_timestamps is None')
@@ -396,7 +402,8 @@ class Viewer3D(object):
         self.draw_loops = True   
         self.draw_dense = True
         self.draw_sparse = True
-        
+        self.color_semantics = False
+
         self.draw_wireframe = False             
 
         #self.button = pangolin.VarBool('ui.Button', value=False, toggle=False)
@@ -412,6 +419,7 @@ class Viewer3D(object):
         self.checkboxFovCenters = pangolin.VarBool('ui.Draw Fov Centers', value=False, toggle=True)        
         self.checkboxDrawSparseCloud = pangolin.VarBool('ui.Draw Sparse Map', value=True, toggle=True)        
         self.checkboxDrawDenseCloud = pangolin.VarBool('ui.Draw Dense Map', value=True, toggle=True)                               
+        self.checkboxColorSemantics = pangolin.VarBool('ui.Color Semantics', value=False, toggle=True)                               
         self.checkboxGrid = pangolin.VarBool('ui.Grid', value=True, toggle=True)           
         self.checkboxPause = pangolin.VarBool('ui.Pause', value=False, toggle=True)
         self.buttonSave = pangolin.VarBool('ui.Save', value=False, toggle=False)   
@@ -473,6 +481,7 @@ class Viewer3D(object):
         self.draw_wireframe = self.checkboxWireframe.Get()
         self.draw_dense = self.checkboxDrawDenseCloud.Get()
         self.draw_sparse = self.checkboxDrawSparseCloud.Get()
+        self.color_semantics = self.checkboxColorSemantics.Get()
         
         #if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
@@ -618,8 +627,12 @@ class Viewer3D(object):
                 # draw keypoints with their color
                 gl.glPointSize(self.sparsePointSize)
                 #gl.glColor3f(1.0, 0.0, 0.0)
-                glutils.DrawPoints(self.map_state.points, self.map_state.colors)    
-                
+                if self.color_semantics:
+                    colors = self.map_state.semantic_colors
+                else:
+                    colors = self.map_state.colors
+                glutils.DrawPoints(self.map_state.points, colors)    
+            
             if self.map_state.reference_pose is not None and kDrawReferenceCamera:
                 # draw predicted pose in purple
                 gl.glColor3f(0.5, 0.0, 0.5)
@@ -766,10 +779,16 @@ class Viewer3D(object):
         num_map_points = map.num_points()
         if num_map_points>0:
             for i,p in enumerate(map.get_points()):                
-                map_state.points.append(p.pt)           
+                map_state.points.append(p.pt)
                 map_state.colors.append(np.flip(p.color))              
+                if p.semantic_des is not None:
+                  map_state.semantic_colors.append(SemanticMappingShared.sem_des_to_rgb(p.semantic_des, bgr=False))
+                else:
+                  map_state.semantic_colors.append(np.array([0.0,0.0,0.0]))
+
         map_state.points = np.array(map_state.points)          
-        map_state.colors = np.array(map_state.colors)/256. 
+        map_state.colors = np.array(map_state.colors)/256.
+        map_state.semantic_colors = np.array(map_state.semantic_colors)/256.
         
         for kf in keyframes:
             for kf_cov in kf.get_covisible_by_weight(kMinWeightForDrawingCovisibilityEdge):

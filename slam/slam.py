@@ -42,6 +42,8 @@ from dataset_types import SensorType, DatasetEnvironmentType
 from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from feature_tracker import feature_tracker_factory, FeatureTracker, FeatureTrackerTypes 
 
+from semantic_mapping import semantic_mapping_factory
+from semantic_mapping_shared import SemanticMappingShared
 from utils_serialization import SerializableEnum, SerializationJSON, register_class
 from utils_sys import Printer, getchar, Logging
 from utils_mp import MultiprocessingManager
@@ -84,6 +86,7 @@ class Slam(object):
     def __init__(self, camera: Camera, 
                  feature_tracker_config: dict, 
                  loop_detector_config=None, 
+                 semantic_mapping_config=None,
                  sensor_type=SensorType.MONOCULAR, 
                  environment_type=DatasetEnvironmentType.OUTDOOR,
                  slam_mode=SlamMode.SLAM,
@@ -92,6 +95,7 @@ class Slam(object):
         self.camera = camera 
         self.feature_tracker_config = feature_tracker_config
         self.loop_detector_config = loop_detector_config
+        self.semantic_mapping_config = semantic_mapping_config
         self.sensor_type = sensor_type  
         self.environment_type = environment_type
         self.slam_mode = slam_mode
@@ -102,6 +106,8 @@ class Slam(object):
         
         self.map = Map()
         self.local_mapping = LocalMapping(self)        
+
+        self.semantic_mapping = None
         self.loop_closing = None
         self.GBA = None
         self.GBA_on_demand = None    # used independently when pressing "Bundle Adjust" button on GUI
@@ -109,11 +115,14 @@ class Slam(object):
         self.reset_requested = False
                     
         if slam_mode == SlamMode.SLAM:
+            self.init_semantic_mapping(semantic_mapping_config, headless=headless)
             self.init_volumetric_integrator() 
             self.init_loop_closing(loop_detector_config, headless=headless)     
                 
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
+        
+        self.tracking = None
                      
         self.tracking = Tracking(self) # after all the other initializations
         
@@ -146,6 +155,8 @@ class Slam(object):
 
     def reset(self):
         self.local_mapping.request_reset()
+        if self.semantic_mapping is not None:
+            self.semantic_mapping.request_reset()
         if self.loop_closing is not None:
             self.loop_closing.request_reset()
         if self.volumetric_integrator is not None:
@@ -155,6 +166,8 @@ class Slam(object):
         
     def reset_session(self):
         self.local_mapping.request_reset()
+        if self.semantic_mapping is not None:
+            self.semantic_mapping.request_reset()
         # See the discussion here: https://github.com/luigifreda/pyslam/issues/131 
         # if self.loop_closing is not None:
         #     self.loop_closing.request_reset()
@@ -166,7 +179,9 @@ class Slam(object):
     def quit(self):
         print('SLAM: quitting ...')
         if kLocalMappingOnSeparateThread:
-            self.local_mapping.quit()  
+            self.local_mapping.quit()
+        if self.semantic_mapping is not None:
+            self.semantic_mapping.quit()
         if self.loop_closing is not None:
             self.loop_closing.quit()
         if self.volumetric_integrator is not None:
@@ -188,6 +203,15 @@ class Slam(object):
             feature_tracker.matcher.ratio_test = 0.8
         if feature_tracker.tracker_type == FeatureTrackerTypes.LK:
             raise ValueError("SLAM: At present time, you cannot use Lukas-Kanade feature_tracker in this SLAM framework!")  
+    
+    def init_semantic_mapping(self, semantic_mapping_config, headless=False):
+        if Parameters.kDoSemanticMapping:
+            self.semantic_mapping = semantic_mapping_factory(slam=self, headless=headless, 
+                                                             image_size=(self.camera.width, self.camera.height), 
+                                                             **semantic_mapping_config)
+            SemanticMappingShared.set_semantic_mapping(self.semantic_mapping)
+            if Parameters.kSemanticMappingOnSeparateThread:
+                self.semantic_mapping.start()
         
     def init_loop_closing(self, loop_detector_config, headless=False):
         if Parameters.kUseLoopClosing and loop_detector_config is not None:
@@ -200,6 +224,7 @@ class Slam(object):
         
     def init_volumetric_integrator(self):
         if Parameters.kUseVolumetricIntegration:
+            # TODO(dvdmc): Implement semantics in vol. integrator.
             self.volumetric_integrator_type = VolumetricIntegratorType.from_string(Parameters.kVolumetricIntegrationType)
             self.volumetric_integrator = volumetric_integrator_factory(self.volumetric_integrator_type, self.camera, self.environment_type, self.sensor_type)
         
@@ -229,6 +254,8 @@ class Slam(object):
         map_json = self.map.to_json()
         feature_tracker_config_json = SerializationJSON.serialize(self.feature_tracker_config)
         loop_detector_config_json = SerializationJSON.serialize(self.loop_detector_config)
+        #TODO(dvdmc): needs testing
+        semantic_mapping_config_json = SerializationJSON.serialize(self.semantic_mapping_config)
         
         map_out_json['sensor_type'] = SerializationJSON.serialize(self.sensor_type)
         map_out_json['environment_type'] = SerializationJSON.serialize(self.environment_type)
@@ -239,6 +266,7 @@ class Slam(object):
         
         config_out_json['feature_tracker_config'] = feature_tracker_config_json
         config_out_json['loop_detector_config'] = loop_detector_config_json
+        config_out_json['semantic_mapping_config'] = semantic_mapping_config_json
         
         map_file_path = path + '/map.json'       
         with open(map_file_path, 'w') as f:
@@ -254,6 +282,8 @@ class Slam(object):
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.save(path)
             
+        #TODO(dvdmc): missing save for semantic mapping
+
         Printer.green(f'SLAM: ...system state successfully saved to: {path}')        
     
     def load_system_state(self, path):
@@ -289,6 +319,10 @@ class Slam(object):
             loop_detector_config = SerializationJSON.deserialize(loaded_json['loop_detector_config'])
             print(f'SLAM: loaded loop detector config: {loop_detector_config}')
             print()
+
+            #TODO(dvdmc): missing testing load for semantic mapping          
+            semantic_mapping_config = SerializationJSON.deserialize(loaded_json['semantic_mapping_config'])
+            print(f'SLAM: loaded semantic mapping config: {semantic_mapping_config}')
             
             print(f'SLAM: initializing feature tracker: {feature_tracker_config}')
             self.init_feature_tracker(feature_tracker_config)

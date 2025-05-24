@@ -788,6 +788,7 @@ class Tracking:
             if not pts3d_mask[i]:
                 continue
             color = (0, 0, 255)
+
             # add the point to this map                 
             mp = MapPoint(p[0:3], color, self.f_ref, sorted_idx_values[i]) 
             self.f_ref.points[sorted_idx_values[i]] = mp # add point to the frame
@@ -910,7 +911,7 @@ class Tracking:
 
         # build current frame 
         self.timer_frame.start()        
-        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id) 
+        f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id)
         self.f_cur = f_cur 
         #print("frame: ", f_cur.id)        
         self.timer_frame.refresh()   

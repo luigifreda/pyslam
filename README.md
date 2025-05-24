@@ -371,6 +371,19 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 
 ---
 
+### Semantic mapping
+
+The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`.
+The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
+
+Different semantic mapping methods are available [WIP Documentation]. Currently, we support semantic mapping using dense semantic segmenetation. 
+Semantic features are assigned to keypoints on the image and fused into map points. The semantic features can be:
+- Labels: categorical labels as numbers.
+- Probability vectors: probability vectors for each class.
+- Feature vectors: feature vectors obtained from an encoder. This is generally used for open vocabulary mapping.
+
+---
+
 ### Saving and reloading
 
 #### Save the a map
@@ -625,6 +638,7 @@ Dataset | type in `config.yaml`
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
+[ScanNet dataset](https://www.scannet.org/)                                                                                                  | `type: SCANNET_DATASET`
 [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
 [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
 Video file                                                                                                                                   | `type: VIDEO_DATASET` 
@@ -689,6 +703,15 @@ Follow the same instructions provided for the TUM datasets.
 1. You can download the datasets from https://theairlab.org/tartanair-dataset/     
 2. Then, uncompress them and deploy the files as you wish.
 3. Select the corresponding calibration settings file (section `TARTANAIR_DATASET: settings:` in the file `config.yaml`).
+
+#### ScanNet Datasets
+
+1. You can download the datasets following instructions in https://www.scannet.org/. You will need to request the dataset from the authors.
+2. There are two versions you can download: 
+- A subset of pre-processed data termed as `tasks/scannet_frames_2k`: this version is smaller, and more generally available for training neural networks. However, it only includes one frame out of each 100, which makes it unusable for SLAM. The labels are processed by mapping them from the original Scannet label annotations to NYU40.
+- The raw data: this version is the one used for SLAM. You can download the whole dataset (TBs of data) or specific scenes. A common approach for evaluation of semantic mapping is to use the `scannetv2_val.txt` scenes. For downloading and processing the data, you can use the following [repository](https://github.com/dvdmc/scannet-processing) as the original Scannet repository is tested under Python 2.7 and does't support batch downloading of scenes.
+2. Once you have the `color`, `depth`, `pose`, and (optional for semantic mapping) `label` folders, you should place them following `{path_to_scannet}/scans/{scene_name}/[color, depth, pose, label]`. Then, configure the `base_path` and `name` in the file `config.yaml`.
+3.  Select the corresponding calibration settings file (section `SCANNET_DATASET: settings:` in the file `config.yaml`). NOTE: the RGB images are rescaled to match the depth image. The current intrinsic parametes in the existing calibration file reflect that.
 
 #### ROS1 bags
 
@@ -812,8 +835,12 @@ Many improvements and additional features are currently under development:
 - [x] Stereo and RGBD support
 - [x] Map saving/loading 
 - [x] Modern DL matching algorithms 
-- [ ] Object detection 
-- [ ] Semantic segmentation 
+- [ ] Object detection [WIP by @dvdmc]
+  - [ ] Open vocabulary segment (object) detection
+- [X] Semantic segmentation [WIP by @dvdmc]
+  - [X] Dense closed-set labels
+  - [X] Dense closed-set probability vectors
+  - [X] Dense open vocabulary feature vectors
 - [x] 3D dense reconstruction 
 - [x] Unified install procedure (single branch) for all OSs 
 - [x] Trajectory saving 

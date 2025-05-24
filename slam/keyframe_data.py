@@ -13,6 +13,7 @@ class KeyFrameData:
         self.img = keyframe.img
         #self.img_d = keyframe.img_d
         self.depth_img = keyframe.depth_img
+        self.semantic_img = keyframe.semantic_img
         self.camera = keyframe.camera
         
         #self.pose = keyframe.pose
@@ -27,6 +28,7 @@ class KeyFrameData:
         self.kps_r      = keyframe.kps_r
         self.kpsu       = keyframe.kpsu
         self.kpsn       = keyframe.kpsn
+        self.kps_sem    = keyframe.kps_sem
         self.octaves    = keyframe.octaves
         self.octaves_r  = keyframe.octaves_r
         self.sizes      = keyframe.sizes

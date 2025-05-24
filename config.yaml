@@ -96,6 +96,15 @@ REPLICA_DATASET:
   groundtruth_file: auto
 
 
+SCANNET_DATASET:
+  type: scannet
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: /home/luigi/Work/datasets/rgbd_datasets/scannet
+  name: 'scene0000_00'
+  settings: settings/SCANNET.yaml # do not forget to set the corresponding camera settings file 
+  groundtruth_file: auto
+
+
 TARTANAIR_DATASET:
   type: tartanair
   sensor_type: stereo # Here, 'sensor_type' can be 'mono', 'stereo' or 'rgbd'
