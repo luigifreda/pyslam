@@ -501,7 +501,11 @@ class Frame(FrameBase):
             self.semantic_img = semantic_img.copy()
         if self.kps is not None:
             with self._lock_features: 
-                self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
+                #TODO(dvdmc): is the consensus that label images are (H,W) or (H,W,1)?
+                if len(semantic_img.shape) == 3:
+                    self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int),:]
+                elif len(semantic_img.shape) == 2:
+                    self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
 
     def __getstate__(self):
         # Create a copy of the instance's __dict__

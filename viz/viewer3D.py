@@ -257,6 +257,9 @@ class Viewer3D(object):
         #self.estimated_trajectory = None
         #self.estimated_trajectory_timestamps = None
 
+        # TODO(dvdmc): to customize the visualization from the UI, we need to create mp variables accesible from the refresh to the viewer thread
+        # We would need a query word and a heatmap scale.
+
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
         self.mp_manager = MultiprocessingManager()
         self.qmap = self.mp_manager.Queue()

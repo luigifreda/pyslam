@@ -27,10 +27,13 @@ import json
 
 import platform 
 
-from config import Config
+from config import Config #, dump_config_to_json
 
 from semantic_mapping import SemanticMappingType
+from semantic_types import SemanticFeatureType
 from semantic_mapping_configs import SemanticMappingConfigs
+from semantic_mapping_shared import SemanticMappingShared
+from semantic_utils import SemanticDatasetType
 from slam import Slam, SlamState
 from slam_plot_drawer import SlamPlotDrawer
 from camera  import PinholeCamera
@@ -62,6 +65,8 @@ from datetime import datetime
 import traceback
 
 import argparse
+
+from matplotlib import pyplot as plt 
 
 
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -137,6 +142,9 @@ if __name__ == "__main__":
     Printer.green('feature_tracker_config: ',json.dumps(feature_tracker_config, indent=4, cls=SerializableEnumEncoder))          
     Printer.green('loop_detection_config: ',json.dumps(loop_detection_config, indent=4, cls=SerializableEnumEncoder))
     Printer.green('semantic_mapping_config: ',json.dumps(semantic_mapping_config, indent=4, cls=SerializableEnumEncoder))
+    config.feature_tracker_config = feature_tracker_config
+    config.loop_detection_config = loop_detection_config
+    config.semantic_mapping_config = semantic_mapping_config
 
     # Select your depth estimator in the front-end (EXPERIMENTAL, WIP)
     depth_estimator = None
@@ -149,6 +157,9 @@ if __name__ == "__main__":
         depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, max_depth=max_depth,
                                                   dataset_env_type=dataset.environmentType(), camera=camera) 
         Printer.green(f'Depth_estimator_type: {depth_estimator_type.name}, max_depth: {max_depth}')       
+
+    # TODO(dvdmc): I did not manage to serialize the SerializableEnums for some reason.
+    # dump_config_to_json(config, os.path.join(metrics_save_dir, 'config.json'))
 
     # create SLAM object
     slam = Slam(camera, feature_tracker_config, 
@@ -331,26 +342,6 @@ if __name__ == "__main__":
         ape_stats, T_gt_est = eval_ate(poses_est=assoc_est_poses, poses_gt=assoc_gt_poses, frame_ids=ids, 
                  curr_frame_id=img_id, is_final=is_final, is_monocular=is_monocular, save_dir=metrics_save_dir)
         Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
-        
-        #TODO(@dvdmc): add semantics evaluation
-        # if Parameters.kDoSemanticMapping and dataset.has_gt_semantics and slam.semantic_mapping.semantic_mapping_type == SemanticMappingType.DENSE:
-        #   # Get all the KFs
-        #   keyframes = slam.map.get_keyframes()
-        #   # Get all the final MPs that project on it
-        #   for kf in keyframes:
-        #     # Recover image
-        #     rgb_img = dataset.getImageColor(kf.id)
-        #     semantic_gt = dataset.getSemanticGroundTruth(kf.id)
-        #     # Get the gt semantic label for projected MPs
-        #     gt_semantic_des = [semantic_gt[kps[0], kps[1]] for idx, kps in enumerate(kf.kps) if kf.points[idx] is not None]
-        #     # Get the semantic_des of projected points
-        #     points = kf.get_points()
-        #     mp_semantic_des = [p.semantic_des for p in points if p is not None]
-        #     # Get the predicted semantic label for the MP projection (baseline)
-        #     predicted_semantics = slam.semantic_mapping.semantic_segmentation.infer()
-        #     predicted_semantic_des = [predicted_semantics[kps[0], kps[1]] for idx, kps in enumerate(kf.kps) if kf.points[idx] is not None]
-        #     # Compare the label of the projected MP with the GT semantics (ours)
-        #     # Compare the label of the predicted semantic label with the GT semantics (baseline)
 
         if final_trajectory_writer:
             final_trajectory_writer.write_full_trajectory(est_poses, timestamps)
@@ -362,6 +353,139 @@ if __name__ == "__main__":
             f.write(f'num_processed_frames: {num_frames}\n')
             f.write(f'num_lost_frames: {num_tracking_lost}\n')
             f.write(f'percent_lost: {num_tracking_lost/num_total_frames*100:.2f}\n')
+        
+        if Parameters.kDoSemanticMapping and slam.semantic_mapping.semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY and dataset.has_gt_semantics and slam.semantic_mapping.semantic_mapping_type == SemanticMappingType.DENSE:
+            Printer.green("Evaluating semantic mapping...")
+            # Get all the KFs
+            keyframes = slam.map.get_keyframes()
+            Printer.green(f"Number of keyframes: {len(keyframes)}")
+
+            labels_2d = []
+            labels_3d = []
+            gt_labels = []
+
+            # Get all the final MPs that project on it
+            for kf in keyframes:
+                if kf.kps_sem is None:
+                    Printer.yellow(f"Keyframe {kf.id} has no semantics!")
+                    continue
+                if kf.points is None:
+                    Printer.yellow(f"Keyframe {kf.id} has no points!")
+                    continue
+
+                semantic_gt = dataset.getSemanticGroundTruth(kf.id)
+
+                # Get the semantic_des of projected points
+                points = kf.get_points()
+
+                # Get the per-frame gt semantic label for projected MPs
+                for idx, kp in enumerate(kf.kps):
+                    if points[idx] is not None and points[idx].semantic_des is not None and kf.kps_sem[idx] is not None:
+                        gt_kf_label = semantic_gt[int(kp[1]), int(kp[0])]
+                        # Filter out ignore-labels
+                        if dataset.ignore_label != None and gt_kf_label == dataset.ignore_label:
+                            continue
+                        gt_labels.append(gt_kf_label)
+                        if SemanticMappingShared.semantic_feature_type == SemanticFeatureType.LABEL:
+                            labels_2d.append(kf.kps_sem[idx])
+                            labels_3d.append(points[idx].semantic_des)
+                        elif SemanticMappingShared.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
+                            labels_2d.append(np.argmax(kf.kps_sem[idx]))
+                            labels_3d.append(np.argmax(points[idx].semantic_des))
+
+                
+                # For debugging:
+                # Recover image
+                # rgb_img = dataset.getImageColor(kf.id)
+                # cv2.imshow('rgb', rgb_img)
+                # semantic_gt_color = SemanticMappingShared.sem_img_to_rgb(semantic_gt, bgr=True)
+                # cv2.imshow('semantic_gt', semantic_gt_color)
+                # Get the predicted semantic label for the MP projection (baseline)
+                # predicted_semantics = slam.semantic_mapping.semantic_segmentation.infer(rgb_img)
+                # print(f"Predicted labels: {np.unique(predicted_semantics)}")
+                # predicted_semantics_color = SemanticMappingShared.sem_img_to_rgb(predicted_semantics, bgr=True)
+                # cv2.imshow('predicted_semantics', predicted_semantics_color)
+                # cv2.waitKey(0) 
+
+            from sklearn.metrics import (
+                classification_report,
+                accuracy_score,
+                confusion_matrix,
+                ConfusionMatrixDisplay,
+                precision_recall_fscore_support
+            )
+
+            # Class labels and names
+            num_classes = dataset.num_labels
+            labels_range = range(num_classes)
+            labels_names = [str(i) for i in labels_range]
+
+            # Determine which labels are actually present in the GT
+            present_labels = sorted(set(gt_labels))  # list of int
+            Printer.blue(f"Evaluating only on present GT labels: {present_labels}")
+
+            # --- Baseline (2D) ---
+            confusion_matrix_base = confusion_matrix(gt_labels, labels_2d, labels=labels_range)
+            overall_accuracy_2d = accuracy_score(gt_labels, labels_2d)
+            Printer.green(f"Overall Accuracy 2D: {overall_accuracy_2d:.4f}")
+
+            # Macro average (only on present labels)
+            report_2d = classification_report(
+                gt_labels,
+                labels_2d,
+                labels=present_labels,
+                zero_division=0,
+                output_dict=True
+            )
+            macro_avg_2d = report_2d["macro avg"]
+            Printer.green(f"2D Macro Avg: precision={macro_avg_2d['precision']:.4f}, recall={macro_avg_2d['recall']:.4f}, f1-score={macro_avg_2d['f1-score']:.4f}")
+
+            # Micro average
+            precision_2d, recall_2d, f1_2d, _ = precision_recall_fscore_support(gt_labels, labels_2d, average='micro', zero_division=0)
+            Printer.green(f"2D Micro Avg: precision={precision_2d:.4f}, recall={recall_2d:.4f}, f1-score={f1_2d:.4f}")
+
+            # Confusion matrix - 2D
+            cm_display = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix_base, display_labels=labels_names)
+            fig, ax = plt.subplots(figsize=(24, 18))
+            cm_display.plot(ax=ax, xticks_rotation=90)
+            plt.savefig(os.path.join(metrics_save_dir, 'confusion_matrix_est2d.png'), dpi=300)
+
+            # --- 3D Projection ---
+            confusion_matrix_proj = confusion_matrix(gt_labels, labels_3d, labels=labels_range)
+            overall_accuracy_3d = accuracy_score(gt_labels, labels_3d)
+            Printer.green(f"Overall Accuracy 3D: {overall_accuracy_3d:.4f}")
+
+            # Macro average (only on present labels)
+            report_3d = classification_report(
+                gt_labels,
+                labels_3d,
+                labels=present_labels,
+                zero_division=0,
+                output_dict=True
+            )
+            macro_avg_3d = report_3d["macro avg"]
+            Printer.green(f"3D Macro Avg: precision={macro_avg_3d['precision']:.4f}, recall={macro_avg_3d['recall']:.4f}, f1-score={macro_avg_3d['f1-score']:.4f}")
+
+            # Micro average
+            precision_3d, recall_3d, f1_3d, _ = precision_recall_fscore_support(gt_labels, labels_3d, average='micro', zero_division=0)
+            Printer.green(f"3D Micro Avg: precision={precision_3d:.4f}, recall={recall_3d:.4f}, f1-score={f1_3d:.4f}")
+
+            # Confusion matrix - 3D
+            cm_display = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix_proj, display_labels=labels_names)
+            fig, ax = plt.subplots(figsize=(24, 18))
+            cm_display.plot(ax=ax, xticks_rotation=90)
+            plt.savefig(os.path.join(metrics_save_dir, 'confusion_matrix_est3d.png'), dpi=300)
+
+            semantic_metrics_file_path = os.path.join(metrics_save_dir, 'semantic_metrics_info.txt')
+            with open(semantic_metrics_file_path, 'w') as f:
+                f.write(f'2d_accuracy: {overall_accuracy_2d:.4f}\n')
+                f.write(f'2d_precision: {precision_2d:.4f}\n')
+                f.write(f'2d_recall: {recall_2d:.4f}\n')
+                f.write(f'2d_f1: {f1_2d:.4f}\n')
+                f.write(f'3d_accuracy: {overall_accuracy_3d:.4f}\n')
+                f.write(f'3d_precision: {precision_3d:.4f}\n')
+                f.write(f'3d_recall: {recall_3d:.4f}\n')
+                f.write(f'3d_f1: {f1_3d:.4f}\n')
         
     except Exception as e:
         print('Exception while computing metrics: ', e)

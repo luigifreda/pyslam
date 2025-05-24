@@ -27,9 +27,10 @@ from transformers import AutoImageProcessor, SegformerForSemanticSegmentation
 from PIL import Image
 from torchvision import transforms
 
+from semantic_labels import get_ade20k_to_scannet40_map
 from semantic_segmentation_base import SemanticSegmentationBase
 from semantic_types import SemanticFeatureType
-from semantic_conversions import SemanticDatasetType, labels_color_map_factory, labels_to_image
+from semantic_utils import SemanticDatasetType, labels_color_map_factory, labels_to_image
 from utils_sys import Printer
 
 kScriptPath = os.path.realpath(__file__)
@@ -59,14 +60,22 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
         ('b4', (512, 512), SemanticDatasetType.ADE20K),
         ('b5', (1024, 1024), SemanticDatasetType.CITYSCAPES),
     ]
+    # TODO(dvdmc): this can be used to make mappings more generic NOTE: not currently used
+    available_mappings = [
+        {'in': SemanticDatasetType.ADE20K, 'out': SemanticDatasetType.NYU40, 'map': get_ade20k_to_scannet40_map()},
+    ]
     supported_feature_types = [SemanticFeatureType.LABEL, SemanticFeatureType.PROBABILITY_VECTOR]
     def __init__(self, device=None, encoder_name='b0', semantic_dataset_type=SemanticDatasetType.CITYSCAPES, image_size=(512, 1024), model_path='', semantic_feature_type=SemanticFeatureType.LABEL):
         
+        self.label_mapping = None
+
         device = self.init_device(device)
         
         model, transform = self.init_model(device, encoder_name, semantic_dataset_type, image_size, model_path)
         
         self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
+
+        self.semantic_dataset_type = semantic_dataset_type
 
         if semantic_feature_type not in self.supported_feature_types:
             raise ValueError(f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}")
@@ -81,12 +90,18 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
         else:
             image_size = (512, 512)
 
+        friendly_dataset_type = semantic_dataset_type
+        # We allow to use this model on NYU40 by mapping labels from ADE20K
+        if semantic_dataset_type == SemanticDatasetType.NYU40:
+            self.label_mapping = get_ade20k_to_scannet40_map()
+            friendly_dataset_type = SemanticDatasetType.ADE20K # From here
+
         # Check if selected config is available
-        if (encoder_name, image_size, semantic_dataset_type) not in self.available_configs:
+        if (encoder_name, image_size, friendly_dataset_type) not in self.available_configs:
             raise ValueError(f"Segformer does not support {encoder_name} model with size {image_size} and dataset {semantic_dataset_type}")
 
         # Convert dataset type to appropiate form
-        dataset = semantic_dataset_type.name.lower()
+        dataset = friendly_dataset_type.name.lower()
         if dataset == 'ade20k':
             dataset = 'ade'
         
@@ -113,6 +128,7 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
             print('SemanticSegmentationSegformer: Using CPU')
         return device
 
+    @torch.no_grad()
     def infer(self, image):
         prev_width = image.shape[1]
         prev_height = image.shape[0]
@@ -125,9 +141,37 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
 
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
             self.semantics = probs.argmax(dim=0).cpu().numpy()
+            if self.label_mapping is not None:
+                self.semantics = self.label_mapping[self.semantics]
+        
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
+        
             self.semantics = probs.permute(1, 2, 0).cpu().numpy()
+            if self.label_mapping is not None:
+                self.semantics = self.aggregate_probabilities(self.semantics, self.label_mapping)
+
         return self.semantics
+        
+    def aggregate_probabilities(self, semantics: np.ndarray, label_mapping: np.ndarray) -> np.ndarray:
+        """
+        Aggregates original probabilities into output probabilities using a label mapping.
+
+        Args:
+            semantics: np.ndarray of shape [H, W, original num classes] - softmaxed class probabilities.
+            label_mapping: np.ndarray of shape [original num classes] - maps original class indices to output classes.
+
+        Returns:
+            np.ndarray of shape [H, W, num output classes] - aggregated probabilities.
+        """
+        H, W, num_original_classes = semantics.shape
+        num_output_classes = label_mapping.max() + 1
+
+        aggregated = np.zeros((H, W, num_output_classes), dtype=semantics.dtype)
+
+        for in_idx, out_idx in enumerate(label_mapping):
+            aggregated[..., out_idx] += semantics[..., in_idx]
+
+        return aggregated
         
     def to_rgb(self, semantics, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:

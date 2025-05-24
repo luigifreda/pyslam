@@ -133,7 +133,7 @@ def dataset_factory(config:'Config'):
         #dataset = Ros2bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, rate, config)
         dataset = Ros2bagDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.ROS1BAG, environment_type, fps, config)           
     if type == 'scannet':
-        dataset = ScannetDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.SCANNET, (config.width, config.height))
+        dataset = ScannetDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.SCANNET, config)
                
     dataset.minimal_config = MinimalDatasetConfig(config=config)
 
