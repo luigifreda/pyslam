@@ -229,4 +229,14 @@ else
     print_yellow "Skipping mast3r and mvdust3r since CUDA_VERSION is 0"
 fi
 
+# semantic mapping packages
+if [ "$CUDA_VERSION" != "0" ]; then
+    # Torchvision will be installed already
 
+    # Install transformers with specific version due to break of last version
+    pip3 install transformers==4.51.0
+
+    # Install f3rm for the dense CLIP model
+    pip3 install f3rm
+
+fi
