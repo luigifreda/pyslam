@@ -41,7 +41,7 @@ from utils_img import ImageTable
 import time
 
 from utils_files import select_image_files 
-from utils_dust3r import dust3r_preprocess_images, invert_dust3r_preprocess_depth
+from utils_dust3r import dust3r_preprocess_images #, invert_dust3r_preprocess_depth
 from utils_img import img_from_floats
 from utils_depth import img_from_depth, PointCloud, point_cloud_to_depth
 

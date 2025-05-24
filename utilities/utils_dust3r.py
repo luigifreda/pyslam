@@ -39,51 +39,51 @@ from utils_torch import to_numpy
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 
-# # resize input image so that its long side size is resized to "long_edge_size"
-# def _resize_cv_image(img, long_edge_size):
-#     H, W = img.shape[:2]
-#     S = max(H, W)
-#     if S > long_edge_size:
-#         interp = cv2.INTER_LANCZOS4
-#     else:
-#         interp = cv2.INTER_CUBIC
-#     new_size = (int(round(W * long_edge_size / S)), int(round(H * long_edge_size / S)))
-#     return cv2.resize(img, new_size, interpolation=interp)
+# resize input image so that its long side size is resized to "long_edge_size"
+def _resize_cv_image(img, long_edge_size):
+    H, W = img.shape[:2]
+    S = max(H, W)
+    if S > long_edge_size:
+        interp = cv2.INTER_LANCZOS4
+    else:
+        interp = cv2.INTER_CUBIC
+    new_size = (int(round(W * long_edge_size / S)), int(round(H * long_edge_size / S)))
+    return cv2.resize(img, new_size, interpolation=interp)
 
 
-# # preprocess a list of images:
-# # size can be either 224 or 512
-# # resize and center crop to 224x224 or 512x512
-# def dust3r_preprocess_images(imgs_raw, size, square_ok=False, verbose=True):    
-#     imgs = []
-#     for j,img in enumerate(imgs_raw):
-#         H1, W1, _ = img.shape
-#         if size == 224:
-#             # resize short side to 224 (then crop)
-#             img = _resize_cv_image(img, round(size * max(W1/H1, H1/W1)))
-#         else:
-#             # resize long side to 512
-#             #print(f'resizing {H1}x{W1} to {size}x{size}')
-#             img = _resize_cv_image(img, size)
-#         H, W, _ = img.shape
-#         cx, cy = W // 2, H // 2
-#         if size == 224:
-#             half = min(cx, cy)
-#             img = img[cy-half:cy+half, cx-half:cx+half]
-#         else:
-#             halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
-#             if not (square_ok) and W == H:
-#                 halfh = 3*halfw//4
-#             img = img[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
+# preprocess a list of images:
+# size can be either 224 or 512
+# resize and center crop to 224x224 or 512x512
+def dust3r_preprocess_images(imgs_raw, size, square_ok=False, verbose=True):    
+    imgs = []
+    for j,img in enumerate(imgs_raw):
+        H1, W1, _ = img.shape
+        if size == 224:
+            # resize short side to 224 (then crop)
+            img = _resize_cv_image(img, round(size * max(W1/H1, H1/W1)))
+        else:
+            # resize long side to 512
+            #print(f'resizing {H1}x{W1} to {size}x{size}')
+            img = _resize_cv_image(img, size)
+        H, W, _ = img.shape
+        cx, cy = W // 2, H // 2
+        if size == 224:
+            half = min(cx, cy)
+            img = img[cy-half:cy+half, cx-half:cx+half]
+        else:
+            halfw, halfh = ((2*cx)//16)*8, ((2*cy)//16)*8
+            if not (square_ok) and W == H:
+                halfh = 3*halfw//4
+            img = img[cy-halfh:cy+halfh, cx-halfw:cx+halfw]
 
-#         H2, W2, _ = img.shape
-#         if verbose:
-#             print(f'preprocessing image {j} - resolution {W1}x{H1} --> {W2}x{H2}')        
-#         imgs.append(dict(img=ImgNorm(img)[None], true_shape=np.int32(
-#             [img.shape[:2]]), idx=len(imgs), instance=str(len(imgs))))
-#         # print('adding image', imgs[-1]['img'].shape, imgs[-1]['img'].max(), imgs[-1]['img'].min(), imgs[-1]['true_shape'], imgs[-1]['idx'], imgs[-1]['instance'])
-#         # adding image torch.Size([1, 3, 384, 512]) tensor(1.) tensor(-0.9608) [[384 512]] 3 3
-#     return imgs
+        H2, W2, _ = img.shape
+        if verbose:
+            print(f'preprocessing image {j} - resolution {W1}x{H1} --> {W2}x{H2}')        
+        imgs.append(dict(img=ImgNorm(img)[None], true_shape=np.int32(
+            [img.shape[:2]]), idx=len(imgs), instance=str(len(imgs))))
+        # print('adding image', imgs[-1]['img'].shape, imgs[-1]['img'].max(), imgs[-1]['img'].min(), imgs[-1]['true_shape'], imgs[-1]['idx'], imgs[-1]['instance'])
+        # adding image torch.Size([1, 3, 384, 512]) tensor(1.) tensor(-0.9608) [[384 512]] 3 3
+    return imgs
 
 
 # Image processor for dust3r

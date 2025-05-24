@@ -30,7 +30,7 @@ import torch
 
 from camera import Camera
 from dataset_types import DatasetEnvironmentType
-from utils_dust3r import dust3r_preprocess_images, invert_dust3r_preprocess_depth
+from utils_dust3r import dust3r_preprocess_images #, invert_dust3r_preprocess_depth
 from utils_depth import img_from_depth, PointCloud, point_cloud_to_depth
 
 from depth_estimator_base import DepthEstimator
