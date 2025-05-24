@@ -363,7 +363,7 @@ if __name__ == "__main__":
             labels_2d = []
             labels_3d = []
             gt_labels = []
-
+            total_mps = 0
             # Get all the final MPs that project on it
             for kf in keyframes:
                 if kf.kps_sem is None:
@@ -377,7 +377,7 @@ if __name__ == "__main__":
 
                 # Get the semantic_des of projected points
                 points = kf.get_points()
-
+                total_mps += len(points)
                 # Get the per-frame gt semantic label for projected MPs
                 for idx, kp in enumerate(kf.kps):
                     if points[idx] is not None and points[idx].semantic_des is not None and kf.kps_sem[idx] is not None:
@@ -406,7 +406,11 @@ if __name__ == "__main__":
                 # predicted_semantics_color = SemanticMappingShared.sem_img_to_rgb(predicted_semantics, bgr=True)
                 # cv2.imshow('predicted_semantics', predicted_semantics_color)
                 # cv2.waitKey(0) 
-
+            Printer.orange(f"Number of projected MPs: {len(labels_2d)}")
+            Printer.orange(f"Number of projected MPs (3D): {len(labels_3d)}")
+            Printer.orange(f"Number of GT MPs: {len(gt_labels)}")
+            Printer.orange(f"Number of evaluated MPs: {len(total_mps)}")
+            Printer.orange(f"Number of evaluated KFs: {len(keyframes)}")
             from sklearn.metrics import (
                 classification_report,
                 accuracy_score,
@@ -478,14 +482,32 @@ if __name__ == "__main__":
 
             semantic_metrics_file_path = os.path.join(metrics_save_dir, 'semantic_metrics_info.txt')
             with open(semantic_metrics_file_path, 'w') as f:
-                f.write(f'2d_accuracy: {overall_accuracy_2d:.4f}\n')
-                f.write(f'2d_precision: {precision_2d:.4f}\n')
-                f.write(f'2d_recall: {recall_2d:.4f}\n')
-                f.write(f'2d_f1: {f1_2d:.4f}\n')
-                f.write(f'3d_accuracy: {overall_accuracy_3d:.4f}\n')
-                f.write(f'3d_precision: {precision_3d:.4f}\n')
-                f.write(f'3d_recall: {recall_3d:.4f}\n')
-                f.write(f'3d_f1: {f1_3d:.4f}\n')
+                f.write("Evaluated labels: " + str(present_labels) + "\n")
+                f.write(f"Feature type: {slam.semantic_mapping.semantic_feature_type}\n")
+                f.write(f"Number of KFs: {len(keyframes)}\n")
+                f.write(f"Number of MPs: {len(total_mps)}\n")
+                f.write(f"Number of GT labels {len(gt_labels)}\n")
+                f.write(f"Number of estimated labels 2D: {len(labels_2d)}\n")
+                f.write(f"Number of estimated labels 3D: {len(labels_3d)}\n")
+                # --- 2D Metrics ---
+                f.write("=== 2D Semantic Evaluation ===\n")
+                f.write(f"Accuracy: {overall_accuracy_2d:.4f}\n")
+                f.write(f"Micro Precision: {precision_2d:.4f}\n")
+                f.write(f"Micro Recall:    {recall_2d:.4f}\n")
+                f.write(f"Micro F1-score:  {f1_2d:.4f}\n")
+                f.write(f"Macro Precision: {macro_avg_2d['precision']:.4f}\n")
+                f.write(f"Macro Recall:    {macro_avg_2d['recall']:.4f}\n")
+                f.write(f"Macro F1-score:  {macro_avg_2d['f1-score']:.4f}\n\n")
+
+                # --- 3D Metrics ---
+                f.write("=== 3D Semantic Evaluation ===\n")
+                f.write(f"Accuracy: {overall_accuracy_3d:.4f}\n")
+                f.write(f"Micro Precision: {precision_3d:.4f}\n")
+                f.write(f"Micro Recall:    {recall_3d:.4f}\n")
+                f.write(f"Micro F1-score:  {f1_3d:.4f}\n")
+                f.write(f"Macro Precision: {macro_avg_3d['precision']:.4f}\n")
+                f.write(f"Macro Recall:    {macro_avg_3d['recall']:.4f}\n")
+                f.write(f"Macro F1-score:  {macro_avg_3d['f1-score']:.4f}\n")
         
     except Exception as e:
         print('Exception while computing metrics: ', e)
