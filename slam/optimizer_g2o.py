@@ -26,10 +26,10 @@ import threading
 import multiprocessing as mp
 import traceback
 
-from config_parameters import Parameters # TODO(@dvdmc): do we want parameters to be used in this file?
+from config_parameters import Parameters # TODO(dvdmc): do we want parameters to be used in this file?
 import g2o
 
-from semantic_mapping_shared import SemanticMappingShared # TODO(@dvdmc): do we want semnatics to be used in this file?
+from semantic_mapping_shared import SemanticMappingShared # TODO(dvdmc): do we want semnatics to be used in this file?
 from utils_geom import poseRt, Sim3Pose
 from utils_sys import Printer
 from utils_mp import MultiprocessingManager

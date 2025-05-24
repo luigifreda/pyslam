@@ -224,7 +224,7 @@ class Slam(object):
         
     def init_volumetric_integrator(self):
         if Parameters.kUseVolumetricIntegration:
-            # TODO(@dvdmc): Implement semantics in vol. integrator.
+            # TODO(dvdmc): Implement semantics in vol. integrator.
             self.volumetric_integrator_type = VolumetricIntegratorType.from_string(Parameters.kVolumetricIntegrationType)
             self.volumetric_integrator = volumetric_integrator_factory(self.volumetric_integrator_type, self.camera, self.environment_type, self.sensor_type)
         

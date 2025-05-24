@@ -410,10 +410,10 @@ class LocalMapping:
             LocalMapping.print(f'\t #culled keyframes: {num_culled_keyframes}, timing: {self.timer_kf_culling.last_elapsed}')                       
             
         if self.slam.semantic_mapping is not None and self.kf_cur is not None:
-            # TODO(@dvdmc) do we need to wait_idle here?
+            # TODO(dvdmc) do we need to wait_idle here?
             LocalMapping.print('pushing new keyframe to semantic mapping...')
             self.slam.semantic_mapping.push_keyframe(self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur)
-            # self.slam.semantic_mapping.set_not_stop(False) # TODO(@dvdmc) check if the stop logic is required. I think it's part of LoopClosure or BA methods
+            # self.slam.semantic_mapping.set_not_stop(False) # TODO(dvdmc) check if the stop logic is required. I think it's part of LoopClosure or BA methods
             if not Parameters.kSemanticMappingOnSeparateThread:
                 self.slam.semantic_mapping.step()
 

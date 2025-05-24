@@ -108,7 +108,7 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
         if model_path == '': # Load pre-trained models
             model = SegformerForSemanticSegmentation.from_pretrained(f"nvidia/segformer-{encoder_name}-finetuned-{dataset}-{image_size[0]}-{image_size[1]}")
         else:
-            raise NotImplementedError("Segformer only supports pre-trained model for now") #TODO(@dvdmc): allow to load a custom model
+            raise NotImplementedError("Segformer only supports pre-trained model for now") #TODO(dvdmc): allow to load a custom model
         model = model.to(device).eval()
         transform = AutoImageProcessor.from_pretrained(f"nvidia/segformer-{encoder_name}-finetuned-{dataset}-{image_size[0]}-{image_size[1]}")
         return model,transform

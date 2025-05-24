@@ -21,13 +21,13 @@ import numpy as np
 
 from utils_serialization import SerializableEnum, register_class
 
-#TODO(@dvdmc): Fusion methods only make sense for certain semantic types
+#TODO(dvdmc): Fusion methods only make sense for certain semantic types
 
-#TODO(@dvdmc): Below is not yet used!
+#TODO(dvdmc): Below is not yet used!
 @register_class
 class SemanticFusionMehtods(SerializableEnum):
   COUNT_LABELS      = 0 # The label with the highest count
-  BAYESIAN_FUSION   = 1 # Integrate measurements iteratively in a bayesian manner TODO(@dvdmc): Check if not normalizing in between results in the same.
+  BAYESIAN_FUSION   = 1 # Integrate measurements iteratively in a bayesian manner TODO(dvdmc): Check if not normalizing in between results in the same.
   AVERAGE_FUSION    = 2 # Average all measurements
 
 def count_labels(labels):
