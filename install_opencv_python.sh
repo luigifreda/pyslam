@@ -107,17 +107,19 @@ cd "$ROOT_DIR"
 # HACK for conda issue:
 # "ImportError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32"
 #  See https://github.com/elerac/EasyPySpin/issues/12
-CV2_SO_PATH=$PYTHON_ENV/lib/python$PYTHON_VERSION/site-packages/cv2
-# Find the actual .so file (handles different naming variations)
-CV2_SO_FILE=$(ls "$CV2_SO_PATH"/cv2.*.so 2>/dev/null | head -n 1)
-# Check if a valid file was found
-if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
-    if ldd "$CV2_SO_FILE" | grep -q "libffi"; then
-        if [[ -f /lib/x86_64-linux-gnu/libffi.so ]]; then
-            echo "Preloading libffi..."
-            export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
-        else
-            echo "WARNING: /lib/x86_64-linux-gnu/libffi.so not found; check your libffi dependencies"
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    CV2_SO_PATH=$PYTHON_ENV/lib/python$PYTHON_VERSION/site-packages/cv2
+    # Find the actual .so file (handles different naming variations)
+    CV2_SO_FILE=$(ls "$CV2_SO_PATH"/cv2.*.so 2>/dev/null | head -n 1)
+    # Check if a valid file was found
+    if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
+        if ldd "$CV2_SO_FILE" | grep -q "libffi"; then
+            if [[ -f /lib/x86_64-linux-gnu/libffi.so ]]; then
+                echo "Preloading libffi..."
+                export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
+            else
+                echo "WARNING: /lib/x86_64-linux-gnu/libffi.so not found; check your libffi dependencies"
+            fi
         fi
     fi
 fi
