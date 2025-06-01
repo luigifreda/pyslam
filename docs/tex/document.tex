@@ -200,8 +200,9 @@ aggregators}},
 \emph{\protect\hyperlink{supported-global-descriptors-and-local-descriptor-aggregation-methods}{global
 descriptors}},
 \emph{\protect\hyperlink{volumetric-reconstruction-pipeline}{volumetric
-integration}} and \emph{\protect\hyperlink{depth-prediction}{depth
-prediction}}. It allows to explore, prototype and develop VO/SLAM
+integration}}, \emph{\protect\hyperlink{depth-prediction}{depth
+prediction}} and \emph{\protect\hyperlink{semantic-mapping}{semantic
+mapping}}. It allows to explore, prototype and develop VO/SLAM
 pipelines. pySLAM is a research framework and a work in progress. It is
 not optimized for real-time performances.
 
@@ -408,6 +409,27 @@ The diagram in Fig.~\ref{Fig:VolumetricIntegrator} illustrates the structure of 
 Each type instantiates a dedicated implementation (e.g., \texttt{VolumetricIntegratorTSDF}, \texttt{VolumetricIntegrator\-Gaussian\-Splatting}), which inherits from a common \texttt{VolumetricIntegratorBase}. This base class encapsulates key components including the \texttt{camera}, a \texttt{keyframe\_queue}, and the \texttt{volume}, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
 
 The Section~\ref{supported-volumetric-mapping-methods} reports a list of supported volume integration methods.
+
+
+\begin{figure}[!t]
+\begin{center}
+    \includegraphics[width=\textwidth]{./images/semantic_mapping.png}
+\end{center}
+\caption{Semantic Mapping.}
+\label{Fig:SemanticMapping}
+\end{figure}
+
+
+
+\subsubsection{Semantic Mapping}
+
+The diagram in Fig.~\ref{Fig:SemanticMapping} outlines the architecture of the \textit{Semantic Mapping} module. At its core is the \texttt{semantic\_mapping\_factory}, which creates semantic mapping instances according to the selected \texttt{semantic\_mapping\_type}. Currently, the supported type is \texttt{DENSE}, which instantiates the \texttt{SemanticMappingDense} class. This class extends \texttt{SemanticMappingBase} and runs asynchronously in a dedicated thread to process keyframes as they become available.
+
+\texttt{SemanticMappingDense} integrates semantic information into the SLAM map by leveraging per-frame predictions from a semantic segmentation model. The segmentation model is instantiated via the \texttt{semantic\_segmentation\_factory}, based on the selected \texttt{semantic\_segmentation\_type}. Supported segmentation backends include \texttt{DEEPLABV3}, \texttt{SEGFORMER}, and \texttt{CLIP}, each of which corresponds to a dedicated class (\texttt{SemanticSegmentationDeepLabV3}, \texttt{SemanticSegmentationSegformer}, \texttt{SemanticSegmentationCLIP}) inheriting from the shared \texttt{SemanticSegmentationBase}.
+
+The system supports multiple semantic feature representations~--~such as categorical labels, probability vectors, and high-dimensional feature embeddings~--~and fuses them into the map using configurable methods like count-based fusion, Bayesian fusion, or feature averaging.
+
+This modular design decouples semantic segmentation from mapping logic, enabling flexible combinations of segmentation models, datasets (e.g., \texttt{NYU40}, \texttt{Cityscapes}), and fusion strategies. It also supports customization via configuration files or programmatic APIs for dataset-specific tuning or deployment.
 
 
 %\hypertarget{troubleshooting-and-performance-issues}{%
@@ -831,6 +853,29 @@ details. Both stereo and monocular prediction approaches are supported.
 You can test depth prediction/estimation by using the script
 \texttt{main\_depth\_prediction.py}.
 
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\hypertarget{semantic-mapping}{%
+\subsubsection{Semantic mapping}\label{semantic-mapping}}
+
+The semantic mapping pipeline can be enabled by setting the parameter
+\texttt{kDoSemanticMapping=True} in \texttt{config\_parameters.py}. The
+best way of configuring the semantic mapping module used is to modify it
+in \texttt{semantic\_mapping\_configs.py}.
+
+Different semantic mapping methods can be supported. Currently, we support semantic mapping using dense
+semantic segmenetation. Semantic features are assigned to keypoints on
+the image and fused into map points. The semantic features can be: 
+\begin{itemize}
+\item Labels: categorical labels as numbers.
+\item Probability vectors: probability vectors for each class.
+\item Feature vectors: feature vectors
+obtained from an encoder. This is generally used for open vocabulary
+mapping.
+\end{itemize}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
 \hypertarget{saving-and-reloading}{%
 \subsection{Saving and reloading}\label{saving-and-reloading}}
 
@@ -913,8 +958,8 @@ format), and \emph{EuRoC} (EuRoC MAV format). pySLAM saves two
 \item
   \textbf{Final}: In \emph{final} trajectories, each pose estimate
   depends on both past and future poses. A pose estimate is refined
-  multiple times by LBA windows that cover it and by GBA during loop
-  closures.
+  multiple times by LBA windows that cover it and by PGO and GBA during
+  loop closures.
 \end{itemize}
 
 To enable trajectory saving, open \texttt{config.yaml} and search for
@@ -1295,6 +1340,8 @@ dataset} & \texttt{type:\ EUROC\_DATASET}\tabularnewline
 dataset} & \texttt{type:\ REPLICA\_DATASET}\tabularnewline
 \href{https://theairlab.org/tartanair-dataset/}{TARTANAIR dataset} &
 \texttt{type:\ TARTANAIR\_DATASET}\tabularnewline
+\href{http://www.scan-net.org/}{ScanNet dataset} &
+\texttt{type:\ SCANNET\_DATASET}\tabularnewline
 \href{https://wiki.ros.org/Bags}{ROS1 bags} &
 \texttt{type:\ ROS1BAG\_DATASET}\tabularnewline
 \href{https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html}{ROS2
@@ -1423,6 +1470,59 @@ Follow the same instructions provided for the TUM datasets.
   Select the corresponding calibration settings file (section
   \texttt{TARTANAIR\_DATASET:\ settings:} in the file
   \texttt{config.yaml}).
+\end{enumerate}
+
+\hypertarget{scannet-datasets}{%
+\paragraph{ScanNet Datasets}\label{scannet-datasets}}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  You can download the datasets following instructions in
+  http://www.scan-net.org/. You will need to request the dataset from
+  the authors.
+\item
+  There are two versions you can download:
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  A subset of pre-processed data termed as
+  \texttt{tasks/scannet\_frames\_2k}: this version is smaller, and more
+  generally available for training neural networks. However, it only
+  includes one frame out of each 100, which makes it unusable for SLAM.
+  The labels are processed by mapping them from the original Scannet
+  label annotations to NYU40.
+\item
+  The raw data: this version is the one used for SLAM. You can download
+  the whole dataset (TBs of data) or specific scenes. A common approach
+  for evaluation of semantic mapping is to use the
+  \texttt{scannetv2\_val.txt} scenes. For downloading and processing the
+  data, you can use the following
+  \href{https://github.com/dvdmc/scannet-processing}{repository} as the
+  original Scannet repository is tested under Python 2.7 and does't
+  support batch downloading of scenes.
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{1}
+\tightlist
+\item
+  Once you have the \texttt{color}, \texttt{depth}, \texttt{pose}, and
+  (optional for semantic mapping) \texttt{label} folders, you should
+  place them following
+  \texttt{\{path\_to\_scannet\}/scans/\{scene\_name\}/{[}color,\ depth,\ pose,\ label{]}}.
+  Then, configure the \texttt{base\_path} and \texttt{name} in the file
+  \texttt{config.yaml}.
+\item
+  Select the corresponding calibration settings file (section
+  \texttt{SCANNET\_DATASET:\ settings:} in the file
+  \texttt{config.yaml}). NOTE: the RGB images are rescaled to match the
+  depth image. The current intrinsic parametes in the existing
+  calibration file reflect that.
 \end{enumerate}
 
 \hypertarget{ros1-bags}{%

@@ -10,6 +10,7 @@
     - [Loop Detector](#loop-detector)
     - [Depth Estimator](#depth-estimator)
     - [Volumetric Integrator](#volumetric-integrator)
+    - [Semantic Mapping](#semantic-mapping)
 
 <!-- /TOC -->
 
@@ -122,3 +123,22 @@ This diagram illustrates the structure of the *Volumetric Integrator* module. At
 Each type instantiates a dedicated implementation (e.g., `VolumetricIntegratorTSDF`, `VolumetricIntegratorGaussianSplatting`), which inherits from a common `VolumetricIntegratorBase`. This base class encapsulates key components including the `camera`, a `keyframe_queue`, and the `volume`, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
 
 Section [Supported volumetric mapping methods](../README.md#supported-volumetric-mapping-methods) provides a list of supported volume integration methods.
+
+### Semantic Mapping
+
+<p align="center">
+<img src="./images/semantic_mapping.png" alt="Semantic Mapping"  /> 
+</p>
+
+This diagram outlines the architecture of the *Semantic Mapping* module. At its core is the `semantic_mapping_factory`, which creates semantic mapping instances according to the selected `semantic_mapping_type`. Currently, the supported type is `DENSE`, which instantiates the `SemanticMappingDense` class. This class extends `SemanticMappingBase` and runs asynchronously in a dedicated thread to process keyframes as they become available.
+
+`SemanticMappingDense` integrates semantic information into the SLAM map by leveraging per-keyframe predictions from a semantic segmentation model. The segmentation model is instantiated via the `semantic_segmentation_factory`, based on the selected `semantic_segmentation_type`. Supported segmentation backends include `DEEPLABV3`, `SEGFORMER`, and `CLIP`, each of which corresponds to a dedicated class (`SemanticSegmentationDeepLabV3`, `SemanticSegmentationSegformer`, `SemanticSegmentationCLIP`) inheriting from the shared `SemanticSegmentationBase`.
+
+The system supports multiple semantic feature representations - such as categorical labels, probability vectors, and high-dimensional feature embeddings - and fuses them into the map using configurable methods like count-based fusion, Bayesian fusion, or feature averaging.
+
+This modular design decouples semantic segmentation from mapping logic, enabling flexible combinations of segmentation models, datasets (e.g., NYU40, Cityscapes), and fusion strategies. It also supports customization via configuration files or programmatic APIs for dataset-specific tuning or deployment.
+
+
+
+
+
