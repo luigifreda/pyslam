@@ -15,7 +15,7 @@ ENV_PATH="$ENVS_PATH/$ENV_NAME"        # path of the virtual environment we are 
  
 if [ -d "$ENV_PATH" ]; then 
     echo deleting virtual environment $ENV_NAME in $ENV_PATH
-    rm -R "$ENV_PATH"
+    sudo rm -R "$ENV_PATH"
 else
     echo virtual environment $ENV_NAME does not exist in $ENV_PATH
 fi 

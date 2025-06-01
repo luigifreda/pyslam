@@ -101,6 +101,18 @@ pip wheel . --verbose
 # install built packages
 # pip install opencv*.whl --force-reinstall
 
+
+# Extract the installed OpenCV version and wheel path
+OPENCV_WHL_PATH=$(ls opencv*.whl | head -n 1)
+OPENCV_PKG_NAME=$(basename "$OPENCV_WHL_PATH" | cut -d'-' -f1)  # usually "opencv_python"
+
+# Write pip constraint file
+echo "$OPENCV_PKG_NAME @ file://$MY_OPENCV_PYTHON_PATH/$OPENCV_WHL_PATH" > "$ROOT_DIR/constraints.txt"
+
+print_green "Created constraints.txt:"
+cat "$ROOT_DIR/constraints.txt"
+
+
 cd "$ROOT_DIR"
 
 
