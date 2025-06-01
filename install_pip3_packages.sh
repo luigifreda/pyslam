@@ -32,6 +32,8 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 pip3 install --upgrade pip 
 pip3 install --upgrade setuptools wheel
 
+pip3 install setuptools==80.8.0
+
 pip3 install ninja
 
 # Install opencv_python from source with non-free modules enabled 
@@ -56,13 +58,13 @@ install_pip_package pyopengl==3.1.7
 install_pip_package pillow==10.4.0
 install_pip_package pybind11==2.13.1 
 install_pip_package numpy==1.23.5
+install_pip_package numpy-quaternion==2023.0.4
 install_pip_package pyyaml==6.0.1 
 install_pip_package termcolor==2.4.0 
 install_pip_package yacs==0.1.8
 install_pip_package gdown  # to download from google drive
 install_pip_package ordered-set==4.1.0 # from https://pypi.org/project/ordered-set/
 
-install_pip_package numpy-quaternion==2023.0.4
 install_pip_package psutil
 
 install_pip_package PyQt5-sip==12.15.0    # NOTE: This is required by pyqt5. The the next versions of PyQt5-sip require python 3.9.
@@ -233,10 +235,10 @@ fi
 # Torchvision will be installed already
 
 # Install transformers with specific version due to break of last version
-pip3 install transformers==4.38.2  # originally suggested version 4.51.0  
+# pip3 install transformers==4.38.2  # originally suggested version 4.51.0  
+# # Install f3rm for the dense CLIP model
+# pip3 install f3rm
+# pip3 install timm==1.0.15
 
-# Install f3rm for the dense CLIP model
-pip3 install f3rm
-
-pip3 install timm==1.0.15
-pip3 install setuptools==80.8.0
+pip install transformers==4.38.2 f3rm  --constraint "$ROOT_DIR/constraints.txt"
+pip3 install timm==1.0.15 --constraint "$ROOT_DIR/constraints.txt"
