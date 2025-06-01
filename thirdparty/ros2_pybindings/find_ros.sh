@@ -4,7 +4,7 @@
 
 # Known ROS distros. Here you can just add the distros you have/prefer.
 ROS1_DISTROS=("noetic") 
-ROS2_DISTROS=("foxy" "galactic" "humble" "iron" "rolling" "eloquent" "dashing" "crystal" "ardent")
+ROS2_DISTROS=("foxy" "jazzy" "galactic" "humble" "iron" "rolling" "eloquent" "dashing" "crystal" "ardent")
 
 ROS1_INSTALL_PATH=""
 ROS2_INSTALL_PATH=""
