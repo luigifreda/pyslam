@@ -222,7 +222,7 @@ class Parameters:
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
     
     # Semantic mapping. NOTE: By activating the semantic mapping, semantics will be used
-    #                           for the whole SLAM pipeline
+    #                         for the whole SLAM pipeline
     kDoSemanticMapping = True
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingDebugAndPrintToFile = True

@@ -1,4 +1,4 @@
-# pySLAM v2.7.4
+# pySLAM v2.8.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -11,7 +11,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
 
-pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)* and *[depth prediction](#depth-prediction)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
+pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
 
 **Enjoy it!**
 
@@ -33,7 +33,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 <!-- TOC -->
 
-- [pySLAM v2.7.4](#pyslam-v274)
+- [pySLAM v2.8.0](#pyslam-v280)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -62,6 +62,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
       - [Reload and check your dense reconstruction](#reload-and-check-your-dense-reconstruction)
       - [Controlling the spatial distribution of keyframe FOV centers](#controlling-the-spatial-distribution-of-keyframe-fov-centers)
     - [Depth prediction](#depth-prediction)
+    - [Semantic mapping](#semantic-mapping)
     - [Saving and reloading](#saving-and-reloading)
       - [Save the a map](#save-the-a-map)
       - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
@@ -89,6 +90,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
       - [EuRoC Datasets](#euroc-datasets)
       - [Replica Datasets](#replica-datasets)
       - [Tartanair Datasets](#tartanair-datasets)
+      - [ScanNet Datasets](#scannet-datasets)
       - [ROS1 bags](#ros1-bags)
       - [ROS2 bags](#ros2-bags)
       - [Video and Folder Datasets](#video-and-folder-datasets)
@@ -638,7 +640,7 @@ Dataset | type in `config.yaml`
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
-[ScanNet dataset](https://www.scannet.org/)                                                                                                  | `type: SCANNET_DATASET`
+[ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`
 [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
 [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
 Video file                                                                                                                                   | `type: VIDEO_DATASET` 
@@ -706,7 +708,7 @@ Follow the same instructions provided for the TUM datasets.
 
 #### ScanNet Datasets
 
-1. You can download the datasets following instructions in https://www.scannet.org/. You will need to request the dataset from the authors.
+1. You can download the datasets following instructions in http://www.scan-net.org/. You will need to request the dataset from the authors.
 2. There are two versions you can download: 
 - A subset of pre-processed data termed as `tasks/scannet_frames_2k`: this version is smaller, and more generally available for training neural networks. However, it only includes one frame out of each 100, which makes it unusable for SLAM. The labels are processed by mapping them from the original Scannet label annotations to NYU40.
 - The raw data: this version is the one used for SLAM. You can download the whole dataset (TBs of data) or specific scenes. A common approach for evaluation of semantic mapping is to use the `scannetv2_val.txt` scenes. For downloading and processing the data, you can use the following [repository](https://github.com/dvdmc/scannet-processing) as the original Scannet repository is tested under Python 2.7 and does't support batch downloading of scenes.
@@ -808,7 +810,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mast3r](https://github.com/naver/mast3r)
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
-
+* Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for his great work on integrating [semantic predictions](./docs//semantics.md) into pySLAM.
 
 ---
 ## License 
