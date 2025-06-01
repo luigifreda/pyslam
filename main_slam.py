@@ -298,7 +298,8 @@ if __name__ == "__main__":
     
     Printer.green('feature_tracker_config: ',json.dumps(feature_tracker_config, indent=4, cls=SerializableEnumEncoder))          
     Printer.green('loop_detection_config: ',json.dumps(loop_detection_config, indent=4, cls=SerializableEnumEncoder))
-    Printer.green('semantic_mapping_config: ',json.dumps(semantic_mapping_config, indent=4, cls=SerializableEnumEncoder))
+    if Parameters.kDoSemanticMapping:
+        Printer.green('semantic_mapping_config: ',json.dumps(semantic_mapping_config, indent=4, cls=SerializableEnumEncoder))
     config.feature_tracker_config = feature_tracker_config
     config.loop_detection_config = loop_detection_config
     config.semantic_mapping_config = semantic_mapping_config

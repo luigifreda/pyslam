@@ -364,3 +364,4 @@ class NumpyB64Json:
         for k, v in map_data.items():
             output_obj[int(k)] = NumpyB64Json.json_to_numpy(v)
         return output_obj
+    

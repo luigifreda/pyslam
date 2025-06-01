@@ -1,7 +1,7 @@
 """
 * This file is part of PYSLAM
 *
-* Copyright (C) 2016-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by

@@ -25,8 +25,10 @@ from threading import RLock, Lock, Thread
 from utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
 from frame import Frame, FeatureTrackerShared
 from utils_sys import Printer
-
 from config_parameters import Parameters
+
+from semantic_mapping_shared import SemanticMappingShared
+from semantic_serialization import serialize_semantic_des, deserialize_semantic_des
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -335,7 +337,7 @@ class MapPoint(MapPointBase):
                 'last_frame_id_seen': self.last_frame_id_seen,
                 'pt': self.pt.tolist(),
                 'color': self.color,
-                'semantic_des': self.semantic_des,
+                'semantic_des': serialize_semantic_des(self.semantic_des, SemanticMappingShared.semantic_feature_type),
                 'des': self.des.tolist(),
                 '_min_distance': self._min_distance,
                 '_max_distance': self._max_distance,
@@ -346,7 +348,7 @@ class MapPoint(MapPointBase):
         
     @staticmethod 
     def from_json(json_str):
-        p = MapPoint(json_str['pt'], json_str['color'], keyframe=None, idxf=None, id=json_str['id'], semantic_des=json_str['semantic_des'])
+        p = MapPoint(json_str['pt'], json_str['color'], keyframe=None, idxf=None, id=json_str['id'])
         
         p._observations = json_str['_observations']
         p._frame_views = json_str['_frame_views']
@@ -362,6 +364,8 @@ class MapPoint(MapPointBase):
         p.normal = np.array(json_str['normal'])
         p.first_kid = json_str['first_kid']
         p.kf_ref = json_str['kf_ref']
+        
+        p.semantic_des, semantic_type = deserialize_semantic_des(json_str['semantic_des']) 
         return p
                     
     def replace_ids_with_objects(self, points, frames, keyframes):

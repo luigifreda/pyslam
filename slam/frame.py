@@ -353,6 +353,7 @@ class Frame(FrameBase):
     def __init__(self, camera: Camera, 
                  img, img_right=None, depth=None,
                  pose=None, id=None, timestamp=None, img_id=None,
+                 semantic_img=None,
                  frame_data_dict=None):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
         
@@ -402,6 +403,10 @@ class Frame(FrameBase):
                 depth = depth * self.camera.depth_factor        
             if Frame.is_store_imgs: 
                 self.depth_img = depth.copy()
+                
+        if semantic_img is not None:
+            if Frame.is_store_imgs: 
+                self.semantic_img = semantic_img.copy()
 
         if frame_data_dict is not None:
             self.is_keyframe = frame_data_dict['is_keyframe']
