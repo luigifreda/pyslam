@@ -22,6 +22,12 @@ cd "$ROOT_DIR"
 print_blue '================================================'
 print_blue "Configuring and installing system packages ..."
 
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    version=$(lsb_release -a 2>&1)  # ubuntu version
+else 
+    version=$OSTYPE
+    echo "OS: $version"
+fi
 
 # NOTE: in order to detect macOS use:  
 if [[ "$OSTYPE" == "darwin"* ]]; then 
@@ -63,6 +69,8 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else 
     ## Linux 
 
+    echo "Installing linux packages with apt-get..."    
+
     sudo apt-get update
 
     install_package rsync 
@@ -80,7 +88,8 @@ else
     install_package libprotobuf-dev 
 
     install_packages libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev
-    install_package  libglew-dev 
+    install_package libglew-dev 
+    install_package libgoogle-glog-dev
 
     install_package libeigen3-dev # pangolin installation 
     install_package libopencv-dev # orbslam2_features compilation
@@ -97,7 +106,11 @@ else
     install_packages libboost-serialization-dev libboost-system-dev libboost-filesystem-dev
     install_package  tmux # for launching tmux sessions
 
-    install_package libqt5gui5 # for qt5 support 
+    if [[ $version == *"24.04"* ]] ; then
+        install_package libqt5gui5t64 # for qt5 support     
+    else
+        install_package libqt5gui5 # for qt5 support 
+    fi 
 
     install_package libomp-dev
 

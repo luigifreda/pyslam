@@ -24,6 +24,13 @@ print_blue '================================================'
 print_blue "Installing opencv-python from source"
 print_blue '================================================'
 
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    version=$(lsb_release -a 2>&1)  # ubuntu version
+else 
+    version=$OSTYPE
+    echo "OS: $version"
+fi
+
 # Get the current Python environment's base directory
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
@@ -40,7 +47,7 @@ if [ ! -d opencv-python ]; then
     git clone --recursive https://github.com/opencv/opencv-python.git
     cd opencv-python
     # This procedure worked on commit cce7c994d46406205eb39300bb7ca9c48d80185a  that corresponds to opencv 4.10.0.84 -> https://github.com/opencv/opencv-python/releases/tag/84 
-    git checkout cce7c994d46406205eb39300bb7ca9c48d80185a  # uncomment this if you get some issues in building opencv_python!
+    git checkout cce7c994d46406205eb39300bb7ca9c48d80185a  # uncomment this if you get some issues in building opencv_python! 
     cd ..
 fi
 
@@ -75,9 +82,13 @@ export LIBRARY_PATH="$NUMPY_LIB_PATH:$LIBRARY_PATH"
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \
 -DBUILD_SHARED_LIBS=OFF \
--DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF \
--DCMAKE_CXX_FLAGS=$CPPFLAGS
-$MY_OPENCV_PYTHON_PATH"
+-DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF"
+
+if [[ $version == *"24.04"* ]] ; then
+    export CMAKE_ARGS="$CMAKE_ARGS -DBUILD_opencv_sfm=OFF" # It seems this module brings some build issues with Ubuntu 24.04
+fi
+
+export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS=$CPPFLAGS"
 
 # build opencv_python 
 pip wheel . --verbose
