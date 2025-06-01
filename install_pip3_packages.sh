@@ -234,9 +234,11 @@ if [ "$CUDA_VERSION" != "0" ]; then
     # Torchvision will be installed already
 
     # Install transformers with specific version due to break of last version
-    pip3 install transformers==4.51.0
+    pip3 install transformers==4.38.2  # originally suggested version 4.51.0  
 
     # Install f3rm for the dense CLIP model
     pip3 install f3rm
 
+    pip3 install timm==1.0.15
+    pip3 install setuptools==80.8.0
 fi

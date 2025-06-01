@@ -122,8 +122,6 @@ class Slam(object):
         if kLocalMappingOnSeparateThread:
             self.local_mapping.start()
         
-        self.tracking = None
-                     
         self.tracking = Tracking(self) # after all the other initializations
         
         self.set_config_params(config)         
