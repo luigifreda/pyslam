@@ -64,6 +64,9 @@ set(CMAKE_CXX_FLAGS "-O2")
 
 # Function to detect CUDA architectures
 function(detect_cuda_architectures ARCHS)
+  # Explicit list of invalid/future/unsupported architectures
+  set(INVALID_CUDA_ARCHS 100 101 120)
+
   execute_process(
     COMMAND nvcc --list-gpu-arch
     OUTPUT_VARIABLE GPU_ARCHS_OUTPUT
@@ -71,22 +74,40 @@ function(detect_cuda_architectures ARCHS)
     ERROR_QUIET
   )
 
-  # Parse the output and extract architectures
   string(REPLACE "\n" ";" GPU_ARCHS_LIST "${GPU_ARCHS_OUTPUT}")
   set(DETECTED_ARCHS "")
+  set(FILTERED_ARCHS "")
+
   foreach(ARCH ${GPU_ARCHS_LIST})
     string(REGEX MATCH "compute_([0-9]+)" _ ${ARCH})
     if(NOT "${CMAKE_MATCH_1}" STREQUAL "")
-      list(APPEND DETECTED_ARCHS "${CMAKE_MATCH_1}")
+      set(ARCH_CODE "${CMAKE_MATCH_1}")
+
+      list(FIND INVALID_CUDA_ARCHS ${ARCH_CODE} INDEX)
+      if(INDEX GREATER -1)
+        list(APPEND FILTERED_ARCHS "${ARCH_CODE}")
+      else()
+        list(APPEND DETECTED_ARCHS "${ARCH_CODE}")
+      endif()
     endif()
   endforeach()
 
+  # Set the result variable
   if(DETECTED_ARCHS)
+    list(REMOVE_DUPLICATES DETECTED_ARCHS)
     set(${ARCHS} ${DETECTED_ARCHS} PARENT_SCOPE)
   else()
-    message(WARNING "No CUDA architectures detected. Falling back to default.")
-    set(${ARCHS} "70" PARENT_SCOPE) # Default to a commonly supported architecture
+    message(WARNING "No valid CUDA architectures detected. Falling back to default.")
+    set(${ARCHS} "70" PARENT_SCOPE)
   endif()
+
+  # Export filtered architectures as well
+  set(FILTERED_CUDA_ARCHS ${FILTERED_ARCHS} PARENT_SCOPE)
+
+  # Log info
+  message(STATUS "nvcc --list-gpu-arch raw output:\n${GPU_ARCHS_OUTPUT}")
+  message(STATUS "Accepted CUDA architectures: ${DETECTED_ARCHS}")
+  message(STATUS "Filtered-out (unsupported) architectures: ${FILTERED_ARCHS}")
 endfunction()
 
 # Detect CUDA architectures and set them

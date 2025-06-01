@@ -83,7 +83,7 @@ def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
     viewer3D.draw_cameras([assoc_est_poses, assoc_gt_poses_aligned], [GlColors.kCyan, GlColors.kMagenta])    
 
 
-def evaluate_semanatic_mapping(slam, dataset):
+def evaluate_semantic_mapping(slam, dataset):
     if Parameters.kDoSemanticMapping and slam.semantic_mapping.semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY and dataset.has_gt_semantics and slam.semantic_mapping.semantic_mapping_type == SemanticMappingType.DENSE:
             Printer.green("Evaluating semantic mapping...")
             # Get all the KFs
@@ -512,7 +512,7 @@ if __name__ == "__main__":
             f.write(f'num_lost_frames: {num_tracking_lost}\n')
             f.write(f'percent_lost: {num_tracking_lost/num_total_frames*100:.2f}\n')
         
-        evaluate_semanatic_mapping(slam, dataset)
+        evaluate_semantic_mapping(slam, dataset)
         
     except Exception as e:
         print('Exception while computing metrics: ', e)
