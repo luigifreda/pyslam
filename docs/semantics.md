@@ -3,13 +3,34 @@
 Original document from [David](https://github.com/dvdmc) is available [here](https://docs.google.com/document/d/1MpLvLVx35Sr9fh6W-YcUlRjWY3dvww4ROGqWeOI_J_8/edit?tab=t.0#heading=h.65ibkflchz2i).
 
 
+<!-- TOC -->
+
+- [Semantic pySLAM](#semantic-pyslam)
+  - [Aim](#aim)
+  - [Quick test](#quick-test)
+  - [Implemented features](#implemented-features)
+    - [Semantic features types](#semantic-features-types)
+    - [Dense vs Object-Based](#dense-vs-object-based)
+    - [Model Support](#model-support)
+    - [Dataset Type Support](#dataset-type-support)
+    - [Feature Fusion](#feature-fusion)
+    - [Visualizations](#visualizations)
+    - [Dataset Support](#dataset-support)
+  - [Main code changes](#main-code-changes)
+    - [Data structures](#data-structures)
+  - [TODOs](#todos)
+  - [TODiscuss](#todiscuss)
+
+<!-- /TOC -->
+
+
 ## Aim
 
 Include a module to perform semantic mapping within pySLAM. This module will serve in prototyping, benchmarking and evaluation of semantic mapping methods.
 
 ## Quick test
 
-Just change to the `semantics` branch. If pySLAM is already installed, just install the `transformers==4.51.0` and `f3rm` dependencies in the venv. Run the `main_slam.py` example to run Segformer trained on Cityscapes.
+Run the `main_slam.py` example to run Segformer trained on Cityscapes.
 
 For testing the open-vocabulary feature: change the semantic mapping config in the `semantic_mapping_configs.py` file to:  
 Then change your query word in `semantic_segmentation_clip.py` to your desire.

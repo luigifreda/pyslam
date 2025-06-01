@@ -1,7 +1,7 @@
 """
 * This file is part of PYSLAM
 *
-* Copyright (C) 2016-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -117,6 +117,7 @@ def rgb_to_class(rgb_labels, label_map):
 
 
 def single_label_to_color(label, semantics_color_map, bgr=False):
+    label = int(label)  # ensure label is a Python int
     color = semantics_color_map[label]
     if bgr:
         color = color[::-1]

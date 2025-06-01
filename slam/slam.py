@@ -21,6 +21,7 @@ import sys
 import os
 import numpy as np
 import time
+import traceback
 
 #import json
 import ujson as json
@@ -261,6 +262,7 @@ class Slam(object):
         map_out_json['map'] = map_json
         map_out_json['feature_tracker_config'] = feature_tracker_config_json 
         map_out_json['loop_detector_config'] = loop_detector_config_json
+        map_out_json['semantic_mapping_config'] = semantic_mapping_config_json
         
         config_out_json['feature_tracker_config'] = feature_tracker_config_json
         config_out_json['loop_detector_config'] = loop_detector_config_json
@@ -268,7 +270,13 @@ class Slam(object):
         
         map_file_path = path + '/map.json'       
         with open(map_file_path, 'w') as f:
-            f.write(json.dumps(map_out_json))
+            try:
+                f.write(json.dumps(map_out_json))
+            except Exception as e:
+                Printer.red(f'SLAM: Failed to save map state to {map_file_path}: {e}')
+                print(f"traceback: {traceback.format_exc()}")
+                #from pprint import pprint
+                #pprint(map_out_json)
             
         config_file_path = path + '/config_info.json'  # redundant, not used on reloading, just for human readability
         with open(config_file_path, 'w') as f:
