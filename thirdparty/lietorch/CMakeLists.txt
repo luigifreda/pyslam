@@ -110,9 +110,56 @@ function(detect_cuda_architectures ARCHS)
   message(STATUS "Filtered-out (unsupported) architectures: ${FILTERED_ARCHS}")
 endfunction()
 
+# Function to detect architecture of the current GPU only
+function(detect_current_cuda_architecture ARCH)
+  # Try to get the GPU name
+  execute_process(
+    COMMAND nvidia-smi --query-gpu=name --format=csv,noheader
+    OUTPUT_VARIABLE GPU_NAME
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+
+  # Lowercase and remove spaces
+  string(TOLOWER "${GPU_NAME}" GPU_NAME_LOWER)
+  string(REPLACE " " "" GPU_NAME_CLEAN "${GPU_NAME_LOWER}")
+
+  # Map GPU name to compute capability
+  set(SM "70") # Default fallback
+
+  if(GPU_NAME_CLEAN MATCHES "a100")
+    set(SM "80")
+  elseif(GPU_NAME_CLEAN MATCHES "v100")
+    set(SM "70")
+  elseif(GPU_NAME_CLEAN MATCHES "rtx30|3090|3080|3070|3060")
+    set(SM "86")
+  elseif(GPU_NAME_CLEAN MATCHES "rtx40|4090|4080|4070|4060")
+    set(SM "89")
+  elseif(GPU_NAME_CLEAN MATCHES "rtxa6000|a10")
+    set(SM "86")
+  elseif(GPU_NAME_CLEAN MATCHES "t4")
+    set(SM "75")
+  elseif(GPU_NAME_CLEAN MATCHES "p100")
+    set(SM "60")
+  elseif(GPU_NAME_CLEAN MATCHES "k80")
+    set(SM "37")
+  elseif(GPU_NAME_CLEAN MATCHES "2080|2070|2060")
+    set(SM "75")
+  endif()
+
+  message(STATUS "Detected GPU: ${GPU_NAME}")
+  message(STATUS "Using CUDA SM architecture: ${SM}")
+
+  set(${ARCH} ${SM} PARENT_SCOPE)
+endfunction()
+
+# Detect current machine GPU architecture
+# detect_current_cuda_architecture(CURRENT_CUDA_ARCH)
+# set(CMAKE_CUDA_ARCHITECTURES ${CURRENT_CUDA_ARCH})
+# message(STATUS "Set CMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}")
+
 # Detect CUDA architectures and set them
 detect_cuda_architectures(CUDA_ARCHITECTURES)
-
 # Set CUDA architectures
 set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCHITECTURES})
 message(STATUS "Detected CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
@@ -263,4 +310,3 @@ message(STATUS "GCC CXX flags: ${CMAKE_CXX_FLAGS}")
 if(CMAKE_CUDA_COMPILER)
     message(STATUS "NVCC flags: ${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS} ${CUDA_NVCC_FLAGS}")
 endif()
-

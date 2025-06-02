@@ -12,6 +12,7 @@
 from setuptools import setup
 from torch.utils.cpp_extension import CUDAExtension, BuildExtension
 import os
+import re
 import subprocess
 
 
@@ -54,6 +55,25 @@ def get_supported_architectures():
     # Return a default list if nvcc is unavailable
     return ["60", "61", "70", "75", "80", "86"]
 
+def get_current_architecture():
+    try:
+        result = subprocess.run(["nvidia-smi", "-q"], capture_output=True, text=True)
+        if result.returncode == 0:
+            # Search for Compute Capability lines, e.g., "Compute Capability : 7.5"
+            match = re.search(r"Compute Capability\s*:\s*(\d+)\.(\d+)", result.stdout)
+            if match:
+                major, minor = match.groups()
+                return [ f"{major}{minor}" ]
+            else:
+                print("Compute Capability not found in nvidia-smi output.")
+        else:
+            print("nvidia-smi command failed.")
+    except FileNotFoundError:
+        print("nvidia-smi not found. Make sure NVIDIA drivers are installed.")
+
+    # Fallback default if detection fails
+    return ["75"]
+
 
 cxx_compiler_flags = ['-O2']
 
@@ -80,6 +100,7 @@ except Exception as e:
     nvcc_flags = ['-O2', '-allow-unsupported-compiler']  # Default flags if nvcc check fails
 
 supported_architectures = get_supported_architectures()
+#supported_architectures = get_current_architecture()
 for arch in supported_architectures:
     nvcc_flags.append(f"-gencode=arch=compute_{arch},code=sm_{arch}")
     

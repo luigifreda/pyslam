@@ -6,6 +6,10 @@ SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symboli
 STARTING_DIR=`pwd`
 cd $SCRIPT_DIR
 
+ROOT_DIR="$SCRIPT_DIR"/../..
+
+#. $ROOT_DIR/cuda_config.sh
+
 # Instead of building with setup.py use cmake and ninja
 # pip install . --verbose
 
