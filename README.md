@@ -380,16 +380,16 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
 
 Different semantic mapping methods are available (see [here](./docs/semantics.md) for furthere details). Currently, we support semantic mapping using **dense semantic segmentation**.
-  - `DEEPLABV3`: torchvision, pre-trained on COCO/VOC
-  - `SEGFORMER`: transformers, pre-trained on Cityscapes or ADE20k
-  - `CLIP`: from f3rm repo for open-vocabulary
+  - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
+  - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
+  - `CLIP`: from `f3rm` package for open-vocabulary support.
 
 **Semantic features** are assigned to **keypoints** on the image and fused into map points. The semantic features can be:
 - *Labels*: categorical labels as numbers.
 - *Probability vectors*: probability vectors for each class.
 - *Feature vectors*: feature vectors obtained from an encoder. This is generally used for open vocabulary mapping.
 
-A simple test of the available segmentation models: `test/semantics/test_semantic_segmentation.py`.
+The simplest way to test the available segmentation models is to run: `test/semantics/test_semantic_segmentation.py`.
 
 ---
 
@@ -630,10 +630,9 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 
 ### Supported semantic segmentation methods
 
-- [DeepLabv3](https://arxiv.org/abs/1706.05587) (torchvision, pre-trained on COCO/VOC)
-- [Segformer](https://arxiv.org/abs/2105.15203) (transformers, pre-trained on Cityscapes or ADE20k)
-- [CLIP](https://arxiv.org/abs/2212.09506) (from f3rm repo for open-vocabulary)
-
+- [DeepLabv3](https://arxiv.org/abs/1706.05587): from `torchvision`, pre-trained on COCO/VOC.
+- [Segformer](https://arxiv.org/abs/2105.15203): from `transformers`, pre-trained on Cityscapes or ADE20k.
+- [CLIP](https://arxiv.org/abs/2212.09506): from `f3rm` package for open-vocabulary support.
 
 --- 
 

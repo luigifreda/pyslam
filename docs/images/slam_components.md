@@ -17,6 +17,7 @@ graph LR;
     %%Slam -->|*_has-a_*| Map;
     Slam -->|*_has-a_*| VolumetricIntegrator["VolumetricIntegrator<br><span style='font-size:10px;'><b>[Process]</b></span>"];
     %%Slam -->|*_has-a_*| GlobalBundleAdjustment["GlobalBundleAdjustment<br><span style='font-size:10px;'><b>[Process/Thread]</b></span>"];
+    Slam -->|*_has-a_*| SemanticMapping["SemanticMappingDense<br><span style='font-size:10px;'><b>[Process]</b></span>"];
 
     Tracking -->|*_has-a_*| Initializer;
     Tracking -->|*_has-a_*| SLAMDynamicConfig;
@@ -31,6 +32,8 @@ graph LR;
 
     %%VolumetricIntegrator -->|*_has-a_*| Camera;
     VolumetricIntegrator -->|*_has-a_*| DepthEstimator; 
+
+    SemanticMapping -->|*_has-a_*| SemanticSegmentation; 
 
     LoopClosing -->|*_has-a_*| Relocalizer;
     LoopClosing -->|*_has-a_*| Map;
@@ -53,6 +56,7 @@ graph LR;
     class Camera module;
     class GlobalBundleAdjustment module;
     class VolumetricIntegrator module;
+    class SemanticMapping module;
 
     %% LoopClosing Components
     class LoopDetectingProcess component;
@@ -69,3 +73,6 @@ graph LR;
 
     %% Volumetric Integrator Components
     class DepthEstimator component;
+
+    %% Semantic Mapping Components
+    class SemanticSegmentation component;
