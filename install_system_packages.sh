@@ -103,8 +103,8 @@ else
     install_packages liblz4-dev libzstd-dev
     install_package  libhdf5-dev    # needed when building h5py wheel from src is required (arm64)
 
-    install_packages libboost-serialization-dev libboost-system-dev libboost-filesystem-dev
-    install_package  tmux # for launching tmux sessions
+    install_package libboost-all-dev
+    install_package tmux # for launching tmux sessions
 
     if [[ $version == *"24.04"* ]] ; then
         install_package libqt5gui5t64 # for qt5 support     
