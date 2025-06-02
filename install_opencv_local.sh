@@ -69,9 +69,9 @@ STARTING_DIR=`pwd`
 # ====================================================
 print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
 
-#pip install --upgrade pip
-pip uninstall -y opencv-python
-pip uninstall -y opencv-contrib-python
+#pip3 install --upgrade pip
+pip3 uninstall -y opencv-python
+pip3 uninstall -y opencv-contrib-python
 
 set -e
 

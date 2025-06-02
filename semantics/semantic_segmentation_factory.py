@@ -31,13 +31,22 @@ from utils_sys import Printer, import_from
 
 from utils_serialization import SerializableEnum, register_class
 
-from semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
-from semantic_segmentation_segformer import SemanticSegmentationSegformer
-from semantic_segmentation_clip import SemanticSegmentationCLIP
+try:
+    from semantic_segmentation_base import SemanticSegmentationBase
+    from semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
+    from semantic_segmentation_segformer import SemanticSegmentationSegformer
+    from semantic_segmentation_clip import SemanticSegmentationCLIP
+except ModuleNotFoundError:
+    SemanticSegmentationBase = import_from('semantic_segmentation_base', 'SemanticSegmentationBase')
+    SemanticSegmentationDeepLabV3 = import_from('semantic_segmentation_deep_lab_v3', 'SemanticSegmentationDeepLabV3')
+    SemanticSegmentationSegformer = import_from('semantic_segmentation_segformer', 'SemanticSegmentationSegformer')
+    SemanticSegmentationCLIP = import_from('semantic_segmentation_clip', 'SemanticSegmentationCLIP')
+
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
+
 
 @register_class
 class SemanticSegmentationType(SerializableEnum):

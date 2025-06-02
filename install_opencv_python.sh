@@ -36,11 +36,11 @@ PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
 echo "Using PYTHON_ENV: $PYTHON_ENV"
 
-#pip install --upgrade pip
-pip uninstall -y opencv-python
-pip uninstall -y opencv-contrib-python
+#pip3 install --upgrade pip
+pip3 uninstall -y opencv-python
+pip3 uninstall -y opencv-contrib-python
 
-pip install --upgrade numpy
+pip3 install --upgrade numpy
 
 cd thirdparty
 if [ ! -d opencv-python ]; then
@@ -91,15 +91,15 @@ fi
 export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS=$CPPFLAGS"
 
 # build opencv_python 
-pip wheel . --verbose
+pip3 wheel . --verbose
 # install built packages
-pip install opencv*.whl --force-reinstall
+pip3 install opencv*.whl --force-reinstall
 
 # build opencv_contrib_python
 export ENABLE_CONTRIB=1
-pip wheel . --verbose
+pip3 wheel . --verbose
 # install built packages
-# pip install opencv*.whl --force-reinstall
+# pi3p install opencv*.whl --force-reinstall
 
 
 # Extract the installed OpenCV version and wheel path
@@ -116,10 +116,11 @@ cat "$ROOT_DIR/constraints.txt"
 cd "$ROOT_DIR"
 
 
-# HACK for conda issue:
+# HACK for conda issue under linux:
 # "ImportError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32"
 #  See https://github.com/elerac/EasyPySpin/issues/12
 if [[ "$OSTYPE" != "darwin"* ]]; then
+
     CV2_SO_PATH=$PYTHON_ENV/lib/python$PYTHON_VERSION/site-packages/cv2
     # Find the actual .so file (handles different naming variations)
     CV2_SO_FILE=$(ls "$CV2_SO_PATH"/cv2.*.so 2>/dev/null | head -n 1)
@@ -134,6 +135,7 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
             fi
         fi
     fi
+
 fi
 
 cd "$STARTING_DIR"
