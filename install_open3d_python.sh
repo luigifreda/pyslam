@@ -24,8 +24,8 @@ cd "$ROOT_DIR"
 
 print_blue "Installing open3d-python from source"
 
-#pip install --upgrade pip
-pip uninstall -y open3d
+#pip3 install --upgrade pip
+pip3 uninstall -y open3d
 
 cd thirdparty
 if [ ! -d open3d ]; then

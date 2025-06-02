@@ -170,13 +170,13 @@ fi
 pip3 install evo      #==1.11.0
 pip3 install trimesh  # for utils_dust3r.py 
 
-# pip install jax # not used at the moment 
+# pip3 install jax # not used at the moment 
 # if [ "$CUDA_VERSION" != "0" ]; then
 #     if [[ "$CUDA_VERSION" =~ ^11\. ]]; then
-#         pip install --upgrade "jax[cuda11]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+#         pip3 install --upgrade "jax[cuda11]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 #     fi
 #     if [[ "$CUDA_VERSION" =~ ^12\. ]]; then
-#         pip install --upgrade "jax[cuda12]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+#         pip3 install --upgrade "jax[cuda12]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 #     fi
 # fi
 
@@ -231,14 +231,16 @@ else
     print_yellow "Skipping mast3r and mvdust3r since CUDA_VERSION is 0"
 fi
 
+
+# HACK
+pip3 install "$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl --force-reinstall
+
 # semantic mapping packages
 # Torchvision will be installed already
-
 # Install transformers with specific version due to break of last version
-# pip3 install transformers==4.38.2  # originally suggested version 4.51.0  
-# # Install f3rm for the dense CLIP model
-# pip3 install f3rm
-# pip3 install timm==1.0.15
-
-pip install transformers==4.38.2 f3rm  --constraint "$ROOT_DIR/constraints.txt"
+pip3 install transformers==4.38.2 --constraint "$ROOT_DIR/constraints.txt" # originally suggested version 4.51.0  
+ # Install f3rm for the dense CLIP model
+pip3 install f3rm  --constraint "$ROOT_DIR/constraints.txt"
 pip3 install timm==1.0.15 --constraint "$ROOT_DIR/constraints.txt"
+
+

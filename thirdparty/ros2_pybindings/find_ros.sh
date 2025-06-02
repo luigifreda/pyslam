@@ -4,7 +4,7 @@
 
 # Known ROS distros. Here you can just add the distros you have/prefer.
 ROS1_DISTROS=("noetic") 
-# NOTE: jazzy is not supported yet
+# NOTE: jazzy is not supported yet by ros2_pybindings
 ROS2_DISTROS=("foxy" "galactic" "humble" "iron" "rolling" "eloquent" "dashing" "crystal" "ardent")
 
 ROS1_INSTALL_PATH=""

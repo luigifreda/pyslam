@@ -93,7 +93,7 @@ If you get the following error (or a similar one)
 ```
 then your detected CUDA version should actually be 11.8 and the following command might help:
 ```
-pip install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
+pip3 install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
 ```
 Another solution is to install CUDA 12.1, as suggested by the error message.
 
@@ -179,7 +179,7 @@ TypeError: unsupported operand type(s) for |=: 'OrderedSet' and 'OrderedSet'
 ``` 
 You can solve such an issue by installing a lower version of OrderedSet
 ```
-pip install ordered-set==3.1.1 --force-reinstall
+pip3 install ordered-set==3.1.1 --force-reinstall
 ``` 
 
 ### Import erros related to ROS and OpenCV
