@@ -74,7 +74,7 @@ MAKEFLAGS_OPTION="-j$(nproc)"
 # CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
 # PIP_MAC_OPTIONS=""
-# if [[ "$OSTYPE" == "darwin"* ]]; then
+# if [[ "$OSTYPE" == darwin* ]]; then
 #     PIP_MAC_OPTIONS=" --no-binary :all: "
 # fi
 
