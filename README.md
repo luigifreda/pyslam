@@ -8,6 +8,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
+- A suite of segmentation models for **[semantic understanding](#semantic-mapping)** of the scene, such as DeepLabv3, Segformer, and dense CLIP.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
 
@@ -81,6 +82,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
         - [Global descriptors](#global-descriptors)
     - [Supported depth prediction models](#supported-depth-prediction-models)
     - [Supported volumetric mapping methods](#supported-volumetric-mapping-methods)
+    - [Supported semantic segmentation methods](#supported-semantic-segmentation-methods)
   - [Configuration](#configuration)
     - [Main configuration file](#main-configuration-file)
     - [Datasets](#datasets)
@@ -120,7 +122,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 * `main_slam_evaluation.py` enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets (see [here](#evaluating-slam)).
 
-Other test/example scripts are provided in the `test` folder.
+Other *test/example scripts* are provided in the `test` folder.
 
 ### System overview      
 
@@ -375,14 +377,19 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 
 ### Semantic mapping
 
-The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`.
-The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
+The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
 
-Different semantic mapping methods are available [WIP Documentation]. Currently, we support semantic mapping using dense semantic segmenetation. 
-Semantic features are assigned to keypoints on the image and fused into map points. The semantic features can be:
-- Labels: categorical labels as numbers.
-- Probability vectors: probability vectors for each class.
-- Feature vectors: feature vectors obtained from an encoder. This is generally used for open vocabulary mapping.
+Different semantic mapping methods are available (see [here](./docs/semantics.md) for furthere details). Currently, we support semantic mapping using **dense semantic segmentation**.
+  - `DEEPLABV3`: torchvision, pre-trained on COCO/VOC
+  - `SEGFORMER`: transformers, pre-trained on Cityscapes or ADE20k
+  - `CLIP`: from f3rm repo for open-vocabulary
+
+**Semantic features** are assigned to **keypoints** on the image and fused into map points. The semantic features can be:
+- *Labels*: categorical labels as numbers.
+- *Probability vectors*: probability vectors for each class.
+- *Feature vectors*: feature vectors obtained from an encoder. This is generally used for open vocabulary mapping.
+
+A simple test of the available segmentation models: `test/semantics/test_semantic_segmentation.py`.
 
 ---
 
@@ -620,6 +627,14 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 * [TSDF](https://arxiv.org/pdf/2110.00511) with voxel block grid (parallel spatial hashing)
 * Incremental 3D Gaussian Splatting. See [here](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) and [MonoGS](https://arxiv.org/abs/2312.06741) for a description of its backend.
 
+
+### Supported semantic segmentation methods
+
+- [DeepLabv3](https://arxiv.org/abs/1706.05587) (torchvision, pre-trained on COCO/VOC)
+- [Segformer](https://arxiv.org/abs/2105.15203) (transformers, pre-trained on Cityscapes or ADE20k)
+- [CLIP](https://arxiv.org/abs/2212.09506) (from f3rm repo for open-vocabulary)
+
+
 --- 
 
 ## Configuration 
@@ -837,7 +852,7 @@ Many improvements and additional features are currently under development:
 - [x] Stereo and RGBD support
 - [x] Map saving/loading 
 - [x] Modern DL matching algorithms 
-- [ ] Object detection [WIP by @dvdmc]
+- [ ] Object detection
   - [ ] Open vocabulary segment (object) detection
 - [X] Semantic segmentation [WIP by @dvdmc]
   - [X] Dense closed-set labels
