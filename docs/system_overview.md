@@ -108,7 +108,7 @@ The last diagram illustrates the architecture of the *Depth Estimator* module. A
 
 Each estimator type instantiates a corresponding implementation (e.g., `DepthEstimatorSgbm`, `DepthEstimatorCrestereo`, etc.), all inheriting from a common `DepthEstimator` interface. This base class encapsulates shared dependencies such as the `camera`, `device`, and `model` components, allowing for modular integration of heterogeneous depth estimation techniques across stereo, monocular, and multi-view pipelines.
 
-Section [Supported depth prediction models](../README.md#supported-depth-prediction-models) provides a list of supported depth estimation/prediction models.
+The section [Supported depth prediction models](../README.md#supported-depth-prediction-models) provides a list of supported depth estimation/prediction models.
 
 
 ### Volumetric Integrator
@@ -122,7 +122,7 @@ This diagram illustrates the structure of the *Volumetric Integrator* module. At
 
 Each type instantiates a dedicated implementation (e.g., `VolumetricIntegratorTSDF`, `VolumetricIntegratorGaussianSplatting`), which inherits from a common `VolumetricIntegratorBase`. This base class encapsulates key components including the `camera`, a `keyframe_queue`, and the `volume`, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
 
-Section [Supported volumetric mapping methods](../README.md#supported-volumetric-mapping-methods) provides a list of supported volume integration methods.
+The section [Supported volumetric mapping methods](../README.md#supported-volumetric-mapping-methods) provides a list of supported volume integration methods.
 
 ### Semantic Mapping
 
@@ -138,7 +138,7 @@ The system supports multiple semantic feature representations - such as categori
 
 This modular design decouples semantic segmentation from mapping logic, enabling flexible combinations of segmentation models, datasets (e.g., NYU40, Cityscapes), and fusion strategies. It also supports customization via configuration files or programmatic APIs for dataset-specific tuning or deployment.
 
-
+The section [Supported semantic segmentation methods](../README.md#supported-semantic-segmentation-methods) provides a list of supported semantic segmentation methods.
 
 
 

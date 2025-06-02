@@ -1,12 +1,11 @@
 # Semantic pySLAM
 
-Original document from [David](https://github.com/dvdmc) is available [here](https://docs.google.com/document/d/1MpLvLVx35Sr9fh6W-YcUlRjWY3dvww4ROGqWeOI_J_8/edit?tab=t.0#heading=h.65ibkflchz2i).
+Original [David](https://github.com/dvdmc)'s document is available [here](https://docs.google.com/document/d/1MpLvLVx35Sr9fh6W-YcUlRjWY3dvww4ROGqWeOI_J_8/edit?tab=t.0#heading=h.65ibkflchz2i).
 
 
 <!-- TOC -->
 
 - [Semantic pySLAM](#semantic-pyslam)
-  - [Aim](#aim)
   - [Quick test](#quick-test)
   - [Implemented features](#implemented-features)
     - [Semantic features types](#semantic-features-types)
@@ -23,16 +22,13 @@ Original document from [David](https://github.com/dvdmc) is available [here](htt
 
 <!-- /TOC -->
 
-
-## Aim
-
-Include a module to perform semantic mapping within pySLAM. This module will serve in prototyping, benchmarking and evaluation of semantic mapping methods.
+The `semantics` module in pySLAM enables **semantic mapping** capabilities. It is designed to support rapid prototyping, benchmarking, and evaluation of semantic mapping methods within the SLAM pipeline.
 
 ## Quick test
 
-Run the `main_slam.py` example to run Segformer trained on Cityscapes.
+Run the `main_slam.py` example to run Segformer (trained on Cityscapes) on the default KITTI video.
 
-For testing the open-vocabulary feature: change the semantic mapping config in the `semantic_mapping_configs.py` file to:  
+For testing the **open-vocabulary feature**: change the semantic mapping config in the `semantic_mapping_configs.py` file to:  
 Then change your query word in `semantic_segmentation_clip.py` to your desire.
 
 ## Implemented features
@@ -40,7 +36,8 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 - A semantic mapping module that assigns semantic features to keypoints on keyframes and uses them to assign semantic features to map points.
 - The semantic mapping module acts **after** the local mapping module has refined a keyframe and **before** the loop closure and volumetric integration modules. But, since it can be run on a different thread, the latter is not ensured.
 - The interface for the semantic mapping module is:  
-  **IN**: KFs, **OUT**: semantic features for KPs and MPs.
+  * **IN**: KFs, 
+  * **OUT**: semantic features for KPs and MPs.
 
 ### Semantic features types
 
@@ -53,7 +50,7 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 - The semantic mapping module can potentially be “dense” or “object-based”. Both will maintain the same interface.
 - **Dense** version:
   - Uses per-pixel semantic segmentation.
-- **Object-based** (not implemented yet):
+- **Object-based** [*not implemented yet*]:
   - Generate, track, and maintain 3D segments as groups of points.
   - Features are assigned at object-level: multiple KPs or MPs share descriptors.
   - Approaches: project 2D masks or use DBSCAN for 3D clustering.
@@ -63,9 +60,9 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 - Segmentation models have a base class with an `infer` interface returning semantic images.
 - A `to_rgb` method converts semantic outputs into color maps.
 - Implemented models:
-  - DeepLabv3 (torchvision, pre-trained on COCO/VOC)
-  - Segformer (transformers, pre-trained on Cityscapes or ADE20k)
-  - Dense CLIP (from f3rm repo for open-vocabulary)
+  - **DeepLabv3** (torchvision, pre-trained on COCO/VOC)
+  - **Segformer** (transformers, pre-trained on Cityscapes or ADE20k)
+  - **Dense CLIP** (from f3rm repo for open-vocabulary)
 
 ### Dataset Type Support
 
@@ -132,4 +129,4 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 
 - Should label images be `(H,W)` or `(H,W,1)`?
 - How should configuration and factories be structured?
-- How to structure `semantic_labels` and `semantic_utils`?
+- How to best structure `semantic_labels` and `semantic_utils`?
