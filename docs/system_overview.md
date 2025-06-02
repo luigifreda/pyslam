@@ -3,14 +3,14 @@
 <!-- TOC -->
 
 - [System Overview](#system-overview)
-  - [SLAM Workflow and Components](#slam-workflow-and-components)
-  - [Main System Components](#main-system-components)
-    - [Feature Tracker](#feature-tracker)
-    - [Feature Matcher](#feature-matcher)
-    - [Loop Detector](#loop-detector)
-    - [Depth Estimator](#depth-estimator)
-    - [Volumetric Integrator](#volumetric-integrator)
-    - [Semantic Mapping](#semantic-mapping)
+    - [1. SLAM Workflow and Components](#1-slam-workflow-and-components)
+    - [2. Main System Components](#2-main-system-components)
+        - [2.1. Feature Tracker](#21-feature-tracker)
+        - [2.2. Feature Matcher](#22-feature-matcher)
+        - [2.3. Loop Detector](#23-loop-detector)
+        - [2.4. Depth Estimator](#24-depth-estimator)
+        - [2.5. Volumetric Integrator](#25-volumetric-integrator)
+        - [2.6. Semantic Mapping](#26-semantic-mapping)
 
 <!-- /TOC -->
 
@@ -24,12 +24,19 @@ This document provides a high-level system overview, including diagrams that ill
 <img src="./images/slam_workflow.png" alt="SLAM Workflow"  /> 
 </p>
 
-This figure illustrates the SLAM workflow, which is composed of **five main parallel processing modules**:
-- *Tracking*: estimates the camera pose for each incoming frame by extracting and matching local features to the local map, followed by minimizing the reprojection error through motion-only Bundle Adjustment (BA). It includes components such as pose prediction (or relocalization), feature tracking, local map tracking, and keyframe decision-making.
-- *Local Mapping*: updates and refines the local map by processing new keyframes. This involves culling redundant map points, creating new points via temporal triangulation, fusing nearby map points, performing Local BA, and pruning redundant local keyframes.
-- *Loop Closing*: detects and validates loop closures to correct drift accumulated over time. Upon loop detection, it performs loop group consistency checks and geometric verification, applies corrections, and then launches Pose Graph Optimization (PGO) followed by a full Global Bundle Adjustment (GBA). Loop detection itself is delegated to a parallel process, the *Loop Detector*, which operates independently for better responsiveness and concurrency.
-- *Global Bundle Adjustment*: triggered by the Loop Closing module after PGO, this step globally optimizes the trajectory and the sparse structure of the map to ensure consistency across the entire sequence.
-- *Volumetric Integration*: uses the keyframes, with their estimated poses and back-projected point clouds, to reconstruct a dense 3D map of the environment. This module optionally integrates predicted depth maps and maintains a volumetric representation such as a TSDF or Gaussian Splatting-based volume.
+This figure illustrates the SLAM workflow, which is composed of **six main parallel processing modules**:
+
+- **Tracking**: estimates the camera pose for each incoming frame by extracting and matching local features to the local map, followed by minimizing the reprojection error through motion-only Bundle Adjustment (BA). It includes components such as pose prediction (or relocalization), feature tracking, local map tracking, and keyframe decision-making.
+
+- **Local Mapping**: updates and refines the local map by processing new keyframes. This involves culling redundant map points, creating new points via temporal triangulation, fusing nearby map points, performing Local BA, and pruning redundant local keyframes.
+
+- **Loop Closing**: detects and validates loop closures to correct drift accumulated over time. Upon loop detection, it performs loop group consistency checks and geometric verification, applies corrections, and then launches Pose Graph Optimization (PGO) followed by a full Global Bundle Adjustment (GBA). Loop detection itself is delegated to a parallel process, the *Loop Detector*, which operates independently for better responsiveness and concurrency.
+
+- **Global Bundle Adjustment**: triggered by the Loop Closing module after PGO, this step globally optimizes the trajectory and the sparse structure of the map to ensure consistency across the entire sequence.
+
+- **Volumetric Integration**: uses the keyframes, with their estimated poses and back-projected point clouds, to reconstruct a dense 3D map of the environment. This module optionally integrates predicted depth maps and maintains a volumetric representation such as a TSDF or Gaussian Splatting-based volume.
+
+- **Semantic Mapping**: enriches the SLAM map with dense semantic information by applying pixel-wise segmentation to selected keyframes. Semantic predictions are fused across views to assign semantic labels or descriptors to keyframes and map points. The module operates in parallel, consuming keyframes and associated image data from a queue, applying a configured semantic segmentation model, and updating the map with fused semantic features. This enables advanced downstream tasks such as semantic navigation, scene understanding, and category-level mapping.
 
 The first four modules follow the established PTAM and ORB-SLAM paradigm. Here, the Tracking module serves as the front-end, while the remaining modules operate as part of the back-end.
 

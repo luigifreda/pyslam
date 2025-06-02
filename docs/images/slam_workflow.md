@@ -48,6 +48,17 @@ graph LR
         SpanningTree[Spanning<br>Tree]
     end
 
+    subgraph SemanticMapping["SEMANTIC&nbsp;MAPPING"]
+        SemanticKeyFrameQueue[KeyFrame Queue] --> SemanticSegmentation[Semantic<br>Segmentation]
+        SemanticSegmentation --> UpdateKeyFrameSemantics[Update<br>KeyFrame Semantics]
+        SemanticSegmentation --> UpdateMapPointSemantics[Update<br>MapPoint Semantics]
+        UpdateKeyFrameSemantics --> SemanticMap[Semantic Map]
+        UpdateMapPointSemantics --> SemanticMap
+    end
+
+    ProcessedKeyframe --> SemanticMapping
+    SemanticMapping <--> Map
+
     Frame(Frame) --> Tracking 
     Tracking --> NewKeyFrame(New<br>Keyframe) --> LocalMapping
     LocalMapping --> ProcessedKeyframe
@@ -105,3 +116,10 @@ graph LR
     class Frame data;
     class NewKeyFrame data;
     class ProcessedKeyframe data;
+
+    class SemanticMapping module;
+    class SemanticKeyFrameQueue component;
+    class SemanticSegmentation component;
+    class UpdateKeyFrameSemantics component;
+    class UpdateMapPointSemantics component;
+    class SemanticMap component;

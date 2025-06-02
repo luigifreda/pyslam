@@ -142,12 +142,12 @@
 \begin{abstract}
 pySLAM is an open-source Python framework for Visual SLAM that supports monocular, stereo, and RGB-D camera inputs. It offers a flexible and modular interface, integrating a broad range of both classical and learning-based local features. The framework includes multiple loop closure strategies, a volumetric reconstruction pipeline, and support for depth prediction models. It also offers a comprehensive set of tools for the experimentation and evaluation of visual odometry and SLAM modules.
 Designed for both beginners and experienced researchers, pySLAM emphasizes rapid prototyping, extensibility, and reproducibility across diverse datasets. Its modular architecture facilitates the integration of custom components and encourages research that bridges traditional and deep learning-based approaches. Community contributions are welcomed, fostering collaborative development and innovation in the field of Visual SLAM.
-This document presents the pySLAM framework, outlining its main components, features, and usage.
+This document\footnote{You may find an updated version of this document at:\\ \href{https://github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}{github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}} presents the pySLAM framework, outlining its main components, features, and usage.
 \end{abstract}
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.55\textwidth]{images_tex/pyslam-teaser-rect.png}
+  \includegraphics[width=0.5\textwidth]{images_tex/pyslam-teaser-rect.png}
   \label{fig:teaser}
 \end{figure}
 
@@ -183,6 +183,10 @@ The objective of this document is to present the pySLAM framework, its main feat
     \textbf{\protect\hyperlink{depth-prediction}{depth prediction models}}
     within the SLAM pipeline. These include DepthPro, DepthAnythingV2,
     RAFT-Stereo, CREStereo, MASt3R, MVDUSt3R, etc.
+
+    \item A suite of segmentation models for
+    \textbf{\protect\hyperlink{semantic-mapping}{semantic understanding}} of
+    the scene, such as DeepLabv3, Segformer, and dense CLIP.
     
     \item Additional tools for VO (Visual Odometry) and SLAM, with built-in
     support for both \textbf{g2o} and \textbf{GTSAM}, along with custom
@@ -285,7 +289,7 @@ This section presents some diagram sketches that provide an overview of the main
 
 \subsubsection{SLAM Workflow and Components} 
 
-Fig.~\ref{Fig:SLAMWorfklow} illustrates the SLAM workflow, which is composed of five main parallel processing modules:
+Fig.~\ref{Fig:SLAMWorfklow} illustrates the SLAM workflow, which is composed of six main parallel processing modules:
 
 \begin{itemize}
 \item \textit{Tracking}: estimates the camera pose for each incoming frame by extracting and matching local features to the local map, followed by minimizing the reprojection error through motion-only Bundle Adjustment (BA). It includes components such as pose prediction (or relocalization), feature tracking, local map tracking, and keyframe decision-making.
@@ -293,6 +297,7 @@ Fig.~\ref{Fig:SLAMWorfklow} illustrates the SLAM workflow, which is composed of 
 \item \textit{Loop Closing}: detects and validates loop closures to correct drift accumulated over time. Upon loop detection, it performs loop group consistency checks and geometric verification, applies corrections, and then launches Pose Graph Optimization (PGO) followed by a full Global Bundle Adjustment (GBA). Loop detection itself is delegated to a parallel process, the \textit{Loop Detector}, which operates independently for better responsiveness and concurrency.
 \item \textit{Global Bundle Adjustment}: triggered by the Loop Closing module after PGO, this step globally optimizes the trajectory and the sparse structure of the map to ensure consistency across the entire sequence.
 \item \textit{Volumetric Integration}: uses the keyframes, with their estimated poses and back-projected point clouds, to reconstruct a dense 3D map of the environment. This module optionally integrates predicted depth maps and maintains a volumetric representation such as a TSDF~\cite{dong2022ash} or incremental Gaussian Splatting-based volume~\cite{matsuki2023gaussian,kerbl20233d}.
+\item \textit{Semantic Mapping}: enriches the SLAM map with dense semantic information by applying pixel-wise segmentation to selected keyframes. Semantic predictions are fused across views to assign semantic labels or descriptors to keyframes and map points. The module operates in parallel, consuming keyframes and associated image data from a queue, applying a configured semantic segmentation model, and updating the map with fused semantic features. This enables advanced downstream tasks such as semantic navigation, scene understanding, and category-level mapping.
 \end{itemize}
 
 The first four modules follow the established PTAM~\cite{PTAM} and ORB-SLAM~\cite{ORB_SLAM2} paradigm. Here, the \textit{Tracking} module serves as the front-end, while the remaining modules operate as part of the back-end.
@@ -430,6 +435,11 @@ The diagram in Fig.~\ref{Fig:SemanticMapping} outlines the architecture of the \
 The system supports multiple semantic feature representations~--~such as categorical labels, probability vectors, and high-dimensional feature embeddings~--~and fuses them into the map using configurable methods like count-based fusion, Bayesian fusion, or feature averaging.
 
 This modular design decouples semantic segmentation from mapping logic, enabling flexible combinations of segmentation models, datasets (e.g., \texttt{NYU40}, \texttt{Cityscapes}), and fusion strategies. It also supports customization via configuration files or programmatic APIs for dataset-specific tuning or deployment.
+
+The Section~\ref{semantic-mapping} provides a list of supported semantic segmentation methods.
+
+
+
 
 
 %\hypertarget{troubleshooting-and-performance-issues}{%
@@ -863,13 +873,19 @@ The semantic mapping pipeline can be enabled by setting the parameter
 best way of configuring the semantic mapping module used is to modify it
 in \texttt{semantic\_mapping\_configs.py}.
 
-Different semantic mapping methods can be supported. Currently, we support semantic mapping using dense
-semantic segmenetation. Semantic features are assigned to keypoints on
+Different semantic mapping methods are available Currently, we support semantic mapping using dense
+semantic segmenetation. 
+\begin{itemize}
+\item \texttt{DEEPLABV3}: from \texttt{torchvision}, pre-trained on COCO/VOC.
+\item \texttt{SEGFORMER}: from \texttt{transformers}, pre-trained on Cityscapes or ADE20k.
+\item \texttt{CLIP}: from \texttt{f3rm} package for open-vocabulary support.
+\end{itemize}
+Semantic features are assigned to keypoints on
 the image and fused into map points. The semantic features can be: 
 \begin{itemize}
-\item Labels: categorical labels as numbers.
-\item Probability vectors: probability vectors for each class.
-\item Feature vectors: feature vectors
+\item \textit{Labels}: categorical labels as numbers.
+\item \textit{Probability vectors}: probability vectors for each class.
+\item \textit{Feature vectors}: feature vectors
 obtained from an encoder. This is generally used for open vocabulary
 mapping.
 \end{itemize}
@@ -1303,7 +1319,21 @@ methods}\label{supported-volumetric-mapping-methods}}
   of its backend \cite{matsuki2023gaussian, kerbl20233d}.
 \end{itemize}
 
+\hypertarget{supported-semantic-segmentation-methods}{%
+\subsubsection{Supported semantic segmentation
+methods}\label{supported-semantic-segmentation-methods}}
 
+\begin{itemize}
+\tightlist
+\item
+  \href{https://arxiv.org/abs/1706.05587}{DeepLabv3}~\cite{chen2017rethinking}: from \texttt{torchvision}, pre-trained on COCO/VOC.
+\item
+  \href{https://arxiv.org/abs/2105.15203}{Segformer}~\cite{xie2021segformer}: from \texttt{transformers}, pre-trained on Cityscapes or ADE20k.
+\item
+  \href{https://arxiv.org/abs/2212.09506}{CLIP}~\cite{lin2023clip}: from \texttt{f3rm} package for open-vocabulary support.
+\end{itemize}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
 \hypertarget{configuration}{%
 \subsection{Configuration}\label{configuration}}
