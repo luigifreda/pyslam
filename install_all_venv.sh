@@ -58,5 +58,9 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # 7. build and install thirdparty 
 . install_thirdparty.sh             # use . in order to inherit python env configuration and other environment vars 
 
+# 8. install tools for semantics
+# HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
+. install_pip3_semantics.sh
+
 
 cd "$STARTING_DIR"

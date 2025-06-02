@@ -232,15 +232,6 @@ else
 fi
 
 
-# HACK
-pip3 install "$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl --force-reinstall
-
-# semantic mapping packages
-# Torchvision will be installed already
-# Install transformers with specific version due to break of last version
-pip3 install transformers==4.38.2 --constraint "$ROOT_DIR/constraints.txt" # originally suggested version 4.51.0  
- # Install f3rm for the dense CLIP model
-pip3 install f3rm  --constraint "$ROOT_DIR/constraints.txt"
-pip3 install timm==1.0.15 --constraint "$ROOT_DIR/constraints.txt"
-
+# HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
+# . install_pip3_semantics.sh
 
