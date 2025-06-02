@@ -291,7 +291,7 @@ Once you have trained the vocabulary, you can add it in [loop_closing/loop_detec
 
 Most methods do not require pre-trained vocabularies. Specifically:
 - `iBoW` and `OBindex2`: These methods incrementally build bags of binary words and, if needed, convert (front-end) non-binary descriptors into binary ones. 
-- Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, and `EigenPlaces` directly extract their specific **global descriptors** and process them using dedicated aggregators, independently from the used front-end descriptors.
+- Others: Methods like `HDC_DELF`, `SAD`, `AlexNet`, `NetVLAD`, `CosPlace`, `EigenPlaces`, and `Megaloc` directly extract their specific **global descriptors** and process them using dedicated aggregators, independently from the used front-end descriptors.
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
 
@@ -604,6 +604,7 @@ Also referred to as *holistic descriptors*:
 * [HDC-DELF](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)
 * [CosPlace](https://github.com/gmberton/CosPlace)
 * [EigenPlaces](https://github.com/gmberton/EigenPlaces)
+* [Megaloc](https://github.com/gmberton/MegaLoc)
 
 
 Different [loop closing methods](#loop-closing) are available. These combines the above aggregation methods and global descriptors.
@@ -823,6 +824,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [MonoGS](https://github.com/muskie82/MonoGS)
 * [mast3r](https://github.com/naver/mast3r)
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
+* [MegaLoc](https://github.com/gmberton/MegaLoc)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 * Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for his great work on integrating [semantic predictions](./docs//semantics.md) into pySLAM.
 

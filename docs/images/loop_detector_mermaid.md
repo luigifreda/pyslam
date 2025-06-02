@@ -18,6 +18,7 @@ graph LR;
     loop_detector_factory -->|*global_descriptor_type*| NETVLAD;
     loop_detector_factory -->|*global_descriptor_type*| COSPLACE;
     loop_detector_factory -->|*global_descriptor_type*| EIGENPLACES;
+    loop_detector_factory -->|*global_descriptor_type*| MEGALOC;
 
     DBOW2 -->|*creates*| LoopDetectorDBoW2;
     DBOW3 -->|*creates*| LoopDetectorDBoW3;
@@ -31,6 +32,7 @@ graph LR;
     NETVLAD -->|*creates*| LoopDetectorNetVLAD;
     COSPLACE -->|*creates*| LoopDetectorCosPlace;
     EIGENPLACES -->|*creates*| LoopDetectorEigenPlaces;
+    MEGALOC -->|*creates*| LoopDetectorMegaloc;
 
     %% Hierarchical relationships
     LoopDetectorDBoW2 -->|*_is-a_*| LoopDetectorBase;
@@ -45,6 +47,7 @@ graph LR;
     LoopDetectorNetVLAD -->|*_is-a_*| LoopDetectorVprBase;
     LoopDetectorCosPlace -->|*_is-a_*| LoopDetectorVprBase;
     LoopDetectorEigenPlaces -->|*_is-a_*| LoopDetectorVprBase;
+    LoopDetectorMegaloc -->|*_is-a_*| LoopDetectorVprBase;
 
     LoopDetectorVprBase -->|*_is-a_*| LoopDetectorBase;
 
@@ -63,6 +66,7 @@ graph LR;
     class NETVLAD descriptor;
     class COSPLACE descriptor;
     class EIGENPLACES descriptor;
+    class MEGALOC descriptor;
 
     %% LoopDetectorBase hierarchy
     class LoopDetectorBase loopDetectorBase;
@@ -79,4 +83,5 @@ graph LR;
     class LoopDetectorAlexNet loopDetectorBase; 
     class LoopDetectorNetVLAD loopDetectorBase; 
     class LoopDetectorCosPlace loopDetectorBase; 
-    class LoopDetectorEigenPlaces loopDetectorBase; 
+    class LoopDetectorEigenPlaces loopDetectorBase;
+    class LoopDetectorMegaloc loopDetectorBase; 

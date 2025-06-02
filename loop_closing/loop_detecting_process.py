@@ -78,7 +78,8 @@ class LoopDetectingProcess:
            global_descriptor_type == GlobalDescriptorType.ALEXNET or \
            global_descriptor_type == GlobalDescriptorType.NETVLAD or \
            global_descriptor_type == GlobalDescriptorType.VLAD or \
-           global_descriptor_type == GlobalDescriptorType.EIGENPLACES:
+           global_descriptor_type == GlobalDescriptorType.EIGENPLACES or \
+           global_descriptor_type == GlobalDescriptorType.MEGALOC: 
             if mp.get_start_method() != 'spawn':
                 mp.set_start_method('spawn', force=True) # NOTE: This may generate some pickling problems with multiprocessing 
                                                         #       in combination with torch and we need to check it in other places.

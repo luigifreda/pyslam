@@ -40,6 +40,7 @@ from loop_detector_obindex2 import LoopDetectorOBIndex2
 from loop_detector_ibow import LoopDetectorIBow
 from loop_detector_vpr import LoopDetectorHdcDelf, LoopDetectorEigenPlaces, LoopDetectorNetVLAD, LoopDetectorSad, LoopDetectorAlexNet, LoopDetectorCosPlace
 from loop_detector_vlad import LoopDetectorVlad
+from global_feature_megaloc import GlobalFeatureMegaloc
 
 from loop_detector_vocabulary import DBow3OrbVocabularyData, DBow2OrbVocabularyData, VladOrbVocabularyData, dbow2_orb_vocabulary_factory, dbow3_orb_vocabulary_factory
 
@@ -88,6 +89,8 @@ class GlobalDescriptorType(SerializableEnum):
                         # Reference: "EigenPlaces: Training Viewpoint Robust Models for Visual Place Recognition"
     VLAD        = 10    # VLAD, Vector of Locally Aggregated Descriptors. It needs a vocabulary (available for ORB).
                         # Reference: "All about VLAD".
+    MEGALOC     = 11    # Global feature descriptor based on MegaLoc model. https://github.com/gmberton/MegaLoc
+                        # Reference: "MegaLoc: One Retrieval to Place Them All".
     
     
 # Additional information about used local descriptors aggregation method
@@ -232,6 +235,12 @@ class LoopDetectorConfigs:
         local_descriptor_aggregation_type = LocalDescriptorAggregationType.NONE,
         vocabulary_data = None)                                                    # It does not need a vocabulary
     
+    MEGALOC = dict(
+        global_descriptor_type = GlobalDescriptorType.MEGALOC,
+        local_feature_manager_config = None,                                       # Not needed.
+        local_descriptor_aggregation_type = LocalDescriptorAggregationType.NONE,
+        vocabulary_data = None)                                                    # It does not need a vocabulary
+    
 
 
 
@@ -291,6 +300,8 @@ def loop_detector_factory(
         loop_detector = LoopDetectorCosPlace(local_feature_manager=local_feature_manager)
     elif global_descriptor_type == GlobalDescriptorType.EIGENPLACES:
         loop_detector = LoopDetectorEigenPlaces(local_feature_manager=local_feature_manager)
+    elif global_descriptor_type == GlobalDescriptorType.MEGALOC:
+        loop_detector = GlobalFeatureMegaloc(local_feature_manager=local_feature_manager)
     else: 
         raise ValueError('loop_detector_factory: unknown global_descriptor_type')
     
