@@ -40,6 +40,7 @@ from frame import Frame
 import traceback
 from loop_detector_base import LoopDetectorTaskType, LoopDetectKeyframeData, LoopDetectorTask, LoopDetectorOutput, LoopDetectorBase
 from loop_detector_database import Database, ScoreCosine, ScoreSad, SimpleDatabase, FlannDatabase, FaissDatabase
+from global_feature_megaloc import GlobalFeatureMegaloc
 
 #import dill 
 
@@ -96,6 +97,7 @@ class HdcAdaptor:
 # global_descriptor_name = 'NetVLAD'     # Decently fast. PatchNetVLADFeatureExtractor model. https://www.di.ens.fr/willow/research/netvlad/
 # global_descriptor_name = 'CosPlace'    # Decently fast. CosPlaceFeatureExtractor model. https://github.com/gmberton/CosPlace
 # global_descriptor_name = 'EigenPlaces' # Decently fast. EigenPlacesFeatureExtractor model. https://github.com/gmberton/EigenPlaces
+# global_descriptor_name = 'Megaloc'     # A bit slow. https://github.com/gmberton/MegaLoc   https://github.com/luigifreda/pyslam/issues/178#issue-3108783337
 class LoopDetectorVprBase(LoopDetectorBase): 
     def __init__(self, global_descriptor_name= None, local_feature_manager=None, name='LoopDetectorVprBase'):
         super().__init__()
@@ -127,7 +129,8 @@ class LoopDetectorVprBase(LoopDetectorBase):
         if global_descriptor_name.lower() == 'cosplace' or \
             global_descriptor_name.lower() == 'alexnet' or \
             global_descriptor_name.lower() == 'netvlad' or \
-            global_descriptor_name.lower() == 'eigenplaces':
+            global_descriptor_name.lower() == 'eigenplaces' or \
+            global_descriptor_name.lower() == 'megaloc':
             import torch.multiprocessing as mp
             if mp.get_start_method() != 'spawn':
                 mp.set_start_method('spawn', force=True) # NOTE: This may generate some pickling problems with multiprocessing 
@@ -210,6 +213,9 @@ class LoopDetectorVprBase(LoopDetectorBase):
         elif global_descriptor_name.lower() == 'eigenplaces':
             from feature_extraction.feature_extractor_eigenplaces import EigenPlacesFeatureExtractor
             global_feature_extractor = EigenPlacesFeatureExtractor()
+        elif global_descriptor_name.lower() == 'megaloc':
+            from global_feature_megaloc import GlobalFeatureMegaloc
+            global_feature_extractor = GlobalFeatureMegaloc()
         else:
             raise ValueError('Unknown descriptor: ' + global_descriptor_name)
         return global_feature_extractor
@@ -321,7 +327,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
 # global_descriptor_name = 'NetVLAD'     # Decently fast. PatchNetVLADFeatureExtractor model. https://www.di.ens.fr/willow/research/netvlad/
 # global_descriptor_name = 'CosPlace'    # Decently fast. CosPlaceFeatureExtractor model. https://github.com/gmberton/CosPlace
 # global_descriptor_name = 'EigenPlaces' # Decently fast. EigenPlacesFeatureExtractor model. https://github.com/gmberton/EigenPlaces                    
-#
+# global_descriptor_name = 'Megaloc'     # Slow. https://github.com/gmberton/MegaLoc
 class LoopDetectorHdcDelf(LoopDetectorVprBase): 
     def __init__(self, global_descriptor_name= 'HDC-DELF', local_feature_manager=None, name='LoopDetectorHdcDelf'):
         super().__init__(global_descriptor_name, local_feature_manager, name)
@@ -344,4 +350,8 @@ class LoopDetectorCosPlace(LoopDetectorVprBase):
         
 class LoopDetectorEigenPlaces(LoopDetectorVprBase): 
     def __init__(self, global_descriptor_name= 'EigenPlaces', local_feature_manager=None, name='LoopDetectorEigenPlaces'):
+        super().__init__(global_descriptor_name, local_feature_manager, name)
+
+class LoopDetectorMegaloc(LoopDetectorVprBase): 
+    def __init__(self, global_descriptor_name= 'Megaloc', local_feature_manager=None, name='LoopDetectorMegaloc'):
         super().__init__(global_descriptor_name, local_feature_manager, name)

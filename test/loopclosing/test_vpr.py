@@ -86,6 +86,9 @@ class GlobalFeatureDatabase:
         elif global_descriptor_type == 'EigenPlaces':
             from feature_extraction.feature_extractor_eigenplaces import EigenPlacesFeatureExtractor
             global_feature_extractor = EigenPlacesFeatureExtractor()
+        elif global_descriptor_type == 'Megaloc':
+            from global_feature_megaloc import GlobalFeatureMegaloc
+            global_feature_extractor = GlobalFeatureMegaloc()
         else:
             raise ValueError('Unknown descriptor: ' + global_descriptor_type)
         return global_feature_extractor
@@ -126,8 +129,9 @@ if __name__ == "__main__":
     #global_descriptor_type = 'SAD'          # fast 
     #global_descriptor_type = 'AlexNet'     # very slow
     #global_descriptor_type = 'NetVLAD'     # decently fast
-    global_descriptor_type = 'CosPlace'    # decently fast
+    #global_descriptor_type = 'CosPlace'    # decently fast
     #global_descriptor_type = 'EigenPlaces' # decently fast    
+    global_descriptor_type = 'Megaloc'      
     
     global_feature_extractor = None
 
