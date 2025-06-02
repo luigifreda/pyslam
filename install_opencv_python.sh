@@ -33,7 +33,7 @@ fi
 
 # Get the current Python environment's base directory
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
-PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
+PYTHON_VERSION=$(python3 -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
 echo "Using PYTHON_ENV: $PYTHON_ENV"
 
 #pip3 install --upgrade pip
@@ -91,15 +91,15 @@ fi
 export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS=$CPPFLAGS"
 
 # build opencv_python 
-pip3 wheel . --verbose
+#pip3 wheel . --verbose
 # install built packages
-pip3 install opencv*.whl --force-reinstall
+#pip3 install opencv*.whl --force-reinstall
 
 # build opencv_contrib_python
 export ENABLE_CONTRIB=1
 pip3 wheel . --verbose
 # install built packages
-# pi3p install opencv*.whl --force-reinstall
+pip3 install opencv*.whl --force-reinstall
 
 
 # Extract the installed OpenCV version and wheel path
@@ -127,9 +127,12 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     # Check if a valid file was found
     if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
         if ldd "$CV2_SO_FILE" | grep -q "libffi"; then
-            if [[ -f /lib/x86_64-linux-gnu/libffi.so ]]; then
+            LIBFFI=$(ldconfig -p | grep libffi.so | awk '{print $NF}' | head -n1)
+            #if [[ -f /lib/x86_64-linux-gnu/libffi.so ]]; then
+            if [[ -f $LIBFFI ]]; then
                 echo "Preloading libffi..."
-                export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
+                #export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
+                export LD_PRELOAD=$LIBFFI
             else
                 echo "WARNING: /lib/x86_64-linux-gnu/libffi.so not found; check your libffi dependencies"
             fi

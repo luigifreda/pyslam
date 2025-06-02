@@ -38,7 +38,7 @@ fi
 cd gtsam
 make_buid_dir
 TARGET_GTSAM_LIB="install/lib/libgtsam.so"
-if [[ "$OSTYPE" == "darwin"* ]]; then 
+if [[ "$OSTYPE" == darwin* ]]; then 
     TARGET_GTSAM_LIB="install/lib/libgtsam.dylib"
 fi
 if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
@@ -48,7 +48,7 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
     # https://bitbucket.org/gtborg/gtsam/issues/414/compiling-with-march-native-results-in 
     GTSAM_OPTIONS="-DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_PYTHON=ON -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES=OFF"
     GTSAM_OPTIONS+=" -DGTSAM_THROW_CHEIRALITY_EXCEPTION=OFF -DCMAKE_PYTHON_EXECUTABLE=$(which python) -DGTSAM_PYTHON_VERSION=$PYTHON_VERSION"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
+    if [[ "$OSTYPE" == darwin* ]]; then
         GTSAM_OPTIONS+=" -DGTSAM_WITH_TBB=OFF"
     fi 
     echo GTSAM_OPTIONS: $GTSAM_OPTIONS

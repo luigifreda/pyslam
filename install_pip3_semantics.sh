@@ -17,17 +17,17 @@ cd "$ROOT_DIR"
 
 #set -e
 
-PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
-echo "PYTHON_ENV: $PYTHON_ENV"
-
 print_blue '================================================================'
 print_blue "Installing python packages for semanatics ..."
+
+
+PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
+echo "PYTHON_ENV: $PYTHON_ENV"
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter
 
 # detect and configure CUDA 
 . cuda_config.sh
-
 
 
 # HACK

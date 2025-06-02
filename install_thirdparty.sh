@@ -171,7 +171,7 @@ cd thirdparty/pyibow
 cd $ROOT_DIR
 
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [[ "$OSTYPE" == darwin* ]]; then
     print_blue "=================================================================="
     print_blue "Configuring and building thirdparty/open3d ..."
 

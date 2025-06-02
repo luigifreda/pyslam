@@ -38,7 +38,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     fi
     PATH_TO_PROTOC=`pwd`/bin/protoc  
 fi 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [[ "$OSTYPE" == darwin* ]]; then
     PROTOC_ZIP=protoc-3.7.1-osx-x86_64.zip
     if [ ! -f $PROTOC_ZIP ]; then 
         echo 'installing protoc'

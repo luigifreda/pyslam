@@ -30,7 +30,7 @@ else
 fi
 
 # NOTE: in order to detect macOS use:  
-if [[ "$OSTYPE" == "darwin"* ]]; then 
+if [[ "$OSTYPE" == darwin* ]]; then 
     ## MacOS
 
     echo "Installing macOs packages with brew..."
