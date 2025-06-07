@@ -63,8 +63,12 @@ export TARGET_FOLDER=thirdparty
 export OPENCV_VERSION="4.10.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
 
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 STARTING_DIR=`pwd`
+
+cd "$SCRIPT_DIR"
+TARGET_FOLDER="$SCRIPT_DIR/$TARGET_FOLDER"
 
 # ====================================================
 print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
@@ -72,6 +76,8 @@ print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
 #pip3 install --upgrade pip
 pip3 uninstall -y opencv-python
 pip3 uninstall -y opencv-contrib-python
+
+pip3 install --upgrade numpy
 
 set -e
 
@@ -83,7 +89,7 @@ else
 fi
 
 if [ ! -d $TARGET_FOLDER ]; then 
-    mkdir $TARGET_FOLDER
+    mkdir -p $TARGET_FOLDER
 fi 
 
 # set CUDA 
@@ -127,7 +133,12 @@ fi
 
 # pre-installing some required packages 
 
-if [[ ! -d $TARGET_FOLDER/opencv ]]; then
+export BUILD_SFM_OPTION="ON"
+if [[ $version == *"24.04"* ]] ; then
+    BUILD_SFM_OPTION="OFF"  # it seems this module brings some build issues with Ubuntu 24.04
+fi
+
+if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
     if [[ $version != *"darwin"* ]]; then
         sudo apt-get update
         sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
@@ -187,7 +198,7 @@ fi
 # N.B: if you want just to update cmake settings and recompile then remove "opencv/install" and "opencv/build/CMakeCache.txt"
 
 cd $TARGET_FOLDER
-#if [ ! -d opencv/install ]; then
+
 if [ ! -f opencv/install/lib/libopencv_core.so ]; then
     if [ ! -d opencv ]; then
       wget https://github.com/opencv/opencv/archive/$OPENCV_VERSION.zip
@@ -234,6 +245,7 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DCUDA_ARCH_BIN="5.3 6.0 6.1 7.0 7.5 8.6" \
           -DBUILD_opencv_cudacodec=OFF \
           -DENABLE_FAST_MATH=1 \
+          -DBUILD_opencv_sfm=$BUILD_SFM_OPTION \
           -DBUILD_NEW_PYTHON_SUPPORT=ON \
           -DBUILD_DOCS=OFF \
           -DBUILD_TESTS=OFF \
@@ -245,11 +257,10 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DBUILD_opencv_java=OFF \
           -DBUILD_opencv_python3=ON \
           -Wno-deprecated-gpu-targets \
-          -DENABLE_NEON=${WITH_NEON:-OFF} \
           -DBUILD_PROTOBUF=${WITH_PROTOBUF:-OFF} \
           -DAPPLE_FRAMEWORK=${WITH_APPLE_FRAMEWORK:-OFF} \
-          -DPYTHON_INCLUDE_DIR=$(python -c "import sysconfig; print(sysconfig.get_path('include'))")  \
-          -DPYTHON_LIBRARY=$(python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))") \
+          -DPYTHON_INCLUDE_DIR=$(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])") \
+          -DPYTHON_LIBRARY=$(python3 -c "import sysconfig; import os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY')))") \
           ..
     else
         # Nvidia Jetson aarch64
@@ -281,10 +292,13 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DBUILD_EXAMPLES=OFF \
           -Wno-deprecated-gpu-targets ..
     fi
-    make -j8
-    make install
+    make -j$(nproc)  # use nproc to get the number of available cores
+    make install -j$(nproc)
+fi
 
-    cd ..
+cd $TARGET_FOLDER
+if [[ -d opencv/install ]]; then
+    cd opencv
     echo "deploying built cv2 python module"
     PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")    
     PYTHON_SITE_PACKAGES=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")

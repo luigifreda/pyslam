@@ -31,6 +31,13 @@ else
     echo "OS: $version"
 fi
 
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    CONDA_INSTALLED=true
+else
+    CONDA_INSTALLED=false
+fi
+
 # Get the current Python environment's base directory
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 PYTHON_VERSION=$(python3 -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
@@ -42,12 +49,81 @@ pip3 uninstall -y opencv-contrib-python
 
 pip3 install --upgrade numpy
 
+
+if [[ $version != *"darwin"* ]]; then
+    sudo apt-get update
+    sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
+    sudo apt-get install -y curl software-properties-common unzip
+    sudo apt-get install -y build-essential cmake 
+    if [[ "$CUDA_ON" == "ON" ]]; then 
+        if [[ $version == *"24.04"* ]] ; then
+            install_packages libcudnn-dev
+        else 
+            install_packages libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
+        fi
+    fi 
+
+    if [[ $version == *"22.04"* || $version == *"24.04"* ]] ; then
+        sudo apt install -y libtbb-dev libeigen3-dev 
+        sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
+        sudo add-apt-repository -y "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 # for libjasper-dev 
+        sudo apt update
+        sudo apt install -y libjasper-dev
+        sudo apt install -y libv4l-dev libdc1394-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
+                                libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+    fi
+    if [[ $version == *"20.04"* ]] ; then
+        sudo apt install -y libtbb-dev libeigen3-dev 
+        sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt install -y libjasper-dev
+        sudo apt install -y libv4l-dev libdc1394-22-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
+                                libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+    fi        
+    if [[ $version == *"18.04"* ]] ; then
+        sudo apt-get install -y libpng-dev 
+        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+        sudo apt-get install -y libjasper-dev
+    fi
+    if [[ $version == *"16.04"* ]] ; then
+        sudo apt-get install -y libpng12-dev libjasper-dev 
+    fi        
+
+    DO_INSTALL_FFMPEG=$(check_package ffmpeg)
+    if [ $DO_INSTALL_FFMPEG -eq 1 ] ; then
+        echo "installing ffmpeg and its dependencies"
+        sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev
+    fi
+
+    if [ $CONDA_INSTALLED = true ]; then
+        # NOTE: these are the "system" packages that are needed within conda to build opencv from source
+        conda install -y -c conda-forge \
+            pkg-config \
+            glew \
+            cmake \
+            suitesparse \
+            lapack \
+            libtiff zlib jpeg eigen tbb glew libpng \
+            x264 ffmpeg \
+            freetype cairo \
+            pygobject gtk3
+    fi
+else
+    brew install pkg-config 
+    brew install glew
+    brew install cmake
+    brew install suitesparse 
+    brew install lapack
+    brew install libtiff zlib jpeg eigen tbb glew libpng webp x264 ffmpeg
+fi
+
 cd thirdparty
 if [ ! -d opencv-python ]; then
     git clone --recursive https://github.com/opencv/opencv-python.git
     cd opencv-python
     # This procedure worked on commit cce7c994d46406205eb39300bb7ca9c48d80185a  that corresponds to opencv 4.10.0.84 -> https://github.com/opencv/opencv-python/releases/tag/84 
-    git checkout cce7c994d46406205eb39300bb7ca9c48d80185a  # uncomment this if you get some issues in building opencv_python! 
+    #git checkout cce7c994d46406205eb39300bb7ca9c48d80185a  # uncomment this if you get some issues in building opencv_python! 
     cd ..
 fi
 
@@ -79,9 +155,24 @@ NUMPY_LIB_PATH=$(python3 -c "import numpy; print(numpy.__path__[0] + '/core/lib'
 export LDFLAGS="-L$NUMPY_LIB_PATH:$LDFLAGS"
 export LIBRARY_PATH="$NUMPY_LIB_PATH:$LIBRARY_PATH"
 
+
+CONDA_OPTIONS=""
+GTK_OPTIONS=""
+if [ $CONDA_INSTALLED = true ]; then
+
+    CPPFLAGS="$CPPFLAGS -Wl,--disable-new-dtags" # enable RPATH support in conda environments
+  
+    CONDA_OPTIONS="-DOPENCV_FFMPEG_USE_FIND_PACKAGE=OFF \
+    -DPKG_CONFIG_EXECUTABLE=$(which pkg-config) \
+    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
+fi
+echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
+echo "Using GTK_OPTIONS for opencv build: $GTK_OPTIONS"
+
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \
 -DBUILD_SHARED_LIBS=OFF \
+-DWITH_FFMPEG=ON  "$CONDA_OPTIONS" "$GTK_OPTIONS" \
 -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF"
 
 if [[ $version == *"24.04"* ]] ; then
@@ -91,11 +182,12 @@ fi
 export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS=$CPPFLAGS"
 
 # build opencv_python 
-#pip3 wheel . --verbose
+pip3 wheel . --verbose
 # install built packages
-#pip3 install opencv*.whl --force-reinstall
+pip3 install opencv*.whl --force-reinstall
 
 # build opencv_contrib_python
+# NOTE: A double "pip3 wheel" may seem redundant. I verified this is needed to ensure contrib modules are built and installed correctly
 export ENABLE_CONTRIB=1
 pip3 wheel . --verbose
 # install built packages
@@ -140,5 +232,8 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     fi
 
 fi
+
+# Install supported numpy version <2 to avoid conflicts
+pip3 install "numpy<2"
 
 cd "$STARTING_DIR"

@@ -51,3 +51,20 @@ if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
         fi
     fi
 fi
+
+
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    version=$(lsb_release -a 2>&1)  # ubuntu version
+else 
+    version=$OSTYPE
+    echo "OS: $version"
+fi
+
+# for conda potentially needed under Ubuntu 24.04
+if [[ "$version" == *"24.04"* ]] ; then
+    export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+    echo "Preloading libstdc++..."
+
+    export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+    echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+fi

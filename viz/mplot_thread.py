@@ -26,6 +26,7 @@ import platform
 
 import matplotlib
 #matplotlib.use('Agg')  # running non-interactive mode
+#matplotlib.use("TkAgg")  # or "Agg" if you're just saving plots
 
 import matplotlib.pyplot as plt
 

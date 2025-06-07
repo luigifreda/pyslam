@@ -86,11 +86,6 @@ MAKEFLAGS_OPTION="-j$(nproc)"
 MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
 
 # NOTE: opencv is installed outside of this script!
-# install opencv python from source with non-free modules enabled (installation order does matter here!)
-#. install_opencv_python.sh
-# NOTE: This another way of installing opencv and it solves some dynamic linking issues. Unfortunately, it generates other ones that are more critical with multiple intercepted QT versions. 
-# pip3 install numpy
-# . install_opencv_local.sh
 
 
 cd "$STARTING_DIR"

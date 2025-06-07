@@ -20,6 +20,14 @@ cd "$ROOT_DIR"
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 echo "PYTHON_ENV: $PYTHON_ENV"
 
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    CONDA_INSTALLED=true
+else
+    CONDA_INSTALLED=false
+fi
+
+
 print_blue '================================================'
 print_blue "Configuring and installing python packages ..."
 
@@ -41,7 +49,12 @@ INSTALL_OPENCV_FROM_SOURCE=1
 if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
     #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
     print_green "Installing opencv_python from source with non-free modules enabled"
-    ./install_opencv_python.sh
+    if [ "$OSTYPE" == darwin* ]; then
+        . install_opencv_python.sh
+    else
+        . install_opencv_python.sh
+        #. install_opencv_local.sh
+    fi
 else
     PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
     MAKEFLAGS_OPTION="-j$(nproc)"
@@ -109,7 +122,7 @@ else
     #     pip3 install torch==2.2.0+cu118 torchvision==0.17+cu118 --index-url https://download.pytorch.org/whl/cu118
     # fi
     INSTALL_CUDA_SPECIFIC_TORCH=false
-    if [[ "$CUDA_VERSION" != "0" && "$TORCH_CUDA_VERSION" != "$CUDA_VERSION" ]]; then
+    if [[ "$CUDA_VERSION" != "0" && "$TORCH_CUDA_VERSION" != "$CUDA_VERSION" && "$CONDA_INSTALLED" != true ]]; then
         INSTALL_CUDA_SPECIFIC_TORCH=true
     fi
 
@@ -130,26 +143,26 @@ else
     fi             
 fi 
 
-pip3 install gtsam
+install_pip_package gtsam
 
-pip3 install "rerun-sdk>=0.17.0"
+install_pip_package "rerun-sdk>=0.17.0"
 
 install_pip_package ujson
 install_pip_package tensorflow_hub  # required for VPR
 
-pip3 install protobuf==3.20.*    # for delf NN
+install_pip_package protobuf==3.20.*    # for delf NN
 
-pip3 install einops                       # for VLAD
-pip3 install fast-pytorch-kmeans #==0.1.6 # for VLAD
- 
-pip3 install pyflann-py3 # for loop closure database
-pip3 install faiss-cpu # for loop closure database
+install_pip_package einops                       # for VLAD
+install_pip_package fast-pytorch-kmeans #==0.1.6 # for VLAD
+
+install_pip_package pyflann-py3 # for loop closure database
+install_pip_package faiss-cpu # for loop closure database
 if [ "$CUDA_VERSION" != "0" ]; then
     install_pip_package faiss-gpu  # for loop closure database on GPU
 fi 
 
 if [[ "$OSTYPE" != "darwin"* ]]; then
-    pip3 install open3d
+    install_pip_package open3d
 fi
 
 # crestereo
@@ -205,7 +218,7 @@ if [ "$CUDA_VERSION" != "0" ]; then
     cd "$ROOT_DIR"    
     #pip3 install ./thirdparty/lietorch --verbose                              # to clean: $ rm -rf thirdparty/lietorch/build thirdparty/lietorch/*.egg-info
 
-    . thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip3 install fails)
+    ./thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip3 install fails)
     
     pip3 install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
     pip3 install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
