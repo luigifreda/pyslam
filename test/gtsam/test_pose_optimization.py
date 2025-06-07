@@ -4,7 +4,7 @@ import config
 
 
 import numpy as np
-import gtsam
+#import gtsam
 
 import unittest
 from unittest import TestCase

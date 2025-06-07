@@ -44,6 +44,7 @@ if [ $HAVE_CUDA -eq 1 ]; then
         fi     
         #echo CUDA_FOLDER_STRING: $CUDA_FOLDER_STRING
         export CUDA_HOME="/usr/local/$CUDA_FOLDER_STRING"
+        export CMAKE_CUDA_COMPILER=$CUDA_HOME/bin/nvcc
         echo CUDA_HOME: $CUDA_HOME
         export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
         export LD_LIBRARY_PATH=$CUDA_HOME/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}    

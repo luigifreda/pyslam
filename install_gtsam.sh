@@ -19,6 +19,13 @@ ROOT_DIR="$SCRIPT_DIR"
 STARTING_DIR=`pwd`  
 cd "$ROOT_DIR"  
 
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    version=$(lsb_release -a 2>&1)  # ubuntu version
+else 
+    version=$OSTYPE
+    echo "OS: $version"
+fi
+
 
 print_blue '================================================'
 print_blue "Installing gtsam from source"
@@ -27,15 +34,15 @@ print_blue '================================================'
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
 
 cd thirdparty
-if [ ! -d gtsam ]; then
-	git clone https://github.com/borglab/gtsam.git gtsam
+if [ ! -d gtsam_local ]; then
+	git clone https://github.com/borglab/gtsam.git gtsam_local
     #git fetch --all --tags # to fetch tags 
-    cd gtsam
+    cd gtsam_local
     git checkout tags/4.2a9   
     git apply ../gtsam.patch
     cd .. 
 fi
-cd gtsam
+cd gtsam_local
 make_buid_dir
 TARGET_GTSAM_LIB="install/lib/libgtsam.so"
 if [[ "$OSTYPE" == darwin* ]]; then 
@@ -46,7 +53,11 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
     # NOTE: gtsam has some issues when compiling with march=native option!
     # https://groups.google.com/g/gtsam-users/c/jdySXchYVQg
     # https://bitbucket.org/gtborg/gtsam/issues/414/compiling-with-march-native-results-in 
-    GTSAM_OPTIONS="-DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_PYTHON=ON -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES=OFF"
+    GTSAM_OPTIONS="-DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_PYTHON=ON -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES=OFF" 
+    if [[ "$version" == *"24.04"* ]] ; then
+        # Ubuntu 24.04 requires CMake 3.22 or higher
+        GTSAM_OPTIONS+=" -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+    fi
     GTSAM_OPTIONS+=" -DGTSAM_THROW_CHEIRALITY_EXCEPTION=OFF -DCMAKE_PYTHON_EXECUTABLE=$(which python) -DGTSAM_PYTHON_VERSION=$PYTHON_VERSION"
     if [[ "$OSTYPE" == darwin* ]]; then
         GTSAM_OPTIONS+=" -DGTSAM_WITH_TBB=OFF"

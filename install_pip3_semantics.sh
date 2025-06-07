@@ -30,8 +30,10 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 . cuda_config.sh
 
 
-# HACK
-pip3 install "$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl --force-reinstall
+# # HACK
+if [ -f "$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl ]; then
+    pip3 install "$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl --force-reinstall
+fi
 
 # semantic mapping packages
 # Torchvision will be installed already

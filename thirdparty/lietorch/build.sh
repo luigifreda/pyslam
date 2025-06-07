@@ -8,10 +8,13 @@ cd $SCRIPT_DIR
 
 ROOT_DIR="$SCRIPT_DIR"/../..
 
-#. $ROOT_DIR/cuda_config.sh
+. $ROOT_DIR/cuda_config.sh
 
 # Instead of building with setup.py use cmake and ninja
 # pip install . --verbose
+
+sudo apt update
+sudo apt install ninja-build
 
 # Create build folder and run cmake
 if [ ! -d build ]; then
@@ -26,15 +29,20 @@ cores=$((cores/2))
 
 echo "Building with $cores cores"
 
+CUDA_OPTIONS=""
+if [ "$CUDA_VERSION" != "0" ]; then
+    CUDA_OPTIONS="-DCMAKE_CUDA_COMPILER=$CMAKE_CUDA_COMPILER"
+fi
+
 # Use ninja if available 
 if command -v ninja >/dev/null 2>&1; then
-    cmake -G Ninja ..
+    cmake -G Ninja .. $CUDA_OPTIONS
     # launch parallel build with 8 threads
     ninja -j$cores
     sudo $(which ninja) install   # "sudo ninja install" does not work!
 else 
     echo "ninja not found, falling back to make"    
-    cmake ..
+    cmake .. $CUDA_OPTIONS
     make -j$cores
     sudo make install  
 fi
