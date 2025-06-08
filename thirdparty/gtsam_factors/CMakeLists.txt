@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(gtsam_factors)
 
 IF(NOT CMAKE_BUILD_TYPE)
@@ -8,10 +8,17 @@ ENDIF()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(SET_RPATH               ON  CACHE BOOL   "Set RPATH instead of the default RUNPATH") # for solving the linking issue with g2o binaries (see the related node in the compiler options section)
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -fPIC -DNDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG")
+
+# In order to set RPATH (instead of RUNPATH) for g2o and other libraries linking issue.
+if(SET_RPATH)
+  set(MY_FLAGS "${MY_FLAGS} -Wl,--disable-new-dtags")
+endif()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -fPIC -DNDEBUG ${MY_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG ${MY_FLAGS}")
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
@@ -22,8 +29,8 @@ find_package(Eigen3 3.1.0 REQUIRED)
 message(STATUS "eigen include: ${EIGEN3_INCLUDE_DIR}")
 
 # gtsam
-set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/../gtsam/install/lib/cmake/GTSAM/)
-set(GTSAM_DIR ${PROJECT_SOURCE_DIR}/../gtsam/install/)
+set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/../gtsam_local/install/lib/cmake/GTSAM/)
+set(GTSAM_DIR ${PROJECT_SOURCE_DIR}/../gtsam_local/install/)
 message(STATUS "set custom gtsam folder: ${GTSAM_DIR}")
 find_package(GTSAM REQUIRED)
 message(STATUS "gtsam include: ${GTSAM_INCLUDE_DIR}")

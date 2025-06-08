@@ -83,13 +83,19 @@ cd thirdparty/pyibow
 ./clean.sh
 cd "$ROOT_DIR"
 
-if [ -d "thirdparty/gtsam" ]; then
-    rm -Rf thirdparty/gtsam
+if [ -d "thirdparty/gtsam_local" ]; then
+    rm -Rf thirdparty/gtsam_local
 fi
 cd "$ROOT_DIR"
 
 if [ -d "thirdparty/gtsam_factors" ]; then
     cd thirdparty/gtsam_factors
+    ./clean.sh
+    cd "$ROOT_DIR"
+fi
+
+if [ -d "thirdparty/lietorch" ]; then
+    cd thirdparty/lietorch
     ./clean.sh
     cd "$ROOT_DIR"
 fi

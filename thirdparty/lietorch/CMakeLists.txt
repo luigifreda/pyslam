@@ -55,6 +55,9 @@ message(STATUS "Using C++ standard: C++${CPP_STANDARD_VERSION}")
 set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CMAKE_CUDA_STANDARD ${CPP_STANDARD_VERSION})
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 # Generate compile_commands.json for tooling
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -65,7 +68,7 @@ set(CMAKE_CXX_FLAGS "-O2")
 # Function to detect CUDA architectures
 function(detect_cuda_architectures ARCHS)
   # Explicit list of invalid/future/unsupported architectures
-  set(INVALID_CUDA_ARCHS 100 101 120)
+  set(INVALID_CUDA_ARCHS 100 101 120 50)
 
   execute_process(
     COMMAND nvcc --list-gpu-arch
@@ -219,6 +222,9 @@ execute_process(
   OUTPUT_VARIABLE TORCH_LIBRARIES
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+
+execute_process(COMMAND ${Python3_EXECUTABLE} patch_pybind11_cast.py
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 message(STATUS "Python include directory: ${Python3_INCLUDE_DIRS}")
 message(STATUS "PyTorch include directory: ${TORCH_INCLUDE_DIR}")

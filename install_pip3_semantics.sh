@@ -18,7 +18,7 @@ cd "$ROOT_DIR"
 #set -e
 
 print_blue '================================================================'
-print_blue "Installing python packages for semanatics ..."
+print_blue "Installing python packages for semantics ..."
 
 
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
@@ -31,7 +31,14 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 
 
 # HACK
-pip3 install "$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl --force-reinstall
+shopt -s nullglob
+FILES=("$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl)
+if [ ${#FILES[@]} -eq 0 ]; then
+    echo "No .whl files found in $ROOT_DIR/thirdparty/opencv-python"
+else
+    print_blue "Installing opencv-python file: $FILES"
+    pip3 install "$FILES" --force-reinstall
+fi
 
 # semantic mapping packages
 # Torchvision will be installed already

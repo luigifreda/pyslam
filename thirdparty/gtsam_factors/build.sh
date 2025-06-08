@@ -9,6 +9,13 @@ if [ ! -d $1 ]; then
 fi
 }
 
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    version=$(lsb_release -a 2>&1)  # ubuntu version
+else 
+    version=$OSTYPE
+    echo "OS: $version"
+fi
+
 # ====================================================
 # check if we have external options
 EXTERNAL_OPTIONS=$@
@@ -20,6 +27,11 @@ fi
 # if [[ -d "$OpenCV_DIR" ]]; then
 #     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
 # fi 
+
+if [[ "$version" == *"24.04"* ]] ; then
+    # Ubuntu 24.04 requires CMake 3.22 or higher
+    EXTERNAL_OPTIONS+=" -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+fi
 
 echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
