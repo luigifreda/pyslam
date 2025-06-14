@@ -24,6 +24,10 @@ cd "$ROOT_DIR"
 
 print_blue "Installing open3d-python from source"
 
+if [[ $OSTYPE == "darwin"* ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+fi
+
 #pip3 install --upgrade pip
 pip3 uninstall -y open3d
 
@@ -36,7 +40,11 @@ if [ ! -d open3d ]; then
     #git checkout 0f06a149c4fb9406fd3e432a5cb0c024f38e2f0e 
 
     # This commit worked!
-    git checkout c8856fc0d4ec89f8d53591db245fd29ad946f9cb
+    git checkout 997f04eece54b3735fe08350fc0113dba651039b
+
+    if [[ $OSTYPE == "darwin"* ]]; then
+        git apply ../open3d.patch
+    fi
 
     cd ..
 fi
@@ -45,10 +53,15 @@ cd open3d
 if [ ! -d build ]; then
     mkdir build 
 fi 
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release $EXTERNAL_OPTION
 
-make -j$(sysctl -n hw.physicalcpu)
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release $MAC_OPTIONS $EXTERNAL_OPTIONS
+
+if [[ $OSTYPE == "darwin"* ]]; then
+    make -j$(sysctl -n hw.physicalcpu)
+else 
+    make -j$(nproc)
+fi
 
 # Activate the virtualenv first
 # Install pip package in the current python environment
