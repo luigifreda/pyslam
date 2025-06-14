@@ -22,10 +22,11 @@ cd "$ROOT_DIR"
 
 # if we are not under docker
 if [ ! -f /.dockerenv  ]; then 
-  # Provide the password to sudo once at the start (hopefully...)
-  echo "Insert your sudo password" 
-  sudo -S -v    # not working properly under mac
+    echo "Insert your sudo password (if prompted)..."
+    keep_sudo_alive
 fi
+# Ensure the sudo background process is killed when the script exits
+trap stop_sudo_alive EXIT
 
 # Check if conda is installed
 if command -v conda &> /dev/null; then
