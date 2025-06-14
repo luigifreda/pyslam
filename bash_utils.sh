@@ -280,6 +280,19 @@ function remove_dots() {
     echo "$new_string"
 }
 
+# ===================== SUDO KEEP-ALIVE ========================
+
+keep_sudo_alive() {
+    sudo -v
+    ( while true; do sudo -n true; sleep 60; done ) &
+    SUDO_KEEP_ALIVE_PID=$!
+}
+
+stop_sudo_alive() {
+    if [[ -n "$SUDO_KEEP_ALIVE_PID" ]]; then
+        kill "$SUDO_KEEP_ALIVE_PID" 2>/dev/null
+    fi
+}
 
 # ====================================================
 
