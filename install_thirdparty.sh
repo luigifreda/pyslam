@@ -53,6 +53,10 @@ if [[ -d "$OpenCV_DIR" ]]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
 fi 
 
+if [[ $OSTYPE == "darwin"* ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+fi
+
 echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 # ====================================================

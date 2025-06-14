@@ -26,6 +26,10 @@ else
     echo "OS: $version"
 fi
 
+if [[ $OSTYPE == "darwin"* ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+fi
+
 
 print_blue '================================================'
 print_blue "Installing gtsam from source"
@@ -63,7 +67,7 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
         GTSAM_OPTIONS+=" -DGTSAM_WITH_TBB=OFF"
     fi 
     echo GTSAM_OPTIONS: $GTSAM_OPTIONS
-    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $GTSAM_OPTIONS $EXTERNAL_OPTION
+    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $GTSAM_OPTIONS $EXTERNAL_OPTIONS
 	make -j $(nproc)
     make install 
 fi

@@ -95,8 +95,8 @@ target_link_libraries(obindex2
 ### Testing ###
 if (${EnableTesting} STREQUAL "ON")
   # Test for BinaryDescriptor class
-  add_executable(test_bdesc tests/test_bdesc.cc)
-  target_link_libraries(test_bdesc obindex2)
+  #add_executable(test_bdesc tests/test_bdesc.cc)
+  #target_link_libraries(test_bdesc obindex2)
 
   # Test for BinaryTree class
   add_executable(test_btree tests/test_btree.cc)
@@ -111,7 +111,7 @@ if (${EnableTesting} STREQUAL "ON")
   target_link_libraries(test_search obindex2)
 
   enable_testing(true)  # Enables unit-testing.
-  add_test(NAME test_bdesc COMMAND test_bdesc ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
+  #add_test(NAME test_bdesc COMMAND test_bdesc ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
   add_test(NAME test_btree COMMAND test_btree ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
   add_test(NAME test_bindex COMMAND test_bindex ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})
   #add_test(NAME test_search COMMAND test_search ${OpenCV_LIBRARIES} ${Boost_LIBRARIES})

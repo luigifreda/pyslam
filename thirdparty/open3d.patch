@@ -1,0 +1,38 @@
+diff --git a/3rdparty/openblas/openblas.cmake b/3rdparty/openblas/openblas.cmake
+index e9b818ddf..fdeb04387 100644
+--- a/3rdparty/openblas/openblas.cmake
++++ b/3rdparty/openblas/openblas.cmake
+@@ -14,6 +14,7 @@ ExternalProject_Add(
+     DOWNLOAD_DIR "${OPEN3D_THIRD_PARTY_DOWNLOAD_DIR}/openblas"
+     CMAKE_ARGS
+         ${ExternalProject_CMAKE_ARGS}
++        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+         -DTARGET=${OPENBLAS_TARGET}
+         -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+     BUILD_BYPRODUCTS 
+diff --git a/3rdparty/vtk/vtk_build.cmake b/3rdparty/vtk/vtk_build.cmake
+index eb8430e8e..e56fd16f4 100644
+--- a/3rdparty/vtk/vtk_build.cmake
++++ b/3rdparty/vtk/vtk_build.cmake
+@@ -43,6 +43,7 @@ if(BUILD_VTK_FROM_SOURCE)
+         UPDATE_COMMAND ""
+         CMAKE_ARGS
+             ${ExternalProject_CMAKE_ARGS_hidden}
++            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+             -DBUILD_SHARED_LIBS=OFF
+             -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+             -DVTK_GROUP_ENABLE_Imaging=NO
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 354125dc0..7d80821d1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -33,6 +33,9 @@ endif()
+ 
+ include(CMakeDependentOption)
+ 
++set(CMAKE_POLICY_VERSION_MINIMUM "3.5" CACHE STRING "Minimum CMake policy version")
++
++
+ # Open3D build options
+ option(BUILD_SHARED_LIBS          "Build shared libraries"                   OFF)
+ option(BUILD_EXAMPLES             "Build Open3D examples programs"           ON )

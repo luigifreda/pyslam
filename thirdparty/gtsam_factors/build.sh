@@ -32,6 +32,9 @@ if [[ "$version" == *"24.04"* ]] ; then
     # Ubuntu 24.04 requires CMake 3.22 or higher
     EXTERNAL_OPTIONS+=" -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 fi
+if [[ $OSTYPE == "darwin"* ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+fi
 
 echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 

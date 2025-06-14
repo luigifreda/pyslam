@@ -13,8 +13,16 @@ set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to 
 
 
 # In order to set RPATH (instead of RUNPATH) for g2o and other libraries linking issue.
-if(SET_RPATH)
-  set(MY_FLAGS "${MY_FLAGS} -Wl,--disable-new-dtags")
+if(LINUX)
+  if(SET_RPATH)
+    set(MY_FLAGS "${MY_FLAGS} -Wl,--disable-new-dtags")
+  endif()
+endif()
+
+if(APPLE)
+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+  set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+  find_package(Threads REQUIRED)
 endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -fPIC -DNDEBUG ${MY_FLAGS}")
