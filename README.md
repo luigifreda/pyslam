@@ -377,6 +377,11 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 
 ### Semantic mapping
 
+
+<p align="center" style="margin:0">
+<img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" height="300" border="0" />
+</p>
+
 The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
 
 Different semantic mapping methods are available (see [here](./docs/semantics.md) for furthere details). Currently, we support semantic mapping using **dense semantic segmentation**.

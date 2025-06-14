@@ -1,10 +1,17 @@
 graph LR
-    %% Set default styles for all edges
     linkStyle default stroke:#021526,stroke-width:2px,font-size:12px;
 
-    classDef module fill:none,stroke:#6EACDA,stroke-width:2px,font-weight:bold, font-size:24px;
-    classDef component fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:24px;  
-    classDef data fill:#none,stroke:#6EACDA,stroke-width:1px, font-size:24px;
+    classDef moduleTracking fill:#FFD6D6,stroke:#D7263D,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleLocalMapping fill:#D6FFD6,stroke:#218380,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleLoopClosing fill:#D6E4FF,stroke:#00509D,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef modulePlaceRecognition fill:#D6E4FF,stroke:#00509D,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleVolumetric fill:#FFFACD,stroke:#E1A100,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleGlobalBA fill:#EAD7F3,stroke:#6A0DAD,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleMap fill:#ECECEC,stroke:#333333,stroke-width:2px,font-weight:bold,font-size:24px;
+    classDef moduleSemantic fill:#D1F7C4,stroke:#2E8B57,stroke-width:2px,font-weight:bold,font-size:24px;
+
+    classDef component fill:none,stroke:#6EACDA,stroke-width:1px,font-size:24px;
+    classDef data fill:none,stroke:#6EACDA,stroke-width:1px,font-size:24px;
 
     subgraph Tracking[TRACKING]
         FramePreprocessing[Frame<br>Preprocessing] --> PosePrediction
@@ -73,22 +80,27 @@ graph LR
     VolumetricIntegration <--> Map
     LoopClosing --> VolumetricIntegration
 
-    class Tracking module;
+    class Tracking moduleTracking;
+    class LocalMapping moduleLocalMapping;
+    class LoopClosing moduleLoopClosing;
+    class PlaceRecognition modulePlaceRecognition;
+    class VolumetricIntegration moduleVolumetric;
+    class GlobalBA moduleGlobalBA;
+    class Map moduleMap;
+    class SemanticMapping moduleSemantic;
+
     class FramePreprocessing component;
     class PosePrediction component;
     class TrackLocalMap component;
     class NewKeyFrameDecision component;
 
-    class LocalMapping module;
     class KeyFrameProcessing component;
     class MapPointsCulling component;
     class NewPointsCreation component;
     class MapPointFusion component;
     class LocalBA component;
     class LocalKeyFramesCulling component;
-    
-    class LoopClosing module;
-    class PlaceRecognition module;
+
     class VisualVocabulary component;
     class LoopDetectionDatabase component;
     class LoopDetection component;
@@ -96,30 +108,26 @@ graph LR
     class LoopGeometryChecking component;
     class LoopCorrection component;
     class PoseGraphOptimization component;
-    
-    class VolumetricIntegration module;
+
     class KeyFrameQueue component;
     class DepthPrediction component;
     class VolumetricIntegrator component;
     class DenseMap component;
-    
-    class GlobalBA module;
+
     class FullBA component;
     class UpdateMap component;
-    
-    class Map module;
+
     class MapPoints component;
     class KeyFrames component;
     class CovisibilityGraph component;
     class SpanningTree component;
-    
-    class Frame data;
-    class NewKeyFrame data;
-    class ProcessedKeyframe data;
 
-    class SemanticMapping module;
     class SemanticKeyFrameQueue component;
     class SemanticSegmentation component;
     class UpdateKeyFrameSemantics component;
     class UpdateMapPointSemantics component;
     class SemanticMap component;
+
+    class Frame data;
+    class NewKeyFrame data;
+    class ProcessedKeyframe data;

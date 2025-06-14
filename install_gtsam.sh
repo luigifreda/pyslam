@@ -26,6 +26,12 @@ else
     echo "OS: $version"
 fi
 
+# check if we have external options
+EXTERNAL_OPTIONS=$@
+if [[ -n "$EXTERNAL_OPTIONS" ]]; then
+    echo "external option: $EXTERNAL_OPTIONS" 
+fi
+
 if [[ $OSTYPE == "darwin"* ]]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 fi
@@ -70,33 +76,36 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
     cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $GTSAM_OPTIONS $EXTERNAL_OPTIONS
 	make -j $(nproc)
     make install 
+
+    # Now install gtsam python package
+    make python-install 
 fi
 
 echo current folder: $(pwd)
 
-echo "deploying built gtsam module"
-PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")    
-PYTHON_SITE_PACKAGES=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-PYTHON_SOURCE_FOLDER_GTSAM=$(pwd)/python/gtsam
-PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE=$(pwd)/python/gtsam_unstable
-if [[ -d "$PYTHON_SITE_PACKAGES" && -d "$PYTHON_SOURCE_FOLDER_GTSAM" ]]; then
-    echo "copying built python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM to $PYTHON_SITE_PACKAGES"
-    if [[ -d "$PYTHON_SITE_PACKAGES/gtsam" ]]; then
-        rm -rf $PYTHON_SITE_PACKAGES/gtsam
-    fi
-    cp -r $PYTHON_SOURCE_FOLDER_GTSAM $PYTHON_SITE_PACKAGES
-else
-    echo "ERROR: failed to copy build python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM to $PYTHON_SITE_PACKAGES"  
-fi 
-if [[ -d "$PYTHON_SITE_PACKAGES" && -d "$PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE" ]]; then
-    echo "copying built python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE to $PYTHON_SITE_PACKAGES"
-    if [[ -d "$PYTHON_SITE_PACKAGES/gtsam_unstable" ]]; then
-        rm -rf $PYTHON_SITE_PACKAGES/gtsam_unstable
-    fi    
-    cp -r $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE $PYTHON_SITE_PACKAGES
-else
-    echo "ERROR: failed to copy build python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE to $PYTHON_SITE_PACKAGES"  
-fi 
+# echo "deploying built gtsam module"
+# PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")    
+# PYTHON_SITE_PACKAGES=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+# PYTHON_SOURCE_FOLDER_GTSAM=$(pwd)/python/gtsam
+# PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE=$(pwd)/python/gtsam_unstable
+# if [[ -d "$PYTHON_SITE_PACKAGES" && -d "$PYTHON_SOURCE_FOLDER_GTSAM" ]]; then
+#     echo "copying built python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM to $PYTHON_SITE_PACKAGES"
+#     if [[ -d "$PYTHON_SITE_PACKAGES/gtsam" ]]; then
+#         rm -rf $PYTHON_SITE_PACKAGES/gtsam
+#     fi
+#     cp -r $PYTHON_SOURCE_FOLDER_GTSAM $PYTHON_SITE_PACKAGES
+# else
+#     echo "ERROR: failed to copy build python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM to $PYTHON_SITE_PACKAGES"  
+# fi 
+# if [[ -d "$PYTHON_SITE_PACKAGES" && -d "$PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE" ]]; then
+#     echo "copying built python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE to $PYTHON_SITE_PACKAGES"
+#     if [[ -d "$PYTHON_SITE_PACKAGES/gtsam_unstable" ]]; then
+#         rm -rf $PYTHON_SITE_PACKAGES/gtsam_unstable
+#     fi    
+#     cp -r $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE $PYTHON_SITE_PACKAGES
+# else
+#     echo "ERROR: failed to copy build python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE to $PYTHON_SITE_PACKAGES"  
+# fi 
 
 cd "$ROOT_DIR"
 
@@ -106,7 +115,7 @@ print_blue '================================================'
 
 cd thirdparty
 cd gtsam_factors
-./build.sh
+./build.sh $EXTERNAL_OPTIONS
 
 cd "$ROOT_DIR"
 
