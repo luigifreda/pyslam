@@ -335,21 +335,23 @@ if [ "$CUDA_VERSION" != "0" ]; then
         cd ../../../
         make_dir checkpoints
         cd checkpoints
-        if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth &
-        fi
-        if [ ! -f MVD.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth &
-        fi
-        if [ ! -f MVDp_s1.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth &
-        fi
-        if [ ! -f MVDp_s2.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth &
-        fi
+        cp $ROOT_DIR/thirdparty/mvdust3r_scripts/download_models.py .
+        python download_models.py
+        # if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
+        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth #&
+        # fi
+        # if [ ! -f MVD.pth ]; then
+        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth #&
+        # fi
+        # if [ ! -f MVDp_s1.pth ]; then
+        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth #&
+        # fi
+        # if [ ! -f MVDp_s2.pth ]; then
+        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth #&
+        # fi
 
         # Wait for all background download jobs to complete
-        wait
+        #wait
     fi
 
 else 
