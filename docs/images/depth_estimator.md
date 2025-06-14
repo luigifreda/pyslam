@@ -2,12 +2,12 @@ graph LR;
     %% Set default styles for all edges
     linkStyle default stroke:#021526,stroke-width:1px,font-size:10px;
 
-    classDef factory fill:#,stroke:#6EACDA,stroke-width:1px;
-    classDef type fill:#,stroke:#6EACDA,stroke-width:1px;
-    classDef estimator_type fill:#,stroke:#6EACDA,stroke-width:1px;
-    classDef dependencies fill:#,stroke:#6EACDA,stroke-width:1px;
-    classDef depthEstimator fill:#,stroke:#6EACDA,stroke-width:1px;
-    classDef component fill:#,stroke:#6EACDA,stroke-width:1px;    
+    classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px;
+    classDef estimator_type fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px;
+    classDef depthEstimator fill:#EAD7F3,stroke:#6A0DAD,stroke-width:1.5px;
+    classDef baseEstimator fill:#D6FFD6,stroke:#218380,stroke-width:1.5px;
+    classDef dependencies fill:#F1F1F1,stroke:#888888,stroke-width:1.5px;
+    classDef component fill:#FFFFFF,stroke:#6EACDA,stroke-width:1px;  
 
     %% depth_estimator_factory
     depth_estimator_factory -->|*depth_estimator_type*| DEPTH_ANYTHING_V2;
@@ -59,7 +59,8 @@ graph LR;
 
     class Camera dependencies;
 
-    class DepthEstimator depthEstimator;
+    class DepthEstimator baseEstimator;
+    
     class DepthEstimatorDepthAnythingV2 depthEstimator;
     class DepthEstimatorDepthPro depthEstimator;
     class DepthEstimatorSgbm depthEstimator;

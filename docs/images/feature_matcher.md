@@ -2,11 +2,13 @@ graph LR;
     %% Set default styles for all edges
     linkStyle default stroke:#021526,stroke-width:1px,font-size:10px;
 
-    classDef factory fill:#,stroke:#6EACDA,stroke-width:1px
-    classDef matcher fill:#,stroke:#6EACDA,stroke-width:1px
-    classDef singleMatcher fill:#,stroke:#6EACDA,stroke-width:1px
-    classDef featureMatcher fill:#,stroke:#6EACDA,stroke-width:1px
-    classDef component fill:#,stroke:#6EACDA,stroke-width:1px
+    classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px;
+    classDef matcher fill:#FFFACD,stroke:#E1A100,stroke-width:1.5px;
+    classDef singleMatcher fill:#EAD7F3,stroke:#6A0DAD,stroke-width:1.5px;
+    classDef featureMatcher fill:#D6FFD6,stroke:#218380,stroke-width:1.5px;
+    classDef component fill:none,stroke:#6EACDA,stroke-width:1px;
+    classDef externalLib fill:#F1F1F1,stroke:#888888,stroke-width:1px;
+
 
     feature_matcher_factory -->|*matcher_type*| BF;
     feature_matcher_factory -->|*matcher_type*| FLANN;
@@ -19,12 +21,15 @@ graph LR;
     XFEAT -->|*creates*| XFeatMatcher;
     LIGHTGLUE -->|*creates*| LightGlueMatcher;
     LOFTR -->|*creates*| LoFTRMatcher
+    MAST3R --> |*creates*| Mast3RMatcher
+
     
     BfFeatureMatcher -->|*_is-a_*| FeatureMatcher;
     FlannFeatureMatcher -->|*_is-a_*| FeatureMatcher;
     XFeatMatcher -->|*_is-a_*| FeatureMatcher;
     LightGlueMatcher -->|*_is-a_*| FeatureMatcher;
     LoFTRMatcher -->|*_is-a_*| FeatureMatcher;
+    Mast3RMatcher -->|*_is-a_*| FeatureMatcher;
     
     %% FeatureMatcher relationships    
     FeatureMatcher -->|*_has-a_*| matcher;    
@@ -47,6 +52,7 @@ graph LR;
     class XFeatMatcher singleMatcher;
     class LightGlueMatcher singleMatcher;
     class LoFTRMatcher singleMatcher;
+    class Mast3RMatcher singleMatcher;
 
     %% feature_matcher_factory
     class feature_matcher_factory factory;
@@ -57,6 +63,7 @@ graph LR;
     class XFEAT matcher;
     class LIGHTGLUE matcher;
     class LOFTR matcher;
+    class MAST3R matcher;
 
     class FeatureMatcher featureMatcher;
     class Feature featureMatcher;
@@ -71,8 +78,8 @@ graph LR;
     class ratio_test component;
     class norm_type component;
 
-    class cv2.BFMatcher component;
-    class cv2.FlannBasedMatcher component;
-    class xfeat.XFeat component;
-    class lightglue.LightGlue component;
-    class kornia.LoFTR component;
+    class cv2.BFMatcher externalLib;
+    class cv2.FlannBasedMatcher externalLib;
+    class xfeat.XFeat externalLib;
+    class lightglue.LightGlue externalLib;
+    class kornia.LoFTR externalLib;

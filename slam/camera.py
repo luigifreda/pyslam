@@ -83,8 +83,8 @@ class Camera(CameraBase):
         super().__init__()
         if config is None:
             return 
-        width = config.cam_settings['Camera.width']
-        height = config.cam_settings['Camera.height']
+        width = config.cam_settings['Camera.width'] if 'Camera.width' in config.cam_settings else config.cam_settings['Camera.w']
+        height = config.cam_settings['Camera.height'] if 'Camera.height' in config.cam_settings else config.cam_settings['Camera.h'] 
         fx = config.cam_settings['Camera.fx']
         fy = config.cam_settings['Camera.fy']
         cx = config.cam_settings['Camera.cx']
