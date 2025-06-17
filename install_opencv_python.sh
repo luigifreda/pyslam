@@ -38,14 +38,44 @@ else
     CONDA_INSTALLED=false
 fi
 
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+else
+    PIXI_ACTIVATED=false
+fi
+
+
 # Get the current Python environment's base directory
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 PYTHON_VERSION=$(python3 -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
 echo "Using PYTHON_ENV: $PYTHON_ENV"
 
+
+EXTERNAL_OPTIONS=""
+if [ "$PIXI_ACTIVATED" = true ]; then
+    PYTHON_EXECUTABLE=$(which python)
+    PYTHON_INCLUDE_DIR=$(python -c "from sysconfig import get_paths as gp; print(gp()['include'])")
+    PYTHON_LIBRARY=$(find $(dirname $PYTHON_EXECUTABLE)/../lib -name libpython$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").so | head -n 1)
+    echo PYTHON_EXECUTABLE: $PYTHON_EXECUTABLE
+    echo PYTHON_INCLUDE_DIR: $PYTHON_INCLUDE_DIR
+    echo PYTHON_LIBRARY: $PYTHON_LIBRARY
+
+    # This is needed to make pybind11 find the correct python interpreter within the pixi environment
+    EXTERNAL_OPTIONS="-DPYTHON_EXECUTABLE=\"${PYTHON_EXECUTABLE}\" \
+    -DPYTHON_INCLUDE_DIR=\"${PYTHON_INCLUDE_DIR}\" \
+    -DPYTHON_LIBRARY=\"$PYTHON_LIBRARY\""
+fi
+
+
 #pip3 install --upgrade pip
 pip3 uninstall -y opencv-python
 pip3 uninstall -y opencv-contrib-python
+
+if [ "$PIXI_ACTIVATED" = true ]; then
+    rm -rf $(python -c "import cv2; import os; print(os.path.dirname(cv2.__file__))")
+    find $(python -c "import site; print(site.getsitepackages()[0])") -name "opencv*" -exec rm -rf {} +
+fi
+
 
 pip3 install --upgrade numpy
 
@@ -141,7 +171,7 @@ NUMPY_INCLUDE_PATH=$(python3 -c "import numpy; print(numpy.get_include())")
 
 
 # Set include paths dynamically
-export CPPFLAGS="-I$NUMPY_INCLUDE_PATH:$CPPFLAGS"
+#export CPPFLAGS="-I$NUMPY_INCLUDE_PATH $CPPFLAGS"
 export CPATH="$NUMPY_INCLUDE_PATH:$CPATH"
 export C_INCLUDE_PATH="$NUMPY_INCLUDE_PATH:$C_INCLUDE_PATH"
 export CPP_INCLUDE_PATH="$NUMPY_INCLUDE_PATH:$CPP_INCLUDE_PATH"
@@ -173,13 +203,16 @@ export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \
 -DBUILD_SHARED_LIBS=OFF \
 -DWITH_FFMPEG=ON  "$CONDA_OPTIONS" "$GTK_OPTIONS" \
--DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF"
+-DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF ${EXTERNAL_OPTIONS}"
 
 if [[ $version == *"24.04"* ]] ; then
     export CMAKE_ARGS="$CMAKE_ARGS -DBUILD_opencv_sfm=OFF" # It seems this module brings some build issues with Ubuntu 24.04
 fi
 
-export CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS=$CPPFLAGS"
+export CMAKE_ARGS="$CMAKE_ARGS" # -DCMAKE_CXX_FLAGS=$CPPFLAGS"
+export CMAKE_CXX_FLAGS="$CPPFLAGS"
+export CMAKE_INCLUDE_PATH="$CPP_INCLUDE_PATH"
+export CMAKE_LIBRARY_PATH="$LIBRARY_PATH"
 
 # build opencv_python 
 pip3 wheel . --verbose

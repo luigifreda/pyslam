@@ -139,8 +139,10 @@ $ cd pyslam
 
 Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
-$ ./install_all.sh
-```
+#$ pixi shell  # if you want to use pixi 
+$ ./install_all.sh    
+``` 
+
 This install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. An internet connection is required.
 
 Refer to these links for further details about the specific install procedures that are supported.
@@ -168,6 +170,7 @@ The internal pySLAM libraries are imported by using a `Config` instance (from [c
 
 - With **venv**: Follow the instructions reported [here](./docs/PYTHON-VIRTUAL-ENVS.md).  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
 - With **conda**: Run the procedure described in this other [file](./docs/CONDA.md).
+- Witi **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh`
 
 Both procedures will create a new virtual environment `pyslam`.
 

@@ -35,10 +35,23 @@ else
     CONDA_INSTALLED=false
 fi
 
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+else
+    PIXI_ACTIVATED=false
+fi
+
+print_blue '================================================'
+print_blue "Installing pySLAM"
+print_blue '================================================'
+
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
     print_blue "Installing pySLAM by using conda"
     . install_all_conda.sh
+elif [ "$PIXI_ACTIVATED" = true ]; then
+    print_blue "Installing pySLAM by using pixi"
+    . install_all_pixi.sh
 else
     print_blue "Installing pySLAM by using venv"
     . install_all_venv.sh

@@ -68,7 +68,7 @@ set(CMAKE_CXX_FLAGS "-O2")
 # Function to detect CUDA architectures
 function(detect_cuda_architectures ARCHS)
   # Explicit list of invalid/future/unsupported architectures
-  set(INVALID_CUDA_ARCHS 100 101 120 50)
+  set(INVALID_CUDA_ARCHS 100 101 103 120 50)
 
   execute_process(
     COMMAND nvcc --list-gpu-arch
