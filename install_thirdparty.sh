@@ -33,7 +33,7 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 
 # ====================================================
 # activate pyslam python environment
-. pyenv-activate.sh
+#. pyenv-activate.sh
 
 # ====================================================
 # check if we have external options
