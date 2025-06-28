@@ -4,14 +4,13 @@
 
 #echo "usage: ./${0##*/} <env-name>"
 
-export ENV_NAME=$1
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
 
-if [ -z "${ENV_NAME}" ]; then
-    ENV_NAME='pyslam-pixi'
-fi
+ROOT_DIR="$SCRIPT_DIR"
 
-ENVS_PATH=.pixi/envs            # path where to group virtual environments 
-ENV_PATH="$ENVS_PATH/$ENV_NAME"        # path of the virtual environment we are creating 
+ENVS_PATH=$ROOT_DIR/.pixi    # path where to group virtual environments 
+ENV_PATH="$ENVS_PATH"        # path of the virtual environment we are creating 
  
 if [ -d "$ENV_PATH" ]; then 
     echo deleting virtual environment $ENV_NAME in $ENV_PATH

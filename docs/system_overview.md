@@ -3,18 +3,21 @@
 <!-- TOC -->
 
 - [System Overview](#system-overview)
-    - [1. SLAM Workflow and Components](#1-slam-workflow-and-components)
-    - [2. Main System Components](#2-main-system-components)
-        - [2.1. Feature Tracker](#21-feature-tracker)
-        - [2.2. Feature Matcher](#22-feature-matcher)
-        - [2.3. Loop Detector](#23-loop-detector)
-        - [2.4. Depth Estimator](#24-depth-estimator)
-        - [2.5. Volumetric Integrator](#25-volumetric-integrator)
-        - [2.6. Semantic Mapping](#26-semantic-mapping)
+  - [SLAM Workflow and Components](#slam-workflow-and-components)
+  - [Main System Components](#main-system-components)
+    - [Feature Tracker](#feature-tracker)
+    - [Feature Matcher](#feature-matcher)
+    - [Loop Detector](#loop-detector)
+    - [Depth Estimator](#depth-estimator)
+    - [Volumetric Integrator](#volumetric-integrator)
+    - [Semantic Mapping](#semantic-mapping)
 
 <!-- /TOC -->
 
 This document provides a high-level system overview, including diagrams that illustrate the main workflow, key components, and class relationships or dependencies. For clarity, some minor elements and arrows have been omitted from the diagrams. A more detailed version of this presentation is available as a [PDF document](./tex/document.pdf).
+
+A presentation of pySLAM was given at the RSS 2025 Workshop: _Unifying Visual SLAM_.
+[_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*
 
 ---
 

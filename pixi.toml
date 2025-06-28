@@ -17,7 +17,6 @@ google-pasta = "*"
 grpcio = "*"
 h5py = "*"
 imageio = "*"
-kornia = "*"
 keras = "*"
 kiwisolver = "*"
 markdown = "*"
@@ -79,7 +78,6 @@ munch = "*"
 wandb = "*"
 plyfile = "*"
 torchmetrics = "*"
-imgviz = "*"
 pyglm = "*"
 lpips = "*"
 rich = "*"
@@ -109,12 +107,22 @@ viser="*"
 vtk = ">=9.3.1,<10"
 ffmpeg = ">=7.1.1,<8"
 jinja2 = ">=3.1.6,<4"
+glib = "*"
+gobject-introspection = "*"
 
 [pypi-dependencies]
+imgviz = "==1.2.6"
+glfw = "*"
+roma = "*"
 pyqt5 = "*"
-#tensorflow = "*"
-#tensorflow-hub = "*"
-#protobuf = ">=3.20"
+kornia = "==0.7.3"
+kornia_moons = "==0.2.9"
+#transformers = "==4.38.2" 
+#f3rm = "*"                # conflict 
+#timm = "==1.0.15"         # conflict 
+#tensorflow = "==2.13"     # conflict 
+#tensorflow-hub = "*"      # conflict 
+#protobuf = ">=3.20"       # conflict 
 
 [system-requirements]
 cuda = "12.1"

@@ -276,7 +276,7 @@ def extract_multiscale_features():
 
         if os.listdir(args.checkpoint_det_dir):
             init_assign_op_det, init_feed_dict_det = slim.assign_from_checkpoint(
-                tf.train.latest_checkpoint(args.checkpoint_det_dir), detect_var)
+                tf.train.latest_checkpoint(args.checkpoint_det_dir), detect_var, ignore_missing_vars=True)
 
         point_level = []
         tmp = 0.0

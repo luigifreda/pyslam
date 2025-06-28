@@ -845,6 +845,10 @@ If you use pySLAM in your projects, please cite this document:
 ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
 You may find an updated version of this document [here](./docs/tex/document.pdf).
 
+
+A presentation of pySLAM was given at the RSS 2025 Workshop: _Unifying Visual SLAM_.
+[_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*
+
 --- 
 ## Contributing to pySLAM
 

@@ -283,7 +283,7 @@ if __name__ == "__main__":
     loop_detection_config = LoopDetectorConfigs.DBOW3
 
     # Select your semantic mapping configuration (see the file semantic_mapping_configs.py). Set it to None to disable semantic mapping.
-    semantic_mapping_config = SemanticMappingConfigs.get_config_from_slam_dataset(dataset.type)
+    semantic_mapping_config = SemanticMappingConfigs.get_config_from_slam_dataset(dataset.type) if Parameters.kDoSemanticMapping else None
     
     # Override the feature tracker and loop detector configuration from the `settings` file
     if config.feature_tracker_config_name is not None:  # Check if we set `FeatureTrackerConfig.name` in the `settings` file 

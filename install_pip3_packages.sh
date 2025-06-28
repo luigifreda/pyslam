@@ -27,6 +27,7 @@ else
     CONDA_INSTALLED=false
 fi
 
+# Check if pixi is activated
 if [[ -n "$PIXI_PROJECT_NAME" ]]; then
     PIXI_ACTIVATED=true
 else
