@@ -170,9 +170,9 @@ The internal pySLAM libraries are imported by using a `Config` instance (from [c
 
 - With **venv**: Follow the instructions reported [here](./docs/PYTHON-VIRTUAL-ENVS.md).  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
 - With **conda**: Run the procedure described in this other [file](./docs/CONDA.md).
-- Witi **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh`
+- Witi **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh` (see this [file](./docs/PIXI.md) for further details).
 
-Both procedures will create a new virtual environment `pyslam`.
+The procedures will create a new virtual environment `pyslam`.
 
 ### MacOS
 
