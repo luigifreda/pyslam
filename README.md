@@ -775,6 +775,15 @@ If you want to **use your camera**, you have to:
 --- 
 ## References
 
+
+
+- ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](./docs/tex/document.pdf), *Luigi Freda*
+- [_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*
+RSS 2025 Workshop: _Unifying Visual SLAM_
+- ["Semantic pySLAM: Unifying semantic mapping approaches under the same framework"](./docs/pyslam-semantic.pdf), *David Morilla-Cabello*, *Eduardo Montijano*  
+RSS 2025 Workshop: _Unifying Visual SLAM_
+
+
 Suggested books:
 * *[Multiple View Geometry in Computer Vision](https://www.robots.ox.ac.uk/~vgg/hzbook/)* by Richard Hartley and Andrew Zisserman
 * *[An Invitation to 3-D Vision](https://link.springer.com/book/10.1007/978-0-387-21779-6)* by Yi-Ma, Stefano Soatto, Jana Kosecka, S. Shankar Sastry 
@@ -834,7 +843,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * [MegaLoc](https://github.com/gmberton/MegaLoc)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
-* Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for his great work on integrating [semantic predictions](./docs//semantics.md) into pySLAM.
+* Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for his great work on integrating [semantic predictions](./docs/semantics.md) into pySLAM.
 
 ---
 ## License 
@@ -845,15 +854,10 @@ If you use pySLAM in your projects, please cite this document:
 ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
 You may find an updated version of this document [here](./docs/tex/document.pdf).
 
-
-A presentation of pySLAM was given at the RSS 2025 Workshop: _Unifying Visual SLAM_.
-[_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*
-
 --- 
 ## Contributing to pySLAM
 
 If you like pySLAM and would like to contribute to the code base, you can report bugs, leave comments and proposing new features through issues and pull requests on github. Feel free to get in touch at *luigifreda(at)gmail[dot]com*. Thank you!
-
 
 ---
 ## Roadmap
@@ -867,7 +871,7 @@ Many improvements and additional features are currently under development:
 - [x] Modern DL matching algorithms 
 - [ ] Object detection
   - [ ] Open vocabulary segment (object) detection
-- [X] Semantic segmentation [WIP by @dvdmc]
+- [X] Semantic segmentation [by @dvdmc]
   - [X] Dense closed-set labels
   - [X] Dense closed-set probability vectors
   - [X] Dense open vocabulary feature vectors
