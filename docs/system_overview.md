@@ -150,5 +150,9 @@ This modular design decouples semantic segmentation from mapping logic, enabling
 
 The section [Supported semantic segmentation methods](../README.md#supported-semantic-segmentation-methods) provides a list of supported semantic segmentation methods.
 
+This paper provides a more in-depth presentation of the semantic mapping module.
+*["Semantic pySLAM: Unifying semantic mapping approaches under the same framework"](./pyslam-semantic.pdf)*, David Morilla-Cabello, Eduardo Montijano  
+
+
 
 
