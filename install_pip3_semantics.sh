@@ -20,6 +20,20 @@ cd "$ROOT_DIR"
 print_blue '================================================================'
 print_blue "Installing python packages for semanatics ..."
 
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    CONDA_INSTALLED=true
+else
+    CONDA_INSTALLED=false
+fi
+
+# Check if pixi is activated
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+else
+    PIXI_ACTIVATED=false
+fi
+
 
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
 echo "PYTHON_ENV: $PYTHON_ENV"

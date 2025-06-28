@@ -19,9 +19,9 @@ from utils_features import descriptor_sigma_mad, descriptor_sigma_mad_v2, comput
 from utils_draw import draw_feature_matches
 from utils_plot import plot_errors_histograms
 
-from feature_tracker_configs import FeatureTrackerConfigs
+from local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from timer import TimerFps
+from utilities.timer import TimerFps
 
 
 

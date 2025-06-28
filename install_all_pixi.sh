@@ -61,9 +61,31 @@ export EXTERNAL_OPTIONS="-DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE} \
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
- # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
+# 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
 #. install_pip3_packages.sh $EXTERNAL_OPTIONS
+
+
+# ====================================================
+# Custom pixi management
+
 ./install_opencv_python.sh
+
+. cuda_config.sh
+if [ "$CUDA_VERSION" != "0" ]; then
+  # MonoGS required packages
+  ./thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip3 install fails)
+  pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
+  pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
+else
+    print_yellow "Skipping MonoGS since CUDA_VERSION is 0"
+fi 
+
+pip install tensorflow==2.13
+pip install tensorflow_hub  # required by VPR
+pip install tf_slim==1.1.0
+pip install protobuf==3.20.3 # delf
+# ====================================================
+
 
 # 6. build and install cpp stuff 
 . install_cpp.sh $EXTERNAL_OPTIONS                    # use . in order to inherit python env configuration and other environment vars 
@@ -74,6 +96,5 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # 8. install tools for semantics
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 ./install_pip3_semantics.sh    # must use "./"
-
 
 cd "$STARTING_DIR"

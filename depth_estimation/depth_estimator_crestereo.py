@@ -65,12 +65,16 @@ def enforce_megengine_linking():
     ctypes.CDLL(os.path.join(lib_path, "libmegengine_shared.so"))  # Load the main library last
     
     
-if platform.system() != 'Darwin':
+try:
     # Unfortunately, megengine is not fully supported on macOS
     #enforce_megengine_linking()
     import megengine as mge
     import crestereo.nets as crestereo_nets
-
+    HAS_MEGENGINE=True
+except:
+    HAS_MEGENGINE=False
+    Printer.orange(f'DepthEstimatorCrestereo: megengine not found')
+    
 
 # Stereo depth prediction using the Crestereo model.
 class DepthEstimatorCrestereo(DepthEstimator):
@@ -91,7 +95,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
                          dataset_env_type=dataset_env_type, precision=None)        
         
     def load_model(self, model_path=kCrestereoModelPath):
-        if platform.system() != 'Darwin':  
+        if HAS_MEGENGINE:  
                   
             print("DepthEstimatorCrestereo: Loading model:", os.path.abspath(model_path))
             if not os.path.exists(model_path):
@@ -109,7 +113,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
 
     # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
-        if platform.system() != 'Darwin':
+        if HAS_MEGENGINE:
             
             if image_right is None:
                 message = 'Image right is None. Are you using a stereo dataset? If not, you cant use a stereo depth estimator here.'
