@@ -51,6 +51,7 @@ data/images/SFU
 data/orb_descriptors_kitti.npy
 data/slam_state
 data/kitti_trajectory.txt
+data/skyseg.onnx
 
 results/
 

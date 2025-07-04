@@ -111,6 +111,7 @@ glib = "*"
 gobject-introspection = "*"
 
 [pypi-dependencies]
+onnxruntime = "*"
 imgviz = "==1.2.6"
 glfw = "*"
 roma = "*"

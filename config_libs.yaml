@@ -57,3 +57,4 @@ LIB_PATHS:
   gaussian_splatting: thirdparty/monogs
   mvdust3r: thirdparty/mvdust3r
   mast3r: thirdparty/mast3r
+  vggt: thirdparty/vggt

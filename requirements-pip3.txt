@@ -45,3 +45,4 @@ tqdm==4.66.4
 Werkzeug==2.2.2
 wrapt==1.11.2
 yacs==0.1.8
+onnxruntime>=1.22.0
