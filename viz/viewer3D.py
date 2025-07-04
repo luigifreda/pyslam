@@ -169,10 +169,12 @@ class VizMesh:
         
 class VizCameraImage:
     id_ = 0
-    def __init__(self, image=None, Twc=None, id=None, scale=1.0, color=(0.0,1.0,0.0)):
+    def __init__(self, image=None, Twc=None, id=None, scale=1.0, h_ratio=0.75, z_ratio=0.6, color=(0.0,1.0,0.0)):
         self.image = image if image is not None else None
         self.Twc = Twc if Twc is not None else None        
         self.scale = scale
+        self.h_ratio = h_ratio
+        self.z_ratio = z_ratio
         self.color = color
         
         if id is not None:
@@ -462,7 +464,7 @@ class Viewer3D(object):
                     Printer.red(f'Viewer3D: viewer_refresh - camera_images should be a list of VizCameraImage objects - found cam of type: {type(cam)}')
                     continue
                 #print(f'Viewer3D: viewer_refresh - adding camera image with id: {cam.id}, scale: {cam.scale}, Twc: {cam.Twc}, image.shape: {cam.image.shape}, image.dtype: {cam.image.dtype}')
-                self.camera_images.add(image=cam.image, pose=cam.Twc, id=cam.id, scale=cam.scale, color=cam.color)
+                self.camera_images.add(image=cam.image, pose=cam.Twc, id=cam.id, scale=cam.scale, h_ratio=cam.h_ratio, z_ratio=cam.z_ratio, color=cam.color)
 
         while not qcams.empty():
             self.camera_trajectories_state = qcams.get()

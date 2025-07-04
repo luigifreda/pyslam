@@ -55,7 +55,8 @@ class Rerun:
     camera_img_resize_factors = None #[0.1, 0.1]
     current_camera_view_scale = 0.3
     camera_poses_view_size = 0.5
-    is_initialized = False 
+    is_initialized = False
+    is_z_up = False
     
     def __init__(self) -> None:
         self.init()
@@ -88,8 +89,12 @@ class Rerun:
     @staticmethod
     def init3d(img_compress=False) -> None:
         Rerun.init(img_compress)    
-        rr.log("world", rr.ViewCoordinates.RDF, static=True) # X=Right, Y=Down, Z=Forward        
-        Rerun.log_3d_grid_plane()
+        if Rerun.is_z_up:
+            rr.log("/world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+            rr.log("/world", rr.Transform3D(translation=[0, 0, 0], from_parent=True))
+        else: 
+            rr.log("/world", rr.ViewCoordinates.RDF, static=True) # X=Right, Y=Down, Z=Forward        
+            Rerun.log_3d_grid_plane()
     
     @staticmethod
     def init_vo(img_compress=False) -> None:
@@ -126,10 +131,23 @@ class Rerun:
     
         rr.set_time_sequence("frame_id", frame_id)    
 
-        rr.log("world/camera", rr.Transform3D(translation=t, mat3x3=R * Rerun.current_camera_view_scale, from_parent=False))
-        rr.log("world/camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward
+        if Rerun.is_z_up:
+            # Log camera pose in Z-up coordinates
+            rr.log("/world/camera", rr.Transform3D(translation=t, mat3x3=R, from_parent=False))
+            rr.log("/world/camera", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+        else:
+            # Log camera pose in RDF coordinates
+            rr.log("/world/camera", rr.Transform3D(translation=t, mat3x3=R * Rerun.current_camera_view_scale, from_parent=False))
+            rr.log("/world/camera", rr.ViewCoordinates.RDF, static=True)  # X=Right, Y=Down, Z=Forward
+
+        # Attach image to camera in the scene graph
+        rr.log(
+            "/world/camera/image",
+            rr.Transform3D(translation=[0, 0, 0], from_parent=True),
+        )
+        
         # Log camera intrinsics
-        rr.log("world/camera/image",
+        rr.log("/world/camera/image",
             rr.Pinhole(
                 resolution=[camera.width, camera.height],
                 focal_length=[camera.fx, camera.fy],
@@ -148,12 +166,12 @@ class Rerun:
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         
         if Rerun.img_compress:        
-            rr.log("world/camera/image", rr.Image(rgb).compress(jpeg_quality=Rerun.img_compress_jpeg_quality))
+            rr.log("/world/camera/image", rr.Image(rgb).compress(jpeg_quality=Rerun.img_compress_jpeg_quality))
         else: 
-            rr.log("world/camera/image", rr.Image(rgb))
+            rr.log("/world/camera/image", rr.Image(rgb))
 
         if depth is not None:
-            rr.log("world/camera/depth", rr.DepthImage(depth, meter=1.0, colormap="viridis"))
+            rr.log("/world/camera/depth", rr.DepthImage(depth, meter=1.0, colormap="viridis"))
 
         Rerun.log_3d_camera_pose(frame_id, camera, camera_pose, color=[0,255,0], size=Rerun.camera_poses_view_size)
         
@@ -175,6 +193,23 @@ class Rerun:
             radii=0.01,
             colors=[0.7*255, 0.7*255, 0.7*255]))            
         
+    @staticmethod
+    def log_3d_box(timestamp: float, color=[255, 0, 0], center=[0, 0, 0], quaternion=rr.Quaternion(xyzw=[0.0, 0.0, 0.0, 1.0]),
+        half_size=[1.0, 1.0, 1.0], label=None, box_name_string="bbox", box_id: int = 0, fill_mode=None, base_topic="/world/bboxes",
+    ) -> None:
+        # rr.set_time("frame_id", sequence=frame_id)
+        rr.log(
+            base_topic + "/" + box_name_string + str(box_id),
+            rr.Boxes3D(
+                half_sizes=half_size,
+                centers=center,
+                quaternions=quaternion,
+                colors=color,
+                labels=label,
+                fill_mode=fill_mode,
+            ),
+        )
+                
     @staticmethod
     def log_3d_trajectory(frame_id: int, points: np.ndarray, trajectory_string: str = "trajectory", color = [255,0,0], size=0.2) -> None:
         #rr.set_time_sequence("frame_id", frame_id)
@@ -211,6 +246,36 @@ class Rerun:
             colors=color))
 
             
+    @staticmethod
+    def log_3d_pointcloud(timestamp: float, 
+                          points: np.ndarray,  # shape (N, 3)
+                          pose: np.ndarray = None,  # 4x4 transformation matrix
+                          topic: str = "/world/pointcloud",
+                          colors: np.ndarray = None,  # shape (N, 3)
+                          point_radius: float = 0.005,  # default radius in world units
+    ):
+        if points.shape[1] != 3:
+            raise ValueError("Points should have shape (N, 3)")
+
+        rr.set_time("time", timestamp=timestamp)
+
+        if pose is not None:
+            # Apply pose transformation
+            R = pose[:3, :3]
+            t = pose[:3, 3]
+            transformed_points = (R @ points.T).T + t
+        else:
+            # No transformation, use points as is
+            transformed_points = points
+
+        rr.log(
+            topic,
+            rr.Points3D(transformed_points,
+                        colors=colors if colors is not None else [255, 255, 255],
+                        radii=point_radius,  # Set the visual size of each point
+            ),
+        )
+                    
     # ===================================================================================
     # 2D logging
     # ===================================================================================

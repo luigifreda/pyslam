@@ -430,6 +430,12 @@ public:
         // Generate texture
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
+
+        // Retrieve the data alignment
+        size_t unpack_alignment = getAlignment(image);
+        // Set the unpack alignment before uploading texture
+        glPixelStorei(GL_UNPACK_ALIGNMENT, unpack_alignment);
+
         if (is_color) {
             //std::cout << "CameraImage: Color image " << this->id << ", shape: " << image.shape(0) << "x" << image.shape(1) << ", #channels:" << image.shape(2) << std::endl;
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, imageWidth, imageHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image.data());
@@ -453,6 +459,20 @@ public:
     ~CameraImage() {
         std::cout << "CameraImage " << this->id << " deleted" << std::endl;
         glDeleteTextures(1, &texture);
+    }
+
+    // retrieve the data alignment 
+    size_t getAlignment(const py::array_t<unsigned char>& image) const {
+        auto buf = image.request();  // Get buffer info (shape, strides, ptr, etc.)
+        ssize_t row_stride = buf.strides[0];  // in bytes
+
+        // OpenGL only supports 1, 2, 4, 8
+        for (int align : {8, 4, 2, 1}) {
+            if (row_stride % align == 0) {
+                return align;
+            }
+        }
+        return 1;  // fallback, should never be hit
     }
 
     void draw_() const {

@@ -358,6 +358,26 @@ else
     print_yellow "MASt3R requires CUDA. Skipping..."
 fi
 
+cd $ROOT_DIR
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/vggt ..."
+
+if [ "$CUDA_VERSION" != "0" ]; then
+    # we need CUDA
+
+    cd thirdparty
+    if [ ! -d vggt ]; then
+        git clone https://github.com/facebookresearch/vggt.git vggt
+    fi 
+else
+    print_yellow "VGGT requires CUDA. Skipping..."
+fi 
+
+cd $ROOT_DIR
+
+print_blue "=================================================================="
+
 echo "...done with thirdparty"
 
 cd "$STARTING_DIR"

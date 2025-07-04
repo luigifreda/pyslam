@@ -1,0 +1,81 @@
+[project]
+name = "pyslam"
+version = "2.8"
+description = "pySLAM is a Python-based Visual SLAM pipeline that supports monocular, stereo, and RGB-D cameras. It offers a wide range of modern local and global features, multiple loop-closing strategies, a volumetric reconstruction pipeline, integration of depth prediction models, and semantic segmentation for enhanced scene understanding."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "absl-py==1.4.0",
+    "astor==0.8.1",
+    "cycler==0.10.0",
+    "decorator==4.4.2",
+    "gast==0.3.3",
+    "google-pasta==0.2.0",
+    "grpcio==1.56.2",
+    "h5py==3.1.1",
+    "imageio==2.34.2",
+    "importlib_metadata==8.0.0",
+    "kornia==0.7.3",
+    "kornia_moons==0.2.9",
+    "Keras-Applications==1.0.8",
+    "Keras-Preprocessing==1.1.2",
+    "kiwisolver==1.0.1",
+    "Markdown==3.1.1",
+    "matplotlib==3.7.5",
+    "networkx==3.1",
+    "numpy==1.24.3",
+    "ordered-set==4.1.0",
+    "pillow==10.4.0",
+    "protobuf==3.20.3",
+    "psutil==5.5.1",
+    "pybind11==2.13.1",
+    "pygame==2.6.0",
+    "pyopengl==3.1.7",
+    "pyOpenSSL==19.0.0",
+    "pyparsing==2.4.6",
+    "python-dateutil==2.8.2",
+    "pyyaml==6.0.1",
+    "scipy==1.10.1",
+    "scikit-image==0.21.0",
+    "seaborn==0.13.2",
+    "six==1.14.0",
+    "sklearn-pandas==1.8.0",
+    "tensorflow==2.13",
+    "termcolor==2.4.0",
+    "tf-slim==1.1.0",
+    "tqdm==4.66.4",
+    "Werkzeug==2.2.2",
+    "wrapt==1.11.2",
+    "yacs==0.1.8",
+    "onnxruntime>=1.22.0"
+    "gdown",
+    "hjson",
+    "ujson",
+    "jinja2",
+    "timm",
+    "rerun-sdk>=0.17.0",
+    "einops",
+    "fast-pytorch-kmeans",
+    "pyflann-py3",
+    "faiss-cpu",
+    "evo",
+    "trimesh",
+    "munch",
+    "wandb",
+    "plyfile",
+    "glfw",
+    "PyOpenGL",
+    "PyGLM",
+    "lpips",
+    "rich",
+    "ruff",
+    "gradio",
+    "roma"
+]
+
+[tool.setuptools]
+packages = ["pyslam", "thirdparty"]
+
+[tool.setuptools.package-dir]
+pyslam = "pyslam"
+thirdparty = "thirdparty"
