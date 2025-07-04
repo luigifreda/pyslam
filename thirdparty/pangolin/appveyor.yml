@@ -1,0 +1,25 @@
+os: Visual Studio 2015
+
+clone_folder: c:/projects/Pangolin
+
+platform: x64
+configuration: Release
+
+build:
+  verbosity: minimal
+  project: c:/projects/Pangolin/build/Pangolin.sln 
+
+install:
+  - ps: wget http://bitbucket.org/eigen/eigen/get/3.2.10.zip -outfile eigen3.zip
+  - cmd: 7z x eigen3.zip -o"C:/projects" -y > nul
+  
+before_build:
+  - cd c:/projects/Pangolin
+  - mkdir bin
+  - mkdir build
+  - cd build
+  - cmake -G "Visual Studio 14 2015 Win64" -D EIGEN3_INCLUDE_DIR=C:/projects/eigen-eigen-b9cd8366d4e8 -D CMAKE_INSTALL_PREFIX=../bin ..
+
+on_success:
+  - 7z a pangolin_build.zip "c:/projects/Pangolin/build/src/include" "c:/projects/Pangolin/build/src/Release/pangolin.lib" "c:/projects/Pangolin/build/tools/*/Release/*.exe" "c:/projects/Pangolin/build/examples/*/Release/*.exe"
+  - appveyor PushArtifact pangolin_build.zip

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+    <mime-type type="application/x-pangoplot">
+        <comment>Pangolin Video File</comment>
+        <icon name="application-x-pango"/>
+        <glob-deleteall/>
+        <glob pattern="*.csv"/>
+    </mime-type>
+</mime-info>

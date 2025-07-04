@@ -15,8 +15,6 @@ groundtruth.txt
 kitti
 map.json
 config.pyc 
-thirdparty/g2opy
-thirdparty/pangolin
 thirdparty/opencv-python
 thirdparty/opencv
 thirdparty/open3d
@@ -67,3 +65,5 @@ cpp/lib/
 .env.bak
 
 constraints.txt
+
+pyslam.egg-info

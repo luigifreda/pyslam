@@ -1,0 +1,30 @@
+sudo: required
+dist: xenial
+
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt -qq update ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt install -qq --no-install-suggests --no-install-recommends libeigen3-dev libglew-dev libc++-dev libwayland-dev libxkbcommon-dev wayland-protocols libegl1-mesa-dev; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then pyenv versions && pyenv global system 3.7; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update          ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install eigen glew ; fi
+
+language: cpp
+
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+      env: PARALLEL_BUILD="-- -j 8"
+    - os: linux
+      compiler: clang
+      env: PARALLEL_BUILD="-- -j 8"
+    - os: osx
+      env: PARALLEL_BUILD="-- -j 8"
+    - os: windows
+      env: PARALLEL_BUILD="--parallel 8"
+
+script:
+  - mkdir build
+  - cd build
+  - cmake -D CMAKE_BUILD_TYPE=Release ..
+  - cmake --build . $PARALLEL_BUILD

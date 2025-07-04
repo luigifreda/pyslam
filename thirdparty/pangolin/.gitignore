@@ -1,0 +1,6 @@
+.DS_Store
+CMakeLists.txt.user
+build
+build*
+.vscode
+pypangolin.cpython*

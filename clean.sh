@@ -31,9 +31,9 @@ print_blue "Cleaning thirdparty packages and utils..."
 #echo ROOT_DIR: $ROOT_DIR
 cd "$ROOT_DIR"  # from bash_utils.sh
 
-rm -Rf thirdparty/pangolin 
+#rm -Rf thirdparty/pangolin 
 
-rm -Rf thirdparty/g2opy
+#rm -Rf thirdparty/g2opy
 
 rm -Rf thirdparty/protoc                   # set by install_delf.sh 
 

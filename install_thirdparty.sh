@@ -73,52 +73,41 @@ cd "$ROOT_DIR"
 print_blue '================================================'
 print_blue "Configuring and building thirdparty/Pangolin ..."
 
-INSTALL_PANGOLIN_ORIGINAL=0
 cd thirdparty
-if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
-    # N.B.: pay attention this will generate a module 'pypangolin' ( it does not have the methods dcam.SetBounds(...) and pangolin.DrawPoints(points, colors)  )
-    if [ ! -d "pangolin" ]; then
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            sudo apt-get install -y libglew-dev
-        fi     
-        git clone https://github.com/stevenlovegrove/Pangolin.git pangolin
-        cd pangolin
-        git submodule init && git submodule update
-        cd ..
-    fi
-    cd pangolin
-    make_dir build 
-    if [ ! -f build/src/libpangolin.so ]; then
-        cd build
-        cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON $EXTERNAL_OPTIONS
-        make -j8
-        cd build/src
-        ln -s pypangolin.*-linux-gnu.so  pangolin.linux-gnu.so
-    fi
-else
-    # N.B.: pay attention this will generate a module 'pypangolin' 
-    if [ ! -d "pangolin" ]; then
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            echo "OS: $OSTYPE"   
-            sudo apt-get install -y libglew-dev
-        fi
-        git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin        
-        cd pangolin
-        git apply ../pangolin.patch
-        cd ..
-    fi
-    cd pangolin
-    if [ ! -f pypangolin.cpython-*.so ]; then   
-        make_dir build   
-        cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
-                 -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
-                 -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF $EXTERNAL_OPTIONS # disable realsense 
-        make -j8
-        cd ..
-        #python setup.py install
-    fi
+#     # N.B.: pay attention this will generate a module 'pypangolin' 
+#     if [ ! -d "pangolin" ]; then
+#         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+#             echo "OS: $OSTYPE"   
+#             sudo apt-get install -y libglew-dev
+#         fi
+#         git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin        
+#         cd pangolin
+#         git apply ../pangolin.patch
+#         cd ..
+#     fi
+#     cd pangolin
+#     if [ ! -f pypangolin.cpython-*.so ]; then   
+#         make_dir build   
+#         cd build
+#         cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
+#                  -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
+#                  -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF $EXTERNAL_OPTIONS # disable realsense 
+#         make -j8
+#         cd ..
+#         #python setup.py install
+#     fi
+cd pangolin
+if [ ! -f pypangolin.cpython-*.so ]; then   
+    make_dir build   
+    cd build
+    cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
+                -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
+                -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF $EXTERNAL_OPTIONS # disable realsense 
+    make -j8
+    cd ..
+    #python setup.py install
 fi
+
 cd "$ROOT_DIR"
 
 
@@ -126,17 +115,17 @@ print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/g2o ..."
 
 cd thirdparty
-if [ ! -d g2opy ]; then
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        sudo apt-get install -y libsuitesparse-dev libeigen3-dev
-    fi     
-	git clone https://github.com/uoip/g2opy.git
-    cd g2opy
-    G2OPY_REVISION=5587024
-    git checkout $G2OPY_REVISION
-    git apply ../g2opy.patch
-    cd ..     
-fi
+# if [ ! -d g2opy ]; then
+#     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+#         sudo apt-get install -y libsuitesparse-dev libeigen3-dev
+#     fi     
+# 	git clone https://github.com/uoip/g2opy.git
+#     cd g2opy
+#     G2OPY_REVISION=5587024
+#     git checkout $G2OPY_REVISION
+#     git apply ../g2opy.patch
+#     cd ..     
+# fi
 cd g2opy
 if [ ! -f lib/g2o.cpython*.so ]; then  
     make_buid_dir
