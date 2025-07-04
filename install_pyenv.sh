@@ -23,7 +23,7 @@ print_blue "Installing pyenv"
 print_blue '================================================'
 
 if ! pyenv install --list &> /dev/null; then
-    echo "pyenv could not be found => install it!"
+    echo "pyenv was not found => installing it..."
 
     if [ ! -d ~/.pyenv ]; then 
         git clone https://github.com/pyenv/pyenv.git ~/.pyenv

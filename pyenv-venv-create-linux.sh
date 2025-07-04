@@ -18,16 +18,12 @@ ROOT_DIR="$SCRIPT_DIR"
 STARTING_DIR=`pwd`
 cd "$ROOT_DIR"
 
+export ENV_NAME="${1:-pyslam}"  # get the first input if any, otherwise use 'pyslam' as default name
+export PYSLAM_PYTHON_VERSION="${2:-3.11.9}"  # Default Python version
 
-export ENV_NAME=$1
-
-if [ -z "${ENV_NAME}" ]; then
-    ENV_NAME='pyslam'
-fi
 
 ENVS_PATH=~/.python/venvs  # path where to group virtual environments 
 ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 
-
 
 # ====================================================
 
@@ -58,7 +54,7 @@ make_dir $ENV_PATH
 cd $ENVS_PATH
 
 
-export PYSLAM_PYTHON_VERSION="3.10.12"
+#export PYSLAM_PYTHON_VERSION="3.10.12"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
@@ -94,7 +90,10 @@ MAKEFLAGS_OPTION="-j$(nproc)"
 # MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install opencv-contrib-python -vvv $PRE_OPTION
 
 # install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
-MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
+#MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
+
+pip install --upgrade pip setuptools wheel build
+pip install -e .
 
 
 cd "$STARTING_DIR"

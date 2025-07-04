@@ -18,11 +18,8 @@ ROOT_DIR="$SCRIPT_DIR"
 STARTING_DIR=`pwd`
 cd "$ROOT_DIR"
 
-export ENV_NAME=$1
-
-if [ -z "${ENV_NAME}" ]; then
-    ENV_NAME='pyslam'
-fi
+export ENV_NAME="${1:-pyslam}"  # get the first input if any, otherwise use 'pyslam' as default name
+export PYSLAM_PYTHON_VERSION="${2:-3.11.9}"  # Default Python version
 
 ENVS_PATH=~/.python/venvs  # path where to group virtual environments 
 ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 
@@ -45,7 +42,7 @@ fi
 make_dir $ENV_PATH
 cd $ENVS_PATH
 
-export PYSLAM_PYTHON_VERSION="3.10.12"
+#export PYSLAM_PYTHON_VERSION="3.10.12"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 

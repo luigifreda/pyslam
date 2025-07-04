@@ -27,6 +27,10 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 . $SCRIPT_DIR/find_ros.sh
 
+echo "ROS2_INSTALL_PATH: $ROS2_INSTALL_PATH"
+
+pip install catkin_pkg
+
 if [ -n "$ROS2_INSTALL_PATH" ]; then
 
     source $ROS2_INSTALL_PATH/setup.bash

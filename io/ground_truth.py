@@ -26,8 +26,6 @@ import traceback
 
 from enum import Enum
 
-import quaternion
-
 from utils_sys import Printer 
 from utils_geom import rotmat2qvec, xyzq2Tmat
 

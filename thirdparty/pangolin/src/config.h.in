@@ -1,0 +1,72 @@
+#ifndef PANGOLIN_CONFIG_H
+#define PANGOLIN_CONFIG_H
+
+/*
+ * Configuration Header for Pangolin
+ */
+
+/// Version
+#define PANGOLIN_VERSION_MAJOR @PANGOLIN_VERSION_MAJOR@
+#define PANGOLIN_VERSION_MINOR @PANGOLIN_VERSION_MINOR@
+#define PANGOLIN_VERSION_STRING "@PANGOLIN_VERSION@"
+
+/// Pangolin options
+#cmakedefine BUILD_PANGOLIN_GUI
+#cmakedefine BUILD_PANGOLIN_VARS
+#cmakedefine BUILD_PANGOLIN_VIDEO
+
+/// Configured libraries
+#cmakedefine HAVE_CUDA
+#cmakedefine HAVE_PYTHON
+
+#cmakedefine HAVE_EIGEN
+#cmakedefine HAVE_TOON
+
+#cmakedefine HAVE_DC1394
+#cmakedefine HAVE_V4L
+#cmakedefine HAVE_OPENNI
+#cmakedefine HAVE_LIBREALSENSE
+#cmakedefine HAVE_OPENNI2
+#cmakedefine HAVE_UVC
+#cmakedefine HAVE_DEPTHSENSE
+#cmakedefine HAVE_TELICAM
+#cmakedefine HAVE_PLEORA
+
+#cmakedefine HAVE_FFMPEG
+#cmakedefine HAVE_FFMPEG_MAX_ANALYZE_DURATION2
+#cmakedefine HAVE_FFMPEG_AVFORMAT_ALLOC_OUTPUT_CONTEXT2
+#cmakedefine HAVE_FFMPEG_AVPIXELFORMAT
+
+#cmakedefine HAVE_GLEW
+#cmakedefine GLEW_STATIC
+
+#cmakedefine HAVE_APPLE_OPENGL_FRAMEWORK
+#cmakedefine HAVE_GLES
+#cmakedefine HAVE_GLES_2
+#cmakedefine HAVE_OCULUS
+
+#cmakedefine HAVE_PNG
+#cmakedefine HAVE_JPEG
+#cmakedefine HAVE_TIFF
+#cmakedefine HAVE_OPENEXR
+#cmakedefine HAVE_ZSTD
+#cmakedefine HAVE_LZ4
+
+/// Platform
+#cmakedefine _UNIX_
+#cmakedefine _WIN_
+#cmakedefine _OSX_
+#cmakedefine _LINUX_
+#cmakedefine _ANDROID_
+#cmakedefine _IOS_
+
+/// Compiler
+#cmakedefine _GCC_
+#cmakedefine _CLANG_
+#cmakedefine _MSVC_
+
+#if (__cplusplus > 199711L) || (_MSC_VER >= 1800)
+#define CALLEE_HAS_VARIADIC_TEMPLATES
+#endif
+
+#endif //PANGOLIN_CONFIG_H
