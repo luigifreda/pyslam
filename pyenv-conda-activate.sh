@@ -4,11 +4,8 @@
 
 #echo "usage: ./${0##*/} <env-name>"
 
-export ENV_NAME=$1
+export ENV_NAME="${1:-pyslam}"  # get the first input if any, otherwise use 'pyslam' as default name
 
-if [ -z "${ENV_NAME}" ]; then
-    ENV_NAME='pyslam'
-fi
 
 # # Check if conda is already initialized
 # if ! conda info -v &> /dev/null; then

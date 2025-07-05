@@ -4,11 +4,7 @@
 
 #echo "usage: ./${0##*/} <env-name>"
 
-export ENV_NAME=$1
-
-if [ -z "${ENV_NAME}" ]; then
-    ENV_NAME='pyslam'
-fi
+export ENV_NAME=${1:-pyslam}  # default name of the virtual environment is "pyslam"
 
 ENVS_PATH=~/.python/venvs  # path where to group virtual environments 
 ENV_PATH=$ENVS_PATH/$ENV_NAME        # path of the virtual environment we are creating 

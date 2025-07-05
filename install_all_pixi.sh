@@ -65,28 +65,6 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 #. install_pip3_packages.sh $EXTERNAL_OPTIONS
 . install_pip3_packages2.sh 
 
-# ====================================================
-# # Custom management of pip packages (to avoid conflicts)
-
-# ./install_opencv_python.sh
-
-# . cuda_config.sh
-# if [ "$CUDA_VERSION" != "0" ]; then
-#   # MonoGS required packages
-#   ./thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip3 install fails)
-#   pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
-#   pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
-# else
-#     print_yellow "Skipping MonoGS since CUDA_VERSION is 0"
-# fi 
-
-# pip install tensorflow==2.13
-# pip install tensorflow_hub  # required by VPR
-# pip install tf_slim==1.1.0
-# pip install protobuf==3.20.3 # delf
-# ====================================================
-
-
 # 6. build and install cpp stuff 
 . install_cpp.sh $EXTERNAL_OPTIONS                    # use . in order to inherit python env configuration and other environment vars 
 
