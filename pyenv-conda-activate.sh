@@ -64,7 +64,8 @@ fi
 if [[ "$version" == *"24.04"* ]] ; then
     export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
     echo "Preloading libstdc++..."
-
-    export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
-    echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
 fi
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+
+

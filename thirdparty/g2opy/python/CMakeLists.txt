@@ -23,27 +23,27 @@ message(STATUS "GLUT_LIBRARIES: ${GLUT_LIBRARIES}")
 
 pybind11_add_module(g2o g2o.cpp)
 target_link_libraries(g2o PRIVATE 
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_core.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_solver_cholmod.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_solver_csparse.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_solver_eigen.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_solver_dense.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_solver_pcg.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_solver_slam2d_linear.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_solver_structure_only.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_data.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_icp.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_sba.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_sclam2d.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_sim3.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_slam2d.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_slam2d_addons.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_slam3d.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_types_slam3d_addons.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_contrib.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_csparse_extension.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_opengl_helper.a
-    ${PROJECT_SOURCE_DIR}/lib/libg2o_stuff.a
+    core
+    solver_cholmod
+    solver_csparse
+    solver_eigen
+    solver_dense
+    solver_pcg
+    solver_slam2d_linear
+    solver_structure_only
+    types_data
+    types_icp
+    types_sba
+    types_sclam2d
+    types_sim3
+    types_slam2d
+    types_slam2d_addons
+    types_slam3d
+    types_slam3d_addons
+    contrib
+    csparse_extension
+    opengl_helper
+    stuff
     ${EIGEN3_LIBRARIES}
     ${CHOLMOD_LIBRARIES}
     ${CSPARSE_LIBRARY}

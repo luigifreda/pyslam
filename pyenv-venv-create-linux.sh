@@ -54,8 +54,6 @@ make_dir $ENV_PATH
 cd $ENVS_PATH
 
 
-#export PYSLAM_PYTHON_VERSION="3.10.12"
-
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
     export PATH="/home/$USER/.pyenv/bin:$PATH"  # this seems to be needed under docker (even if it seems redundant)

@@ -51,6 +51,7 @@ data/slam_state
 data/kitti_trajectory.txt
 data/skyseg.onnx
 
+leftover/
 results/
 
 thirdparty/pydbow3/ORBvoc.txt

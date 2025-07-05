@@ -22,7 +22,7 @@ if __name__ == "__main__":
     #depth_estimator = DepthEstimatorCrestereoPytorch(camera=camera)
 
     #Select your depth estimator (see the file depth_estimator_configs.py).
-    depth_estimator_type = DepthEstimatorType.DEPTH_CRESTEREO
+    depth_estimator_type = DepthEstimatorType.DEPTH_CRESTEREO_MEGENGINE
     depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, camera=camera)
     
     #imgfile1 = data_path + '/stereo_bicycle/im0.png'

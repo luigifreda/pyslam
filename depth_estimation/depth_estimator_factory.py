@@ -36,7 +36,7 @@ from depth_estimator_base import DepthEstimator, DepthEstimatorSgbm
 from depth_estimator_depth_pro import DepthEstimatorDepthPro
 from depth_estimator_depth_anything_v2 import DepthEstimatorDepthAnythingV2
 from depth_estimator_raft_stereo import DepthEstimatorRaftStereo
-from depth_estimator_crestereo import DepthEstimatorCrestereo
+from depth_estimator_crestereo_megengine import DepthEstimatorCrestereoMegengine
 from depth_estimator_crestereo_pytorch import DepthEstimatorCrestereoPytorch
 
 
@@ -51,7 +51,7 @@ class DepthEstimatorType(SerializableEnum):
     DEPTH_ANYTHING_V2          = 1    # "Depth Anything V2" [Monocular]
     DEPTH_PRO                  = 2    # "Depth Pro: Sharp Monocular Metric Depth in Less Than a Second" [Monocular]
     DEPTH_RAFT_STEREO          = 3    # "RAFT-Stereo: Multilevel Recurrent Field Transforms for Stereo Matching" [Stereo, it requires a stereo dataset]
-    DEPTH_CRESTEREO            = 4    # "Practical Stereo Matching via Cascaded Recurrent Network with Adaptive Correlation" [Stereo, it requires a stereo dataset]
+    DEPTH_CRESTEREO_MEGENGINE  = 4    # "Practical Stereo Matching via Cascaded Recurrent Network with Adaptive Correlation" [Stereo, it requires a stereo dataset]
                                       # Note: Linking problems under Linux, not supported under mac [WIP] => use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH
     DEPTH_CRESTEREO_PYTORCH    = 5    # "Practical Stereo Matching via Cascaded Recurrent Network with Adaptive Correlation", pytorch implementation [Stereo, it requires a stereo dataset]
     DEPTH_MAST3R               = 6    # "Grounding Image Matching in 3D with MASt3R"
@@ -89,10 +89,10 @@ def depth_estimator_factory(depth_estimator_type=DepthEstimatorType.DEPTH_ANYTHI
         return DepthEstimatorRaftStereo(device=device, camera=camera, 
                                   min_depth=min_depth, max_depth=max_depth, 
                                   dataset_env_type=dataset_env_type)
-    elif depth_estimator_type == DepthEstimatorType.DEPTH_CRESTEREO:
+    elif depth_estimator_type == DepthEstimatorType.DEPTH_CRESTEREO_MEGENGINE:
         if platform.system() == 'Darwin':
-            raise ValueError('DepthEstimatorType.DEPTH_CRESTEREO is not supported on macOS. Use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH instead!')
-        return DepthEstimatorCrestereo(device=device, camera=camera, 
+            raise ValueError('DepthEstimatorType.DEPTH_CRESTEREO_MEGENGINE is not supported on macOS. Use DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH instead!')
+        return DepthEstimatorCrestereoMegengine(device=device, camera=camera, 
                                        min_depth=min_depth, max_depth=max_depth, 
                                        dataset_env_type=dataset_env_type)
     elif depth_estimator_type == DepthEstimatorType.DEPTH_CRESTEREO_PYTORCH:

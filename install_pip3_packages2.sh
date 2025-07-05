@@ -54,30 +54,32 @@ else
     MAKEFLAGS_OPTION="-j$(nproc)"
     CMAKE_ARGS_OPTION="-DOPENCV_ENABLE_NONFREE=ON" # install nonfree modules
 
-    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
-    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
+    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip install $PIP_MAC_OPTIONS opencv-python -vvv $PRE_OPTION
+    MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
 fi
 
+
+. install_pip3_torch.sh
 
 if [[ "$OSTYPE" != "darwin"* ]]; then
 
     # for crestereo
     # Unfortunately, megengine is not supported on macOS with arm architecture
-    pip3 install --upgrade cryptography pyOpenSSL
+    pip install --upgrade cryptography pyOpenSSL
     python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
-    #pip3 install megengine  # This brings issues with non-supported CUDA architecture on my machine
+    #pip install megengine  # This brings issues with non-supported CUDA architecture on my machine
 
     # for ROS
-    pip3 install pycryptodomex
-    pip3 install gnupg
-    pip3 install rospkg
+    pip install pycryptodomex
+    pip install gnupg
+    pip install rospkg
 fi
 
 if [ "$CUDA_VERSION" != "0" ]; then
     install_pip_package faiss-gpu  # for loop closure database on GPU
 
     # MonoGS required packages
-    ./thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip3 install fails)
+    ./thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
     pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
     pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 else
@@ -88,6 +90,10 @@ pip install tensorflow==2.13
 pip install tensorflow_hub  # required by VPR
 pip install tf_slim==1.1.0
 #pip install protobuf==3.20.3 # delf
+
+pip3 install -U imgviz
+
+pip install "numpy<2"
 
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 # . install_pip3_semantics.sh

@@ -42,7 +42,6 @@ fi
 make_dir $ENV_PATH
 cd $ENVS_PATH
 
-#export PYSLAM_PYTHON_VERSION="3.10.12"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 
@@ -80,9 +79,10 @@ MAKEFLAGS_OPTION="-j$(nproc)"
 # MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip3 install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
 
 # install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
-MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
+#MAKEFLAGS="$MAKEFLAGS_OPTION" pip3 install -r requirements-pip3.txt #-vvv
 
-# NOTE: opencv is installed outside of this script!
+pip install --upgrade pip setuptools wheel build
+pip install -e .
 
 
 cd "$STARTING_DIR"
