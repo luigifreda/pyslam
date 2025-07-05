@@ -6,7 +6,7 @@ platforms = ["linux-64"]
 version = "0.1.0"
 
 [dependencies]
-python = "==3.10.12"
+python = "==3.11.9"
 pip = ">=25.1.1,<26"
 absl-py = "*"
 astor = "*"
@@ -109,6 +109,9 @@ ffmpeg = ">=7.1.1,<8"
 jinja2 = ">=3.1.6,<4"
 glib = "*"
 gobject-introspection = "*"
+spdlog = "*"
+console_bridge = "*"
+tinyxml2 = "*"
 
 [pypi-dependencies]
 onnxruntime = "*"

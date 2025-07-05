@@ -44,7 +44,7 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 # ====================================================
 # activate pyslam python environment
-. pyenv-activate.sh
+#. pyenv-activate.sh
 
 print_blue '================================================'
 print_blue "Building and installing cpp ..."

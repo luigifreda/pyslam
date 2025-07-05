@@ -27,6 +27,19 @@ else
     CONDA_INSTALLED=false
 fi
 
+# check if pixi was installed 
+if [ -d "$ROOT_DIR/.pixi" ]; then
+    PIXI_INSTALLED=true
+else
+    PIXI_INSTALLED=false
+fi
+
+if [ "$PIXI_INSTALLED" = true ]; then
+    print_blue "Deleting pySLAM environment by using pixi"
+    . pyenv-pixi-delete.sh
+    exit 0
+fi
+
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
     print_blue "Deleting pySLAM environment by using conda"

@@ -58,7 +58,7 @@ else
     MAKEFLAGS="$MAKEFLAGS_OPTION" CMAKE_ARGS="$CMAKE_ARGS_OPTION" pip install $PIP_MAC_OPTIONS opencv-contrib-python -vvv $PRE_OPTION
 fi
 
-
+# Install torch and related packages
 . install_pip3_torch.sh
 
 if [[ "$OSTYPE" != "darwin"* ]]; then
@@ -86,6 +86,7 @@ else
     print_yellow "Skipping MonoGS since CUDA_VERSION is 0"
 fi 
 
+# Install tesorflow and related packages
 pip install tensorflow==2.13
 pip install tensorflow_hub  # required by VPR
 pip install tf_slim==1.1.0
