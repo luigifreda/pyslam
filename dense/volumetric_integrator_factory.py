@@ -12,7 +12,6 @@ try:
 except ImportError:
     VolumetricIntegratorGaussianSplatting = import_from('volumetric_integrator_gaussian_splatting', 'VolumetricIntegratorGaussianSplatting')
 
-
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'

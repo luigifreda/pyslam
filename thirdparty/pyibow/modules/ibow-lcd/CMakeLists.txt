@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.5)
 project(ibow-lcd LANGUAGES CXX)
 
 set(OPENCV_VERSION          "4" CACHE STRING "Desired OpenCV version") # this is the first target version that is searched for 

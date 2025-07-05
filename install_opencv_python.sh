@@ -137,7 +137,7 @@ if [[ $version != *"darwin"* ]]; then
             libtiff zlib jpeg eigen tbb glew libpng \
             x264 ffmpeg \
             freetype cairo \
-            pygobject gtk3
+            pygobject gtk3 glib libwebp
     fi
 else
     brew install pkg-config 
@@ -194,7 +194,7 @@ if [ $CONDA_INSTALLED = true ]; then
   
     CONDA_OPTIONS="-DOPENCV_FFMPEG_USE_FIND_PACKAGE=OFF \
     -DPKG_CONFIG_EXECUTABLE=$(which pkg-config) \
-    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
+    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_CXX_STANDARD=17 -DWITH_WEBP=ON -DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON"
 fi
 echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
 echo "Using GTK_OPTIONS for opencv build: $GTK_OPTIONS"

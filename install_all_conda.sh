@@ -56,7 +56,8 @@ fi
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
  # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
-. install_pip3_packages.sh 
+#. install_pip3_packages.sh 
+. install_pip3_packages2.sh 
 
 # 6. build and install cpp stuff 
 . install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 

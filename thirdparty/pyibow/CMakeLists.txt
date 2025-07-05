@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.4...3.18)
+cmake_minimum_required(VERSION 3.5)
 project(pyibow)
 
 set(CPP_STANDARD_VERSION "17" CACHE STRING "Desired C++ standard version") 

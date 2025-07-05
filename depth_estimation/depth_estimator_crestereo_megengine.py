@@ -47,9 +47,9 @@ def enforce_megengine_linking():
     # Path to the directory containing your libraries
     site_packages_path = next(p for p in sys.path if 'site-packages' in p)
     lib_path = os.path.join(site_packages_path, 'megengine', 'core', 'lib')        
-    print(f'DepthEstimatorCrestereo: lib_path = {lib_path}')
+    print(f'DepthEstimatorCrestereoMegengine: lib_path = {lib_path}')
     if not os.path.exists(lib_path):
-        Printer.red(f'DepthEstimatorCrestereo: lib_path does not exist: {lib_path}')
+        Printer.red(f'DepthEstimatorCrestereoMegengine: lib_path does not exist: {lib_path}')
         return
 
     # Add the library path to the environment variable
@@ -73,11 +73,11 @@ try:
     HAS_MEGENGINE=True
 except:
     HAS_MEGENGINE=False
-    Printer.orange(f'DepthEstimatorCrestereo: megengine not found')
+    Printer.orange(f'DepthEstimatorCrestereoMegengine: megengine not found')
     
 
 # Stereo depth prediction using the Crestereo model.
-class DepthEstimatorCrestereo(DepthEstimator):
+class DepthEstimatorCrestereoMegengine(DepthEstimator):
     kCrestereoBasePath=kRootFolder +'/thirdparty/crestereo'
     kCrestereoModelPath=kCrestereoBasePath +'/crestereo_eth3d.mge'
     def __init__(self, device=None, camera:Camera=None,
@@ -97,7 +97,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
     def load_model(self, model_path=kCrestereoModelPath):
         if HAS_MEGENGINE:  
                   
-            print("DepthEstimatorCrestereo: Loading model:", os.path.abspath(model_path))
+            print("DepthEstimatorCrestereoMegengine: Loading model:", os.path.abspath(model_path))
             if not os.path.exists(model_path):
                 raise FileNotFoundError(f"Model file not found: {model_path}")        
             pretrained_dict = mge.load(model_path)
@@ -107,7 +107,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
             return model
         
         else: 
-            Printer.red("DepthEstimatorCrestereo: Not implemented for MacOS")
+            Printer.red("DepthEstimatorCrestereoMegengine: Not implemented for MacOS")
             raise NotImplementedError
             return None
 
@@ -121,7 +121,7 @@ class DepthEstimatorCrestereo(DepthEstimator):
                 raise ValueError(message)
             
             in_shape = image.shape 
-            print(f'DepthEstimatorCrestereo: Running inference: {image.shape} {image_right.shape}')
+            print(f'DepthEstimatorCrestereoMegengine: Running inference: {image.shape} {image_right.shape}')
 
             # Compute disparity map
             imgL = image.transpose(2, 0, 1)
@@ -168,11 +168,11 @@ class DepthEstimatorCrestereo(DepthEstimator):
             depth_map = np.where(abs_disparity_map > self.min_disparity, bf / abs_disparity_map, 0.0)
             self.depth_map = depth_map
             
-            print(f'DepthEstimatorCrestereo: Depth map shape: {depth_map.shape}')
+            print(f'DepthEstimatorCrestereoMegengine: Depth map shape: {depth_map.shape}')
             return depth_map, None
         
         else: 
-            Printer.red("DepthEstimatorCrestereo: Not implemented for MacOS")
+            Printer.red("DepthEstimatorCrestereoMegengine: Not implemented for MacOS")
             raise NotImplementedError
     
     

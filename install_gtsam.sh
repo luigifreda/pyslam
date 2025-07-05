@@ -32,9 +32,7 @@ if [[ -n "$EXTERNAL_OPTIONS" ]]; then
     echo "external option: $EXTERNAL_OPTIONS" 
 fi
 
-if [[ $OSTYPE == "darwin"* ]]; then
-    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
-fi
+EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
 
 print_blue '================================================'

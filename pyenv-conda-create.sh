@@ -19,11 +19,8 @@ cd "$ROOT_DIR"
 # ====================================================
 
 
-export ENV_NAME=$1
-
-if [ -z "$ENV_NAME" ]; then
-    ENV_NAME='pyslam'
-fi
+export ENV_NAME="${1:-pyslam}"  # get the first input if any, otherwise use 'pyslam' as default name
+export PYSLAM_PYTHON_VERSION="${2:-3.11.9}"  # Default Python version
 
 #echo "ENV_NAME: $ENV_NAME"
 
@@ -39,7 +36,6 @@ fi
 
 conda update conda -y
 
-export PYSLAM_PYTHON_VERSION="3.10.12"
 
 if conda env list | grep -E "^[[:space:]]*$ENV_NAME[[:space:]]" > /dev/null; then
     print_yellow "Conda environment $ENV_NAME already exists."
@@ -65,11 +61,11 @@ fi
 
 #which pip  # this should refer to */pyslam/bin/pip  (that is actually pip3)
 
-pip3 install --upgrade pip setuptools wheel
-
 # install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
-pip3 install -r requirements-pip3.txt #-vvv
+#pip3 install -r requirements-pip3.txt #-vvv
 
+pip install --upgrade pip setuptools wheel build
+pip install -e .
 
 cd "$STARTING_DIR"
 
