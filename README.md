@@ -129,7 +129,7 @@ $ cd pyslam
 
 Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
-#$ pixi shell  # if you want to use pixi 
+#$ pixi shell      # If you want to use pixi, this prepares the installation. 
 $ ./install_all.sh    
 ``` 
 
@@ -180,7 +180,8 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 The provided install scripts take care of installing a recent opencv version (>=**4.10**) with non-free modules enabled (see [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
 ```bash       
-$ . pyenv-activate.sh     #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
 $ ./scripts/opencv_check.py
 ```
 Otherwise, run the following commands: 
@@ -199,7 +200,8 @@ If you run into issues or errors during the installation process or at run-time,
 
 Open a new terminal and start experimenting with the scripts. In each new terminal, you are supposed to start with this command:
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
 ```
 If you are using `pixi` then just run `pixi shell` to activate the `pyslam` environment.
 The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [config_parameters.py](./config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
@@ -210,7 +212,8 @@ The file [config.yaml](./config.yaml) can be used as a unique entry-point to con
 
 The basic **Visual Odometry** (VO) can be run with the following commands:
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
 $ ./main_vo.py
 ```
 By default, this processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
@@ -221,7 +224,8 @@ Now, with RGBD datasets, you can also test the **RGBD odometry** with the classe
 
 Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
 $ ./main_slam.py
 ```
 
@@ -247,7 +251,8 @@ You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.y
 
 If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a taste of the different available local features, run
 ```bash
-$ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
 $ ./main_feature_matching.py
 ```
 
@@ -372,7 +377,7 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 
 
 <p style="text-align: center;">
-  <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" height="300"/>
+  <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" style="height: 300px; width: auto;"/>
 </p>
 
 The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
