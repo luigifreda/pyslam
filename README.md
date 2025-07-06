@@ -16,19 +16,9 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 **Enjoy it!**
 
-<p align="center" style="margin:0">
-<img src="./images/feature-matching.png" alt="Feature Matching" height="160" border="0" /> <img src="./images/main-feature-matching.png" alt="Feature matching and Visual Odometry" height="160" border="0" /> <img src="./images/main-vo-rerun.png" alt="Feature matching and Visual Odometry" height="160" border="0" /> 
-<img src="./images/STEREO.png" alt="Visual Odometry" height="160" border="0" /> <img src="./images/RGBD2.png" alt="SLAM" height="160" border="0" /> <img src="images/kitti-stereo.png" alt="Stereo SLAM" height="160" border="0" /> 
-<img src="./images/loop-detection2.png" alt="Loop detection" height="160" border="0" /> <img src="./images/depth-prediction.png" alt="Depth Prediction" height="160" border="0" /> 
-<img src="./images/dense-reconstruction-with-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" height="160" border="0" /> <img src="./images/dense-reconstruction2.png" alt="Dense Reconstruction" height="160" border="0" /> 
+<p align="center">
+  <img src="./images/feature-matching.png" style="height: 160px; width: auto;"/> <img src="./images/main-feature-matching.png" style="height: 160px; width: auto;" /> <img src="./images/main-vo-rerun.png" style="height: 160px; width: auto;" /> <img src="./images/STEREO.png" style="height: 160px; width: auto;" /> <img src="./images/RGBD2.png" style="height: 160px; width: auto;" /> <img src="./images/kitti-stereo.png" style="height: 160px; width: auto;" /> <img src="./images/loop-detection2.png" style="height: 160px; width: auto;" /> <img src="./images/depth-prediction.png" style="height: 160px; width: auto;" /> <img src="./images/dense-reconstruction-with-depth-prediction.png" style="height: 160px; width: auto;" /> <img src="./images/dense-reconstruction2.png" style="height: 160px; width: auto;" /> <img src="./images/dense-reconstruction-composition.gif" style="height: 300px; width: auto;" />
 </p>
-
-<p align="center" style="margin:0">
-<img src="./images/dense-reconstruction-composition.gif" alt="Dense Reconstruction - Stereo Depth Prediction - Kitti" width="600" border="0" /> 
-</p>
-
-<!-- <img src="./images/dense-reconstruction-euroc-width-depth-prediction.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" /> <img src="./images/dense-reconstruction-euroc-with-depth-prediction-gsm.png" alt="Dense Reconstruction - Gaussian Splatting" height="160" border="0" /> <img src="./images/dense-reconstruction-tum-gsm.png" alt="Dense Reconstruction - Stereo Depth Prediction - Euroc" height="160" border="0" />  -->
-
 
 ## Table of contents
 
@@ -155,7 +145,7 @@ Once everything is completed you can jump the [usage section](#usage).
 
 ### Main requirements
 
-* Python **3.10.12**
+* Python **3.11.9**
 * OpenCV >=4.10 (see [below](#how-to-install-non-free-opencv-modules))
 * PyTorch >=2.3.1
 * Tensorflow >=2.13.1
@@ -170,7 +160,7 @@ The internal pySLAM libraries are imported by using a `Config` instance (from [c
 
 - With **venv**: Follow the instructions reported [here](./docs/PYTHON-VIRTUAL-ENVS.md).  The procedure has been tested on *Ubuntu 18.04*, *20.04*, *22.04* and *24.04*. 
 - With **conda**: Run the procedure described in this other [file](./docs/CONDA.md).
-- Witi **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh` (see this [file](./docs/PIXI.md) for further details).
+- With **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh` (see this [file](./docs/PIXI.md) for further details).
 
 The procedures will create a new virtual environment `pyslam`.
 
@@ -207,10 +197,11 @@ If you run into issues or errors during the installation process or at run-time,
 
 ## Usage 
 
-Open a new terminal and start experimenting with the scripts. In each new terminal you are supposed to start with this command:
+Open a new terminal and start experimenting with the scripts. In each new terminal, you are supposed to start with this command:
 ```bash
 $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
 ```
+If you are using `pixi` then just run `pixi shell` to activate the `pyslam` environment.
 The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [config_parameters.py](./config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
 
  
@@ -235,7 +226,6 @@ $ ./main_slam.py
 ```
 
 This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing/clicking on one of the opened windows and pressing the key 'Q' or closing the 3D pangolin GUI. 
-<!-- **Note**: Due to information loss in video compression, `main_slam.py` tracking may peform worse with the available KITTI videos than with the original KITTI image sequences. The available videos are intended to be used for a first quick test. Please, download and use the original KITTI image sequences as explained [below](#datasets). -->
 
 --- 
 
@@ -381,8 +371,8 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 ### Semantic mapping
 
 
-<p align="center" style="margin:0">
-<img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" height="300" border="0" />
+<p style="text-align: center;">
+  <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" height="300"/>
 </p>
 
 The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
@@ -483,10 +473,6 @@ Otherwise, to check all parallel logs with `tmux`, run:
 To launch slam and check all logs in a single `tmux`, run:     
 `$ ./scripts/launch_tmux_slam.sh`      
 Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
-
-<!-- ## System overview
-      
-[Here](./docs/system_overview.md) you can find a couple of diagram sketches that provide an overview of the main SLAM workflow, system components, and classes relationships/dependencies. Documentation is a work in progress. -->
 
 --- 
 

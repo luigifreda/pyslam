@@ -379,7 +379,7 @@ class Map(object):
                 
                 # compute stereo reproj errors on kf1
                 if kf1.kps_ur is not None:
-                    kp1_ur = kf1.kps_ur[idxs1] if kf1.kps_ur is not None else [-1]*len(idxs1) # kp right coords if available 
+                    kp1_ur = kf1.kps_ur[idxs1] # kp right coords if available 
                     depths1 = kf1.depths[idxs1] 
                     safe_depths1 = np.where(depths1 == 0, np.inf, depths1) # to prevent division by zero 
                     errs1_stereo_vec = np.concatenate((errs1_mono_vec, (uvs1[:,0] - kf1.camera.bf/safe_depths1 - kp1_ur)[:, np.newaxis]), axis=1)    # stereo errors                     
@@ -436,10 +436,14 @@ class Map(object):
             img_coords = np.rint(kf1.kps[idxs1]).astype(np.intp) # image keypoints coordinates 
             # build img patches coordinates 
             delta = Parameters.kSparseImageColorPatchDelta    
-            patch_extension = 1 + 2*delta   # patch_extension x patch_extension
-            img_pts_start = img_coords - delta           
-            img_pts_end   = img_coords + delta
-            img_ranges = np.linspace(img_pts_start,img_pts_end,patch_extension,dtype=np.intp)[:,:].T      
+            # patch_extension = 1 + 2*delta   # patch_extension x patch_extension
+            # img_pts_start = img_coords - delta           
+            # img_pts_end   = img_coords + delta
+            # img_ranges = np.linspace(img_pts_start,img_pts_end,patch_extension,dtype=np.intp)[:,:].T      
+            img_range = np.arange(-delta, delta + 1, dtype=np.intp)
+            img_x_range = img_coords[:, 0][:, None] + img_range[None, :]
+            img_y_range = img_coords[:, 1][:, None] + img_range[None, :]
+            
             def img_range_elem(ranges,i):      
                 return ranges[:,i]                                                  
             
@@ -473,8 +477,9 @@ class Map(object):
                     #color_patch = img1[pt_start[1]:pt_end[1],pt_start[0]:pt_end[0]] 
                     
                     # average color in a (1+2*delta) x (1+2*delta) patch 
-                    img_range = img_range_elem(img_ranges,i) 
-                    color_patch = img1[img_range[1][:,np.newaxis],img_range[0]]         
+                    #img_range = img_range_elem(img_ranges,i) 
+                    #color_patch = img1[img_range[1][:,np.newaxis],img_range[0]]    
+                    color_patch = img1[img_y_range[i, :, None], img_x_range[i]]     
                     #print('color_patch.shape:',color_patch.shape)    
                                                                                   
                     color = cv2.mean(color_patch)[:3]  # compute the mean color in the patch  
@@ -506,10 +511,13 @@ class Map(object):
             img_coords = np.rint(kf.kps[idxs]).astype(np.intp) # image keypoints coordinates 
             # build img patches coordinates 
             delta = Parameters.kSparseImageColorPatchDelta    
-            patch_extension = 1 + 2*delta   # patch_extension x patch_extension
-            img_pts_start = img_coords - delta           
-            img_pts_end   = img_coords + delta
-            img_ranges = np.linspace(img_pts_start,img_pts_end,patch_extension,dtype=np.intp)[:,:].T      
+            # patch_extension = 1 + 2*delta   # patch_extension x patch_extension
+            # img_pts_start = img_coords - delta           
+            # img_pts_end   = img_coords + delta
+            # img_ranges = np.linspace(img_pts_start,img_pts_end,patch_extension,dtype=np.intp)[:,:].T     
+            img_range = np.arange(-delta, delta + 1, dtype=np.intp)
+            img_x_range = img_coords[:, 0][:, None] + img_range[None, :]
+            img_y_range = img_coords[:, 1][:, None] + img_range[None, :]             
             def img_range_elem(ranges,i):      
                 return ranges[:,i]                                                  
             
@@ -521,8 +529,9 @@ class Map(object):
                     
                 # get the color of the point  
                 try:
-                    img_range = img_range_elem(img_ranges,i) 
-                    color_patch = img[img_range[1][:,np.newaxis],img_range[0]]         
+                    #img_range = img_range_elem(img_ranges,i) 
+                    #color_patch = img[img_range[1][:,np.newaxis],img_range[0]]   
+                    color_patch = img[img_y_range[i, :, None], img_x_range[i]]      
                     #print('color_patch.shape:',color_patch.shape)    
                                                                                   
                     color = cv2.mean(color_patch)[:3]  # compute the mean color in the patch                                                                                      

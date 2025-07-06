@@ -14,7 +14,8 @@ ROOT_DIR="$SCRIPT_DIR"
 STARTING_DIR=`pwd`
 cd "$ROOT_DIR"
 
-pixi shell
-echo "done with pixi shell activation"
+#pixi shell
+#echo "done with pixi shell activation"
+echo 
 
 cd "$STARTING_DIR"

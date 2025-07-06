@@ -34,8 +34,8 @@ class Parameters:
     kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
     kTrackingWaitForLocalMappingToGetIdle=False      # True: wait for local mapping to be idle before starting tracking, False: tracking and then local mapping in a single thread  
     kTrackingWaitForLocalMappingSleepTime=0.1        # DEPRECATED: -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
-    kLocalMappingParallelKpsMatching=True
-    kLocalMappingParallelKpsMatchingNumWorkers=6
+    kLocalMappingParallelKpsMatching=False
+    kLocalMappingParallelKpsMatchingNumWorkers=4
     kLocalMappingDebugAndPrintToFile = True
     
     
@@ -156,7 +156,7 @@ class Parameters:
     kUseLargeWindowBA=False           # True: perform BA over a large window; False: do not perform large window BA       
     kEveryNumFramesLargeWindowBA=10   # Number of frames between two large window BA  
     kLargeBAWindow=20                 #  [# frames] 
-    kUseParallelProcessLBA = False    # [Experimental] Keep it False for the moment since it is neither faster (probably due to the overhead of copying data to multi-processing shared memory) nor stable yet! 
+    kUseParallelProcessLBA = False    # [Experimental] Keep it False for the moment since it is not stable yet! 
 
         
     # Global Bundle Adjustment (GBA)
@@ -175,8 +175,8 @@ class Parameters:
     kLoopClosingDebugAndPrintToFile = True
     kLoopClosingDebugWithLoopConsistencyCheckImages = True
     kLoopClosingDebugShowLoopMatchedPoints = False
-    kLoopClosingParallelKpsMatching=True    
-    kLoopClosingParallelKpsMatchingNumWorkers = 6
+    kLoopClosingParallelKpsMatching=False    
+    kLoopClosingParallelKpsMatchingNumWorkers = 4
     kLoopClosingGeometryCheckerMinKpsMatches = 20            # o:20
     kLoopClosingTh2 = 10
     kLoopClosingMaxReprojectionDistanceMapSearch = 10        # [pixels]    o:10
@@ -188,8 +188,8 @@ class Parameters:
     # Relocatization 
     kRelocalizationDebugAndPrintToFile = False
     kRelocalizationMinKpsMatches = 15                       # o:15
-    kRelocalizationParallelKpsMatching=True    
-    kRelocalizationParallelKpsMatchingNumWorkers = 6    
+    kRelocalizationParallelKpsMatching=False    
+    kRelocalizationParallelKpsMatchingNumWorkers = 4    
     kRelocalizationFeatureMatchRatioTest = 0.75                   # TODO: put it in an table and make it configurable per descriptor
     kRelocalizationFeatureMatchRatioTestLarge = 0.9               # o:0.9
     kRelocalizationPoseOpt1MinMatches = 10                        # o:10
@@ -226,7 +226,7 @@ class Parameters:
     kDoSemanticMapping = False                          # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingDebugAndPrintToFile = True
-    kUseSemanticsInOptimiztion = False
+    kUseSemanticsInOptimization = False
     kSemanticMappingTimeoutPopKeyframe=0.5 # [s]
     kSemanticMappingNumNeighborKeyFrames=10             #  [# frames]   only used in object-based to decide the best semantic descriptor       
 

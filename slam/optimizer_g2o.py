@@ -147,7 +147,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx]>0
             invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
 
-            if Parameters.kUseSemanticsInOptimiztion and kf.kps_sem is not None:
+            if Parameters.kUseSemanticsInOptimization and kf.kps_sem is not None:
                 invSigma2 *= SemanticMappingShared.get_semantic_weight(kf.kps_sem[idx])
 
             if is_stereo_obs: 
@@ -352,7 +352,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
             edge = None 
             invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[frame.octaves[idx]]
             
-            if Parameters.kUseSemanticsInOptimiztion and frame.kps_sem is not None:
+            if Parameters.kUseSemanticsInOptimization and frame.kps_sem is not None:
                 invSigma2 *= SemanticMappingShared.get_semantic_weight(frame.kps_sem[idx])
 
             if is_stereo_obs: 
@@ -464,7 +464,9 @@ def pose_optimization(frame, verbose=False, rounds=10):
 # - frames and points are optimized
 # - frames_ref are fixed 
 def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=False, verbose=False, rounds=10, abort_flag=g2o.Flag(), mp_abort_flag=None, map_lock=None):
-
+    from local_mapping import LocalMapping
+    print = LocalMapping.print
+    
     # create g2o optimizer
     opt = g2o.SparseOptimizer()
     #block_solver = g2o.BlockSolverSE3(g2o.LinearSolverCSparseSE3())
@@ -540,7 +542,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx]>0
             invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
             
-            if Parameters.kUseSemanticsInOptimiztion and kf.kps_sem is not None:
+            if Parameters.kUseSemanticsInOptimization and kf.kps_sem is not None:
                 invSigma2 *= SemanticMappingShared.get_semantic_weight(kf.kps_sem[p_idx])
 
             if is_stereo_obs:
@@ -574,6 +576,8 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     if abort_flag.value:
         return -1,0
 
+    print(f'local_bundle_adjustment: starting optimization with {len(graph_keyframes)} keyframes, {len(graph_points)} points, {num_edges} edges')
+    
     # initial optimization 
     opt.initialize_optimization()
     opt.optimize(5)
@@ -733,7 +737,7 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
                 is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx] > 0
                 invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[p_idx]]
 
-                if Parameters.kUseSemanticsInOptimiztion and kf.kps_sem is not None:
+                if Parameters.kUseSemanticsInOptimization and kf.kps_sem is not None:
                     invSigma2 *= SemanticMappingShared.get_semantic_weight(kf.kps_sem[p_idx])
                         
                 if is_stereo_obs:
@@ -950,6 +954,7 @@ def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_
                         kf.update_pose(keyframe_poses[kf.kid])
                         kf.lba_count += 1
                     except: 
+                        Printer.red(f'Missing pose for keyframe {kf.kid}')
                         pass # kf.kid is not in keyframe_poses
 
                 # put points back
@@ -972,6 +977,7 @@ def local_bundle_adjustment_parallel(keyframes, points, keyframes_ref=[], fixed_
             return -1, 0
         
     except Exception as e:
+        Printer.red(f'local_bundle_adjustment_parallel - error: {result_dict}')
         print(f'local_bundle_adjustment_parallel - EXCEPTION: {e}')
         traceback_details = traceback.format_exc()
         print(f'\t traceback details: {traceback_details}')
@@ -1073,7 +1079,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_12.set_measurement(kf1.kpsu[i])
             invSigma2_12 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf1.octaves[i]]
 
-            if Parameters.kUseSemanticsInOptimiztion and kf1.kps_sem is not None:
+            if Parameters.kUseSemanticsInOptimization and kf1.kps_sem is not None:
                 invSigma2_12 *= SemanticMappingShared.get_semantic_weight(kf1.kps_sem[i])
             
             edge_12.set_information(np.eye(2) * invSigma2_12)
@@ -1087,7 +1093,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_21.set_measurement(kf2.kpsu[index2])
             invSigma2_21 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf2.octaves[index2]]
             
-            if Parameters.kUseSemanticsInOptimiztion and kf2.kps_sem is not None:
+            if Parameters.kUseSemanticsInOptimization and kf2.kps_sem is not None:
                 invSigma2_21 *= SemanticMappingShared.get_semantic_weight(kf2.kps_sem[i])
             
             edge_21.set_information(np.eye(2) * invSigma2_21)                

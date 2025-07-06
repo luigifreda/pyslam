@@ -395,7 +395,7 @@ The Section~\ref{supported-global-descriptors-and-local-descriptor-aggregation-m
 
 The diagram in Fig.~\ref{Fig:DepthEstimator} illustrates the architecture of the \textit{Depth Estimator} module. A central \texttt{depth\_estimator\_factory} creates instances of various depth estimation backends based on the selected \texttt{depth\_estimator\_type}, including both traditional and learning-based methods such as \texttt{DEPTH\_SGBM}, \texttt{DEPTH\_RAFT\_STEREO}, \texttt{DEPTH\_ANYTHING\_V2}, \texttt{DEPTH\_MAST3R}, and \texttt{DEPTH\_MVDUST3R}.
 
-Each estimator type instantiates a corresponding implementation (e.g., \texttt{DepthEstimatorSgbm}, \texttt{DepthEstimatorCrestereoMegengine}, etc.), all inheriting from a common \texttt{DepthEstimator} interface. This base class encapsulates shared dependencies such as the \texttt{camera}, \texttt{device}, and \texttt{model} components, allowing for modular integration of heterogeneous depth estimation techniques across stereo, monocular, and multi-view pipelines.
+Each estimator type instantiates a corresponding implementation (e.g., \texttt{DepthEstimatorSgbm}, \texttt{DepthEstimator\-Crestereo\-Megengine}, etc.), all inheriting from a common \texttt{DepthEstimator} interface. This base class encapsulates shared dependencies such as the \texttt{camera}, \texttt{device}, and \texttt{model} components, allowing for modular integration of heterogeneous depth estimation techniques across stereo, monocular, and multi-view pipelines.
 
 The Section~\ref{supported-depth-prediction-models} reports a list of supported depth estimation/prediction models.
 

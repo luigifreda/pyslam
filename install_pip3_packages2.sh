@@ -48,7 +48,7 @@ INSTALL_OPENCV_FROM_SOURCE=1
 if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
     #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
     print_green "Installing opencv_python from source with non-free modules enabled"
-    . install_opencv_python.sh
+    ./install_opencv_python.sh
 else
     PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
     MAKEFLAGS_OPTION="-j$(nproc)"
@@ -59,7 +59,7 @@ else
 fi
 
 # Install torch and related packages
-. install_pip3_torch.sh
+./install_pip3_torch.sh
 
 if [[ "$OSTYPE" != "darwin"* ]]; then
 
@@ -90,7 +90,7 @@ fi
 pip install tensorflow==2.13
 pip install tensorflow_hub  # required by VPR
 pip install tf_slim==1.1.0
-#pip install protobuf==3.20.3 # delf
+pip install protobuf==3.20.3 --force-reinstall # delf
 
 pip3 install -U imgviz
 
