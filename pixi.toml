@@ -112,6 +112,7 @@ gobject-introspection = "*"
 spdlog = "*"
 console_bridge = "*"
 tinyxml2 = "*"
+configargparse = "*"
 
 [pypi-dependencies]
 onnxruntime = "*"

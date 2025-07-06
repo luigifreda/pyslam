@@ -34,7 +34,7 @@ cd "$ROOT_DIR"  # from bash_utils.sh
 #rm -Rf thirdparty/pangolin 
 rm -Rf thirdparty/pangolin/build
 rm -Rf thirdparty/pangolin/bin
-rm thirdparty/pangolin/pypangolin.cpython-*.so 
+rm -f thirdparty/pangolin/pypangolin.cpython-*.so 
 
 #rm -Rf thirdparty/g2opy
 rm -Rf thirdparty/g2opy/build

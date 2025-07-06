@@ -24,7 +24,9 @@ import numpy as np
 #import json
 import ujson as json
 
-from threading import RLock, Thread, current_thread
+from threading import RLock, Lock, Thread, current_thread
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from scipy.spatial import cKDTree
 from timer import Timer
 
@@ -40,7 +42,6 @@ from utils_sys import myjet, Printer
 
 from feature_types import FeatureInfo
 from feature_matcher import FeatureMatcherTypes
-from concurrent.futures import ThreadPoolExecutor
 
 from utils_draw import draw_feature_matches
 from utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad, descriptor_sigma_mad_v2, stereo_match_subpixel_correlation
@@ -56,6 +57,7 @@ if TYPE_CHECKING:
     from feature_tracker import FeatureTracker  
     from feature_matcher import FeatureMatcher
     from feature_manager import FeatureManager
+    from map_point import MapPointBase, MapPoint
 
 
 kDrawFeatureRadius = [r*5 for r in range(1,100)]
@@ -657,19 +659,19 @@ class Frame(FrameBase):
     def get_point_match(self, idx):
         with self._lock_features:          
             return self.points[idx] 
-        
-    def set_point_match(self, p, idx):
+
+    def set_point_match(self, p: 'MapPoint', idx: int):
         with self._lock_features:  
             self.points[idx] = p 
 
-    def remove_point_match(self, idx):       
+    def remove_point_match(self, idx: int):       
         with self._lock_features:  
             self.points[idx] = None 
             
-    def replace_point_match(self, p, idx):                
+    def replace_point_match(self, p: 'MapPoint', idx: int):             
         self.points[idx] = p    # replacing is not critical (it does not create a 'None jump')
         
-    def remove_point(self, p):
+    def remove_point(self, p: 'MapPoint'):
         with self._lock_features:          
             try: 
                 p_idxs = np.where(self.points == p)[0]  # remove all instances 
@@ -1032,7 +1034,7 @@ class Frame(FrameBase):
                 points3d = np.array([p.pt for p in self.points if p is not None])
         if len(points3d)>0:
             z = np.dot(Rcw2, points3d[:,:3].T) + tcw2 
-            z = sorted(z) 
+            z = np.sort(z) 
             idx = min(int(len(z)*percentile),len(z)-1)
             return z[idx]                
         else:
@@ -1190,10 +1192,11 @@ def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \
                                        match_idxs, max_workers=6, ratio_test=None, print_fun=None):
     # do parallell computation using multithreading   
     timer = Timer()      
+    
     def thread_match_function(kf_pair):
         kf1,kf2 = kf_pair
         matching_result = FeatureTrackerShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des, kps1=kf1.kps, kps2=kf2.kps, ratio_test=ratio_test)
-        idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2             
+        idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2          
         match_idxs[(kf1, kf2)] = (np.array(idxs1),np.array(idxs2))
     kf_pairs = [(target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad]                       
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -1207,7 +1210,8 @@ def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \
 #   match_idxs: dictionary of keypoint matches  (kf_i, kf_j) -> (idxs_i,idxs_j)
 def compute_frame_matches(target_frame: Frame, other_frames: list, \
                              match_idxs, do_parallel=True, max_workers=6, ratio_test=None, print_fun=None):
-    if do_parallel:  
+    #do_parallel = False # force disable
+    if not do_parallel:  
         # Do serial computation 
         for kf in other_frames:
             if kf is target_frame or kf.is_bad:
@@ -1216,7 +1220,7 @@ def compute_frame_matches(target_frame: Frame, other_frames: list, \
             idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2    
             match_idxs[(target_frame, kf)] = (idxs1, idxs2)  
     else:  
-        match_idxs = compute_frame_matches_threading(match_idxs, target_frame, other_frames, max_workers, ratio_test, print_fun)
+        match_idxs = compute_frame_matches_threading(target_frame, other_frames, match_idxs, max_workers, ratio_test, print_fun)
     if print_fun is not None:
         print_fun(f'compute_frame_matches: #compared pairs: {len(match_idxs)}')
     return match_idxs    

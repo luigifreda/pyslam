@@ -168,9 +168,9 @@ class KeyFrameGraph(object):
         self.connected_keyframes_weights = Counter() 
         self.ordered_keyframes_weights = OrderedDict()    
                 
-    def add_connection(self, keyframe, weigth):
+    def add_connection(self, keyframe, weight):
         with self._lock_connections: 
-            self.connected_keyframes_weights[keyframe]=weigth
+            self.connected_keyframes_weights[keyframe]=weight
             self.update_best_covisibles()
             
     def erase_connection(self, keyframe):
@@ -411,7 +411,7 @@ class KeyFrame(Frame,KeyFrameGraph):
 
     def set_bad(self): 
         with self._lock_connections: 
-            if not self.kid: 
+            if self.kid is None:
                 return 
             if self.not_to_erase: 
                 self.to_be_erased = True     
@@ -433,10 +433,15 @@ class KeyFrame(Frame,KeyFrameGraph):
             parent_candidates = set() 
             assert(self.parent is not None)
             parent_candidates.add(self.parent)
+                        
+            # set max iterations to avoid infinite loop in case of a bug    
+            max_iters = len(self.children) * 2  # or a large constant like 100
+            iters = 0
             
             # each child must be connected to a new parent (the candidate parent with highest covisibility weight)
             # once a child is connected to a new parent, include the child as new parent candidate for the rest            
-            while not len(self.children)==0:            
+            while len(self.children) > 0 and iters < max_iters:
+                iters += 1         
                 w_max = 0
                 child_to_connect = None 
                 parent_to_connect = None 
@@ -462,9 +467,8 @@ class KeyFrame(Frame,KeyFrameGraph):
                     break # stop since there is no connection with covisibility weight>0
 
             # if a child has no covisibility connections with any parent candidate, connect it with the original parent of this keyframe
-            if not len(self.children)==0:
-                for kf_child in self.children:  
-                    kf_child.set_parent(self.parent)
+            for kf_child in list(self.children):  
+                kf_child.set_parent(self.parent)            
                     
             self.parent.erase_child(self)
             self._pose_Tcp.update(self.Tcw @ self.parent.Twc)

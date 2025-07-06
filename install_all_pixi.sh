@@ -41,12 +41,13 @@ fi
 #pixi shell 
 echo $(which python) 
 
-# 1. install system packages 
+# # 1. install system packages 
 ./install_system_packages.sh    
 
-# 4. set up git submodules (we need to install gdown before this) 
+# # 2. set up git submodules (we need to install gdown before this) 
 ./install_git_modules.sh 
 
+# 3. configure the environment for pixi
 PYTHON_EXECUTABLE=$(which python)
 PYTHON_INCLUDE_DIR=$(python -c "from sysconfig import get_paths as gp; print(gp()['include'])")
 PYTHON_LIBRARY=$(find $(dirname $PYTHON_EXECUTABLE)/../lib -name libpython$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").so | head -n 1)
@@ -61,17 +62,17 @@ export EXTERNAL_OPTIONS="-DPYTHON_EXECUTABLE=${PYTHON_EXECUTABLE} \
 
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
-# 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
+# 4. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
 #. install_pip3_packages.sh $EXTERNAL_OPTIONS
 . install_pip3_packages2.sh 
 
-# 6. build and install cpp stuff 
+# 5. build and install cpp stuff 
 . install_cpp.sh $EXTERNAL_OPTIONS                    # use . in order to inherit python env configuration and other environment vars 
 
-# 7. build and install thirdparty 
+# 6. build and install thirdparty 
 . install_thirdparty.sh  $EXTERNAL_OPTIONS            # use . in order to inherit python env configuration and other environment vars 
 
-# 8. install tools for semantics
+# 7. install tools for semantics
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 ./install_pip3_semantics.sh    # must use "./"
 

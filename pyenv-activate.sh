@@ -35,12 +35,10 @@ else
 fi
 
 if [ "$PIXI_INSTALLED" = true ]; then
-    print_blue "Activating pySLAM environment by using pixi shell"
-    pixi shell 
-fi
-
-# check that conda is activated 
-if [ "$CONDA_INSTALLED" = true ]; then
+    print_blue "You need to activate pySLAM environment by using pixi shell"
+    #pixi shell 
+elif [ "$CONDA_INSTALLED" = true ]; then
+    # check that conda is activated     
     print_blue "Activating pySLAM environment by using conda"
     . pyenv-conda-activate.sh
 else
