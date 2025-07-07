@@ -5,10 +5,11 @@
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
 # export WITH_PYTHON_INTERP_CHECK=ON
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+SCRIPTS_DIR="$SCRIPT_DIR_"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -44,7 +45,7 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 # ====================================================
 # activate pyslam python environment
-#. pyenv-activate.sh
+#. "$ROOT_DIR"/pyenv-activate.sh
 
 print_blue '================================================'
 print_blue "Building and installing cpp ..."

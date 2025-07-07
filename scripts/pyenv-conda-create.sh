@@ -4,10 +4,11 @@
 
 #echo "usage: ./${0##*/} <env-name>"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+SCRIPTS_DIR="$SCRIPT_DIR_"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -51,18 +52,13 @@ fi
 . "$CONDA_PREFIX"/bin/activate base   # from https://community.anaconda.cloud/t/unable-to-activate-environment-prompted-to-run-conda-init-before-conda-activate-but-it-doesnt-work/68677/10
 
 # activate created env  
-. pyenv-conda-activate.sh 
+. "$SCRIPTS_DIR/pyenv-conda-activate.sh"
 
 # Check if the current conda environment is "pyslam"
 if [ "$CONDA_DEFAULT_ENV" != "$ENV_NAME" ]; then
     print_red "ERROR: The current conda environment is not '$ENV_NAME'. Please activate the '$ENV_NAME' environment and try again."
     exit 1
 fi
-
-#which pip  # this should refer to */pyslam/bin/pip  (that is actually pip3)
-
-# install required packages (basic packages, some unresolved conflicts may be resolved by the next steps)
-#pip3 install -r requirements-pip3.txt #-vvv
 
 pip install --upgrade pip setuptools wheel build
 pip install -e .

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR=$(realpath "$SCRIPT_DIR/..")
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT_DIR=$(realpath "$SCRIPT_DIR_/..")
 LOGS_DIR="$ROOT_DIR/logs"
 
 echo "ROOT_DIR: $ROOT_DIR"
@@ -46,7 +46,7 @@ EOF
 echo "COMMAND_STRING: $COMMAND_STRING"
 
 # Launch in tmux
-"$SCRIPT_DIR/tmux_split_json.py" "$COMMAND_STRING"
+"$SCRIPT_DIR_/tmux_split_json.py" "$COMMAND_STRING"
 
 
 # to kill it 

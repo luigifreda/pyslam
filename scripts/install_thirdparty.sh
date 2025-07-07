@@ -7,10 +7,11 @@
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
 # export WITH_PYTHON_INTERP_CHECK=ON
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+SCRIPTS_DIR="$SCRIPT_DIR_"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -29,11 +30,11 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 
 # ====================================================
 # detect and configure CUDA 
-. cuda_config.sh
+. "$ROOT_DIR"/cuda_config.sh
 
 # ====================================================
 # activate pyslam python environment
-#. pyenv-activate.sh
+#. "$ROOT_DIR"/pyenv-activate.sh
 
 # ====================================================
 # check if we have external options
@@ -128,7 +129,7 @@ cd g2opy
 if [ ! -f lib/g2o.cpython*.so ]; then  
     make_buid_dir
     cd build
-    cmake .. $EXTERNAL_OPTIONS
+    cmake .. -DPython3_EXECUTABLE=$(which python3) $EXTERNAL_OPTIONS
     make -j8
     cd ..
     #python3 setup.py install --user
@@ -168,14 +169,14 @@ if [[ "$OSTYPE" == darwin* ]]; then
 
     # NOTE: Under mac I got segmentation faults when trying to use open3d python bindings
     #       This happends when trying to load the open3d dynamic library.
-    ./install_open3d_python.sh
+    $SCRIPTS_DIR/install_open3d_python.sh
 
     cd $ROOT_DIR
 fi 
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/gtsam ..."
-./install_gtsam.sh
+$SCRIPTS_DIR/install_gtsam.sh
 
 cd $ROOT_DIR
 
