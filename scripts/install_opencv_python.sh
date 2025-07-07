@@ -4,10 +4,10 @@
 
 #set -e
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -76,7 +76,6 @@ if [ "$PIXI_ACTIVATED" = true ]; then
     find $(python -c "import site; print(site.getsitepackages()[0])") -name "opencv*" -exec rm -rf {} +
 fi
 
-
 pip3 install --upgrade numpy
 
 
@@ -84,6 +83,7 @@ if [[ $version != *"darwin"* ]]; then
     sudo apt-get update
     sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
     sudo apt-get install -y curl software-properties-common unzip
+    sudo apt-get install -y libicu-dev
     sudo apt-get install -y build-essential cmake 
     if [[ "$CUDA_ON" == "ON" ]]; then 
         if [[ $version == *"24.04"* ]] ; then
@@ -137,7 +137,7 @@ if [[ $version != *"darwin"* ]]; then
             libtiff zlib jpeg eigen tbb glew libpng \
             x264 ffmpeg \
             freetype cairo \
-            pygobject gtk3 glib libwebp
+            pygobject gtk3 glib libwebp expat
     fi
 else
     brew install pkg-config 
@@ -153,7 +153,7 @@ if [ ! -d opencv-python ]; then
     git clone --recursive https://github.com/opencv/opencv-python.git
     cd opencv-python
     # This procedure worked on commit cce7c994d46406205eb39300bb7ca9c48d80185a  that corresponds to opencv 4.10.0.84 -> https://github.com/opencv/opencv-python/releases/tag/84 
-    #git checkout cce7c994d46406205eb39300bb7ca9c48d80185a  # uncomment this if you get some issues in building opencv_python! 
+    git checkout cce7c994d46406205eb39300bb7ca9c48d80185a  # uncomment this if you get some issues in building opencv_python! 
     cd ..
 fi
 

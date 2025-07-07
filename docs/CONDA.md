@@ -3,16 +3,16 @@
 <!-- TOC -->
 
 - [Install under Anaconda or Miniconda](#install-under-anaconda-or-miniconda)
-  - [Installation](#installation)
-  - [Usage](#usage)
-  - [Create a `pyslam` conda environment](#create-a-pyslam-conda-environment)
-  - [Activate the created `pyslam` conda environment](#activate-the-created-pyslam-conda-environment)
-  - [Deactivate `pyslam` conda environment](#deactivate-pyslam-conda-environment)
-  - [Delete `pyslam` conda environment](#delete-pyslam-conda-environment)
+    - [1. Installation](#1-installation)
+    - [2. Usage](#2-usage)
+    - [3. Create a pyslam conda environment](#3-create-a-pyslam-conda-environment)
+    - [4. Activate the created pyslam conda environment](#4-activate-the-created-pyslam-conda-environment)
+    - [5. Deactivate pyslam conda environment](#5-deactivate-pyslam-conda-environment)
+    - [6. Delete pyslam conda environment](#6-delete-pyslam-conda-environment)
 - [General Notes About Conda](#general-notes-about-conda)
-  - [Install packages/env from file](#install-packagesenv-from-file)
-  - [Deleting an environment](#deleting-an-environment)
-  - [Creating an environment](#creating-an-environment)
+    - [1. Install packages/env from file](#1-install-packagesenv-from-file)
+    - [2. Deleting an environment](#2-deleting-an-environment)
+    - [3. Creating an environment](#3-creating-an-environment)
 
 <!-- /TOC -->
 
@@ -23,7 +23,7 @@ Please, follow the instructions below. I assume you already installed Anaconda o
 
 In order to use `pyslam` under conda, check you have activated `conda` in your terminal. Get in the root of this repository and run the following command:
 ```bash
-$ ./install_all_conda.sh  
+$ ./scripts/install_all_conda.sh  
 ```
 This will compile the required thirdparty packages and will also create a `pyslam` conda environment.      
 Please, discard any error like this: `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed....`. See [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for further details.
@@ -32,12 +32,12 @@ Please, discard any error like this: `ERROR: pip's dependency resolver does not 
 
 Now, from the same terminal, you can run: 
 ```bash
-$ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . scripts/pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py               # test visual odometry
 ```
 or
 ```bash
-$ . pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . scripts/pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_slam.py             # test full SLAM
 ```
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
@@ -53,7 +53,7 @@ $ . pyenv-conda-create.sh
 
 Run the following command (**N.B.**, do not forget the dot!): 
 ```
-$ . pyenv-conda-activate.sh 
+$ . scripts/pyenv-conda-activate.sh 
 ```
 or 
 ```
@@ -72,7 +72,7 @@ $ conda deactivate
 
 To delete the `pyslam` environment, run
 ```
-$ . pyenv-conda-delete.sh 
+$ . scripts/pyenv-conda-delete.sh 
 ```
 
 

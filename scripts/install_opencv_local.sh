@@ -63,12 +63,14 @@ export TARGET_FOLDER=thirdparty
 export OPENCV_VERSION="4.10.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
 
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 STARTING_DIR=`pwd`
 
-cd "$SCRIPT_DIR"
-TARGET_FOLDER="$SCRIPT_DIR/$TARGET_FOLDER"
+ROOT_DIR="$SCRIPT_DIR_/.."
+
+cd "$ROOT_DIR"
+TARGET_FOLDER="$ROOT_DIR/$TARGET_FOLDER"
 
 # ====================================================
 print_blue  "Configuring and building $TARGET_FOLDER/opencv ..."
@@ -261,6 +263,8 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DAPPLE_FRAMEWORK=${WITH_APPLE_FRAMEWORK:-OFF} \
           -DPYTHON_INCLUDE_DIR=$(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])") \
           -DPYTHON_LIBRARY=$(python3 -c "import sysconfig; import os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY')))") \
+          -DPYTHON_EXECUTABLE=$(which python3) \
+          -DPYTHON3_EXECUTABLE=$(which python3) \
           ..
     else
         # Nvidia Jetson aarch64

@@ -4,10 +4,11 @@
 
 #echo "usage: ./${0##*/} <env-name>"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+SCRIPTS_DIR="$SCRIPT_DIR_"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -47,7 +48,7 @@ fi
 
 # install required package to create virtual environment
 install_package python3-venv
-. install_pyenv.sh 
+. $SCRIPTS_DIR/install_pyenv.sh
 
 # create folder for virutal environment and get into it 
 make_dir $ENV_PATH

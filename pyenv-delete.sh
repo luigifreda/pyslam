@@ -4,10 +4,11 @@
 
 #N.B: this install script allows you to run main_slam.py and all the scripts 
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$SCRIPT_DIR_"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
 
 # ====================================================
 # import the bash utils 
@@ -36,17 +37,17 @@ fi
 
 if [ "$PIXI_INSTALLED" = true ]; then
     print_blue "Deleting pySLAM environment by using pixi"
-    . pyenv-pixi-delete.sh
+    . $SCRIPTS_DIR/pyenv-pixi-delete.sh
     exit 0
 fi
 
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
     print_blue "Deleting pySLAM environment by using conda"
-    . pyenv-conda-delete.sh
+    . $SCRIPTS_DIR/pyenv-conda-delete.sh
 else
     print_blue "Deleting pySLAM environment by using venv"
-    . pyenv-venv-delete.sh
+    . $SCRIPTS_DIR/pyenv-venv-delete.sh
 fi
 
 cd "$STARTING_DIR"

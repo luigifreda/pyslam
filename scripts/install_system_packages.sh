@@ -2,10 +2,10 @@
 # Author: Luigi Freda 
 # This file is part of https://github.com/luigifreda/pyslam
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -53,7 +53,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
     brew install pkg-config 
     brew install suite-sparse 
     brew install pyenv
-    brew install zlib bzip2
+    brew install zlib bzip2 unzip minizip
     brew install rsync
     brew install readline
     brew install pyenv
@@ -62,8 +62,14 @@ if [[ "$OSTYPE" == darwin* ]]; then
     brew install tmux
     brew install flann
     brew install catch2
+    brew install assimp
+    brew install liblzf
+    brew install openssl
+    brew install libpng
+    brew install openblas
+    brew install vtk; brew link vtk
     #brew install numpy
-    #brew install open3d     # We built open3d from source for different issues 
+    #brew install open3d     # we are going to build open3d from source for different issues 
     brew install x265 libjpeg libde265 libheif   # for pillow-heif
 
 else 
@@ -115,7 +121,7 @@ else
     install_package libomp-dev
 
     # detect CUDA VERSION
-    . cuda_config.sh
+    . "$ROOT_DIR"/cuda_config.sh
     if [ "$CUDA_VERSION" != "0" ]; then
         # if CUDA is installed then install the required packages
         sudo apt install -y cuda-command-line-tools-$CUDA_VERSION_STRING_WITH_HYPHENS cuda-libraries-$CUDA_VERSION_STRING_WITH_HYPHENS

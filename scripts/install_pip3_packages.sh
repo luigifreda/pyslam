@@ -2,10 +2,11 @@
 # Author: Luigi Freda 
 # This file is part of https://github.com/luigifreda/pyslam
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$SCRIPT_DIR_/.."
+SCRIPTS_DIR="$SCRIPT_DIR_"
 
 # ====================================================
 # import the bash utils 
@@ -40,7 +41,7 @@ print_blue "Configuring and installing python packages ..."
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter
 
 # detect and configure CUDA 
-. cuda_config.sh
+. "$ROOT_DIR"/cuda_config.sh
 
 
 pip3 install --upgrade pip 
@@ -56,10 +57,10 @@ if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
     #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
     print_green "Installing opencv_python from source with non-free modules enabled"
     if [ "$OSTYPE" == darwin* ]; then
-        . install_opencv_python.sh
+        $SCRIPTS_DIR/install_opencv_python.sh
     else
-        . install_opencv_python.sh
-        #. install_opencv_local.sh
+        $SCRIPTS_DIR/install_opencv_python.sh
+        #$SCRIPTS_DIR/install_opencv_local.sh
     fi
 else
     PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
@@ -236,5 +237,5 @@ fi
 
 
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
-# . install_pip3_semantics.sh
+# $SCRIPTS_DIR/install_pip3_semantics.sh
 

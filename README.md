@@ -97,6 +97,27 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 ## Overview
 
+```bash
+├── cpp         # Pybind11 C++ bindings
+├── data        # Sample input/output data
+├── docs        # Documentation files
+├── pyslam      # Core Python package
+│   ├── dense
+│   ├── depth_estimation
+│   ├── evaluation
+│   ├── io
+│   ├── local_features
+│   ├── loop_closing
+│   ├── semantics
+│   ├── slam
+│   ├── utilities
+│   ├── viz
+├── scripts     # Shell utility scripts
+├── settings    # Dataset/configuration files
+├── test        # Tests and usage examples
+├── thirdparty  # External dependencies
+```
+
 ### Main Scripts
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
@@ -178,17 +199,17 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 ### How to install non-free OpenCV modules
 
-The provided install scripts take care of installing a recent opencv version (>=**4.10**) with non-free modules enabled (see [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
+The provided install scripts take care of installing a recent opencv version (>=**4.10**) with non-free modules enabled (see [scripts/install_opencv_python.sh](./scripts/install_opencv_python.sh)). To quickly verify your installed opencv version run:
 ```bash       
 #$ pixi shell           # If you use pixi, this activates the pyslam environment. 
 $ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 $ ./scripts/opencv_check.py
 ```
-Otherwise, run the following commands: 
+<!-- Otherwise, run the following commands: 
 ```bash       
 $ python3 -c "import cv2; print(cv2.__version__)" # check opencv version               
 $ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"  # check if you have non-free OpenCV module support (no errors imply success)
-```
+``` -->
 
 ### Troubleshooting and performance issues
 

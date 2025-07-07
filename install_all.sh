@@ -4,10 +4,11 @@
 
 #N.B: this install script allows you to run main_slam.py and all the scripts 
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$SCRIPT_DIR_"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
 
 # ====================================================
 # import the bash utils 
@@ -48,13 +49,13 @@ print_blue '================================================'
 # check that conda is activated 
 if [ "$CONDA_INSTALLED" = true ]; then
     print_blue "Installing pySLAM by using conda"
-    . install_all_conda.sh
+    . "$SCRIPTS_DIR"/install_all_conda.sh
 elif [ "$PIXI_ACTIVATED" = true ]; then
     print_blue "Installing pySLAM by using pixi"
-    . install_all_pixi.sh
+    . "$SCRIPTS_DIR"/install_all_pixi.sh
 else
     print_blue "Installing pySLAM by using venv"
-    . install_all_venv.sh
+    . "$SCRIPTS_DIR"/install_all_venv.sh
 fi
 
 cd "$STARTING_DIR"
