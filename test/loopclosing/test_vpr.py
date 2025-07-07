@@ -1,25 +1,25 @@
 import argparse
-import configparser
+import pyslam.config as configparser
 import os
 
 import os
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 config = Config()
 
 import numpy as np
 import cv2
 
-from utils_sys import getchar, Printer 
-from utils_img import float_to_color, float_to_color_array, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_img import float_to_color, float_to_color_array, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
 
 
-from dataset_factory import dataset_factory
-from dataset_types import SensorType
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import SensorType
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
 config.set_lib('vpr', prepend=True)
 

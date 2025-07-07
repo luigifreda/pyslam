@@ -2,8 +2,6 @@ import timeit
 from tqdm import tqdm
 
 
-
-
 if __name__ == "__main__":
     
     num_iterations = 1000

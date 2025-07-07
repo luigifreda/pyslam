@@ -3,14 +3,14 @@ import argparse
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 config = Config()
 
 import math
 import cv2 
 import numpy as np
 
-from vlad import VLAD
+from pyslam.loop_closing.vlad import VLAD
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

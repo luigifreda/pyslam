@@ -1,13 +1,13 @@
 import sys
 sys.path.append("../../")
-import config 
+import pyslam.config as config 
 
 import cv2
 import numpy as np
 from scipy import ndimage, misc
 
-from utils_img import img_blocks 
-from utils_features import nms_from_map, get_best_score_idxs, get_best_points_coordinates 
+from pyslam.utilities.utils_img import img_blocks 
+from pyslam.utilities.utils_features import nms_from_map, get_best_score_idxs, get_best_points_coordinates 
 
 
 shape = (500,500)

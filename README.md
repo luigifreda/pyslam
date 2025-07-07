@@ -1,4 +1,4 @@
-# pySLAM v2.8.3
+# pySLAM v2.8.4
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -24,7 +24,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 <!-- TOC -->
 
-- [pySLAM v2.8.3](#pyslam-v283)
+- [pySLAM v2.8.4](#pyslam-v284)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -129,7 +129,7 @@ $ cd pyslam
 
 Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
-#$ pixi shell      # If you want to use pixi, this prepares the installation. 
+#$ pixi shell      # If you want to use pixi, this is the first step that prepares the installation. 
 $ ./install_all.sh    
 ``` 
 
@@ -153,7 +153,7 @@ Once everything is completed you can jump the [usage section](#usage).
 * Rerun
 * You need **CUDA** in order to run Gaussian splatting and dust3r-based methods. Check you have installed a suitable version of **cuda toolkit** by running `./cuda_config.sh` 
 
-The internal pySLAM libraries are imported by using a `Config` instance (from [config.py](config.py)) in the main or test scripts. If you encounter any issues or performance problems, please refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
+The internal pySLAM libraries are imported by using a `Config` instance (from [pyslam/config.py](./pyslam/config.py)) in the main or test scripts. If you encounter any issues or performance problems, please refer to the [TROUBLESHOOTING](./docs/TROUBLESHOOTING.md) file for assistance.
 
 
 ### Ubuntu 
@@ -178,10 +178,10 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 ### How to install non-free OpenCV modules
 
-The provided install scripts take care of installing a recent opencv version (>=**4.10**) with non-free modules enabled (see [install_pip3_packages.sh](./install_pip3_packages.sh) and [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
+The provided install scripts take care of installing a recent opencv version (>=**4.10**) with non-free modules enabled (see [install_opencv_python.sh](./install_opencv_python.sh)). To quickly verify your installed opencv version run:
 ```bash       
-#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
+#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 $ ./scripts/opencv_check.py
 ```
 Otherwise, run the following commands: 
@@ -200,11 +200,11 @@ If you run into issues or errors during the installation process or at run-time,
 
 Open a new terminal and start experimenting with the scripts. In each new terminal, you are supposed to start with this command:
 ```bash
-#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
+#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 ```
 If you are using `pixi` then just run `pixi shell` to activate the `pyslam` environment.
-The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [config_parameters.py](./config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
+The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [pyslam/config_parameters.py](./pyslam/config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
 
  
 
@@ -212,8 +212,8 @@ The file [config.yaml](./config.yaml) can be used as a unique entry-point to con
 
 The basic **Visual Odometry** (VO) can be run with the following commands:
 ```bash
-#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
+#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 $ ./main_vo.py
 ```
 By default, this processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
@@ -224,8 +224,8 @@ Now, with RGBD datasets, you can also test the **RGBD odometry** with the classe
 
 Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ```bash
-#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
+#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 $ ./main_slam.py
 ```
 
@@ -235,7 +235,7 @@ This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti
 
 ### Selecting a dataset and different configuration parameters
 
-The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system, the target dataset and its global configuration parameters set in [config_parameters.py](./config_parameters.py). 
+The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system, the target dataset and its global configuration parameters set in [pyslam/config_parameters.py](./pyslam/config_parameters.py). 
 
 To process a different **dataset** with both VO and SLAM scripts, you need to update the file [config.yaml](./config.yaml):
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
@@ -243,7 +243,7 @@ To process a different **dataset** with both VO and SLAM scripts, you need to up
 * Select the camera `settings` file in the dataset section (further details in the section *[Camera Settings](#camera-settings)* below).
 * Set the `groudtruth_file` accordingly. Further details in the section *[Datasets](#datasets)* below  (see also the files `io/ground_truth.py`, `io/convert_groundtruth_to_simple.py`).
 
-You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the global configuration parameters set in [config_parameters.py](./config_parameters.py). This is particularly useful when running a [SLAM evaluation](#evaluating-slam).
+You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.yaml) to override the global configuration parameters set in [pyslam/config_parameters.py](./pyslam/config_parameters.py). This is particularly useful when running a [SLAM evaluation](#evaluating-slam).
 
 ---
 
@@ -251,8 +251,8 @@ You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.y
 
 If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a taste of the different available local features, run
 ```bash
-#$ pixi shell           # If you use pixi, this activate the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed under pixi.
+#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
+$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 $ ./main_feature_matching.py
 ```
 
@@ -266,14 +266,14 @@ Some basic examples are available in the subfolder `test/cv`. In particular, as 
 
 Many [loop closing methods](#loop-closing) are available, combining different [aggregation methods](#local-descriptor-aggregation-methods) and [global descriptors](#global-descriptors).
 
-While running full SLAM, loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `config_parameters.py`. Different configuration options `LoopDetectorConfigs` can be found in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py): Code comments provide additional useful details.
+While running full SLAM, loop closing is enabled by default and can be disabled by setting `kUseLoopClosing=False` in `pyslam/config_parameters.py`. Different configuration options `LoopDetectorConfigs` can be found in [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closing/loop_detector_configs.py): Code comments provide additional useful details.
 
 One can start experimenting with loop closing methods by using the examples in `test/loopclosing`. The example [test/loopclosing/test_loop_detector.py](./test/loopclosing/test_loop_detector.py) is the recommended entry point.
 
 
 #### Vocabulary management 
 
-`DBoW2`, `DBoW3`, and `VLAD` require **pre-trained vocabularies**. ORB-based vocabularies are automatically downloaded in the `data` folder (see [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py)).
+`DBoW2`, `DBoW3`, and `VLAD` require **pre-trained vocabularies**. ORB-based vocabularies are automatically downloaded in the `data` folder (see [pyslam/loop_closing/loop_detector_configs.py](pyslam/loop_closing/loop_detector_configs.py)).
 
 To create a new vocabulary, follow these steps:
 
@@ -283,7 +283,7 @@ To create a new vocabulary, follow these steps:
 
 3. **VLAD vocabulary generation**: Train your target VLAD "vocabulary" by using the script `test/loopclosing/test_gen_vlad_voc_from_des_array.py`.
 
-Once you have trained the vocabulary, you can add it in [loop_closing/loop_detector_vocabulary.py](loop_closing/loop_detector_vocabulary.py) and correspondingly create a new loop detector configuration in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py) that uses it.
+Once you have trained the vocabulary, you can add it in [pyslam/loop_closing/loop_detector_vocabulary.py](./pyslam/loop_closing/loop_detector_vocabulary.py) and correspondingly create a new loop detector configuration in [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closing/loop_detector_configs.py) that uses it.
 
 #### Vocabulary-free loop closing
 
@@ -298,7 +298,7 @@ As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabu
 ##### Loop detection method based on a pre-trained vocabulary
 
 When selecting a **loop detection method based on a pre-trained vocabulary** (such as `DBoW2`, `DBoW3`, and `VLAD`), ensure the following:
-1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency) or their descriptor managers are independent (see further details in the configuration options `LoopDetectorConfigs` available in [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py)).
+1. The back-end and the front-end are using the same descriptor type (this is also automatically checked for consistency) or their descriptor managers are independent (see further details in the configuration options `LoopDetectorConfigs` available in [pyslam/loop_closing/loop_detector_configs.py](pyslam/loop_closing/loop_detector_configs.py)).
 2. A corresponding pre-trained vocubulary is available. For more details, refer to the [vocabulary management section](#vocabulary-management).
 
 ##### Missing vocabulary for the selected front-end descriptor type
@@ -308,7 +308,7 @@ If you lack a compatible vocabulary for the selected front-end descriptor type, 
 2. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.     
 3. Select a vocabular-free loop closing method.      
    
-See the file [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py) for further details.
+See the file [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closing/loop_detector_configs.py) for further details.
 
 ---
 
@@ -316,7 +316,7 @@ See the file [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_
 
 #### Dense reconstruction while running SLAM 
 
-The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` and selecting your preferred method `kVolumetricIntegrationType` in `config_parameters.py`. At present, two methods are available: `TSDF` and `GAUSSIAN_SPLATTING` (see [dense/volumetric_integrator_factory.py](dense/volumetric_integrator_factory.py)). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method.
+The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` and selecting your preferred method `kVolumetricIntegrationType` in `pyslam/config_parameters.py`. At present, two methods are available: `TSDF` and `GAUSSIAN_SPLATTING` (see [pyslam/dense/volumetric_integrator_factory.py](pyslam/dense/volumetric_integrator_factory.py)). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method.
 
 At present, the volumetric reconstruction pipeline works with:
 - RGBD datasets 
@@ -324,7 +324,7 @@ At present, the volumetric reconstruction pipeline works with:
   * in the back-end with STEREO datasets (you can't use depth prediction in the back-end with MONOCULAR datasets, further details [here](#depth-prediction))
   * in the front-end (to emulate an RGBD sensor) and a depth prediction/estimation gets available for each processed keyframe. 
 
-If you want a mesh as output then set `kVolumetricIntegrationExtractMesh=True` in `config_parameters.py`.
+If you want a mesh as output then set `kVolumetricIntegrationExtractMesh=True` in `pyslam/config_parameters.py`.
 
 #### Reload a saved sparse map and perform dense reconstruction 
 
@@ -362,8 +362,8 @@ KeyFrame.maxFovCentersDistance: 0.2       # max distance between fov centers in 
 ### Depth prediction
 
 The available depth prediction models can be utilized both in the SLAM back-end and front-end. 
-- **Back-end**: Depth prediction can be enabled in the [volumetric reconstruction](#volumetric-reconstruction) pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator=True` and selecting your preferred `kVolumetricIntegrationDepthEstimatorType` in `config_parameters.py`. 
-- **Front-end**: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `config_parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still *experimental* at present time [WIP].   
+- **Back-end**: Depth prediction can be enabled in the [volumetric reconstruction](#volumetric-reconstruction) pipeline by setting the parameter `kVolumetricIntegrationUseDepthEstimator=True` and selecting your preferred `kVolumetricIntegrationDepthEstimatorType` in `pyslam/config_parameters.py`. 
+- **Front-end**: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `pyslam/config_parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still *experimental* at present time [WIP].   
 
 **Notes**: 
 * In the case of a **monocular SLAM**, do NOT use depth prediction in the back-end volumetric integration: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. With monocular datasets, you can enable depth prediction to run in the front-end (to emulated an RGBD sensor).
@@ -380,7 +380,7 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
   <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" style="height: 300px; width: auto;"/>
 </p>
 
-The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `semantic_mapping_configs.py`.
+The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `pyslam/config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `pyslam/semantics/semantic_mapping_configs.py`.
 
 Different semantic mapping methods are available (see [here](./docs/semantics.md) for furthere details). Currently, we support semantic mapping using **dense semantic segmentation**.
   - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
@@ -447,7 +447,7 @@ SAVE_TRAJECTORY:
 
 ### Graph optimization engines
 
-Currently, pySLAM supports both `g2o` and `gtsam` for graph optimization, with `g2o` set as the default engine. While `gtsam` is fully supported, it remains experimental and a work in progress. You can enable `gtsam` by setting to `True` the following parameters in `config_parameters.py`:
+Currently, pySLAM supports both `g2o` and `gtsam` for graph optimization, with `g2o` set as the default engine. While `gtsam` is fully supported, it remains experimental and a work in progress. You can enable `gtsam` by setting to `True` the following parameters in `pyslam/config_parameters.py`:
 ```python
   # Optimization engine 
   kOptimizationFrontEndUseGtsam = True    
@@ -471,11 +471,11 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 
 ### Monitor the logs of tracking, local mapping, loop closing and volumetric mapping simultaneously
 
-The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, `global_bundle_adjustments.py`, and `volumetric integrator_<X>.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, `gba.log`, and `volumetric_integrator.log`, which are all stored in the folder `logs`. For debugging, you can monitor one of the them in parallel by running the following command in a separate shell:    
+The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, `global_bundle_adjustments.py`, and `volumetric integrator_<X>.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, `gba.log`, and `volumetric_integrator.log`, respectively. These logs files are all stored in the folder `logs`. At runtime, for debugging purposes, you can individually monitor any of the log files by running the following command:    
 `$ tail -f logs/<log file name>`     
-Otherwise, to check all parallel logs with `tmux`, run:          
+Otherwise, to check all logs at the same time, run this `tmux`-based script:          
 `$ ./scripts/launch_tmux_logs.sh`           
-To launch slam and check all logs in a single `tmux`, run:     
+To launch slam and check all logs, run:     
 `$ ./scripts/launch_tmux_slam.sh`      
 Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
@@ -560,11 +560,11 @@ The following feature **descriptors** are supported:
 * *[Xfeat](https://arxiv.org/abs/2404.19174)*
 * *[KeyNetAffNetHardNet](https://github.com/axelBarroso/Key.Net)* (KeyNet detector + AffNet + HardNet descriptor).
   
-For more information, refer to [local_features/feature_types.py](local_features/feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
+For more information, refer to [pyslam/local_features/feature_types.py](pyslam/local_features/feature_types.py) file. Some of the local features consist of a *joint detector-descriptor*. You can start playing with the supported local features by taking a look at `test/cv/test_feature_manager.py` and `main_feature_matching.py`.
 
 In both the scripts `main_vo.py` and `main_slam.py`, you can create your preferred detector-descritor configuration and feed it to the function `feature_tracker_factory()`. Some ready-to-use configurations are already available in the file [local_features/feature_tracker.configs.py](local_features/feature_tracker_configs.py)
 
-The function `feature_tracker_factory()` can be found in the file `local_features/feature_tracker.py`. Take a look at the file `local_features/feature_manager.py` for further details.
+The function `feature_tracker_factory()` can be found in the file `pyslam/local_features/feature_tracker.py`. Take a look at the file `pyslam/local_features/feature_manager.py` for further details.
 
 **N.B.**: You just need a *single* python environment to be able to work with all the [supported local features](#supported-local-features)!
 
@@ -607,7 +607,7 @@ Also referred to as *holistic descriptors*:
 
 
 Different [loop closing methods](#loop-closing) are available. These combines the above aggregation methods and global descriptors.
-See the file [loop_closing/loop_detector_configs.py](loop_closing/loop_detector_configs.py) for further details.
+See the file [pyslam/loop_closing/loop_detector_configs.py](pyslam/loop_closing/loop_detector_configs.py) for further details.
 
 
 ### Supported depth prediction models
@@ -640,7 +640,7 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 
 ### Main configuration file
 
-Refer to [this section](#selecting-a-dataset-and-different-configuration-parameters) for how to update the main configuration file [config.yaml](./config.yaml) and affect the configuration parameters in [config_parameters.py](./config_parameters.py).
+Refer to [this section](#selecting-a-dataset-and-different-configuration-parameters) for how to update the main configuration file [config.yaml](./config.yaml) and affect the configuration parameters in [pyslam/config_parameters.py](./pyslam/config_parameters.py).
 
 ### Datasets
 

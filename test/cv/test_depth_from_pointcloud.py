@@ -1,10 +1,10 @@
 import sys
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import numpy as np
 
-from utils_depth import point_cloud_to_depth
+from pyslam.utilities.utils_depth import point_cloud_to_depth
 
 
 def depth_to_point_cloud(depth_img, K):

@@ -1,17 +1,17 @@
 import sys
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import unittest
 import numpy as np
 
-from pose_estimator import (
+from pyslam.slam.pose_estimator import (
     PoseEstimatorType,
     pose_estimator_factory,
     PoseEstimatorInput
 )
 
-from utils_geom import rotation_matrix_from_yaw_pitch_roll
+from pyslam.utilities.utils_geom import rotation_matrix_from_yaw_pitch_roll
 
 
 # generate random point in camera image

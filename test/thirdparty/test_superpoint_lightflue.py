@@ -10,7 +10,7 @@ from LightGlue.lightglue import viz2d
 import torch
 
 from config import Config
-from dataset import dataset_factory
+from pyslam.io.dataset import dataset_factory
 config = Config()
 
 

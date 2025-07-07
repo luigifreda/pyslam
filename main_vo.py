@@ -25,23 +25,25 @@ import math
 import time 
 import platform 
 
-from config import Config
+from pyslam.config import Config
 
-from visual_odometry import VisualOdometryEducational
-from visual_odometry_rgbd import VisualOdometryRgbd, VisualOdometryRgbdTensor
-from camera  import PinholeCamera
-from ground_truth import groundtruth_factory
-from dataset_factory import dataset_factory
-from dataset_types import DatasetType, SensorType
+from pyslam.slam.visual_odometry import VisualOdometryEducational
+from pyslam.slam.visual_odometry_rgbd import VisualOdometryRgbd, VisualOdometryRgbdTensor
+from pyslam.slam.camera  import PinholeCamera
 
-from mplot_thread import Mplot2d, Mplot3d
-from qplot_thread import Qplot2d
+from pyslam.io.ground_truth import groundtruth_factory
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import DatasetType, SensorType
 
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.viz.mplot_thread import Mplot2d, Mplot3d
+from pyslam.viz.qplot_thread import Qplot2d
+from pyslam.viz.rerun_interface import Rerun
 
-from utils_sys import Printer
-from rerun_interface import Rerun
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
+
+from pyslam.utilities.utils_sys import Printer
+
 
 
 kScriptPath = os.path.realpath(__file__)
@@ -62,7 +64,7 @@ kUsePangolin = True
 if platform.system() == 'Darwin':
     kUsePangolin = True # Under mac force pangolin to be used since Mplot3d() has some reliability issues                
 if kUsePangolin:
-    from viewer3D import Viewer3D
+    from pyslam.viz.viewer3D import Viewer3D
 
 kUseQplot2d = False
 if platform.system() == 'Darwin':

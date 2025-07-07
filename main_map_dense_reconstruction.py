@@ -21,7 +21,7 @@
 import argparse
 
 import sys 
-from config import Config
+from pyslam.config import Config
 
 import argparse
 import numpy as np
@@ -31,26 +31,26 @@ import time
 
 import platform 
 
-from config import Config
+from pyslam.config import Config
 
-from config_parameters import Parameters
+from pyslam.config_parameters import Parameters
 
-from slam import Slam, SlamState, SlamMode
-from camera  import PinholeCamera
-from dataset_factory import dataset_factory
-from dataset_types import DatasetType, SensorType
-from ground_truth import groundtruth_factory, GroundTruth
+from pyslam.slam.slam import Slam, SlamState, SlamMode
+from pyslam.slam.camera  import PinholeCamera
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import DatasetType, SensorType
+from pyslam.io.ground_truth import groundtruth_factory, GroundTruth
 
-from viewer3D import Viewer3D
-from utils_sys import getchar, Printer 
-from utils_geom import inv_T
+from pyslam.viz.viewer3D import Viewer3D
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_geom import inv_T
 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
+from pyslam.depth_estimation.depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 
-from volumetric_integrator_base import VolumetricIntegratorBase
-from volumetric_integrator_factory import volumetric_integrator_factory, VolumetricIntegratorType
+from pyslam.dense.volumetric_integrator_base import VolumetricIntegratorBase
+from pyslam.dense.volumetric_integrator_factory import volumetric_integrator_factory, VolumetricIntegratorType
 
 
 import signal   

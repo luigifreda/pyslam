@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 config.cfg.set_lib('mast3r') 
 
 import os
@@ -20,14 +20,14 @@ import trimesh
 import torchvision.transforms.functional
 from matplotlib import pyplot as pl
 
-from utils_draw import draw_feature_matches
-from utils_img import img_from_floats
-from utils_dust3r import  Dust3rImagePreprocessor, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
-from utils_depth import point_cloud_to_depth
-from utils_sys import Printer
+from pyslam.utilities.utils_draw import draw_feature_matches
+from pyslam.utilities.utils_img import img_from_floats
+from pyslam.utilities.utils_dust3r import  Dust3rImagePreprocessor, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
+from pyslam.utilities.utils_depth import point_cloud_to_depth
+from pyslam.utilities.utils_sys import Printer
 
-from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
-from utils_img import ImageTable
+from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
+from pyslam.utilities.utils_img import ImageTable
 import time
 
 
