@@ -7,7 +7,7 @@
 import sys
 from tkinter import image_names 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 config.cfg.set_lib('vggt') 
 
 import os
@@ -34,13 +34,13 @@ from vggt.utils.load_fn import load_and_preprocess_images
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 from vggt.utils.geometry import unproject_depth_map_to_point_map
 
-from utils_files import select_image_files 
-from utils_sys import download_file_from_url
-from utils_dust3r import convert_mv_output_to_geometry
-from utils_img import img_from_floats, ImageTable
-from utils_torch import to_numpy
+from pyslam.utilities.utils_files import select_image_files 
+from pyslam.utilities.utils_sys import download_file_from_url
+from pyslam.utilities.utils_dust3r import convert_mv_output_to_geometry
+from pyslam.utilities.utils_img import img_from_floats, ImageTable
+from pyslam.utilities.utils_torch import to_numpy
 
-from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
+from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 

@@ -1,7 +1,7 @@
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 config = Config()
 config.set_lib('raft_stereo') 
 
@@ -10,8 +10,8 @@ import numpy as np
 import cv2
 import time
 
-from depth_estimator import DepthEstimatorRaftStereo
-from utils_depth import img_from_depth
+from pyslam.depth_estimation.depth_estimator_raft_stereo import DepthEstimatorRaftStereo
+from pyslam.utilities.utils_depth import img_from_depth
 
 data_path = '../data'
 

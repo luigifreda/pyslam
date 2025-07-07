@@ -29,30 +29,30 @@ import platform
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 
-from slam import Slam, SlamState
-from camera  import PinholeCamera
-from ground_truth import groundtruth_factory
-from dataset_factory import dataset_factory
-from dataset_types import SensorType
+from pyslam.slam.slam import Slam, SlamState
+from pyslam.slam.camera  import PinholeCamera
+from pyslam.io.ground_truth import groundtruth_factory
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import SensorType
 
-from mplot_thread import Mplot2d
+from pyslam.viz.mplot_thread import Mplot2d
 import matplotlib.colors as mcolors
 
 
-from viewer3D import Viewer3D
-from utils_sys import getchar, Printer 
-from utils_img import ImgWriter
-from utils_geom import inv_T
+from pyslam.viz.viewer3D import Viewer3D
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_img import ImgWriter
+from pyslam.utilities.utils_geom import inv_T
 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from loop_detector_configs import LoopDetectorConfigs
+from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
 
-from config_parameters import Parameters  
+from pyslam.config_parameters import Parameters  
 
-from rerun_interface import Rerun
+from pyslam.viz.rerun_interface import Rerun
 
 import open3d as o3d
 

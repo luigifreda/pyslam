@@ -1,11 +1,11 @@
 import sys
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import cv2
 import numpy as np
 
-from utils_img import img_blocks 
+from pyslam.utilities.utils_img import img_blocks 
 
 cols = 600
 rows = 600

@@ -22,12 +22,12 @@ import numpy as np
 import math
 import time 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import torch.multiprocessing as mp
 
-from mplot_thread import Mplot2d, Mplot3d
-from utils_sys import getchar
+from pyslam.viz.mplot_thread import Mplot2d, Mplot3d
+from pyslam.utilities.utils_sys import getchar
 
 if __name__ == "__main__":
 

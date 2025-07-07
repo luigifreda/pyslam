@@ -19,7 +19,7 @@
 
 import sys
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
 import argparse
 import csv
@@ -36,9 +36,9 @@ import yaml
 import json 
 import concurrent.futures
 
-from utils_data import merge_dicts
-from utils_sys import Printer
-from utils_run import run_command_async, run_command_sync
+from pyslam.utilities.utils_data import merge_dicts
+from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.utils_run import run_command_async, run_command_sync
 
 from slam_evaluation_manager import SlamEvaluationManager
 

@@ -5,7 +5,7 @@ import sys
 import matplotlib.pyplot as plt
         
 sys.path.append("../../")
-import config
+import pyslam.config as config
 import pnpsolver as pnp
 
 

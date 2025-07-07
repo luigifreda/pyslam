@@ -1,29 +1,29 @@
 
 CORE_LIB_PATHS:
   # Core libs/modules are automatically imported by using: 
-  # import config 
+  # import pyslam.config as config 
   g2o: thirdparty/g2opy/lib
   pangolin: thirdparty/pangolin
   orb_features: thirdparty/orbslam2_features/lib
   pyslam_utils: cpp/lib
   thirdparty: thirdparty  # considering the folders in thirdparty as modules
-  utilities: utilities
-  depth_estimation: depth_estimation 
-  semantics: semantics
-  local_features: local_features
-  loop_closing: loop_closing
-  slam: slam
-  viz: viz
-  io: io
-  dense: dense
-  evaluation: evaluation
   gtsam_factors: thirdparty/gtsam_factors/lib
   ros2_pybindings: thirdparty/ros2_pybindings/lib
+  # utilities: pyslam/utilities
+  # depth_estimation: pyslam/depth_estimation
+  # semantics: pyslam/semantics
+  # local_features: pyslam/local_features
+  # loop_closing: pyslam/loop_closing
+  # slam: pyslam/slam
+  # viz: pyslam/viz
+  # io: pyslam/io
+  # dense: pyslam/dense
+  # evaluation: pyslam/evaluation  
 
 
 LIB_PATHS:
-  # The following libs/modiles are explicitely imported on demand by using, for instance:
-  # import config \ config.cfg.set_lib('tfeat')
+  # The following libs/modules are explicitely imported on demand from thirdparty folder by using:
+  # import pyslam.config as config \ config.cfg.set_lib('tfeat')
   lightglue: thirdparty/LightGlue
   xfeat: thirdparty/accelerated_features
   superpoint: thirdparty/superpoint

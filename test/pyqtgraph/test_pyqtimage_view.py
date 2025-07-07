@@ -1,12 +1,12 @@
 import sys
 sys.path.append('../../')
-from config import Config
+from pyslam.config import Config
 
 import numpy as np
 import cv2  
 import time
 
-from qimage_thread import QimageViewer
+from pyslam.viz.qimage_thread import QimageViewer
 
 # Example Usage
 if __name__ == "__main__":

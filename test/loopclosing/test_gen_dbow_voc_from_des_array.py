@@ -3,7 +3,7 @@ import argparse
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 config = Config()
 
 import math

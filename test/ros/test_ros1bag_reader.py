@@ -1,12 +1,12 @@
 import sys
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
-from dataset_factory import dataset_factory
-from dataset_types import SensorType, DatasetType, DatasetEnvironmentType
-from dataset import Dataset
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import SensorType, DatasetType, DatasetEnvironmentType
+from pyslam.io.dataset import Dataset
 
-from ros1bag_dataset import Ros1bagSyncReaderATS, Ros1bagDataset
+from pyslam.io.ros1bag_dataset import Ros1bagSyncReaderATS, Ros1bagDataset
 
 import numpy as np
 import os

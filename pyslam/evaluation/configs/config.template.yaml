@@ -1,0 +1,153 @@
+DATASET:
+  type: %dataset_type%
+
+
+KITTI_DATASET:
+  type: kitti
+  sensor_type: %sensor_type%     # Here, 'sensor_type' can be 'mono' or 'stereo'
+  base_path: %dataset_base_path%
+  name: %dataset_name%
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  is_color: %is_color%      # do you have the color images for the kitti dataset? (image2 and image3 folders)
+  groundtruth_file: auto
+  start_frame_id: %start_frame_id%
+
+TUM_DATASET:
+  type: tum
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: %dataset_base_path%
+  name: %dataset_name%
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  associations: associations.txt
+  groundtruth_file: auto
+  start_frame_id: %start_frame_id%
+
+
+ICL_NUIM_DATASET:
+  type: tum         # Same format as TUM
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: %dataset_base_path%
+  name: %dataset_name%
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  associations: associations.txt
+  groundtruth_file: auto
+  start_frame_id: %start_frame_id%
+
+
+EUROC_DATASET:
+  type: euroc
+  sensor_type: %sensor_type% # Here, sensor_type can be 'mono' or 'stereo'
+  base_path: %dataset_base_path%
+  name: %dataset_name%  
+  # 'settings' will be used when sensor_type: : 'mono'
+  settings: %settings_path%
+  # 'settings_stereo' will be used when sensor_type: 'stereo' (if available)
+  settings_stereo: %settings_stereo_path%
+  associations: auto
+  groundtruth_file: auto
+  start_frame_id: %start_frame_id%
+
+
+REPLICA_DATASET:
+  type: replica
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: %dataset_base_path%
+  name: %dataset_name%
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  groundtruth_file: auto
+  start_frame_id: %start_frame_id%
+
+
+TARTANAIR_DATASET:
+  type: tartanair
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono', 'stereo' or 'rgbd'
+  base_path: %dataset_base_path%
+  name: %dataset_name%
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  groundtruth_file: auto
+  start_frame_id: %start_frame_id%
+
+
+VIDEO_DATASET:
+  type: video
+  sensor_type: %sensor_type%   # Here, 'sensor_type' can be only 'mono' 
+  base_path: %dataset_base_path%
+  name: %dataset_name%
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  groundtruth_file: groundtruth.txt
+  timestamps: %timestamps_path% # to be intended as the frame timestamps
+  start_frame_id: %start_frame_id%
+
+
+FOLDER_DATASET:
+  type: folder 
+  sensor_type: %sensor_type%   # Here, 'sensor_type' can be only 'mono' 
+  base_path: %dataset_base_path%
+  # 'name' is used for specifying a glob pattern, e.g. *png, *jpeg, etc...
+  name: %dataset_images_glob_pattern%  
+  settings: %settings_path% # do not forget to correctly set the corresponding camera settings file 
+  groundtruth_file: groundtruth.txt
+  fps: %dataset_fps%
+  #timestamps: times.txt # can be used here and to be intended as the frame timestamps 
+
+
+ROS1BAG_DATASET:
+  type: ros1bag 
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
+  base_path: %dataset_base_path%    # path of the folder containing the bag
+  name: %dataset_name%                                                 # file name of the bag
+  settings: %settings_path%                   # do not forget to correctly set the corresponding camera settings file
+  ros_settings:
+    sync_queue_size: %ros_settings_queue_size%          # for syncing the messages with the ApproximateTimeSynchronizer
+    sync_slop: %ros_settings_sync_slop%                 # in seconds: delay with which messages can be synchronized
+    depth_factor: %ros_settings_depth_factor%           # (optional) scale factor for depth images if available
+    topics: 
+      color_image: %left_color_image_topic%        # left color image
+      right_color_image: %right_color_image_topic% # used for stereo datasets
+      depth_image: %depth_image_topic%             # used for rgbd datasets
+      #camera_info: '/camera/rgb/camera_info'      # TODO: override camera settings if available
+  groundtruth_file: %groundtruth_file_path%
+  environment_type: %environment_type%  # Here, 'environment_type' can be 'indoor' or 'outdoor'         
+  fps: %dataset_fps%                    # desired rate of the dataset
+
+
+ROS2BAG_DATASET:
+  type: ros2bag 
+  sensor_type: %sensor_type% # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
+  base_path: %dataset_base_path%    # path of the folder containing the bag
+  name: %dataset_name%                                                 # file name of the bag
+  settings: %settings_path%                   # do not forget to correctly set the corresponding camera settings file
+  ros_settings:
+    sync_queue_size: %ros_settings_queue_size%          # for syncing the messages with the ApproximateTimeSynchronizer
+    sync_slop: %ros_settings_sync_slop%                 # in seconds: delay with which messages can be synchronized
+    depth_factor: %ros_settings_depth_factor%           # (optional) scale factor for depth images if available
+    topics: 
+      color_image: %left_color_image_topic%        # left color image
+      right_color_image: %right_color_image_topic% # used for stereo datasets
+      depth_image: %depth_image_topic%             # used for rgbd datasets
+      #camera_info: '/camera/rgb/camera_info'      # TODO: override camera settings if available
+  groundtruth_file: %groundtruth_file_path%
+  environment_type: %environment_type%  # Here, 'environment_type' can be 'indoor' or 'outdoor'         
+  fps: %dataset_fps%                    # desired rate of the dataset
+
+
+SYSTEM_STATE: 
+  # This section is used for saving and reloading the system state: Sparse map + Loop closing state  
+  load_state: False                # flag to enable SLAM state reloading (map state + loop closing state) and relocalization
+  folder_path: results/slam_state  # default folder path (relative to root of this repository) where the system state is saved or reloaded
+ 
+
+SAVE_TRAJECTORY:
+  save_trajectory: True
+  format_type: %saved_trajectory_format_type%   # supported formats: `tum`, `kitti`, `euroc`
+  output_folder: %output_path%                  # relative to pyslam root folder 
+  basename: trajectory                          # basename of the trajectory saving output
+
+
+# This section allows to change and override the default values of the global parameters contained in pyslam/config_parameters.py
+# In this way, this yaml configuration can be used as a unique entry-point for launching experiments. 
+GLOBAL_PARAMETERS: 
+  #kUseVolumetricIntegration: True
+  #kVolumetricIntegrationUseDepthEstimator: True
+  kLogsFolder: %logs_path%                     # to redirect the prints of SLAM to the set folder
+  

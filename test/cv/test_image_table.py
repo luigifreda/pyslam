@@ -1,11 +1,11 @@
 import sys
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import numpy as np
 import cv2
 
-from utils_img import ImageTable
+from pyslam.utilities.utils_img import ImageTable
 
 
 # Example usage

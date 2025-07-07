@@ -10,9 +10,9 @@ import argparse
 import time
 
 from raft_stereo import RAFTStereo
-from utils.utils import InputPadder
+from core.utils.utils import InputPadder
 
-from utils_depth import img_from_depth
+from pyslam.utilities.utils_depth import img_from_depth
 
 data_path = '../data'
 stereo_raft_base_path='../../thirdparty/raft_stereo'

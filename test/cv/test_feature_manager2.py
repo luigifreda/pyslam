@@ -5,19 +5,19 @@ import cv2
 from matplotlib import pyplot as plt
 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
-from mplot_figure import MPlotFigure
-from feature_manager import feature_manager_factory
-from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from utils_features import ssc_nms
+from pyslam.viz.mplot_figure import MPlotFigure
+from pyslam.local_features.feature_manager import feature_manager_factory
+from pyslam.local_features.feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
+from pyslam.utilities.utils_features import ssc_nms
 
-from feature_manager_configs import FeatureManagerConfigs
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_manager_configs import FeatureManagerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
 from collections import defaultdict, Counter
 
-from timer import TimerFps
+from pyslam.utilities.timer import TimerFps
 
 
 # ==================================================================================================

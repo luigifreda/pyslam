@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
 import numpy as np
 #import gtsam
@@ -10,15 +10,15 @@ from unittest import TestCase
 
 import numpy as np
 
-from frame import Frame, FeatureTrackerShared
-from keyframe import KeyFrame
-from map_point import MapPoint
-from camera import Camera, PinholeCamera
-from utils_geom import rotation_matrix_from_yaw_pitch_roll, poseRt, inv_T, Sim3Pose
-from utils_gen_synthetic_data import generate_random_points_2d, backproject_points, project_points
+from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.slam.keyframe import KeyFrame
+from pyslam.slam.map_point import MapPoint
+from pyslam.slam.camera import Camera, PinholeCamera
+from pyslam.utilities.utils_geom import rotation_matrix_from_yaw_pitch_roll, poseRt, inv_T, Sim3Pose
+from pyslam.utilities.utils_gen_synthetic_data import generate_random_points_2d, backproject_points, project_points
 
-import optimizer_gtsam 
-import optimizer_g2o
+from pyslam.slam import optimizer_gtsam 
+from pyslam.slam import optimizer_g2o
 
 class FakeFeatureManager: 
     def __init__(self, num_keypoints):
@@ -226,7 +226,7 @@ class TestOptimizeSim3(TestCase):
         
         #print(f'gt Sc1c2: {self.gt_Sc1c2}')
         
-        # update camera 2 pose after relative motion (starting from camera 1 pose)
+        # update camera 2 pose after relative motion (starting from pyslam.slam.camera 1 pose)
         Rwc2 = self.Rwc1 @ self.Rc1c2
         twc2 = self.Rwc1 @ self.tc1c2 + self.twc1
         Rc2w = Rwc2.T

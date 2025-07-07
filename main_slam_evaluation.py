@@ -19,7 +19,7 @@
 """
 
 import sys
-import config
+import pyslam.config as config
 
 import argparse
 import csv
@@ -37,11 +37,11 @@ import json
 import concurrent.futures
 from pathlib import Path
 
-from utils_data import merge_dicts
-from utils_sys import Printer
-from utils_run import run_command_async, run_command_sync
+from pyslam.utilities.utils_data import merge_dicts
+from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.utils_run import run_command_async, run_command_sync
 
-from slam_evaluation_manager import SlamEvaluationManager
+from pyslam.evaluation.slam_evaluation_manager import SlamEvaluationManager
 
 try:
   import hjson
@@ -54,7 +54,7 @@ kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder 
 kSettingsFolder = kRootFolder + '/settings'
 kResultsFolder = kRootFolder + '/results'
-kEvaluationFolder = kRootFolder + '/evaluation'
+kEvaluationFolder = kRootFolder + '/pyslam/evaluation'
 
 
 date_time_now = datetime.now()

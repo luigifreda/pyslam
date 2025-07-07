@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 config = Config()
 config.set_lib('mast3r') 
 
@@ -18,21 +18,21 @@ import cv2
 import numpy as np
 import torch
 
-from utils_draw import draw_feature_matches, combine_images_horizontally
-from utils_img import img_from_floats
-from utils_dust3r import  Dust3rImagePreprocessor, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
-from utils_depth import point_cloud_to_depth
-from utils_sys import Printer
-from utils_img import ImgWriter
-from utils_geom_lie import so3_log_angle
+from pyslam.utilities.utils_draw import draw_feature_matches, combine_images_horizontally
+from pyslam.utilities.utils_img import img_from_floats
+from pyslam.utilities.utils_dust3r import  Dust3rImagePreprocessor, convert_mv_output_to_geometry, estimate_focal_knowing_depth, calibrate_camera_pnpransac
+from pyslam.utilities.utils_depth import point_cloud_to_depth
+from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.utils_img import ImgWriter
+from pyslam.utilities.utils_geom_lie import so3_log_angle
 
-from dataset_factory import dataset_factory
-from dataset_types import SensorType
-from ground_truth import groundtruth_factory
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import SensorType
+from pyslam.io.ground_truth import groundtruth_factory
 
-from slam_plot_drawer import LocalizationPlotDrawer
+from pyslam.viz.slam_plot_drawer import LocalizationPlotDrawer
 
-from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage, Viewer3DMapInput
+from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage, Viewer3DMapInput
 
 import time
 

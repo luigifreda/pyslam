@@ -1,29 +1,29 @@
 import os
 import sys 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 config = Config()
 config.set_lib('depth_anything_v2') 
 
-from utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
+from pyslam.utilities.utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
 
 import time
 import cv2 
 import numpy as np
 
-from dataset_factory import dataset_factory
-from frame import Frame, FeatureTrackerShared
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from config_parameters import Parameters
+from pyslam.config_parameters import Parameters
 
-from utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
+from pyslam.utilities.utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
 
 import torch
 from depth_anything_v2.dpt import DepthAnythingV2
 
-from viewer3D import Viewer3D
+from pyslam.viz.viewer3D import Viewer3D
 
 
 

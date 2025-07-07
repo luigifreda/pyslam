@@ -25,20 +25,20 @@ import math
 import time 
 from datetime import datetime
 
-from config import Config
+from pyslam.config import Config
 
-from slam import Slam, SlamState, SlamMode
-from camera  import PinholeCamera
-from dataset_factory import dataset_factory
-from dataset_types import DatasetType, SensorType
-from ground_truth import GroundTruth
+from pyslam.slam.slam import Slam, SlamState, SlamMode
+from pyslam.slam.camera  import PinholeCamera
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import DatasetType, SensorType
+from pyslam.io.ground_truth import GroundTruth
 
-from viewer3D import Viewer3D
-from utils_sys import getchar, Printer 
+from pyslam.viz.viewer3D import Viewer3D
+from pyslam.utilities.utils_sys import getchar, Printer 
 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from config_parameters import Parameters
+from pyslam.config_parameters import Parameters
 
 
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")         

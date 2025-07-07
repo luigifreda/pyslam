@@ -19,9 +19,9 @@
 
 import sys
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
-from utils_eval_latex import csv_list_to_pdf
+from pyslam.utilities.utils_eval_latex import csv_list_to_pdf
 
 if __name__ == "__main__":
 

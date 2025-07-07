@@ -5,10 +5,10 @@ from threading import Lock as ThreadLock, Thread
 
 import sys 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import time
-from utils_sys import FileLogger, LoggerQueue
+from pyslam.utilities.utils_sys import FileLogger, LoggerQueue
 
 if False:
     # NOTE: This seems to fail once in while

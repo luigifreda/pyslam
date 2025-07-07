@@ -23,28 +23,28 @@ import sys
 import cv2 
 import numpy as np
 
-from config import Config
+from pyslam.config import Config
 
-from utils_files import gdrive_download_lambda 
-from utils_sys import getchar, Printer 
-from utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
+from pyslam.utilities.utils_files import gdrive_download_lambda 
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
 
-from camera  import PinholeCamera
+from pyslam.slam.camera  import PinholeCamera
 
-from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
+from pyslam.depth_estimation.depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 
-from dataset_types import DatasetType, SensorType, DatasetEnvironmentType
-from dataset_factory import dataset_factory
-from frame import Frame, FeatureTrackerShared
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.io.dataset_types import DatasetType, SensorType, DatasetEnvironmentType
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from config_parameters import Parameters
+from pyslam.config_parameters import Parameters
 
 import torch
 import time
 
-from viewer3D import Viewer3D
+from pyslam.viz.viewer3D import Viewer3D
 
 
 # online loop closure detection by using DBoW3        

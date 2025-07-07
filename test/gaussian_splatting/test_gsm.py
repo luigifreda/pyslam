@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 config.cfg.set_lib('gaussian_splatting') 
 
 import argparse

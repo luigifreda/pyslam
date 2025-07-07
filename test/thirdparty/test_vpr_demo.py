@@ -25,9 +25,9 @@ import sys
 sys.path.append("../../")
 
 from config import Config
-from dataset import dataset_factory
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
 config = Config()
 config.set_lib('vpr', prepend=True)

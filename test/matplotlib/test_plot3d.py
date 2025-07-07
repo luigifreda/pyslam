@@ -23,7 +23,7 @@ import math
 import time 
 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import matplotlib 
 matplotlib.use("TkAgg") 

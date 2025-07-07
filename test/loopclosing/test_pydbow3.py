@@ -2,21 +2,21 @@ import os
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 config = Config()
 
-from utils_files import gdrive_download_lambda 
-from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
+from pyslam.utilities.utils_files import gdrive_download_lambda 
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
 
 import math
 import cv2 
 import numpy as np
 
-from config_parameters import Parameters
-from dataset_factory import dataset_factory
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.config_parameters import Parameters
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
 config.set_lib('pydbow3')
 import pydbow3 as dbow3

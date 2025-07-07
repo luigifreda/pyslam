@@ -19,9 +19,9 @@
 
 import sys
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
-from utils_eval_html import csv_list_to_html
+from pyslam.utilities.utils_eval_html import csv_list_to_html
 
 # Example usage
 if __name__ == "__main__":

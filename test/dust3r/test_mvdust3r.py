@@ -2,7 +2,7 @@
 
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 config.cfg.set_lib('mvdust3r') 
 
 import cv2
@@ -18,11 +18,11 @@ import trimesh
 from scipy.spatial.transform import Rotation
 import time
 
-from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
+from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
 
-from utils_files import select_image_files 
-from utils_dust3r import convert_mv_output_to_geometry, Dust3rImagePreprocessor
-from utils_img import img_from_floats, ImageTable
+from pyslam.utilities.utils_files import select_image_files 
+from pyslam.utilities.utils_dust3r import convert_mv_output_to_geometry, Dust3rImagePreprocessor
+from pyslam.utilities.utils_img import img_from_floats, ImageTable
 
 inf = np.inf
 

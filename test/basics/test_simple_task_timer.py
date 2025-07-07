@@ -5,11 +5,9 @@ import time
 
 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
-
-from utils_mt import SimpleTaskTimer
-
+from pyslam.utilities.utils_mt import SimpleTaskTimer
 
 
 class MyCallback:

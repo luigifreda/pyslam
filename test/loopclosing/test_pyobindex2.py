@@ -2,23 +2,23 @@ import os
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 config = Config()
 
-from utils_files import gdrive_download_lambda 
-from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs
-from utils_features import transform_float_to_binary_descriptor
+from pyslam.utilities.utils_files import gdrive_download_lambda 
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs
+from pyslam.utilities.utils_features import transform_float_to_binary_descriptor
 
 import math
 import cv2 
 import numpy as np
 
-from dataset_factory import dataset_factory
-from dataset_types import SensorType
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
-from feature_types import FeatureInfo
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import SensorType
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_types import FeatureInfo
 
 config.set_lib('pyobindex2')
 import pyobindex2 as obindex2

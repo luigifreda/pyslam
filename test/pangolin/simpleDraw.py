@@ -2,7 +2,7 @@
 
 import sys
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
 import OpenGL.GL as gl
 import pypangolin as pangolin

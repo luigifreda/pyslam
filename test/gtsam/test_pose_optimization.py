@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
 
 import numpy as np
@@ -9,12 +9,12 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
-from frame import Frame, FeatureTrackerShared
-from camera import Camera, PinholeCamera
-from utils_geom import rotation_matrix_from_yaw_pitch_roll, poseRt, inv_T
+from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.slam.camera import Camera, PinholeCamera
+from pyslam.utilities.utils_geom import rotation_matrix_from_yaw_pitch_roll, poseRt, inv_T
 
-import optimizer_gtsam 
-import optimizer_g2o
+from pyslam.slam import optimizer_gtsam 
+from pyslam.slam import optimizer_g2o
 
 class FakeFeatureManager: 
     def __init__(self, num_keypoints):

@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 config.cfg.set_lib('depth_anything_v2') 
 
 import torch
@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 import torch
 
-from utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
+from pyslam.utilities.utils_depth import depth2pointcloud, img_from_depth, filter_shadow_points, PointCloud
 
 from depth_anything_v2.dpt import DepthAnythingV2
 

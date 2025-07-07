@@ -6,12 +6,12 @@ import argparse
 import sys 
 
 sys.path.append("../../")            
-from config import Config
+from pyslam.config import Config
 config = Config()
 
-from frame import Frame, FeatureTrackerShared
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
 
 kScriptPath = os.path.realpath(__file__)

@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
 import numpy as np
 import random
@@ -10,20 +10,20 @@ from unittest import TestCase
 
 import numpy as np
 
-from frame import Frame, FeatureTrackerShared
-from keyframe import KeyFrame
-from map_point import MapPoint
-from camera import Camera, PinholeCamera
-from utils_geom import rotation_matrix_from_yaw_pitch_roll, pitch_matrix, poseRt, inv_T, Sim3Pose, rpy_from_rotation_matrix
-from utils_gen_synthetic_data import generate_random_points_2d, backproject_points, project_points
-from map import Map
-from viewer3D import Viewer3D
+from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.slam.keyframe import KeyFrame
+from pyslam.slam.map_point import MapPoint
+from pyslam.slam.camera import Camera, PinholeCamera
+from pyslam.utilities.utils_geom import rotation_matrix_from_yaw_pitch_roll, pitch_matrix, poseRt, inv_T, Sim3Pose, rpy_from_rotation_matrix
+from pyslam.utilities.utils_gen_synthetic_data import generate_random_points_2d, backproject_points, project_points
+from pyslam.slam.map import Map
+from pyslam.viz.viewer3D import Viewer3D
 
 from collections import defaultdict 
 import time 
 
-import optimizer_gtsam 
-import optimizer_g2o
+from pyslam.slam import optimizer_gtsam 
+from pyslam.slam import optimizer_g2o
 
 
 class DataGenerator:

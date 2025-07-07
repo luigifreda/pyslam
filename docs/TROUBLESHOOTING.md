@@ -44,7 +44,7 @@ For faster support when opening a new git issue, please provide the following in
 - Dataset used (if not a standard one, it is expected the dataset is shared through a link)
 - Code configuration:
   * Modified parameters in `config.yaml`
-  * Modified parameters in `config_parameters.py`
+  * Modified parameters in `pyslam/config_parameters.py`
   * Any other changes made to the codebase
 - System configuration: 
   * OS, CUDA version, etc.

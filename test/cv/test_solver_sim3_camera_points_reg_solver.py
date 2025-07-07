@@ -7,7 +7,7 @@ import cv2
 from matplotlib import pyplot as plt
 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 import sim3solver
 
 

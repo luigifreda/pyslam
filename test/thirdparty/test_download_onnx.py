@@ -3,7 +3,7 @@ sys.path.append("../../")
 import config
 import os
 
-from utils_sys import DataDownloader
+from pyslam.utilities.utils_sys import DataDownloader
 data_path = '../../data/models/'
 
 download_json = {

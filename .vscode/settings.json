@@ -1,17 +1,8 @@
 {
   "ros.distro": "jazzy",
   "python.analysis.extraPaths": [
-    "${workspaceFolder}/dense",
-    "${workspaceFolder}/depth_estimation",
-    "${workspaceFolder}/evaluation",    
-    "${workspaceFolder}/io",
-    "${workspaceFolder}/loop_closing",
-    "${workspaceFolder}/local_features",      
-    "${workspaceFolder}/semantics",
-    "${workspaceFolder}/slam",    
+    "${workspaceFolder}/pyslam",
     "${workspaceFolder}/thirdparty",
-    "${workspaceFolder}/utilities",
-    "${workspaceFolder}/viz"                
   ],
   "files.associations": {
     ".fantomasignore": "ignore",
