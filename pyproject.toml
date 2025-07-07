@@ -1,9 +1,9 @@
 [project]
 name = "pyslam"
-version = "2.8"
+version = "2.8.4"
 description = "pySLAM is a Python-based Visual SLAM pipeline that supports monocular, stereo, and RGB-D cameras. It offers a wide range of modern local and global features, multiple loop-closing strategies, a volumetric reconstruction pipeline, integration of depth prediction models, and semantic segmentation for enhanced scene understanding."
 readme = "README.md"
-requires-python = "==3.11.9"
+requires-python = ">=3.11.9"
 dependencies = [
     "absl-py==1.4.0",
     "astor==0.8.1",

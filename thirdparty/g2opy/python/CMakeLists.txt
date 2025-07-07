@@ -1,4 +1,4 @@
-set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
+set(WITH_PYTHON_INTERP_CHECK ON CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
 
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -9,10 +9,13 @@ include_directories(${CSPARSE_INCLUDE_DIR})
 # the following 2 lines are added to correctly detect the python version 
 if(WITH_PYTHON_INTERP_CHECK)
   message(STATUS "WITH_PYTHON_INTERP_CHECK: ${WITH_PYTHON_INTERP_CHECK}")
-  find_package(PythonInterp) 
-  find_package(PythonLibs)
-  message(STATUS "PythonInterp: ${PythonInterp}")
-  message(STATUS "PythonLibs: ${PythonLibs}")
+  # find_package(PythonInterp) 
+  # find_package(PythonLibs)
+  # message(STATUS "PythonInterp: ${PythonInterp}")
+  # message(STATUS "PythonLibs: ${PythonLibs}")
+  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+  message(STATUS "Python3_EXECUTABLE: ${Python3_EXECUTABLE}")
+  message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")  
 endif()
 
 # Add pybind11 as a proper target
@@ -47,7 +50,7 @@ target_link_libraries(g2o PRIVATE
     ${EIGEN3_LIBRARIES}
     ${CHOLMOD_LIBRARIES}
     ${CSPARSE_LIBRARY}
-    ${PYTHON_LIBRARIES}
+    ${Python3_LIBRARIES}
     ${OPENGL_LIBRARIES} 
     ${GLUT_LIBRARIES}
 )

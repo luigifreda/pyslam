@@ -29,7 +29,7 @@ If you are under **macOS**, please check this other [document](./MAC.md).
 
 In order to run `main_slam.py` with venv, get in the root of this repository and run the following command:
 ```bash
-$ ./install_all_venv.sh  
+$ ./scripts/install_all_venv.sh  
 ```
 This will compile all the required thirdparty packages and create a `pyslam` python virtual environment.     
 Please, discard any error like this: `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed....`. See [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for further details.

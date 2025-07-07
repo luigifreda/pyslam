@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR="$SCRIPT_DIR/.."
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT_DIR="$SCRIPT_DIR_/.."
 ROOT_DIR=$(realpath $ROOT_DIR)
 LOGS_DIR="$ROOT_DIR"/logs
 
@@ -47,7 +47,7 @@ echo "COMMAND_STRING: $COMMAND_STRING"
 
 #set -x 
 
-$SCRIPT_DIR/tmux_split_json.py "$COMMAND_STRING"
+$SCRIPT_DIR_/tmux_split_json.py "$COMMAND_STRING"
 
 
 # to kill it 

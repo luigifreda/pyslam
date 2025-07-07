@@ -2,10 +2,10 @@
 # Author: Luigi Freda 
 # This file is part of https://github.com/luigifreda/pyslam
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -40,7 +40,7 @@ print_blue "Configuring and installing torch packages ..."
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter
 
 # detect and configure CUDA 
-. cuda_config.sh
+. "$ROOT_DIR"/cuda_config.sh
 
 
 if [ "$OSTYPE" == darwin* ]; then

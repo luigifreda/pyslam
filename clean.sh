@@ -122,6 +122,15 @@ if [ -d "thirdparty/mvdust3r" ]; then
     rm -rf thirdparty/mvdust3r
 fi
 
+# if [ -d "thirdparty/vggt" ]; then
+#     rm -rf thirdparty/vggt
+# fi
+
+if [ -d "$ROOT_DIR/.pyslam.egg-info" ]; then
+    echo "Removing pyslam.egg-info directory"
+    rm -rf "$ROOT_DIR/.pyslam.egg-info"
+fi
+
 if [ -f "$ROOT_DIR/.env" ]; then
     echo "Removing $ROOT_DIR/.env file"
     rm "$ROOT_DIR/.env"

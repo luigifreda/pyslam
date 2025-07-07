@@ -120,7 +120,7 @@ this will solve the problem.
 
 In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SURF**, etc.), you need to install the module `opencv-contrib-python` built with the enabled option `OPENCV_ENABLE_NONFREE`. 
 
-The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [install_pip3_packages.sh](./../install_pip3_packages.sh) and [install_opencv_python.sh](./../install_opencv_python.sh)). To quickly verify your installed opencv version run:       
+The provided install scripts will install a recent opencv version (>=**4.10**) with non-free modules enabled (see the provided scripts [scripts/install_pip3_packages.sh](./../scripts/install_pip3_packages.sh) and [scripts/install_opencv_python.sh](./../scripts/install_opencv_python.sh)). To quickly verify your installed opencv version run:       
 `$ . pyenv-activate.sh `        
 `$ ./scripts/opencv_check.py`       
 or use the following command:        
@@ -140,14 +140,14 @@ AttributeError: 'g2o.EdgeSE3ProjectXYZ' object has no attribute 'fx'
 ```
 that's because you did not run the script
 ```
-$ ./install_thirdparty.sh   
+$ ./scripts/install_thirdparty.sh   
 ```
 as explained in the main [README](./../README.md) file. That's required in order to properly build and install the required thirdparty libs. 
 Please,follow these steps:
 - check you are on the correct pyslam branch according to your OS
 - use the pyslam install scripts
 - open a terminal in the root folder of the repo clean with `$ ./clean.sh`
-- launch a new install with `$ ./install_all_venv.sh`
+- launch a new install with `$ ./scripts/install_all_venv.sh`
 - Please, double check that you have the file like `thirdparty/g2opy/lib/g2o.cpython-36m-x86_64-linux-gnu.so`. 
 
 

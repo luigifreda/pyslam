@@ -2,8 +2,8 @@
 
 # NOTE: This script is expected to be used under mac. See the file `docs/MAC.md`.
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR="$SCRIPT_DIR/.."
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 . "$ROOT_DIR"/pyenv-activate.sh 
 

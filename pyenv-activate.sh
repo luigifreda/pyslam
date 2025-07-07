@@ -8,6 +8,7 @@ SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
 ROOT_DIR="$SCRIPT_DIR_"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
 
 # ====================================================
 # import the bash utils 
@@ -40,10 +41,10 @@ if [ "$PIXI_INSTALLED" = true ]; then
 elif [ "$CONDA_INSTALLED" = true ]; then
     # check that conda is activated     
     print_blue "Activating pySLAM environment by using conda"
-    . pyenv-conda-activate.sh
+    . $SCRIPTS_DIR/pyenv-conda-activate.sh
 else
     print_blue "Activating pySLAM environment by using venv"
-    . pyenv-venv-activate.sh
+    . $SCRIPTS_DIR/pyenv-venv-activate.sh
 fi
 
 

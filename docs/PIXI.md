@@ -36,7 +36,7 @@ pixi shell
 ## Launch the install script 
 Then run
 ```
-./install_all_pixi.sh
+./scripts/install_all_pixi.sh
 ```
 
 <!-- ---

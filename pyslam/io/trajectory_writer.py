@@ -20,7 +20,8 @@
 
 
 from datetime import datetime
-import quaternion
+#import quaternion
+from scipy.spatial.transform import Rotation as R_scipy
 import numpy as np
 import os
 
@@ -118,16 +119,20 @@ class TrajectoryWriter:
     def _write_tum_trajectory(self, R, t, timestamp) -> None:
         fmt = self._get_format_func(t)
         timestamp_fmt = self._get_format_func(timestamp)
-        q = quaternion.from_rotation_matrix(R)
-        elements = [timestamp, t[0], t[1], t[2], q.x, q.y, q.z, q.w]
+        #q = quaternion.from_rotation_matrix(R)
+        q = R_scipy.from_matrix(R).as_quat()  # [x, y, z, w]
+        #elements = [timestamp, t[0], t[1], t[2], q.x, q.y, q.z, q.w]
+        elements = [timestamp, t[0], t[1], t[2], q[0], q[1], q[2], q[3]]
         self.file.write(' '.join(fmt(x) if i else timestamp_fmt(x) for i, x in enumerate(elements)) + '\n')
 
     def _write_euroc_trajectory(self, R, t, timestamp) -> None:
         fmt = self._get_format_func(t)
         timestamp_fmt = self._get_format_func(timestamp)
-        q = quaternion.from_rotation_matrix(R)
+        #q = quaternion.from_rotation_matrix(R)
+        q = R_scipy.from_matrix(R).as_quat()  # [x, y, z, w]
         t_str = ', '.join(fmt(x) for x in t)
-        q_str = ', '.join(fmt(x) for x in [q.x, q.y, q.z, q.w])
+        #q_str = ', '.join(fmt(x) for x in [q.x, q.y, q.z, q.w])
+        q_str = ', '.join(fmt(x) for x in [q[0], q[1], q[2], q[3]])
         self.file.write(f"{timestamp_fmt(timestamp)}, {t_str}, {q_str}\n")
 
     @staticmethod

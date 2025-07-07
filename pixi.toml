@@ -4,6 +4,7 @@ channels = ["conda-forge"]
 name = "pyslam-pixi"
 platforms = ["linux-64"]
 version = "0.1.0"
+preview = ["pixi-build"]  
 
 [dependencies]
 python = "==3.11.9"
@@ -113,6 +114,7 @@ spdlog = "*"
 console_bridge = "*"
 tinyxml2 = "*"
 configargparse = "*"
+python-devtools = ">=0.12.2,<0.13"
 
 [pypi-dependencies]
 onnxruntime = "*"

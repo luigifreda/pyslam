@@ -35,7 +35,7 @@ Please, follow these install steps:
    (if you want to set `zsh` back then run: `$ chsh -s /bin/zsh`)
 4. Launch the macOS install script
    ```bash
-   $ ./install_all_venv.sh
+   $ ./scripts/install_all_venv.sh
    ```
 
 **NOTE**: The above install procedure (step 4) installs a virtual python environment `pyslam` in your system. That virtual environment can be easily activated by using the command: 

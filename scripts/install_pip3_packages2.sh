@@ -2,10 +2,11 @@
 # Author: Luigi Freda 
 # This file is part of https://github.com/luigifreda/pyslam
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
-SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
-ROOT_DIR="$SCRIPT_DIR"
+SCRIPTS_DIR="$SCRIPT_DIR_"
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
 # import the bash utils 
@@ -40,7 +41,7 @@ print_blue "Configuring and installing python packages ..."
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter
 
 # detect and configure CUDA 
-. cuda_config.sh
+. "$ROOT_DIR"/cuda_config.sh
 
 
 # Install opencv_python from source with non-free modules enabled 
@@ -48,7 +49,7 @@ INSTALL_OPENCV_FROM_SOURCE=1
 if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
     #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
     print_green "Installing opencv_python from source with non-free modules enabled"
-    ./install_opencv_python.sh
+    $SCRIPTS_DIR/install_opencv_python.sh
 else
     PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
     MAKEFLAGS_OPTION="-j$(nproc)"
@@ -59,7 +60,7 @@ else
 fi
 
 # Install torch and related packages
-./install_pip3_torch.sh
+$SCRIPTS_DIR/install_pip3_torch.sh
 
 if [[ "$OSTYPE" != "darwin"* ]]; then
 
@@ -97,5 +98,5 @@ pip3 install -U imgviz
 pip install "numpy<2"
 
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
-# . install_pip3_semantics.sh
+# $SCRIPTS_DIR/install_pip3_semantics.sh
 

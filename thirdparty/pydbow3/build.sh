@@ -33,5 +33,5 @@ if [ ! -d build ]; then
     mkdir build
 fi
 cd build 
-cmake .. -DCMAKE_BUILD_TYPE=Release $EXTERNAL_OPTIONS
+cmake .. -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=$(which python3) $EXTERNAL_OPTIONS
 make -j8
