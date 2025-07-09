@@ -49,16 +49,11 @@ cd thirdparty
 if [ ! -d open3d ]; then
     git clone https://github.com/isl-org/Open3D.git open3d
     cd open3d
-    
-    # This commit 0f06a149c4fb9406fd3e432a5cb0c024f38e2f0e didn't work. It corresponds to open3d 0.18.0 -> https://github.com/isl-org/Open3D/commits/v0.18.0
-    #git checkout 0f06a149c4fb9406fd3e432a5cb0c024f38e2f0e 
-
-    # This commit worked!
     git checkout 02674268f706be4b004bbbf3d39b95fa9de35f74
 
-    # if [[ $OSTYPE == "darwin"* ]]; then
-    #     git apply ../open3d.patch
-    # fi
+    if [[ $OSTYPE == "darwin"* ]]; then
+        git apply ../open3d.patch
+    fi
 
     cd ..
 fi
