@@ -126,7 +126,7 @@ if [[ $version != *"darwin"* ]]; then
         sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev
     fi
 
-    if [ $CONDA_INSTALLED = true ]; then
+    if [ "$CONDA_INSTALLED" = true ]; then
         # NOTE: these are the "system" packages that are needed within conda to build opencv from source
         conda install -y -c conda-forge \
             pkg-config \
@@ -166,9 +166,7 @@ export CPATH+=""
 export CPP_INCLUDE_PATH+=""
 export C_INCLUDE_PATH+=""
 
-
 NUMPY_INCLUDE_PATH=$(python3 -c "import numpy; print(numpy.get_include())")
-
 
 # Set include paths dynamically
 #export CPPFLAGS="-I$NUMPY_INCLUDE_PATH $CPPFLAGS"
@@ -186,23 +184,22 @@ export LDFLAGS="-L$NUMPY_LIB_PATH:$LDFLAGS"
 export LIBRARY_PATH="$NUMPY_LIB_PATH:$LIBRARY_PATH"
 
 
-CONDA_OPTIONS=""
-GTK_OPTIONS=""
-if [ $CONDA_INSTALLED = true ]; then
+export CONDA_OPTIONS=""
+if [ "$CONDA_INSTALLED" = true ]; then
 
     CPPFLAGS="$CPPFLAGS -Wl,--disable-new-dtags" # enable RPATH support in conda environments
   
     CONDA_OPTIONS="-DOPENCV_FFMPEG_USE_FIND_PACKAGE=OFF \
     -DPKG_CONFIG_EXECUTABLE=$(which pkg-config) \
-    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_CXX_STANDARD=17 -DWITH_WEBP=ON -DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON"
+    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_CXX_STANDARD=17 \
+    -DWITH_WEBP=ON -DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON"
 fi
 echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
-echo "Using GTK_OPTIONS for opencv build: $GTK_OPTIONS"
 
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \
 -DBUILD_SHARED_LIBS=OFF \
--DWITH_FFMPEG=ON  "$CONDA_OPTIONS" "$GTK_OPTIONS" \
+-DWITH_FFMPEG=ON  "$CONDA_OPTIONS" \
 -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF ${EXTERNAL_OPTIONS}"
 
 if [[ $version == *"24.04"* ]] ; then
@@ -243,7 +240,7 @@ cd "$ROOT_DIR"
 
 # HACK for conda issue under linux:
 # "ImportError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32"
-#  See https://github.com/elerac/EasyPySpin/issues/12
+#  See https://github.com/elerac/EasyPySpin/issues/1
 if [[ "$OSTYPE" != "darwin"* ]]; then
 
     CV2_SO_PATH=$PYTHON_ENV/lib/python$PYTHON_VERSION/site-packages/cv2

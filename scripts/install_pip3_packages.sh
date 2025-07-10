@@ -56,12 +56,7 @@ INSTALL_OPENCV_FROM_SOURCE=1
 if [ $INSTALL_OPENCV_FROM_SOURCE -eq 1 ]; then
     #NOTE: This procedures is preferable since it avoids issues with Qt linking/configuration
     print_green "Installing opencv_python from source with non-free modules enabled"
-    if [ "$OSTYPE" == darwin* ]; then
-        $SCRIPTS_DIR/install_opencv_python.sh
-    else
-        $SCRIPTS_DIR/install_opencv_python.sh
-        #$SCRIPTS_DIR/install_opencv_local.sh
-    fi
+    $SCRIPTS_DIR/install_opencv_python.sh
 else
     PRE_OPTION="--pre"   # this sometimes helps because a pre-release version of the package might have a wheel available for our version of Python.
     MAKEFLAGS_OPTION="-j$(nproc)"
