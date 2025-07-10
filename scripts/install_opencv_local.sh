@@ -60,7 +60,7 @@ function get_usable_cuda_version(){
 
 export TARGET_FOLDER=thirdparty
 
-export OPENCV_VERSION="4.10.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
+export OPENCV_VERSION="4.11.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
 
 
 SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
@@ -81,13 +81,22 @@ pip3 uninstall -y opencv-contrib-python
 
 pip3 install --upgrade numpy
 
-set -e
+#set -e
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     version=$(lsb_release -a 2>&1)  # ubuntu version
 else 
     version=$OSTYPE
     echo "OS: $version"
+fi
+
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    echo "Conda is installed"
+    CONDA_INSTALLED=true
+else
+    echo "Conda is not installed"
+    CONDA_INSTALLED=false
 fi
 
 if [ ! -d $TARGET_FOLDER ]; then 
@@ -118,19 +127,27 @@ echo CUDA_ON: $CUDA_ON
 export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}   # this is for having the right nvcc in the path
 export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs 
 
-
+WITH_DNN=ON                # this can be used to turn off the DNN module
+WITH_PROTOBUF=ON           # this can be used to turn off the protobuf module (it is required for DNN)
 WITH_APPLE_FRAMEWORK=OFF
-WITH_PROTOBUF=ON
 if [[ "$version" == *"darwin"* ]]; then
     #WITH_APPLE_FRAMEWORK=ON   # this will make opencv generate a single libopencv_world.so without the separate modules
     CUDA_ON=OFF
     WITH_PROTOBUF=OFF  # I am getting a protobuf version error on my mac
 fi
 
+
 WITH_NEON=OFF
 arch=$(uname -m)
 if [[ "$arch" == "arm64" || "$arch" == "aarch64" || "$arch" == arm* ]]; then
     WITH_NEON=ON
+fi
+
+WITH_QT=ON 
+WITH_GTK=OFF
+if [ "$CONDA_INSTALLED" = true ]; then
+    WITH_QT=OFF
+    WITH_GTK=ON
 fi
 
 # pre-installing some required packages 
@@ -145,6 +162,7 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
         sudo apt-get update
         sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
         sudo apt-get install -y curl software-properties-common unzip
+        sudo apt-get install -y libicu-dev        
         sudo apt-get install -y build-essential cmake 
         if [[ "$CUDA_ON" == "ON" ]]; then 
             if [[ $version == *"24.04"* ]] ; then
@@ -185,7 +203,21 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
         if [ $DO_INSTALL_FFMPEG -eq 1 ] ; then
             echo "installing ffmpeg and its dependencies"
             sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev 
-        fi
+        fi 
+
+        if [ "$CONDA_INSTALLED" = true ]; then
+            # NOTE: these are the "system" packages that are needed within conda to build opencv from source
+            conda install -y -c conda-forge \
+                pkg-config \
+                glew \
+                cmake \
+                suitesparse \
+                lapack \
+                libtiff zlib jpeg eigen tbb glew libpng \
+                x264 ffmpeg \
+                freetype cairo \
+                pygobject gtk3 glib libwebp expat
+        fi        
     else
         brew install pkg-config 
         brew install glew
@@ -195,6 +227,28 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
         brew install libtiff zlib jpeg eigen tbb glew libpng webp x264 ffmpeg
     fi 
 fi
+
+export CONDA_OPTIONS=""
+if [ "$CONDA_INSTALLED" = true ]; then
+
+    CPPFLAGS="$CPPFLAGS -Wl,--disable-new-dtags" # enable RPATH support in conda environments
+  
+    CONDA_OPTIONS="-DOPENCV_FFMPEG_USE_FIND_PACKAGE=OFF \
+    -DPKG_CONFIG_EXECUTABLE=$(which pkg-config) \
+    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_CXX_STANDARD=17 \
+    -DWITH_WEBP=ON -DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON \
+    -DOPENCV_FFMPEG_SKIP_BUILD_CHECK=ON"
+fi
+echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
+
+if [[ $version == *"24.04"* ]] ; then
+    export CMAKE_ARGS="$CMAKE_ARGS -DBUILD_opencv_sfm=OFF" # It seems this module brings some build issues with Ubuntu 24.04
+fi
+
+export CMAKE_ARGS="$CONDA_OPTIONS $CMAKE_ARGS" # -DCMAKE_CXX_FLAGS=$CPPFLAGS"
+export CMAKE_CXX_FLAGS="$CPPFLAGS"
+export CMAKE_INCLUDE_PATH="$CPP_INCLUDE_PATH"
+export CMAKE_LIBRARY_PATH="$LIBRARY_PATH"
 
 # now let's download and compile opencv and opencv_contrib
 # N.B: if you want just to update cmake settings and recompile then remove "opencv/install" and "opencv/build/CMakeCache.txt"
@@ -231,10 +285,12 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
         # as for the flags and consider this nice reference https://gist.github.com/raulqf/f42c718a658cddc16f9df07ecc627be7
         cmake \
           -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_STANDARD=17 \
           -DCMAKE_INSTALL_PREFIX="`pwd`/../install" \
           -DOPENCV_EXTRA_MODULES_PATH="`pwd`/../opencv_contrib-$OPENCV_VERSION/modules" \
-          -DWITH_QT=ON \
-          -DWITH_GTK=OFF \
+          -DWITH_FFMPEG=ON \
+          -DWITH_QT=$WITH_QT \
+          -DWITH_GTK=$WITH_GTK \
           -DWITH_OPENGL=ON \
           -DWITH_TBB=ON \
           -DWITH_V4L=ON \
@@ -243,6 +299,7 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DWITH_CUFFT=$CUDA_ON \
           -DCUDA_FAST_MATH=$CUDA_ON \
           -DWITH_CUDNN=$CUDA_ON \
+          -DBUILD_opencv_dnn=$WITH_DNN \
           -DOPENCV_DNN_CUDA=$CUDA_ON \
           -DCUDA_ARCH_BIN="5.3 6.0 6.1 7.0 7.5 8.6" \
           -DBUILD_opencv_cudacodec=OFF \
@@ -255,6 +312,7 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DINSTALL_PYTHON_EXAMPLES=OFF \
           -DINSTALL_C_EXAMPLES=OFF \
           -DBUILD_EXAMPLES=OFF \
+          -DBUILD_opencv_apps=OFF \
           -DOPENCV_ENABLE_NONFREE=ON \
           -DBUILD_opencv_java=OFF \
           -DBUILD_opencv_python3=ON \
@@ -265,16 +323,17 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DPYTHON_LIBRARY=$(python3 -c "import sysconfig; import os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY')))") \
           -DPYTHON_EXECUTABLE=$(which python3) \
           -DPYTHON3_EXECUTABLE=$(which python3) \
-          ..
+          $CONDA_OPTIONS ..
     else
         # Nvidia Jetson aarch64
         echo "building NVIDIA Jetson config"
         cmake \
           -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_STANDARD=17 \
           -DCMAKE_INSTALL_PREFIX="`pwd`/../install" \
           -DOPENCV_EXTRA_MODULES_PATH="`pwd`/../opencv_contrib-$OPENCV_VERSION/modules" \
-          -DWITH_QT=ON \
-          -DWITH_GTK=OFF \
+          -DWITH_QT=$WITH_QT \
+          -DWITH_GTK=$WITH_GTK \
           -DWITH_OPENGL=ON \
           -DWITH_TBB=ON \
           -DWITH_V4L=ON \
@@ -316,5 +375,8 @@ if [[ -d opencv/install ]]; then
 fi
 
 cd $STARTING_DIR
+
+# Install supported numpy version <2 to avoid conflicts
+pip3 install "numpy<2"
 
 echo "...done with opencv"
