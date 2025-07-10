@@ -118,7 +118,7 @@ cd thirdparty
 #     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 #         sudo apt-get install -y libsuitesparse-dev libeigen3-dev
 #     fi     
-# 	git clone https://github.com/uoip/g2opy.git
+# 	  git clone https://github.com/uoip/g2opy.git
 #     cd g2opy
 #     G2OPY_REVISION=5587024
 #     git checkout $G2OPY_REVISION
@@ -127,6 +127,9 @@ cd thirdparty
 # fi
 cd g2opy
 if [ ! -f lib/g2o.cpython*.so ]; then  
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        sudo apt-get install -y libsuitesparse-dev libeigen3-dev
+    fi   
     make_buid_dir
     cd build
     cmake .. -DPython3_EXECUTABLE=$(which python3) $EXTERNAL_OPTIONS
@@ -325,21 +328,6 @@ if [ "$CUDA_VERSION" != "0" ]; then
         cd checkpoints
         cp $ROOT_DIR/thirdparty/mvdust3r_scripts/download_models.py .
         python download_models.py
-        # if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
-        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth #&
-        # fi
-        # if [ ! -f MVD.pth ]; then
-        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth #&
-        # fi
-        # if [ ! -f MVDp_s1.pth ]; then
-        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth #&
-        # fi
-        # if [ ! -f MVDp_s2.pth ]; then
-        #     wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth #&
-        # fi
-
-        # Wait for all background download jobs to complete
-        #wait
     fi
 
 else 

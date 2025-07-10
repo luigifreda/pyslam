@@ -35,6 +35,24 @@ fi
 EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
 
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    echo "Conda is installed"
+    CONDA_INSTALLED=true
+else
+    echo "Conda is not installed"
+    CONDA_INSTALLED=false
+fi
+
+
+ubuntu_version=$(lsb_release -rs | cut -d. -f1)
+gcc_version=$($CC -dumpversion | cut -d. -f1)
+if [[ "$CONDA_INSTALLED" == true && "$ubuntu_version" == "20" && "$gcc_version" == 11 ]]; then
+    print_blue "Setting GCC and G++ to version 9"
+    export CC=/usr/bin/gcc-9
+    export CXX=/usr/bin/g++-9
+fi
+
 print_blue '================================================'
 print_blue "Installing gtsam from source"
 print_blue '================================================'
@@ -80,30 +98,6 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
 fi
 
 echo current folder: $(pwd)
-
-# echo "deploying built gtsam module"
-# PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")    
-# PYTHON_SITE_PACKAGES=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-# PYTHON_SOURCE_FOLDER_GTSAM=$(pwd)/python/gtsam
-# PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE=$(pwd)/python/gtsam_unstable
-# if [[ -d "$PYTHON_SITE_PACKAGES" && -d "$PYTHON_SOURCE_FOLDER_GTSAM" ]]; then
-#     echo "copying built python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM to $PYTHON_SITE_PACKAGES"
-#     if [[ -d "$PYTHON_SITE_PACKAGES/gtsam" ]]; then
-#         rm -rf $PYTHON_SITE_PACKAGES/gtsam
-#     fi
-#     cp -r $PYTHON_SOURCE_FOLDER_GTSAM $PYTHON_SITE_PACKAGES
-# else
-#     echo "ERROR: failed to copy build python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM to $PYTHON_SITE_PACKAGES"  
-# fi 
-# if [[ -d "$PYTHON_SITE_PACKAGES" && -d "$PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE" ]]; then
-#     echo "copying built python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE to $PYTHON_SITE_PACKAGES"
-#     if [[ -d "$PYTHON_SITE_PACKAGES/gtsam_unstable" ]]; then
-#         rm -rf $PYTHON_SITE_PACKAGES/gtsam_unstable
-#     fi    
-#     cp -r $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE $PYTHON_SITE_PACKAGES
-# else
-#     echo "ERROR: failed to copy build python gtsam module from $PYTHON_SOURCE_FOLDER_GTSAM_UNSTABLE to $PYTHON_SITE_PACKAGES"  
-# fi 
 
 cd "$ROOT_DIR"
 

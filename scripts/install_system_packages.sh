@@ -5,6 +5,7 @@
 SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
+SCRIPTS_DIR="$SCRIPT_DIR_"
 ROOT_DIR="$SCRIPT_DIR_/.."
 
 # ====================================================
@@ -28,6 +29,16 @@ else
     version=$OSTYPE
     echo "OS: $version"
 fi
+
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    echo "Conda is installed"
+    CONDA_INSTALLED=true
+else
+    echo "Conda is not installed"
+    CONDA_INSTALLED=false
+fi
+
 
 # NOTE: in order to detect macOS use:  
 if [[ "$OSTYPE" == darwin* ]]; then 
@@ -56,7 +67,6 @@ if [[ "$OSTYPE" == darwin* ]]; then
     brew install zlib bzip2 unzip minizip
     brew install rsync
     brew install readline
-    brew install pyenv
     brew install libomp   # need to add -L/opt/homebrew/opt/libomp/lib -I/opt/homebrew/opt/libomp/include
     brew install boost    # for serialization
     brew install tmux
@@ -126,6 +136,10 @@ else
         # if CUDA is installed then install the required packages
         sudo apt install -y cuda-command-line-tools-$CUDA_VERSION_STRING_WITH_HYPHENS cuda-libraries-$CUDA_VERSION_STRING_WITH_HYPHENS
         sudo apt install -y libcusparse-dev-$CUDA_VERSION_STRING_WITH_HYPHENS libcusolver-dev-$CUDA_VERSION_STRING_WITH_HYPHENS
+    fi
+
+    if [ "$CONDA_INSTALLED" = true ]; then
+        $SCRIPTS_DIR/install_gcc11_if_needed.sh # this won't change your system gcc version!
     fi
 fi
 

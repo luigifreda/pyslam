@@ -296,3 +296,6 @@ stop_sudo_alive() {
 
 # ====================================================
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    alias nproc="sysctl -n hw.logicalcpu"
+fi 

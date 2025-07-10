@@ -44,13 +44,18 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 . "$ROOT_DIR"/cuda_config.sh
 
 
+CONSTRAINTS=""
+if [ -f "$ROOT_DIR/constraints.txt" ]; then
+    CONSTRAINTS="--constraint $ROOT_DIR/constraints.txt"
+fi
+
 # semantic mapping packages
 # Torchvision will be installed already
 # Install transformers with specific version due to break of last version
-pip install transformers==4.38.2 --constraint "$ROOT_DIR/constraints.txt" # originally suggested version 4.51.0  
- # Install f3rm for the dense CLIP model
-pip install f3rm  --constraint "$ROOT_DIR/constraints.txt"
-pip install timm==1.0.15 --constraint "$ROOT_DIR/constraints.txt"
+pip install transformers==4.38.2 $CONSTRAINTS # originally suggested version 4.51.0
+# Install f3rm for the dense CLIP model
+pip install f3rm $CONSTRAINTS
+pip install timm==1.0.15 $CONSTRAINTS
 #pip install protobuf==3.20.3 --force-reinstall
 
 # HACK
@@ -61,5 +66,7 @@ if [ ${#FILES[@]} -eq 0 ]; then
 else
     print_blue "Installing opencv-python file: $FILES"
     pip install "$FILES" --force-reinstall
-    pip install "numpy<2"
 fi
+
+# Install supported numpy version <2 to avoid conflicts
+pip3 install "numpy<2"

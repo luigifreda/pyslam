@@ -19,11 +19,10 @@ cd "$ROOT_DIR"
 
 # ====================================================
 
-
 export ENV_NAME="${1:-pyslam}"  # get the first input if any, otherwise use 'pyslam' as default name
 export PYSLAM_PYTHON_VERSION="${2:-3.11.9}"  # Default Python version
 
-#echo "ENV_NAME: $ENV_NAME"
+# ====================================================
 
 print_blue '================================================'
 print_blue "Creating Conda Environment: $ENV_NAME"
