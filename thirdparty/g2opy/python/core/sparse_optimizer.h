@@ -1,6 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-
+#include <pybind11/eigen.h>
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/core/estimate_propagator.h>
 #include <g2o/core/hyper_graph_action.h>
@@ -84,22 +84,31 @@ void declareSparseOptimizer(py::module & m) {
         //         optimizer.computeMarginals(spinv, block_indices);
 		// 		return spinv;},
 		// 		py::return_value_policy::copy)
-		// .def("compute_marginals", [](CLS& optimizer, const OptimizableGraph::Vertex* vertex){
+        // .def("compute_marginals", [](CLS& optimizer, const OptimizableGraph::Vertex& vertex){
         //         SparseBlockMatrix<MatrixXD> spinv;
-        //         optimizer.computeMarginals(spinv, vertex);
-		// 		return spinv;},
-		// 		py::return_value_policy::copy)
-		// .def("compute_marginals", [](CLS& optimizer, size_t vertex_id){
-        //         SparseBlockMatrix<MatrixXD> spinv;
-		// 		const g2o::OptimizableGraph::Vertex* vertex = optimizer.vertex(vertex_id);
-        //         optimizer.computeMarginals(spinv, vertex);
-		// 		return spinv;},
-		// 		py::return_value_policy::copy)
+        //         optimizer.computeMarginals(spinv, &vertex);
+        //         return spinv;}, py::return_value_policy::copy)
+	.def("compute_marginals", [](CLS& optimizer, size_t vertex_id){
+                SparseBlockMatrix<MatrixXD> spinv;
+		const g2o::OptimizableGraph::Vertex* vertex = optimizer.vertex(vertex_id);
+                bool res = optimizer.computeMarginals(spinv, vertex);
+		return std::pair<bool, SparseBlockMatrix<MatrixXD>>(res, spinv);}, py::return_value_policy::copy)
 		// .def("compute_marginals", [](CLS& optimizer, const OptimizableGraph::VertexContainer& vertices){
         //         SparseBlockMatrix<MatrixXD> spinv;
         //         optimizer.computeMarginals(spinv, vertices);
 		// 		return spinv;},
 		// 		py::return_value_policy::copy)
+        .def("compute_marginals", [](CLS& optimizer, std::vector<size_t> vertex_ids){
+                SparseBlockMatrix<MatrixXD> spinv;
+                OptimizableGraph::VertexContainer vertices;
+                for (size_t id : vertex_ids) {
+                    g2o::OptimizableGraph::Vertex* vertex = optimizer.vertex(id);
+                    if (vertex) {
+                        vertices.push_back(vertex);
+                    }
+                }
+                bool res = optimizer.computeMarginals(spinv, vertices);
+                return std::pair<bool, SparseBlockMatrix<MatrixXD>>(res, spinv);}, py::return_value_policy::copy)
 
         // The gauge should be fixed() and then the optimization can work (if no additional dof are in
         // the system. The default implementation returns a node with maximum dimension.
