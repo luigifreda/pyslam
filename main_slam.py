@@ -335,7 +335,8 @@ if __name__ == "__main__":
             break
             
     # here we save the online estimated trajectory
-    online_trajectory_writer.close_file()
+    if online_trajectory_writer is not None:
+        online_trajectory_writer.close_file()
     
     # compute metrics on the estimated final trajectory 
     try: 

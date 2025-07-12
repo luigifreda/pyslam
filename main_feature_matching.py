@@ -230,16 +230,19 @@ if kps1_matched.shape[0] > 10:
         # N.B.: this can be properly applied only when the view change corresponds to a proper homography transformation between the two sets of keypoints 
         #       e.g.: keypoints lie on a plane, view change corresponds to a pure camera rotation  
         H, mask = cv2.findHomography(kps1_matched, kps2_matched, ransac_method, ransacReprojThreshold=hom_reproj_threshold)   
-        if img1_box is None: 
-            img1_box = np.float32([ [0,0],[0,h1-1],[w1-1,h1-1],[w1-1,0] ]).reshape(-1,1,2)
+        if H is not None:
+            if img1_box is None: 
+                img1_box = np.float32([ [0,0],[0,h1-1],[w1-1,h1-1],[w1-1,0] ]).reshape(-1,1,2)
+            else:
+                img1_box = img1_box.reshape(-1,1,2)     
+            pts_dst = cv2.perspectiveTransform(img1_box,H)
+            # draw the transformed box on img2  
+            img2 = cv2.polylines(img2,[np.int32(pts_dst)],True,(0, 0, 255),3,cv2.LINE_AA)    
+            
+            reprojection_error = compute_hom_reprojection_error(H, kps1_matched, kps2_matched, mask)
+            print('reprojection error: ', reprojection_error)
         else:
-            img1_box = img1_box.reshape(-1,1,2)     
-        pts_dst = cv2.perspectiveTransform(img1_box,H)
-        # draw the transformed box on img2  
-        img2 = cv2.polylines(img2,[np.int32(pts_dst)],True,(0, 0, 255),3,cv2.LINE_AA)    
-        
-        reprojection_error = compute_hom_reprojection_error(H, kps1_matched, kps2_matched, mask)
-        print('reprojection error: ', reprojection_error)
+            print('Homography computation failed - insufficient or degenerate matches')
     else:  
         F, mask = cv2.findFundamentalMat(kps1_matched, kps2_matched, ransac_method, fmat_err_thld, confidence=0.999)
         n_inlier = np.count_nonzero(mask)

@@ -243,7 +243,7 @@ if __name__ == "__main__":
             viewer3D.quit()
     if is_draw_err:
         err_plt.quit()
-    if is_draw_matched_points is not None:
+    if matched_points_plt is not None:
         matched_points_plt.quit()
                 
     cv2.destroyAllWindows()
