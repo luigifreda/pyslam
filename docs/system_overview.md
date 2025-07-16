@@ -17,7 +17,7 @@
 This document offers a high-level overview of the system, featuring diagrams that illustrate the main workflow, core components, and key class relationships or dependencies. For readability, certain minor elements and arrows have been intentionally omitted. A more detailed version of this content is available in this [PDF document](./tex/document.pdf).
 
 A **presentation** on pySLAM was delivered at the RSS 2025 Workshop: _Unifying Visual SLAM_.
-[_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*
+[_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*     
 The recorded talk is available [here](https://www.youtube.com/watch?v=OsS4XzVDSj4).
 
 ---

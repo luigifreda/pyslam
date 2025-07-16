@@ -18,7 +18,7 @@ cd "$ROOT_DIR"
 #set -e
 
 print_blue '================================================================'
-print_blue "Installing python packages for semanatics ..."
+print_blue "Installing python packages for semantics ..."
 
 # Check if conda is installed
 if command -v conda &> /dev/null; then
