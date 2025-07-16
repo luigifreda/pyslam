@@ -96,7 +96,7 @@ if __name__ == "__main__":
     count_gt = 0
     
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
-    while dataset.isOk():
+    while dataset.is_ok:
             
         print('..................................')               
         img = dataset.getImageColor(img_id)

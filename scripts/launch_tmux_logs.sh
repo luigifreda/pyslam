@@ -4,6 +4,7 @@ SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR="$SCRIPT_DIR_/.."
 ROOT_DIR=$(realpath $ROOT_DIR)
 LOGS_DIR="$ROOT_DIR"/logs
+SCRIPTS_DIR="$ROOT_DIR"/scripts
 
 echo ROOT_DIR: $ROOT_DIR
 
@@ -47,7 +48,7 @@ echo "COMMAND_STRING: $COMMAND_STRING"
 
 #set -x 
 
-$SCRIPT_DIR_/tmux_split_json.py "$COMMAND_STRING"
+$SCRIPTS_DIR/tmux_split_json.py "$COMMAND_STRING"
 
 
 # to kill it 

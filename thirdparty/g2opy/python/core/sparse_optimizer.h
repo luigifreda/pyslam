@@ -68,8 +68,15 @@ void declareSparseOptimizer(py::module & m) {
                 "propagator"_a)                                                                                                // virtual
         .def("set_to_origin", &CLS::setToOrigin)                                                                                   // virtual
 
-        .def("optimize", &CLS::optimize,
-                "iterations"_a, "online"_a=false)                                                                                   // -> int
+        // .def("optimize", &CLS::optimize,
+        //         "iterations"_a, "online"_a=false)                                                                                   // -> int
+        .def("optimize",
+                [](CLS& self, int iterations, bool online) {
+                        // Release the Global Interpreter Lock (GIL): For long-running C++ functions that don’t need to interact with Python objects, use py::gil_scoped_release
+                        py::gil_scoped_release release;
+                        return self.optimize(iterations, online);
+                },
+                "iterations"_a, "online"_a=false)                
 
         // .def("compute_marginals", (bool (CLS::*) (SparseBlockMatrix<MatrixXD>&, const std::vector<std::pair<int, int> >&)) 
         //         &CLS::computeMarginals, "spinv"_a, "block_indices"_a)   

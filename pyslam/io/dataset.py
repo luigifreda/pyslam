@@ -72,9 +72,6 @@ class Dataset(object):
         self.has_gt_semantics = False # false by default and can be changed to true by certain datasets (replica, scannet, etc.)
         self.ignore_label = None # ignored if none
         self.minimal_config = MinimalDatasetConfig()
-        
-    def isOk(self):
-        return self.is_ok
     
     def sensorType(self):
         return self.sensor_type
@@ -226,10 +223,9 @@ class VideoDataset(Dataset):
                 self._next_timestamp = self._timestamp + self.Ts
             self.i += 1
         else:
-            self._timestamp = float(self.cap.get(cv2.CAP_PROP_POS_MSEC)*1000)
+            self._timestamp = float(self.cap.get(cv2.CAP_PROP_POS_MSEC)/1000)
             self._next_timestamp = self._timestamp + self.Ts 
-        if ret is False:
-            print('ERROR while reading from file: ', self.filename)
+            self.i += 1
         return image       
 
 

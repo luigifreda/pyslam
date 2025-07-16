@@ -89,7 +89,7 @@ if __name__ == '__main__':
         
         if not is_paused:
         
-            if dataset.isOk():
+            if dataset.is_ok:
                 timestamp = dataset.getTimestamp()          # get current timestamp 
                 img = dataset.getImageColor(img_id)
                 img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None

@@ -49,8 +49,8 @@ kRootFolder = kScriptFolder + '/../..'
 kSettingsFolder = kRootFolder + '/settings'
 
 
-def dataset_factory(config:'Config'):
-    dataset_settings = config.dataset_settings
+def dataset_factory(config:'Config') -> Dataset:
+    dataset_settings : dict = config.dataset_settings if config.dataset_settings is not None else {}
     type = DatasetType.NONE
     associations = None  # name of the file with the associations
     timestamps = None    

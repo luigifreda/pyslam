@@ -93,7 +93,8 @@ class MotionModel(MotionModelBase):
             return (g2o.Isometry3d(self.orientation, self.position), self.covariance)
         
         orientation = self.delta_orientation * self.orientation 
-        position = self.position + self.delta_orientation * self.delta_position        
+        position = self.position + self.delta_orientation * self.delta_position    
+        orientation.normalize()    
 
         return (g2o.Isometry3d(orientation, position), self.covariance)
 
@@ -126,6 +127,7 @@ class MotionModel(MotionModelBase):
 
         self.position = current.position()
         self.orientation = current.orientation()
+        self.orientation.normalize()
 
         # correction = Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
         self.delta_orientation = correction.orientation() * self.delta_orientation    
@@ -160,7 +162,10 @@ class MotionModelDamping(MotionModelBase):
         if not self.initialized:
             return (g2o.Isometry3d(self.orientation, self.position), self.covariance)
         
-        dt = timestamp - self.timestamp
+        if self.timestamp is None:
+            dt = 0
+        else:
+            dt = timestamp - self.timestamp
 
         delta_angle = g2o.AngleAxis(
             self.v_angular_angle * dt * self.damp, 
@@ -169,7 +174,8 @@ class MotionModelDamping(MotionModelBase):
 
         orientation = delta_orientation * self.orientation 
         position = self.position + delta_orientation * (self.v_linear * dt * self.damp)        
-
+        orientation.normalize()
+        
         return (g2o.Isometry3d(orientation, position), self.covariance)
 
     def update_pose(self, timestamp, new_position, new_orientation, new_covariance=None):

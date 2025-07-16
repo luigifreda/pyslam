@@ -165,7 +165,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             
             pose_key = keyframe_keys[kf]
             
-            is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx] > 0
+            is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx]>=0
             #invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
             sigma = FeatureTrackerShared.feature_manager.level_sigmas[kf.octaves[idx]]
             
@@ -215,7 +215,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             factor.set_weight(1.0) # reset the factor weight to 1.0 to compute a meaningful chi2
             chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
             
-            chi2_check_failure = chi2 > (chi2Stereo if is_stereo_obs else chi2Mono)
+            chi2_check_failure = (chi2 > chi2Stereo) if is_stereo_obs else (chi2 > chi2Mono)
             
             if not chi2_check_failure:
                 point_key = point_keys[p]
@@ -575,7 +575,7 @@ class PoseOptimizerGTSAM:
 
                 # reset outlier flag 
                 self.frame.outliers[idx] = False
-                is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx] > 0
+                is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx]>=0
 
                 #invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[self.frame.octaves[idx]]
                 sigma = FeatureTrackerShared.feature_manager.level_sigmas[self.frame.octaves[idx]]
@@ -647,6 +647,7 @@ class PoseOptimizerGTSAM:
             num_bad_point_edges = 0  
             total_inlier_error = 0.0 
             num_inliers = 0 
+            num_edges = 0
 
             # pose_wc = np.array(result.atPose3(X(0)).matrix()) # Twc
             # pose_cw = inv_T(pose_wc)
@@ -655,7 +656,7 @@ class PoseOptimizerGTSAM:
                 host_factor.set_weight(1.0)       # reset weight to enable back the factor and its correct error computation
                 chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
 
-                chi2_check_failure = chi2 > (chi2Stereo if is_stereo_obs else chi2Mono)
+                chi2_check_failure = (chi2 > chi2Stereo) if is_stereo_obs else (chi2 > chi2Mono)
                 if chi2_check_failure:
                     self.frame.outliers[idx] = True
                     host_factor.set_weight(kWeightForDisabledFactor) # disable the factor
@@ -668,18 +669,21 @@ class PoseOptimizerGTSAM:
                 if it ==2: 
                     noise_model.set_robust_model_active(False) # last iterations use isotropic factors
                             
-            if num_inliers < 10:
+                num_edges += 1
+                
+            #if num_inliers < 10:
+            if num_edges < 10:
                 Printer.red('pose_optimization: stopped - not enough edges!')  
-                result = result_prev 
-                is_ok = False           
+                #result = result_prev 
+                #is_ok = False           
                 break
                 
             self.initial = result # restart from latest computations    
         
         print(f'pose optimization: available {self.num_factors} points, found {num_bad_point_edges} bad points')   
         num_valid_points = self.num_factors - num_bad_point_edges
-        if num_valid_points == 0:
-            Printer.red('pose_optimization: all the available correspondences are bad!')
+        if num_valid_points < 10:
+            Printer.red('pose_optimization: not enough edges!')
             result = result_prev
             is_ok = False
 
@@ -741,7 +745,7 @@ class PoseOptimizerGTSAM_Tcw:
 
                 # reset outlier flag 
                 self.frame.outliers[idx] = False
-                is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx] > 0
+                is_stereo_obs = self.frame.kps_ur is not None and self.frame.kps_ur[idx]>=0
 
                 #invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[self.frame.octaves[idx]]
                 sigma = FeatureTrackerShared.feature_manager.level_sigmas[self.frame.octaves[idx]]
@@ -813,6 +817,7 @@ class PoseOptimizerGTSAM_Tcw:
             num_bad_point_edges = 0  
             total_inlier_error = 0.0 
             num_inliers = 0 
+            num_edges = 0
 
             # pose_wc = np.array(result.atPose3(X(0)).matrix()) # Twc
             # pose_cw = inv_T(pose_wc)
@@ -821,7 +826,7 @@ class PoseOptimizerGTSAM_Tcw:
                 host_factor.set_weight(1.0)       # reset weight to enable back the factor and its correct error computation
                 chi2 = 2.0 * factor.error(result) # from the gtsam code comments, error() is typically equal to log-likelihood, e.g. 0.5*(h(x)-z)^2/sigma^2  in case of Gaussian. 
 
-                chi2_check_failure = chi2 > (chi2Stereo if is_stereo_obs else chi2Mono)
+                chi2_check_failure = (chi2 > chi2Stereo) if is_stereo_obs else (chi2 > chi2Mono)
                 if chi2_check_failure:
                     self.frame.outliers[idx] = True
                     host_factor.set_weight(kWeightForDisabledFactor) # disable the factor
@@ -833,19 +838,22 @@ class PoseOptimizerGTSAM_Tcw:
             
                 if it ==2: 
                     noise_model.set_robust_model_active(False) # last iterations use isotropic factors
-                            
-            if num_inliers < 10:
+                
+                num_edges += 1
+                
+            #if num_inliers < 10:
+            if num_edges < 10:
                 Printer.red('pose_optimization: stopped - not enough edges!')  
-                result = result_prev 
-                is_ok = False           
+                #result = result_prev 
+                #is_ok = False           
                 break
                 
             self.initial = result # restart from latest computations    
         
         print(f'pose optimization: available {self.num_factors} points, found {num_bad_point_edges} bad points')   
         num_valid_points = self.num_factors - num_bad_point_edges
-        if num_valid_points == 0:
-            Printer.red('pose_optimization: all the available correspondences are bad!')
+        if num_valid_points < 10:
+            Printer.red('pose_optimization: not enough edges!')
             result = result_prev
             is_ok = False
 
@@ -928,7 +936,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
 
             assert(kf.get_point_match(p_idx) is p)
             
-            is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx] > 0
+            is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[p_idx]>=0
             sigma = FeatureTrackerShared.feature_manager.level_sigmas[kf.octaves[p_idx]]
                
             noise_model = gtsam_factors.SwitchableRobustNoiseModel(3 if is_stereo_obs else 2, sigma, th_huber_stereo if is_stereo_obs else th_huber_mono) 

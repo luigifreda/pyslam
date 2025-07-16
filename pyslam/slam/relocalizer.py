@@ -154,86 +154,102 @@ class Relocalizer:
                 solvers_input.append(solver_input_data)
                 considered_candidates.append(kf)                
                 
-            # check if candidates get a valid solution
+                
+            discarded = [False] * len(considered_candidates)
             success_relocalization_kf = None
-            for i, kf in enumerate(considered_candidates):
-                # perform 5 ransac iterations on each solver
-                Relocalizer.print(f'Relocalizer: performing MLPnPsolver iterations for keyframe {kf.id}')                      
-                ok, Tcw, is_no_more, inlier_flags, num_inliers = solvers[i].iterate(5)
-                if not ok or is_no_more:
-                    continue                 
-                inlier_flags = np.array(inlier_flags,dtype=bool)  # from from int8 to bool
-
-                # we got a valid pose solution => let's optimize it
-                frame.update_pose(Tcw)
-                 
-                idxs_frame, idxs_kf = mp_match_idxs[(frame,kf)]
-                for j, idx in enumerate(idxs_frame):
-                    if inlier_flags[j]:
-                        frame.points[idx] = kf.points[idxs_kf[j]]
-                    else: 
-                        frame.points[idx] = None
-                idxs_kf_inliers = idxs_kf[inlier_flags]
-                        
-                pose_before=frame.pose.copy()        
-                mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
-                Relocalizer.print(f'Relocalizer: pos opt1: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+            num_candidates = len(considered_candidates)
                 
-                if not pose_is_ok: 
-                    # if current pose optimization failed, reset f_cur pose             
-                    frame.update_pose(pose_before)
-                    continue
-                
-                if num_matched_map_points < Parameters.kRelocalizationPoseOpt1MinMatches:
-                    continue
-                
-                for i in range(len(frame.points)):
-                    if frame.outliers[i]:
-                        frame.points[i] = None
-            
-                # if few inliers, search by projection in a coarse window and optimize again
-                if num_matched_map_points < Parameters.kRelocalizationDoPoseOpt2NumInliers:
-                    idxs_kf, idxs_frame, num_new_found_map_points = search_keyframe_by_projection(kf, frame,
-                                                                    max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchCoarse,
-                                                                    max_descriptor_distance=Parameters.kMaxDescriptorDistance,
-                                                                    ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,
-                                                                    already_matched_ref_idxs=idxs_kf_inliers)
+            # check if candidates get a valid solution
+            while num_candidates > 0 and success_relocalization_kf is None:            
+                for i, kf in enumerate(considered_candidates):
+                    if discarded[i]:
+                        continue
+        
+                    # perform 5 ransac iterations on each solver
+                    Relocalizer.print(f'Relocalizer: performing MLPnPsolver iterations for keyframe {kf.id}')                      
+                    ok, Tcw, is_no_more, inlier_flags, num_inliers = solvers[i].iterate(5)
                     
-                    if num_matched_map_points + num_new_found_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
-                        pose_before=frame.pose.copy()        
-                        mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
-                        Relocalizer.print(f'Relocalizer: pos opt2: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
-                        
-                        if not pose_is_ok: 
-                            # if current pose optimization failed, reset f_cur pose             
-                            frame.update_pose(pose_before)
-                            continue    
-                        
-                        # if many inliers but still not enough, search by projection again in a narrower window
-                        # the camera has been already optimized with many points
-                        if num_matched_map_points>30 and num_matched_map_points<Parameters.kRelocalizationDoPoseOpt2NumInliers: 
-                            matched_ref_idxs = np.flatnonzero(frame.points!=None)
+                    # We discard the candidate if the solver is no more able to find a solution
+                    if is_no_more:
+                        discarded[i] = True
+                        num_candidates -= 1
+                        continue
+
+                    if not ok:
+                        continue
+                    
+                    inlier_flags = np.array(inlier_flags,dtype=bool)  # from from int8 to bool
+
+                    # we got a valid pose solution => let's optimize it
+                    frame.update_pose(Tcw)
+                    
+                    idxs_frame, idxs_kf = mp_match_idxs[(frame,kf)]
+                    for j, idx in enumerate(idxs_frame):
+                        if inlier_flags[j]:
+                            frame.points[idx] = kf.points[idxs_kf[j]]
+                        else: 
+                            frame.points[idx] = None
+                    idxs_kf_inliers = idxs_kf[inlier_flags]
                             
-                            idxs_kf, idxs_frame, num_new_found_map_points = search_keyframe_by_projection(kf, frame,
-                                                                            max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchFine,
-                                                                            max_descriptor_distance=0.7*Parameters.kMaxDescriptorDistance,
-                                                                            ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,
-                                                                            already_matched_ref_idxs=matched_ref_idxs)
-                                                
-                            # final optimization 
-                            if num_matched_map_points + num_new_found_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
-                                pose_before=frame.pose.copy()        
-                                mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
-                                Relocalizer.print(f'Relocalizer: pos opt3: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+                    pose_before=frame.pose.copy()        
+                    mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
+                    Relocalizer.print(f'Relocalizer: pos opt1: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+                    
+                    if not pose_is_ok: 
+                        # if current pose optimization failed, reset f_cur pose             
+                        frame.update_pose(pose_before)
+                        continue
+                    
+                    if num_matched_map_points < Parameters.kRelocalizationPoseOpt1MinMatches:
+                        continue
+                    
+                    for i in range(len(frame.points)):
+                        if frame.outliers[i]:
+                            frame.points[i] = None
+                
+                    # if few inliers, search by projection in a coarse window and optimize again
+                    if num_matched_map_points < Parameters.kRelocalizationDoPoseOpt2NumInliers:
+                        idxs_kf, idxs_frame, num_new_found_map_points = search_keyframe_by_projection(kf, frame,
+                                                                        max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchCoarse,
+                                                                        max_descriptor_distance=Parameters.kMaxDescriptorDistance,
+                                                                        ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,
+                                                                        already_matched_ref_idxs=idxs_kf_inliers)
+                        
+                        if num_matched_map_points + num_new_found_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
+                            pose_before=frame.pose.copy()        
+                            mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
+                            Relocalizer.print(f'Relocalizer: pos opt2: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+                            
+                            if not pose_is_ok: 
+                                # if current pose optimization failed, reset f_cur pose             
+                                frame.update_pose(pose_before)
+                                continue    
+                            
+                            # if many inliers but still not enough, search by projection again in a narrower window
+                            # the camera has been already optimized with many points
+                            if num_matched_map_points>30 and num_matched_map_points<Parameters.kRelocalizationDoPoseOpt2NumInliers: 
+                                matched_ref_idxs = np.flatnonzero(frame.points!=None)
                                 
-                                if not pose_is_ok: 
-                                    # if current pose optimization failed, reset f_cur pose             
-                                    frame.update_pose(pose_before)
-                                    continue 
-                                
-                if num_matched_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
-                    success_relocalization_kf = kf
-                    break
+                                idxs_kf, idxs_frame, num_new_found_map_points = search_keyframe_by_projection(kf, frame,
+                                                                                max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchFine,
+                                                                                max_descriptor_distance=0.7*Parameters.kMaxDescriptorDistance,
+                                                                                ratio_test = Parameters.kRelocalizationFeatureMatchRatioTestLarge,
+                                                                                already_matched_ref_idxs=matched_ref_idxs)
+                                                    
+                                # final optimization 
+                                if num_matched_map_points + num_new_found_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
+                                    pose_before=frame.pose.copy()        
+                                    mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = pose_optimization(frame, verbose=False)
+                                    Relocalizer.print(f'Relocalizer: pos opt3: error^2: {mean_pose_opt_chi2_error},  ok: {pose_is_ok}, #inliers: {num_matched_map_points}') 
+                                    
+                                    if not pose_is_ok: 
+                                        # if current pose optimization failed, reset f_cur pose             
+                                        frame.update_pose(pose_before)
+                                        continue 
+                                    
+                    if num_matched_map_points >= Parameters.kRelocalizationDoPoseOpt2NumInliers:
+                        success_relocalization_kf = kf
+                        break
             
             res = False    
             if success_relocalization_kf is None:

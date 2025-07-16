@@ -54,7 +54,7 @@ kResultsFolder = kRootFolder + '/results'
 
 kUseRerun = True
 # check rerun does not have issues 
-if kUseRerun and not Rerun.is_ok():
+if kUseRerun and not Rerun.is_ok:
     kUseRerun = False
     
 """
@@ -142,14 +142,15 @@ if __name__ == "__main__":
         
         img = None
 
-        if dataset.isOk():
+        if dataset.is_ok:
             timestamp = dataset.getTimestamp()          # get current timestamp 
             img = dataset.getImageColor(img_id)
             depth = dataset.getDepth(img_id)
+            img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
 
         if img is not None:
 
-            vo.track(img, depth, img_id, timestamp)  # main VO function 
+            vo.track(img, img_right, depth, img_id, timestamp)  # main VO function 
 
             if(len(vo.traj3d_est)>1):	       # start drawing from the third image (when everything is initialized and flows in a normal way)
 
@@ -236,14 +237,13 @@ if __name__ == "__main__":
             os.makedirs(kResultsFolder, exist_ok=True)
         print(f'saving {kResultsFolder}/map.png')
         cv2.imwrite(f'{kResultsFolder}/map.png', traj_img)
-    if is_draw_3d:
-        if not kUsePangolin:
-            plt3d.quit()
-        else: 
-            viewer3D.quit()
-    if is_draw_err:
+    if plt3d:
+        plt3d.quit()
+    if viewer3D:
+        viewer3D.quit()
+    if err_plt:
         err_plt.quit()
-    if is_draw_matched_points is not None:
+    if matched_points_plt:
         matched_points_plt.quit()
                 
     cv2.destroyAllWindows()

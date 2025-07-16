@@ -84,7 +84,7 @@ void templatedSparseBlockMatrix(py::module& m, const std::string& suffix) {
 } // anonymous namespace
 
 
-void delcareSparseBlockMatrix(py::module& m) {
+void declareSparseBlockMatrix(py::module& m) {
     templatedSparseBlockMatrix<MatrixXD>(m, "X");
 }
 

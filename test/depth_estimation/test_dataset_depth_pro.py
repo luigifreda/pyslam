@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
         timestamp, img = None, None 
         
-        if dataset.isOk():
+        if dataset.is_ok:
             timestamp = dataset.getTimestamp()          # get current timestamp 
             img = dataset.getImageColor(img_id)
 

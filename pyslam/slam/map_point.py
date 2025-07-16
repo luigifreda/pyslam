@@ -555,7 +555,7 @@ class MapPoint(MapPointBase):
                     position = self._pt.copy() 
                 else: 
                     skip = True 
-        if skip or len(observations)==0:
+        if skip or not observations:
             return 
                      
         normals = np.array([normalize_vector2(position-kf.Ow) for kf,idx in observations]).reshape(-1,3)
@@ -590,7 +590,9 @@ class MapPoint(MapPointBase):
         N = len(descriptors)
         if N > 2:
             #median_distances = [ np.median([FeatureTrackerShared.descriptor_distance(d, descriptors[i]) for d in descriptors]) for i in range(N) ]
-            median_distances = [ np.median(FeatureTrackerShared.descriptor_distances(descriptors[i], descriptors)) for i in range(N)]
+            #median_distances = [ np.median(FeatureTrackerShared.descriptor_distances(descriptors[i], descriptors)) for i in range(N)]
+            D = np.array([FeatureTrackerShared.descriptor_distances(d, descriptors) for d in descriptors])
+            median_distances = np.median(D, axis=1)
             with self._lock_features:            
                 self.des = descriptors[np.argmin(median_distances)].copy()
             #print('descriptors: ', descriptors)

@@ -9,7 +9,7 @@ using namespace pybind11::literals;
 
 namespace g2o {
 
-void delcareHyperGraphAction(py::module& m) {
+void declareHyperGraphAction(py::module& m) {
     py::class_<HyperGraphAction>(m, "HyperGraphAction");
 
     // class G2O_CORE_API HyperGraphElementAction{

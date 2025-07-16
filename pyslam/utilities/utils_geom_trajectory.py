@@ -18,7 +18,10 @@
 """
 
 import numpy as np
+import bisect
 from .utils_geom import *
+import sim3solver
+
 
 
 def set_rotations_from_translations(t_wi):
@@ -104,47 +107,44 @@ def align_3d_points_with_svd(gt_points, est_points, find_scale=True):
 #         max_align_dt: maximum time difference between filter and gt timestamps in seconds
 def find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=1e-1, verbose=True):
     max_dt = 0
-
     filter_associations = []
     gt_associations = []
     timestamps_associations = []
     
     # First, find associations between timestamps in filter and gt
-    for i in range(len(filter_t_wi)):
-        timestamp = filter_timestamps[i]
-
-        # Find the index in gt_timestamps where gt_timestamps[j] > timestamp
-        j = 0
-        while j < len(gt_timestamps) and gt_timestamps[j] <= timestamp:
-            j += 1
-        j -= 1
-        #assert j>=0, f'j {j}'
-        if j < 0:
-            print(f'find_trajectories_associations: got j={j} at sample i={i}')
-            continue        
+    for i, timestamp in enumerate(filter_timestamps):
         
-        if j >= len(gt_timestamps) - 1:
-            continue
+        # Find the index in gt_timestamps where gt_timestamps[j] > timestamp
+        # j = 0
+        # while j < len(gt_timestamps) and gt_timestamps[j] <= timestamp:
+        #     j += 1
+        # j -= 1
+        
+        # Find right index in sorted gt_timestamps using binary search
+        j = bisect.bisect_right(gt_timestamps, timestamp) - 1
 
+        if j < 0 or j >= len(gt_timestamps) - 1:
+            continue  # out of bounds
+        
         dt = timestamp - gt_timestamps[j]
         dt_gt = gt_timestamps[j + 1] - gt_timestamps[j]
-        
         abs_dt = abs(dt)
 
-        assert dt >= 0, f"dt {dt}"
-        assert dt_gt > 0, f"dt_gt {dt_gt}"
+        #assert dt >= 0, f"dt {dt}"
+        #assert dt_gt > 0, f"dt_gt {dt_gt}"
+        
+        if dt < 0 or dt_gt <= 0:
+            continue  # skip inconsistent data        
 
         # Skip if the interval between gt is larger than max delta
         if abs_dt > max_align_dt:
             continue
 
         max_dt = max(max_dt, abs_dt)
-        
         ratio = dt / dt_gt
 
-        assert 0 <= ratio < 1, f"ratio {ratio}"
+        #assert 0 <= ratio < 1, f"ratio {ratio}"
 
-        #gt_t_interpolated = (1 - ratio) * gt_timestamps[j] + ratio * gt_timestamps[j + 1]  # equal to timestamp
         gt_t_wi_interpolated = (1 - ratio) * gt_t_wi[j] + ratio * gt_t_wi[j + 1]
 
         timestamps_associations.append(timestamp)
@@ -159,8 +159,6 @@ def find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps
 
 # Associate each filter pose to a gt pose on the basis of their timestamps. Interpolate the gt poses where needed.
 # We assume the gt poses are in SE(3).
-
-
 # Find associations between poses in filter and gt. For each filter timestamp, find the closest gt timestamps
 # and interpolate the pose between them.
 # Inputs: filter_timestamps: List of filter timestamps assumed to be in seconds
@@ -170,52 +168,49 @@ def find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps
 #         max_align_dt: maximum time difference between filter and gt timestamps in seconds
 def find_poses_associations(filter_timestamps, filter_T_wi, gt_timestamps, gt_T_wi, max_align_dt=1e-1, verbose=True):
     max_dt = 0
-
     filter_associations = []
     gt_associations = []
     timestamps_associations = []
     
     # First, find associations between timestamps in filter and gt
-    for i in range(len(filter_T_wi)):
-        timestamp = filter_timestamps[i]
+    for i, timestamp in enumerate(filter_timestamps):
 
         # Find the index in gt_timestamps where gt_timestamps[j] > timestamp
-        j = 0
-        while j < len(gt_timestamps) and gt_timestamps[j] <= timestamp:
-            j += 1
-        j -= 1
-        #assert j>=0, f'j {j}'
-        if j < 0:
-            print(f'find_trajectories_associations: got j={j} at sample i={i}')
-            continue        
+        # j = 0
+        # while j < len(gt_timestamps) and gt_timestamps[j] <= timestamp:
+        #     j += 1
+        # j -= 1
+
+        # Find right index in sorted gt_timestamps using binary search
+        j = bisect.bisect_right(gt_timestamps, timestamp) - 1
         
-        if j >= len(gt_timestamps) - 1:
-            continue
+        if j < 0 or j >= len(gt_timestamps) - 1:
+            continue  # out of bounds
 
         dt = timestamp - gt_timestamps[j]
         dt_gt = gt_timestamps[j + 1] - gt_timestamps[j]
-        
         abs_dt = abs(dt)
 
-        assert dt >= 0, f"dt {dt}"
-        assert dt_gt > 0, f"dt_gt {dt_gt}"
+        #assert dt >= 0, f"dt {dt}"
+        #assert dt_gt > 0, f"dt_gt {dt_gt}"
+
+        if dt < 0 or dt_gt <= 0:
+            continue  # skip inconsistent data        
 
         # Skip if the interval between gt is larger than max delta
         if abs_dt > max_align_dt:
             continue
 
         max_dt = max(max_dt, abs_dt)
-        
         ratio = dt / dt_gt
 
-        assert 0 <= ratio < 1, f"ratio {ratio}"
+        #assert 0 <= ratio < 1, f"ratio {ratio}"
 
         gt_t_wi_j = gt_T_wi[j][:3, 3]
         gt_R_wi_j = gt_T_wi[j][:3, :3]
         gt_t_wi_jp1 = gt_T_wi[j + 1][:3, 3]
         gt_R_wi_jp1 = gt_T_wi[j + 1][:3, :3]
         
-        #t_gt_interpolated = (1 - ratio) * gt_timestamps[j] + ratio * gt_timestamps[j + 1] # equal to timestamp
         t_wi_gt_interpolated = (1 - ratio) * gt_t_wi_j + ratio * gt_t_wi_jp1  # gt_t_wi_j + ratio * (gt_t_wi_jp1-gt_t_wi_j)
         delta_R = gt_R_wi_jp1 @ gt_R_wi_j.T
         if not is_so3(delta_R):
@@ -315,3 +310,77 @@ def align_trajectories_with_svd(filter_timestamps, filter_t_wi, gt_timestamps, g
     aligned_gt_data = TrajectoryAlignementData(timestamps_associations, filter_associations, gt_associations, T_gt_est, T_est_gt, rms_error, max_error=max_error)
         
     return T_gt_est, rms_error, aligned_gt_data
+
+
+
+
+def align_trajectories_with_ransac(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, \
+                         compute_align_error=True, find_scale=False, max_align_dt=1e-1,  num_ransac_iterations=5, \
+                         verbose=True):
+    if verbose:
+        print('align_trajectories:')
+        print(f'\tfilter_timestamps: {filter_timestamps.shape}')
+        print(f'\tfilter_t_wi: {filter_t_wi.shape}')
+        print(f'\tgt_timestamps: {gt_timestamps.shape}')
+        print(f'\tgt_t_wi: {gt_t_wi.shape}')        
+        #print(f'\tfilter_timestamps: {filter_timestamps}')
+        #print(f'\tgt_timestamps: {gt_timestamps}')
+
+    # First, find associations between timestamps in filter and gt    
+    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=max_align_dt, verbose=verbose)
+
+    num_samples = len(filter_associations)
+    if verbose: 
+        print(f'align_trajectories: num associations: {num_samples}')
+
+    # Next, align the two trajectories on the basis of their associations    
+    #T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd(gt_associations, filter_associations, find_scale=find_scale)
+
+    solver_input_data = sim3solver.Sim3PointRegistrationSolverInput()
+    solver_input_data.sigma2 = 0.05
+    solver_input_data.fix_scale = not find_scale
+    solver_input_data.points_3d_w1 = filter_associations #points_3d_w1
+    solver_input_data.points_3d_w2 = gt_associations #points_3d_w2
+        
+    # Create Sim3PointRegistrationSolver object with the input data
+    solver = sim3solver.Sim3PointRegistrationSolver(solver_input_data)
+    # Set RANSAC parameters (using defaults here)
+    solver.set_ransac_parameters(0.99,20,300)
+    transformation, bNoMore, vbInliers, nInliers, bConverged = solver.iterate(num_ransac_iterations)
+
+    if not bConverged:
+        return np.eye(4), -1, TrajectoryAlignementData()
+        
+    R12 = solver.get_estimated_rotation()
+    t12 = solver.get_estimated_translation()
+    scale12 = solver.get_estimated_scale()
+    
+    T_est_gt = np.eye(4)
+    T_est_gt[:3,:3] = scale12*R12
+    T_est_gt[:3,3] = t12
+    
+    T_gt_est = np.eye(4)
+    R21 = R12.T
+    T_gt_est[:3,:3] = R21/scale12
+    T_gt_est[:3,3] = -R21 @ t12/scale12    
+            
+
+    # Compute error
+    error = 0
+    max_error = float("-inf")
+    if compute_align_error:
+        # if align_est_associations:
+        #     filter_associations = (T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]
+        #     residuals = filter_associations - np.array(gt_associations)
+        # else: 
+        residuals = ((T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]) - np.array(gt_associations)
+        squared_errors = np.sum(residuals**2, axis=1)
+        error = np.sqrt(np.mean(squared_errors))
+        max_error = np.sqrt(np.max(squared_errors))   
+        median_error = np.sqrt(np.median(squared_errors))
+        if verbose:
+            print(f'align_trajectories: error: {error}, max_error: {max_error}, median_error: {median_error}')     
+
+    aligned_gt_data = TrajectoryAlignementData(timestamps_associations, filter_associations, gt_associations, T_gt_est, T_est_gt, error, max_error=max_error)
+        
+    return T_gt_est, error, aligned_gt_data

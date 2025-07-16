@@ -7957,7 +7957,7 @@ packages:
   - qtpy >=2.3.0
   - html5lib >=1.1
   - fsspec >=2022.11.0
-  - numexpr >=2.8.4
+  - numexpr >=2.8.5
   - gcsfs >=2022.11.0
   - fastparquet >=2022.12.0
   - pyreadstat >=1.2.0

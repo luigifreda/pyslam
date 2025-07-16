@@ -9,7 +9,7 @@ using namespace pybind11::literals;
 
 namespace g2o {
 
-void delcareEstimatePropagator(py::module& m) {
+void declareEstimatePropagator(py::module& m) {
 
     py::class_<EstimatePropagatorCost>(m, "EstimatePropagatorCost")
         .def(py::init<SparseOptimizer*>(), 

@@ -315,9 +315,9 @@ class Map(object):
                     far_depths2 = proj_depths2 > far_points_threshold
                     bad_depths2 = bad_depths2 | far_depths2                   
                 
-                is_stereo1 = np.zeros(len(idxs1), dtype=bool) if kf1.kps_ur is None else kf1.kps_ur[idxs1]>0
+                is_stereo1 = np.zeros(len(idxs1), dtype=bool) if kf1.kps_ur is None else kf1.kps_ur[idxs1]>=0
                 is_mono1 = np.logical_not(is_stereo1)
-                is_stereo2 = np.zeros(len(idxs2), dtype=bool) if kf2.kps_ur is None else kf2.kps_ur[idxs2]>0
+                is_stereo2 = np.zeros(len(idxs2), dtype=bool) if kf2.kps_ur is None else kf2.kps_ur[idxs2]>=0
                 is_mono2 = np.logical_not(is_stereo2)
                 
                 # compute back-projected rays (unit vectors) 
@@ -362,7 +362,7 @@ class Map(object):
                   
                 # compute mono reproj errors on kf1
                 errs1_mono_vec = uvs1 - kf1.kpsu[idxs1]
-                errs1 = np.where(is_mono1[:, np.newaxis], errs1_mono_vec, np.zeros(2))   # mono errors 
+                errs1 = np.where(is_mono1[:, np.newaxis], errs1_mono_vec, np.zeros_like(errs1_mono_vec))   # mono errors 
                 errs1_sqr = np.sum(errs1 * errs1, axis=1)  # squared reprojection errors 
                 kps1_levels = kf1.octaves[idxs1]
                 invSigmas2_1 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kps1_levels] 
@@ -382,10 +382,15 @@ class Map(object):
                     depths1 = kf1.depths[idxs1] 
                     safe_depths1 = np.where(depths1 == 0, np.inf, depths1) # to prevent division by zero 
                     errs1_stereo_vec = np.concatenate((errs1_mono_vec, (uvs1[:,0] - kf1.camera.bf/safe_depths1 - kp1_ur)[:, np.newaxis]), axis=1)    # stereo errors                     
-                    errs1_stereo = np.where(is_stereo1[:, np.newaxis], errs1_stereo_vec, np.zeros(3)) 
+                    errs1_stereo = np.where(is_stereo1[:, np.newaxis], errs1_stereo_vec, np.zeros_like(errs1_stereo_vec)) 
                     errs1_stereo_sqr = np.sum(errs1_stereo * errs1_stereo, axis=1)  # squared reprojection errors    
                     chis2_1_stereo = errs1_stereo_sqr * invSigmas2_1         # chi-squared            
-                    bad_chis2_1 = np.logical_or(chis2_1_mono > Parameters.kChi2Mono, chis2_1_stereo > Parameters.kChi2Stereo)                                                  
+                    #bad_chis2_1 = np.logical_or(chis2_1_mono > Parameters.kChi2Mono, chis2_1_stereo > Parameters.kChi2Stereo)
+                    bad_chis2_1 = np.where(
+                        is_stereo1,
+                        chis2_1_stereo > Parameters.kChi2Stereo,
+                        chis2_1_mono > Parameters.kChi2Mono
+                    )                                                                      
                 else: 
                     bad_chis2_1 = chis2_1_mono > Parameters.kChi2Mono
                               
@@ -402,10 +407,15 @@ class Map(object):
                     depths2 = kf2.depths[idxs2] 
                     safe_depths2 = np.where(depths2 == 0, np.inf, depths2) # to prevent division by zero                     
                     errs2_stereo_vec = np.concatenate((errs2_mono_vec, (uvs2[:,0] - kf2.camera.bf/safe_depths2 - kp2_ur)[:, np.newaxis]), axis=1)    # stereo errors
-                    errs2_stereo = np.where(is_stereo2[:, np.newaxis], errs2_stereo_vec, np.zeros(3)) 
+                    errs2_stereo = np.where(is_stereo2[:, np.newaxis], errs2_stereo_vec, np.zeros_like(errs2_stereo_vec)) 
                     errs2_stereo_sqr = np.sum(errs2_stereo * errs2_stereo, axis=1)  # squared reprojection errors
                     chis2_2_stereo = errs2_stereo_sqr * invSigmas2_2         # chi-squared
-                    bad_chis2_2 = np.logical_or(chis2_2_mono > Parameters.kChi2Mono, chis2_2_stereo > Parameters.kChi2Stereo)
+                    #bad_chis2_2 = np.logical_or(chis2_2_mono > Parameters.kChi2Mono, chis2_2_stereo > Parameters.kChi2Stereo)
+                    bad_chis2_2 = np.where(
+                        is_stereo2,
+                        chis2_2_stereo > Parameters.kChi2Stereo,
+                        chis2_2_mono > Parameters.kChi2Mono
+                    )
                 else: 
                     bad_chis2_2 = chis2_2_mono > Parameters.kChi2Mono  # chi-square 2 DOFs  (Hartley Zisserman pg 119)                      
                 

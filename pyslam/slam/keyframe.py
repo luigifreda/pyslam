@@ -255,7 +255,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.angles  = frame.angles     # keypoint angles                       [Nx1] 
         self.des     = frame.des        # keypoint descriptors                  [NxD] where D is the descriptor length 
         self.depths  = frame.depths     # keypoint depths                       [Nx1]
-        self.kps_ur  = frame.kps_ur      # right keypoint coordinates            [Nx1]
+        self.kps_ur  = frame.kps_ur     # right keypoint coordinates            [Nx1]
         
         self.median_depth = frame.median_depth
         self.fov_center_c = frame.fov_center_c
@@ -356,9 +356,13 @@ class KeyFrame(Frame,KeyFrameGraph):
         if num_points == 0:
             Printer.orange('KeyFrame: update_connections - frame without points')
             return
-        #assert len(points) > 0
-        viewing_keyframes = [kf for p in points for kf in p.keyframes() if kf.kid != self.kid] # exclude this keyframe 
-        viewing_keyframes = Counter(viewing_keyframes)   
+        
+        viewing_keyframes = Counter()
+        for p in points:
+            for kf in p.keyframes():
+                if kf.kid != self.kid:
+                    viewing_keyframes[kf] += 1
+                      
         if not viewing_keyframes: # if empty   (https://www.pythoncentral.io/how-to-check-if-a-list-tuple-or-dictionary-is-empty-in-python/)
             return 
         # order the keyframes 
@@ -407,72 +411,76 @@ class KeyFrame(Frame,KeyFrameGraph):
             if len(self.loop_edges)==0:          
                 self.not_to_erase = False        
             if self.to_be_erased: 
-                self.set_bad()        
-
-    def set_bad(self): 
-        with self._lock_connections: 
+                self.set_bad()
+            
+    def set_bad(self):
+        with self._lock_connections:
             if self.kid is None:
-                return 
-            if self.not_to_erase: 
-                self.to_be_erased = True     
                 return
-                           
-            # update covisibility graph 
-            for kf_connected in list(self.connected_keyframes_weights.keys()):          
-                kf_connected.erase_connection(self)    
-                
-            for idx,p in enumerate(self.points): 
-                if p is not None: 
-                    p.remove_observation(self,idx)
-                                 
+
+            if self.not_to_erase:
+                self.to_be_erased = True
+                return
+
+            # --- 1. Remove covisibility connections ---
+            for kf_connected in list(self.connected_keyframes_weights.keys()):
+                kf_connected.erase_connection(self)
+
+            # --- 2. Remove feature observations ---
+            for idx, p in enumerate(self.points):
+                if p is not None:
+                    p.remove_observation(self, idx)
+
             self.reset_covisibility()
-            
-            # update spanning tree: each children must be connected to a new parent 
-            
-            # build a set of parent candidates for the children 
-            parent_candidates = set() 
-            assert(self.parent is not None)
-            parent_candidates.add(self.parent)
-                        
-            # set max iterations to avoid infinite loop in case of a bug    
-            max_iters = len(self.children) * 2  # or a large constant like 100
+
+            # --- 3. Update the spanning tree ---
+
+            assert self.parent is not None
+            parent_candidates = {self.parent}
+
+            # Prevent infinite loop due to malformed graph
+            max_iters = len(self.children) * 2
             iters = 0
-            
-            # each child must be connected to a new parent (the candidate parent with highest covisibility weight)
-            # once a child is connected to a new parent, include the child as new parent candidate for the rest            
-            while len(self.children) > 0 and iters < max_iters:
-                iters += 1         
-                w_max = 0
-                child_to_connect = None 
-                parent_to_connect = None 
-                found_connection = False 
-                for kf_child in self.children: 
+
+            # Reassign children based on covisibility weights
+            remaining_children = list(self.children)
+            self.children.clear()
+
+            while remaining_children and iters < max_iters:
+                iters += 1
+                best_child = None
+                best_parent = None
+                max_weight = -1
+
+                for kf_child in remaining_children:
                     if kf_child.is_bad:
                         continue
-                    # check if a candidate parent is connected to kf_child and compute the candidate parent with highest covisibility weight                     
-                    covisible_keyframes = kf_child.get_covisible_keyframes()
-                    for candidate_parent in parent_candidates: 
-                        if candidate_parent in covisible_keyframes:
-                            w = kf_child.get_weight(candidate_parent)
-                            if w > w_max: 
-                                w_max = w 
-                                child_to_connect = kf_child
-                                parent_to_connect = candidate_parent 
-                                found_connection = True 
-                if found_connection: 
-                    child_to_connect.set_parent(parent_to_connect)
-                    parent_candidates.add(child_to_connect)
-                    self.children.remove(child_to_connect)
-                else: 
-                    break # stop since there is no connection with covisibility weight>0
 
-            # if a child has no covisibility connections with any parent candidate, connect it with the original parent of this keyframe
-            for kf_child in list(self.children):  
-                kf_child.set_parent(self.parent)            
-                    
+                    covisible = kf_child.get_covisible_keyframes()
+                    # Intersect with parent candidates
+                    for candidate_parent in parent_candidates:
+                        if candidate_parent in covisible:
+                            w = kf_child.get_weight(candidate_parent)
+                            if w > max_weight:
+                                best_child = kf_child
+                                best_parent = candidate_parent
+                                max_weight = w
+
+                if best_child and best_parent:
+                    best_child.set_parent(best_parent)
+                    parent_candidates.add(best_child)
+                    remaining_children.remove(best_child)
+                else:
+                    break  # No valid parent found; exit
+
+            # --- 4. Reassign unconnected children to original parent ---
+            for kf_child in remaining_children:
+                kf_child.set_parent(self.parent)
+
+            # --- 5. Cleanup ---
             self.parent.erase_child(self)
             self._pose_Tcp.update(self.Tcw @ self.parent.Twc)
-            self._is_bad = True 
-            
+            self._is_bad = True
+
         if self.map is not None:
             self.map.remove_keyframe(self)

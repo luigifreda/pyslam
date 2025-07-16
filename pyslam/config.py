@@ -54,20 +54,20 @@ class Config:
         self.config_libs_path = config_libs_path    # path to config_libs.yaml: lib paths
         self.config = yaml.load(open(self.config_path, 'r'), Loader=yaml.FullLoader)
         self.config_libs = yaml.load(open(self.config_libs_path, 'r'), Loader=yaml.FullLoader)
-        self.cam_settings = None
-        self.system_settings = None
-        self.dataset_settings = None
-        self.dataset_type = None
+        self.cam_settings : dict | None = None
+        self.system_settings : dict | None = None
+        self.dataset_settings : dict | None = None
+        self.dataset_type : str | None = None
         self.sensor_type = None
-        self.system_state_settings = None
-        self.system_state_folder_path = None
+        self.system_state_settings : dict | None = None
+        self.system_state_folder_path : str | None = None
         self.system_state_load = False
-        self.ros_settings = {}
-        self.feature_tracker_config = None
-        self.loop_detection_config = None
-        self.semantic_mapping_config = None
+        self.ros_settings : dict = {}
+        self.feature_tracker_config : dict | None = None
+        self.loop_detection_config : dict | None = None
+        self.semantic_mapping_config : dict | None = None
         
-        self.trajectory_saving_settings = None
+        self.trajectory_saving_settings : dict = {}
         
         self.start_frame_id = 0  
         

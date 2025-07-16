@@ -26,7 +26,9 @@ from pyslam.utilities.utils_geom import poseRt, inv_poseRt, xyzq2Tmat
 
 from pyslam.utilities.timer import TimerFps
 from pyslam.io.ground_truth import GroundTruth
-
+from pyslam.io.dataset_types import SensorType
+from pyslam.slam.camera import Camera
+    
 
 class VoState(Enum):
     NO_IMAGES_YET   = 0     # no image received 
@@ -37,15 +39,18 @@ kVerbose=True
 
 
 class VisualOdometryBase:
-    def __init__(self, cam, groundtruth: GroundTruth):
+    def __init__(self, cam: Camera, groundtruth: GroundTruth):
         self.state = VoState.NO_IMAGES_YET
         self.cam = cam
+        self.sensor_type = cam.sensor_type if cam is not None else SensorType.MONOCULAR
         
         self.cur_image = None   # current image
+        self.cur_image_right = None  # current right image (if stereo)
         self.cur_depth = None   # current depth image
         self.cur_timestamp = None
 
         self.prev_image = None  # previous/reference image
+        self.prev_image_right = None  # previous/reference right image (if stereo)
         self.prev_depth = None  # previous/reference depth image
         self.prev_timestamp = None        
 
@@ -95,13 +100,14 @@ class VisualOdometryBase:
     def process_frame(self, frame_id) -> None:
         pass
 
-    def track(self, img, depth, frame_id, timestamp) -> None:
+    def track(self, img, img_right, depth, frame_id, timestamp) -> None:
         if kVerbose:
             print('..................................')
             print(f'frame: {frame_id}, timestamp: {timestamp}')       
         # check coherence of image size with camera settings 
         assert(img.shape[0]==self.cam.height and img.shape[1]==self.cam.width), "Frame: provided image has not the same size as the camera model or image is not grayscale"
         self.cur_image = img
+        self.cur_image_right = img_right
         self.cur_depth = depth
         self.cur_timestamp = timestamp
         # manage and check stage 
@@ -111,7 +117,8 @@ class VisualOdometryBase:
         elif(self.state == VoState.NO_IMAGES_YET):
             self.process_first_frame(frame_id)
             self.state = VoState.GOT_FIRST_IMAGE            
-        self.prev_image = self.cur_image    
+        self.prev_image = self.cur_image 
+        self.prev_image_right = self.cur_image_right   
         self.prev_depth = self.cur_depth
         self.prev_timestamp = self.cur_timestamp
         # update main timer (for profiling)

@@ -9,7 +9,7 @@ using namespace pybind11::literals;
 
 namespace g2o {
 
-void delcareHyperDijkstra(py::module& m) {
+void declareHyperDijkstra(py::module& m) {
 
     py::class_<HyperDijkstra> cls(m, "HyperDijkstra");
 

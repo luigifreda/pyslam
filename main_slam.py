@@ -223,7 +223,7 @@ if __name__ == "__main__":
                
         if not is_paused or do_step:
         
-            if dataset.isOk():
+            if dataset.is_ok:
                 print('..................................')               
                 img = dataset.getImageColor(img_id)
                 depth = dataset.getDepth(img_id)
@@ -271,9 +271,9 @@ if __name__ == "__main__":
                     online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
                     
                 if time_start is not None: 
-                    duration = time.time()-time_start
-                    if(frame_duration > duration):
-                        time.sleep(frame_duration-duration) 
+                    processing_duration = time.time()-time_start
+                    if(frame_duration > processing_duration):
+                        time.sleep(frame_duration-processing_duration) 
                     
                 img_id += 1 
                 num_frames += 1
@@ -335,12 +335,13 @@ if __name__ == "__main__":
             break
             
     # here we save the online estimated trajectory
-    online_trajectory_writer.close_file()
+    if online_trajectory_writer:
+        online_trajectory_writer.close_file()
     
     # compute metrics on the estimated final trajectory 
     try: 
         est_poses, timestamps, ids = slam.get_final_trajectory()
-        is_final = not dataset.isOk()
+        is_final = not dataset.is_ok
         assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(timestamps, est_poses, gt_timestamps, gt_poses)        
         ape_stats, T_gt_est = eval_ate(poses_est=assoc_est_poses, poses_gt=assoc_gt_poses, frame_ids=ids, 
                  curr_frame_id=img_id, is_final=is_final, is_monocular=is_monocular, save_dir=metrics_save_dir)

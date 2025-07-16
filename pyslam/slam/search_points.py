@@ -123,12 +123,15 @@ def search_frame_by_projection(f_ref: Frame,
         trc = Rrw.T.dot(twc)+trw
         forward = trc[2] > f_cur.camera.b
         backward = trc[2] < -f_cur.camera.b
-          
+        check_forward_backward = forward or backward
+        
+
+        
     # get all matched points of f_ref which are non-outlier 
     if isinstance(f_ref.points, np.ndarray):
         matched_ref_idxs = np.flatnonzero( (f_ref.points!=None) & (f_ref.outliers==False)) 
     else:
-        matched_ref_idxs = [i for i, p in enumerate(f_ref.points) if p is not None and not p.is_outlier]
+        matched_ref_idxs = [i for i, p in enumerate(f_ref.points) if p is not None and not f_ref.outliers[i]]
     
     # if we have some already matched points in reference frame, remove them from the list
     if already_matched_ref_idxs is not None:
@@ -151,14 +154,29 @@ def search_frame_by_projection(f_ref: Frame,
     
     do_check_stereo_reproj_err = f_cur.kps_ur is not None 
                      
-    for ref_idx,p,j in zip(matched_ref_idxs, matched_ref_points, range(len(matched_ref_points))):
+    scale_factors = FeatureTrackerShared.feature_manager.scale_factors
+    
+    cur_des = f_cur.des
+    cur_angles = f_cur.angles
+    cur_points = f_cur.points
+    cur_octaves = f_cur.octaves
+    cur_outliers = f_cur.outliers
+    cur_kd = f_cur.kd
+    cur_kpsu = f_cur.kpsu
+    cur_kps_ur = f_cur.kps_ur
+                         
+    ref_octaves = f_ref.octaves      
+    ref_angles = f_ref.angles                   
+                         
+    #for ref_idx,p,j in zip(matched_ref_idxs, matched_ref_points, range(len(matched_ref_points))):
+    for j, (ref_idx, p) in enumerate(zip(matched_ref_idxs, matched_ref_points)):
     
         if not is_visible[j]:
             continue 
         
-        kp_ref_octave = f_ref.octaves[ref_idx]  
+        kp_ref_octave = ref_octaves[ref_idx]  
         
-        best_dist = math.inf 
+        best_dist = np.inf #math.inf 
         #best_dist2 = math.inf
         #best_level = -1 
         #best_level2 = -1                   
@@ -167,20 +185,20 @@ def search_frame_by_projection(f_ref: Frame,
                   
         kd_cur_idxs_j = kd_cur_idxs[j]                
         if do_check_stereo_reproj_err:
-            check_stereo = f_cur.kps_ur[kd_cur_idxs_j]>0 
-            kp_cur_octaves = f_cur.octaves[kd_cur_idxs_j]       
-            kp_cur_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[kp_cur_octaves]  
-            errs_ur = np.fabs(projs[j,2] - f_cur.kps_ur[kd_cur_idxs_j]) 
-            ok_errs_ur = np.where(check_stereo, errs_ur < max_reproj_distance * kp_cur_scale_factors,True)  
+            check_stereo = cur_kps_ur[kd_cur_idxs_j]>=0 
+            kp_cur_octaves = cur_octaves[kd_cur_idxs_j]       
+            kp_cur_scale_factors = scale_factors[kp_cur_octaves]  
+            errs_ur = np.fabs(projs[j,2] - cur_kps_ur[kd_cur_idxs_j]) 
+            ok_errs_ur = np.where(check_stereo, errs_ur < max_reproj_distance * kp_cur_scale_factors, True) 
                            
         for h, kd_idx in enumerate(kd_cur_idxs[j]):                   
             
-            p_f_cur = f_cur.points[kd_idx]
+            p_f_cur = cur_points[kd_idx]
             if  p_f_cur is not None:
                 if p_f_cur.num_observations > 0: # we already matched p_f_cur => discard it 
                     continue          
     
-            p_f_cur_octave = f_cur.octaves[kd_idx]
+            p_f_cur_octave = cur_octaves[kd_idx]
             
             # check if point is in the same octave as the reference point
             if check_forward_backward:
@@ -194,11 +212,10 @@ def search_frame_by_projection(f_ref: Frame,
                 if p_f_cur_octave < (kp_ref_octave-1) or p_f_cur_octave > (kp_ref_octave+1):
                     continue
                                        
-            if do_check_stereo_reproj_err:
-                if not ok_errs_ur[h]:
-                    continue
+            if do_check_stereo_reproj_err and not ok_errs_ur[h]:
+                continue
                     
-            descriptor_dist = p.min_des_distance(f_cur.des[kd_idx])
+            descriptor_dist = p.min_des_distance(cur_des[kd_idx])
             if descriptor_dist < best_dist:                
                 best_dist = descriptor_dist
                 best_k_idx = kd_idx
@@ -229,7 +246,7 @@ def search_frame_by_projection(f_ref: Frame,
                 
                 if check_orientation:                  
                     index_match = len(idxs_cur)-1
-                    rot = f_ref.angles[best_ref_idx]-f_cur.angles[best_k_idx]
+                    rot = ref_angles[best_ref_idx]-cur_angles[best_k_idx]
                     rot_histo.push(rot,index_match)
                 
             #print('best des distance: ', best_dist, ", max dist: ", max_descriptor_distance)                                        
@@ -250,7 +267,7 @@ def search_frame_by_projection(f_ref: Frame,
 # Search by projection between {keyframe map points} and {current frame keypoints}
 def search_keyframe_by_projection(kf_ref: KeyFrame,
                                   f_cur: Frame,
-                                  max_reproj_distance=None,
+                                  max_reproj_distance,
                                   max_descriptor_distance=None,
                                   ratio_test=Parameters.kMatchRatioTestMap,
                                   already_matched_ref_idxs=None):
@@ -277,7 +294,7 @@ def search_keyframe_by_projection(kf_ref: KeyFrame,
         return np.array([]), np.array([]), 0
 
     # Get valid map points (non-bad, non-outliers)
-    matched_ref_idxs = [i for i, p in enumerate(ref_mps) if p is not None and not p.is_bad]
+    matched_ref_idxs = np.array([i for i, p in enumerate(ref_mps) if p is not None and not p.is_bad])
 
     # Remove already matched points if given
     if already_matched_ref_idxs is not None:
@@ -309,8 +326,8 @@ def search_keyframe_by_projection(kf_ref: KeyFrame,
         predicted_level = predicted_levels[j]
         kd_indices = kd_cur_idxs[j]
 
-        best_dist = math.inf
-        best_dist2 = math.inf
+        best_dist = np.inf #math.inf
+        best_dist2 = np.inf #math.inf
         best_level = -1
         best_level2 = -1
         best_k_idx = -1
@@ -369,13 +386,9 @@ def search_map_by_projection(points,
     if max_descriptor_distance is None:
         max_descriptor_distance = Parameters.kMaxDescriptorDistance  
            
-    found_pts_count = 0
-    found_pts_fidxs = []   # idx of matched points in current frame 
-    
-    #reproj_dists = []
-    
     if len(points) == 0:
-        return 0,0,0
+        return 0, []
+               
             
     # check if points are visible 
     visible_pts, projs, depths, dists = f_cur.are_visible(points)
@@ -390,18 +403,22 @@ def search_map_by_projection(points,
         #print(f'search_map_by_projection: using far points threshold: {far_points_threshold}')
         visible_pts = np.logical_and(visible_pts, depths < far_points_threshold)
 
-    for i, p in enumerate(points):
-        if not visible_pts[i] or p.is_bad:     # point not visible in frame or is bad 
-            continue        
-        if p.last_frame_id_seen == f_cur.id:   # we already matched this map point to current frame or it was outlier 
-            continue
-        
+    idxs_and_pts = [(i,p) for i,p in enumerate(points) if visible_pts[i] and not p.is_bad and p.last_frame_id_seen != f_cur.id]
+
+    found_pts_count = 0
+    found_pts_fidxs = []   # idx of matched points in current frame 
+            
+    cur_des = f_cur.des
+    cur_octaves = f_cur.octaves
+    cur_points = f_cur.points
+            
+    for i, p in idxs_and_pts:
         p.increase_visible()
           
         predicted_level = predicted_levels[i]         
                        
-        best_dist = math.inf 
-        best_dist2 = math.inf
+        best_dist = np.inf #math.inf 
+        best_dist2 = np.inf #math.inf
         best_level = -1 
         best_level2 = -1               
         best_k_idx = -1  
@@ -409,18 +426,17 @@ def search_map_by_projection(points,
         # find closest keypoints of f_cur         
         for kd_idx in kd_cur_idxs[i]:
      
-            p_f = f_cur.points[kd_idx]
+            p_f = cur_points[kd_idx]
             # check there is not already a match               
-            if  p_f is not None:
-                if p_f.num_observations > 0:
-                    continue 
+            if  p_f is not None and p_f.num_observations > 0:
+                continue 
                 
             # check detection level     
-            kp_level = f_cur.octaves[kd_idx]    
+            kp_level = cur_octaves[kd_idx]    
             if (kp_level<predicted_level-1) or (kp_level>predicted_level):
                 continue                
                 
-            descriptor_dist = p.min_des_distance(f_cur.des[kd_idx])
+            descriptor_dist = p.min_des_distance(cur_des[kd_idx])
   
             if descriptor_dist < best_dist:                                      
                 best_dist2 = best_dist
@@ -428,10 +444,9 @@ def search_map_by_projection(points,
                 best_dist = descriptor_dist
                 best_level = kp_level
                 best_k_idx = kd_idx    
-            else: 
-                if descriptor_dist < best_dist2:  
-                    best_dist2 = descriptor_dist
-                    best_level2 = kp_level                                        
+            elif descriptor_dist < best_dist2:  
+                best_dist2 = descriptor_dist
+                best_level2 = kp_level                                        
                                                        
         #if best_k_idx > -1 and best_dist < max_descriptor_distance:
         if best_dist < max_descriptor_distance:            
@@ -507,11 +522,8 @@ def search_more_map_points_by_projection(points: set,
         tcw = Scw.t/ scw
     else: 
         raise TypeError("Unsupported type '{}' for Scw".format(type(Scw)))
-    
-    if not isinstance(points, set):
-        points = set(points)
-    target_points = points.difference([p for p in f_cur_matched_points if p is not None])    
-    target_points = list(target_points)
+       
+    target_points = [p for p in points if (p is not None and not p.is_bad and p not in f_cur_matched_points)]
     
     if len(target_points) == 0:
         if print_fun is not None:
@@ -535,13 +547,13 @@ def search_more_map_points_by_projection(points: set,
     # num_failures_max_des_distance = 0
                                
     for i, p in enumerate(target_points):
-        if not visible_pts[i] or p.is_bad:     # point not visible in frame or is bad 
+        if not visible_pts[i]: # or p.is_bad:     # point not visible in frame or is bad 
             # num_failures_vis_or_bad +=1
             continue        
   
         predicted_level = predicted_levels[i]         
                        
-        best_dist = math.inf 
+        best_dist = np.inf #math.inf 
         best_k_idx = -1  
  
         # find closest keypoints of f_cur        
@@ -714,12 +726,9 @@ def search_and_fuse(points, keyframe: KeyFrame,
         Printer.red('search_and_fuse - no points')        
         return fused_pts_count
         
-    # get all matched points of keyframe 
-    if isinstance(points, np.ndarray):
-        good_pts_idxs = np.flatnonzero(points!=None) 
-    else:
-        good_pts_idxs = [i for i, p in enumerate(points) if p is not None]
+    good_pts_idxs = [i for i, p in enumerate(points) if p is not None and not p.is_bad and not p.is_in_keyframe(keyframe)]
     good_pts = points[good_pts_idxs] 
+    good_pts = np.asarray(good_pts)
      
     if len(good_pts_idxs) == 0:
         Printer.red('search_and_fuse - no matched points')
@@ -736,25 +745,30 @@ def search_and_fuse(points, keyframe: KeyFrame,
     kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]              
     radiuses = max_reproj_distance * kp_scale_factors     
     
+    inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
+    
     kd_idxs = keyframe.kd.query_ball_point(good_projs[:,:2], radiuses)    
     
     do_check_stereo_reproj_err = keyframe.kps_ur is not None    
 
-    #for i, p in enumerate(points):
-    for i,p,j in zip(good_pts_idxs,good_pts,range(len(good_pts))):            
-                
-        if not good_pts_visible[j] or p.is_bad:     # point not visible in frame or point is bad 
+    octaves = keyframe.octaves
+    kpsu = keyframe.kpsu
+    kps_ur = keyframe.kps_ur if keyframe.kps_ur is not None else None
+    des = keyframe.des
+
+    for j, (i, p) in enumerate(zip(good_pts_idxs, good_pts)):                
+        if not good_pts_visible[j]: # or p.is_bad:     # point not visible in frame or point is bad 
             #print('p[%d] visible: %d, bad: %d' % (i, int(good_pts_visible[j]), int(p.is_bad))) 
             continue  
                   
-        if p.is_in_keyframe(keyframe):    # we already matched this map point to this keyframe
-            #print('p[%d] already in keyframe' % (i)) 
-            continue
+        # if p.is_in_keyframe(keyframe):    # we already matched this map point to this keyframe
+        #     #print('p[%d] already in keyframe' % (i)) 
+        #     continue
                    
         predicted_level = predicted_levels[j]     
             
-        best_dist = math.inf 
-        best_dist2 = math.inf
+        best_dist = np.inf #math.inf 
+        best_dist2 = np.inf #math.inf
         best_level = -1 
         best_level2 = -1               
         best_kd_idx = -1        
@@ -764,25 +778,20 @@ def search_and_fuse(points, keyframe: KeyFrame,
 
         kd_idxs_j = kd_idxs[j]                
         if do_check_stereo_reproj_err:
-            check_stereo = keyframe.kps_ur[kd_idxs_j]>0 
-            errs_ur = proj[2] - keyframe.kps_ur[kd_idxs_j] # proj_ur - kp_ur
+            check_stereo = kps_ur[kd_idxs_j]>=0 
+            errs_ur = proj[2] - kps_ur[kd_idxs_j] # proj_ur - kp_ur
             errs_ur2 = errs_ur*errs_ur
-            
-        inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
                         
-        for h, kd_idx in enumerate(kd_idxs_j):             
-                
+        for h, kd_idx in enumerate(kd_idxs_j):  
             # check detection level     
-            kp_level = keyframe.octaves[kd_idx]    
+            kp_level = octaves[kd_idx]    
             if (kp_level<predicted_level-1) or (kp_level>predicted_level):   
                 #print('p[%d] wrong predicted level **********************************' % (i))                       
                 continue
         
-            # check the reprojection error     
-            kp = keyframe.kpsu[kd_idx]
-            invSigma2 = inv_level_sigmas2[kp_level]            
-                                    
-            err = proj[:2] - kp
+            # check the reprojection error 
+            invSigma2 = inv_level_sigmas2[kp_level]
+            err = proj[:2] - kpsu[kd_idx]
             chi2 = np.dot(err,err)*invSigma2     
             if do_check_stereo_reproj_err and check_stereo[h]:
                 chi2 += errs_ur2[h]*invSigma2 
@@ -794,7 +803,7 @@ def search_and_fuse(points, keyframe: KeyFrame,
                     #print('p[%d] big reproj err %f **********************************' % (i,chi2))
                     continue                  
                             
-            descriptor_dist = p.min_des_distance(keyframe.des[kd_idx])
+            descriptor_dist = p.min_des_distance(des[kd_idx])
             #print('p[%d] descriptor_dist %f **********************************' % (i,descriptor_dist))            
             
             #if descriptor_dist < max_descriptor_distance and descriptor_dist < best_dist:     
@@ -855,7 +864,8 @@ def search_and_fuse_for_loop_correction(keyframe: KeyFrame,
         return replace_points
         
     # get all matched points of keyframe 
-    good_pts_idxs = np.flatnonzero(points!=None) 
+    #good_pts_idxs = np.flatnonzero(points!=None) 
+    good_pts_idxs = [i for i, p in enumerate(points) if p is not None and not p.is_bad and not p.is_in_keyframe(keyframe)]
     good_pts = points[good_pts_idxs] 
      
     if len(good_pts_idxs) == 0:
@@ -888,29 +898,29 @@ def search_and_fuse_for_loop_correction(keyframe: KeyFrame,
     
     kd_idxs = keyframe.kd.query_ball_point(good_projs[:,:2], radiuses)    
 
-    for idx,p,j in zip(good_pts_idxs,good_pts,range(len(good_pts))):            
-                
-        if not good_pts_visible[j] or p.is_bad:     # point not visible in frame or point is bad 
+    inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
+
+    #for idx,p,j in zip(good_pts_idxs,good_pts,range(len(good_pts))):    
+    for j, (idx, p) in enumerate(zip(good_pts_idxs, good_pts)):            
+        if not good_pts_visible[j]: # or p.is_bad:     # point not visible in frame or point is bad 
             #print('p[%d] visible: %d, bad: %d' % (i, int(good_pts_visible[j]), int(p.is_bad))) 
             continue  
                   
-        if p.is_in_keyframe(keyframe):    # we already matched this map point to this keyframe
-            #print('p[%d] already in keyframe' % (i)) 
-            continue
+        # if p.is_in_keyframe(keyframe):    # we already matched this map point to this keyframe
+        #     #print('p[%d] already in keyframe' % (i)) 
+        #     continue
                      
         predicted_level = predicted_levels[j]
         
-        best_dist = math.inf      
+        best_dist = np.inf #math.inf      
         best_kd_idx = -1        
             
         # find closest keypoints of frame        
         proj = good_projs[j]
 
         kd_idxs_j = kd_idxs[j]                
-            
-        inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
-                        
-        for h, kd_idx in enumerate(kd_idxs_j):             
+                                    
+        for kd_idx in kd_idxs_j:             
                 
             # check detection level     
             kp_level = keyframe.octaves[kd_idx]    
@@ -1011,7 +1021,7 @@ def search_by_sim3(kf1: KeyFrame, kf2: KeyFrame,
             kd2_idxs_i = kd2_idxs[i1]                  
             predicted_level = predicted_levels[i1]                
                             
-            best_dist = float('inf')
+            best_dist = np.inf #float('inf')
             best_idx = -1                                      
             for kd2_idx in kd2_idxs_i:             
                 # check detection level     
@@ -1047,7 +1057,7 @@ def search_by_sim3(kf1: KeyFrame, kf2: KeyFrame,
             kd1_idxs_i = kd1_idxs[i2]                  
             predicted_level = predicted_levels[i2]                
                             
-            best_dist = float('inf')
+            best_dist = np.inf #float('inf')
             best_idx = -1                                      
             for kd1_idx in kd1_idxs_i:             
                 # check detection level     

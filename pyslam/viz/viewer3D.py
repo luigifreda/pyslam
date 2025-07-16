@@ -38,13 +38,11 @@ from pyslam.slam.map import Map
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 from pyslam.utilities.utils_geom import poseRt, inv_poseRt, inv_T
-from pyslam.utilities.utils_geom_trajectory import find_trajectories_associations, align_3d_points_with_svd, align_trajectories_with_svd, TrajectoryAlignementData
+from pyslam.utilities.utils_geom_trajectory import align_trajectories_with_ransac, align_trajectories_with_svd
 from pyslam.utilities.utils_sys import Printer
 from pyslam.utilities.utils_mp import MultiprocessingManager
 from pyslam.utilities.utils_data import empty_queue
 from pyslam.utilities.utils_colors import GlColors
-
-import sim3solver
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -69,78 +67,6 @@ kAlignGroundTruthEveryNFrames = 30
 kAlignGroundTruthEveryTimeInterval = 3 # [s]
 
 kRefreshDurationTime = 0.03 # [s]
-
-
-def align_trajectories_with_ransac(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, \
-                         compute_align_error=True, find_scale=False, max_align_dt=1e-1, \
-                         verbose=True):
-    if verbose:
-        print('align_trajectories:')
-        print(f'\tfilter_timestamps: {filter_timestamps.shape}')
-        print(f'\tfilter_t_wi: {filter_t_wi.shape}')
-        print(f'\tgt_timestamps: {gt_timestamps.shape}')
-        print(f'\tgt_t_wi: {gt_t_wi.shape}')        
-        #print(f'\tfilter_timestamps: {filter_timestamps}')
-        #print(f'\tgt_timestamps: {gt_timestamps}')
-
-    # First, find associations between timestamps in filter and gt    
-    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=max_align_dt, verbose=verbose)
-
-    num_samples = len(filter_associations)
-    if verbose: 
-        print(f'align_trajectories: num associations: {num_samples}')
-
-    # Next, align the two trajectories on the basis of their associations    
-    #T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd(gt_associations, filter_associations, find_scale=find_scale)
-
-    solver_input_data = sim3solver.Sim3PointRegistrationSolverInput()
-    solver_input_data.sigma2 = 0.05
-    solver_input_data.fix_scale = not find_scale
-    solver_input_data.points_3d_w1 = filter_associations #points_3d_w1
-    solver_input_data.points_3d_w2 = gt_associations #points_3d_w2
-        
-    # Create Sim3PointRegistrationSolver object with the input data
-    solver = sim3solver.Sim3PointRegistrationSolver(solver_input_data)
-    # Set RANSAC parameters (using defaults here)
-    solver.set_ransac_parameters(0.99,20,300)
-    transformation, bNoMore, vbInliers, nInliers, bConverged = solver.iterate(5)
-
-    if not bConverged:
-        return np.eye(4), -1, TrajectoryAlignementData()
-        
-    R12 = solver.get_estimated_rotation()
-    t12 = solver.get_estimated_translation()
-    scale12 = solver.get_estimated_scale()
-    
-    T_est_gt = np.eye(4)
-    T_est_gt[:3,:3] = scale12*R12
-    T_est_gt[:3,3] = t12
-    
-    T_gt_est = np.eye(4)
-    R21 = R12.T
-    T_gt_est[:3,:3] = R21/scale12
-    T_gt_est[:3,3] = -R21 @ t12/scale12    
-            
-
-    # Compute error
-    error = 0
-    max_error = float("-inf")
-    if compute_align_error:
-        # if align_est_associations:
-        #     filter_associations = (T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]
-        #     residuals = filter_associations - np.array(gt_associations)
-        # else: 
-        residuals = ((T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]) - np.array(gt_associations)
-        squared_errors = np.sum(residuals**2, axis=1)
-        error = np.sqrt(np.mean(squared_errors))
-        max_error = np.sqrt(np.max(squared_errors))   
-        median_error = np.sqrt(np.median(squared_errors))
-        if verbose:
-            print(f'align_trajectories: error: {error}, max_error: {max_error}, median_error: {median_error}')     
-
-    aligned_gt_data = TrajectoryAlignementData(timestamps_associations, filter_associations, gt_associations, T_gt_est, T_est_gt, error, max_error=max_error)
-        
-    return T_gt_est, error, aligned_gt_data
 
 
 class VizPointCloud:
@@ -581,7 +507,7 @@ class Viewer3D(object):
                             self.thread_last_time_gt_was_aligned = time.time()
                             estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=float)
                             align_trajectories_fun = align_trajectories_with_svd
-                            #align_trajectories_fun = align_trajectories_with_ransac   # WIP
+                            #align_trajectories_fun = align_trajectories_with_ransac   # WIP (just a test)
                             T_gt_est, error, alignment_gt_data = align_trajectories_fun(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, \
                                                                                       compute_align_error=True, find_scale=self.thread_align_gt_with_scale)
                             print(f'Viewer3D: viewer_refresh - align gt with scale: {self.thread_align_gt_with_scale}, RMS error: {error}')
@@ -780,13 +706,16 @@ class Viewer3D(object):
 
         num_map_points = map.num_points()
         if num_map_points>0:
+            map_state.points = np.empty((num_map_points, 3), dtype=np.float32)
+            map_state.colors = np.empty((num_map_points, 3), dtype=np.float32)
+            map_state.semantic_colors = np.empty((num_map_points, 3), dtype=np.float32)
             for i,p in enumerate(map.get_points()):                
-                map_state.points.append(p.pt)
-                map_state.colors.append(np.flip(p.color))              
+                map_state.points[i] = p.pt
+                map_state.colors[i] = np.flip(p.color)
                 if p.semantic_des is not None and SemanticMappingShared.sem_des_to_rgb is not None:
-                  map_state.semantic_colors.append(SemanticMappingShared.sem_des_to_rgb(p.semantic_des, bgr=False))
+                  map_state.semantic_colors[i] = SemanticMappingShared.sem_des_to_rgb(p.semantic_des, bgr=False)
                 else:
-                  map_state.semantic_colors.append(np.array([0.0,0.0,0.0]))
+                  map_state.semantic_colors[i] = np.array([0.0,0.0,0.0])
 
         map_state.points = np.array(map_state.points)          
         map_state.colors = np.array(map_state.colors)/256.

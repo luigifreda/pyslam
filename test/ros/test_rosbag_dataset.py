@@ -20,7 +20,7 @@ if __name__ == "__main__":
     while True: 
         
         img, img_right, depth = None, None, None
-        if dataset.isOk():
+        if dataset.is_ok:
             img = dataset.getImageColor(frame_id)
             img_right = dataset.getImageColorRight(frame_id) if dataset.sensor_type == SensorType.STEREO else None
             depth = dataset.getDepth(frame_id)

@@ -48,7 +48,7 @@ if __name__ == "__main__":
     des = None 
 
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
-    while dataset.isOk():
+    while dataset.is_ok:
         
         print('..................................')
         print('image: ', img_id)                

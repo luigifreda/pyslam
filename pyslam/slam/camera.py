@@ -28,6 +28,7 @@ import ujson as json
 #import g2o
 from pyslam.utilities.utils_geom import add_ones
 from pyslam.utilities.utils_sys import Printer
+from pyslam.io.dataset_types import SensorType
 
 
 class CameraTypes(Enum):
@@ -107,26 +108,28 @@ class Camera(CameraBase):
             
         self.fps = fps 
     
+        self.sensor_type = config.sensor_type if hasattr(config, 'sensor_type') else SensorType.MONOCULAR
+    
         # If stereo camera => assuming rectified images as input at present (so no need of left-right transformation matrix Tlr)     
         if 'Camera.bf' in config.cam_settings:
             self.bf = config.cam_settings['Camera.bf']
             self.b = self.bf/self.fx
         if config.sensor_type == 'stereo' and self.bf is None:
-            raise ValueError('Expecting the field Camera.bf in the camera config file')
+            raise ValueError('Camera: Expecting the field Camera.bf in the camera config file')
         self.depth_factor = 1.0 # Depthmap values factor 
         if 'DepthMapFactor' in config.cam_settings:
             self.depth_factor = 1.0/float(config.cam_settings['DepthMapFactor'])
             #print('Using DepthMapFactor = %f' % self.depth_factor)
         if config.sensor_type == 'rgbd' and self.depth_factor is None:
-            raise ValueError('Expecting the field DepthMapFactor in the camera config file')            
-        self.depth_threshold = None  # Close/Far threshold. Baseline times.
+            raise ValueError('Camera: Expecting the field DepthMapFactor in the camera config file')            
+        self.depth_threshold = float('inf')  # Close/Far threshold. 
         if 'ThDepth' in config.cam_settings:
-            depth_threshold = float(config.cam_settings['ThDepth'])
+            depth_threshold = float(config.cam_settings['ThDepth']) # Baseline times.
             assert(self.bf is not None)
-            self.depth_threshold = self.bf * depth_threshold / self.fx 
-            #print('Using depth_threshold = %f' % self.depth_threshold)
+            self.depth_threshold = self.bf * depth_threshold / self.fx # Depth threshold in meters
+            print('Camera: Using depth_threshold = %f' % self.depth_threshold)
         if (config.sensor_type == 'rgbd' or config.sensor_type == 'stereo') and self.depth_threshold is None:
-            raise ValueError('Expecting the field ThDepth in the camera config file')              
+            raise ValueError('Camera: Expecting the field ThDepth in the camera config file')              
         
   
     def is_stereo(self):
@@ -246,6 +249,8 @@ class PinholeCamera(Camera):
                               [   0,    0,    1]])             
         
         #print(f'PinholeCamera: K = {self.K}')
+        if self.width is None or self.height is None:
+            raise ValueError('Camera: Expecting the fields Camera.width and Camera.height in the camera config file')
         self.u_min, self.u_max = 0, self.width 
         self.v_min, self.v_max = 0, self.height       
         self.init()    
@@ -347,4 +352,4 @@ class PinholeCamera(Camera):
         # print('camera u_min: ', self.u_min)
         # print('camera u_max: ', self.u_max)
         # print('camera v_min: ', self.v_min)         
-        # print('camera v_max: ', self.v_max)      
+        # print('camera v_max: ', self.v_max)       

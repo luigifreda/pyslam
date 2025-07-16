@@ -270,5 +270,62 @@ def draw_random_img(shape):
     draw_random_circles(img_background)
     draw_random_text(img_background)
     img_background = cv2.GaussianBlur(img_background,ksize=(0,0),sigmaX=1)
-    return img_background  
+    return img_background
 
+
+def draw_histogram(data, bins=30, delta=None, min_value=None, max_value=None, hist_size=(500, 400), color=(255, 0, 0)):
+    if min_value is None:
+        min_value = np.min(data)
+    if max_value is None:
+        max_value = np.max(data)
+    
+    if delta is not None:
+        bins = max(bins, int((max_value - min_value) / delta))
+        bins += 1 # add one bin for the last value
+        max_value = min_value + delta * bins
+        # clip data to the range [min_value, max_value]
+        data = np.clip(data, min_value, max_value)
+        print(f'bins: {bins}, min_value: {min_value}, max_value: {max_value}')
+
+    hist, bin_edges = np.histogram(data, bins=bins, range=(min_value, max_value))
+    hist_img = np.ones((hist_size[1], hist_size[0], 3), dtype=np.uint8) * 255
+
+    # Save original counts for y-axis ticks
+    original_hist = hist.copy()
+
+    # Normalize for drawing
+    hist = hist.astype(np.float32)
+    max_count = original_hist.max()
+    if max_count > 0:
+        hist = hist / max_count * (hist_size[1] - 40)  # 40px padding for labels
+
+    bin_w = int(hist_size[0] / bins)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
+    # Draw histogram bars
+    for i in range(bins):
+        x1 = i * bin_w
+        y1 = hist_size[1] - int(hist[i]) - 20
+        x2 = (i + 1) * bin_w - 1
+        y2 = hist_size[1] - 21
+        cv2.rectangle(hist_img, (x1, y1), (x2, y2), color, -1)
+
+    # Draw x-axis ticks and labels
+    num_ticks = 6
+    for i in range(num_ticks):
+        bin_idx = int(i * (bins - 1) / (num_ticks - 1))
+        x = bin_idx * bin_w
+        value = bin_edges[bin_idx]
+        cv2.line(hist_img, (x, hist_size[1] - 20), (x, hist_size[1] - 10), (0, 0, 0), 1)
+        label = f"{value:.1f}"
+        cv2.putText(hist_img, label, (x, hist_size[1] - 2), font, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+
+    # Draw y-axis ticks and actual count labels
+    y_tick_count = 5
+    for i in range(y_tick_count + 1):
+        count = int(max_count * i / y_tick_count)
+        y = hist_size[1] - 20 - int((hist_size[1] - 40) * (i / y_tick_count))
+        cv2.line(hist_img, (0, y), (7, y), (0, 0, 0), 1)
+        cv2.putText(hist_img, str(count), (10, y + 5), font, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+
+    return hist_img

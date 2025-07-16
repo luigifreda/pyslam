@@ -82,5 +82,6 @@
     "typeindex": "cpp",
     "valarray": "cpp",
     "variant": "cpp"
-  }
+  },
+  "commentTranslate.hover.enabled": false
 }

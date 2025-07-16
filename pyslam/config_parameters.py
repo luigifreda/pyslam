@@ -30,14 +30,11 @@ class Parameters:
 
     kLogsFolder = kRootFolder + '/logs'              # Folder where logs are stored. This can be changed by pyslam/config.py to redirect the logs in a different folder.
     
-    # SLAM threads 
+    # SLAM tracking-mapping threads 
     kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
     kTrackingWaitForLocalMappingToGetIdle=False      # True: wait for local mapping to be idle before starting tracking, False: tracking and then local mapping in a single thread  
-    kTrackingWaitForLocalMappingSleepTime=0.1        # DEPRECATED: -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
-    kLocalMappingParallelKpsMatching=False
-    kLocalMappingParallelKpsMatchingNumWorkers=4
-    kLocalMappingDebugAndPrintToFile = True
-    
+    kWaitForLocalMappingTimeout = 0.5                # [s]  # Timeout for waiting local mapping to be idle (if kTrackingWaitForLocalMappingToGetIdle is True)   (was previously 1.5)
+    kParallelLBAWaitIdleTimeout = 0.3                # [s]  # Timeout for parallel LBA process to finish
     
     # Number of desired keypoints per frame 
     kNumFeatures=2000                               # Default number of keypoints (can be overridden by settings file)
@@ -97,9 +94,9 @@ class Parameters:
     kNumMinPointsForNewKf = 15                               # Minimum number of matched map points for spawning a new KeyFrame 
     kNumMinTrackedClosePointsForNewKfNonMonocular = 100      # Minimum number of tracked close map points that for not spawning a new KeyFrame in case of a non-monocular system
     kNumMaxNonTrackedClosePointsForNewKfNonMonocular = 70    # Maximum number of non-tracked close map points for not spawning a new KeyFrame in case of a non-monocular system    
-    kThNewKfRefRatio = 0.9                                   # Dor determining if a new KF must be spawned, condition 3
-    kThNewKfRefRatioStereo = 0.75                            # Dor determining if a new KF must be spawned, condition 3, in the case non-monocular
-    kThNewKfRefRatioNonMonocualar = 0.25                     # Dor determining if a new KF must be spawned in case the system is not monocular, condition 2b
+    kThNewKfRefRatio = 0.9                                   # For determining if a new KF must be spawned, condition 3
+    kThNewKfRefRatioStereo = 0.75                            # For determining if a new KF must be spawned, condition 3, in the case non-monocular
+    kThNewKfRefRatioNonMonocular = 0.25                      # For determining if a new KF must be spawned in case the system is not monocular, condition 2b
     kUseFeatureCoverageControlForNewKf = False               # [Experimental] check if all the matched map points in the current frame well cover the image (by using an image grid check)
     
     
@@ -134,8 +131,11 @@ class Parameters:
 
 
     # Local Mapping 
-    kLocalMappingNumNeighborKeyFrames=20                   #  [# frames]   for generating new points and fusing them              
-    kLocalMappingTimeoutPopKeyframe=0.5 # [s]
+    kLocalMappingParallelKpsMatching=True           # True: use parallel keypoint matching in local mapping, False: use serial keypoint matching
+    kLocalMappingParallelKpsMatchingNumWorkers=2
+    kLocalMappingDebugAndPrintToFile = True    
+    kLocalMappingNumNeighborKeyFrames=20            #  [# frames]   for generating new points and fusing them              
+    kLocalMappingTimeoutPopKeyframe=0.5             # [s]
 
 
     # Covisibility graph 
@@ -147,16 +147,17 @@ class Parameters:
 
 
     # Optimization engine 
-    kOptimizationFrontEndUseGtsam = False      # [Experimental, WIP] Use GTSAM in pose optimization in the frontend. Not stable yet!
-    kOptimizationBundleAdjustUseGtsam = False  # Use GTSAM for LBA and GBA
-    kOptimizationLoopClosingUseGtsam = False   # [Experimental, WIP] Use GTSAM for loop closing (relocalization and PGO)
+    kOptimizationFrontEndUseGtsam = False       # [Experimental, WIP] Use GTSAM in pose optimization in the frontend. Not super stable yet!
+    kOptimizationBundleAdjustUseGtsam = False   # Use GTSAM for LBA and GBA
+    kOptimizationLoopClosingUseGtsam = False    # [Experimental, WIP] Use GTSAM for loop closing (relocalization and PGO)
+    
     
     # Bundle Adjustment (BA)
     kLocalBAWindow=20                 #  [# frames]   
     kUseLargeWindowBA=False           # True: perform BA over a large window; False: do not perform large window BA       
     kEveryNumFramesLargeWindowBA=10   # Number of frames between two large window BA  
     kLargeBAWindow=20                 #  [# frames] 
-    kUseParallelProcessLBA = False    # [Experimental] Keep it False for the moment since it is not stable yet! 
+    kUseParallelProcessLBA = False    # [Experimental] Not super stable yet! 
 
         
     # Global Bundle Adjustment (GBA)
@@ -175,8 +176,8 @@ class Parameters:
     kLoopClosingDebugAndPrintToFile = True
     kLoopClosingDebugWithLoopConsistencyCheckImages = True
     kLoopClosingDebugShowLoopMatchedPoints = False
-    kLoopClosingParallelKpsMatching=False    
-    kLoopClosingParallelKpsMatchingNumWorkers = 4
+    kLoopClosingParallelKpsMatching=True    
+    kLoopClosingParallelKpsMatchingNumWorkers = 2
     kLoopClosingGeometryCheckerMinKpsMatches = 20            # o:20
     kLoopClosingTh2 = 10
     kLoopClosingMaxReprojectionDistanceMapSearch = 10        # [pixels]    o:10
@@ -188,8 +189,8 @@ class Parameters:
     # Relocatization 
     kRelocalizationDebugAndPrintToFile = False
     kRelocalizationMinKpsMatches = 15                       # o:15
-    kRelocalizationParallelKpsMatching=False    
-    kRelocalizationParallelKpsMatchingNumWorkers = 4    
+    kRelocalizationParallelKpsMatching=True    
+    kRelocalizationParallelKpsMatchingNumWorkers = 2    
     kRelocalizationFeatureMatchRatioTest = 0.75                   # TODO: put it in an table and make it configurable per descriptor
     kRelocalizationFeatureMatchRatioTestLarge = 0.9               # o:0.9
     kRelocalizationPoseOpt1MinMatches = 10                        # o:10

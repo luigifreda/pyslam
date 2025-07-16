@@ -206,7 +206,7 @@ if __name__ == '__main__':
         
     #entry_id = 0
     img_id = 0   #180, 340, 400   # you can start from a desired frame id if needed 
-    while dataset.isOk():
+    while dataset.is_ok:
 
         timestamp = dataset.getTimestamp()          # get current timestamp 
         img = dataset.getImageColor(img_id)

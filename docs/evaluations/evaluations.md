@@ -8,3 +8,8 @@ The data have been obtained by running the script [main_slam_evaluaption.py](../
 - [TUM](./EVAL_TUM/report.pdf)
 - [EUROC](./EVAL_EUROC/report.pdf)
 - [KITTI](./EVAL_KITTI/report.pdf)
+
+
+<p align="center">
+<img src="../../images/evaluations.png" alt="pySLAM Evaluations"  /> 
+</p>

@@ -67,13 +67,13 @@ kDrawOctaveColor = np.linspace(0, 255, 12)
 
 # Shared frame stuff. Normally, this information is exclusively used by SLAM.
 class FeatureTrackerShared:
-    feature_tracker       = None      # type: FeatureTracker
-    feature_manager       = None      # type: FeatureManager
-    feature_matcher       = None      # type: FeatureMatcher
+    feature_tracker: 'FeatureTracker | None' = None
+    feature_manager: 'FeatureManager | None' = None
+    feature_matcher: 'FeatureMatcher | None' = None
     descriptor_distance   = None
     descriptor_distances  = None
     oriented_features     = False
-    feature_tracker_right = None      # type: FeatureTracker
+    feature_tracker_right: 'FeatureTracker | None' = None
                 
     @staticmethod
     def set_feature_tracker(feature_tracker, force=False):
@@ -90,8 +90,9 @@ class FeatureTrackerShared:
         FeatureTrackerShared.oriented_features = feature_tracker.feature_manager.oriented_features
         
         # for the following guys we need to store the images since they need them at each matching step
-        if FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE or \
-           FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR:
+        if (FeatureTrackerShared.feature_matcher is not None and 
+            (FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE or \
+             FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR)):
             Frame.is_store_imgs = True
     
     @staticmethod
@@ -121,7 +122,7 @@ class FrameBase(object):
     def __init__(self, camera: Camera, pose=None, id=None, timestamp=None, img_id=None):
         self._lock_pose = RLock()
         # frame camera info
-        self.camera = camera # type: Camera
+        self.camera: Camera = camera
         # self._pose is a CameraPose() representing Tcw (pc = Tcw * pw)
         if pose is None: 
             self._pose = CameraPose()      
@@ -321,23 +322,28 @@ class FrameBase(object):
     #         [Nx1] array of distances PO
     # check a) points are in image b) good view angle c) good distance range  
     def are_visible(self, map_points, do_stereo_project=False):
-        n = len(map_points)
-        points = np.zeros((n, 3), dtype=np.float32) 
-        point_normals = np.zeros((n, 3), dtype=np.float32) 
-        min_dists = np.zeros(n, dtype=np.float32)
-        max_dists = np.zeros(n, dtype=np.float32)
-        for i, p in enumerate(map_points):
-            pt, normal, min_dist, max_dist = p.get_all_pos_info() # just one lock here
-            points[i] = pt
-            point_normals[i] = normal # corresponding to p.get_normal()
-            min_dists[i] = min_dist   # corresponding to p.min_distance
-            max_dists[i] = max_dist   # corresponding to p.max_distance
+        # n = len(map_points)
+        # points = np.zeros((n, 3), dtype=np.float32) 
+        # point_normals = np.zeros((n, 3), dtype=np.float32) 
+        # min_dists = np.zeros(n, dtype=np.float32)
+        # max_dists = np.zeros(n, dtype=np.float32)
+        # for i, p in enumerate(map_points):
+        #     pt, normal, min_dist, max_dist = p.get_all_pos_info() # just one lock here
+        #     points[i] = pt
+        #     point_normals[i] = normal # corresponding to p.get_normal()
+        #     min_dists[i] = min_dist   # corresponding to p.min_distance
+        #     max_dists[i] = max_dist   # corresponding to p.max_distance
+        points, normals, min_dists, max_dists = zip(*(p.get_all_pos_info() for p in map_points))
+        points = np.vstack(points)             # shape (N, 3)
+        normals = np.vstack(normals)           # shape (N, 3)
+        min_dists = np.array(min_dists)        # shape (N,)
+        max_dists = np.array(max_dists)        # shape (N,)       
         
         uvs, zs = self.project_points(points, do_stereo_project)    
         POs = points - self.Ow 
         dists   = np.linalg.norm(POs, axis=-1, keepdims=True)    
         POs /= dists
-        cos_view = np.sum(point_normals * POs, axis=1)
+        cos_view = np.sum(normals * POs, axis=1)
                 
         are_in_image = self.are_in_image(uvs, zs)     
         are_in_good_view_angle = cos_view > Parameters.kViewingCosLimitForPoint         
@@ -472,11 +478,15 @@ class Frame(FrameBase):
                 self.octaves = np.uint32(kps_data[:,2]) #print('octaves: ', self.octaves)                    
                 self.sizes   = kps_data[:,3]
                 self.angles  = kps_data[:,4]  
-                if self.camera is not None:
-                    self.kpsu = self.camera.undistort_points(self.kps) # convert to undistorted keypoint coordinates             
-                    self.kpsn = self.camera.unproject_points(self.kpsu)
-                self.points = np.array( [None]*len(self.kpsu) )  # init map points
-                self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)
+                if self.camera is None:
+                    raise Exception('Frame.init: camera is None')
+                self.kpsu = self.camera.undistort_points(self.kps) # convert to undistorted keypoint coordinates             
+                self.kpsn = self.camera.unproject_points(self.kpsu)
+                if len(self.kps) != len(self.kpsu):
+                    raise Exception('Frame.init: len(self.kps) != len(self.kpsu)')
+                num_kps = len(self.kps)
+                self.points = np.full(num_kps, None, dtype=object)  # init map points
+                self.outliers = np.full(num_kps, False, dtype=bool)
                                 
             if self.kps_r is not None: 
                 kps_data_r = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_r ], dtype=np.float32)
@@ -690,10 +700,11 @@ class Frame(FrameBase):
 
     def reset_points(self):
         with self._lock_features:          
-            self.points = np.array([None]*len(self.kpsu))
-            self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)      
+            num_keypoints = len(self.kps)
+            self.points = np.full(num_keypoints, None, dtype=object)
+            self.outliers = np.full(num_keypoints, False, dtype=bool)      
             
-    def get_points(self):    
+    def get_points(self) -> list['MapPoint'] | None:    
         with self._lock_features:                           
             return self.points.copy() if self.points is not None else None  
                     
@@ -791,8 +802,8 @@ class Frame(FrameBase):
                     p.last_frame_id_seen = self.id   
                     p.increase_visible()   
                     
-    # update statistics for map points        
-    def clean_vo_map_points(self):
+    # clean VO matches        
+    def clean_vo_matches(self):
         with self._lock_features:           
             num_cleaned_points = 0        
             for i,p in enumerate(self.points):
@@ -817,12 +828,12 @@ class Frame(FrameBase):
     def compute_stereo_from_rgbd(self, kps_data, depth):
         kps_int = np.uint32(kps_data[:,:2])
         depth_values = depth[kps_int[:, 1], kps_int[:, 0]]  # Depth at keypoint locations (v, u)     
-        valid_depth_mask = depth_values > 0             
+        valid_depth_mask = (depth_values > 1e-6) & np.isfinite(depth_values)           
         self.depths = np.where(valid_depth_mask, depth_values, -1.0) 
-        safe_depth_values = np.where(valid_depth_mask, depth_values, np.inf) # to prevent division by zero 
+        safe_depth_values    = np.where(valid_depth_mask, depth_values, 1.0)  # 1.0 avoids div-by-zero
         self.kps_ur = np.where(valid_depth_mask, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1.0)  
-        assert len(self.depths) == len(self.kps_ur)
-        assert len(self.kps_ur) == len(self.kpsu)
+        if len(self.kps_ur) != len(self.kpsu) or len(self.kps_ur) != len(self.depths):
+            raise Exception('Frame.compute_stereo_from_rgbd: len(self.kps_ur) != len(self.kpsu) or len(self.kps_ur) != len(self.depths)')
         #print(f'depth: {self.depths}, kps_ur: {self.kps_ur}')  
         #compute median depth
         if Frame.is_compute_median_depth:
@@ -1015,10 +1026,12 @@ class Frame(FrameBase):
     # unproject keypoints where the depth is available                               
     def unproject_points_3d(self, idxs, transform_in_world=False):
         if self.depths is not None:
-            depth_values = self.depths[idxs].reshape(-1, 1) 
+            depth_values = self.depths[idxs][:, np.newaxis]
+            valid_depth_mask = depth_values > 1e-6
             kpsn = add_ones(self.kpsn[idxs])
-            pts3d_mask = np.where(depth_values>0, True, False)
-            pts3d = np.where(depth_values>0, kpsn*depth_values, np.zeros(3))
+            pts3d_mask = valid_depth_mask.flatten()
+            pts3d = kpsn * depth_values
+            pts3d[~pts3d_mask] = 0  # set invalid points to 0
             if transform_in_world: 
                 #print(f'unproject_points_3d: Rwc: {self._pose.Rwc}, Ow: {self._pose.Ow}')
                 pts3d = (self._pose.Rwc @ pts3d.T + self._pose.Ow[:, np.newaxis]).T
@@ -1190,10 +1203,8 @@ def match_frames(f1: Frame, f2: Frame, ratio_test=None):
 
 
 def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \
-                                       match_idxs, max_workers=6, ratio_test=None, print_fun=None):
-    # do parallell computation using multithreading   
-    timer = Timer()      
-    
+                                       match_idxs, max_workers=2, ratio_test=None, print_fun=None):
+    # do parallell computation using multithreading    
     def thread_match_function(kf_pair):
         kf1,kf2 = kf_pair
         matching_result = FeatureTrackerShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des, kps1=kf1.kps, kps2=kf2.kps, ratio_test=ratio_test)
@@ -1202,15 +1213,14 @@ def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \
     kf_pairs = [(target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad]                       
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(thread_match_function, kf_pairs) # automatic join() at the end of the `width` block 
-    if print_fun is not None:        
-        print(f'compute_keypoint_matches_threading: timing: {timer.elapsed()}')
     return match_idxs  
 
 # compute matches between target frame and other frames
 # out:
 #   match_idxs: dictionary of keypoint matches  (kf_i, kf_j) -> (idxs_i,idxs_j)
 def compute_frame_matches(target_frame: Frame, other_frames: list, \
-                             match_idxs, do_parallel=True, max_workers=6, ratio_test=None, print_fun=None):
+                             match_idxs, do_parallel=True, max_workers=2, ratio_test=None, print_fun=None):
+    timer = Timer()        
     #do_parallel = False # force disable
     if not do_parallel:  
         # Do serial computation 
@@ -1223,7 +1233,7 @@ def compute_frame_matches(target_frame: Frame, other_frames: list, \
     else:  
         match_idxs = compute_frame_matches_threading(target_frame, other_frames, match_idxs, max_workers, ratio_test, print_fun)
     if print_fun is not None:
-        print_fun(f'compute_frame_matches: #compared pairs: {len(match_idxs)}')
+        print_fun(f'compute_frame_matches: #compared pairs: {len(match_idxs)}, do_parallel: {do_parallel}, timing: {timer.elapsed()}')
     return match_idxs    
 
 

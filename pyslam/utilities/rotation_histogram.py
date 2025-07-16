@@ -22,24 +22,26 @@ import numpy as np
 
 
 class RotationHistogram(object):
-    def __init__(self, histogram_lenght=12):  # NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30 
-        self.histogram_lenght = histogram_lenght
-        self.factor = float(histogram_lenght)/360. #1.0/histogram_lenght
-        self.histo = [ [] for i in range(self.histogram_lenght) ] 
+    def __init__(self, histogram_length=12):  # NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30 
+        self.histogram_length = histogram_length
+        self.factor = float(histogram_length)/360. #1.0/histogram_length
+        self.histo = [ [] for i in range(self.histogram_length) ] 
         
     def push(self, rot, idx):
         rot = rot % 360.0   # get a 0-360 range
         bin = int(round(rot*self.factor))
-        if bin == self.histogram_lenght:
+        if bin == self.histogram_length:
             bin = 0
-        assert(bin>=0 and bin<self.histogram_lenght)
+        assert(bin>=0 and bin<self.histogram_length)
         self.histo[bin].append(idx)
 
     def push_entries(self, rots, idxs):            
         rot_array = np.mod(rots, 360.0)
         bins = np.round(rot_array * self.factor).astype(int)
-        bins[bins == self.histogram_lenght] = 0
-        assert np.all((bins >= 0) & (bins < self.histogram_lenght)), "Invalid bin index"
+        bins[bins == self.histogram_length] = 0
+        #assert np.all((bins >= 0) & (bins < self.histogram_length)), "Invalid bin index"
+        if not np.all((bins >= 0) & (bins < self.histogram_length)):
+            raise ValueError(f"RotationHistogram: Invalid bin index in push_entries()")        
         for bin_idx, idx in zip(bins, idxs):
             self.histo[bin_idx].append(idx)
                         
@@ -56,7 +58,7 @@ class RotationHistogram(object):
     def get_invalid_idxs(self): 
         ind1, ind2, ind3 = self.compute_3_max()
         invalid_idxs = []
-        for i in range(self.histogram_lenght):        
+        for i in range(self.histogram_length):        
             if i != ind1 and i != ind2 and i != ind3: 
                 invalid_idxs.extend(self.histo[i])
         return invalid_idxs

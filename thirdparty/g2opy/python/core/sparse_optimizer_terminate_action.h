@@ -9,7 +9,7 @@ using namespace pybind11::literals;
 
 namespace g2o {
 
-void delcareSparseOptimizerTerminateAction(py::module& m) {
+void declareSparseOptimizerTerminateAction(py::module& m) {
 
     py::class_<SparseOptimizerTerminateAction, HyperGraphAction>(m, "SparseOptimizerTerminateAction")
         .def(py::init<>())

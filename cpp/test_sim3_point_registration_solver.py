@@ -101,7 +101,7 @@ def check_solution(solver_input_data, scale12, R12, t12):
     return average_alignment_error
 
 
-def create_mock_input(num_points = 100, min3d = -10, max3d = 10, noise_std = 0.01):
+def create_mock_input(num_points = 100, min3d = -10, max3d = 10, noise_std = 0.001):
     # Creating mock data for Sim3PointRegistrationSolverInput
     
     # grount-truth rotation and translation from world a to world b (this represents the pose estimation drift in Sim(3))
@@ -120,7 +120,7 @@ def create_mock_input(num_points = 100, min3d = -10, max3d = 10, noise_std = 0.0
     points_3d_w2 = (gt_drift_s * gt_drift_R @ points_3d_w1.T + gt_drift_t.reshape(3,1)).T
     
     
-    # Add Gaussian noise to 2D points
+    # Add Gaussian noise to 3D points
     noise = np.random.normal(0, noise_std, points_3d_w2.shape)
     points_3d_w2_n = points_3d_w2 + noise
         

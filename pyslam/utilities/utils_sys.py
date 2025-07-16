@@ -129,7 +129,12 @@ class Printer(object):
     @staticmethod
     def blue(*args, **kwargs):
         print(Colors.fg.blue, *args, **kwargs)
-        print(Colors.reset, end="")        
+        print(Colors.reset, end="")      
+        
+    @staticmethod
+    def lightblue(*args, **kwargs):
+        print(Colors.fg.lightblue, *args, **kwargs)
+        print(Colors.reset, end="")  
         
     @staticmethod
     def cyan(*args, **kwargs):
@@ -178,6 +183,15 @@ class Printer(object):
     def bold_green(*args, **kwargs):
         print(f"{Colors.bold}{Colors.fg.green}", *args, **kwargs)
         print(Colors.reset, end="")
+        
+    def bold_purple(*args, **kwargs):
+        print(f"{Colors.bold}{Colors.fg.purple}", *args, **kwargs)
+        print(Colors.reset, end="")
+        
+    def bold_cyan(*args, **kwargs):
+        print(f"{Colors.bold}{Colors.fg.cyan}", *args, **kwargs)
+        print(Colors.reset, end="")        
+                
         
         
 # test class with termcolor
