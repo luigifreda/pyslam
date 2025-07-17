@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 config.cfg.set_lib('gaussian_splatting') 
 
 import argparse
@@ -11,23 +11,23 @@ import time
 
 import platform 
 
-from config import Config
+from pyslam.config import Config
 
-from slam import Slam, SlamState
-from camera  import PinholeCamera
-from dataset_factory import dataset_factory
-from dataset_types import SensorType
-from ground_truth import groundtruth_factory
+from pyslam.slam.slam import Slam, SlamState
+from pyslam.slam.camera  import PinholeCamera
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import SensorType
+from pyslam.io.ground_truth import groundtruth_factory
 
-from viewer3D import Viewer3D
-from utils_sys import getchar, Printer 
-from utils_geom import inv_T
+from pyslam.viz.viewer3D import Viewer3D
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_geom import inv_T
 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
+from pyslam.depth_estimation.depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 
-from config_parameters import Parameters
+from pyslam.config_parameters import Parameters
 
 import torch
 import torch.multiprocessing as mp

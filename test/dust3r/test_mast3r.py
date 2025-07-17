@@ -1,6 +1,6 @@
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 config.cfg.set_lib('mast3r') 
 
 import os
@@ -26,15 +26,13 @@ import cv2
 import functools
 import trimesh
 import copy
+import tempfile
+import shutil
 from scipy.spatial.transform import Rotation
 
 from dust3r.inference import inference
 from dust3r.utils.image import load_images, rgb
 from dust3r.cloud_opt import global_aligner, GlobalAlignerMode
-
-
-import tempfile
-import shutil
 
 from mast3r.cloud_opt.sparse_ga import sparse_global_alignment
 from mast3r.cloud_opt.tsdf_optimizer import TSDFPostProcess
@@ -45,12 +43,12 @@ from dust3r.utils.device import to_numpy
 from dust3r.viz import add_scene_cam, CAM_COLORS, OPENGL, pts3d_to_trimesh, cat_meshes
 #from dust3r.demo import get_args_parser as dust3r_get_args_parser
 
-from utils_files import select_image_files 
-from utils_dust3r import Dust3rImagePreprocessor, convert_mv_output_to_geometry
-from utils_img import img_from_floats
+from pyslam.utilities.utils_files import select_image_files 
+from pyslam.utilities.utils_dust3r import Dust3rImagePreprocessor, convert_mv_output_to_geometry
+from pyslam.utilities.utils_img import img_from_floats
 
-from viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
-from utils_img import ImageTable
+from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
+from pyslam.utilities.utils_img import ImageTable
 import time
 
 import matplotlib.pyplot as pl

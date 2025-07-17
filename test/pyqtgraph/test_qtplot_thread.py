@@ -5,7 +5,7 @@ import math
 
 import sys
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 from qplot_thread import Qplot2d, Qplot3d
 

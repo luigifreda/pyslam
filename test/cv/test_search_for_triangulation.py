@@ -5,30 +5,30 @@ import cv2
 from matplotlib import pyplot as plt
 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
-from mplot_figure import MPlotFigure
+from pyslam.viz.mplot_figure import MPlotFigure
 
-from utils_geom import add_ones, poseRt, skew
-from utils_draw import draw_points2, draw_feature_matches
-from search_points_test import search_frame_for_triangulation_test
-from map_point import MapPoint
-from slam import Slam
-from camera  import Camera, PinholeCamera
-from initializer import Initializer
-from timer import TimerFps
+from pyslam.utilities.utils_geom import add_ones, poseRt, skew
+from pyslam.utilities.utils_draw import draw_points2, draw_feature_matches
+from pyslam.slam.search_points_test import search_frame_for_triangulation_test
+from pyslam.slam.map_point import MapPoint
+from pyslam.slam.slam import Slam
+from pyslam.slam.camera  import Camera, PinholeCamera
+from pyslam.slam.initializer import Initializer
+from pyslam.utilities.timer import TimerFps
 
-from utils_sys import Printer
+from pyslam.utilities.utils_sys import Printer
 
-from feature_tracker import FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker import FeatureTrackerTypes 
 
-from ground_truth import groundtruth_factory
-from dataset_factory import dataset_factory
-from timer import Timer
+from pyslam.io.ground_truth import groundtruth_factory
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.utilities.timer import Timer
 
-from config_parameters import Parameters  
+from pyslam.config_parameters import Parameters  
 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
 
 if __name__ == "__main__":

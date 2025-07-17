@@ -1,14 +1,14 @@
 import sys 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import numpy as np
 import cv2
 import time
 
-from camera import Camera
-from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
-from utils_depth import img_from_depth
+from pyslam.slam.camera import Camera
+from pyslam.depth_estimation.depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
+from pyslam.utilities.utils_depth import img_from_depth
 
 data_path = '../data'
 

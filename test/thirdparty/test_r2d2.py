@@ -14,9 +14,9 @@ import numpy as np
 import torch
 import cv2 
 
-from tools import common
-from tools.dataloader import norm_RGB
-from nets.patchnet import *
+from r2d2.tools import common
+from r2d2.tools.dataloader import norm_RGB
+from r2d2.nets.patchnet import *
 
 
 r2d2_base_path='../../thirdparty/r2d2'

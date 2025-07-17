@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 
-from utils_geom import yaw_matrix, roll_matrix, pitch_matrix, poseRt
-from utils_geom_trajectory import align_trajectories_with_svd, set_rotations_from_translations
+from pyslam.utilities.utils_geom import yaw_matrix, roll_matrix, pitch_matrix, poseRt
+from pyslam.utilities.utils_geom_trajectory import align_trajectories_with_svd, set_rotations_from_translations
 
 
 

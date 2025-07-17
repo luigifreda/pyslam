@@ -4,10 +4,10 @@ import cv2
 
 import sys 
 sys.path.append("../../")
-import config
+import pyslam.config as config
 
 
-from utils_dust3r import Dust3rImagePreprocessor
+from pyslam.utilities.utils_dust3r import Dust3rImagePreprocessor
 
     
 # Unit test class

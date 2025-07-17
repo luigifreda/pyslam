@@ -3,7 +3,7 @@ import numpy as np
 import math 
 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
 import g2o
 

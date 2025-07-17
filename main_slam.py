@@ -27,41 +27,41 @@ import json
 
 import platform 
 
-from config import Config #, dump_config_to_json
+from pyslam.config import Config #, dump_config_to_json
 
-from semantic_mapping import SemanticMappingType
-from semantic_types import SemanticFeatureType
-from semantic_mapping_configs import SemanticMappingConfigs
-from semantic_mapping_shared import SemanticMappingShared
-from semantic_utils import SemanticDatasetType
-from semantic_eval import evaluate_semantic_mapping
+from pyslam.semantics.semantic_mapping import SemanticMappingType
+from pyslam.semantics.semantic_types import SemanticFeatureType
+from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
+from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
+from pyslam.semantics.semantic_utils import SemanticDatasetType
+from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
 
-from slam import Slam, SlamState
-from slam_plot_drawer import SlamPlotDrawer
-from camera  import PinholeCamera
-from ground_truth import groundtruth_factory
-from dataset_factory import dataset_factory
-from dataset_types import DatasetType, SensorType
-from trajectory_writer import TrajectoryWriter
+from pyslam.slam.slam import Slam, SlamState
+from pyslam.viz.slam_plot_drawer import SlamPlotDrawer
+from pyslam.slam.camera  import PinholeCamera
+from pyslam.io.ground_truth import groundtruth_factory
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import DatasetType, SensorType
+from pyslam.io.trajectory_writer import TrajectoryWriter
 
-from viewer3D import Viewer3D
-from utils_sys import getchar, Printer, force_kill_all_and_exit
-from utils_img import ImgWriter
-from utils_eval import eval_ate
-from utils_geom_trajectory import find_poses_associations
-from utils_colors import GlColors
-from utils_serialization import SerializableEnumEncoder
+from pyslam.viz.viewer3D import Viewer3D
+from pyslam.utilities.utils_sys import getchar, Printer, force_kill_all_and_exit
+from pyslam.utilities.utils_img import ImgWriter
+from pyslam.utilities.utils_eval import eval_ate
+from pyslam.utilities.utils_geom_trajectory import find_poses_associations
+from pyslam.utilities.utils_colors import GlColors
+from pyslam.utilities.utils_serialization import SerializableEnumEncoder
 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from loop_detector_configs import LoopDetectorConfigs
+from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
 
-from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
-from utils_depth import img_from_depth, filter_shadow_points
+from pyslam.depth_estimation.depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
+from pyslam.utilities.utils_depth import img_from_depth, filter_shadow_points
 
-from config_parameters import Parameters  
+from pyslam.config_parameters import Parameters  
 
-from rerun_interface import Rerun
+from pyslam.viz.rerun_interface import Rerun
 
 from datetime import datetime
 import traceback

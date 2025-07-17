@@ -11,7 +11,7 @@ from config import Config
 import config
 config.cfg.set_lib('xfeat') 
 
-from dataset import dataset_factory
+from pyslam.io.dataset import dataset_factory
 from accelerated_features.modules.xfeat import XFeat
 
 

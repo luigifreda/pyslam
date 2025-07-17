@@ -5,20 +5,20 @@ import cv2
 from matplotlib import pyplot as plt
 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
-from mplot_figure import MPlotFigure
-from feature_manager import feature_manager_factory
-from feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
-from dataset_factory import dataset_factory
-from dataset_types import SensorType
+from pyslam.viz.mplot_figure import MPlotFigure
+from pyslam.local_features.feature_manager import feature_manager_factory
+from pyslam.local_features.feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.io.dataset_types import SensorType
 
 from collections import defaultdict, Counter
 
-from feature_manager_configs import FeatureManagerConfigs
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.local_features.feature_manager_configs import FeatureManagerConfigs
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from timer import TimerFps
+from pyslam.utilities.timer import TimerFps
 
 
 # ==================================================================================================

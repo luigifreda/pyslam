@@ -2,32 +2,32 @@ import os
 import sys 
 sys.path.append("../../")
 
-from config import Config
+from pyslam.config import Config
 config = Config()
 
-from utils_files import gdrive_download_lambda 
-from utils_sys import getchar, Printer 
-from utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
+from pyslam.utilities.utils_files import gdrive_download_lambda 
+from pyslam.utilities.utils_sys import getchar, Printer 
+from pyslam.utilities.utils_img import float_to_color, convert_float_to_colored_uint8_image, LoopCandidateImgs, ImgWriter
 
 import math
 import cv2 
 import numpy as np
 
-from dataset_factory import dataset_factory
-from frame import Frame, FeatureTrackerShared
-from feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
-from feature_tracker_configs import FeatureTrackerConfigs
+from pyslam.io.dataset_factory import dataset_factory
+from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes 
+from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from semantic_segmentation_factory import semantic_segmentation_factory, SemanticSegmentationType
-from semantic_utils import SemanticDatasetType, labels_color_map_factory
-from semantic_types import SemanticFeatureType
+from pyslam.semantics.semantic_segmentation_factory import semantic_segmentation_factory, SemanticSegmentationType
+from pyslam.semantics.semantic_utils import SemanticDatasetType, labels_color_map_factory
+from pyslam.semantics.semantic_types import SemanticFeatureType
 
-from semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
-from semantic_segmentation_segformer import SemanticSegmentationSegformer
-from semantic_segmentation_clip import SemanticSegmentationCLIP
+from pyslam.semantics.semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
+from pyslam.semantics.semantic_segmentation_segformer import SemanticSegmentationSegformer
+from pyslam.semantics.semantic_segmentation_clip import SemanticSegmentationCLIP
 
 
-from config_parameters import Parameters
+from pyslam.config_parameters import Parameters
 Parameters.kLoopClosingDebugAndPrintToFile = False
 Parameters.kLoopClosingDebugWithSimmetryMatrix = True
 Parameters.kLoopClosingDebugWithLoopDetectionImages = True

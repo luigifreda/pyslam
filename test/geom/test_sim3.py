@@ -2,9 +2,9 @@ import numpy as np
 
 import sys 
 sys.path.append("../../")
-from config import Config
+from pyslam.config import Config
 
-from utils_geom import Sim3Pose, rotation_matrix_from_yaw_pitch_roll
+from pyslam.utilities.utils_geom import Sim3Pose, rotation_matrix_from_yaw_pitch_roll
 
 if __name__ == "__main__":
 
