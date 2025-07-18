@@ -9,6 +9,18 @@
 \usepackage{lmodern}
 \renewcommand{\normalsize}{\fontsize{9}{10.8}\selectfont}
 
+
+\usepackage{booktabs}
+\usepackage{ltablex}
+\usepackage{caption}
+\usepackage{capt-of}
+\usepackage{textcomp}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{adjustbox}
+\keepXColumns
+\renewcommand{\arraystretch}{1.2}
+
 \usepackage{placeins}
 \usepackage{epstopdf}
 \usepackage{listings} % For code blocks
@@ -157,8 +169,29 @@ This document\footnote{You may find an updated version of this document at:\\ \h
 
 \section{Introduction}
 
-The objective of this document is to present the pySLAM framework, its main features, and usage\footnote{You may find an updated version of this document at:\\ \href{https://github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}{github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}}. \textbf{pySLAM} is a python implementation of a \emph{Visual SLAM} pipeline that supports \textbf{monocular}, \textbf{stereo} and
-\textbf{RGBD} cameras. It provides the following \textbf{features} in a single python environment: 
+\textbf{pySLAM} is an open-source framework designed to accelerate research and development in Visual SLAM (Simultaneous Localization and Mapping) and Spatial AI. It originated from a practical need identified during the development of a SLAM/Spatial AI course: The absence of a unified, accessible, and extensible C++/Python-based SLAM ecosystem. The project was driven by several foundational motivations, including the desire to rapidly prototype and evaluate both \textit{classical} and \textit{learning-based} features within complete VO/SLAM pipelines, ensure reproducibility across a wide range of datasets, and significantly lower the entry barrier for newcomers to the field.
+
+A key decision behind pySLAM development was the choice of \textit{Python} as its primary language. Compared to C++, Python enables faster experimentation and benefits from a mature and expanding ecosystem of deep learning tools and research-oriented APIs. This choice aligns with current trends in computer vision and robotics research, where rapid prototyping and flexible experimentation are essential.
+
+However, designing a modern SLAM framework in Python presents several challenges. The SLAM landscape is highly fragmented -- across feature types, datasets, programming languages (Python vs. C++), and development environments (virtual environments, Docker, versioning issues). Deep learning integration further complicates matters due to backend fragmentation (e.g., PyTorch vs. TensorFlow). These inconsistencies often lead to reproducibility bottlenecks and high barriers to experimental research, where setting up a functional baseline can become more laborious than the research itself.
+
+To address these issues, pySLAM is built on several key design principles. \textit{Modularity} is central: components such as local/global features, loop closure mechanisms, semantic mapping, and volumetric integration can be easily swapped or extended. This architecture supports the use of interchangeable baselines, enabling researchers to plug-and-play with different configurations depending on their goals. \textit{Extensibility} is facilitated through a base-class architecture that allows new components to be integrated with minimal friction, making pySLAM a flexible platform for benchmarking and algorithm development.
+
+In terms of usability, pySLAM emphasizes simplicity in build and deployment. It supports a unified Python environment compatible with \textit{conda}, \textit{pyenv}, and \textit{pixi}, and offers a one-command installation process that covers setup and dataset acquisition. Cross-platform compatibility (Linux, macOS, Windows with WSL2) and full source accessibility further enhance its utility for both academic and industrial use.
+
+Another cornerstone of the framework is standardized dataset handling. By providing a unified interface to multiple datasets, pySLAM encourages \textit{reproducibility} and \textit{reusability}. It supports consistent data loading, map state saving/loading, and automatic generation of evaluation metrics -- including final and online trajectory estimation -- thus enabling robust comparison between algorithms.
+
+Functionally, pySLAM supports the full visual SLAM pipeline with monocular, stereo, and RGB-D configurations. It accommodates both traditional local features and deep-learning-based methods, and includes loop closure detection integrated with optimization backends like g2o and GTSAM. The framework also supports 3D reconstruction via TSDF and emerging techniques like Gaussian Splatting, and integrates deep learning models for depth prediction and semantic scene understanding.
+
+Together, these capabilities position pySLAM as a powerful research toolkit -- aiming to be a ``Swiss army knife`` for SLAM development, evaluation, and education. By streamlining reproducibility, supporting modular experimentation, and lowering the technical threshold for entry, pySLAM addresses some of the most persistent challenges in contemporary SLAM research.
+
+The objective of this document is to present the pySLAM framework, its main features, and usage\footnote{You may find an updated version of this document at:\\ \href{https://github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}{github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}}. 
+
+
+\section{Main Features}
+
+\textbf{pySLAM} provides a python implementation of a \emph{Visual SLAM} pipeline that supports \textbf{monocular}, \textbf{stereo} and
+\textbf{RGBD} cameras. It offers the following \textbf{features} in a single python environment: 
 
 \begin{itemize}
     \item A wide range of classical and modern
@@ -193,7 +226,7 @@ The objective of this document is to present the pySLAM framework, its main feat
     Python bindings for features not included in the original libraries
 
     \item Built-in support for over \textbf{\protect\hyperlink{datasets}{10 dataset
-    types}}.
+    types}}. The list is currently growing.
 \end{itemize}
 
 pySLAM serves as flexible baseline framework to experiment with VO/SLAM
@@ -209,8 +242,6 @@ prediction}} and \emph{\protect\hyperlink{semantic-mapping}{semantic
 mapping}}. It allows to explore, prototype and develop VO/SLAM
 pipelines. pySLAM is a research framework and a work in progress. It is
 not optimized for real-time performances.
-
-\textbf{Enjoy it!}
 
 
 \hypertarget{system_overview}{%
@@ -1000,9 +1031,7 @@ select your \texttt{format\_type} (\texttt{tum}, \texttt{kitti},
 \subsubsection{Optimization engines}\label{optimization-engines}}
 
 Currently, pySLAM supports both \texttt{g2o} and \texttt{gtsam} for
-graph optimization, with \texttt{g2o} set as the default engine. While
-\texttt{gtsam} is fully supported, it remains experimental and a work in
-progress. You can enable \texttt{gtsam} by setting to \texttt{True} the
+graph optimization, with \texttt{g2o} set as the default engine. You can enable \texttt{gtsam} by setting to \texttt{True} the
 following parameters in \texttt{config\_parameters.py}:
 
 \begin{scriptsize}
@@ -1093,8 +1122,294 @@ LaTeX, and HTML formats, that includes comparison tables summarizing the
 \emph{Absolute Trajectory Error} (ATE), the maximum deviation from the
 ground truth trajectory and other metrics.
 
-You can find some obtained evaluation results on this 
-\href{./docs/evaluations/evaluations.md}{local page} or at this \href{https://github.com/luigifreda/pyslam/blob/master/docs/evaluations/evaluations.md}{absolute link}.
+Evaluation results are presented in the following subsections. For convenience, they are also available at this \href{https://github.com/luigifreda/pyslam/blob/master/docs/evaluations/evaluations.md}{link}. The evaluation uses commit \textit{f7c9a13} with the following presets: \texttt{baseline}, \texttt{root\_sift}, and \texttt{superpoint}, which correspond to local feature extractors \texttt{ORB2}, \texttt{root\_SIFT}, and \texttt{SuperPoint}, respectively. 
+
+
+\hypertarget{tum-evaluation}{%
+\subsubsection{TUM Evaluation}\label{tum-evaluation}}
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{TUM: Table Rmse }\label{tab:tum_table_rmse}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 0.06634 & 0.05289 & 0.04815 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.04645 & 0.06255 & 0.03868 \\
+rgbd\_dataset\_freiburg1\_room & 0.05885 & 0.07968 & 0.07199 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.01196 & 0.01758 & 0.01726 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.00921 & 0.00982 & 0.00952 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.08397 & 0.11342 & 0.12118 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.02245 & 0.05022 & 0.05037 \\
+Average & 0.04275 & 0.05517 & 0.05102 \\
+Std Dev & 0.0362 & 0.04531 & 0.04503 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.04275 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{TUM: Table Max }\label{tab:tum_table_max}
+
+
+
+\fontsize{7pt}{8pt}\selectfont
+
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 0.326 & 0.19361 & 0.22686 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.44543 & 0.28865 & 0.38157 \\
+rgbd\_dataset\_freiburg1\_room & 0.14959 & 0.2838 & 0.17632 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.06059 & 0.0677 & 0.0635 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.03609 & 0.03543 & 0.04005 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.29727 & 0.4361 & 0.70826 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.09011 & 0.13774 & 0.11602 \\
+Average & 0.20073 & 0.20615 & 0.24465 \\
+Std Dev & 0.18661 & 0.18182 & 0.26334 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.20073 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{TUM: Table Percent Lost }\label{tab:tum_table_percent_lost}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 8.0cm } >{\RaggedRight\arraybackslash}p{ 1.0cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+rgbd\_dataset\_freiburg1\_desk & 1.364 & 1.502 & 1.674 \\
+rgbd\_dataset\_freiburg1\_desk2 & 0.548 & 1.55 & 0.612 \\
+rgbd\_dataset\_freiburg1\_room & 0.074 & 0.148 & 0.088 \\
+rgbd\_dataset\_freiburg1\_xyz & 0.05 & 0.076 & 0.078 \\
+rgbd\_dataset\_freiburg3\_long\_office\_household & 0.0 & 0.0 & 0.0 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_far & 0.622 & 0.622 & 0.666 \\
+rgbd\_dataset\_freiburg3\_nostructure\_texture\_near\_withloop & 0.024 & 0.036 & 0.036 \\
+Average & 0.38314 & 0.562 & 0.45057 \\
+Std Dev & 0.50438 & 0.82947 & 0.59847 \\
+Best (Average) Preset & baseline &  &  \\
+Best (Average) Metric & 0.38314 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+
+\hypertarget{euroc-evaluation}{%
+\subsubsection{EUROC Evaluation}\label{euroc-evaluation}}
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{EUROC: Table Rmse }\label{tab:euroc_table_rmse}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.08819 & 0.08816 & 0.08834 \\
+V102 & 0.06852 & 0.06609 & 0.06694 \\
+V201 & 0.07062 & 0.06409 & 0.09735 \\
+V202 & 0.62539 & 0.56925 & 0.53736 \\
+MH01 & 0.03775 & 0.03781 & 0.04172 \\
+MH02 & 0.04217 & 0.0456 & 0.04177 \\
+MH03 & 0.0512 & 0.04905 & 0.04882 \\
+MH04 & 0.0702 & 0.05907 & 0.0646 \\
+MH05 & 0.08177 & 0.06607 & 0.07131 \\
+Average & 0.1262 & 0.11613 & 0.11758 \\
+Std Dev & 0.19831 & 0.17517 & 0.15435 \\
+Best (Average) Preset & root\_sift &  &  \\
+Best (Average) Metric & 0.11613 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{EUROC: Table Max }\label{tab:euroc_table_max}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.16335 & 0.163 & 0.16208 \\
+V102 & 0.14545 & 0.12379 & 0.13136 \\
+V201 & 0.15864 & 0.18921 & 0.22163 \\
+V202 & 2.06607 & 2.52628 & 1.97847 \\
+MH01 & 0.09141 & 0.10259 & 0.21303 \\
+MH02 & 0.11922 & 0.1318 & 0.11196 \\
+MH03 & 0.19995 & 0.17533 & 0.14082 \\
+MH04 & 0.32021 & 0.27938 & 0.26722 \\
+MH05 & 0.24828 & 0.17474 & 0.18991 \\
+Average & 0.39029 & 0.42957 & 0.37961 \\
+Std Dev & 0.67128 & 0.75543 & 0.6093 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.37961 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{EUROC: Table Percent Lost }\label{tab:euroc_table_percent_lost}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+V101 & 0.0 & 0.0 & 0.0 \\
+V102 & 0.0 & 0.0 & 0.0 \\
+V201 & 0.04 & 0.04 & 0.04 \\
+V202 & 0.146 & 0.138 & 0.112 \\
+MH01 & 0.05 & 0.074 & 0.08 \\
+MH02 & 0.018 & 0.026 & 0.012 \\
+MH03 & 0.046 & 0.03 & 0.032 \\
+MH04 & 0.0 & 0.01 & 0.0 \\
+MH05 & 0.07 & 0.016 & 0.034 \\
+Average & 0.04111 & 0.03711 & 0.03444 \\
+Std Dev & 0.05351 & 0.04829 & 0.04435 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.03444 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+
+\hypertarget{kitti-evaluation}{%
+\subsubsection{KITTI Evaluation}\label{kitti-evaluation}}
+
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{KITTI: Table Rmse }\label{tab:kitt_table_rmse}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+00 & 3.947 & 3.24849 & 3.93432 \\
+01 & 21.60014 & 21.86468 & 23.37292 \\
+02 & 6.1194 & 5.6707 & 10.14455 \\
+03 & 5.96451 & 5.92601 & 5.88895 \\
+04 & 1.74556 & 1.76121 & 1.65506 \\
+05 & 2.13915 & 2.11047 & 2.52263 \\
+06 & 2.74011 & 2.73981 & 2.6784 \\
+07 & 1.12358 & 1.12823 & 1.09496 \\
+08 & 3.99078 & 4.13702 & 4.14543 \\
+09 & 4.26068 & 4.35988 & 4.06244 \\
+10 & 2.22097 & 2.25127 & 2.27694 \\
+Average & 5.07744 & 5.01798 & 5.61605 \\
+Std Dev & 5.47265 & 5.63609 & 6.77 \\
+Best (Average) Preset & root\_sift &  &  \\
+Best (Average) Metric & 5.01798 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{KITTI: Table Max }\label{tab:kitt_table_max}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+00 & 6.82983 & 5.8663 & 7.04067 \\
+01 & 33.32903 & 33.85867 & 36.62253 \\
+02 & 13.97623 & 9.47974 & 21.05188 \\
+03 & 10.16642 & 10.16978 & 10.06014 \\
+04 & 3.09135 & 3.0576 & 2.87271 \\
+05 & 3.81484 & 3.77687 & 4.9547 \\
+06 & 6.53758 & 5.14239 & 5.11673 \\
+07 & 1.84418 & 1.82355 & 1.8655 \\
+08 & 10.809 & 11.23635 & 10.75959 \\
+09 & 8.53888 & 8.70237 & 8.31166 \\
+10 & 4.13901 & 4.37849 & 4.27905 \\
+Average & 9.37058 & 8.86292 & 10.26683 \\
+Std Dev & 8.62548 & 8.62145 & 12.23529 \\
+Best (Average) Preset & root\_sift &  &  \\
+Best (Average) Metric & 8.86292 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
+\begin{minipage}{\textwidth}
+\noindent
+\captionsetup{type=table}
+\captionof{table}{KITTI: Table Percent Lost }\label{tab:kitt_table_percent_lost}
+
+\fontsize{7pt}{8pt}\selectfont
+
+\begin{tabularx}{\linewidth}{ >{\RaggedRight\arraybackslash}p{ 4.5cm } >{\RaggedRight\arraybackslash}p{ 1.5cm } >{\RaggedRight\arraybackslash}p{ 1.25cm } >{\RaggedRight\arraybackslash}p{ 1.5cm }  }\toprule
+Dataset & baseline & root\_sift & superpoint \\
+\midrule
+00 & 0.0 & 0.038 & 0.012 \\
+01 & 0.0 & 0.0 & 0.0 \\
+02 & 0.012 & 0.004 & 0.004 \\
+03 & 0.0 & 0.0 & 0.0 \\
+04 & 0.0 & 0.0 & 0.0 \\
+05 & 0.0 & 0.0 & 0.028 \\
+06 & 0.108 & 0.018 & 0.0 \\
+07 & 0.0 & 0.0 & 0.0 \\
+08 & 0.0 & 0.0 & 0.0 \\
+09 & 0.0 & 0.0 & 0.0 \\
+10 & 0.0 & 0.0 & 0.0 \\
+Average & 0.01091 & 0.00545 & 0.004 \\
+Std Dev & 0.07244 & 0.02373 & 0.0196 \\
+Best (Average) Preset & superpoint &  &  \\
+Best (Average) Metric & 0.004 &  &  \\
+
+\bottomrule
+\end{tabularx}
+\end{minipage}
+
+\bigskip
+
 
 \hypertarget{pyslam-performances-and-comparative-evaluations}{%
 \subsubsection{pySLAM performances and comparative

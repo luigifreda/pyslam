@@ -8,8 +8,6 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
-import numpy as np
-
 from pyslam.slam.frame import Frame, FeatureTrackerShared
 from pyslam.slam.keyframe import KeyFrame
 from pyslam.slam.map_point import MapPoint
@@ -197,11 +195,12 @@ class TestOptimizeSim3(TestCase):
                 
         delta_angle_degs = 1  # degs, between c1 and c2
         delta_t_meters = 0.01  # meters, between c1 and c2
+        delta_s = 0.1  # scale, between c1 and c2
                                 
         # grount-truth DELTA sim3
         gt_delta_R = rotation_matrix_from_yaw_pitch_roll(np.random.uniform(-delta_angle_degs, delta_angle_degs), np.random.uniform(-delta_angle_degs, delta_angle_degs), np.random.uniform(-delta_angle_degs, delta_angle_degs))
         gt_delta_t = np.random.uniform(-delta_t_meters, delta_t_meters, size=3).reshape(3,1)
-        gt_delta_s = np.random.uniform(0.9, 1.1)
+        gt_delta_s = np.random.uniform(1.0 - delta_s, 1.0 + delta_s)
                                                             
         # Tc1c2_d = Tc1c2 * gt_delta_T
         Rc1c2_d = self.Rc1c2 @ gt_delta_R  
@@ -368,8 +367,8 @@ class TestOptimizeSim3(TestCase):
                                     
         print(f'starting optimize_sim3... ')
         
-        optimize_sim3 = optimizer_g2o.optimize_sim3
-        #optimize_sim3 = optimizer_gtsam.optimize_sim3   
+        #optimize_sim3 = optimizer_g2o.optimize_sim3
+        optimize_sim3 = optimizer_gtsam.optimize_sim3   
                 
                 
         print(f'Rc1c2_initial: {self.Rc1c2_initial.ravel()}')

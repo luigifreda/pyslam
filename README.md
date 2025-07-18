@@ -1,4 +1,4 @@
-# pySLAM v2.8.5
+# pySLAM v2.8.6
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -24,7 +24,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 <!-- TOC -->
 
-- [pySLAM v2.8.5](#pyslam-v285)
+- [pySLAM v2.8.6](#pyslam-v286)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -468,7 +468,7 @@ SAVE_TRAJECTORY:
 
 ### Graph optimization engines
 
-Currently, pySLAM supports both `g2o` and `gtsam` for graph optimization, with `g2o` set as the default engine. While `gtsam` is fully supported, it remains experimental and a work in progress. You can enable `gtsam` by setting to `True` the following parameters in `pyslam/config_parameters.py`:
+Currently, pySLAM supports both `g2o` and `gtsam` for graph optimization, with `g2o` set as the default engine. You can enable `gtsam` by setting to `True` the following parameters in `pyslam/config_parameters.py`:
 ```python
   # Optimization engine 
   kOptimizationFrontEndUseGtsam = True    

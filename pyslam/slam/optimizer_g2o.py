@@ -150,8 +150,11 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             if kf not in graph_keyframes:
                 continue
             
+            kf_kpsu_idx = kf.kpsu[idx]
+            kf_kps_ur_idx = kf.kps_ur[idx] if kf.kps_ur is not None else -1
+            
             #print('adding edge between point ', p.id,' and frame ', f.id)
-            is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx]>=0
+            is_stereo_obs = kf_kps_ur_idx>=0
             invSigma2 = inv_level_sigmas2[kf.octaves[idx]]
 
             if Parameters.kUseSemanticsInOptimization and kf.kps_sem is not None:
@@ -163,7 +166,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
                 edge.set_vertex(0, v_p)
                 edge.set_vertex(1, graph_keyframes[kf])
-                obs = [kf.kpsu[idx][0], kf.kpsu[idx][1], kf.kps_ur[idx]]
+                obs = [kf_kpsu_idx[0], kf_kpsu_idx[1], kf_kps_ur_idx]
                 edge.set_measurement(obs)
                 
                 edge.set_information(eye3*invSigma2)
@@ -179,7 +182,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
                 edge = g2o.EdgeSE3ProjectXYZ()
                 edge.set_vertex(0, v_p)
                 edge.set_vertex(1, graph_keyframes[kf])
-                edge.set_measurement(kf.kpsu[idx])
+                edge.set_measurement(kf_kpsu_idx)
                 
                 edge.set_information(eye2*invSigma2)
                 if use_robust_kernel:
@@ -214,7 +217,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             is_stereo = edge_data
             
             edge_chi2 = edge.chi2()
-            chi2_check_failure = edge_chi2 > (chi2Stereo if is_stereo else chi2Mono)
+            chi2_check_failure = (edge_chi2 > chi2Stereo) if is_stereo else (edge_chi2 > chi2Mono)
             if chi2_check_failure or not edge.is_depth_positive():
                 edge.set_level(1)
                 num_bad_edges += 1
@@ -228,7 +231,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     
     
     # shut down the sync thread if used and still running
-    if sync_flag_thread is not None and sync_flag_thread.is_alive:
+    if sync_flag_thread is not None and sync_flag_thread.is_alive():
         abort_flag.value = True # force the sync thread to exit            
         sync_flag_thread.join() #timeout=0.005)    
         
@@ -649,7 +652,7 @@ def local_bundle_adjustment(keyframes: list[KeyFrame], points: list[MapPoint], k
             #     continue 
             
             edge_chi2 = edge.chi2()
-            chi2_check_failure = edge_chi2 > (chi2Stereo if is_stereo else chi2Mono)
+            chi2_check_failure = (edge_chi2 > chi2Stereo) if is_stereo else (edge_chi2 > chi2Mono)
             if chi2_check_failure or not edge.is_depth_positive():
                 edge.set_level(1)
                 num_bad_edges += 1
@@ -859,7 +862,7 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
                 #     continue 
                 
                 edge_chi2 = edge.chi2()
-                chi2_check_failure = edge_chi2 > (chi2Stereo if is_stereo else chi2Mono)
+                chi2_check_failure = (edge_chi2 > chi2Stereo) if is_stereo else (edge_chi2 > chi2Mono)
                 if chi2_check_failure or not edge.is_depth_positive():
                     edge.set_level(1)
                     num_bad_edges += 1
@@ -1106,6 +1109,9 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     vertex_indices = []
 
     delta_huber = np.sqrt(th2)
+    
+    inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
+    eye2 = np.eye(2)
 
     num_correspondences = 0
     for i in range(num_matches):
@@ -1139,12 +1145,12 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_12.set_vertex(0, optimizer.vertex(vertex_id2))
             edge_12.set_vertex(1, optimizer.vertex(0))
             edge_12.set_measurement(kf1.kpsu[i])
-            invSigma2_12 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf1.octaves[i]]
+            invSigma2_12 = inv_level_sigmas2[kf1.octaves[i]]
 
             if Parameters.kUseSemanticsInOptimization and kf1.kps_sem is not None:
                 invSigma2_12 *= SemanticMappingShared.get_semantic_weight(kf1.kps_sem[i])
             
-            edge_12.set_information(np.eye(2) * invSigma2_12)
+            edge_12.set_information(eye2 * invSigma2_12)
             edge_12.set_robust_kernel(g2o.RobustKernelHuber(delta_huber))
             optimizer.add_edge(edge_12)
 
@@ -1153,12 +1159,12 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             edge_21.set_vertex(0, optimizer.vertex(vertex_id1))
             edge_21.set_vertex(1, optimizer.vertex(0))
             edge_21.set_measurement(kf2.kpsu[index2])
-            invSigma2_21 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf2.octaves[index2]]
+            invSigma2_21 = inv_level_sigmas2[kf2.octaves[index2]]
             
             if Parameters.kUseSemanticsInOptimization and kf2.kps_sem is not None:
                 invSigma2_21 *= SemanticMappingShared.get_semantic_weight(kf2.kps_sem[i])
             
-            edge_21.set_information(np.eye(2) * invSigma2_21)                
+            edge_21.set_information(eye2 * invSigma2_21)                
             edge_21.set_robust_kernel(g2o.RobustKernelHuber(delta_huber))
             optimizer.add_edge(edge_21)
 
@@ -1286,7 +1292,6 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
 
     # Set loop edges
     for keyframe, connections in loop_connections.items():
-
         keyframe_id = keyframe.kid
         Siw = vec_Scw[keyframe_id]
         if Siw is None:
