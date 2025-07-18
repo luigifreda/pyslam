@@ -273,9 +273,9 @@ def ssc_nms(kps, des, cols, rows, num_ret_points=Parameters.kNumFeatures, tolera
         covered_vec = [[False for _ in range(num_cell_cols + 1)] for _ in range(num_cell_cols + 1)]
         result = []
 
-        for i in range(len(kps)):
-            row = int(math.floor(kps[i].pt[1] / c))  # get position of the cell current point is located at
-            col = int(math.floor(kps[i].pt[0] / c))
+        for i, kp in enumerate(kps):
+            row = int(math.floor(kp.pt[1] / c))  # get position of the cell current point is located at
+            col = int(math.floor(kp.pt[0] / c))
             if not covered_vec[row][col]:  # if the cell is not covered
                 result.append(i)
                 # get range that current radius is covering

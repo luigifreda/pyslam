@@ -82,9 +82,9 @@ class TrajectoryWriter:
             raise UnsupportedFormatException(self.format_type)
 
     def write_full_trajectory(self, poses, timestamps):
-        for i in range(len(poses)):
-            R = poses[i][:3, :3]
-            t = poses[i][:3, 3]
+        for i, pose in enumerate(poses):
+            R = pose[:3, :3]
+            t = pose[:3, 3]
             timestamp = timestamps[i]
             self.write_trajectory(R, t, timestamp)
 

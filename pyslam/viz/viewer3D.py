@@ -505,7 +505,7 @@ class Viewer3D(object):
                     if self._is_running and (num_kfs > kAlignGroundTruthNumMinKeyframes) and (condition1 or condition2 or condition3):  # we want at least kAlignGroundTruthNumMinKeyframes keyframes to align
                         try:
                             self.thread_last_time_gt_was_aligned = time.time()
-                            estimated_trajectory = np.array([self.map_state.poses[i][0:3,3] for i in range(len(self.map_state.poses))], dtype=float)
+                            estimated_trajectory = np.array([pose[0:3,3] for i,pose in enumerate(self.map_state.poses)], dtype=float)
                             align_trajectories_fun = align_trajectories_with_svd
                             #align_trajectories_fun = align_trajectories_with_ransac   # WIP (just a test)
                             T_gt_est, error, alignment_gt_data = align_trajectories_fun(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, \
@@ -527,10 +527,8 @@ class Viewer3D(object):
                         except Exception as e:
                             print(f'Viewer3D: viewer_refresh - align_gt_with_svd failed: {e}')
                     if self.thread_gt_aligned:
-                        #gt_lines = [[*self.thread_gt_trajectory_aligned[i], *self.thread_gt_trajectory_aligned[i+1]] for i in range(len(self.thread_gt_trajectory_aligned)-1)]
                         gl.glLineWidth(1)
                         gl.glColor3f(1.0, 0.0, 0.0)
-                        #glutils.DrawLines(gt_lines,2)
                         glutils.DrawTrajectory(self.thread_gt_trajectory_aligned,2)         
                         
                         if self.draw_gt_associations:
@@ -640,13 +638,11 @@ class Viewer3D(object):
         # draw camera pose arrays 
         if self.camera_trajectories_state is not None:
             if len(self.camera_trajectories_state.camera_trajectories) > 0:
-                for i in range(len(self.camera_trajectories_state.camera_trajectories)):
-                    camera_trajectory = self.camera_trajectories_state.camera_trajectories[i]
+                for i, camera_trajectory in enumerate(self.camera_trajectories_state.camera_trajectories):
                     camera_color = self.camera_trajectories_state.camera_colors[i]
                     gl.glColor3f(camera_color[0], camera_color[1], camera_color[2])
                     glutils.DrawCameras(camera_trajectory, self.scale)
-                for i in range(len(self.camera_trajectories_state.camera_trajectory_lines)):
-                    trajectory_line = self.camera_trajectories_state.camera_trajectory_lines[i]
+                for i, trajectory_line in enumerate(self.camera_trajectories_state.camera_trajectory_lines):
                     camera_color = self.camera_trajectories_state.camera_colors[i]
                     gl.glColor3f(camera_color[0], camera_color[1], camera_color[2])
                     glutils.DrawTrajectory(trajectory_line)

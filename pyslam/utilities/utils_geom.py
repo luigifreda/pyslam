@@ -26,11 +26,14 @@ from .utils_sys import Printer
 from .utils_geom_lie import so3_exp, so3_log, is_so3
 from scipy.spatial.transform import Rotation 
 
+from numba import jit
+
 
 sign = lambda x: math.copysign(1, x)
 
 # returns the difference between ang1 [deg] and ang2 [deg] in the manifold S1 (unit circle)
 # result is the representation of the angle with the smallest absolute value
+@jit(nopython=True)
 def s1_diff_deg(angle1,angle2):
     diff = (angle1 - angle2) % 360 # now delta is in [0,360)
     if diff > 180:
@@ -39,6 +42,7 @@ def s1_diff_deg(angle1,angle2):
 
 # returns the positive distance between ang1 [deg] and ang2 [deg] in the manifold S1 (unit circle)
 # result is smallest positive angle between ang1 and ang2
+@jit(nopython=True)
 def s1_dist_deg(angle1, angle2):
     diff = (angle1 - angle2) % 360 # now delta is in [0,360)
     if diff > 180:
@@ -48,6 +52,7 @@ def s1_dist_deg(angle1, angle2):
 # returns the difference between ang1 [rad] and ang2 [rad] in the manifold S1 (unit circle)
 # result is the representation of the angle with the smallest absolute value
 k2pi=2*math.pi
+@jit(nopython=True)
 def s1_diff_rad(angle1,angle2):
     diff = (angle1 - angle2) % k2pi # now delta is in [0,k2pi)
     if diff > math.pi:
@@ -56,6 +61,7 @@ def s1_diff_rad(angle1,angle2):
 
 # returns the positive distance between ang1 [rad] and ang2 [rad] in the manifold S1 (unit circle)
 # result is smallest positive angle between ang1 and ang2
+@jit(nopython=True)
 def s1_dist_rad(angle1,angle2):
     diff = (angle1 - angle2) % k2pi # now delta is in [0,k2pi)
     if diff > math.pi:
@@ -63,7 +69,8 @@ def s1_dist_rad(angle1,angle2):
     return math.fabs(diff) 
 
             
-# [4x4] homogeneous T from [3x3] R and [3x1] t             
+# [4x4] homogeneous T from [3x3] R and [3x1] t          
+@jit(nopython=True)   
 def poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R
@@ -71,6 +78,7 @@ def poseRt(R, t):
     return ret   
 
 # [4x4] homogeneous inverse T^-1 in SE(3) from T represented with [3x3] R and [3x1] t  
+@jit(nopython=True)
 def inv_poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R.T
@@ -78,6 +86,7 @@ def inv_poseRt(R, t):
     return ret     
 
 # [4x4] homogeneous inverse T^-1 in SE(3)from [4x4] T  
+@jit(nopython=True)
 def inv_T(T):
     ret = np.eye(4)
     R_T = T[:3,:3].T
@@ -185,17 +194,20 @@ class Sim3Pose:
         return f"Sim3Pose(R={self.R}, t={self.t}, s={self.s})"
 
 
+@jit(nopython=True)
 def normalize_vector(v):
     norm = np.linalg.norm(v)
     if norm < 1.e-10: 
        return v, norm
     return v/norm, norm
 
+@jit(nopython=True)
 def normalize_vector2(v):
     norm = np.linalg.norm(v)
     if norm < 1.e-10: 
        return v
     return v/norm
+
 
 # turn [[x,y]] -> [[x,y,1]]
 def add_ones(x):
@@ -205,6 +217,7 @@ def add_ones(x):
         return np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)
 
 # turn [[x,y]] -> [[x,y,1]]
+@jit(nopython=True)
 def add_ones_1D(x):
     #return np.concatenate([x,np.array([1.0])], axis=0)
     return np.array([x[0], x[1], 1])
@@ -212,6 +225,7 @@ def add_ones_1D(x):
     
     
 # turn [[x,y,w]]= Kinv*[u,v,1] into [[x/w,y/w,1]]
+@jit(nopython=True)
 def normalize(Kinv, pts):
     return np.dot(Kinv, add_ones(pts).T).T[:, 0:2]        
 
@@ -220,11 +234,13 @@ def normalize(Kinv, pts):
 # w in IR^3 -> [0,-wz,wy],
 #              [wz,0,-wx],
 #              [-wy,wx,0]]
+@jit(nopython=True)
 def skew(w):
     wx,wy,wz = w.ravel()    
     return np.array([[0,-wz,wy],[wz,0,-wx],[-wy,wx,0]])
 
 
+@jit(nopython=True)
 def hamming_distance(a, b):
     #r = (1 << np.arange(8))[:,None]
     #return np.count_nonzero((np.bitwise_xor(a,b) & r) != 0)   
@@ -233,6 +249,8 @@ def hamming_distance(a, b):
 def hamming_distances(a, b):
     return np.count_nonzero(a!=b,axis=1)
 
+
+@jit(nopython=True)
 def l2_distance(a, b):
     return np.linalg.norm(a.ravel()-b.ravel())
 
@@ -241,6 +259,7 @@ def l2_distances(a,b):
 
 
 # z rotation, input in radians      
+@jit(nopython=True)
 def yaw_matrix(yaw):
     return np.array([
     [math.cos(yaw), -math.sin(yaw), 0],
@@ -249,6 +268,7 @@ def yaw_matrix(yaw):
     ])    
     
 # y rotation, input in radians      
+@jit(nopython=True)
 def pitch_matrix(pitch):
     return np.array([
     [ math.cos(pitch), 0, math.sin(pitch)],
@@ -257,6 +277,7 @@ def pitch_matrix(pitch):
     ]) 
     
 # x rotation, input in radians          
+@jit(nopython=True)
 def roll_matrix(roll):
     return np.array([
     [1,              0,               0],
@@ -265,6 +286,7 @@ def roll_matrix(roll):
     ])    
     
     
+@jit(nopython=True)
 def rotation_matrix_from_yaw_pitch_roll(yaw_degs, pitch_degs, roll_degs):
     # Convert angles from degrees to radians
     yaw = np.radians(yaw_degs)
@@ -347,6 +369,7 @@ def closest_rotation_matrix(A):
 
 # from quaternion vector to rotation matrix
 # input: qvec = [qx, qy, qz, qw]
+@jit(nopython=True)
 def qvec2rotmat(qvec):
     qx, qy, qz, qw = qvec
     return np.array([
@@ -399,6 +422,7 @@ def xyzq2Tmat(x,y,z,qx,qy,qz,qw):
 # =>  on the plane Z=1 (in front of the camera) we have that 1 meter correspond to fx=img.width pixels  
 # =>  tx=0.5 implies a shift of half image width
 # input in meters and radians     
+@jit(nopython=True)
 def homography_matrix(img,roll,pitch,yaw,tx=0,ty=0,tz=0):
     d=1
     Rwc = (yaw_matrix(yaw) @ pitch_matrix(pitch) @ roll_matrix(roll))

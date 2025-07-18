@@ -122,6 +122,10 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
     num_edges = 0
     num_bad_edges = 0    
     
+    inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
+    eye2 = np.eye(2)
+    eye3 = np.eye(3)
+    
     # add point vertices to graph 
     for p in points:      
         if p is None or p.is_bad:  # do not consider bad points   
@@ -148,10 +152,12 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             
             #print('adding edge between point ', p.id,' and frame ', f.id)
             is_stereo_obs = kf.kps_ur is not None and kf.kps_ur[idx]>=0
-            invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
+            invSigma2 = inv_level_sigmas2[kf.octaves[idx]]
 
             if Parameters.kUseSemanticsInOptimization and kf.kps_sem is not None:
                 invSigma2 *= SemanticMappingShared.get_semantic_weight(kf.kps_sem[idx])
+                
+            camera = kf.camera
 
             if is_stereo_obs: 
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
@@ -160,29 +166,29 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
                 obs = [kf.kpsu[idx][0], kf.kpsu[idx][1], kf.kps_ur[idx]]
                 edge.set_measurement(obs)
                 
-                edge.set_information(np.eye(3)*invSigma2)
+                edge.set_information(eye3*invSigma2)
                 if use_robust_kernel:
                     edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberStereo))
 
-                edge.fx = kf.camera.fx 
-                edge.fy = kf.camera.fy
-                edge.cx = kf.camera.cx
-                edge.cy = kf.camera.cy       
-                edge.bf = kf.camera.bf         
+                edge.fx = camera.fx 
+                edge.fy = camera.fy
+                edge.cx = camera.cx
+                edge.cy = camera.cy       
+                edge.bf = camera.bf         
             else: 
                 edge = g2o.EdgeSE3ProjectXYZ()
                 edge.set_vertex(0, v_p)
                 edge.set_vertex(1, graph_keyframes[kf])
                 edge.set_measurement(kf.kpsu[idx])
                 
-                edge.set_information(np.eye(2)*invSigma2)
+                edge.set_information(eye2*invSigma2)
                 if use_robust_kernel:
                     edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
-                edge.fx = kf.camera.fx 
-                edge.fy = kf.camera.fy
-                edge.cx = kf.camera.cx
-                edge.cy = kf.camera.cy
+                edge.fx = camera.fx 
+                edge.fy = camera.fy
+                edge.cx = camera.cx
+                edge.cy = camera.cy
 
             opt.add_edge(edge)
             graph_edges[edge] = is_stereo_obs
@@ -344,6 +350,12 @@ def pose_optimization(frame, verbose=False, rounds=10):
     inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
     eye2 = np.eye(2)
     eye3 = np.eye(3)
+    
+    fx = frame.camera.fx
+    fy = frame.camera.fy
+    cx = frame.camera.cx
+    cy = frame.camera.cy
+    bf = frame.camera.bf
 
     with MapPoint.global_lock:
         # add point vertices to graph 
@@ -375,11 +387,11 @@ def pose_optimization(frame, verbose=False, rounds=10):
                 edge.set_information(eye3*invSigma2)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberStereo))
 
-                edge.fx = frame.camera.fx 
-                edge.fy = frame.camera.fy
-                edge.cx = frame.camera.cx
-                edge.cy = frame.camera.cy
-                edge.bf = frame.camera.bf
+                edge.fx = fx 
+                edge.fy = fy
+                edge.cx = cx
+                edge.cy = cy
+                edge.bf = bf
                 edge.Xw = p.pt[0:3]
             else: 
                 #print('adding mono edge between point ', p.id,' and frame ', frame.id)
@@ -391,10 +403,10 @@ def pose_optimization(frame, verbose=False, rounds=10):
                 edge.set_information(eye2*invSigma2)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
-                edge.fx = frame.camera.fx 
-                edge.fy = frame.camera.fy
-                edge.cx = frame.camera.cx
-                edge.cy = frame.camera.cy
+                edge.fx = fx 
+                edge.fy = fy
+                edge.cx = cx
+                edge.cy = cy
                 edge.Xw = p.pt[0:3]
             
             opt.add_edge(edge)
@@ -585,6 +597,8 @@ def local_bundle_adjustment(keyframes: list[KeyFrame], points: list[MapPoint], k
             if Parameters.kUseSemanticsInOptimization and kf.kps_sem is not None:
                 invSigma2 *= SemanticMappingShared.get_semantic_weight(kf.kps_sem[p_idx])
 
+            camera = kf.camera
+            
             if is_stereo_obs:
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
                 obs = [kf_kpsu_p_idx[0], kf_kpsu_p_idx[1], kf_kps_ur_p_idx]
@@ -593,7 +607,7 @@ def local_bundle_adjustment(keyframes: list[KeyFrame], points: list[MapPoint], k
                 edge.set_information(eye3*invSigma2)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberStereo))
             
-                edge.bf = kf.camera.bf                
+                edge.bf = camera.bf                
             else: 
                 edge = g2o.EdgeSE3ProjectXYZ()
                 edge.set_measurement(kf_kpsu_p_idx)
@@ -601,7 +615,7 @@ def local_bundle_adjustment(keyframes: list[KeyFrame], points: list[MapPoint], k
                 edge.set_information(eye2*invSigma2)
                 edge.set_robust_kernel(g2o.RobustKernelHuber(thHuberMono))
 
-            edge.fx, edge.fy, edge.cx, edge.cy = kf.camera.fx, kf.camera.fy, kf.camera.cx, kf.camera.cy
+            edge.fx, edge.fy, edge.cx, edge.cy = camera.fx, camera.fy, camera.cx, camera.cy
                 
             edge.set_vertex(0, v_p)
             edge.set_vertex(1, graph_keyframes[kf])
@@ -1166,8 +1180,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
 
     # Check inliers
     num_bad = 0
-    for i in range(len(edges_12)):
-        edge_12 = edges_12[i]
+    for i, edge_12 in enumerate(edges_12):
         edge_21 = edges_21[i]
         
         if edge_12.chi2() > th2 or not edge_12.is_depth_positive() or\
@@ -1193,8 +1206,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     delta_err = optimizer.active_chi2() - err  # this must be negative to get a good optimization (optimizer.active_chi2() < err)
 
     num_inliers = 0
-    for i in range(len(edges_12)):
-        edge_12 = edges_12[i]
+    for i, edge_12 in enumerate(edges_12):
         edge_21 = edges_21[i]
 
         if edge_12 and edge_21: # we need to check for Nones potentially set by the first inlier check

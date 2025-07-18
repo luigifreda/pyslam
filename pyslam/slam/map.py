@@ -43,6 +43,7 @@ import g2o
 from . import optimizer_g2o
 from . import optimizer_gtsam
 
+
 kVerbose = True 
 kMaxLenFrameDeque = 20
 
@@ -78,7 +79,7 @@ class Map(object):
         self.max_frame_id = 0     # 0 is the first frame id        
         self.max_keyframe_id = 0  # 0 is the first keyframe id (kid)
         
-        self.reloaded_session_map_info = None  # type: ReloadedSessionMapInfo
+        self.reloaded_session_map_info : ReloadedSessionMapInfo | None = None  
 
         # local map 
         #self.local_map = LocalWindowMap(map=self)
@@ -323,11 +324,12 @@ class Map(object):
                 # compute back-projected rays (unit vectors) 
                 rays1 = np.dot(kf1.Rwc, add_ones(kf1.kpsn[idxs1]).T).T
                 norm_rays1 = np.linalg.norm(rays1, axis=-1, keepdims=True)                  
-                rays1 /= norm_rays1                      
+                rays1 /= norm_rays1
+                                     
                 rays2 = np.dot(kf2.Rwc, add_ones(kf2.kpsn[idxs2]).T).T     
                 norm_rays2 = np.linalg.norm(rays2, axis=-1, keepdims=True)  
                 rays2 /= norm_rays2 
-                
+
                 # compute dot products of rays                              
                 cos_parallaxs = np.sum(rays1 * rays2, axis=1)  
                 
@@ -438,7 +440,7 @@ class Map(object):
                     print(f'\t bad_chis2_2 = {np.sum(bad_chis2_2)}')
                     print(f'\t bad_scale_consistency = {np.sum(bad_scale_consistency)}')                   
             
-                # end if do_check
+            # end if do_check
                 
             # get color patches
             # Q(@luigifreda): this gets img_coords from kf1 but kf_ref in MapPoint is kf2
@@ -465,9 +467,8 @@ class Map(object):
                 idx2_i = idxs2[i]
                                         
                 # perform different required checks before adding the point 
-                if do_check:
-                    if bad_points[i]:
-                        continue                                  
+                if do_check and bad_points[i]:
+                    continue                                  
 
                 # get the color of the point  
                 try:
@@ -561,6 +562,7 @@ class Map(object):
 
     # remove points which have a big reprojection error 
     def remove_points_with_big_reproj_err(self, points): 
+        inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
         with self._lock:             
             with self.update_lock: 
                 #print('map points: ', sorted([p.id for p in self.points]))
@@ -572,7 +574,7 @@ class Map(object):
                     for f, idx in p.observations():
                         uv = f.kpsu[idx]
                         proj,z = f.project_map_point(p)
-                        invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
+                        invSigma2 = inv_level_sigmas2[f.octaves[idx]]
                         err = (proj-uv)
                         chi2s.append(np.inner(err,err)*invSigma2)
                     # cull
@@ -588,6 +590,7 @@ class Map(object):
     def compute_mean_reproj_error(self, points=None): 
         chi2 = 0
         num_obs = 0
+        inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
         with self._lock:             
             with self.update_lock:
                 if points is None:
@@ -597,7 +600,7 @@ class Map(object):
                     for f, idx in p.observations():
                         uv = f.kpsu[idx]
                         proj,_ = f.project_map_point(p)
-                        invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[f.octaves[idx]]
+                        invSigma2 = inv_level_sigmas2[f.octaves[idx]]
                         err = (proj-uv)
                         chi2 += np.inner(err,err)*invSigma2
                         num_obs += 1

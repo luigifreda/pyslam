@@ -259,13 +259,15 @@ class FrameBase(object):
     def transform_points(self, points):    
         with self._lock_pose:          
             Rcw = self._pose.Rcw.copy()
-            tcw = self._pose.tcw.reshape((3,1)).copy()              
+            tcw = self._pose.tcw.reshape((3,1)).copy()
+        points = np.ascontiguousarray(points, dtype=np.float32)              
         return (Rcw @ points.T + tcw).T  # get points  w.r.t. camera frame  [Nx3]      
     
     # project an [Nx3] array of map point vectors on this frame 
     # out: [Nx2] image projections (u,v) or [Nx3] array of stereo projections (u,v,ur) in case do_stereo_projet=True,
     #      [Nx1] array of map point depths   
-    def project_points(self, points, do_stereo_project=False):                   
+    def project_points(self, points, do_stereo_project=False):     
+        points = np.ascontiguousarray(points, dtype=np.float32)              
         pcs = self.transform_points(points)
         if do_stereo_project:      
             return self.camera.project_stereo(pcs)
@@ -275,7 +277,7 @@ class FrameBase(object):
     # out: [Nx2] image projections (u,v) or [Nx3] array of stereo projections (u,v,ur) in case do_stereo_projet=True,
     #      [Nx1] array of map point depths 
     def project_map_points(self, map_points, do_stereo_project=False):    
-        points = np.array([p.pt for p in map_points])
+        points = np.ascontiguousarray([p.pt for p in map_points])
         return self.project_points(points, do_stereo_project)
 
     # project a 3d point vector pw on this frame 
@@ -336,9 +338,12 @@ class FrameBase(object):
         points, normals, min_dists, max_dists = zip(*(p.get_all_pos_info() for p in map_points))
         points = np.vstack(points)             # shape (N, 3)
         normals = np.vstack(normals)           # shape (N, 3)
-        min_dists = np.array(min_dists)        # shape (N,)
-        max_dists = np.array(max_dists)        # shape (N,)       
+        min_dists = np.ascontiguousarray(min_dists)        # shape (N,)
+        max_dists = np.ascontiguousarray(max_dists)        # shape (N,)       
         
+        points = np.ascontiguousarray(points, dtype=np.float32)
+        normals = np.ascontiguousarray(normals, dtype=np.float32)
+
         uvs, zs = self.project_points(points, do_stereo_project)    
         POs = points - self.Ow 
         dists   = np.linalg.norm(POs, axis=-1, keepdims=True)    
@@ -473,7 +478,7 @@ class Frame(FrameBase):
                                                                                 
             # convert from a list of keypoints to arrays of points, octaves, sizes  
             if self.kps is not None:    
-                kps_data = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps ], dtype=np.float32)                     
+                kps_data = np.ascontiguousarray([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps ], dtype=np.float32)                     
                 self.kps     = kps_data[:,:2] if kps_data is not None else None
                 self.octaves = np.uint32(kps_data[:,2]) #print('octaves: ', self.octaves)                    
                 self.sizes   = kps_data[:,3]
@@ -489,7 +494,7 @@ class Frame(FrameBase):
                 self.outliers = np.full(num_kps, False, dtype=bool)
                                 
             if self.kps_r is not None: 
-                kps_data_r = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_r ], dtype=np.float32)
+                kps_data_r = np.ascontiguousarray([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_r ], dtype=np.float32)
                 self.kps_r     = kps_data_r[:,:2] if kps_data_r is not None else None
                 self.octaves_r = np.uint32(kps_data_r[:,2]) #print('octaves: ', self.octaves)
             
@@ -826,7 +831,7 @@ class Frame(FrameBase):
             print('#replaced points: ', num_replaced_points)            
 
     def compute_stereo_from_rgbd(self, kps_data, depth):
-        kps_int = np.uint32(kps_data[:,:2])
+        kps_int = np.ascontiguousarray(kps_data[:,:2], dtype=np.uint32)
         depth_values = depth[kps_int[:, 1], kps_int[:, 0]]  # Depth at keypoint locations (v, u)     
         valid_depth_mask = (depth_values > 1e-6) & np.isfinite(depth_values)           
         self.depths = np.where(valid_depth_mask, depth_values, -1.0) 
@@ -1267,9 +1272,9 @@ def prepare_input_data_for_sim3solver(f1: Frame, f2: Frame, idxs1, idxs2):
         sigmas2_2.append(level_sigmas2[f2.octaves[i2]])
         idxs1_out.append(i1)
         idxs2_out.append(i2)
-    return np.array(points_3d_1), np.array(points_3d_2), \
-           np.array(sigmas2_1), np.array(sigmas2_2), \
-           np.array(idxs1_out), np.array(idxs2_out) 
+    return np.ascontiguousarray(points_3d_1), np.ascontiguousarray(points_3d_2), \
+           np.ascontiguousarray(sigmas2_1), np.ascontiguousarray(sigmas2_2), \
+           np.ascontiguousarray(idxs1_out), np.ascontiguousarray(idxs2_out) 
             
             
 # prepare input data for pnp solver
@@ -1299,5 +1304,6 @@ def prepare_input_data_for_pnpsolver(f1: Frame, f2: Frame, idxs1, idxs2, print=p
         sigmas2.append(level_sigmas2[f1.octaves[i1]])
         idxs1_out.append(i1)
         idxs2_out.append(i2)
-    return np.array(points_3d), np.array(points_2d), \
-           np.array(sigmas2), np.array(idxs1_out), np.array(idxs2_out) 
+    return np.ascontiguousarray(points_3d), np.ascontiguousarray(points_2d), \
+           np.ascontiguousarray(sigmas2), \
+           np.ascontiguousarray(idxs1_out), np.ascontiguousarray(idxs2_out) 

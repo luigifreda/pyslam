@@ -1403,8 +1403,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
                     
     # Check inliers
     num_bad = 0
-    for i in range(len(factors_12_data)):
-        factor_12, p2_c2, host_factor_12 = factors_12_data[i]
+    for i, (factor_12, p2_c2, host_factor_12) in enumerate(factors_12_data):
         factor_21, p1_c1, host_factor_21 = factors_21_data[i]
                 
         p2_c1 = s12_opt * R12_opt @ p2_c2.reshape(3,1) + t12_opt
@@ -1463,8 +1462,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     t21_opt = (-R21_opt @ t12_opt).reshape(3,1)
         
     num_inliers = 0    
-    for i in range(len(factors_12_data)):   
-        f12di = factors_12_data[i]     
+    for i, f12di in enumerate(factors_12_data):     
         f21di = factors_21_data[i]
         if f12di and f21di:
             factor_12, p2_c2, host_factor_12 = f12di
