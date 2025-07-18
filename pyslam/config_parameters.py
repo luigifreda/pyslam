@@ -147,9 +147,9 @@ class Parameters:
 
 
     # Optimization engine 
-    kOptimizationFrontEndUseGtsam = False       # [Experimental, WIP] Use GTSAM in pose optimization in the frontend. Not super stable yet!
-    kOptimizationBundleAdjustUseGtsam = False   # Use GTSAM for LBA and GBA
-    kOptimizationLoopClosingUseGtsam = False    # [Experimental, WIP] Use GTSAM for loop closing (relocalization and PGO)
+    kOptimizationFrontEndUseGtsam = False        # Use GTSAM in pose optimization in the frontend
+    kOptimizationBundleAdjustUseGtsam = False    # Use GTSAM for LBA and GBA
+    kOptimizationLoopClosingUseGtsam = False     # [Experimental,WIP] Use GTSAM for loop closing (relocalization and PGO)
     
     
     # Bundle Adjustment (BA)

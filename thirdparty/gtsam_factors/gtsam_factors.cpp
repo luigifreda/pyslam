@@ -107,6 +107,8 @@ public:
         activeNoiseModel_ = robustNoiseModel_;
     }
 
+    virtual ~SwitchableRobustNoiseModel() override {}
+
     /// Switch to robust/diagonal model
     void setRobustModelActive(bool val) { val? activeNoiseModel_ = robustNoiseModel_ : activeNoiseModel_ = diagonalNoiseModel_; }
 
@@ -476,21 +478,21 @@ PYBIND11_MODULE(gtsam_factors, m) {
     .def("set_weight", &WeightedGenericProjectionFactorCal3_S2::setWeight);
 
 
-    py::class_<WeightedGenericStereoFactor3D, gtsam::NonlinearFactor, std::shared_ptr<WeightedGenericStereoFactor3D>>(m, "WeightedGenericStereoFactor")
+    py::class_<WeightedGenericStereoProjectionFactor3D, gtsam::NonlinearFactor, std::shared_ptr<WeightedGenericStereoProjectionFactor3D>>(m, "WeightedGenericStereoProjectionFactor3D")
     .def(py::init([] (const StereoPoint2& measured, const SharedNoiseModel& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
-            return new WeightedGenericStereoFactor3D(measured, model, poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+            return new WeightedGenericStereoProjectionFactor3D(measured, model, poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
     }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K")) 
     .def(py::init([] (const StereoPoint2& measured, const noiseModel::Diagonal& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
-        return new WeightedGenericStereoFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+        return new WeightedGenericStereoProjectionFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
     }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K"))
     .def(py::init([] (const StereoPoint2& measured, const noiseModel::Robust& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
-        return new WeightedGenericStereoFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+        return new WeightedGenericStereoProjectionFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
     }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K")) 
     .def(py::init([] (const StereoPoint2& measured, const SwitchableRobustNoiseModel& model, const Key& poseKey, const Key& landmarkKey, const Cal3_S2Stereo& K) {
-        return new WeightedGenericStereoFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
+        return new WeightedGenericStereoProjectionFactor3D(measured, create_shared_noise_model(model), poseKey, landmarkKey, boost::make_shared<Cal3_S2Stereo>(K), boost::none);
     }), py::arg("measured"), py::arg("model"), py::arg("poseKey"), py::arg("landmarkKey"), py::arg("K"))              
-    .def("get_weight", &WeightedGenericStereoFactor3D::getWeight)
-    .def("set_weight", &WeightedGenericStereoFactor3D::setWeight);
+    .def("get_weight", &WeightedGenericStereoProjectionFactor3D::getWeight)
+    .def("set_weight", &WeightedGenericStereoProjectionFactor3D::setWeight);
 
 
     py::class_<PriorFactorSimilarity3, gtsam::NoiseModelFactor1<gtsam::Similarity3>, std::shared_ptr<PriorFactorSimilarity3>>(m, "PriorFactorSimilarity3")

@@ -35,23 +35,23 @@ sign = lambda x: math.copysign(1, x)
 # result is the representation of the angle with the smallest absolute value
 @jit(nopython=True)
 def s1_diff_deg(angle1,angle2):
-    diff = (angle1 - angle2) % 360 # now delta is in [0,360)
-    if diff > 180:
-        diff -= 360
+    diff = (angle1 - angle2) % 360.0 # now delta is in [0,360)
+    if diff > 180.0:
+        diff -= 360.0
     return diff 
 
 # returns the positive distance between ang1 [deg] and ang2 [deg] in the manifold S1 (unit circle)
 # result is smallest positive angle between ang1 and ang2
 @jit(nopython=True)
 def s1_dist_deg(angle1, angle2):
-    diff = (angle1 - angle2) % 360 # now delta is in [0,360)
-    if diff > 180:
-        diff -= 360
+    diff = (angle1 - angle2) % 360.0 # now delta is in [0,360)
+    if diff > 180.0:
+        diff -= 360.0
     return math.fabs(diff) 
 
 # returns the difference between ang1 [rad] and ang2 [rad] in the manifold S1 (unit circle)
 # result is the representation of the angle with the smallest absolute value
-k2pi=2*math.pi
+k2pi=2.0*math.pi
 @jit(nopython=True)
 def s1_diff_rad(angle1,angle2):
     diff = (angle1 - angle2) % k2pi # now delta is in [0,k2pi)
@@ -262,27 +262,27 @@ def l2_distances(a,b):
 @jit(nopython=True)
 def yaw_matrix(yaw):
     return np.array([
-    [math.cos(yaw), -math.sin(yaw), 0],
-    [math.sin(yaw),  math.cos(yaw), 0],
-    [            0,              0, 1]
+    [math.cos(yaw), -math.sin(yaw), 0.0],
+    [math.sin(yaw),  math.cos(yaw), 0.0],
+    [          0.0,            0.0, 1.0]
     ])    
     
 # y rotation, input in radians      
 @jit(nopython=True)
 def pitch_matrix(pitch):
     return np.array([
-    [ math.cos(pitch), 0, math.sin(pitch)],
-    [              0,  1,               0],
-    [-math.sin(pitch), 0, math.cos(pitch)]
+    [ math.cos(pitch), 0.0, math.sin(pitch)],
+    [             0.0, 1.0,             0.0],
+    [-math.sin(pitch), 0.0, math.cos(pitch)]
     ]) 
     
 # x rotation, input in radians          
 @jit(nopython=True)
 def roll_matrix(roll):
     return np.array([
-    [1,              0,               0],
-    [0, math.cos(roll), -math.sin(roll)],
-    [0, math.sin(roll),  math.cos(roll)]
+    [1.0,            0.0,             0.0],
+    [0.0, math.cos(roll), -math.sin(roll)],
+    [0.0, math.sin(roll),  math.cos(roll)]
     ])    
     
     
@@ -294,21 +294,21 @@ def rotation_matrix_from_yaw_pitch_roll(yaw_degs, pitch_degs, roll_degs):
     roll = np.radians(roll_degs)
     # Rotation matrix for Roll (X-axis rotation)
     Rx = np.array([
-        [1, 0, 0],
-        [0, np.cos(roll), -np.sin(roll)],
-        [0, np.sin(roll), np.cos(roll)]
+        [1.0,          0.0,           0.0],
+        [0.0, np.cos(roll), -np.sin(roll)],
+        [0.0, np.sin(roll),  np.cos(roll)]
     ])
     # Rotation matrix for Pitch (Y-axis rotation)
     Ry = np.array([
-        [np.cos(pitch), 0, np.sin(pitch)],
-        [0, 1, 0],
-        [-np.sin(pitch), 0, np.cos(pitch)]
+        [ np.cos(pitch), 0.0, np.sin(pitch)],
+        [           0.0, 1.0,           0.0],
+        [-np.sin(pitch), 0.0, np.cos(pitch)]
     ])
     # Rotation matrix for Yaw (Z-axis rotation)
     Rz = np.array([
-        [np.cos(yaw), -np.sin(yaw), 0],
-        [np.sin(yaw), np.cos(yaw), 0],
-        [0, 0, 1]
+        [np.cos(yaw), -np.sin(yaw), 0.0],
+        [np.sin(yaw),  np.cos(yaw), 0.0],
+        [0.0,          0.0,         1.0]
     ])
     # Final rotation matrix: R = Rz * Ry * Rx
     R = Rz @ Ry @ Rx
@@ -374,19 +374,19 @@ def qvec2rotmat(qvec):
     qx, qy, qz, qw = qvec
     return np.array([
         [
-            1 - 2 * (qy**2 + qz**2),
-            2 * (qx * qy - qw * qz),
-            2 * (qx * qz + qw * qy),
+            1.0 - 2.0 * (qy**2 + qz**2),
+            2.0 * (qx * qy - qw * qz),
+            2.0 * (qx * qz + qw * qy),
         ],
         [
-            2 * (qx * qy + qw * qz),
-            1 - 2 * (qx**2 + qz**2),
-            2 * (qy * qz - qw * qx),
+            2.0 * (qx * qy + qw * qz),
+            1.0 - 2.0 * (qx**2 + qz**2),
+            2.0 * (qy * qz - qw * qx),
         ],
         [
-            2 * (qx * qz - qw * qy),
-            2 * (qy * qz + qw * qx),
-            1 - 2 * (qx**2 + qy**2),
+            2.0 * (qx * qz - qw * qy),
+            2.0 * (qy * qz + qw * qx),
+            1.0 - 2.0 * (qx**2 + qy**2),
         ],
     ])
 
@@ -430,15 +430,15 @@ def homography_matrix(img,roll,pitch,yaw,tx=0,ty=0,tz=0):
     fx = fy = img.shape[1]  # => on the plane Z=1 we have that 1 meter correspond to fx = img.width pixels
     (h, w) = img.shape[:2]
     cx, cy = w/2, h/2        
-    K = np.array([[fx,  0, cx],
-                  [  0, fy, cy],
-                  [  0,  0,  1]])
-    Kinv = np.array([[1/fx,    0,-cx/fx],
-                     [    0, 1/fy,-cy/fy],
-                     [    0,    0,    1]])
+    K = np.array([[  fx,  0.0,   cx],
+                  [ 0.0,   fy,   cy],
+                  [ 0.0,  0.0,  1.0]])
+    Kinv = np.array([[1.0/fx,    0.0, -cx/fx],
+                     [   0.0, 1.0/fy, -cy/fy],
+                     [   0.0,    0.0,    1.0]])
     # now we compute t*n' where t=(tx,ty,tz)' and n=(0,0,1)'
-    t_n = np.array([[ 0, 0, tx],
-                    [ 0, 0, ty],
-                    [ 0, 0, tz]])/d
+    t_n = np.array([[ 0.0, 0.0, tx],
+                    [ 0.0, 0.0, ty],
+                    [ 0.0, 0.0, tz]])/d
     H = K @ (Rcw - t_n) @ Kinv   
     return H  
