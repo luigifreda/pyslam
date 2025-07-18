@@ -21,7 +21,7 @@ import numpy as np
 import bisect
 from .utils_geom import *
 import sim3solver
-
+import trajectory_tools
 
 
 def set_rotations_from_translations(t_wi):
@@ -98,6 +98,9 @@ def align_3d_points_with_svd(gt_points, est_points, find_scale=True):
     return T_gt_est, T_est_gt, is_ok  
 
 
+def align_3d_points_with_svd2(gt_points, est_points, find_scale=True):
+    return trajectory_tools.align_3d_points_with_svd(gt_points, est_points, find_scale)
+
 # Find associations between 3D trajectories timestamps in filter and gt. For each filter timestamp, find the closest gt timestamps
 # and interpolate the 3D trajectory between them.
 # Inputs: filter_timestamps: List of filter timestamps assumed to be in seconds
@@ -155,6 +158,10 @@ def find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps
         print(f'find_trajectories_associations: max trajectory align dt: {max_dt}')
     
     return np.array(timestamps_associations), np.array(filter_associations), np.array(gt_associations)
+
+
+def find_trajectories_associations2(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=1e-1, verbose=True):
+    return trajectory_tools.find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt, verbose)
 
 
 # Associate each filter pose to a gt pose on the basis of their timestamps. Interpolate the gt poses where needed.
@@ -222,7 +229,7 @@ def find_poses_associations(filter_timestamps, filter_T_wi, gt_timestamps, gt_T_
         filter_associations.append(filter_T_wi[i])
     
     if verbose:
-        print(f'find_trajectories_associations: max trajectory align dt: {max_dt}')
+        print(f'find_poses_associations: max trajectory align dt: {max_dt}')
     
     return np.array(timestamps_associations), np.array(filter_associations), np.array(gt_associations)
 
@@ -269,14 +276,14 @@ def align_trajectories_with_svd(filter_timestamps, filter_t_wi, gt_timestamps, g
         #print(f'\tgt_timestamps: {gt_timestamps}')
 
     # First, find associations between timestamps in filter and gt    
-    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=max_align_dt, verbose=verbose)
+    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations2(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=max_align_dt, verbose=verbose)
 
     num_samples = len(filter_associations)
     if verbose: 
         print(f'align_trajectories: num associations: {num_samples}')
 
     # Next, align the two trajectories on the basis of their associations    
-    T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd(gt_associations, filter_associations, find_scale=find_scale)
+    T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd2(gt_associations, filter_associations, find_scale=find_scale)
     if not is_ok:
         return np.eye(4), -1, TrajectoryAlignementData()
     
@@ -290,7 +297,7 @@ def align_trajectories_with_svd(filter_timestamps, filter_t_wi, gt_timestamps, g
         if np.sum(mask) != len(filter_associations):
             if verbose:
                 print(f'align_trajectories: second pass: #num associations: {np.sum(mask)}, median_error: {median_error}, sigma_mad: {sigma_mad}')
-            T_gt_est, T_est_gt, is_ok  = align_3d_points_with_svd(gt_associations[mask], filter_associations[mask], find_scale=find_scale)
+            T_gt_est, T_est_gt, is_ok  = align_3d_points_with_svd2(gt_associations[mask], filter_associations[mask], find_scale=find_scale)
             if not is_ok:
                 return np.eye(4), -1, TrajectoryAlignementData()
             
@@ -327,7 +334,7 @@ def align_trajectories_with_ransac(filter_timestamps, filter_t_wi, gt_timestamps
         #print(f'\tgt_timestamps: {gt_timestamps}')
 
     # First, find associations between timestamps in filter and gt    
-    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=max_align_dt, verbose=verbose)
+    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations2(filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=max_align_dt, verbose=verbose)
 
     num_samples = len(filter_associations)
     if verbose: 

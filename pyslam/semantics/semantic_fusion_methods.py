@@ -33,8 +33,8 @@ class SemanticFusionMehtods(SerializableEnum):
 def count_labels(labels):
     unique_labels = np.unique(labels)
     label_count = np.zeros(len(unique_labels))
-    for i in range(len(unique_labels)):
-        label_count[i] = np.sum(labels == unique_labels[i])
+    for i, unique_label in enumerate(unique_labels):
+        label_count[i] = np.sum(labels == unique_label)
     return unique_labels[label_count.argmax()]
 
 def bayesian_fusion(probs):

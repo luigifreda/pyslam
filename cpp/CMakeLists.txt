@@ -75,6 +75,10 @@ target_link_libraries(glutils PRIVATE
     ${OPENGL_LIBRARIES}    
 )
 
+pybind11_add_module(trajectory_tools trajectory_tools_module.cpp)
+target_link_libraries(trajectory_tools PRIVATE
+)
+
 # pybind11_add_module(cv2_pyslam cv2_pyslam_module.cpp)
 # target_link_libraries(cv2_pyslam PRIVATE
 #     ${OpenCV_LIBS}    

@@ -83,6 +83,7 @@ dependencies = [
     "pillow_heif",
     "opt_einsum",
     "configargparse",
+    "numba",
 ]
 
 [tool.setuptools]

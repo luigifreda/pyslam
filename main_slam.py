@@ -79,9 +79,9 @@ def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
     scale = np.mean([np.linalg.norm(T_est_gt[i, :3]) for i in range(3)])
     R_est_gt = T_est_gt[:3, :3]/scale # we need a pure rotation to avoid camera scale changes
     assoc_gt_poses_aligned = [np.eye(4) for i in range(len(assoc_gt_poses))]
-    for i in range(len(assoc_gt_poses)):
-        assoc_gt_poses_aligned[i][:3,3] = T_est_gt[:3, :3] @ assoc_gt_poses[i][:3, 3] + T_est_gt[:3, 3]
-        assoc_gt_poses_aligned[i][:3,:3] = R_est_gt @ assoc_gt_poses[i][:3,:3]
+    for i, assoc_gt_pose in enumerate(assoc_gt_poses):
+        assoc_gt_poses_aligned[i][:3,3] = T_est_gt[:3, :3] @ assoc_gt_pose[:3, 3] + T_est_gt[:3, 3]
+        assoc_gt_poses_aligned[i][:3,:3] = R_est_gt @ assoc_gt_pose[:3,:3]
     viewer3D.draw_cameras([assoc_est_poses, assoc_gt_poses_aligned], [GlColors.kCyan, GlColors.kMagenta])    
                 
 

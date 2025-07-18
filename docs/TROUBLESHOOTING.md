@@ -7,6 +7,7 @@
   - [Clean reset](#clean-reset)
   - [Bad tracking performances](#bad-tracking-performances)
   - [Errors](#errors)
+    - [*Aborted (core dumped)* or *Segmentation fault (core dumped)*](#aborted-core-dumped-or-segmentation-fault-core-dumped)
     - [_ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
     - [_ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/x86\_64-linux-gnu/libhwy.so.1)_](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-libx86_64-linux-gnulibhwyso1)
     - [_RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile_](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
@@ -49,6 +50,7 @@ For faster support when opening a new git issue, please provide the following in
 - System configuration: 
   * OS, CUDA version, etc.
   * Is your OS native, or are you using it within Windows, VirtualBox, or a similar virtualization tool?
+  * Python enviornment: pyenv, conda, pixi?
 - Full console log (including the error messages)
 
 Providing this information is essential for reproducing and debugging the issue efficiently.
@@ -74,6 +76,15 @@ If you experience bad tracking performances, go in [config_parameters.py](./conf
 --- 
 
 ## Errors
+
+### *Aborted (core dumped)* or *Segmentation fault (core dumped)*
+
+This issue is related to `matplolib` and `qt` install. See [here](https://github.com/matplotlib/matplotlib/issues/9294) for a related discussion. The fastest solution should be to reinstall matplot lib and possibly downgrade its version:
+```bash
+pip uninstall matplotlib
+pip install "matplotlib<3.8" 
+``` 
+
 
 ### _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_
 

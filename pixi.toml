@@ -117,6 +117,7 @@ configargparse = "*"
 python-devtools = ">=0.12.2,<0.13"
 
 [pypi-dependencies]
+numba = "*"
 onnxruntime = "*"
 imgviz = "==1.2.6"
 glfw = "*"
