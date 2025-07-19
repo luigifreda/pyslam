@@ -46,8 +46,8 @@ TUM_DATASET:
   #name: rgbd_dataset_freiburg1_desk
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file  
   #
-  # name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
-  # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
+  #name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
+  #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto

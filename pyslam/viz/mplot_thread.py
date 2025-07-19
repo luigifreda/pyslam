@@ -228,7 +228,12 @@ class Mplot2d:
 
     def on_key_press(self, event):
         print(mp.current_process().name,f' - Mplot2d \"{self.title}\": key event pressed...  {event.key}')     
-        self.key.value = ord(event.key) # conver to int 
+        if event.key == 'escape':
+            self.key.value = 27  # escape key
+        elif len(event.key) == 1:
+            self.key.value = ord(event.key)
+        else:
+            self.key.value = 0  # unrecognized or non-character key 
         self.key_queue_thread.put(self.key.value)
         
     def on_key_release(self, event):
@@ -241,7 +246,11 @@ class Mplot2d:
      
     def get_key(self):
         if not self.key_queue.empty():
-            return chr(self.key_queue.get())                
+            key_val = self.key_queue.get()
+            if isinstance(key_val, int) and 0 <= key_val <= 255:
+                return chr(key_val)       
+            else:
+                return ''
         else:
             return ''
 
@@ -400,7 +409,12 @@ class Mplot3d:
                 
     def on_key_press(self, event):
         print(mp.current_process().name,f" - Mplot3d \"{self.title}\": key event pressed...", event.key)     
-        self.key.value = ord(event.key) # conver to int 
+        if event.key == 'escape':
+            self.key.value = 27  # escape key
+        elif len(event.key) == 1:
+            self.key.value = ord(event.key)
+        else:
+            self.key.value = 0  # unrecognized or non-character key 
         self.key_queue_thread.put(self.key.value)
         
     def on_key_release(self, event):

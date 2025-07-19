@@ -260,14 +260,14 @@ class FrameBase(object):
         with self._lock_pose:          
             Rcw = self._pose.Rcw.copy()
             tcw = self._pose.tcw.reshape((3,1)).copy()
-        points = np.ascontiguousarray(points, dtype=np.float32)              
+        points = np.ascontiguousarray(points)              
         return (Rcw @ points.T + tcw).T  # get points  w.r.t. camera frame  [Nx3]      
     
     # project an [Nx3] array of map point vectors on this frame 
     # out: [Nx2] image projections (u,v) or [Nx3] array of stereo projections (u,v,ur) in case do_stereo_projet=True,
     #      [Nx1] array of map point depths   
     def project_points(self, points, do_stereo_project=False):     
-        points = np.ascontiguousarray(points, dtype=np.float32)              
+        points = np.ascontiguousarray(points)              
         pcs = self.transform_points(points)
         if do_stereo_project:      
             return self.camera.project_stereo(pcs)
@@ -336,13 +336,10 @@ class FrameBase(object):
         #     min_dists[i] = min_dist   # corresponding to p.min_distance
         #     max_dists[i] = max_dist   # corresponding to p.max_distance
         points, normals, min_dists, max_dists = zip(*(p.get_all_pos_info() for p in map_points))
-        points = np.vstack(points)             # shape (N, 3)
-        normals = np.vstack(normals)           # shape (N, 3)
+        points = np.ascontiguousarray(np.vstack(points))   # shape (N, 3)
+        normals = np.ascontiguousarray(np.vstack(normals)) # shape (N, 3)
         min_dists = np.ascontiguousarray(min_dists)        # shape (N,)
         max_dists = np.ascontiguousarray(max_dists)        # shape (N,)       
-        
-        points = np.ascontiguousarray(points, dtype=np.float32)
-        normals = np.ascontiguousarray(normals, dtype=np.float32)
 
         uvs, zs = self.project_points(points, do_stereo_project)    
         POs = points - self.Ow 
@@ -1116,20 +1113,20 @@ class Frame(FrameBase):
 #         [Nx1] array of depths, 
 #         [Nx1] array of distances PO
 # check a) map points are in image b) good view angle c) good distance range  
-def are_map_points_visible_in_frame(map_points: list, frame: Frame, Rcw: np.ndarray, tcw: np.ndarray):      
+def are_map_points_visible_in_frame(map_points: list['MapPoint'], frame: Frame, Rcw: np.ndarray, tcw: np.ndarray):      
     # similar to frame.are_visible()
     n = len(map_points)    
     if n==0:
         return np.array([]), np.array([]), np.array([]), np.array([])  # Return empty arrays if no map points
     
-    points_w = np.zeros((n, 3), dtype=np.float32) 
-    point_normals = np.zeros((n, 3), dtype=np.float32) 
+    points_w = np.zeros((n, 3), dtype=np.float64) 
+    normals = np.zeros((n, 3), dtype=np.float32) 
     min_dists = np.zeros(n, dtype=np.float32)
     max_dists = np.zeros(n, dtype=np.float32)
     for i, p in enumerate(map_points):
         pt, normal, min_dist, max_dist = p.get_all_pos_info()
         points_w[i] = pt
-        point_normals[i] = normal  # in world frame
+        normals[i] = normal  # in world frame
         min_dists[i] = min_dist
         max_dists[i] = max_dist
                 
@@ -1140,7 +1137,7 @@ def are_map_points_visible_in_frame(map_points: list, frame: Frame, Rcw: np.ndar
     POs = points_w - Ow   
     dists = np.linalg.norm(POs, axis=-1, keepdims=True) 
     POs /= dists
-    cos_view = np.sum(point_normals * POs, axis=1)           
+    cos_view = np.sum(normals * POs, axis=1)           
                         
     are_in_image = frame.are_in_image(uvs, zs)    
     are_in_good_view_angle = cos_view > Parameters.kViewingCosLimitForPoint                  
@@ -1164,7 +1161,7 @@ def are_map_points_visible(frame1: Frame, frame2: Frame, map_points1, sR21: np.n
     if n==0:
         return np.array([]), np.array([]), np.array([]), np.array([])  # Return empty arrays if no map points
     
-    points_w = np.zeros((n, 3), dtype=np.float32) 
+    points_w = np.zeros((n, 3), dtype=np.float64) 
     point_normals = np.zeros((n, 3), dtype=np.float32) 
     min_dists = np.zeros(n, dtype=np.float32)
     max_dists = np.zeros(n, dtype=np.float32)
