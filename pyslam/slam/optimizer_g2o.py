@@ -922,7 +922,7 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
     
         print('lba_optimization_process: preparing results ...')
 
-        if sync_flag_thread.is_alive:
+        if sync_flag_thread.is_alive():
             abort_flag.value = True # force the sync thread to exit            
             sync_flag_thread.join(timeout=0.005)                     
         
@@ -1162,7 +1162,7 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
             invSigma2_21 = inv_level_sigmas2[kf2.octaves[index2]]
             
             if Parameters.kUseSemanticsInOptimization and kf2.kps_sem is not None:
-                invSigma2_21 *= SemanticMappingShared.get_semantic_weight(kf2.kps_sem[i])
+                invSigma2_21 *= SemanticMappingShared.get_semantic_weight(kf2.kps_sem[index2])
             
             edge_21.set_information(eye2 * invSigma2_21)                
             edge_21.set_robust_kernel(g2o.RobustKernelHuber(delta_huber))
