@@ -45,7 +45,6 @@ from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs, loop_
 from pyslam.loop_closing.loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorBase, LoopDetectorOutput
 
 import traceback
-import torch.multiprocessing as mp
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:

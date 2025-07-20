@@ -719,7 +719,7 @@ class LoopClosing:
     def set_is_closing(self, flag):
         with self.is_closing_codition: 
             self._is_closing = flag
-            self.is_closing_codition.notifyAll() 
+            self.is_closing_codition.notify_all() 
             
     def wait_if_closing(self): 
         if self.is_running == False:
