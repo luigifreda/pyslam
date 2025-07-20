@@ -22,7 +22,7 @@
 namespace utils
 {
 
-void extract_patch( const cv::Mat& image, const cv::KeyPoint& kp,
+void extractPatch( const cv::Mat& image, const cv::KeyPoint& kp,
                           const int& patch_size, cv::Mat& patch,
                           const bool use_orientation,
                           const float scale_factor,
@@ -56,7 +56,7 @@ void extract_patch( const cv::Mat& image, const cv::KeyPoint& kp,
 }
 
 
-void extract_patches( const cv::Mat& image, const std::vector<cv::KeyPoint>& kps,
+void extractPatches( const cv::Mat& image, const std::vector<cv::KeyPoint>& kps,
                           const int& patch_size, std::vector<cv::Mat>& patches,
                           const bool use_orientation,
                           const float scale_factor,
@@ -67,10 +67,277 @@ void extract_patches( const cv::Mat& image, const std::vector<cv::KeyPoint>& kps
     {
         cv::Mat& patchii = patches[ii];
         const cv::KeyPoint& kpii = kps[ii];
-        extract_patch(image, kpii, patch_size, patchii, use_orientation, scale_factor, warp_flags);        
+        extractPatch(image, kpii, patch_size, patchii, use_orientation, scale_factor, warp_flags);        
     }
 
 }
 
+
+std::pair<py::array_t<int>, py::array_t<int>>
+goodMatchesSimple(const std::vector<std::pair<cv::DMatch, cv::DMatch>>& matches, float ratio_test) {
+    std::vector<int> idxs1, idxs2;
+    for (const auto& pair : matches) {
+        const cv::DMatch& m = pair.first;
+        const cv::DMatch& n = pair.second;
+        if (m.distance < ratio_test * n.distance) {
+            idxs1.push_back(m.queryIdx);
+            idxs2.push_back(m.trainIdx);
+        }
+    }
+
+    return {
+        py::array_t<int>(idxs1.size(), idxs1.data()),
+        py::array_t<int>(idxs2.size(), idxs2.data())
+    };
+}
+
+std::pair<py::array_t<int>, py::array_t<int>>
+goodMatchesOneToOne(const std::vector<std::vector<cv::DMatch>>& matches, float ratio_test) {
+    std::vector<int> idxs1;
+    std::vector<int> idxs2;
+
+    const float INF = std::numeric_limits<float>::infinity();
+    std::unordered_map<int, float> dist_match;
+    std::unordered_map<int, size_t> index_match;
+
+    for (const auto& m_pair : matches) {
+        if (m_pair.size() < 2) continue;
+        const cv::DMatch& m = m_pair[0];
+        const cv::DMatch& n = m_pair[1];
+
+        if (m.distance > ratio_test * n.distance) continue;
+
+        auto it = dist_match.find(m.trainIdx);
+        if (it == dist_match.end()) {
+            // New trainIdx match
+            dist_match[m.trainIdx] = m.distance;
+            idxs1.push_back(m.queryIdx);
+            idxs2.push_back(m.trainIdx);
+            index_match[m.trainIdx] = idxs2.size() - 1;
+        } else if (m.distance < it->second) {
+            // Replace existing match with better one
+            size_t index = index_match[m.trainIdx];
+            idxs1[index] = m.queryIdx;
+            idxs2[index] = m.trainIdx;
+            dist_match[m.trainIdx] = m.distance;
+        }
+    }
+
+    // Convert to numpy arrays without copy
+    py::array_t<int> out_idxs1(idxs1.size(), idxs1.data());
+    py::array_t<int> out_idxs2(idxs2.size(), idxs2.data());
+
+    return std::make_pair(out_idxs1, out_idxs2);
+}
+
+
+py::tuple rowMatches(
+    const std::vector<cv::KeyPoint>& kps1,
+    const std::vector<cv::KeyPoint>& kps2,
+    const std::vector<cv::DMatch>& matches,
+    float max_distance,
+    float max_row_distance,
+    float max_disparity)
+{
+    std::vector<int> idxs1, idxs2;
+
+    for (const auto& m : matches) {
+        if (m.distance >= max_distance) continue;
+
+        const auto& pt1 = kps1[m.queryIdx].pt;
+        const auto& pt2 = kps2[m.trainIdx].pt;
+
+        if (std::abs(pt1.y - pt2.y) < max_row_distance &&
+            std::abs(pt1.x - pt2.x) < max_disparity)
+        {
+            idxs1.push_back(m.queryIdx);
+            idxs2.push_back(m.trainIdx);
+        }
+    }
+
+    return py::make_tuple(py::array(idxs1.size(), idxs1.data()), py::array(idxs2.size(), idxs2.data()));
+}
+
+std::pair<std::vector<int>, std::vector<int>> rowMatches_np(
+    py::array_t<float, py::array::c_style | py::array::forcecast> kps1_np,
+    py::array_t<float, py::array::c_style | py::array::forcecast> kps2_np,
+    const std::vector<cv::DMatch>& matches,
+    float max_distance,
+    float max_row_distance,
+    float max_disparity)
+{
+    if (kps1_np.ndim() != 2 || kps1_np.shape(1) != 2)
+        throw std::runtime_error("kps1 must be of shape (N, 2)");
+    if (kps2_np.ndim() != 2 || kps2_np.shape(1) != 2)
+        throw std::runtime_error("kps2 must be of shape (N, 2)");
+
+    auto kps1 = kps1_np.unchecked<2>();
+    auto kps2 = kps2_np.unchecked<2>();
+
+    std::vector<int> idxs1, idxs2;
+
+    for (const auto& m : matches) {
+        if (m.distance >= max_distance)
+            continue;
+
+        float x1 = kps1(m.queryIdx, 0), y1 = kps1(m.queryIdx, 1);
+        float x2 = kps2(m.trainIdx, 0), y2 = kps2(m.trainIdx, 1);
+
+        if (std::abs(y1 - y2) < max_row_distance &&
+            std::abs(x1 - x2) < max_disparity)
+        {
+            idxs1.push_back(m.queryIdx);
+            idxs2.push_back(m.trainIdx);
+        }
+    }
+
+    return {idxs1, idxs2};
+}
+
+
+py::tuple rowMatchesWithRatioTest(
+    const std::vector<cv::KeyPoint>& kps1,
+    const std::vector<cv::KeyPoint>& kps2,
+    const std::vector<std::vector<cv::DMatch>>& matches,
+    float max_distance,
+    float max_row_distance,
+    float max_disparity,
+    float ratio_test)
+{
+    std::vector<int> idxs1, idxs2;
+
+    for (const auto& pair : matches) {
+        if (pair.size() < 2) continue;
+        const auto& m = pair[0];
+        const auto& n = pair[1];
+
+        if (m.distance >= max_distance || m.distance >= ratio_test * n.distance) continue;
+
+        const auto& pt1 = kps1[m.queryIdx].pt;
+        const auto& pt2 = kps2[m.trainIdx].pt;
+
+        if (std::abs(pt1.y - pt2.y) < max_row_distance &&
+            std::abs(pt1.x - pt2.x) < max_disparity)
+        {
+            idxs1.push_back(m.queryIdx);
+            idxs2.push_back(m.trainIdx);
+        }
+    }
+
+    return py::make_tuple(py::array(idxs1.size(), idxs1.data()), py::array(idxs2.size(), idxs2.data()));
+}
+
+std::pair<std::vector<int>, std::vector<int>> rowMatchesWithRatioTest_np(
+    py::array_t<float, py::array::c_style | py::array::forcecast> kps1_np,
+    py::array_t<float, py::array::c_style | py::array::forcecast> kps2_np,
+    const std::vector<std::vector<cv::DMatch>>& knn_matches,
+    float max_distance,
+    float max_row_distance,
+    float max_disparity,
+    float ratio_test)
+{
+    if (kps1_np.ndim() != 2 || kps1_np.shape(1) != 2)
+        throw std::runtime_error("kps1 must be of shape (N, 2)");
+    if (kps2_np.ndim() != 2 || kps2_np.shape(1) != 2)
+        throw std::runtime_error("kps2 must be of shape (N, 2)");
+
+    auto kps1 = kps1_np.unchecked<2>();
+    auto kps2 = kps2_np.unchecked<2>();
+
+    std::vector<int> idxs1, idxs2;
+    for (const auto& match_pair : knn_matches) {
+        if (match_pair.size() < 2) continue;
+        const auto& m = match_pair[0];
+        const auto& n = match_pair[1];
+
+        if (m.distance >= ratio_test * n.distance || m.distance >= max_distance)
+            continue;
+
+        int qidx = m.queryIdx;
+        int tidx = m.trainIdx;
+
+        float dy = std::abs(kps1(qidx, 1) - kps2(tidx, 1));  // y
+        float dx = std::abs(kps1(qidx, 0) - kps2(tidx, 0));  // x
+
+        if (dy < max_row_distance && dx < max_disparity) {
+            idxs1.push_back(qidx);
+            idxs2.push_back(tidx);
+        }
+    }
+
+    return {idxs1, idxs2};
+}
+
+
+py::tuple filterNonRowMatches(
+    const std::vector<cv::KeyPoint>& kps1,
+    const std::vector<cv::KeyPoint>& kps2,
+    const std::vector<int>& idxs1,
+    const std::vector<int>& idxs2,
+    float max_row_distance,
+    float max_disparity)
+{
+    std::vector<int> out_idxs1, out_idxs2;
+    size_t N = idxs1.size();
+
+    for (size_t i = 0; i < N; ++i) {
+        const auto& pt1 = kps1[idxs1[i]].pt;
+        const auto& pt2 = kps2[idxs2[i]].pt;
+
+        if (std::abs(pt1.y - pt2.y) < max_row_distance &&
+            std::abs(pt1.x - pt2.x) < max_disparity)
+        {
+            out_idxs1.push_back(idxs1[i]);
+            out_idxs2.push_back(idxs2[i]);
+        }
+    }
+
+    return py::make_tuple(py::array(out_idxs1.size(), out_idxs1.data()), py::array(out_idxs2.size(), out_idxs2.data()));
+}
+
+std::pair<std::vector<int>, std::vector<int>> filterNonRowMatches_np(
+    py::array_t<float, py::array::c_style | py::array::forcecast> kps1_np,
+    py::array_t<float, py::array::c_style | py::array::forcecast> kps2_np,
+    py::array_t<int, py::array::c_style | py::array::forcecast> idxs1_np,
+    py::array_t<int, py::array::c_style | py::array::forcecast> idxs2_np,
+    float max_row_distance,
+    float max_disparity)
+{
+    if (kps1_np.ndim() != 2 || kps1_np.shape(1) != 2)
+        throw std::runtime_error("kps1 must be of shape (N, 2)");
+    if (kps2_np.ndim() != 2 || kps2_np.shape(1) != 2)
+        throw std::runtime_error("kps2 must be of shape (N, 2)");
+
+    if (idxs1_np.ndim() != 1 || idxs2_np.ndim() != 1)
+        throw std::runtime_error("idxs1 and idxs2 must be 1D arrays");
+
+    if (idxs1_np.shape(0) != idxs2_np.shape(0))
+        throw std::runtime_error("idxs1 and idxs2 must have the same length");
+
+    auto kps1 = kps1_np.unchecked<2>();
+    auto kps2 = kps2_np.unchecked<2>();
+    auto idxs1 = idxs1_np.unchecked<1>();
+    auto idxs2 = idxs2_np.unchecked<1>();
+
+    std::vector<int> out_idxs1, out_idxs2;
+    size_t N = idxs1.shape(0);
+
+    for (size_t i = 0; i < N; ++i) {
+        int idx1 = idxs1(i);
+        int idx2 = idxs2(i);
+
+        float x1 = kps1(idx1, 0), y1 = kps1(idx1, 1);
+        float x2 = kps2(idx2, 0), y2 = kps2(idx2, 1);
+
+        if (std::abs(y1 - y2) < max_row_distance &&
+            std::abs(x1 - x2) < max_disparity)
+        {
+            out_idxs1.push_back(idx1);
+            out_idxs2.push_back(idx2);
+        }
+    }
+
+    return {out_idxs1, out_idxs2};
+}
 
 } // namespace utils 

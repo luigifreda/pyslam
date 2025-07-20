@@ -82,7 +82,7 @@ def poseRt(R, t):
 def inv_poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R.T
-    ret[:3, 3] = -R.T @ t
+    ret[:3, 3] = -R.T @ np.ascontiguousarray(t)
     return ret     
 
 # [4x4] homogeneous inverse T^-1 in SE(3)from [4x4] T  
@@ -92,7 +92,7 @@ def inv_T(T):
     R_T = T[:3,:3].T
     t   = T[:3,3]
     ret[:3, :3] = R_T
-    ret[:3, 3] = -R_T @ t
+    ret[:3, 3] = -R_T @ np.ascontiguousarray(t)
     return ret       
 
 

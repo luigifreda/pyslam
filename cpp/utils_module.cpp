@@ -36,11 +36,7 @@ PYBIND11_MODULE(pyslam_utils, m)
     // optional module docstring
     m.doc() = "pybind11 plugin for pyslam_utils module";
     
-    // void extract_patches( const cv::Mat& image, const std::vector<cv::KeyPoint>& kps,
-    //                         const int& patchSize, std::vector<cv::Mat>& patches,
-    //                         const bool use_orientation=true,
-    //                         const float scale_factor=1.0,
-    //                         const int warp_flags= cv::WARP_INVERSE_MAP + cv::INTER_CUBIC + cv::WARP_FILL_OUTLIERS);
+
     m.def("extract_patches", 
             [](cv::Mat& image, const std::vector<cv::KeyPoint>& kps,
                const int patch_size,
@@ -50,10 +46,51 @@ PYBIND11_MODULE(pyslam_utils, m)
                ) 
             { 
                 std::vector<cv::Mat> patches;
-                utils::extract_patches(image,kps,patch_size,patches,use_orientation,scale_factor,warp_flags);
+                utils::extractPatches(image,kps,patch_size,patches,use_orientation,scale_factor,warp_flags);
                 return patches; 
             },
-            "image"_a,"kps"_a,"patch_size"_a,"use_orientation"_a=true,"scale_factor"_a=1.0,"warp_flags"_a=cv::WARP_INVERSE_MAP + cv::INTER_CUBIC + cv::WARP_FILL_OUTLIERS
+            "image"_a,"kps"_a,"patch_size"_a,"use_orientation"_a=true,"scale_factor"_a=1.0,
+            "warp_flags"_a=cv::WARP_INVERSE_MAP + cv::INTER_CUBIC + cv::WARP_FILL_OUTLIERS
             );          
+
+
+    m.def("good_matches_one_to_one", &utils::goodMatchesOneToOne,
+        py::arg("matches"), py::arg("ratio_test") = 0.7f,
+        "Filter good one-to-one matches with ratio test");       
+        
+    m.def("good_matches_simple", &utils::goodMatchesSimple, 
+        py::arg("matches"), py::arg("ratio_test") = 0.7f,
+        "Filter good one-to-one matches with ratio test");
+
+
+    m.def("row_matches", &utils::rowMatches, 
+        py::arg("kps1"), py::arg("kps2"), py::arg("matches"),
+        py::arg("max_distance"), py::arg("max_row_distance"), py::arg("max_disparity"),
+        "Filter raw matches based on row and disparity constraints");
+
+    m.def("row_matches_np", &utils::rowMatches_np, 
+        py::arg("kps1_np"), py::arg("kps2_np"), py::arg("matches"),
+        py::arg("max_distance"), py::arg("max_row_distance"), py::arg("max_disparity"),
+        "Filter raw matches based on row and disparity constraints");
+
+
+    m.def("row_matches_with_ratio_test", &utils::rowMatchesWithRatioTest, 
+        py::arg("kps1"), py::arg("kps2"), py::arg("knn_matches"),
+        py::arg("max_distance"), py::arg("max_row_distance"), py::arg("max_disparity"), py::arg("ratio_test"),
+        "KNN match with ratio test and epipolar filtering");
+
+    m.def("row_matches_with_ratio_test_np", &utils::rowMatchesWithRatioTest_np, 
+        py::arg("kps1_np"), py::arg("kps2_np"), py::arg("knn_matches"),
+        py::arg("max_distance"), py::arg("max_row_distance"), py::arg("max_disparity"), py::arg("ratio_test"),
+        "KNN match with ratio test and epipolar filtering");
+
+
+    m.def("filter_non_row_matches", &utils::filterNonRowMatches, 
+        py::arg("kps1"), py::arg("kps2"), py::arg("idxs1"), py::arg("idxs2"),
+        py::arg("max_row_distance"), py::arg("max_disparity"), "Post-filter matches by epipolar constraints");
+
+    m.def("filter_non_row_matches_np", &utils::filterNonRowMatches_np, 
+        py::arg("kps1_np"), py::arg("kps2_np"), py::arg("idxs1_np"), py::arg("idxs2_np"),
+        py::arg("max_row_distance"), py::arg("max_disparity"), "Post-filter matches by epipolar constraints");
 
 }

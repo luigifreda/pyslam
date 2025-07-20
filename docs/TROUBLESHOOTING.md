@@ -46,14 +46,19 @@ For faster support when opening a new git issue, please provide the following in
 - Code configuration:
   * Modified parameters in `config.yaml`
   * Modified parameters in `pyslam/config_parameters.py`
-  * Any other changes made to the codebase
+  * Any other changes made to the codebase. You can easily provide this information by running: 
+  ```bash
+  git fetch origin
+  git diff --name-status origin/master
+  ```
 - System configuration: 
   * OS, CUDA version, etc.
   * Is your OS native, or are you using it within Windows, VirtualBox, or a similar virtualization tool?
   * Python enviornment: pyenv, conda, pixi?
 - Full console log (including the error messages)
+- Pictures of plots and 3D viewer
 
-Providing this information is essential for reproducing and debugging the issue efficiently.
+**Providing this information is crucial for reproducing and debugging the issue efficiently**.
 
 ---
 
@@ -64,6 +69,8 @@ If you want to perform a **clean reset** and launch a fresh new install (rebuild
 ./clean.sh --hard   # clean build folders 
 ./pyenv-delete.sh   # delete the "pyslam" virtual environment
 ```
+
+This is ideal when you pull new updates and need a fresh build and install.
 
 --- 
 

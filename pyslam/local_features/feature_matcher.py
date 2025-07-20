@@ -16,7 +16,8 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
-import os                
+import os
+import stat                
 import numpy as np 
 import cv2
 import platform
@@ -34,7 +35,8 @@ from .feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, Feature
 
 import kornia as K
 import kornia.feature as KF
-import numpy as np
+
+import pyslam_utils
 
 import pyslam.config as config
 config.cfg.set_lib('xfeat') 
@@ -122,6 +124,20 @@ def feature_matcher_factory(norm_type=cv2.NORM_HAMMING,
 # ==============================================================================
 
 class MatcherUtils: 
+    
+    @staticmethod
+    def convert_matches_to_array_of_tuples(matches):
+        # If matches contain cv2.DMatch objects, convert to tuples
+        if isinstance(matches[0][0], cv2.DMatch):
+            matches = [
+                (
+                    (m[0].queryIdx, m[0].trainIdx, m[0].imgIdx, m[0].distance),
+                    (m[1].queryIdx, m[1].trainIdx, m[1].imgIdx, m[1].distance)
+                )
+                for m in matches if len(m) == 2
+            ]
+        return matches
+    
     # input: 
     #   matches: list of cv2.DMatch (expected k=2 for knn search)
     #   des1 = query-descriptors, 
@@ -130,8 +146,7 @@ class MatcherUtils:
     #   idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
     # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index
     @staticmethod    
-    def goodMatchesOneToOne(matches, des1, des2, ratio_test=0.7):
-        #len_des2 = len(des2)
+    def goodMatchesOneToOne_py(matches, des1, des2, ratio_test=0.7):
         idxs1, idxs2 = [], []           
         if matches is not None:         
             float_inf = float('inf')
@@ -156,12 +171,18 @@ class MatcherUtils:
                         idxs1[index]=m.queryIdx
                         idxs2[index]=m.trainIdx
         return np.array(idxs1), np.array(idxs2)
+    
+    @staticmethod
+    def goodMatchesOneToOne(matches, des1, des2, ratio_test=0.7):
+        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        return pyslam_utils.good_matches_one_to_one(matches, ratio_test)
+
 
     # input: des1 = query-descriptors, des2 = train-descriptors
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
     # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes
     @staticmethod    
-    def goodMatchesSimple(matches, des1, des2, ratio_test=0.7):
+    def goodMatchesSimple_py(matches, des1, des2, ratio_test=0.7):
         idxs1, idxs2 = [], []                  
         if matches is not None: 
             for m,n in matches:
@@ -169,10 +190,15 @@ class MatcherUtils:
                     idxs1.append(m.queryIdx)
                     idxs2.append(m.trainIdx)                                                         
         return np.array(idxs1), np.array(idxs2) 
+    
+    @staticmethod
+    def goodMatchesSimple(matches, des1, des2, ratio_test=0.7):
+        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        return pyslam_utils.good_matches_simple(matches, ratio_test)
 
 
     @staticmethod
-    def rowMatches(matcher, kps1, des1, kps2, des2, max_matching_distance, 
+    def rowMatches_py(matcher, kps1, des1, kps2, des2, max_matching_distance, 
             max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100):
         idxs1, idxs2 = [], []  
         matches = matcher.match(np.array(des1), np.array(des2))
@@ -187,7 +213,15 @@ class MatcherUtils:
         return np.array(idxs1), np.array(idxs2) 
     
     @staticmethod
-    def rowMatchesWithRatioTest(matcher, kps1, des1, kps2, des2, max_matching_distance, 
+    def rowMatches(matcher, kps1, des1, kps2, des2, max_matching_distance,
+                   max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100):
+        matches = matcher.match(np.array(des1), np.array(des2))
+        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        return pyslam_utils.row_matches_np(kps1, kps2, matches, max_matching_distance, max_row_distance, max_disparity)
+    
+    
+    @staticmethod
+    def rowMatchesWithRatioTest_py(matcher, kps1, des1, kps2, des2, max_matching_distance, 
             max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100, ratio_test=0.7):
         idxs1, idxs2 = [], []  
         matches =  matcher.knnMatch(np.array(des1), np.array(des2), k=2) 
@@ -200,10 +234,18 @@ class MatcherUtils:
                 if m.distance < ratio_test * n.distance:                
                     idxs1.append(m.queryIdx)
                     idxs2.append(m.trainIdx)   
-        return np.array(idxs1), np.array(idxs2)     
+        return np.array(idxs1), np.array(idxs2)    
     
     @staticmethod
-    def filterNonRowMatches(kps1, idxs1, kps2, idxs2, max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100):  
+    def rowMatchesWithRatioTest(matcher, kps1, des1, kps2, des2, max_matching_distance, 
+            max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100, ratio_test=0.7):
+        matches = matcher.knnMatch(np.array(des1), np.array(des2), k=2)
+        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        return pyslam_utils.row_matches_with_ratio_test_np(kps1, kps2, matches, max_matching_distance, max_row_distance, max_disparity, ratio_test)
+   
+
+    @staticmethod
+    def filterNonRowMatches_py(kps1, idxs1, kps2, idxs2, max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100):  
         assert(len(idxs1) == len(idxs2))
         out_idxs1, out_idxs2 = [], []   
         for idx1, idx2 in zip(idxs1, idxs2):
@@ -213,6 +255,17 @@ class MatcherUtils:
                 out_idxs1.append(idx1)
                 out_idxs2.append(idx2)   
         return np.array(out_idxs1), np.array(out_idxs2)
+    
+    @staticmethod
+    def filterNonRowMatches(kps1, idxs1, kps2, idxs2, max_row_distance=Parameters.kStereoMatchingMaxRowDistance, max_disparity=100):
+        assert(len(idxs1) == len(idxs2))
+        if not isinstance(idxs1, np.ndarray):
+            idxs1 = np.array(idxs1, dtype=np.int32)
+        if not isinstance(idxs2, np.ndarray):
+            idxs2 = np.array(idxs2, dtype=np.int32)
+        out_idxs1, out_idxs2 = pyslam_utils.filter_non_row_matches_np(kps1, kps2, idxs1, idxs2, max_row_distance, max_disparity)
+        return np.array(out_idxs1), np.array(out_idxs2)
+    
     
     # input: des1 = query-descriptors, des2 = train-descriptors, kps1 = query-keypoints, kps2 = train-keypoints 
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
@@ -518,6 +571,7 @@ class FeatureMatcher:
                 matches = matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
                 #return MatcherUtils.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
                 idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)                    
+                #idxs1, idxs2 = MatcherUtils.goodMatchesOneToOneNumba(matches, des1, des2, ratio_test)     
             else: 
                 assert(max_disparity is not None)
                 # we perform row matching for stereo images (matching rectified left and right images)
@@ -528,10 +582,17 @@ class FeatureMatcher:
                     idxs1, idxs2 = MatcherUtils.rowMatches(matcher, kps1, des1, kps2, des2, max_descriptor_distance, max_disparity=max_disparity)
             
             # Change suggested here https://github.com/luigifreda/pyslam/issues/125#issuecomment-2555299806
-            #result.idxs1 = idxs1
-            #result.idxs2 = idxs2
-            result.idxs1 = idxs1.astype(np.int64)
-            result.idxs2 = idxs2.astype(np.int64)                              
+            if not isinstance(idxs1, np.ndarray):
+                idxs1 = np.array(idxs1, dtype=np.int32)
+            else:
+                idxs1 = idxs1.astype(np.int32)
+            if not isinstance(idxs2, np.ndarray):
+                idxs2 = np.array(idxs2, dtype=np.int32)
+            else:
+                idxs2 = idxs2.astype(np.int32)
+            result.idxs1 = idxs1
+            result.idxs2 = idxs2                              
+                     
             return result      
 
     

@@ -42,23 +42,22 @@ kCheckFeaturesOrientation = Parameters.kCheckFeaturesOrientation
 # propagate map point matches from f_ref to f_cur (access frames from tracking thread, no need to lock)
 def propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur,
                                 max_descriptor_distance=None):
+                                #check_orientation=False):
     if max_descriptor_distance is None:
         max_descriptor_distance = Parameters.kMaxDescriptorDistance
         
     idx_ref_out = []
     idx_cur_out = []
     
-    rot_histo = RotationHistogram()
-    check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features
+    #rot_histo = RotationHistogram()
+    #check_orientation = check_orientation and kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features
         
     # populate f_cur with map points by propagating map point matches of f_ref; 
     # to this aim, we use map points observed in f_ref and keypoint matches between f_ref and f_cur  
     num_matched_map_pts = 0
-    for i, idx in enumerate(idxs_ref): # iterate over keypoint matches 
-        p_ref = f_ref.points[idx]
-        if p_ref is None: # we don't have a map point P for i-th matched keypoint in f_ref
-            continue 
-        if f_ref.outliers[idx] or p_ref.is_bad: # do not consider pose optimization outliers or bad points 
+    for i, idx_ref in enumerate(idxs_ref): # iterate over keypoint matches 
+        p_ref = f_ref.points[idx_ref]
+        if p_ref is None or f_ref.outliers[idx_ref] or p_ref.is_bad: # do not consider pose optimization outliers or bad points 
             continue  
         idx_cur = idxs_cur[i]
         p_cur = f_cur.points[idx_cur]
@@ -69,21 +68,21 @@ def propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur,
             continue 
         if p_ref.add_frame_view(f_cur, idx_cur): # => P is matched to the i-th matched keypoint in f_cur
             num_matched_map_pts += 1
-            idx_ref_out.append(idx)
+            idx_ref_out.append(idx_ref)
             idx_cur_out.append(idx_cur)
             
-            if check_orientation:
-                index_match = len(idx_cur_out)-1
-                rot = f_ref.angles[idx]-f_cur.angles[idx_cur]
-                rot_histo.push(rot, index_match)
+            # if check_orientation:
+            #     index_match = len(idx_cur_out)-1
+            #     rot = f_ref.angles[idx]-f_cur.angles[idx_cur]
+            #     rot_histo.push(rot, index_match)
             
-    if check_orientation:            
-        valid_match_idxs = rot_histo.get_valid_idxs()     
-        print('checking orientation consistency - valid matches % :', len(valid_match_idxs)/max(1,len(idxs_cur))*100,'% of ', len(idxs_cur),'matches')
-        #print('rotation histogram: ', rot_histo)
-        idx_ref_out = np.array(idx_ref_out)[valid_match_idxs]
-        idx_cur_out = np.array(idx_cur_out)[valid_match_idxs]
-        num_matched_map_pts = len(valid_match_idxs)            
+    # if check_orientation:            
+    #     valid_match_idxs = rot_histo.get_valid_idxs()     
+    #     print('checking orientation consistency - valid matches % :', len(valid_match_idxs)/max(1,len(idxs_cur))*100,'% of ', len(idxs_cur),'matches')
+    #     #print('rotation histogram: ', rot_histo)
+    #     idx_ref_out = np.array(idx_ref_out)[valid_match_idxs]
+    #     idx_cur_out = np.array(idx_cur_out)[valid_match_idxs]
+    #     num_matched_map_pts = len(valid_match_idxs)            
                             
     return num_matched_map_pts, idx_ref_out, idx_cur_out  
 

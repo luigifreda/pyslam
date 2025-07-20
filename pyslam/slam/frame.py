@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     from pyslam.slam.map_point import MapPointBase, MapPoint
 
 
+kMinDepth = 1e-2
 kDrawFeatureRadius = [r*5 for r in range(1,100)]
 kDrawOctaveColor = np.linspace(0, 255, 12)
 
@@ -830,7 +831,7 @@ class Frame(FrameBase):
     def compute_stereo_from_rgbd(self, kps_data, depth):
         kps_int = np.ascontiguousarray(kps_data[:,:2], dtype=np.uint32)
         depth_values = depth[kps_int[:, 1], kps_int[:, 0]]  # Depth at keypoint locations (v, u)     
-        valid_depth_mask = (depth_values > 1e-6) & np.isfinite(depth_values)           
+        valid_depth_mask = (depth_values > kMinDepth) & np.isfinite(depth_values)           
         self.depths = np.where(valid_depth_mask, depth_values, -1.0) 
         safe_depth_values    = np.where(valid_depth_mask, depth_values, 1.0)  # 1.0 avoids div-by-zero
         self.kps_ur = np.where(valid_depth_mask, self.kpsu[:,0] - self.camera.bf / safe_depth_values, -1.0)  
@@ -1005,7 +1006,7 @@ class Frame(FrameBase):
         print(f'[compute_stereo_matches] found final {len(good_matched_idxs1)} stereo matches')   
                 
         if Frame.is_compute_median_depth:                
-            valid_dephts_mask = self.depths > 0
+            valid_dephts_mask = self.depths > kMinDepth
             self.median_depth = np.median(self.depths[valid_dephts_mask])
             self.fov_center_c = self.camera.unproject_3d(self.camera.cx, self.camera.cy, self.median_depth)
             self.fov_center_w = self._pose.Rwc @ self.fov_center_c + self._pose.Ow
@@ -1029,7 +1030,7 @@ class Frame(FrameBase):
     def unproject_points_3d(self, idxs, transform_in_world=False):
         if self.depths is not None:
             depth_values = self.depths[idxs][:, np.newaxis]
-            valid_depth_mask = depth_values > 1e-6
+            valid_depth_mask = depth_values > kMinDepth
             kpsn = add_ones(self.kpsn[idxs])
             pts3d_mask = valid_depth_mask.flatten()
             pts3d = kpsn * depth_values

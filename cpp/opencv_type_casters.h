@@ -63,13 +63,13 @@ struct type_caster<cv::Point>{
 
     bool load(handle obj, bool){
         if(!py::isinstance<py::tuple>(obj)){
-            std::logic_error("Point(x,y) should be a tuple!");
+            throw std::logic_error("Point(x,y) should be a tuple!");
             return false;
         }
 
         py::tuple pt = reinterpret_borrow<py::tuple>(obj);
         if(pt.size()!=2){
-            std::logic_error("Point(x,y) tuple should be size of 2");
+            throw std::logic_error("Point(x,y) tuple should be size of 2");
             return false;
         }
 
@@ -94,13 +94,13 @@ struct type_caster<cv::Point2f>{
 
     bool load(handle obj, bool){
         if(!py::isinstance<py::tuple>(obj)){
-            std::logic_error("Point2f(x,y) should be a tuple!");
+            throw std::logic_error("Point2f(x,y) should be a tuple!");
             return false;
         }
 
         py::tuple pt = reinterpret_borrow<py::tuple>(obj);
         if(pt.size()!=2){
-            std::logic_error("Point2f(x,y) tuple should be size of 2");
+            throw std::logic_error("Point2f(x,y) tuple should be size of 2");
             return false;
         }
 
@@ -126,12 +126,12 @@ struct type_caster<cv::KeyPoint>{
     bool load(handle obj, bool){
 
         if(!py::isinstance<py::tuple>(obj)){
-            std::logic_error("KeyPoint should be a tuple!");
+            throw std::logic_error("KeyPoint should be a tuple!");
             return false;
         }
         py::tuple keypoint = reinterpret_borrow<py::tuple>(obj);
         if(keypoint.size()!=6){
-            std::logic_error("Keypoint (pt.x, pt.y, size, angle, response, octave) tuple should be size of 5");
+            throw std::logic_error("Keypoint (pt.x, pt.y, size, angle, response, octave) tuple should be size of 6");
             return false;
         }
 
@@ -158,12 +158,12 @@ struct type_caster<cv::Rect>{
 
     bool load(handle obj, bool){
         if(!py::isinstance<py::tuple>(obj)){
-            std::logic_error("Rect should be a tuple!");
+            throw std::logic_error("Rect should be a tuple!");
             return false;
         }
         py::tuple rect = reinterpret_borrow<py::tuple>(obj);
         if(rect.size()!=4){
-            std::logic_error("Rect (x,y,w,h) tuple should be size of 4");
+            throw std::logic_error("Rect (x,y,w,h) tuple should be size of 4");
             return false;
         }
 
@@ -198,6 +198,12 @@ struct type_caster<cv::Mat>{
 public:
     PYBIND11_TYPE_CASTER(cv::Mat, _("numpy.ndarray"));
 
+    static const std::string fmt_uchar;
+    static const std::string fmt_short;
+    static const std::string fmt_int;
+    static const std::string fmt_float;
+    static const std::string fmt_double;
+
     //! 1. cast numpy.ndarray to cv::Mat
     bool load(handle obj, bool){
         array b = reinterpret_borrow<array>(obj);
@@ -223,14 +229,18 @@ public:
         }
 
         int dtype;
-        if(info.format == format_descriptor<unsigned char>::format()){
+        if(info.format == fmt_uchar){
             dtype = CV_8UC(nc);
-        }else if (info.format == format_descriptor<int>::format()){
+        }else if (info.format == fmt_short){
+            dtype = CV_16SC(nc);
+        }else if (info.format == fmt_int){
             dtype = CV_32SC(nc);
-        }else if (info.format == format_descriptor<float>::format()){
+        }else if (info.format == fmt_float){
             dtype = CV_32FC(nc);
+        }else if (info.format == fmt_double){
+            dtype = CV_64FC(nc);
         }else{
-            throw std::logic_error("Unsupported type, only support uchar, int32, float");
+            throw std::logic_error("Unsupported type, only support uchar, short, int32, float, double");
             return false;
         }
 
@@ -242,7 +252,7 @@ public:
     static handle cast(const cv::Mat& mat, return_value_policy, handle defval){
         //UNUSED(defval);
 
-        std::string format = format_descriptor<unsigned char>::format();
+        std::string format = fmt_uchar;
         size_t elemsize = sizeof(unsigned char);
         int nw = mat.cols;
         int nh = mat.rows;
@@ -252,16 +262,22 @@ public:
         int dim = (depth == type)? 2 : 3;
 
         if(depth == CV_8U){
-            format = format_descriptor<unsigned char>::format();
+            format = fmt_uchar;
             elemsize = sizeof(unsigned char);
+        }else if(depth == CV_16S){
+            format = fmt_short;
+            elemsize = sizeof(short);
         }else if(depth == CV_32S){
-            format = format_descriptor<int>::format();
+            format = fmt_int;
             elemsize = sizeof(int);
         }else if(depth == CV_32F){
-            format = format_descriptor<float>::format();
+            format = fmt_float;
             elemsize = sizeof(float);
+        }else if(depth == CV_64F){
+            format = fmt_double;
+            elemsize = sizeof(double);
         }else{
-            throw std::logic_error("Unsupport type, only support uchar, int32, float");
+            throw std::logic_error("Unsupport type, only support uchar, short, int32, float, double");
         }
 
         std::vector<size_t> bufferdim;
@@ -274,6 +290,43 @@ public:
             strides = {(size_t) elemsize * nw * nc, (size_t) elemsize * nc, (size_t) elemsize};
         }
         return array(buffer_info( mat.data,  elemsize,  format, dim, bufferdim, strides )).release();
+    }
+};
+
+const std::string pybind11::detail::type_caster<cv::Mat>::fmt_uchar = format_descriptor<unsigned char>::format();
+const std::string pybind11::detail::type_caster<cv::Mat>::fmt_short = format_descriptor<short>::format();
+const std::string pybind11::detail::type_caster<cv::Mat>::fmt_int   = format_descriptor<int>::format();
+const std::string pybind11::detail::type_caster<cv::Mat>::fmt_float = format_descriptor<float>::format();
+const std::string pybind11::detail::type_caster<cv::Mat>::fmt_double = format_descriptor<double>::format();
+
+
+template <>
+struct type_caster<cv::DMatch> {
+    PYBIND11_TYPE_CASTER(cv::DMatch, _("DMatch"));
+
+    // Python -> C++
+    bool load(handle obj, bool) {
+        if (!py::isinstance<py::tuple>(obj)) {
+            throw std::logic_error("DMatch should be a tuple (queryIdx, trainIdx, imgIdx, distance)");
+            return false;
+        }
+
+        py::tuple tup = py::reinterpret_borrow<py::tuple>(obj);
+        if (tup.size() != 4) {
+            throw std::logic_error("DMatch tuple should have 4 elements: (queryIdx, trainIdx, imgIdx, distance)");
+            return false;
+        }
+
+        value.queryIdx = tup[0].cast<int>();
+        value.trainIdx = tup[1].cast<int>();
+        value.imgIdx   = tup[2].cast<int>();
+        value.distance = tup[3].cast<float>();
+        return true;
+    }
+
+    // C++ -> Python
+    static handle cast(const cv::DMatch& match, return_value_policy, handle) {
+        return py::make_tuple(match.queryIdx, match.trainIdx, match.imgIdx, match.distance).release();
     }
 };
 

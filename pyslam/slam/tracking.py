@@ -100,6 +100,8 @@ kUseEssentialMatrixFitting = Parameters.kUseEssentialMatrixFitting
        
 kNumMinObsForKeyFrameDefault = 3
 
+kMinDepth = 1e-2
+
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -141,8 +143,8 @@ class Tracking:
         #self.motion_model = MotionModelDamping()  # motion model for current frame pose prediction with damping       
         
         self.dyn_config = SLAMDynamicConfig(self.feature_tracker.feature_manager.max_descriptor_distance)
-        self.descriptor_distance_sigma = self.feature_tracker.feature_manager.max_descriptor_distance
-        self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMap 
+        self.descriptor_distance_sigma : float = self.feature_tracker.feature_manager.max_descriptor_distance
+        self.reproj_err_frame_map_sigma : float = Parameters.kMaxReprojectionDistanceMap 
         if self.sensor_type == SensorType.RGBD:
             self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapRgbd   
         
@@ -477,9 +479,11 @@ class Tracking:
         if kUseDynamicDesDistanceTh: 
             self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(f_ref, f_cur, idxs_ref, idxs_cur)        
                                
+        max_descriptor_distance = self.descriptor_distance_sigma if not f_ref.is_keyframe else 0.5 * self.descriptor_distance_sigma
+                               
         # propagate map point matches from kf_ref to f_cur  (do not override idxs_ref, idxs_cur)
         num_found_map_pts_inter_frame, idx_ref_prop, idx_cur_prop = propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur, 
-                                                                                                max_descriptor_distance=self.descriptor_distance_sigma) 
+                                                                                                max_descriptor_distance= max_descriptor_distance)
         print("# matched map points in reference frame: %d " % num_found_map_pts_inter_frame)      
                 
         if kShowFeatureMatches and kShowFeatureMatchesRefFrame: 
@@ -642,7 +646,7 @@ class Tracking:
         tracked_mask = np.not_equal(f_cur.points, None) & (~f_cur.outliers)        
         if self.sensor_type!=SensorType.MONOCULAR:
             # Create a mask to identify valid depth values within the threshold
-            depth_mask = (f_cur.depths > 0) & (f_cur.depths < f_cur.camera.depth_threshold)
+            depth_mask = (f_cur.depths > kMinDepth) & (f_cur.depths < f_cur.camera.depth_threshold)
             # Create a mask for tracked points (not None and not an outlier)
             #tracked_mask = (f_cur.points != None) & (~f_cur.outliers)
             # Count points that are close and tracked
@@ -765,7 +769,7 @@ class Tracking:
         
         # Create "visual odometry" MapPoints
         # Sort points according to their measured depth by the stereo/RGB-D sensor
-        valid_mask = self.f_ref.depths > 0
+        valid_mask = self.f_ref.depths > kMinDepth
         if not np.any(valid_mask):
             return
             
@@ -827,7 +831,7 @@ class Tracking:
     # kf is a newly created keyframe starting from frame f
     def create_and_add_stereo_map_points_on_new_kf(self, f: Frame, kf: KeyFrame, img):
         if self.sensor_type != SensorType.MONOCULAR and kf.depths is not None: 
-            valid_depths_and_idxs = [(z, i) for i, z in enumerate(kf.depths) if z > 0]
+            valid_depths_and_idxs = [(z, i) for i, z in enumerate(kf.depths) if z > kMinDepth]
             valid_depths_and_idxs.sort() # increasing-depth order 
             
             if len(valid_depths_and_idxs)==0:

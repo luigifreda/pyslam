@@ -5,9 +5,10 @@ Here you can find the instructions to install `pyslam` under `pixi`.
 <!-- TOC -->
 
 - [Install under pixi](#install-under-pixi)
-  - [Install pixi](#install-pixi)
-  - [Activate pixi shell](#activate-pixi-shell)
-  - [Launch the install script](#launch-the-install-script)
+    - [1. Install pixi](#1-install-pixi)
+    - [2. Activate pixi shell](#2-activate-pixi-shell)
+    - [3. Launch the install script](#3-launch-the-install-script)
+    - [4. Launch a main script](#4-launch-a-main-script)
 
 <!-- /TOC -->
 
@@ -16,6 +17,7 @@ Follow the steps described below:
   - [Install pixi](#install-pixi)
   - [Activate pixi shell](#activate-pixi-shell)
   - [Launch the install script](#launch-the-install-script)
+  - [Launch a main script](#launch-a-main-script)
 
 
 ## Install pixi 
@@ -38,6 +40,10 @@ Then run
 ```
 ./scripts/install_all_pixi.sh
 ```
+
+## Launch a main script
+
+Once you have activate the pixi shell in your terminal, you're ready to run any main script.
 
 <!-- ---
 ## Additional manual pip install steps
