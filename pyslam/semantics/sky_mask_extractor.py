@@ -4,7 +4,7 @@ import numpy as np
 import onnxruntime
 from typing import Optional
 
-from pyslam.utilities.utils_sys import download_file_from_url
+from pyslam.utilities.utils_download import download_file_from_url
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

@@ -61,10 +61,11 @@ kDrawReferenceCamera = True
 
 kMinWeightForDrawingCovisibilityEdge=100
 
-kAlignGroundTruthNumMinKeyframes = 10
-kAlignGroundTruthEveryNKeyframes = 10
-kAlignGroundTruthEveryNFrames = 30
-kAlignGroundTruthEveryTimeInterval = 3 # [s]
+kAlignGroundTruthNumMinKeyframes = 10       # minimum number of keyframes to start aligning
+kAlignGroundTruthMaxEveryNKeyframes = 10    # maximum number of keyframes between alignments
+kAlignGroundTruthMinNumFramesPassed = 10    # minimum number of frames passed since last alignment
+kAlignGroundTruthMaxEveryNFrames = 30       # maximum number of frames between alignments
+kAlignGroundTruthMaxEveryTimeInterval = 3   # [s] maximum time interval between alignments
 
 kRefreshDurationTime = 0.03 # [s]
 
@@ -496,13 +497,15 @@ class Viewer3D(object):
                 
             if self.thread_gt_timestamps is not None: 
                 if self.draw_gt:                
-                    # align the gt to the estimated trajectory every 'kAlignGroundTruthEveryNKeyframes' frames;
+                    # align the gt to the estimated trajectory every 'kAlignGroundTruthMaxEveryNKeyframes' frames;
                     # the more estimated frames we have the better the alignment! 
                     num_kfs = len(self.map_state.poses)
-                    condition1 = (time.time() - self.thread_last_time_gt_was_aligned) > kAlignGroundTruthEveryTimeInterval
-                    condition2 = len(self.map_state.poses) > kAlignGroundTruthEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned
-                    condition3 = self.map_state.cur_frame_id > kAlignGroundTruthEveryNFrames + self.thread_last_frame_id_gt_was_aligned  # this is useful when we are not generating new kfs
-                    if self._is_running and (num_kfs > kAlignGroundTruthNumMinKeyframes) and (condition1 or condition2 or condition3):  # we want at least kAlignGroundTruthNumMinKeyframes keyframes to align
+                    condition1 = (time.time() - self.thread_last_time_gt_was_aligned) > kAlignGroundTruthMaxEveryTimeInterval
+                    condition2 = len(self.map_state.poses) > kAlignGroundTruthMaxEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned
+                    condition3 = self.map_state.cur_frame_id > kAlignGroundTruthMaxEveryNFrames + self.thread_last_frame_id_gt_was_aligned  
+                    condition4 = self.map_state.cur_frame_id - self.thread_last_frame_id_gt_was_aligned > kAlignGroundTruthMinNumFramesPassed
+                    if self._is_running and (num_kfs > kAlignGroundTruthNumMinKeyframes) and \
+                        (condition1 or condition2 or condition3) and condition4: 
                         try:
                             self.thread_last_time_gt_was_aligned = time.time()
                             estimated_trajectory = np.array([pose[0:3,3] for i,pose in enumerate(self.map_state.poses)], dtype=float)
@@ -685,8 +688,8 @@ class Viewer3D(object):
             if slam.tracking.kf_ref is not None: 
                 map_state.reference_pose = slam.tracking.kf_ref.Twc.copy()            
             
-        num_map_keyframes = map.num_keyframes()
         keyframes = map.get_keyframes()
+        num_map_keyframes = len(keyframes)
         if num_map_keyframes>0:       
             for kf in keyframes:
                 map_state.poses.append(kf.Twc)
@@ -700,18 +703,22 @@ class Viewer3D(object):
             map_state.fov_centers = np.array(map_state.fov_centers).reshape(-1,3)
             map_state.fov_centers_colors = np.array(map_state.fov_centers_colors).reshape(-1,3)
 
-        num_map_points = map.num_points()
+        map_points = map.get_points()
+        num_map_points = len(map_points)
         if num_map_points>0:
             map_state.points = np.empty((num_map_points, 3), dtype=np.float32)
             map_state.colors = np.empty((num_map_points, 3), dtype=np.float32)
             map_state.semantic_colors = np.empty((num_map_points, 3), dtype=np.float32)
-            for i,p in enumerate(map.get_points()):                
-                map_state.points[i] = p.pt
-                map_state.colors[i] = np.flip(p.color)
-                if p.semantic_des is not None and SemanticMappingShared.sem_des_to_rgb is not None:
-                  map_state.semantic_colors[i] = SemanticMappingShared.sem_des_to_rgb(p.semantic_des, bgr=False)
-                else:
-                  map_state.semantic_colors[i] = np.array([0.0,0.0,0.0])
+            try:
+                for i,p in enumerate(map_points):                
+                    map_state.points[i] = p.pt
+                    map_state.colors[i] = np.flip(p.color)
+                    if p.semantic_des is not None and SemanticMappingShared.sem_des_to_rgb is not None:
+                        map_state.semantic_colors[i] = SemanticMappingShared.sem_des_to_rgb(p.semantic_des, bgr=False)
+                    else:
+                        map_state.semantic_colors[i] = np.array([0.0,0.0,0.0])
+            except Exception as e:
+                Printer.red(f'Viewer3D: draw_slam_map - error: {e}')
 
         map_state.points = np.array(map_state.points)          
         map_state.colors = np.array(map_state.colors)/256.

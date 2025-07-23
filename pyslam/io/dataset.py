@@ -104,9 +104,9 @@ class Dataset(object):
             if img is None:
                 return None
             if img.ndim == 2:
-                return cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)     
+                return np.ascontiguousarray(cv2.cvtColor(img,cv2.COLOR_GRAY2RGB))     
             else:
-                return img             
+                return np.ascontiguousarray(img)             
         except:
             img = None
             self.is_ok = False
@@ -114,7 +114,7 @@ class Dataset(object):
                 Printer.yellow(f'Dataset end: {self.name}, path: {self.path}, frame id: {frame_id}')
             else:    
                 Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}, frame id: {frame_id}')
-            return img    
+            return np.ascontiguousarray(img) if img is not None else None
         
     # Adjust frame id with start frame id only here
     def getImageColorRight(self, frame_id):
@@ -125,17 +125,17 @@ class Dataset(object):
             img = self.getImageRight(frame_id)
             if img is None:
                 return None            
-            if img is not None and img.ndim == 2:
-                return cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)     
+            if img.ndim == 2:
+                return np.ascontiguousarray(cv2.cvtColor(img,cv2.COLOR_GRAY2RGB))     
             else:
-                return img             
+                return np.ascontiguousarray(img)             
         except:
             img = None      
             if self.num_frames is not None and frame_id >= self.num_frames:
                 Printer.yellow(f'Dataset end: {self.name}, path: {self.path}, right image, frame id: {frame_id}')
             else:    
                 Printer.red(f'Cannot open dataset: {self.name}, path: {self.path}, right image, frame id: {frame_id}')            
-            return img         
+            return np.ascontiguousarray(img) if img is not None else None
         
     def getTimestamp(self):
         return self._timestamp
@@ -226,7 +226,7 @@ class VideoDataset(Dataset):
             self._timestamp = float(self.cap.get(cv2.CAP_PROP_POS_MSEC)/1000)
             self._next_timestamp = self._timestamp + self.Ts 
             self.i += 1
-        return image       
+        return np.ascontiguousarray(image)       
 
 
 
@@ -251,7 +251,7 @@ class LiveDataset(Dataset):
         self._next_timestamp = self._timestamp + self.Ts         
         if ret is False:
             print('ERROR in reading from camera: ', self.camera_num)
-        return image           
+        return np.ascontiguousarray(image)           
 
 
 
@@ -312,7 +312,7 @@ class FolderDataset(Dataset):
             raise IOError('error reading file: ', image_file)               
         # Increment internal counter.
         self.i = self.i + 1
-        return img
+        return np.ascontiguousarray(img)
 
 
 class FolderDatasetParallelStatus:
@@ -382,7 +382,7 @@ class FolderDatasetParallel(Dataset):
             raise IOError('error reading file: ', image_file)               
         # Increment internal counter.
         self.i = self.i + 1
-        return img 
+        return np.ascontiguousarray(img) 
     
     # get the current frame
     def getImage(self):
@@ -391,7 +391,7 @@ class FolderDatasetParallel(Dataset):
             self._timestamp += self.Ts
             self._next_timestamp = self._timestamp + self.Ts                  
             img = self.q.get()         
-        return img    
+        return np.ascontiguousarray(img)    
 
 
 
@@ -432,7 +432,7 @@ class Webcam(object):
         img = None 
         while not self.q.empty():  # get last available image
             img = self.q.get()         
-        return img
+        return np.ascontiguousarray(img)
 
 
 
@@ -472,7 +472,7 @@ class KittiDataset(Dataset):
             else:
                 self._next_timestamp = self._timestamp + self.Ts             
         self.is_ok = (img is not None)
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
 
     def getImageRight(self, frame_id):
         print(f'[KittiDataset] getImageRight: {frame_id}')
@@ -488,7 +488,7 @@ class KittiDataset(Dataset):
             else:
                 self._next_timestamp = self._timestamp + self.Ts                   
         self.is_ok = (img is not None)        
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
 
 
 class TumDataset(Dataset):
@@ -526,7 +526,7 @@ class TumDataset(Dataset):
         else:
             self.is_ok = False     
             self._timestamp = None                  
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
 
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
@@ -545,7 +545,7 @@ class TumDataset(Dataset):
         else:
             self.is_ok = False      
             self._timestamp = None                       
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
 
 class ScannetDataset(Dataset):
     fps = 30 #TODO(dvdmc): I couldn't find this anywhere (paper, code, etc.)
@@ -622,14 +622,15 @@ class ScannetDataset(Dataset):
         if frame_id < self.max_frame_id:
             file = self.base_path + f'/color/{str(frame_id)}.jpg'
             img = cv2.imread(file)
-            img = cv2.resize(img, self.image_size)
+            if img is not None:
+                img = cv2.resize(img, self.image_size)
             self.is_ok = (img is not None)
             self._timestamp = frame_id * self.Ts
             self._next_timestamp = self._timestamp + self.Ts              
         else:
             self.is_ok = False     
             self._timestamp = None                  
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
 
 
     def getDepth(self, frame_id):
@@ -640,20 +641,22 @@ class ScannetDataset(Dataset):
         if frame_id < self.max_frame_id:
             file = self.base_path + f'/depth/{str(frame_id)}.png'
             img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
-            img = (img/self.depthmap_factor).astype(np.float32)
+            if img is not None:
+                img = (img/self.depthmap_factor).astype(np.float32)
             self.is_ok = (img is not None)
             self._timestamp = frame_id * self.Ts
             self._next_timestamp = self._timestamp + self.Ts                
         else:
             self.is_ok = False      
             self._timestamp = None                    
-        return img 
+        return np.ascontiguousarray(img) 
     
     def getSemanticGroundTruth(self, frame_id):
         if frame_id < self.max_frame_id:
             file = self.base_path + f'/label/{str(frame_id)}.png'
             img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
-            img = cv2.resize(img, self.image_size, interpolation=cv2.INTER_NEAREST)
+            if img is not None:
+                img = cv2.resize(img, self.image_size, interpolation=cv2.INTER_NEAREST)
             if self.label_version == 'scannet':
                 img = self.scannet_to_nyu40[img]
                 if (img == -1).any():
@@ -664,7 +667,7 @@ class ScannetDataset(Dataset):
         else:
             self.is_ok = False      
             self._timestamp = None  
-        return img
+        return np.ascontiguousarray(img)
 
 class EurocDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.EUROC, config=None): 
@@ -773,16 +776,16 @@ class EurocDataset(Dataset):
                 img_name = self.filenames[frame_id]
                 #img_name = self.get_timestamp(frame_id) + '.png'
                 img = cv2.imread(self.path + '/' + self.name + self.image_left_path + img_name)
-                if self.sensor_type == SensorType.STEREO:
-                    # rectify image
-                    if self.debug_rectification:
-                        imgs = img 
-                    img = cv2.remap(img,self.M1l,self.M2l,cv2.INTER_LINEAR)
-                    if self.debug_rectification: 
-                        imgs = np.concatenate((imgs,img),axis=1)
-                        cv2.imshow('left raw and rectified images',imgs)
-                        cv2.waitKey(1)
-                
+                if img is not None:
+                    if self.sensor_type == SensorType.STEREO:
+                        # rectify image
+                        if self.debug_rectification:
+                            imgs = img 
+                        img = cv2.remap(img,self.M1l,self.M2l,cv2.INTER_LINEAR)
+                        if self.debug_rectification: 
+                            imgs = np.concatenate((imgs,img),axis=1)
+                            cv2.imshow('left raw and rectified images',imgs)
+                            cv2.waitKey(1)
                 self._timestamp = self.timestamps[frame_id]
             except:
                 print('could not retrieve image: ', frame_id, ' in path ', self.path )
@@ -791,7 +794,7 @@ class EurocDataset(Dataset):
             else:
                 self._next_timestamp = self._timestamp + self.Ts            
         self.is_ok = (img is not None)
-        return img 
+        return np.ascontiguousarray(img) 
 
     def getImageRight(self, frame_id):
         img = None
@@ -802,15 +805,16 @@ class EurocDataset(Dataset):
                 #img_name = self.get_timestamp(frame_id) + '.png'
                 print('getImageRight: ', img_name)
                 img = cv2.imread(self.path + '/' + self.name + self.image_right_path + img_name) 
-                if self.sensor_type == SensorType.STEREO:
-                    # rectify image
-                    if self.debug_rectification:
-                        imgs = img                     
-                    img = cv2.remap(img,self.M1r,self.M2r,cv2.INTER_LINEAR)
-                    if self.debug_rectification: 
-                        imgs = np.concatenate((imgs,img),axis=1)
-                        cv2.imshow('right raw and rectified images',imgs)
-                        cv2.waitKey(1)                           
+                if img is not None:
+                    if self.sensor_type == SensorType.STEREO:
+                        # rectify image
+                        if self.debug_rectification:
+                            imgs = img                     
+                        img = cv2.remap(img,self.M1r,self.M2r,cv2.INTER_LINEAR)
+                        if self.debug_rectification: 
+                            imgs = np.concatenate((imgs,img),axis=1)
+                            cv2.imshow('right raw and rectified images',imgs)
+                            cv2.waitKey(1)                           
                 self._timestamp = self.timestamps_right[frame_id]        
             except:
                 print('could not retrieve image: ', frame_id, ' in path ', self.path )   
@@ -819,7 +823,7 @@ class EurocDataset(Dataset):
             else:
                 self._next_timestamp = self._timestamp + self.Ts                  
         self.is_ok = (img is not None)        
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None 
         
 
 class ReplicaDataset(Dataset):
@@ -856,7 +860,7 @@ class ReplicaDataset(Dataset):
         else:
             self.is_ok = False     
             self._timestamp = None                  
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
 
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
@@ -872,7 +876,7 @@ class ReplicaDataset(Dataset):
         else:
             self.is_ok = False      
             self._timestamp = None                       
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
     
     
     
@@ -919,7 +923,7 @@ class TartanairDataset(Dataset):
         else:
             self.is_ok = False     
             self._timestamp = None                  
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
 
     def getDepth(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
@@ -935,7 +939,7 @@ class TartanairDataset(Dataset):
         else:
             self.is_ok = False      
             self._timestamp = None                       
-        return img 
+        return np.ascontiguousarray(img) if img is not None else None
     
     def getImageRight(self, frame_id):
         img = None
@@ -949,7 +953,7 @@ class TartanairDataset(Dataset):
         else:
             self.is_ok = False      
             self._timestamp = None          
-        return img     
+        return np.ascontiguousarray(img) if img is not None else None
     
     def getDepthRight(self, frame_id):
         if self.sensor_type == SensorType.MONOCULAR:
@@ -965,4 +969,4 @@ class TartanairDataset(Dataset):
         else:
             self.is_ok = False      
             self._timestamp = None                       
-        return img     
+        return np.ascontiguousarray(img) if img is not None else None

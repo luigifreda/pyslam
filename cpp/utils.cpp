@@ -340,4 +340,48 @@ std::pair<std::vector<int>, std::vector<int>> filterNonRowMatches_np(
     return {out_idxs1, out_idxs2};
 }
 
+
+py::array_t<float> extractMeanColors(
+    py::array_t<uint8_t, py::array::c_style | py::array::forcecast> img,
+    py::array_t<int, py::array::c_style | py::array::forcecast> img_coords,
+    int delta,
+    std::array<float, 3> default_color
+) {
+    auto buf_img = img.unchecked<3>();  // H x W x C
+    auto buf_coords = img_coords.unchecked<2>();  // N x 2
+
+    const int H = buf_img.shape(0);
+    const int W = buf_img.shape(1);
+    const int C = buf_img.shape(2);
+    const int N = buf_coords.shape(0);
+    const int patch_size = 1 + 2 * delta;
+    const int patch_area = patch_size * patch_size;
+
+    py::array_t<float> result({N, 3});
+    auto buf_result = result.mutable_unchecked<2>();
+
+    for (int i = 0; i < N; ++i) {
+        int x = buf_coords(i, 0);
+        int y = buf_coords(i, 1);
+
+        if (x - delta >= 0 && x + delta < W && y - delta >= 0 && y + delta < H) {
+            for (int c = 0; c < C; ++c) {
+                float acc = 0.0f;
+                for (int dy = -delta; dy <= delta; ++dy) {
+                    for (int dx = -delta; dx <= delta; ++dx) {
+                        acc += static_cast<float>(buf_img(y + dy, x + dx, c));
+                    }
+                }
+                buf_result(i, c) = acc / patch_area;
+            }
+        } else {
+            buf_result(i, 0) = default_color[0];
+            buf_result(i, 1) = default_color[1];
+            buf_result(i, 2) = default_color[2];
+        }
+    }
+
+    return result;
+}
+
 } // namespace utils 

@@ -39,10 +39,13 @@ from pyslam.config_parameters import Parameters
 
 import traceback
 
+from numba import njit, prange
+
 import g2o
 from . import optimizer_g2o
 from . import optimizer_gtsam
 
+import pyslam_utils
 
 kVerbose = True 
 kMaxLenFrameDeque = 20
@@ -442,58 +445,57 @@ class Map(object):
             
             # end if do_check
                 
+                
+            # extract mean colors using numba
+            # @njit(parallel=True)
+            # def extract_mean_colors(img, img_coords, delta, default_color):
+            #     N = img_coords.shape[0]
+            #     H, W, C = img.shape
+            #     patch_size = 1 + 2 * delta
+            #     patch_area = patch_size * patch_size
+            #     mean_colors = np.empty((N, 3), dtype=np.float32)
+
+            #     for i in prange(N):
+            #         x = img_coords[i, 0]
+            #         y = img_coords[i, 1]
+            #         if (x - delta >= 0 and x + delta < W and
+            #             y - delta >= 0 and y + delta < H):
+            #             for c in range(C):
+            #                 acc = 0.0
+            #                 for dy in range(-delta, delta + 1):
+            #                     for dx in range(-delta, delta + 1):
+            #                         acc += float(img[y + dy, x + dx, c])
+            #                 mean_colors[i, c] = acc / patch_area
+            #         else:
+            #             mean_colors[i, :] = default_color
+            #     return mean_colors
+                            
             # get color patches
             # Q(@luigifreda): this gets img_coords from kf1 but kf_ref in MapPoint is kf2
             img_coords = np.rint(kf1.kps[idxs1]).astype(np.intp) # image keypoints coordinates 
-            # build img patches coordinates 
             delta = Parameters.kSparseImageColorPatchDelta    
-            # patch_extension = 1 + 2*delta   # patch_extension x patch_extension
-            # img_pts_start = img_coords - delta           
-            # img_pts_end   = img_coords + delta
-            # img_ranges = np.linspace(img_pts_start,img_pts_end,patch_extension,dtype=np.intp)[:,:].T      
-            img_range = np.arange(-delta, delta + 1, dtype=np.intp)
-            img_x_range = img_coords[:, 0][:, None] + img_range[None, :]
-            img_y_range = img_coords[:, 1][:, None] + img_range[None, :]
+            default_color = np.array([255, 0, 0], dtype=np.float32)
+            img1 = np.ascontiguousarray(img1)  # Ensure contiguous for Numba
             
-            def img_range_elem(ranges,i):      
-                return ranges[:,i]                                                  
-            
+            mean_colors = pyslam_utils.extract_mean_colors(img1, img_coords, delta, default_color)
+            #mean_colors = np.full((len(idxs1), 3), [255, 0, 0], dtype=np.float32) # to get all blue
+
             for i, p in enumerate(points3d):
                 if not mask_pts3d[i]:
                     #print('p[%d] not good' % i)
                     continue
-                    
+                
+                # perform different required checks before adding the point 
+                if do_check and bad_points[i]:
+                    continue
+                
+                # add the point to this map                 
                 idx1_i = idxs1[i]
                 idx2_i = idxs2[i]
                                         
-                # perform different required checks before adding the point 
-                if do_check and bad_points[i]:
-                    continue                                  
-
                 # get the color of the point  
                 try:
-                    #color = img1[int(round(kf1.kps[idx1_i, 1])), int(round(kf1.kps[idx1_i, 0]))]
-                    #img_pt = np.rint(kf1.kps[idx1_i]).astype(np.int)
-                    # color at the point 
-                    #color = img1[img_pt[1],img_pt[0]]   
-                                     
-                    # buils color patch 
-                    #color_patch = img1[img_pt[1]-delta:img_pt[1]+delta,img_pt[0]-delta:img_pt[0]+delta]
-                    #color = color_patch.mean(axis=0).mean(axis=0)  # compute the mean color in the patch     
-                                                                                           
-                    # average color in a (1+2*delta) x (1+2*delta) patch  
-                    #pt_start = img_pts_start[i]
-                    #pt_end   = img_pts_end[i]        
-                    #color_patch = img1[pt_start[1]:pt_end[1],pt_start[0]:pt_end[0]] 
-                    
-                    # average color in a (1+2*delta) x (1+2*delta) patch 
-                    #img_range = img_range_elem(img_ranges,i) 
-                    #color_patch = img1[img_range[1][:,np.newaxis],img_range[0]]    
-                    color_patch = img1[img_y_range[i, :, None], img_x_range[i]]     
-                    #print('color_patch.shape:',color_patch.shape)    
-                                                                                  
-                    color = cv2.mean(color_patch)[:3]  # compute the mean color in the patch  
-                                                                                                        
+                    color = mean_colors[i]                                                           
                 except IndexError:
                     Printer.orange('color out of range')
                     color = (255, 0, 0)
@@ -874,7 +876,7 @@ class LocalWindowMap(LocalMapBase):
             self.keyframes = self.map.get_last_keyframes(self.local_window)
             return self.keyframes
         
-    def get_best_neighbors(self, kf_ref=None, N=Parameters.kLocalMappingNumNeighborKeyFrames):      
+    def get_best_neighbors(self, kf_ref=None, N=20):      
         return self.map.get_last_keyframes(N)        
     
     # update the local keyframes, the viewed points and the reference keyframes (that see the viewed points but are not in the local keyframes)
@@ -911,7 +913,7 @@ class LocalCovisibilityMap(LocalMapBase):
             self.keyframes.update(neighbor_kfs)
             return self.keyframes
         
-    def get_best_neighbors(self, kf_ref, N=Parameters.kLocalMappingNumNeighborKeyFrames): 
+    def get_best_neighbors(self, kf_ref, N=20): 
         return kf_ref.get_best_covisible_keyframes(N)               
     
     # update the local keyframes, the viewed points and the reference keyframes (that see the viewed points but are not in the local keyframes)

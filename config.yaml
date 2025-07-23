@@ -75,8 +75,8 @@ EUROC_DATASET:
   #name: MH03
   #name: MH04
   #name: MH05       
-  name: V101  
-  #name: V102
+  #name: V101  
+  name: V102
   #name: V202
   #name: V203   
   # 'settings' will be used when sensor_type: : 'mono'

@@ -31,8 +31,8 @@ class Parameters:
     kLogsFolder = kRootFolder + '/logs'              # Folder where logs are stored. This can be changed by pyslam/config.py to redirect the logs in a different folder.
     
     # SLAM tracking-mapping threads 
-    kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
-    kTrackingWaitForLocalMappingToGetIdle=False      # True: wait for local mapping to be idle before starting tracking, False: tracking and then local mapping in a single thread  
+    kLocalMappingOnSeparateThread = True             # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
+    kTrackingWaitForLocalMappingToGetIdle = False    # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread  
     kWaitForLocalMappingTimeout = 0.5                # [s]  # Timeout for waiting local mapping to be idle (if kTrackingWaitForLocalMappingToGetIdle is True)   (was previously 1.5)
     kParallelLBAWaitIdleTimeout = 0.3                # [s]  # Timeout for parallel LBA process to finish
     
@@ -45,7 +45,7 @@ class Parameters:
 
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # Max cos angle for triangulation (min parallax angle) in the Initializer
-    kCosMaxParallax=0.9999 # 0.9999, 0.9998                 # Max cos angle for triangulation (min parallax angle)   
+    kCosMaxParallax=0.9999 # 0.9999, 0.9998         # Max cos angle for triangulation (min parallax angle)   
     kMinRatioBaselineDepth = 0.01      
     
     
@@ -88,6 +88,8 @@ class Parameters:
     kMaxNumOfKeyframesInLocalMap = 80
     kNumBestCovisibilityKeyFrames = 10
     kUseVisualOdometryPoints = True
+    kUseInterruptLocalMapping = False                 # Use interrupt to stop local mapping when a new keyframe is created so that the new keyframe can be processed ASAP.
+                                                      # WARNING: This may degrade the performance of the local mapping under some circumstances. This makes more sense when real-time performance is attainable.
     
     
     # Keyframe generation 
@@ -112,38 +114,42 @@ class Parameters:
 
 
     # Search matches by projection 
-    kMaxReprojectionDistanceFrame = 7    #7   # [pixels]    o:7
-    kMaxReprojectionDistanceMap = 3      #3   # [pixels]    o:1,(rgbd)3,(reloc)5 => mainly 2.5*th where th acts as a multiplicative factor 
-    kMaxReprojectionDistanceMapRgbd = 3  #5   # [pixels]    o:5
-    kMaxReprojectionDistanceMapReloc = 5 #5   # [pixels]    o:5
-    kMaxReprojectionDistanceFuse = 3     #3   # [pixels]    o:3
+    kMaxReprojectionDistanceFrame = 7         # [pixels]    o:7
+    kMaxReprojectionDistanceFrameRgbd = 15    # [pixels]    o:15
+    kMaxReprojectionDistanceMap = 3           # [pixels]    o:1  
+    kMaxReprojectionDistanceMapRgbd = 3       # [pixels]    o:3
+    kMaxReprojectionDistanceMapReloc = 5      # [pixels]    o:5
+    kMaxReprojectionDistanceFuse = 3          # [pixels]    o:3
     kMaxReprojectionDistanceSim3 = 7.5        # [pixels]    o:7.5
     #
-    kMatchRatioTestMap=0.8
-    kMatchRatioTestEpipolarLine=0.8      # Used just for test function find_matches_along_line()
+    kMatchRatioTestFrameByProjection = 0.9
+    kMatchRatioTestMap = 0.8
+    kMatchRatioTestEpipolarLine = 0.8      # Used just for test function find_matches_along_line()
     #
     # Reference max descriptor distance (used for initial checks and then updated and adapted)                   
-    kMaxDescriptorDistance=0 # It is initialized by the first created instance of feature_manager.py at runtime 
+    kMaxDescriptorDistance = 0 # It is initialized by the first created instance of feature_manager.py at runtime 
     
 
     # Search matches for triangulation by using epipolar lines 
-    kMinDistanceFromEpipole=10            # [pixels] Used with search by epipolar lines 
+    kMinDistanceFromEpipole = 10            # [pixels] Used with search by epipolar lines 
 
 
     # Local Mapping 
-    kLocalMappingParallelKpsMatching=True           # True: use parallel keypoint matching in local mapping, False: use serial keypoint matching
-    kLocalMappingParallelKpsMatchingNumWorkers=2
+    kLocalMappingParallelKpsMatching = True           # True: use parallel keypoint matching in local mapping, False: use serial keypoint matching
+    kLocalMappingParallelKpsMatchingNumWorkers = 2
+    kLocalMappingParallelFusePointsNumWorkers = 2
     kLocalMappingDebugAndPrintToFile = True    
-    kLocalMappingNumNeighborKeyFrames=20            #  [# frames]   for generating new points and fusing them              
-    kLocalMappingTimeoutPopKeyframe=0.5             # [s]
+    kLocalMappingNumNeighborKeyFramesStereo = 10      #  [# frames]   for generating new points and fusing them under stereo or RGBD              
+    kLocalMappingNumNeighborKeyFramesMonocular = 20   #  [# frames]   for generating new points and fusing them under monocular              
+    kLocalMappingTimeoutPopKeyframe = 0.5             # [s]
 
 
     # Covisibility graph 
-    kMinNumOfCovisiblePointsForCreatingConnection=15 
+    kMinNumOfCovisiblePointsForCreatingConnection = 15 
     
     
     # Sparse map visualization 
-    kSparseImageColorPatchDelta=1  # center +- delta
+    kSparseImageColorPatchDelta = 1  # center +- delta
 
 
     # Optimization engine 
@@ -170,7 +176,7 @@ class Parameters:
     kUseLoopClosing = True                                  # To enable/disable loop closing.
     kMinDeltaFrameForMeaningfulLoopClosure = 10
     kMaxResultsForLoopClosure = 5
-    kLoopDetectingTimeoutPopKeyframe=0.5 # [s]
+    kLoopDetectingTimeoutPopKeyframe = 0.5 # [s]
     kLoopClosingDebugWithLoopDetectionImages = False
     kLoopClosingDebugWithSimmetryMatrix = True
     kLoopClosingDebugAndPrintToFile = True
@@ -228,8 +234,8 @@ class Parameters:
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingDebugAndPrintToFile = True
     kUseSemanticsInOptimization = False
-    kSemanticMappingTimeoutPopKeyframe=0.5 # [s]
-    kSemanticMappingNumNeighborKeyFrames=10             #  [# frames]   only used in object-based to decide the best semantic descriptor       
+    kSemanticMappingTimeoutPopKeyframe = 0.5 # [s]
+    kSemanticMappingNumNeighborKeyFrames = 10             #  [# frames]   only used in object-based to decide the best semantic descriptor       
 
     # Other parameters 
     kChi2Mono = 5.991   # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

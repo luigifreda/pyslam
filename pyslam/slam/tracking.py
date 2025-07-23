@@ -76,9 +76,6 @@ kShowFeatureMatchesPrevFrame = True
 kShowFeatureMatchesRefFrame = True
 kShowFeatureMatchesLocalMap = True
 
-kLocalMappingOnSeparateThread = Parameters.kLocalMappingOnSeparateThread 
-kTrackingWaitForLocalMappingToGetIdle = Parameters.kTrackingWaitForLocalMappingToGetIdle
-
 kLogKFinfoToFile = True 
 
 kUseDynamicDesDistanceTh = Parameters.kUseDynamicDesDistanceTh  
@@ -95,8 +92,7 @@ kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 60 # defines bad/weak
 
 
 kUseMotionModel = Parameters.kUseMotionModel or Parameters.kUseSearchFrameByProjection
-kUseSearchFrameByProjection = Parameters.kUseSearchFrameByProjection and not Parameters.kUseEssentialMatrixFitting         
-kUseEssentialMatrixFitting = Parameters.kUseEssentialMatrixFitting      
+kUseSearchFrameByProjection = Parameters.kUseSearchFrameByProjection and not Parameters.kUseEssentialMatrixFitting              
        
 kNumMinObsForKeyFrameDefault = 3
 
@@ -374,15 +370,16 @@ class Tracking:
             print('search frame by projection') 
             search_radius = Parameters.kMaxReprojectionDistanceFrame  
             
-            # NOTE: The following two lines are commented for the moment since they seem to provide less stable tracking and they do not bring any clear benefits [WIP]
-            if self.sensor_type == SensorType.RGBD:     #if self.sensor_type != SensorType.STEREO:
-                search_radius = 2*Parameters.kMaxReprojectionDistanceFrame       
+            #if self.sensor_type != SensorType.STEREO: #NOTE:  This seems to provide less stable tracking and they do not bring any clear benefits [WIP]
+            if self.sensor_type == SensorType.RGBD:     
+                search_radius = Parameters.kMaxReprojectionDistanceFrameRgbd    
             
             f_cur.reset_points()               
             self.timer_seach_frame_proj.start()
             idxs_ref, idxs_cur, num_found_map_pts = search_frame_by_projection(f_ref, f_cur,
                                                                              max_reproj_distance=search_radius,
                                                                              max_descriptor_distance=self.descriptor_distance_sigma,
+                                                                             ratio_test=Parameters.kMatchRatioTestFrameByProjection, # not used at the moment
                                                                              is_monocular=(self.sensor_type == SensorType.MONOCULAR))
             self.timer_seach_frame_proj.refresh()  
             self.num_matched_kps = len(idxs_cur)    
@@ -394,11 +391,11 @@ class Tracking:
                 f_cur.reset_points()   
                 idxs_ref, idxs_cur, num_found_map_pts = search_frame_by_projection(f_ref, f_cur,
                                                                                  max_reproj_distance=2*search_radius,
-                                                                                 # max_descriptor_distance=0.5*self.descriptor_distance_sigma,  # [WIP] previous version
-                                                                                 max_descriptor_distance=self.descriptor_distance_sigma,   # PERFORMANCE IMPACT
+                                                                                 max_descriptor_distance=self.descriptor_distance_sigma,   
+                                                                                 ratio_test=Parameters.kMatchRatioTestFrameByProjection, # not used at the moment
                                                                                  is_monocular=(self.sensor_type == SensorType.MONOCULAR))
                 self.num_matched_kps = len(idxs_cur)    
-                Printer.orange("# matched map points in prev frame (wider search 1): %d " % self.num_matched_kps)                   
+                Printer.orange("# matched map points in prev frame (wider search): %d " % self.num_matched_kps)                   
                                                 
             if kShowFeatureMatches and kShowFeatureMatchesPrevFrame: 
                 img_matches = draw_feature_matches(f_ref.img, f_cur.img, 
@@ -472,7 +469,7 @@ class Tracking:
             self.num_matched_kps = len(idxs_cur)
              
         print("# keypoints matched: %d " % self.num_matched_kps)  
-        if kUseEssentialMatrixFitting: 
+        if Parameters.kUseEssentialMatrixFitting: 
             # estimate camera orientation and inlier matches by fitting and essential matrix (see the limitations above)             
             idxs_ref, idxs_cur = self.estimate_pose_by_fitting_ess_mat(f_ref, f_cur, idxs_ref, idxs_cur)      
         
@@ -559,7 +556,7 @@ class Tracking:
         self.timer_seach_map.refresh()
         #print('reproj_err_sigma: ', reproj_err_frame_map_sigma, ' used: ', self.reproj_err_frame_map_sigma)        
         print(f"# matched map points in local map: {num_found_map_pts}, perc%: {100*num_found_map_pts/len(self.local_points):.2f}")                   
-        print("# local map points ", self.map.local_map.num_points())         
+        #print("# local map points ", self.map.local_map.num_points())         
         
         if kShowFeatureMatches and kShowFeatureMatchesLocalMap: 
             img_matched_trails = f_cur.draw_feature_trails(f_cur.img.copy(), matched_points_frame_idxs, trail_max_length=3) 
@@ -714,7 +711,8 @@ class Tracking:
             if is_local_mapping_idle:
                 return True 
             else: 
-                self.local_mapping.interrupt_optimization()
+                if Parameters.kUseInterruptLocalMapping:
+                    self.local_mapping.interrupt_optimization()
                 if self.sensor_type == SensorType.MONOCULAR: 
                     if local_mapping_queue_size <= 3:
                         return True
@@ -726,7 +724,7 @@ class Tracking:
             return False 
 
     def create_new_keyframe(self, f_cur: Frame, img,  img_right=None, depth=None):
-        if not self.local_mapping.set_not_stop(True):
+        if not self.local_mapping.set_do_not_stop(True):
             return
                                       
         kf_new = KeyFrame(f_cur, img, img_right, depth)                                     
@@ -737,15 +735,16 @@ class Tracking:
         Printer.green(f'Adding new KF with id {kf_new.id}, img shape: {img.shape if img is not None else None}, img_right shape: {img_right.shape if img_right is not None else None}, depth shape: {depth.shape if depth is not None else None}')
         if kLogKFinfoToFile:
             self.kf_info_logger.info('adding new KF with frame id % d: ' %(f_cur.id))  
-                    
-        self.map.add_keyframe(kf_new)   # add kf_cur to map 
+                
+        self.map.add_keyframe(kf_new)   # add kf_cur to map (moved from local_mapping.py to this point)
+                                        # NOTE: This is done here since a new keyframe-id (kid) is assigned when adding to map
         
         if self.sensor_type != SensorType.MONOCULAR:
             self.create_and_add_stereo_map_points_on_new_kf(f_cur, kf_new, img)
         
         self.local_mapping.push_keyframe(kf_new, img, img_right, depth)         
         
-        self.local_mapping.set_not_stop(False)
+        self.local_mapping.set_do_not_stop(False)
 
     def relocalize(self, f_cur: Frame, img):
         Printer.green(f'Relocalizing frame id: {f_cur.id}...')
@@ -876,11 +875,12 @@ class Tracking:
     #       since both self.track() and the local-mapping optimization use the RLock 'map.update_lock'    
     #       => they cannot wait for each other once map.update_lock is locked (deadlock)                        
     def wait_for_local_mapping(self, timeout=Parameters.kWaitForLocalMappingTimeout):               
-        if kTrackingWaitForLocalMappingToGetIdle:                        
-            #while not self.local_mapping.is_idle() or self.local_mapping.queue_size()>0:       
-            if not self.local_mapping.is_idle():       
-                print('>>>> waiting for local mapping...')                         
-                self.local_mapping.wait_idle(print=print, timeout=None)
+        if Parameters.kTrackingWaitForLocalMappingToGetIdle:                        
+            # If there are still keyframes in the queue, wait for local mapping to get idle
+            if not self.local_mapping.is_idle():      
+                while self.local_mapping.queue_size()>0:      
+                    print('>>>> waiting for local mapping...')                         
+                    self.local_mapping.wait_idle(print=print, timeout=None) # NOTE: no timeout here!
         else:
             # if we are close to bad tracking give local mapping more time
             if self.num_matched_map_points is not None and self.num_matched_map_points < kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle:
@@ -893,7 +893,7 @@ class Tracking:
                     Printer.orange(f">>>> close to bad tracking: forcing waiting for local mapping (parallel LBA, KF queue size: {self.local_mapping.queue_size()})...")
                     self.local_mapping.wait_idle(print=print, timeout=timeout)
                             
-            if self.local_mapping.queue_size()>0: # and self.trackingWaitForLocalMappingSleepTime>0:
+            if self.local_mapping.queue_size()>0: 
                 Printer.orange(f'>>>> waiting for local mapping idle (queue_size={self.local_mapping.queue_size()})...')  
                 self.local_mapping.wait_idle(print=print, timeout=timeout)
                 
@@ -1137,7 +1137,7 @@ class Tracking:
                 f_cur.clean_outlier_map_points()    
                 
                 if need_new_kf:         
-                    if not kLocalMappingOnSeparateThread:
+                    if not Parameters.kLocalMappingOnSeparateThread:
                         self.local_mapping.is_running = True
                         self.local_mapping.step()                 
                 

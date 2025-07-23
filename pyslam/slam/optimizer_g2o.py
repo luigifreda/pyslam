@@ -892,30 +892,6 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
             if edge.chi2() > chi2_limits[is_stereo] or not edge.is_depth_positive():         
                 num_bad_observations += 1
                 outliers_edge_data.append(edge_data)       
-               
-        #     # remove outlier observations 
-        #     for p, kf, p_idx, is_stereo in outliers_edge_data:
-        #         p_f = kf.get_point_match(p_idx)
-        #         if p_f is not None:
-        #             assert(p_f is p)
-        #             p.remove_observation(kf,p_idx)
-        #             # the following instruction is now included in p.remove_observation()
-        #             #f.remove_point(p)   # it removes multiple point instances (if these are present)   
-        #             #f.remove_point_match(p_idx) # this does not remove multiple point instances, but now there cannot be multiple instances any more
-
-        #     # put frames back
-        #     for kf in graph_keyframes:
-        #         est = graph_keyframes[kf].estimate()
-        #         #R = est.rotation().matrix()
-        #         #t = est.translation()
-        #         #f.update_pose(poseRt(R, t))
-        #         kf.update_pose(g2o.Isometry3d(est.orientation(), est.position()))
-
-        #     # put points back
-        #     if not fixed_points:
-        #         for p in graph_points:
-        #             p.update_position(np.array(graph_points[p].estimate()))
-        #             p.update_normal_and_depth(force=True)
 
         num_active_edges = num_edges-num_bad_edges
         mean_squared_error = opt.active_chi2()/max(num_active_edges,1)

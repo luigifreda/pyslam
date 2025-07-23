@@ -96,6 +96,7 @@ class SemanticMappingBase:
         self.idle_codition = Condition()
 
         self.stop_requested = False
+        self.do_not_stop = False
         self.stopped = False
         self.stop_mutex = RLock()
 
@@ -179,7 +180,7 @@ class SemanticMappingBase:
     def push_keyframe(self, keyframe, img=None, img_right=None, depth=None):
         with self.queue_condition:
             self.queue.put((keyframe,img,img_right,depth))      
-            self.queue_condition.notifyAll() 
+            self.queue_condition.notify_all() 
 
     # blocking call
     def pop_keyframe(self, timeout=Parameters.kSemanticMappingTimeoutPopKeyframe):
@@ -208,7 +209,7 @@ class SemanticMappingBase:
     def set_idle(self, flag):
         with self.idle_codition: 
             self._is_idle = flag
-            self.idle_codition.notifyAll() 
+            self.idle_codition.notify_all() 
             
     def wait_idle(self, print=print, timeout=None): 
         if self.is_running == False:
@@ -226,7 +227,7 @@ class SemanticMappingBase:
             Printer.yellow('requesting a stop for semantic mapping') 
             self.stop_requested = True
         with self.queue_condition:
-            self.queue_condition.notifyAll() # to unblock self.pop_keyframe()  
+            self.queue_condition.notify_all() # to unblock self.pop_keyframe()  
         
     def is_stop_requested(self):
         with self.stop_mutex:         
@@ -234,7 +235,7 @@ class SemanticMappingBase:
     
     def stop_if_requested(self):
         with self.stop_mutex:        
-            if self.stop_requested and not self.stopped:
+            if self.stop_requested and not self.do_not_stop:
                 self.stopped = True
                 SemanticMappingBase.print('SemanticMapping: stopped...')
                 return True
@@ -244,11 +245,11 @@ class SemanticMappingBase:
         with self.stop_mutex:         
             return self.stopped
     
-    def set_not_stop(self, value):
+    def set_do_not_stop(self, value):
         with self.stop_mutex:              
             if value and self.stopped:
                 return False 
-            self.stopped = value
+            self.do_not_stop = value
             return True
                
     def release(self):   

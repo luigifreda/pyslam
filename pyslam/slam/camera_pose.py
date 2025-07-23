@@ -28,6 +28,9 @@ class CameraPose(object):
         self.set(pose)
         self.covariance = np.identity(6, dtype=np.float64)          # pose covariance
         
+    def copy(self):
+        return CameraPose(self._pose.copy())
+        
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
@@ -54,11 +57,11 @@ class CameraPose(object):
         self.set(pose)
         
     def set_mat(self, Tcw):
-        self.Tcw = Tcw     # homogeneous transformation matrix: (4, 4)   pc_ = Tcw * pw_
-        self.Rcw = self.Tcw[:3,:3]
-        self.tcw = self.Tcw[:3,3]    #  pc = Rcw * pw + tcw
-        self.Rwc = self.Rcw.T
-        self.Ow = -(self.Rwc @ self.tcw)  # origin of camera frame w.r.t world 
+        self.Tcw = np.ascontiguousarray(Tcw)     # homogeneous transformation matrix: (4, 4)   pc_ = Tcw * pw_
+        self.Rcw = np.ascontiguousarray(self.Tcw[:3,:3])
+        self.tcw = np.ascontiguousarray(self.Tcw[:3,3])    #  pc = Rcw * pw + tcw
+        self.Rwc = np.ascontiguousarray(self.Rcw.T)
+        self.Ow = np.ascontiguousarray(-(self.Rwc @ self.tcw))  # origin of camera frame w.r.t world 
                 
     def update_mat(self, Tcw):
        self.set_matrix(Tcw)

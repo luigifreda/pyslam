@@ -110,6 +110,15 @@ std::pair<std::vector<int>, std::vector<int>> filterNonRowMatches_np(
     float max_row_distance,
     float max_disparity);
 
+
+py::array_t<float> extractMeanColors(
+    py::array_t<uint8_t, py::array::c_style | py::array::forcecast> img,
+    py::array_t<int, py::array::c_style | py::array::forcecast> img_coords,
+    int delta,
+    std::array<float, 3> default_color
+);
+
+
 } // namespace utils 
 
 

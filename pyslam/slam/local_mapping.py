@@ -19,6 +19,7 @@
 
 from __future__ import print_function # This must be the first statement before other statements 
 
+from ast import Param
 import os
 import time
 import numpy as np
@@ -57,7 +58,6 @@ if TYPE_CHECKING:
 kVerbose=True     
 kTimerVerbose = False 
 
-kLocalMappingOnSeparateThread = Parameters.kLocalMappingOnSeparateThread 
 kLocalMappingDebugAndPrintToFile = Parameters.kLocalMappingDebugAndPrintToFile
 
 kUseLargeWindowBA = Parameters.kUseLargeWindowBA
@@ -116,6 +116,7 @@ class LocalMapping:
         self.mp_opt_abort_flag = mp.Value('i',False)  # for multi-processing (when used)
                                               
         self.stop_requested = False
+        self.do_not_stop = False
         self.stopped = False
         self.stop_mutex = RLock()
         
@@ -136,7 +137,7 @@ class LocalMapping:
         
     def init_print(self):
         if kVerbose:
-            if kLocalMappingOnSeparateThread: 
+            if Parameters.kLocalMappingOnSeparateThread: 
                 if kLocalMappingDebugAndPrintToFile:
                     # Default log to file: logs/local_mapping.log
                     logging_file = os.path.join(Parameters.kLogsFolder, 'local_mapping.log')
@@ -153,6 +154,8 @@ class LocalMapping:
                         message = ' '.join(str(arg) for arg in args)
                         return print(message, **kwargs)
                 LocalMapping.print = staticmethod(file_print)
+            else:
+                LocalMapping.print = staticmethod(print)
                 
             
     @property
@@ -276,7 +279,7 @@ class LocalMapping:
     
     def stop_if_requested(self):
         with self.stop_mutex:        
-            if self.stop_requested and not self.stopped:
+            if self.stop_requested and not self.do_not_stop:
                 self.stopped = True
                 LocalMapping.print('LocalMapping: stopped...')
                 return True
@@ -286,11 +289,11 @@ class LocalMapping:
         with self.stop_mutex:         
             return self.stopped
     
-    def set_not_stop(self, value):
+    def set_do_not_stop(self, value):
         with self.stop_mutex:              
             if value and self.stopped:
                 return False 
-            self.stopped = value
+            self.do_not_stop = value
             return True
     
     def release(self):   
@@ -352,7 +355,7 @@ class LocalMapping:
             Printer.red('local mapping: no keyframe to process')
             return
                         
-        if kLocalMappingOnSeparateThread: 
+        if Parameters.kLocalMappingOnSeparateThread: 
             LocalMapping.print('..................................')
             LocalMapping.print('processing KF: ', self.kf_cur.id, ', queue size: ', self.queue_size())   
         
@@ -416,7 +419,7 @@ class LocalMapping:
             # TODO(dvdmc) do we need to wait_idle here?
             LocalMapping.print('pushing new keyframe to semantic mapping...')
             self.slam.semantic_mapping.push_keyframe(self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur)
-            # self.slam.semantic_mapping.set_not_stop(False) # TODO(dvdmc) check if the stop logic is required. I think it's part of LoopClosure or BA methods
+            # self.slam.semantic_mapping.set_do_not_stop(False) # TODO(dvdmc) check if the stop logic is required. I think it's part of LoopClosure or BA methods
             if not Parameters.kSemanticMappingOnSeparateThread:
                 self.slam.semantic_mapping.step()
 
@@ -476,7 +479,7 @@ class LocalMapping:
                 
         LocalMapping.print('>>>> updating connections ...')     
         self.kf_cur.update_connections()
-        #self.map.add_keyframe(self.kf_cur)   # add kf_cur to map        
+        #self.map.add_keyframe(self.kf_cur)   # add kf_cur to map   (moved to tracking.py into create_new_keyframe())
                         
         
     def cull_map_points(self):
@@ -683,48 +686,57 @@ class LocalMapping:
                 total_new_pts += new_pts_count 
                 self.recently_added_points.update(list_added_points)       
         return total_new_pts                
-            
-        
+                
+
     # fuse close map points of local keyframes 
     def fuse_map_points(self):
         LocalMapping.print('>>>> fusing map points')
         total_fused_pts = 0
-        
-        num_neighbors = 10
+
+        num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesStereo
         if self.sensor_type == SensorType.MONOCULAR:
-            num_neighbors = 20
-        
+            num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesMonocular
+
+        # 1. Get direct neighbors
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur, N=num_neighbors)
-        LocalMapping.print('local map keyframes: ', [kf.id for kf in local_keyframes if not kf.is_bad], ' + ', self.kf_cur.id, '...')   
-                
-        # search matches by projection from current KF in close KFs        
+        target_kfs = set()
         for kf in local_keyframes:
-            if kf is self.kf_cur or kf.is_bad:  
-                continue      
+            if kf is self.kf_cur or kf.is_bad:
+                continue
+            target_kfs.add(kf)
+            # 2. Add second neighbors
+            for kf2 in self.map.local_map.get_best_neighbors(kf, N=5):
+                if kf2 is self.kf_cur or kf2.is_bad:
+                    continue
+                target_kfs.add(kf2)
+
+        LocalMapping.print('local map keyframes: ', [kf.id for kf in target_kfs], ' + ', self.kf_cur.id, '...')   
+
+
+        # 3. Fuse current keyframe's points into all target keyframes
+        for kf in target_kfs:                        
             num_fused_pts = search_and_fuse(self.kf_cur.get_points(), kf,
                                             max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
-                                            max_descriptor_distance=0.5*self.descriptor_distance_sigma) # finer search
-            LocalMapping.print(f'\t #fused map points: {num_fused_pts} for KFs ({self.kf_cur.id}, {kf.id})')  
-            total_fused_pts += num_fused_pts    
-               
-        # search matches by projection from local points in current KF  
-        good_local_points = [p for kf in local_keyframes if not kf.is_bad for p in kf.get_points() if (p is not None and not p.is_bad) ]  # all good points in local frames 
-        good_local_points = np.array(list(set(good_local_points))) # be sure to get only one instance per point                
-        num_fused_pts = search_and_fuse(good_local_points, self.kf_cur,
+                                            max_descriptor_distance=0.5*self.descriptor_distance_sigma)
+            LocalMapping.print(f'\t #fused map points: {num_fused_pts} for KFs ({self.kf_cur.id}, {kf.id})')
+            total_fused_pts += num_fused_pts
+
+        # 4. Fuse all target keyframes' points into current keyframe
+        fuse_candidates = {p for kf in target_kfs for p in kf.get_points() if p is not None and not p.is_bad}
+        fuse_candidates = np.array(list(fuse_candidates))  # Remove duplicates
+
+        num_fused_pts = search_and_fuse(fuse_candidates, self.kf_cur,
                                         max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
-                                        max_descriptor_distance=0.5*self.descriptor_distance_sigma) # finer search
-        LocalMapping.print(f'\t #fused map points: {num_fused_pts} for local map into KF {self.kf_cur.id}')  
-        total_fused_pts += num_fused_pts   
-            
-        # update points info 
-        # for p in self.kf_cur.get_points():
-        #     if p is not None and not p.is_bad: 
-        #         p.update_info() 
+                                        max_descriptor_distance=0.5*self.descriptor_distance_sigma)
+        LocalMapping.print(f'\t #fused map points: {num_fused_pts} for local map into KF {self.kf_cur.id}')
+        total_fused_pts += num_fused_pts
+
+        # 5. Update all map points in current keyframe
         points_to_update = [p for p in self.kf_cur.get_points() if p and not p.is_bad]
-        with ThreadPoolExecutor() as executor:
-            executor.map(lambda p: p.update_info(), points_to_update)        
-                
-        # update connections in covisibility graph 
-        self.kf_cur.update_connections()            
-        
-        return total_fused_pts               
+        with ThreadPoolExecutor(max_workers=Parameters.kLocalMappingParallelFusePointsNumWorkers) as executor:
+            executor.map(lambda p: p.update_info(), points_to_update)
+
+        # 6. Update connections in covisibility graph
+        self.kf_cur.update_connections()
+
+        return total_fused_pts

@@ -737,7 +737,7 @@ def search_and_fuse(points, keyframe: KeyFrame,
     good_pts_visible, good_projs, good_depths, good_dists = keyframe.are_visible(good_pts, keyframe.camera.is_stereo())
     
     if np.sum(good_pts_visible) == 0:
-        Printer.red('search_and_fuse - no visible points')
+        Printer.orange('search_and_fuse - no visible points')
         return fused_pts_count   
     
     predicted_levels = predict_detection_levels(good_pts, good_dists) 
@@ -888,7 +888,7 @@ def search_and_fuse_for_loop_correction(keyframe: KeyFrame,
     good_pts_visible, good_projs, good_depths, good_dists = are_map_points_visible_in_frame(good_pts, keyframe, Rcw, tcw)
         
     if np.sum(good_pts_visible) == 0:
-        Printer.red('search_and_fuse - no visible points')
+        Printer.orange('search_and_fuse - no visible points')
         return replace_points
     
     predicted_levels = predict_detection_levels(good_pts, good_dists) 

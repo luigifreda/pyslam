@@ -21,7 +21,7 @@ import numpy as np
 import cv2 
 import open3d as o3d
 
-from .camera import backproject_3d
+from .camera import CameraUtils
 from pyslam.utilities.utils_serialization import SerializableEnum
 
 import sim3solver
@@ -250,8 +250,8 @@ class EssentialMatrixMetricSimplePoseEstimator(EssentialMatrixPoseEstimator2d2d)
             return R, t, inliers
         
         # Backproject
-        xyz1 = backproject_3d(inliers_kpts1[valid], depth_inliers_1[valid], self.K1)
-        xyz2 = backproject_3d(inliers_kpts2[valid], depth_inliers_2[valid], self.K2)
+        xyz1 = CameraUtils.backproject_3d(inliers_kpts1[valid], depth_inliers_1[valid], self.K1)
+        xyz2 = CameraUtils.backproject_3d(inliers_kpts2[valid], depth_inliers_2[valid], self.K2)
         
         xyz1 = xyz1.reshape(-1, 3)
         xyz2 = xyz2.reshape(-1, 3)
@@ -323,8 +323,8 @@ class EssentialMatrixMetricPoseEstimator(EssentialMatrixPoseEstimator2d2d):
             return R, t, inliers
         
         # Backproject
-        xyz1 = backproject_3d(inliers_kpts1[valid], depth_inliers_1[valid], self.K1)
-        xyz2 = backproject_3d(inliers_kpts2[valid], depth_inliers_2[valid], self.K2)
+        xyz1 = CameraUtils.backproject_3d(inliers_kpts1[valid], depth_inliers_1[valid], self.K1)
+        xyz2 = CameraUtils.backproject_3d(inliers_kpts2[valid], depth_inliers_2[valid], self.K2)
 
         xyz1 = xyz1.reshape(-1, 3)
         xyz2 = xyz2.reshape(-1, 3)
@@ -396,7 +396,7 @@ class PnPPoseEstimator(PoseEstimator):
         depth_pts1 = depth_pts1[valid]
 
         # Backproject points to 3D in each sensors' local coordinates
-        xyz_1 = backproject_3d(kpts1, depth_pts1, self.K1)
+        xyz_1 = CameraUtils.backproject_3d(kpts1, depth_pts1, self.K1)
 
         # Get relative pose using PnP + RANSAC
         success, rvec, tvec, inliers = cv2.solvePnPRansac(xyz_1, kpts2, self.K2,
@@ -470,7 +470,7 @@ class PnPWithSigmasPoseEstimator(PoseEstimator):
         depth_pts1 = depth_pts1[valid]
 
         # Backproject points to 3D in each sensors' local coordinates
-        xyz_1 = backproject_3d(kpts1, depth_pts1, self.K1)
+        xyz_1 = CameraUtils.backproject_3d(kpts1, depth_pts1, self.K1)
         
         num_points = xyz_1.shape[0]
 
@@ -553,7 +553,7 @@ class MlPnPWithSigmasPoseEstimator(PoseEstimator):
         depth_pts1 = depth_pts1[valid]
 
         # Backproject points to 3D in each sensors' local coordinates
-        xyz_1 = backproject_3d(kpts1, depth_pts1, self.K1)
+        xyz_1 = CameraUtils.backproject_3d(kpts1, depth_pts1, self.K1)
         
         num_points = xyz_1.shape[0]
 
@@ -643,8 +643,8 @@ class ProcrustesPoseEstimator(PoseEstimator):
         depth_pts2 = depth_pts2[valid]
 
         # Backproject points to 3D in each sensors' local coordinates
-        xyz_1 = backproject_3d(kpts1, depth_pts1, self.K1)
-        xyz_2 = backproject_3d(kpts2, depth_pts2, self.K2)
+        xyz_1 = CameraUtils.backproject_3d(kpts1, depth_pts1, self.K1)
+        xyz_2 = CameraUtils.backproject_3d(kpts2, depth_pts2, self.K2)
 
         # Create open3d point cloud objects and correspondences idxs
         pcl_1 = o3d.geometry.PointCloud()
@@ -679,11 +679,11 @@ class ProcrustesPoseEstimator(PoseEstimator):
                 uv2_coords = uv1_coords          
 
             valid = depth1.reshape(-1) > 0
-            xyz_1 = backproject_3d(uv1_coords[valid], depth1.reshape(-1)[valid], self.K1)
+            xyz_1 = CameraUtils.backproject_3d(uv1_coords[valid], depth1.reshape(-1)[valid], self.K1)
             #print(f'ICP xyz_1 shape: {xyz_1.shape}')
 
             valid = depth2.reshape(-1) > 0
-            xyz_2 = backproject_3d(uv2_coords[valid], depth2.reshape(-1)[valid], self.K2)
+            xyz_2 = CameraUtils.backproject_3d(uv2_coords[valid], depth2.reshape(-1)[valid], self.K2)
             #print(f'ICP xyz_2 shape: {xyz_2.shape}')
 
             pcl_1 = o3d.geometry.PointCloud()
@@ -795,6 +795,6 @@ class Sim3PoseEstimator(PoseEstimator):
             kpts2_int = np.int32(data.kpts2)
             depths1 = data.depth1[kpts1_int[:, 1], kpts1_int[:, 0]]
             depths2 = data.depth2[kpts2_int[:, 1], kpts2_int[:, 0]]
-            pts1 = backproject_3d(data.kpts1, depths1, self.K1)
-            pts2 = backproject_3d(data.kpts2, depths2, self.K2)
+            pts1 = CameraUtils.backproject_3d(data.kpts1, depths1, self.K1)
+            pts2 = CameraUtils.backproject_3d(data.kpts2, depths2, self.K2)
             return self.estimate3d3d(pts1, pts2, fix_scale)

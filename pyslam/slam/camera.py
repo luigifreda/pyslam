@@ -22,11 +22,13 @@ import numpy as np
 import cv2
 import math 
 
+from numba import njit
+
 #import json
 import ujson as json
 
 #import g2o
-from pyslam.utilities.utils_geom import add_ones
+from pyslam.utilities.utils_geom import add_ones, add_ones_numba
 from pyslam.utilities.utils_sys import Printer
 from pyslam.io.dataset_types import SensorType
 
@@ -44,17 +46,127 @@ def fov2focal(fov, pixels):
 def focal2fov(focal, pixels):
     return 2.0 * math.atan(pixels / (2.0 * focal))
     
-# Backproject 2d image points (pixels) into 3D points by using depth and intrinsic K
-# Input: 
-#   uv: array [N,2]
-#   depth: array [N]
-#   K: array [3,3]
-# Output:
-#   xyz: array [N,3]
-def backproject_3d(uv, depth, K):
-    uv1 = np.concatenate([uv, np.ones((uv.shape[0], 1))], axis=1)
-    p3d = depth.reshape(-1, 1) * (np.linalg.inv(K) @ uv1.T).T
-    return p3d.reshape(-1, 3)
+    
+    
+class CameraUtils:
+        
+    # Backproject 2d image points (pixels) into 3D points by using depth and intrinsic K
+    # Input: 
+    #   uv: array [N,2]
+    #   depth: array [N]
+    #   K: array [3,3]
+    # Output:
+    #   xyz: array [N,3]
+    @staticmethod
+    def backproject_3d(uv, depth, K):
+        uv1 = np.concatenate([uv, np.ones((uv.shape[0], 1))], axis=1)
+        p3d = depth.reshape(-1, 1) * (np.linalg.inv(K) @ uv1.T).T
+        return p3d.reshape(-1, 3)
+
+    @njit
+    def backproject_3d_numba(uv, depth, Kinv):
+        N = uv.shape[0]
+        uv1 = np.ones((N, 3), dtype=np.float64)
+        uv1[:, 0:2] = uv
+        p3d = np.empty((N, 3), dtype=np.float64)
+        for i in range(N):
+            p = Kinv @ uv1[i]
+            p3d[i, :] = depth[i] * p
+        return p3d
+
+    # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
+    # out: Nx2 image points, [Nx1] array of map point depths     
+    def project(xcs, K):  # python version
+        # u = self.fx * xc[0]/xc[2] + self.cx
+        # v = self.fy * xc[1]/xc[2] + self.cy  
+        projs = K @ xcs.T
+        zs = projs[-1]      
+        projs = projs[:2]/ zs   
+        return projs.T, zs
+    
+    # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
+    # out: Nx2 image points, [Nx1] array of map point depths     
+    @njit
+    def project_numba(xcs, K): # numba-optimized version
+        N = xcs.shape[0]
+        projs = K @ xcs.T  # shape (3, N)
+        zs = projs[2, :]   # shape (N,)
+        u = projs[0, :] / zs
+        v = projs[1, :] / zs
+        uv = np.empty((N, 2), dtype=np.float64)
+        for i in range(N):
+            uv[i, 0] = u[i]
+            uv[i, 1] = v[i]
+        return uv, zs
+
+    # stereo-project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
+    # (assuming rectified stereo images)
+    # out: Nx3 image points, [Nx1] array of map point depths     
+    def project_stereo(xcs, K, bf): # python version
+        # u = self.fx * xc[0]/xc[2] + self.cx
+        # v = self.fy * xc[1]/xc[2] + self.cy  
+        # ur = u - bf/xc[2]
+        projs = K @ xcs.T     
+        zs = projs[-1]      
+        projs = projs[:2]/ zs 
+        ur = projs[0] - bf/zs
+        projs = np.concatenate((projs.T,ur[:, np.newaxis]),axis=1)  
+        return projs, zs    
+    
+    # stereo-project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
+    # (assuming rectified stereo images)
+    # out: Nx3 image points, [Nx1] array of map point depths     
+    @njit
+    def project_stereo_numba(xcs, K, bf): # numba-optimized version
+        N = xcs.shape[0]
+        projs = K @ xcs.T  # shape (3, N)
+        zs = projs[2, :]   # shape (N,)
+        u = projs[0, :] / zs
+        v = projs[1, :] / zs
+        ur = u - bf / zs
+        out = np.empty((N, 3), dtype=np.float64)
+        for i in range(N):
+            out[i, 0] = u[i]
+            out[i, 1] = v[i]
+            out[i, 2] = ur[i]
+        return out, zs
+
+    # in:  uvs [Nx2]
+    # out: xcs array [Nx2] of 2D normalized coordinates (representing 3D points on z=1 plane)    
+    def unproject_points(uvs, Kinv): # python version
+        return np.dot(Kinv, add_ones(uvs).T).T[:, 0:2]      
+    
+    # in:  uvs [Nx2]
+    # out: xcs array [Nx2] of 2D normalized coordinates (representing 3D points on z=1 plane)    
+    @njit
+    def unproject_points_numba(uvs, Kinv): # numba-optimized version
+        N = uvs.shape[0]
+        uv1 = add_ones_numba(uvs)
+        out = np.empty((N, 2), dtype=uvs.dtype)
+        for i in range(N):
+            p = Kinv @ uv1[i]
+            out[i, 0] = p[0]
+            out[i, 1] = p[1]
+        return out
+
+    # in:  uvs [Nx2], depths [Nx1]
+    # out: xcs array [Nx3] of backprojected 3D points      
+    def unproject_points_3d(uvs, depths, Kinv): # python version
+        return np.dot(Kinv, add_ones(uvs).T * depths).T[:, 0:3]   
+    
+    # in:  uvs [Nx2], depths [Nx1]
+    # out: xcs array [Nx3] of backprojected 3D points    
+    @njit
+    def unproject_points_3d_numba(uvs, depths, Kinv): # numba-optimized version
+        N = uvs.shape[0]
+        uv1 = add_ones_numba(uvs)
+        out = np.empty((N, 3), dtype=uvs.dtype)
+        for i in range(N):
+            p = Kinv @ (uv1[i] * depths[i])
+            out[i, 0] = p[0]
+            out[i, 1] = p[1]
+            out[i, 2] = p[2]
+        return out
 
      
 class CameraBase:
@@ -241,12 +353,12 @@ class PinholeCamera(Camera):
         fy = self.fy
         cx = self.cx
         cy = self.cy
-        self.K = np.array([[fx, 0,cx],
-                           [ 0,fy,cy],
-                           [ 0, 0, 1]])
-        self.Kinv = np.array([[1/fx,    0,-cx/fx],
-                              [   0, 1/fy,-cy/fy],
-                              [   0,    0,    1]])             
+        self.K = np.array([[  fx, 0.0, cx],
+                           [ 0.0,  fy, cy],
+                           [ 0.0, 0.0, 1.0]], dtype=np.float64)
+        self.Kinv = np.array([[1.0/fx,    0.0, -cx/fx],
+                              [   0.0, 1.0/fy, -cy/fy],
+                              [   0.0,    0.0,    1.0]], dtype=np.float64)             
         
         #print(f'PinholeCamera: K = {self.K}')
         if self.width is None or self.height is None:
@@ -273,30 +385,25 @@ class PinholeCamera(Camera):
         if not self.initialized:
             self.initialized = True 
             self.undistort_image_bounds()        
-                
+                    
     # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
-    # out: Nx2 image points, [Nx1] array of map point depths     
-    def project(self, xcs):
-        # u = self.fx * xc[0]/xc[2] + self.cx
-        # v = self.fy * xc[1]/xc[2] + self.cy  
-        projs = self.K @ xcs.T
-        zs = projs[-1]      
-        projs = projs[:2]/ zs   
-        return projs.T, zs
-    
+    # out: Nx2 image points, [Nx1] array of map point depths      
+    def project(self, xcs): # numba version
+        # Ensure xcs is always 2D
+        if xcs.ndim == 1:
+            xcs = xcs.reshape(1, 3)         
+        xcs = xcs.astype(np.float64)
+        return CameraUtils.project_numba(xcs, self.K)    
+        
     # stereo-project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
     # (assuming rectified stereo images)
-    # out: Nx3 image points, [Nx1] array of map point depths     
-    def project_stereo(self, xcs):
-        # u = self.fx * xc[0]/xc[2] + self.cx
-        # v = self.fy * xc[1]/xc[2] + self.cy  
-        # ur = u - bf/xc[2]
-        projs = self.K @ xcs.T     
-        zs = projs[-1]      
-        projs = projs[:2]/ zs 
-        ur = projs[0] - self.bf/zs
-        projs = np.concatenate((projs.T,ur[:, np.newaxis]),axis=1)  
-        return projs, zs    
+    # out: Nx3 image points, [Nx1] array of map point depths      
+    def project_stereo(self, xcs): # numba version 
+        # Ensure xcs is always 2D
+        if xcs.ndim == 1:
+            xcs = xcs.reshape(1, 3)         
+        xcs = xcs.astype(np.float64)
+        return CameraUtils.project_stereo_numba(xcs, self.K, self.bf)    
         
     # unproject single 2D point uv (pixels on image plane) to 2D normalized point (representing 3D point on z=1 plane)
     def unproject(self, uv):
@@ -309,17 +416,20 @@ class PinholeCamera(Camera):
         x = depth*(u - self.cx)/self.fx
         y = depth*(v - self.cy)/self.fy
         z = depth
-        return np.array([x,y,z], dtype=np.float32).reshape(3,1)
+        return np.array([x,y,z], dtype=np.float64).reshape(3,1)
 
     # in:  uvs [Nx2]
-    # out: xcs array [Nx2] of 2D normalized coordinates (representing 3D points on z=1 plane)    
-    def unproject_points(self, uvs):
-        return np.dot(self.Kinv, add_ones(uvs).T).T[:, 0:2]        
-
+    # out: xcs array [Nx2] of 2D normalized coordinates (representing 3D points on z=1 plane)  
+    def unproject_points(self, uvs): # numba version
+        uvs = uvs.astype(np.float64)
+        return CameraUtils.unproject_points_numba(uvs, self.Kinv)
+    
     # in:  uvs [Nx2], depths [Nx1]
-    # out: xcs array [Nx3] of backprojected 3D points      
-    def unproject_points_3d(self, uvs, depths):
-        return np.dot(self.Kinv, add_ones(uvs).T * depths).T[:, 0:3]    
+    # out: xcs array [Nx3] of backprojected 3D points   
+    def unproject_points_3d(self, uvs, depths): # numba version
+        uvs = uvs.astype(np.float64)
+        depths = depths.astype(np.float64)
+        return CameraUtils.unproject_points_3d_numba(uvs, depths, self.Kinv)
 
     # in:  uvs [Nx2]
     # out: uvs_undistorted array [Nx2] of undistorted coordinates  
@@ -337,7 +447,7 @@ class PinholeCamera(Camera):
         uv_bounds = np.array([[self.u_min, self.v_min],
                                 [self.u_min, self.v_max],
                                 [self.u_max, self.v_min],
-                                [self.u_max, self.v_max]], dtype=np.float32).reshape(4,2)
+                                [self.u_max, self.v_max]], dtype=np.float64).reshape(4,2)
         #print('uv_bounds: ', uv_bounds)
         if self.is_distorted:
                 uv_bounds_undistorted = cv2.undistortPoints(np.expand_dims(uv_bounds, axis=1), self.K, self.D, None, self.K)      

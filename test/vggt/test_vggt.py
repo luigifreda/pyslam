@@ -35,7 +35,7 @@ from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 from vggt.utils.geometry import unproject_depth_map_to_point_map
 
 from pyslam.utilities.utils_files import select_image_files 
-from pyslam.utilities.utils_sys import download_file_from_url
+from pyslam.utilities.utils_download import download_file_from_url
 from pyslam.utilities.utils_dust3r import convert_mv_output_to_geometry
 from pyslam.utilities.utils_img import img_from_floats, ImageTable
 from pyslam.utilities.utils_torch import to_numpy

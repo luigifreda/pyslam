@@ -93,4 +93,9 @@ PYBIND11_MODULE(pyslam_utils, m)
         py::arg("kps1_np"), py::arg("kps2_np"), py::arg("idxs1_np"), py::arg("idxs2_np"),
         py::arg("max_row_distance"), py::arg("max_disparity"), "Post-filter matches by epipolar constraints");
 
+
+    m.def("extract_mean_colors", &utils::extractMeanColors, 
+        py::arg("img"), py::arg("img_coords"), py::arg("delta"), py::arg("default_color"),
+        "Extract mean colors from image");
+
 }

@@ -223,6 +223,12 @@ def add_ones_1D(x):
     return np.array([x[0], x[1], 1])
     #return np.append(x, 1)
     
+@jit(nopython=True)
+def add_ones_numba(uvs):
+    N = uvs.shape[0]
+    out = np.ones((N, 3), dtype=uvs.dtype)
+    out[:, 0:2] = uvs
+    return out
     
 # turn [[x,y,w]]= Kinv*[u,v,1] into [[x/w,y/w,1]]
 @jit(nopython=True)
@@ -321,34 +327,83 @@ def rpy_from_rotation_matrix(R):
 def euler_from_rotation(R, order='xyz'):
     return Rotation.from_matrix(R).as_euler(order, degrees=False)
 
+
+
+@jit(nopython=True)
+def rodrigues_rotation_matrix(axis, angle):
+    """
+    Compute the rotation matrix from axis and angle using Rodrigues' formula.
+    
+    Parameters:
+    - axis: unit vector (3,) — axis of rotation
+    - angle: float — rotation angle in radians
+    
+    Returns:
+    - R: (3, 3) rotation matrix
+    """
+    K = np.array([
+        [0.0, -axis[2], axis[1]],
+        [axis[2], 0.0, -axis[0]],
+        [-axis[1], axis[0], 0.0]
+    ])
+    I = np.eye(3)
+    R = I + np.sin(angle) * K + (1.0 - np.cos(angle)) * (K @ K)
+    return R
+
+@jit(nopython=True)
+def clip_scalar(x, x_min, x_max):
+    if x < x_min:
+        return x_min
+    elif x > x_max:
+        return x_max
+    else:
+        return x
+    
 # from z-vector to rotation matrix
 # input: vector is a 3x1 vector
+@jit(nopython=True)
 def get_rotation_from_z_vector(vector):
-    # Normalize the vector
-    vector = vector / np.linalg.norm(vector)
-    # Reference direction (e.g., z-axis)
-    reference = np.array([0, 0, 1])
-    # Compute the rotation axis (cross product)
-    axis = np.cross(reference, vector)
-    axis_length = np.linalg.norm(axis)
-    if axis_length == 0:
-        # The vector is already aligned with the reference direction
-        return np.eye(3)    
-    axis = axis / axis_length
-    # Compute the angle (dot product)
-    angle = np.arccos(np.dot(reference, vector))
-    # Create the rotation matrix
-    rotation_matrix = Rotation.from_rotvec(angle * axis).as_matrix()
-    return rotation_matrix
+    vector_norm = np.linalg.norm(vector)
+    if vector_norm < 1e-8:
+        return np.eye(3)
+
+    # Normalize the input vector
+    v = vector / vector_norm
+
+    # Reference direction (z-axis)
+    z = np.array([0.0, 0.0, 1.0])
+
+    # Compute rotation axis and angle
+    axis = np.cross(z, v)
+    axis_norm = np.linalg.norm(axis)
+
+    if axis_norm < 1e-8:
+        # Already aligned or opposite
+        if np.dot(z, v) > 0:
+            return np.eye(3)
+        else:
+            # 180-degree rotation: flip around X or Y
+            return np.array([
+                [-1.0,  0.0,  0.0],
+                [ 0.0, -1.0,  0.0],
+                [ 0.0,  0.0,  1.0]
+            ])
+
+    axis = axis / axis_norm
+    angle = np.arccos(clip_scalar(np.dot(z, v), -1.0, 1.0))
+    return rodrigues_rotation_matrix(axis, angle)
 
     
 # Checks if a matrix is a valid rotation matrix
+@jit(nopython=True)
 def is_rotation_matrix(R):
-  Rt = np.transpose(R)
-  should_be_identity = np.dot(Rt, R)
-  identity = np.identity(len(R))
-  n = np.linalg.norm(should_be_identity - identity)
-  return n < 1e-8 and np.allclose(np.linalg.det(R), 1.0)
+    Rt = R.T
+    should_be_identity = Rt @ R
+    I = np.eye(R.shape[0])
+    norm_diff = np.linalg.norm(should_be_identity - I)
+
+    det = np.linalg.det(R)
+    return norm_diff < 1e-8 and abs(det - 1.0) < 1e-6
 
 # Computes the closest orthogonal matrix to a given matrix.
 def closest_orthogonal_matrix(A):

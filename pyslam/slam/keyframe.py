@@ -210,7 +210,7 @@ class KeyFrameGraph(object):
                             
 
 class KeyFrame(Frame,KeyFrameGraph):
-    def __init__(self, frame: Frame, img=None, img_right=None, depth=None):
+    def __init__(self, frame: Frame, img=None, img_right=None, depth=None, kid=None):
         KeyFrameGraph.__init__(self)
         Frame.__init__(self, img=None, camera=frame.camera, pose=frame.pose, id=frame.id, timestamp=frame.timestamp, img_id=frame.img_id)   # here we MUST have img=None in order to avoid recomputing keypoint info
                 
@@ -235,7 +235,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.map = None 
                 
         self.is_keyframe = True  
-        self.kid = None           # keyframe id (keyframe counter-id, different from frame.id)
+        self.kid = kid           # keyframe id (keyframe counter-id, different from frame.id)
         
         self._is_bad = False 
         self.to_be_erased = False 

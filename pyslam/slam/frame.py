@@ -128,7 +128,7 @@ class FrameBase(object):
         if pose is None: 
             self._pose = CameraPose()      
         else: 
-            self._pose = CameraPose(pose) 
+            self._pose = CameraPose(pose.copy()) # We need to copy the pose to avoid sharing the same reference
         # frame id management            
         if id is not None: 
             self.id = id 
@@ -324,7 +324,7 @@ class FrameBase(object):
     #         [Nx1] array of depths, 
     #         [Nx1] array of distances PO
     # check a) points are in image b) good view angle c) good distance range  
-    def are_visible(self, map_points, do_stereo_project=False):
+    def are_visible(self, map_points: list['MapPoint'], do_stereo_project=False):
         # n = len(map_points)
         # points = np.zeros((n, 3), dtype=np.float32) 
         # point_normals = np.zeros((n, 3), dtype=np.float32) 
@@ -391,7 +391,7 @@ class Frame(FrameBase):
         self.kps_ur    = None      # corresponding right u-coordinates for left keypoints           [Nx1] (computed with stereo matching and assuming rectified stereo images)
 
         # map points information arrays 
-        self.points   = None     # map points => self.points[idx] (if is not None) is the map point matched with self.kps[idx]
+        self.points: list[MapPoint] | None = None     # map points => self.points[idx] (if is not None) is the map point matched with self.kps[idx]
         self.outliers = None     # outliers flags for map points (reset and set by pose_optimization())
         
         self.kf_ref = None       # reference keyframe 
@@ -439,10 +439,8 @@ class Frame(FrameBase):
             self.des_r     = frame_data_dict['des_r']
             self.depths    = frame_data_dict['depths']
             self.kps_ur    = frame_data_dict['kps_ur']
-            
             self.points    = frame_data_dict['points']
             self.outliers  = frame_data_dict['outliers']
-            
             self.kf_ref = frame_data_dict['kf_ref']
             
             if self.img is None:
@@ -456,6 +454,8 @@ class Frame(FrameBase):
 
             if self.semantic_img is None:
                 self.semantic_img = frame_data_dict['semantic_img']
+            
+            self.ensure_contiguous()            
             return                        
                                 
         if img is not None:                  
@@ -478,7 +478,7 @@ class Frame(FrameBase):
             if self.kps is not None:    
                 kps_data = np.ascontiguousarray([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps ], dtype=np.float32)                     
                 self.kps     = kps_data[:,:2] if kps_data is not None else None
-                self.octaves = np.uint32(kps_data[:,2]) #print('octaves: ', self.octaves)                    
+                self.octaves = np.uint8(kps_data[:,2]) #print('octaves: ', self.octaves)                    
                 self.sizes   = kps_data[:,3]
                 self.angles  = kps_data[:,4]  
                 if self.camera is None:
@@ -494,7 +494,7 @@ class Frame(FrameBase):
             if self.kps_r is not None: 
                 kps_data_r = np.ascontiguousarray([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_r ], dtype=np.float32)
                 self.kps_r     = kps_data_r[:,:2] if kps_data_r is not None else None
-                self.octaves_r = np.uint32(kps_data_r[:,2]) #print('octaves: ', self.octaves)
+                self.octaves_r = np.uint8(kps_data_r[:,2]) #print('octaves: ', self.octaves)
             
             if self.kps is not None:
                 # compute stereo matches: if there is depth available, use it, otherwise use stereo matching
@@ -504,14 +504,26 @@ class Frame(FrameBase):
                     self.depths = np.full(len(self.kps), -1, dtype=float)     
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
-           
+            
+            self.ensure_contiguous()
+            
+    def ensure_contiguous(self):
+        for attr in ['kps', 'kpsu', 'kpsn', 'kps_r', \
+                     'des', 'des_r', 'depths', 'kps_ur', \
+                     'angles', 'sizes', 'octaves', 'octaves_r', \
+                     'outliers', 'points', \
+                     'img', 'img_right', 'depth_img', 'semantic_img']:
+            val = getattr(self, attr, None)
+            if isinstance(val, np.ndarray) and not val.flags['C_CONTIGUOUS']:
+                setattr(self, attr, np.ascontiguousarray(val))
+                       
     def set_img_right(self, img_right): 
-        self.img_right = img_right.copy()
+        self.img_right = np.ascontiguousarray(img_right.copy())
         
     def set_depth_img(self, depth_img):
         if self.camera is not None: # and self.camera.depth_factor != 1.0:
             depth_img = depth_img * self.camera.depth_factor        
-            self.depth_img = depth_img.copy()
+            self.depth_img = np.ascontiguousarray(depth_img.copy())
         else: 
             message = 'Frame.set_depth_img: camera is None or depth_factor is not set'
             Printer.error(message)
@@ -519,7 +531,7 @@ class Frame(FrameBase):
 
     def set_semantics(self, semantic_img):
         if Frame.is_store_imgs: 
-            self.semantic_img = semantic_img.copy()
+            self.semantic_img = np.ascontiguousarray(semantic_img.copy())
         if self.kps is not None:
             with self._lock_features: 
                 #TODO(dvdmc): is the consensus that label images are (H,W) or (H,W,1)?
@@ -527,6 +539,7 @@ class Frame(FrameBase):
                     self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int),:]
                 elif len(semantic_img.shape) == 2:
                     self.kps_sem = semantic_img[self.kps[:,1].astype(int), self.kps[:,0].astype(int)]
+                self.kps_sem = np.ascontiguousarray(self.kps_sem) if self.kps_sem is not None else None
 
     def __getstate__(self):
         # Create a copy of the instance's __dict__
@@ -705,11 +718,13 @@ class Frame(FrameBase):
         with self._lock_features:          
             num_keypoints = len(self.kps)
             self.points = np.full(num_keypoints, None, dtype=object)
-            self.outliers = np.full(num_keypoints, False, dtype=bool)      
+            self.outliers = np.full(num_keypoints, False, dtype=bool)
+            self.points = np.ascontiguousarray(self.points)
+            self.outliers = np.ascontiguousarray(self.outliers)
             
     def get_points(self) -> list['MapPoint'] | None:    
         with self._lock_features:                           
-            return self.points.copy() if self.points is not None else None  
+            return np.ascontiguousarray(self.points.copy()) if self.points is not None else None  
                     
     def get_matched_points(self):
         with self._lock_features:                   
@@ -891,9 +906,9 @@ class Frame(FrameBase):
         do_subpixel_stereo_matching = True
         if do_subpixel_stereo_matching:
             if img.ndim>2:
-                img_bw_ = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) if img_bw_ is None else img_bw_
+                img_bw_ = np.ascontiguousarray(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)) if img_bw_ is None else img_bw_
             if img_right.ndim>2:
-                img_right_ = cv2.cvtColor(img_right, cv2.COLOR_RGB2GRAY) if img_right_ is None else img_right_               
+                img_right_ = np.ascontiguousarray(cv2.cvtColor(img_right, cv2.COLOR_RGB2GRAY)) if img_right_ is None else img_right_               
             disparities, us_right, valid_idxs = stereo_match_subpixel_correlation(
                 self.kps[good_matched_idxs1], self.kps_r[good_matched_idxs2],
                 min_disparity=min_disparity, max_disparity=max_disparity,

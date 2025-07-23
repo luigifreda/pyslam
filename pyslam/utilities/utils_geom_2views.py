@@ -23,10 +23,23 @@ import cv2
 
 from .utils_geom import skew, poseRt
 
+from numba import njit
+
+@njit
+def computeF12_numba(R1w, t1w, R2w, t2w, K1inv, K2, K2inv):
+    R12 = R1w @ R2w.T
+    t12 = -R1w @ (R2w.T @ t2w) + t1w
+    
+    t12x = skew(t12)
+    R21 = R12.T
+    H21 = (K2 @ R21) @ K1inv
+    F12 = ((K1inv.T @ t12x) @ R12) @ K2inv
+    return F12, H21
+
 
 # compute the fundamental mat F12 and the infinite homography H21 [Hartley Zisserman pag 339]
 # from two frames
-def computeF12(f1, f2):
+def computeF12_(f1, f2):
     R1w = f1.Rcw
     t1w = f1.tcw 
     R2w = f2.Rcw
@@ -43,6 +56,15 @@ def computeF12(f1, f2):
     return F12, H21  
 
 
+def computeF12(f1, f2):
+    R1w = np.ascontiguousarray(f1.Rcw)
+    t1w = np.ascontiguousarray(f1.tcw)
+    R2w = np.ascontiguousarray(f2.Rcw)
+    t2w = np.ascontiguousarray(f2.tcw)
+    return computeF12_numba(R1w, t1w, R2w, t2w, f1.camera.Kinv, f2.camera.K, f2.camera.Kinv)
+
+
+@njit
 def check_dist_epipolar_line(kp1,kp2,F12,sigma2_kp2):
     # Epipolar line in second image l = kp1' * F12 = [a b c]
     l = np.dot(F12.T,np.array([kp1[0],kp1[1],1]))

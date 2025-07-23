@@ -221,7 +221,7 @@ class MapPointBase(object):
             else:
                 return False                 
 
-    def remove_frame_view(self, frame, idx=None): 
+    def remove_frame_view(self, frame: 'Frame', idx=None): 
         assert(not frame.is_keyframe)        
         with self._lock_features:
             # remove point from frame     
@@ -643,6 +643,7 @@ def predict_detection_levels(points, dists):
     assert(len(points)==len(dists)) 
     max_distances = np.array([p._max_distance for p in points])  
     ratios = max_distances/dists
+    ratios = np.maximum(ratios, 1e-8)  # prevent log(0) or log(negative)
     levels = np.ceil(np.log(ratios)/FeatureTrackerShared.feature_manager.log_scale_factor).astype(np.intp)
     levels = np.clip(levels,0,FeatureTrackerShared.feature_manager.num_levels-1)
     return levels

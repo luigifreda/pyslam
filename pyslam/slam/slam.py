@@ -61,13 +61,7 @@ if TYPE_CHECKING:
 
 
 kVerbose = True     
-
-kLocalMappingOnSeparateThread = Parameters.kLocalMappingOnSeparateThread 
-kTrackingWaitForLocalMappingToGetIdle = Parameters.kTrackingWaitForLocalMappingToGetIdle
-
-kLogKFinfoToFile = True 
-      
-kUseEssentialMatrixFitting = Parameters.kUseEssentialMatrixFitting      
+kLogKFinfoToFile = True    
        
 
 if not kVerbose:
@@ -118,7 +112,7 @@ class Slam(object):
             self.init_volumetric_integrator() 
             self.init_loop_closing(loop_detector_config, headless=headless)     
                 
-        if kLocalMappingOnSeparateThread:
+        if Parameters.kLocalMappingOnSeparateThread:
             self.local_mapping.start()
         
         self.tracking = Tracking(self) # after all the other initializations
@@ -175,7 +169,7 @@ class Slam(object):
         
     def quit(self):
         print('SLAM: quitting ...')
-        if kLocalMappingOnSeparateThread:
+        if Parameters.kLocalMappingOnSeparateThread:
             self.local_mapping.quit()
         if self.semantic_mapping is not None:
             self.semantic_mapping.quit()
@@ -195,7 +189,7 @@ class Slam(object):
             # In case of stereo, for thread-safety reasons, we create a second feature_tracker that we can use in parallel during stereo image processing 
             feature_tracker_right = feature_tracker_factory(**feature_tracker_config)
             FeatureTrackerShared.set_feature_tracker_right(feature_tracker_right, force=True)
-        if kUseEssentialMatrixFitting:
+        if Parameters.kUseEssentialMatrixFitting:
             Printer.orange('SLAM: forcing feature matcher ratio_test to 0.8')
             feature_tracker.matcher.ratio_test = 0.8
         if feature_tracker.tracker_type == FeatureTrackerTypes.LK:

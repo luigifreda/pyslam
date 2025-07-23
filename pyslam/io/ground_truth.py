@@ -189,8 +189,8 @@ class GroundTruth(object):
                 self.trajectory.append([x,y,z])
             except:
                 pass
-        self.timestamps = np.array(self.timestamps, dtype=np.float64)
-        self.trajectory = np.array(self.trajectory, dtype=np.float32)
+        self.timestamps = np.ascontiguousarray(self.timestamps, dtype=np.float64)
+        self.trajectory = np.ascontiguousarray(self.trajectory, dtype=np.float64)
         return self.trajectory, self.timestamps
     
     def getFull6dTrajectory(self):
@@ -212,9 +212,9 @@ class GroundTruth(object):
                 self.poses.append(xyzq2Tmat(x,y,z,qx,qy,qz,qw))
             except:
                 pass
-        self.timestamps = np.array(self.timestamps, dtype=float)
-        self.trajectory = np.array(self.trajectory, dtype=float)
-        self.poses = np.array(self.poses, dtype=float)
+        self.timestamps = np.ascontiguousarray(self.timestamps, dtype=float)
+        self.trajectory = np.ascontiguousarray(self.trajectory, dtype=float)
+        self.poses = np.ascontiguousarray(self.poses, dtype=float)
         return self.trajectory, self.poses, self.timestamps    
     
     def to_json(self):
@@ -288,8 +288,8 @@ class GroundTruth(object):
         first_flag = [False]*len(first_list)
         second_flag = [False]*len(second_list)        
         # extract timestamps
-        t1 = np.array([float(data1[0]) for data1 in first_list])
-        t2 = np.array([(float(data2[0])+offset) for data2 in second_list])
+        t1 = np.ascontiguousarray([float(data1[0]) for data1 in first_list])
+        t2 = np.ascontiguousarray([(float(data2[0])+offset) for data2 in second_list])
         for i, t in enumerate(t1):
             j = np.argmin(np.abs(t2 - t))
             if abs(t2[j] - t) < max_difference:
@@ -322,7 +322,7 @@ class SimpleGroundTruth(GroundTruth):
                     
         with open(self.filename) as f:
             self.data = f.readlines()
-            self.data = np.array(self.data)
+            self.data = np.ascontiguousarray(self.data)
             self.found = True 
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file: please, check how you deployed the files and if the code is consistent with this!') 
@@ -389,7 +389,7 @@ class KittiGroundTruth(GroundTruth):
                     
         with open(self.filename) as f:
             self.data = f.readlines()
-            self.data = np.array(self.data)
+            self.data = np.ascontiguousarray(self.data)
             self.found = True 
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file: please, check how you deployed the files and if the code is consistent with this!') 
@@ -446,7 +446,7 @@ class KittiGroundTruth(GroundTruth):
         r31 = float(ss[8])
         r32 = float(ss[9])
         r33 = float(ss[10])
-        R = np.array([[r11,r12,r13],[r21,r22,r23],[r31,r32,r33]])
+        R = np.ascontiguousarray([[r11,r12,r13],[r21,r22,r23],[r31,r32,r33]])
         q  = rotmat2qvec(R)  # [qx, qy, qz, qw]
         if x_prev is None:
             abs_scale = 1
@@ -477,7 +477,7 @@ class TumGroundTruth(GroundTruth):
         with open(self.filename) as f:
             self.data = f.readlines()[3:] # skip the first three rows, which are only comments 
             self.data = [line.strip().split() for line in  self.data] 
-            self.data = np.array(self.data)
+            self.data = np.ascontiguousarray(self.data)
         if self.data is None:
             sys.exit('ERROR [TumGroundTruth] while reading groundtruth file!') 
         if self.associations_path is not None: 
@@ -577,10 +577,10 @@ class EurocGroundTruth(GroundTruth):
             with open(self.filename) as f:
                 self.data = f.readlines()
                 self.data = [line.strip().split() for line in self.data]
-                self.data = np.array(self.data)
+                self.data = np.ascontiguousarray(self.data)
         else:
             self.data = self.read_gt_data_state(self.filename)
-            self.data = np.array(self.data)
+            self.data = np.ascontiguousarray(self.data)
                     
         if len(self.data) > 0:
             self.found = True
@@ -624,11 +624,11 @@ class EurocGroundTruth(GroundTruth):
                     continue
                 parts = line.strip().split(',')
                 timestamp_ns = int(parts[0])
-                position = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
-                quaternion = np.array([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])]) # qw, qx, qy, qz
-                # velocity = np.array([float(parts[8]), float(parts[9]), float(parts[10])])
-                # accel_bias = np.array([float(parts[11]), float(parts[12]), float(parts[13])])
-                # gyro_bias = np.array([float(parts[14]), float(parts[15]), float(parts[16])])
+                position = np.ascontiguousarray([float(parts[1]), float(parts[2]), float(parts[3])])
+                quaternion = np.ascontiguousarray([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])]) # qw, qx, qy, qz
+                # velocity = np.ascontiguousarray([float(parts[8]), float(parts[9]), float(parts[10])])
+                # accel_bias = np.ascontiguousarray([float(parts[11]), float(parts[12]), float(parts[13])])
+                # gyro_bias = np.ascontiguousarray([float(parts[14]), float(parts[15]), float(parts[16])])
                 # we expect the quaternion in the form [qx, qy, qz, qw] as in the TUM format
                 data.append((float(timestamp_ns)*1e-9, position[0], position[1], position[2], quaternion[1], quaternion[2], quaternion[3], quaternion[0]))
         return data
@@ -641,8 +641,8 @@ class EurocGroundTruth(GroundTruth):
                     continue
                 parts = line.strip().split(',')
                 timestamp_ns = int(parts[0])
-                position = np.array([float(parts[1]), float(parts[2]), float(parts[3])])
-                quaternion = np.array([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])])
+                position = np.ascontiguousarray([float(parts[1]), float(parts[2]), float(parts[3])])
+                quaternion = np.ascontiguousarray([float(parts[4]), float(parts[5]), float(parts[6]), float(parts[7])])
                 # we expect the quaternion in the form [qx, qy, qz, qw] as in the TUM format
                 data.append((float(timestamp_ns)*1e-9, position[0], position[1], position[2], quaternion[1], quaternion[2], quaternion[3], quaternion[0]))
         return data
@@ -722,12 +722,12 @@ class ReplicaGroundTruth(GroundTruth):
         with open(self.filename) as f:
             self.data = f.readlines()
             for i,line in enumerate(self.data):
-                pose = np.array(list(map(float, line.split()))).reshape(4, 4)
+                pose = np.ascontiguousarray(list(map(float, line.split()))).reshape(4, 4)
                 #pose = np.linalg.inv(pose)
                 self.poses_.append(pose)
                 timestamp = i*self.Ts
                 self.timestamps_.append(timestamp)
-            self.data = np.array(self.data)
+            self.data = np.ascontiguousarray(self.data)
         print(f'Number of poses: {len(self.poses_)}')
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file!') 
@@ -792,7 +792,7 @@ class TartanairGroundTruth(GroundTruth):
                     
         with open(self.filename) as f:
             self.data = f.readlines()
-            self.data = np.array(self.data)
+            self.data = np.ascontiguousarray(self.data)
             self.found = True 
         if self.data is None:
             sys.exit('ERROR while reading groundtruth file: please, check how you deployed the files and if the code is consistent with this!') 
@@ -870,7 +870,7 @@ class ScannetGroundTruth(GroundTruth):
                 self.poses_.append(pose)
                 self.timestamps_.append(int(file_name.split('.')[0]) * self.Ts)
                 self.data.append(pose)
-            self.data = np.array(self.data)
+            self.data = np.ascontiguousarray(self.data)
             print(f'Number of poses: {len(self.poses_)}')
             if self.data is None:
                 sys.exit('ERROR while reading groundtruth file!')

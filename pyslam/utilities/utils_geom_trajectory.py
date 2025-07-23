@@ -24,14 +24,36 @@ import sim3solver
 import trajectory_tools
 
 
+from numba import njit
+
+
+@njit
 def set_rotations_from_translations(t_wi):
-    num_samples = len(t_wi)
-    R_wi = [np.eye(3) for i in range(num_samples)] 
+    num_samples = t_wi.shape[0]
+    R_wi = np.zeros((num_samples, 3, 3))
     for i in range(1, num_samples):
         R_wi[i] = get_rotation_from_z_vector(t_wi[i] - t_wi[i-1])
-    if num_samples>1:
+    if num_samples > 1:
         R_wi[0] = R_wi[1]
     return R_wi
+
+
+@njit
+def compute_alignment_errors(T_gt_est, filter_associations, gt_associations):
+    # Ensure arrays are contiguous for optimal performance
+    R = np.ascontiguousarray(T_gt_est[:3, :3])
+    F = np.ascontiguousarray(filter_associations.T)
+    errors = (R @ F).T + T_gt_est[:3, 3] - gt_associations
+    n = errors.shape[0]
+    distances = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        # Euclidean norm of each row
+        distances[i] = np.sqrt(np.sum(errors[i] ** 2))
+    squared_errors = distances ** 2
+    rms_error = np.sqrt(np.mean(squared_errors))
+    max_error = np.sqrt(np.max(squared_errors))
+    median_error = np.sqrt(np.median(squared_errors))
+    return rms_error, max_error, median_error
 
 
 # Align corresponding 3D points in SE(3)/Sime(3) using SVD, we assume the points have been already associated, i.e. gt_points[i] corresponds to est_points[i].
@@ -101,6 +123,7 @@ def align_3d_points_with_svd(gt_points, est_points, find_scale=True):
 def align_3d_points_with_svd2(gt_points, est_points, find_scale=True):
     return trajectory_tools.align_3d_points_with_svd(gt_points, est_points, find_scale)
 
+
 # Find associations between 3D trajectories timestamps in filter and gt. For each filter timestamp, find the closest gt timestamps
 # and interpolate the 3D trajectory between them.
 # Inputs: filter_timestamps: List of filter timestamps assumed to be in seconds
@@ -124,7 +147,8 @@ def find_trajectories_associations(filter_timestamps, filter_t_wi, gt_timestamps
         # j -= 1
         
         # Find right index in sorted gt_timestamps using binary search
-        j = bisect.bisect_right(gt_timestamps, timestamp) - 1
+        #j = bisect.bisect_right(gt_timestamps, timestamp) - 1
+        j = np.searchsorted(gt_timestamps, timestamp, side='right') - 1
 
         if j < 0 or j >= len(gt_timestamps) - 1:
             continue  # out of bounds
@@ -189,7 +213,8 @@ def find_poses_associations(filter_timestamps, filter_T_wi, gt_timestamps, gt_T_
         # j -= 1
 
         # Find right index in sorted gt_timestamps using binary search
-        j = bisect.bisect_right(gt_timestamps, timestamp) - 1
+        #j = bisect.bisect_right(gt_timestamps, timestamp) - 1
+        j = np.searchsorted(gt_timestamps, timestamp, side='right') - 1
         
         if j < 0 or j >= len(gt_timestamps) - 1:
             continue  # out of bounds
@@ -305,12 +330,13 @@ def align_trajectories_with_svd(filter_timestamps, filter_t_wi, gt_timestamps, g
     rms_error = 0
     max_error = float("-inf")
     if compute_align_error:
-        errors = ((T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]) - np.array(gt_associations)
-        distances = np.linalg.norm(errors, axis=1)
-        squared_errors = np.power(distances,2)  
-        rms_error = np.sqrt(np.mean(squared_errors))    
-        max_error = np.sqrt(np.max(squared_errors))   
-        median_error = np.sqrt(np.median(squared_errors))
+        # errors = ((T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]) - np.array(gt_associations)
+        # distances = np.linalg.norm(errors, axis=1)
+        # squared_errors = np.power(distances,2)  
+        # rms_error = np.sqrt(np.mean(squared_errors))    
+        # max_error = np.sqrt(np.max(squared_errors))   
+        # median_error = np.sqrt(np.median(squared_errors))
+        rms_error, max_error, median_error = compute_alignment_errors(T_gt_est, np.array(filter_associations, dtype=np.float64), np.array(gt_associations, dtype=np.float64))
         if verbose:
             print(f'align_trajectories: RMS error: {rms_error}, max_error: {max_error}, median_error: {median_error}')     
 
