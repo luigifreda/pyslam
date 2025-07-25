@@ -365,8 +365,11 @@ class KeyFrame(Frame,KeyFrameGraph):
                       
         if not viewing_keyframes: # if empty   (https://www.pythoncentral.io/how-to-check-if-a-list-tuple-or-dictionary-is-empty-in-python/)
             return 
+        
         # order the keyframes 
-        covisible_keyframes = viewing_keyframes.most_common() 
+        #covisible_keyframes = viewing_keyframes.most_common() 
+        covisible_keyframes = sorted(viewing_keyframes.items(), key=lambda x: x[1], reverse=True) # sort by weight in descending order
+
         #print('covisible_keyframes: ', covisible_keyframes)
         # get keyframe that shares most points 
         kf_max, w_max = covisible_keyframes[0]
@@ -383,8 +386,8 @@ class KeyFrame(Frame,KeyFrameGraph):
                     else:
                         break 
             else:
-                self.connected_keyframes_weights = Counter({kf_max,w_max}) 
-                self.ordered_keyframes_weights = OrderedDict([(kf_max,w_max)])    
+                self.connected_keyframes_weights = Counter({kf_max: w_max}) 
+                self.ordered_keyframes_weights = OrderedDict([(kf_max, w_max)])    
                 kf_max.add_connection(self,w_max)        
             # update spanning tree                     
             if self.is_first_connection and self.kid!=0: 
@@ -415,7 +418,7 @@ class KeyFrame(Frame,KeyFrameGraph):
             
     def set_bad(self):
         with self._lock_connections:
-            if self.kid is None:
+            if not self.kid: # check if kid is not None and not 0
                 return
 
             if self.not_to_erase:

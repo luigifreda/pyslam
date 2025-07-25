@@ -168,6 +168,18 @@ class CameraUtils:
             out[i, 2] = p[2]
         return out
 
+
+    # input: [Nx2] array of uvs, [Nx1] of zs 
+    # output: [Nx1] array of visibility flags     
+    @njit            
+    def are_in_image_numba(uvs, zs, u_min, u_max, v_min, v_max):
+        N = uvs.shape[0]
+        out = np.empty(N, dtype=np.bool_)
+        for i in range(N):
+            out[i] = (uvs[i, 0] >= u_min) & (uvs[i, 0] < u_max) & \
+                     (uvs[i, 1] >= v_min) & (uvs[i, 1] < v_max) & \
+                     (zs[i] > 0 )
+        return out
      
 class CameraBase:
     def __init__(self):
@@ -295,16 +307,14 @@ class Camera(CameraBase):
             self.fovy = focal2fov(self.fy, self.height)
         
     def is_in_image(self, uv, z):
-        return (uv[0] > self.u_min) & (uv[0] < self.u_max) & \
-               (uv[1] > self.v_min) & (uv[1] < self.v_max) & \
+        return (uv[0] >= self.u_min) & (uv[0] < self.u_max) & \
+               (uv[1] >= self.v_min) & (uv[1] < self.v_max) & \
                (z > 0)         
                 
     # input: [Nx2] array of uvs, [Nx1] of zs 
     # output: [Nx1] array of visibility flags             
     def are_in_image(self, uvs, zs):
-        return (uvs[:, 0] > self.u_min) & (uvs[:, 0] < self.u_max) & \
-               (uvs[:, 1] > self.v_min) & (uvs[:, 1] < self.v_max) & \
-               (zs > 0 )
+        return CameraUtils.are_in_image_numba(uvs, zs, self.u_min, self.u_max, self.v_min, self.v_max)
 
     # Get the projection matrix for rendering
     def get_render_projection_matrix(self, znear=0.01, zfar=100.0):

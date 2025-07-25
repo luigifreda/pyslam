@@ -23,7 +23,7 @@ import numpy as np
 
 from .frame import Frame, FeatureTrackerShared, are_map_points_visible, are_map_points_visible_in_frame
 from .keyframe import KeyFrame
-from .map_point import predict_detection_levels
+from .map_point import predict_detection_levels, MapPoint
 
 from pyslam.utilities.utils_geom import Sim3Pose
 from pyslam.utilities.utils_geom_2views import computeF12, check_dist_epipolar_line
@@ -713,7 +713,7 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
 
 
 # search by projection matches between {input map points} and {keyframe points} and fuse them if they are close enough
-def search_and_fuse(points, keyframe: KeyFrame, 
+def search_and_fuse(points: list[MapPoint], keyframe: KeyFrame, 
                     max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
                     max_descriptor_distance = None,
                     ratio_test=Parameters.kMatchRatioTestMap):    
@@ -725,8 +725,9 @@ def search_and_fuse(points, keyframe: KeyFrame,
         Printer.red('search_and_fuse - no points')        
         return fused_pts_count
         
-    good_pts_idxs = [i for i, p in enumerate(points) if p is not None and not p.is_bad and not p.is_in_keyframe(keyframe)]
-    good_pts = points[good_pts_idxs] 
+    #good_pts_idxs = [i for i, p in enumerate(points) if p is not None and not p.is_bad and not p.is_in_keyframe(keyframe)]
+    good_pts_idxs = [i for i, p in enumerate(points) if p is not None and not p.is_bad_or_is_in_keyframe(keyframe)]
+    good_pts = [points[i] for i in good_pts_idxs]
     good_pts = np.asarray(good_pts)
      
     if len(good_pts_idxs) == 0:
@@ -747,15 +748,19 @@ def search_and_fuse(points, keyframe: KeyFrame,
     inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
     
     kd_idxs = keyframe.kd.query_ball_point(good_projs[:,:2], radiuses)    
-    
-    do_check_stereo_reproj_err = keyframe.kps_ur is not None    
+
+    if keyframe.kps_ur is not None:
+        check_stereo_flags = keyframe.kps_ur >= 0
+    else:
+        check_stereo_flags = np.zeros(len(keyframe.kpsu), dtype=bool)
 
     octaves = keyframe.octaves
     kpsu = keyframe.kpsu
     kps_ur = keyframe.kps_ur if keyframe.kps_ur is not None else None
     des = keyframe.des
 
-    for j, (i, p) in enumerate(zip(good_pts_idxs, good_pts)):                
+    #for j, (i, p) in enumerate(zip(good_pts_idxs, good_pts)):                
+    for j, p in enumerate(good_pts):                
         if not good_pts_visible[j]: # or p.is_bad:     # point not visible in frame or point is bad 
             #print('p[%d] visible: %d, bad: %d' % (i, int(good_pts_visible[j]), int(p.is_bad))) 
             continue  
@@ -767,19 +772,26 @@ def search_and_fuse(points, keyframe: KeyFrame,
         predicted_level = predicted_levels[j]     
             
         best_dist = np.inf #math.inf 
-        best_dist2 = np.inf #math.inf
+        #best_dist2 = np.inf #math.inf
         best_level = -1 
-        best_level2 = -1               
+        #best_level2 = -1               
         best_kd_idx = -1        
             
         # find closest keypoints of frame        
         proj = good_projs[j]
 
-        kd_idxs_j = kd_idxs[j]                
-        if do_check_stereo_reproj_err:
-            check_stereo = kps_ur[kd_idxs_j]>=0 
-            errs_ur = proj[2] - kps_ur[kd_idxs_j] # proj_ur - kp_ur
-            errs_ur2 = errs_ur*errs_ur
+        kd_idxs_j = kd_idxs[j]   
+        kd_idxs_j = np.array(kd_idxs_j, dtype=int)  # ensure it's an array for indexing
+         
+        if len(kd_idxs_j) > 0:
+            valid_stereo_mask = check_stereo_flags[kd_idxs_j]  # boolean mask of valid stereo matches
+            errs_ur2 = np.zeros(len(kd_idxs_j), dtype=np.float32)
+
+            if np.any(valid_stereo_mask):
+                proj_ur = proj[2]  # scalar
+                kps_ur_vals = kps_ur[kd_idxs_j[valid_stereo_mask]]  # only stereo-valid keypoints
+                errs_ur = proj_ur - kps_ur_vals
+                errs_ur2[valid_stereo_mask] = errs_ur ** 2
                         
         for h, kd_idx in enumerate(kd_idxs_j):  
             # check detection level     
@@ -792,7 +804,7 @@ def search_and_fuse(points, keyframe: KeyFrame,
             invSigma2 = inv_level_sigmas2[kp_level]
             err = proj[:2] - kpsu[kd_idx]
             chi2 = np.dot(err,err)*invSigma2     
-            if do_check_stereo_reproj_err and check_stereo[h]:
+            if check_stereo_flags[kd_idx]:
                 chi2 += errs_ur2[h]*invSigma2 
                 if chi2 > Parameters.kChi2Stereo: # chi-square 3 DOFs  (Hartley Zisserman pg 119)
                     #print('p[%d] big reproj err %f **********************************' % (i,chi2))
@@ -807,21 +819,21 @@ def search_and_fuse(points, keyframe: KeyFrame,
             
             #if descriptor_dist < max_descriptor_distance and descriptor_dist < best_dist:     
             if descriptor_dist < best_dist:                                      
-                best_dist2 = best_dist
-                best_level2 = best_level
+                #best_dist2 = best_dist
+                #best_level2 = best_level
                 best_dist = descriptor_dist
                 best_level = kp_level
                 best_kd_idx = kd_idx   
-            elif descriptor_dist < best_dist2:  # N.O.
-                best_dist2 = descriptor_dist       
-                best_level2 = kp_level                                   
+            # elif descriptor_dist < best_dist2:  # N.O.
+            #     best_dist2 = descriptor_dist       
+            #     best_level2 = kp_level                                   
                                                             
         #if best_kd_idx > -1 and best_dist < max_descriptor_distance:
         if best_dist < max_descriptor_distance:         
             # apply match distance ratio test only if the best and second are in the same scale level 
-            if (best_level2 == best_level) and (best_dist > best_dist2 * ratio_test):  # N.O.
-                #print('p[%d] best_dist > best_dist2 * ratio_test **********************************' % (i))
-                continue                
+            # if (best_level2 == best_level) and (best_dist > best_dist2 * ratio_test):  # N.O.
+            #     #print('p[%d] best_dist > best_dist2 * ratio_test **********************************' % (i))
+            #     continue                
             p_keyframe = keyframe.get_point_match(best_kd_idx)
             # if there is already a map point replace it otherwise add a new point
             if p_keyframe is not None:

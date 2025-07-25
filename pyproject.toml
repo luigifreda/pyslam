@@ -1,6 +1,6 @@
 [project]
 name = "pyslam"
-version = "2.8.7"
+version = "2.8.8"
 authors = [
   {name = "Luigi Freda", email = "luigifreda@gmail.com"},
 ]

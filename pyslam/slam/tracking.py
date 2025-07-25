@@ -437,6 +437,7 @@ class Tracking:
                     is_search_frame_by_projection_failure = True                                                    
         
         if not use_search_frame_by_projection or is_search_frame_by_projection_failure:
+            Printer.orange('using match-frame-frame')
             self.track_reference_frame(f_ref, f_cur,'match-frame-frame')                        
                           
                                                            
@@ -567,10 +568,12 @@ class Tracking:
         
         # f_cur pose optimization 2 with all the matched local map points 
         self.pose_optimization(f_cur,'proj-map-frame')    
-        self.num_matched_map_points = f_cur.update_map_points_statistics(self.sensor_type)  # here we reset outliers only in the case of STEREO; in other cases, 
-                                                                                        # we let them reach the keyframe generation 
-                                                                                        # and then bundle adjustment will possible decide if remove them or not;
-                                                                                        # only after keyframe generation the outliers are cleaned!
+        
+        # here we reset outliers only in the case of STEREO; in other cases, 
+        # we let them reach the keyframe generation and then bundle adjustment will possible decide if remove them or not;
+        # only after keyframe generation the outliers are cleaned!        
+        self.num_matched_map_points = f_cur.update_map_points_statistics(self.sensor_type)  
+        
         #print('     # num_matched_points: %d' % (self.num_matched_map_points) )
         if not self.pose_is_ok or self.num_matched_map_points < kNumMinInliersPoseOptimizationTrackLocalMap:
             Printer.red(f'failure in tracking local map, # matched map points: {self.num_matched_map_points}') 

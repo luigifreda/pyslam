@@ -242,7 +242,12 @@ class MapPointBase(object):
     def is_bad(self):
         with self._lock_features:
             #with self._lock_pos:    
-                return self._is_bad                
+                return self._is_bad      
+            
+    def is_bad_or_is_in_keyframe(self, keyframe: 'KeyFrame'):
+        with self._lock_features:
+            assert(keyframe.is_keyframe)
+            return self._is_bad or (keyframe in self._observations)       
 
     @property
     def num_observations(self):
@@ -639,7 +644,7 @@ class MapPoint(MapPointBase):
     
     
 # predict detection levels from pyslam.slam.map point distances    
-def predict_detection_levels(points, dists):    
+def predict_detection_levels(points: list[MapPoint], dists: np.ndarray):    
     assert(len(points)==len(dists)) 
     max_distances = np.array([p._max_distance for p in points])  
     ratios = max_distances/dists
