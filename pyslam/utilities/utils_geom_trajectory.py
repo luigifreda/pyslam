@@ -17,12 +17,17 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import time
 import numpy as np
-import bisect
+import torch.multiprocessing as mp 
+
 from .utils_geom import *
+from .utils_sys import Printer
+from .utils_mp import MultiprocessingManager
+from .utils_data import empty_queue
+
 import sim3solver
 import trajectory_tools
-
 
 from numba import njit
 
@@ -417,3 +422,60 @@ def align_trajectories_with_ransac(filter_timestamps, filter_t_wi, gt_timestamps
     aligned_gt_data = TrajectoryAlignementData(timestamps_associations, filter_associations, gt_associations, T_gt_est, T_est_gt, error, max_error=max_error)
         
     return T_gt_est, error, aligned_gt_data
+
+
+
+
+
+class TrajectoryAlignerProcess(mp.Process):
+    def __init__(self, input_queue, output_queue, is_running_flag,
+                 gt_trajectory, gt_timestamps,
+                 find_scale=False, compute_align_error=False):
+        super().__init__()
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        self.is_running_flag = is_running_flag
+
+        # Copy GT data to avoid issues with process boundaries
+        self.gt_trajectory = np.array(gt_trajectory, copy=True)
+        self.gt_timestamps = np.array(gt_timestamps, copy=True)
+        self.find_scale = find_scale
+        self.compute_align_error = compute_align_error
+
+        self.daemon = True
+
+    def run(self):
+        self.is_running_flag.value = 1
+        self._last_alignment_time = time.time()
+        self._last_num_poses = 0
+        self._last_frame_id = 0
+
+        while self.is_running_flag.value == 1:
+            try:
+                if not self.input_queue.empty():
+                    pose_timestamps, estimated_trajectory = self.input_queue.get(timeout=0.1)
+                    self._process_alignment(pose_timestamps, estimated_trajectory)
+                else:
+                    time.sleep(0.1)
+            except Exception:   
+                continue  # queue empty or bad data
+
+        empty_queue(self.input_queue)
+        print("TrajectoryAlignerProcess: quitting...")
+
+    def _process_alignment(self, pose_timestamps, estimated_trajectory):
+        align_trajectories_fun = align_trajectories_with_svd
+        #align_trajectories_fun = align_trajectories_with_ransac   # WIP (just a test)                        
+        try:
+            T_gt_est, error, alignment_gt_data = align_trajectories_fun(
+                pose_timestamps,
+                estimated_trajectory,
+                self.gt_timestamps,
+                self.gt_trajectory,
+                compute_align_error=self.compute_align_error,
+                find_scale=self.find_scale
+            )
+            self.output_queue.put((T_gt_est, error, alignment_gt_data))
+            print(f"TrajectoryAlignerProcess: Aligned, RMS error: {error:.4f}")
+        except Exception as e:
+            Printer.red(f"TrajectoryAlignerProcess: Alignment failed: {e}")

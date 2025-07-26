@@ -38,7 +38,7 @@ from pyslam.slam.map import Map
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 from pyslam.utilities.utils_geom import poseRt, inv_poseRt, inv_T
-from pyslam.utilities.utils_geom_trajectory import align_trajectories_with_ransac, align_trajectories_with_svd
+from pyslam.utilities.utils_geom_trajectory import TrajectoryAlignerProcess
 from pyslam.utilities.utils_sys import Printer
 from pyslam.utilities.utils_mp import MultiprocessingManager
 from pyslam.utilities.utils_data import empty_queue
@@ -175,16 +175,14 @@ class Viewer3D(object):
     def __init__(self, scale=0.1):
         self.scale = scale
         
-        self.map_state = None                  # type: Viewer3DMapInput
-        self.vo_state = None                   # type: Viewer3DVoInput
-        self.dense_state = None                # type: Viewer3DDenseInput
-        self.camera_trajectories_state = None  # type: Viewer3DCameraTrajectoriesInput
+        self.map_state: Viewer3DMapInput | None = None                  
+        self.vo_state: Viewer3DVoInput | None = None                   
+        self.dense_state: Viewer3DDenseInput | None = None                
+        self.camera_trajectories_state: Viewer3DCameraTrajectoriesInput | None = None  
                 
         self.gt_trajectory = None
         self.gt_timestamps = None
         self.align_gt_with_scale = False
-        #self.estimated_trajectory = None
-        #self.estimated_trajectory_timestamps = None
 
         # TODO(dvdmc): to customize the visualization from the UI, we need to create mp variables accesible from the refresh to the viewer thread
         # We would need a query word and a heatmap scale.
@@ -206,11 +204,19 @@ class Viewer3D(object):
         self._do_reset = mp.Value('i',0)
         
         self._is_gt_set = mp.Value('i',0)
-        self.alignment_gt_data_queue = self.mp_manager.Queue()     
+        self.alignment_gt_data_queue = self.mp_manager.Queue()  
+        self.aligner_input_queue = self.mp_manager.Queue()
+        self.aligner_output_queue = self.mp_manager.Queue()
+        self.is_aligner_running = mp.Value('i', 0)
+        self.trajectory_aligner = None
+        
         self.vp = mp.Process(target=self.viewer_run,
                              args=(self.qmap, self.qvo, self.qdense, self.qcams,
                                 self._is_running,self._is_paused,self._is_closed,
-                                self._is_map_save, self._is_bundle_adjust, self._do_step, self._do_reset, self._is_gt_set, self.alignment_gt_data_queue))
+                                self._is_map_save, self._is_bundle_adjust, 
+                                self._do_step, self._do_reset, self._is_gt_set, 
+                                self.alignment_gt_data_queue, 
+                                self.aligner_input_queue, self.aligner_output_queue, self.is_aligner_running))
         self.vp.daemon = True
         self.vp.start()
 
@@ -224,13 +230,29 @@ class Viewer3D(object):
             self.align_gt_with_scale = align_with_scale
             self._is_gt_set.value = 0
             print(f'Viewer3D: Groundtruth shape: {gt_trajectory.shape}')
+            
+            self.trajectory_aligner = TrajectoryAlignerProcess(
+                input_queue=self.aligner_input_queue,
+                output_queue=self.aligner_output_queue,
+                is_running_flag=self.is_aligner_running,
+                gt_trajectory=self.gt_trajectory,
+                gt_timestamps=self.gt_timestamps,
+                find_scale=self.align_gt_with_scale,
+                compute_align_error=True
+            )
+            self.trajectory_aligner.start()        
+            Printer.blue(f'Viewer3D: set_gt_trajectory - trajectory aligner started')    
 
     def quit(self):
         print('Viewer3D: quitting...')
         if self._is_running.value == 1:        
             self._is_running.value = 0
         if self.vp.is_alive():
-            self.vp.join()    
+            self.vp.join()
+        if self.is_aligner_running.value == 1:
+            self.is_aligner_running.value = 0
+        if self.trajectory_aligner and self.trajectory_aligner.is_alive():
+            self.trajectory_aligner.join()
         #pangolin.Quit()
         print('Viewer3D: done')   
         
@@ -267,7 +289,9 @@ class Viewer3D(object):
             self._do_reset.value = 0
         return do_reset       
 
-    def viewer_run(self, qmap, qvo, qdense, qcams, is_running, is_paused, is_closed, is_map_save, is_bundle_adjust, do_step, do_reset, is_gt_set, alignment_gt_data_queue):
+    def viewer_run(self, qmap, qvo, qdense, qcams, is_running, is_paused, is_closed, 
+                   is_map_save, is_bundle_adjust, do_step, do_reset, 
+                   is_gt_set, alignment_gt_data_queue, aligner_input_queue, aligner_output_queue, is_aligner_running):
         self.viewer_init(kViewportWidth, kViewportHeight)
         is_running.value = 1
         # init local vars for the the process 
@@ -285,7 +309,9 @@ class Viewer3D(object):
         self.thread_alignment_gt_data_queue = alignment_gt_data_queue
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
-            self.viewer_refresh(qmap, qvo, qdense, qcams, is_paused, is_map_save, is_bundle_adjust, do_step, do_reset, is_gt_set)
+            self.viewer_refresh(qmap, qvo, qdense, qcams, is_paused, 
+                                is_map_save, is_bundle_adjust, do_step, do_reset, 
+                                is_gt_set, aligner_input_queue, aligner_output_queue, is_aligner_running)
             sleep = (time.time() - ts) - kRefreshDurationTime         
             if sleep > 0:
                 time.sleep(sleep)     
@@ -372,7 +398,9 @@ class Viewer3D(object):
         self.camera_images = glutils.CameraImages()  # current buffer of camera images update by draw_dense_map()
 
 
-    def viewer_refresh(self, qmap, qvo, qdense, qcams, is_paused, is_map_save, is_bundle_adjust, do_step, do_reset, is_gt_set):
+    def viewer_refresh(self, qmap, qvo, qdense, qcams, 
+                       is_paused, is_map_save, is_bundle_adjust, do_step, do_reset, 
+                       is_gt_set, aligner_input_queue, aligner_output_queue, is_aligner_running):
 
         # NOTE: take the last elements in the queues
         
@@ -504,31 +532,43 @@ class Viewer3D(object):
                     condition2 = len(self.map_state.poses) > kAlignGroundTruthMaxEveryNKeyframes + self.thread_last_num_poses_gt_was_aligned
                     condition3 = self.map_state.cur_frame_id > kAlignGroundTruthMaxEveryNFrames + self.thread_last_frame_id_gt_was_aligned  
                     condition4 = self.map_state.cur_frame_id - self.thread_last_frame_id_gt_was_aligned > kAlignGroundTruthMinNumFramesPassed
-                    if self._is_running and (num_kfs > kAlignGroundTruthNumMinKeyframes) and \
+                    if self._is_running and self.is_aligner_running.value == 1 and (num_kfs > kAlignGroundTruthNumMinKeyframes) and \
                         (condition1 or condition2 or condition3) and condition4: 
                         try:
+                            
+                            Printer.blue(f'Viewer3D: viewer_refresh - aligning gt trajectory, condition1: {condition1}, condition2: {condition2}, condition3: {condition3}, condition4: {condition4}')
+                            
                             self.thread_last_time_gt_was_aligned = time.time()
-                            estimated_trajectory = np.array([pose[0:3,3] for i,pose in enumerate(self.map_state.poses)], dtype=float)
-                            align_trajectories_fun = align_trajectories_with_svd
-                            #align_trajectories_fun = align_trajectories_with_ransac   # WIP (just a test)
-                            T_gt_est, error, alignment_gt_data = align_trajectories_fun(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, \
-                                                                                      compute_align_error=True, find_scale=self.thread_align_gt_with_scale)
-                            print(f'Viewer3D: viewer_refresh - align gt with scale: {self.thread_align_gt_with_scale}, RMS error: {error}')
-                            self.thread_alignment_gt_data_queue.put(alignment_gt_data)
-                            self.thread_gt_aligned = True
                             self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)
                             self.thread_last_frame_id_gt_was_aligned = self.map_state.cur_frame_id
                             
-                            self.thread_gt_associated_traj = alignment_gt_data.gt_t_wi
-                            self.thread_est_associated_traj = alignment_gt_data.estimated_t_wi
+                            estimated_trajectory = np.array([pose[0:3,3] for i,pose in enumerate(self.map_state.poses)], dtype=float)
                             
-                            T_est_gt = alignment_gt_data.T_est_gt
-                            self.thread_gt_trajectory_aligned = (T_est_gt[:3, :3] @ np.array(self.thread_gt_trajectory).T).T + T_est_gt[:3, 3] # all gt data aligned to the estimated
-                            if self.draw_gt_associations:
-                                self.thread_gt_trajectory_aligned_associated = (T_est_gt[:3, :3] @ np.array(self.thread_gt_associated_traj).T).T + T_est_gt[:3, 3] # only the associated gt samples aligned to the estimated samples
+                            # align_trajectories_fun = align_trajectories_with_svd
+                            # #align_trajectories_fun = align_trajectories_with_ransac   # WIP (just a test)
+                            # T_gt_est, error, alignment_gt_data = align_trajectories_fun(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, \
+                            #                                                           compute_align_error=True, find_scale=self.thread_align_gt_with_scale)
+                            
+                            self.aligner_input_queue.put((self.map_state.pose_timestamps, estimated_trajectory))
+                            
+                            if not self.aligner_output_queue.empty():
+                                T_gt_est, error, alignment_gt_data = self.aligner_output_queue.get()
+                                self.thread_alignment_gt_data_queue.put(alignment_gt_data)
+                                
+                                print(f'Viewer3D: viewer_refresh - align gt with scale: {self.thread_align_gt_with_scale}, RMS error: {error}')
+                                self.thread_gt_aligned = True
+                                
+                                self.thread_gt_associated_traj = alignment_gt_data.gt_t_wi
+                                self.thread_est_associated_traj = alignment_gt_data.estimated_t_wi
+                                
+                                T_est_gt = alignment_gt_data.T_est_gt
+                                self.thread_gt_trajectory_aligned = (T_est_gt[:3, :3] @ np.array(self.thread_gt_trajectory).T).T + T_est_gt[:3, 3] # all gt data aligned to the estimated
+                                if self.draw_gt_associations:
+                                    self.thread_gt_trajectory_aligned_associated = (T_est_gt[:3, :3] @ np.array(self.thread_gt_associated_traj).T).T + T_est_gt[:3, 3] # only the associated gt samples aligned to the estimated samples
                                                     
                         except Exception as e:
                             print(f'Viewer3D: viewer_refresh - align_gt_with_svd failed: {e}')
+                            
                     if self.thread_gt_aligned:
                         gl.glLineWidth(1)
                         gl.glColor3f(1.0, 0.0, 0.0)

@@ -110,7 +110,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
         if kf.is_bad:
             continue 
         #print('adding vertex frame ', f.id, ' to graph')
-        se3 = g2o.SE3Quat(kf.Rcw, kf.tcw)
+        se3 = g2o.SE3Quat(kf.Rcw.copy(), kf.tcw.copy())
         v_se3 = g2o.VertexSE3Expmap()
         v_se3.set_estimate(se3)
         v_se3.set_id(kf.kid * 2)  # even ids  (use f.kid here!)
@@ -137,7 +137,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
         #print('adding vertex point ', p.id,' to graph')
         v_p = g2o.VertexSBAPointXYZ()    
         v_p.set_id(p.id * 2 + 1)  # odd ids
-        v_p.set_estimate(p.pt[0:3])
+        v_p.set_estimate(p.pt[0:3].copy())
         v_p.set_marginalized(True)
         v_p.set_fixed(fixed_points)
         opt.add_vertex(v_p)
@@ -343,9 +343,12 @@ def pose_optimization(frame, verbose=False, rounds=10):
 
     point_edge_pairs = {}
     num_point_edges = 0
+    
+    Rcw = frame.Rcw
+    tcw = frame.tcw
 
     v_se3 = g2o.VertexSE3Expmap()
-    v_se3.set_estimate(g2o.SE3Quat(frame.Rcw, frame.tcw))
+    v_se3.set_estimate(g2o.SE3Quat(Rcw.copy(), tcw.copy()))
     v_se3.set_id(0)  
     v_se3.set_fixed(False)
     opt.add_vertex(v_se3)
@@ -433,7 +436,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
     num_bad_point_edges = 0
 
     for it in range(4):
-        v_se3.set_estimate(g2o.SE3Quat(frame.Rcw, frame.tcw))
+        v_se3.set_estimate(g2o.SE3Quat(Rcw.copy(), tcw.copy()))
         opt.initialize_optimization()        
         opt.optimize(rounds)
 
@@ -535,7 +538,7 @@ def local_bundle_adjustment(keyframes: list[KeyFrame], points: list[MapPoint], k
     # add frame vertices to graph
     for kf in good_keyframes:    
         #print('adding vertex frame ', f.id, ' to graph')
-        se3 = g2o.SE3Quat(kf.Rcw, kf.tcw)
+        se3 = g2o.SE3Quat(kf.Rcw.copy(), kf.tcw.copy())
         v_se3 = g2o.VertexSE3Expmap()
         v_se3.set_estimate(se3)
         v_se3.set_id(kf.kid * 2)  # even ids  (use f.kid here!)
@@ -566,7 +569,7 @@ def local_bundle_adjustment(keyframes: list[KeyFrame], points: list[MapPoint], k
         #print('adding vertex point ', p.id,' to graph')
         v_p = g2o.VertexSBAPointXYZ()    
         v_p.set_id(p.id * 2 + 1)  # odd ids
-        v_p.set_estimate(p.pt[0:3])
+        v_p.set_estimate(p.pt[0:3].copy())
         v_p.set_marginalized(True)
         v_p.set_fixed(fixed_points)
         opt.add_vertex(v_p)
@@ -752,7 +755,7 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
         # add frame vertices to graph
         for kf in good_keyframes.values():    
             #print('adding vertex frame ', f.id, ' to graph')
-            se3 = g2o.SE3Quat(kf.Rcw, kf.tcw)
+            se3 = g2o.SE3Quat(kf.Rcw.copy(), kf.tcw.copy())
             v_se3 = g2o.VertexSE3Expmap()
             v_se3.set_estimate(se3)
             v_se3.set_id(kf.kid * 2)  # even ids  (use f.kid here!)
@@ -775,7 +778,7 @@ def lba_optimization_process(result_dict_queue, queue, good_keyframes, keyframes
         for p in good_points:
             v_p = g2o.VertexSBAPointXYZ()
             v_p.set_id(p.id * 2 + 1)
-            v_p.set_estimate(p.pt[0:3])
+            v_p.set_estimate(p.pt[0:3].copy())
             v_p.set_marginalized(True)
             v_p.set_fixed(fixed_points)
             opt.add_vertex(v_p)
@@ -1049,15 +1052,15 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     cam1 = kf1.camera
     cam2 = kf2.camera
 
-    R1w, t1w = kf1.Rcw, kf1.tcw
-    R2w, t2w = kf2.Rcw, kf2.tcw
+    R1w, t1w = kf1.Rcw.copy(), kf1.tcw.copy()
+    R2w, t2w = kf2.Rcw.copy(), kf2.tcw.copy()
     
     optimizer = g2o.SparseOptimizer()
     solver = g2o.BlockSolverX(g2o.LinearSolverDenseX())
     algorithm = g2o.OptimizationAlgorithmLevenberg(solver)
     optimizer.set_algorithm(algorithm)
 
-    sim3 = g2o.Sim3(R12, t12.ravel(), s12)
+    sim3 = g2o.Sim3(R12.copy(), t12.ravel().copy(), s12)
     
     # Sim3 vertex
     sim3_vertex = g2o.VertexSim3Expmap()
@@ -1243,9 +1246,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
 
         try: #if keyframe in corrected_sim3_map:
             corrected_sim3 = corrected_sim3_map[keyframe]
-            Siw = Sim3Pose(R=corrected_sim3.R, t=corrected_sim3.t, s=corrected_sim3.s)            
+            Siw = Sim3Pose(R=corrected_sim3.R.copy(), t=corrected_sim3.t.copy(), s=corrected_sim3.s)            
         except:
-            Siw = Sim3Pose(keyframe.Rcw, keyframe.tcw, 1.0)
+            Siw = Sim3Pose(keyframe.Rcw.copy(), keyframe.tcw.copy(), 1.0)
         vec_Scw[keyframe_id] = Siw
         
         vertex_sim3.set_estimate(g2o.Sim3(Siw.R,Siw.t.ravel(),Siw.s))
@@ -1312,7 +1315,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
                 Swi = vec_Scw[keyframe_id].inverse()
                             
             try: 
-                Sjw = non_corrected_sim3_map[parent_keyframe]
+                Sjw = non_corrected_sim3_map[parent_keyframe].copy()
             except:
                 Sjw = vec_Scw[parent_id]
 
@@ -1330,9 +1333,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
         for loop_edge in keyframe.get_loop_edges():
             if loop_edge.kid < keyframe_id:
                 try: 
-                    Slw = non_corrected_sim3_map[loop_edge]
+                    Slw = non_corrected_sim3_map[loop_edge].copy()
                 except:     
-                    Slw = vec_Scw[loop_edge.kid]
+                    Slw = vec_Scw[loop_edge.kid] # already copy 
 
                 Sli = Slw @ Swi
                 edge = g2o.EdgeSim3()
@@ -1352,9 +1355,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
                 (min(keyframe_id, connected_keyframe.kid), max(keyframe_id, connected_keyframe.kid)) not in inserted_loop_edges):
             
                 try: 
-                    Snw = non_corrected_sim3_map[connected_keyframe]
+                    Snw = non_corrected_sim3_map[connected_keyframe].copy()
                 except:
-                    Snw = vec_Scw[connected_keyframe.kid]
+                    Snw = vec_Scw[connected_keyframe.kid] # already copy 
 
                 Sni = Snw @ Swi
                 edge = g2o.EdgeSim3()

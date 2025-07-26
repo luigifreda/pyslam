@@ -134,7 +134,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
         pose_key = X(kf.kid)        
         keyframe_keys[kf] = pose_key
                 
-        pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc), gtsam.Point3(*kf.Ow))
+        pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc.copy()), gtsam.Point3(*kf.Ow.copy()))
         initial_estimates.insert(pose_key, pose)
         
         if kf.kid == 0 or kf not in local_frames:
@@ -151,7 +151,7 @@ def bundle_adjustment(keyframes, points, local_window, fixed_points=False, \
             continue
         point_key = L(p.id)
         point_keys[p] = point_key
-        point_position = gtsam.Point3(p.pt[0:3])
+        point_position = gtsam.Point3(p.pt[0:3].copy())
         initial_estimates.insert(point_key, point_position)
         
         if fixed_points:
@@ -561,7 +561,7 @@ class PoseOptimizerGTSAM:
             self.add_stereo_factor  = resectioning_stereo_factor_py      
     
     def add_pose_node(self):
-        pose_initial = gtsam.Pose3(gtsam.Rot3(self.frame.Rwc), gtsam.Point3(*self.frame.Ow))
+        pose_initial = gtsam.Pose3(gtsam.Rot3(self.frame.Rwc.copy()), gtsam.Point3(*self.frame.Ow.copy()))
         self.initial.insert(X(0), pose_initial)
         # NOTE: there is no need to set a prior here
         #noise_prior = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)  
@@ -737,7 +737,7 @@ class PoseOptimizerGTSAM_Tcw:
         #     self.add_stereo_factor  = resectioning_stereo_factor_py      
     
     def add_pose_node(self):
-        pose_initial = gtsam.Pose3(gtsam.Rot3(self.frame.Rcw), gtsam.Point3(*self.frame.tcw))
+        pose_initial = gtsam.Pose3(gtsam.Rot3(self.frame.Rcw.copy()), gtsam.Point3(*self.frame.tcw.copy()))
         self.initial.insert(X(0), pose_initial)
         # NOTE: there is no need to set a prior here
         #noise_prior = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)  
@@ -920,7 +920,7 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
         pose_key = X(kf.kid)
         keyframe_keys[kf] = pose_key
         
-        pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc), gtsam.Point3(*kf.Ow))
+        pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc.copy()), gtsam.Point3(*kf.Ow.copy()))
         initial_estimates.insert(pose_key, pose)
         
         if kf.kid == 0 or kf in keyframes_ref:
@@ -936,10 +936,11 @@ def local_bundle_adjustment(keyframes, points, keyframes_ref=[], fixed_points=Fa
     for p in good_points:
         point_key = L(p.id)
         point_keys[p] = point_key
-        initial_estimates.insert(point_key, gtsam.Point3(p.pt[:3]))
+        pt = p.pt[:3].copy()
+        initial_estimates.insert(point_key, gtsam.Point3(pt))
 
         if fixed_points:
-            graph.add(gtsam.PriorFactorPoint3(point_key, gtsam.Point3(p.pt[:3]), gtsam.noiseModel.Isotropic.Sigma(3, sigma_for_fixed)))
+            graph.add(gtsam.PriorFactorPoint3(point_key, gtsam.Point3(pt), gtsam.noiseModel.Isotropic.Sigma(3, sigma_for_fixed)))
 
         # add edges
         good_observations = [(kf, p_idx) for kf, p_idx in p.observations() if not kf.is_bad and kf in keyframe_keys]
@@ -1306,14 +1307,14 @@ def optimize_sim3(kf1: KeyFrame, kf2: KeyFrame,
     cam2 = kf2.camera
     K2_mono = gtsam.Cal3_S2(cam2.fx, cam2.fy, 0, cam2.cx, cam2.cy)    
 
-    R1w, t1w = kf1.Rcw, kf1.tcw.reshape(3,1)
-    R2w, t2w = kf2.Rcw, kf2.tcw.reshape(3,1)
+    R1w, t1w = kf1.Rcw.copy(), kf1.tcw.copy().reshape(3,1)
+    R2w, t2w = kf2.Rcw.copy(), kf2.tcw.copy().reshape(3,1)
         
     graph = gtsam.NonlinearFactorGraph()
     initial_estimate = gtsam.Values()
 
     # Initial Sim3 transformation
-    sim3_init = gtsam.Similarity3(gtsam.Rot3(R12), gtsam.Point3(t12.ravel()), s12)
+    sim3_init = gtsam.Similarity3(gtsam.Rot3(R12.copy()), gtsam.Point3(t12.ravel().copy()), s12)
     #initial_estimate.insert(X(0), sim3_init)
     gtsam_factors.insert_similarity3(initial_estimate, X(0), sim3_init)
        
@@ -1551,9 +1552,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
         
         try: #if keyframe in corrected_sim3_map:
             corrected_sim3 = corrected_sim3_map[keyframe]
-            Siw = Sim3Pose(R=corrected_sim3.R, t=corrected_sim3.t, s=corrected_sim3.s)            
+            Siw = Sim3Pose(R=corrected_sim3.R.copy(), t=corrected_sim3.t.copy(), s=corrected_sim3.s)            
         except:
-            Siw = Sim3Pose(keyframe.Rcw, keyframe.tcw, 1.0)
+            Siw = Sim3Pose(keyframe.Rcw.copy(), keyframe.tcw.copy(), 1.0)
         vec_Scw[keyframe_id] = Siw
                 
         Swi = Siw.inverse()
@@ -1619,7 +1620,7 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
                 Swi = vec_Scw[keyframe_id].inverse()
                             
             try: 
-                Sjw = non_corrected_sim3_map[parent_keyframe]
+                Sjw = non_corrected_sim3_map[parent_keyframe].copy()
             except:
                 Sjw = vec_Scw[parent_id]
 
@@ -1637,9 +1638,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
         for loop_edge in keyframe.get_loop_edges():
             if loop_edge.kid < keyframe_id:
                 try: 
-                    Slw = non_corrected_sim3_map[loop_edge]
+                    Slw = non_corrected_sim3_map[loop_edge].copy()
                 except:     
-                    Slw = vec_Scw[loop_edge.kid]
+                    Slw = vec_Scw[loop_edge.kid] # already copy 
 
                 Sli = Slw @ Swi
                 
@@ -1660,9 +1661,9 @@ def optimize_essential_graph(map_object, loop_keyframe: KeyFrame, current_keyfra
                 (min(keyframe_id, connected_keyframe.kid), max(keyframe_id, connected_keyframe.kid)) not in inserted_loop_edges):
 
                 try: 
-                    Snw = non_corrected_sim3_map[connected_keyframe]
+                    Snw = non_corrected_sim3_map[connected_keyframe].copy()
                 except:
-                    Snw = vec_Scw[connected_keyframe.kid]
+                    Snw = vec_Scw[connected_keyframe.kid] # already copy 
 
                 Sni = Snw @ Swi
                 

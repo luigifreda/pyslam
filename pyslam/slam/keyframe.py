@@ -367,10 +367,8 @@ class KeyFrame(Frame,KeyFrameGraph):
             return 
         
         # order the keyframes 
-        #covisible_keyframes = viewing_keyframes.most_common() 
         covisible_keyframes = sorted(viewing_keyframes.items(), key=lambda x: x[1], reverse=True) # sort by weight in descending order
 
-        #print('covisible_keyframes: ', covisible_keyframes)
         # get keyframe that shares most points 
         kf_max, w_max = covisible_keyframes[0]
         # if the counter is greater than threshold add connection
@@ -388,9 +386,15 @@ class KeyFrame(Frame,KeyFrameGraph):
             else:
                 self.connected_keyframes_weights = Counter({kf_max: w_max}) 
                 self.ordered_keyframes_weights = OrderedDict([(kf_max, w_max)])    
-                kf_max.add_connection(self,w_max)        
-            # update spanning tree                     
-            if self.is_first_connection and self.kid!=0: 
+                kf_max.add_connection(self,w_max)   
+                     
+            # update spanning tree           
+            # we need to avoid setting the parent to None or self or a bad keyframe          
+            if self.is_first_connection and \
+                self.kid != 0 and \
+                kf_max is not None and \
+                kf_max != self and \
+                not kf_max.is_bad: 
                 self.set_parent(kf_max)
                 self.is_first_connection = False 
         #print('ordered_keyframes_weights: ', self.ordered_keyframes_weights)                               

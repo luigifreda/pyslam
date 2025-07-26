@@ -883,10 +883,10 @@ class Tracking:
             if not self.local_mapping.is_idle():      
                 while self.local_mapping.queue_size()>0:      
                     print('>>>> waiting for local mapping...')                         
-                    self.local_mapping.wait_idle(print=print, timeout=None) # NOTE: no timeout here!
+                    self.local_mapping.wait_idle(print=print, timeout=None) # NOTE: no timeout here, just wait until local mapping is idle!
         else:
             # if we are close to bad tracking give local mapping more time
-            if self.num_matched_map_points is not None and self.num_matched_map_points < kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle:
+            if self.num_matched_map_points and self.num_matched_map_points < kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle:
                 if self.local_mapping.queue_size()>0:
                     Printer.orange(">>>> close to bad tracking: forcing waiting for local mapping...")
                     self.local_mapping.wait_idle(print=print, timeout=timeout)

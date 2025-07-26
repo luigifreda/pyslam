@@ -1,4 +1,4 @@
-# pySLAM v2.8.8
+# pySLAM v2.8.9
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -24,7 +24,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 
 <!-- TOC -->
 
-- [pySLAM v2.8.8](#pyslam-v288)
+- [pySLAM v2.8.9](#pyslam-v289)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
