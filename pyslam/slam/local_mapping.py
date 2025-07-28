@@ -359,6 +359,9 @@ class LocalMapping:
             LocalMapping.print('..................................')
             LocalMapping.print('processing KF: ', self.kf_cur.id, ', queue size: ', self.queue_size())   
         
+        
+        is_single_thread = not Parameters.kLocalMappingOnSeparateThread
+        
         #LocalMapping.print('descriptor_distance_sigma: ', self.descriptor_distance_sigma)
                         
         self.process_new_keyframe()          
@@ -378,7 +381,7 @@ class LocalMapping:
         self.timer_triangulation.refresh()
         LocalMapping.print(f'#new map points: {total_new_pts}, timing: {self.timer_triangulation.last_elapsed}')   
         
-        if self.queue.empty():
+        if self.queue.empty() or is_single_thread:
             # fuse map points of close keyframes
             self.timer_pts_fusion.start()
             total_fused_pts = self.fuse_map_points()
@@ -389,7 +392,7 @@ class LocalMapping:
         # reset optimization abort flag 
         self.set_opt_abort_flag(False)                
         
-        if self.queue.empty() and not self.is_stop_requested():                
+        if (self.queue.empty() and not self.is_stop_requested()) or is_single_thread:                
              
             if self.thread_large_BA is not None: 
                 if self.thread_large_BA.is_alive(): # for security, check if large BA thread finished his work
@@ -559,7 +562,7 @@ class LocalMapping:
                         kf_num_redundant_observations += 1
             remove_kf = (kf_num_redundant_observations > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points) and \
                (kf_num_points > Parameters.kKeyframeCullingMinNumPoints) and \
-               (kf.timestamp - kf.parent.timestamp < Parameters.kKeyframeMaxTimeDistanceInSecForCulling)
+               (abs(kf.timestamp - kf.parent.timestamp) < Parameters.kKeyframeMaxTimeDistanceInSecForCulling)
             if remove_kf and self.use_fov_centers_based_kf_generation:
                 if not LocalMapping.check_remaining_fov_centers_max_distance(covisible_kfs, kf, self.max_fov_centers_distance):
                     remove_kf = False

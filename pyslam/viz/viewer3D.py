@@ -64,7 +64,7 @@ kMinWeightForDrawingCovisibilityEdge=100
 kAlignGroundTruthNumMinKeyframes = 10       # minimum number of keyframes to start aligning
 kAlignGroundTruthMaxEveryNKeyframes = 10    # maximum number of keyframes between alignments
 kAlignGroundTruthMinNumFramesPassed = 10    # minimum number of frames passed since last alignment
-kAlignGroundTruthMaxEveryNFrames = 30       # maximum number of frames between alignments
+kAlignGroundTruthMaxEveryNFrames = 20       # maximum number of frames between alignments
 kAlignGroundTruthMaxEveryTimeInterval = 3   # [s] maximum time interval between alignments
 
 kRefreshDurationTime = 0.03 # [s]

@@ -401,6 +401,9 @@ class Frame(FrameBase):
         self.depth_img = None    # depth (copy of depth if available)
         self.semantic_img = None # semantics (copy of semantic_img if available)
         
+        self.is_blurry = False
+        self.laplacian_var = None
+        
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
             if Frame.is_store_imgs: 
@@ -425,6 +428,9 @@ class Frame(FrameBase):
             self.median_depth = frame_data_dict['median_depth']
             self.fov_center_c = frame_data_dict['fov_center_c']
             self.fov_center_w = frame_data_dict['fov_center_w']
+            
+            self.is_blurry = frame_data_dict['is_blurry']
+            self.laplacian_var = frame_data_dict['laplacian_var']
             
             self.kps       = frame_data_dict['kps']
             self.kps_r     = frame_data_dict['kps_r']
@@ -571,6 +577,9 @@ class Frame(FrameBase):
                 'fov_center_c': json.dumps(NumpyJson.numpy_to_json(self.fov_center_c)) if self.fov_center_c is not None else None,
                 'fov_center_w': json.dumps(NumpyJson.numpy_to_json(self.fov_center_w)) if self.fov_center_w is not None else None,
                 
+                'is_blurry': bool(self.is_blurry),
+                'laplacian_var': float(self.laplacian_var),
+                
                 'kps': json.dumps(self.kps.astype(float).tolist()) if self.kps is not None else None,
                 'kps_r': json.dumps(self.kps_r.astype(float).tolist() if self.kps_r is not None else None),
                 'kpsu': json.dumps(self.kpsu.astype(float).tolist()) if self.kpsu is not None else None,
@@ -615,6 +624,15 @@ class Frame(FrameBase):
             frame_data_dict['fov_center_w'] = NumpyJson.json_to_numpy(json.loads(json_str['fov_center_w'])) 
         except:
             frame_data_dict['fov_center_w'] = None
+            
+        try: 
+            frame_data_dict['is_blurry'] = json_str['is_blurry']
+        except:
+            frame_data_dict['is_blurry'] = False
+        try: 
+            frame_data_dict['laplacian_var'] = json_str['laplacian_var']
+        except:
+            frame_data_dict['laplacian_var'] = None
         
         frame_data_dict['kps'] = np.array(json.loads(json_str['kps'])) if json_str['kps'] is not None else None                
         frame_data_dict['kps_r'] = np.array(json.loads(json_str['kps_r'])) if json_str['kps_r'] is not None else None
@@ -719,9 +737,7 @@ class Frame(FrameBase):
             num_keypoints = len(self.kps)
             self.points = np.full(num_keypoints, None, dtype=object)
             self.outliers = np.full(num_keypoints, False, dtype=bool)
-            self.points = np.ascontiguousarray(self.points)
-            self.outliers = np.ascontiguousarray(self.outliers)
-            
+
     def get_points(self) -> list['MapPoint'] | None:    
         with self._lock_features:                           
             return np.ascontiguousarray(self.points.copy()) if self.points is not None else None  
@@ -1217,7 +1233,7 @@ def match_frames(f1: Frame, f2: Frame, ratio_test=None):
     # idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
     # idxs1 = np.asarray(idxs1)
     # idxs2 = np.asarray(idxs2)   
-    # return idxs1, idxs2         
+    # return idxs1, idxs2               
 
 
 def compute_frame_matches_threading(target_frame: Frame, other_frames: list, \

@@ -242,6 +242,9 @@ class KeyFrame(Frame,KeyFrameGraph):
         
         self.lba_count = 0       # how many time this keyframe has adjusted by LBA
         
+        self.is_blurry = frame.is_blurry
+        self.laplacian_var = frame.laplacian_var
+        
         # pose relative to parent: self.Tcw @ self.parent.Twc (this is computed when bad flag is activated)
         self._pose_Tcp = CameraPose() 
 
@@ -366,9 +369,10 @@ class KeyFrame(Frame,KeyFrameGraph):
         if not viewing_keyframes: # if empty   (https://www.pythoncentral.io/how-to-check-if-a-list-tuple-or-dictionary-is-empty-in-python/)
             return 
         
-        # order the keyframes 
-        covisible_keyframes = sorted(viewing_keyframes.items(), key=lambda x: x[1], reverse=True) # sort by weight in descending order
-
+        # order the keyframes: sort by weight in descending order
+        covisible_keyframes = viewing_keyframes.most_common()
+        #print('covisible_keyframes: ', covisible_keyframes)
+        
         # get keyframe that shares most points 
         kf_max, w_max = covisible_keyframes[0]
         # if the counter is greater than threshold add connection
@@ -441,6 +445,7 @@ class KeyFrame(Frame,KeyFrameGraph):
             self.reset_covisibility()
 
             # --- 3. Update the spanning tree ---
+            # Each children must be connected to a new parent 
 
             assert self.parent is not None
             parent_candidates = {self.parent}
@@ -479,6 +484,9 @@ class KeyFrame(Frame,KeyFrameGraph):
                     remaining_children.remove(best_child)
                 else:
                     break  # No valid parent found; exit
+
+            if iters >= max_iters:
+                Printer.orange('KeyFrame: set_bad - max iterations reached')
 
             # --- 4. Reassign unconnected children to original parent ---
             for kf_child in remaining_children:

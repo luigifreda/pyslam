@@ -61,6 +61,7 @@ from pyslam.utilities.utils_geom_2views import estimate_pose_ess_mat
 from pyslam.utilities.utils_features import ImageGrid
 from pyslam.utilities.rotation_histogram import filter_matches_with_histogram_orientation
 from pyslam.utilities.timer import TimerFps
+from pyslam.utilities.utils_img_processing import detect_blur_laplacian
 
 
 from typing import TYPE_CHECKING
@@ -71,7 +72,7 @@ if TYPE_CHECKING:
 kVerbose = True     
 kTimerVerbose = False 
 
-kShowFeatureMatches = False            # this flag dominates over the following related ones kShowFeatureMatchesXXX
+kShowFeatureMatches = True            # this flag dominates over the following related ones kShowFeatureMatchesXXX
 kShowFeatureMatchesPrevFrame = True 
 kShowFeatureMatchesRefFrame = True
 kShowFeatureMatchesLocalMap = True
@@ -359,6 +360,26 @@ class Tracking:
         return self.pose_is_ok, self.mean_pose_opt_chi2_error
     
     
+    # Use a general RANSAC homography matcher with a large threshold of 5 pixels to model the inter-frame transformation for generic motion
+    def find_homography_with_ransac(self, f_cur, f_ref, idxs_cur, idxs_ref, threshold=5, min_num_matched=15):
+        ransac_method = None 
+        try: 
+            ransac_method = cv2.USAC_MSAC 
+        except: 
+            ransac_method = cv2.RANSAC                 
+        kps_cur = f_cur.kps[idxs_cur]
+        kps_ref = f_ref.kps[idxs_ref]
+        H, mask = cv2.findHomography(kps_cur, kps_ref, ransac_method, ransacReprojThreshold=threshold)
+        num_inliers = np.count_nonzero(mask)
+        if num_inliers < min_num_matched:
+            return False, np.array([], dtype=int), np.array([], dtype=int), 0
+        else:
+            idxs_cur = idxs_cur[mask.ravel() == 1]
+            idxs_ref = idxs_ref[mask.ravel() == 1]
+            num_matched_kps = len(idxs_cur)            
+            return True, idxs_cur, idxs_ref, num_matched_kps
+        
+        
     # track camera motion of f_cur w.r.t. f_ref 
     def track_previous_frame(self, f_ref: Frame, f_cur: Frame):            
         print('>>>> tracking previous frame ...')        
@@ -396,12 +417,18 @@ class Tracking:
                                                                                  is_monocular=(self.sensor_type == SensorType.MONOCULAR))
                 self.num_matched_kps = len(idxs_cur)    
                 Printer.orange("# matched map points in prev frame (wider search): %d " % self.num_matched_kps)                   
+                       
+            if f_cur.is_blurry or f_ref.is_blurry:
+                # use homography RANSAC to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
+                matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps = self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
+                if matching_is_ok:
+                    Printer.orange("# matched map points with homography and RANSAC: %d " % self.num_matched_kps)                              
                                                 
             if kShowFeatureMatches and kShowFeatureMatchesPrevFrame: 
                 img_matches = draw_feature_matches(f_ref.img, f_cur.img, 
                                                    f_ref.kps[idxs_ref], f_cur.kps[idxs_cur], 
                                                    f_ref.sizes[idxs_ref], f_cur.sizes[idxs_cur],
-                                                    horizontal=False)
+                                                    horizontal=False, show_kp_sizes=False)
                 cv2.imshow('tracking prev frame w/ projection - matches', img_matches)
                 cv2.waitKey(1)                
                         
@@ -437,20 +464,35 @@ class Tracking:
                     is_search_frame_by_projection_failure = True                                                    
         
         if not use_search_frame_by_projection or is_search_frame_by_projection_failure:
-            Printer.orange('using match-frame-frame')
+            Printer.orange('using frame-frame matching')
             self.track_reference_frame(f_ref, f_cur,'match-frame-frame')                        
                           
                                                            
     # track camera motion of f_cur w.r.t. f_ref
     # estimate motion by matching keypoint descriptors                    
     def track_reference_frame(self, f_ref: Frame, f_cur: Frame, name=''):
-        print('>>>> tracking reference %d ...' %(f_ref.id))        
+        frame_str = 'keyframe' if f_ref.is_keyframe else 'frame'
+        print(f'>>>> tracking reference {frame_str} {f_ref.id} ...')        
         if f_ref is None:
+            self.pose_is_ok = False
+            Printer.red(f'[track_reference_frame]: f_ref is None')
             return 
+        
         # find keypoint matches between f_cur and kf_ref   
         print('matching keypoints with ', FeatureTrackerShared.feature_matcher.matcher_type.name)              
         self.timer_match.start()
-        matching_result = match_frames(f_cur, f_ref) 
+        
+        #matching_result = match_frames(f_cur, f_ref) # original code that used all the reference keypoints 
+        
+        # match only the reference keypoints in f_ref that correspond to map points and are not bad 
+        idxs_ref_map_points = np.array([i for i,p in enumerate(f_ref.points) if p is not None and not p.is_bad], dtype=int)
+        des_ref = f_ref.des[idxs_ref_map_points]
+        kps_ref = f_ref.kps[idxs_ref_map_points]
+        des_cur = f_cur.des
+        kps_cur = f_cur.kps
+        matching_result = FeatureTrackerShared.feature_matcher.match(f_cur.img, f_ref.img, des_cur, des_ref, kps1=kps_cur, kps2=kps_ref)
+        matching_result.idxs2 = idxs_ref_map_points[matching_result.idxs2] # map back to the original reference keypoints 
+        
         self.timer_match.refresh()
         idxs_cur = np.asarray(matching_result.idxs1, dtype=int) if matching_result.idxs1 is not None else np.array([], dtype=int)
         idxs_ref = np.asarray(matching_result.idxs2, dtype=int) if matching_result.idxs2 is not None else np.array([], dtype=int)
@@ -468,27 +510,46 @@ class Tracking:
                 idxs_cur = np.array([], dtype=int)
                 idxs_ref = np.array([], dtype=int)
             self.num_matched_kps = len(idxs_cur)
+            
+            
+        if self.num_matched_kps < Parameters.kMinNumMatchedFeaturesSearchReferenceFrame:      
+            self.pose_is_ok = False
+            Printer.orange('Not enough matches in search frame by projection: ', self.num_matched_kps)
+            return
+                  
+        # use RANSAC homography to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
+        # only if both frames are not keyframes (so they are expected to be close in space) and at least one is blurry        
+        if (f_cur.is_blurry or f_ref.is_blurry) and (not f_cur.is_keyframe and not f_ref.is_keyframe):
+            matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps = self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
+            if matching_is_ok:
+                Printer.orange("# matched map points with homography and RANSAC: %d " % self.num_matched_kps)               
              
         print("# keypoints matched: %d " % self.num_matched_kps)  
+
+        if self.num_matched_kps < Parameters.kMinNumMatchedFeaturesSearchReferenceFrame:      
+            self.pose_is_ok = False
+            Printer.orange('Not enough matches in search frame by projection: ', self.num_matched_kps)
+            return
+
         if Parameters.kUseEssentialMatrixFitting: 
             # estimate camera orientation and inlier matches by fitting and essential matrix (see the limitations above)             
             idxs_ref, idxs_cur = self.estimate_pose_by_fitting_ess_mat(f_ref, f_cur, idxs_ref, idxs_cur)      
+            self.num_matched_kps = len(idxs_cur)
         
         if kUseDynamicDesDistanceTh: 
             self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(f_ref, f_cur, idxs_ref, idxs_cur)        
                                
-        max_descriptor_distance = self.descriptor_distance_sigma if not f_ref.is_keyframe else 0.5 * self.descriptor_distance_sigma
-                               
         # propagate map point matches from kf_ref to f_cur  (do not override idxs_ref, idxs_cur)
+        max_descriptor_distance = self.descriptor_distance_sigma if not f_ref.is_keyframe else 0.5 * self.descriptor_distance_sigma        
         num_found_map_pts_inter_frame, idx_ref_prop, idx_cur_prop = propagate_map_point_matches(f_ref, f_cur, idxs_ref, idxs_cur, 
-                                                                                                max_descriptor_distance= max_descriptor_distance)
+                                                                                                max_descriptor_distance=max_descriptor_distance)
         print("# matched map points in reference frame: %d " % num_found_map_pts_inter_frame)      
                 
         if kShowFeatureMatches and kShowFeatureMatchesRefFrame: 
             img_matches = draw_feature_matches(f_ref.img, f_cur.img, 
                                                f_ref.kps[idx_ref_prop], f_cur.kps[idx_cur_prop], 
                                                f_ref.sizes[idx_ref_prop], f_cur.sizes[idx_cur_prop],
-                                               horizontal=False)
+                                               horizontal=False, show_kp_sizes=False)
             cv2.imshow('tracking ref frame w/o projection - matches', img_matches)
             cv2.waitKey(1)      
                                 
@@ -664,13 +725,17 @@ class Tracking:
 
         if self.sensor_type == SensorType.MONOCULAR:
             thRefRatio = Parameters.kThNewKfRefRatio
-                                                                    
+            
+        if not Parameters.kLocalMappingOnSeparateThread: 
+            if self.sensor_type != SensorType.MONOCULAR:           
+                # NOTE: in single-threaded mode, is_local_mapping_idle is always True => cond1b always Trye => too many keyframes       
+                self.min_frames_between_kfs = 2         
+                                                                                                                                                          
         # condition 1a: more than "max_frames_between_kfs" have passed from last keyframe insertion                                        
         cond1a = f_cur.id >= (self.kf_last.id + self.max_frames_between_kfs) 
         
         # condition 1b: more than "min_frames_between_kfs" have passed and local mapping is idle
-        cond1b = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) and is_local_mapping_idle          
-        #cond1b = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) 
+        cond1b = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) and is_local_mapping_idle                                       
                   
         # condition 1c: tracking is weak 1
         cond1c = (self.sensor_type!=SensorType.MONOCULAR) and (num_f_cur_tracked_points<num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocular or is_need_to_insert_close) 
@@ -877,7 +942,10 @@ class Tracking:
     # N.B.: this function must be called outside 'with self.map.update_lock' blocks, 
     #       since both self.track() and the local-mapping optimization use the RLock 'map.update_lock'    
     #       => they cannot wait for each other once map.update_lock is locked (deadlock)                        
-    def wait_for_local_mapping(self, timeout=Parameters.kWaitForLocalMappingTimeout):               
+    def wait_for_local_mapping(self, timeout=Parameters.kWaitForLocalMappingTimeout):      
+        if not Parameters.kLocalMappingOnSeparateThread:
+            return
+        
         if Parameters.kTrackingWaitForLocalMappingToGetIdle:                        
             # If there are still keyframes in the queue, wait for local mapping to get idle
             if not self.local_mapping.is_idle():      
@@ -1035,6 +1103,14 @@ class Tracking:
         # HACK: Since local mapping may be not fast enough in python (and tracking is not in real-time) => give local mapping more time to process stuff  
         self.wait_for_local_mapping()  # N.B.: this must be outside the `with self.map.update_lock:` block
                                     
+                                    
+        # preprocessing 
+        if Parameters.kUseMotionBlurDection:
+            self.f_cur.is_blurry, self.f_cur.laplacian_var = detect_blur_laplacian(self.f_cur.img)
+            if self.f_cur.is_blurry:
+                Printer.purple(f'img {img_id} is blurry, laplacian_var: {self.f_cur.laplacian_var}')
+                
+                                    
         with self.map.update_lock:
             
             # DEBUG:
@@ -1142,7 +1218,12 @@ class Tracking:
                 if need_new_kf:         
                     if not Parameters.kLocalMappingOnSeparateThread:
                         self.local_mapping.is_running = True
-                        self.local_mapping.step()                 
+                        while self.local_mapping.queue_size()>0:  
+                            self.local_mapping.step()                             
+                            for kf in self.map.local_map.get_keyframes():
+                                kf.update_connections()
+                        # if self.kf_ref is not None:
+                        #     self.map.local_map.update(self.kf_ref)                                
                 
                                   
         # end block {with self.map.update_lock:}  

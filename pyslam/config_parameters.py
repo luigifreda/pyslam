@@ -45,7 +45,7 @@ class Parameters:
 
     # Point triangulation 
     kCosMaxParallaxInitializer=0.99998  # 0.99998   # Max cos angle for triangulation (min parallax angle) in the Initializer
-    kCosMaxParallax=0.9999 # 0.9999, 0.9998         # Max cos angle for triangulation (min parallax angle)   
+    kCosMaxParallax=0.9998 # 0.9999, 0.9998         # Max cos angle for triangulation (min parallax angle)   
     kMinRatioBaselineDepth = 0.01      
     
     
@@ -85,12 +85,13 @@ class Parameters:
     kMinNumMatchedFeaturesSearchFrameByProjection=20  # If the number of tracked features is below this, then the search fails 
     kUseEssentialMatrixFitting = False                # Fit an essential matrix; orientation and keypoint match inliers are estimated by fitting an essential mat (5 points algorithm), 
                                                       # WARNING: essential matrix fitting comes with some limitations (please, read the comments of the method slam.estimate_pose_ess_mat())
+    kMinNumMatchedFeaturesSearchReferenceFrame = 15
     kMaxNumOfKeyframesInLocalMap = 80
     kNumBestCovisibilityKeyFrames = 10
     kUseVisualOdometryPoints = True
     kUseInterruptLocalMapping = False                 # Use interrupt to stop local mapping when a new keyframe is created so that the new keyframe can be processed ASAP.
                                                       # WARNING: This may degrade the performance of the local mapping under some circumstances. This makes more sense when real-time performance is attainable.
-    
+    kUseMotionBlurDection = True                      # Use motion blur detection to find inliers and estimate the inter-frame transformation (assuming frames are very close in space). Only between consecutive frames.
     
     # Keyframe generation 
     kNumMinPointsForNewKf = 15                               # Minimum number of matched map points for spawning a new KeyFrame 
@@ -105,7 +106,7 @@ class Parameters:
     # Keyframe culling
     kKeyframeCullingRedundantObsRatio = 0.9  
     kKeyframeMaxTimeDistanceInSecForCulling = 0.5 # [s]  # Use float('inf') for disabling it   
-    kKeyframeCullingMinNumPoints = 50 
+    kKeyframeCullingMinNumPoints = 0 
 
 
     # Stereo matching 

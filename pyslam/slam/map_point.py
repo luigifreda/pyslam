@@ -281,7 +281,7 @@ class MapPoint(MapPointBase):
     global_lock = RLock()      # shared global lock for blocking point position update     
     def __init__(self, position, color, keyframe=None, idxf=None, id=None):
         super().__init__(id)
-        self._pt = np.array(position)  # position in the world frame
+        self._pt = np.ascontiguousarray(position)  # position in the world frame
 
         self.color = color
         self.semantic_des = None
@@ -292,17 +292,19 @@ class MapPoint(MapPointBase):
                       
         self.kf_ref = keyframe      
         self.first_kid = -1     # first observation keyframe id 
-        #self.idxf_ref = idxf            
+        
+        if idxf is None: 
+            Printer.red('MapPoint: idxf is None')
+            raise ValueError('MapPoint: idxf is None')
+        
         if keyframe is not None:
             if keyframe.is_keyframe: 
                 self.first_kid = keyframe.kid 
-            if idxf is not None:
-                self.des = keyframe.des[idxf]  
+            self.des = keyframe.des[idxf]  
             # update normal and depth infos 
             po = (self._pt - self.kf_ref.Ow)
-            self.normal, dist = normalize_vector(po)
-            if idxf is not None:            
-                level = keyframe.octaves[idxf]
+            self.normal, dist = normalize_vector(po)         
+            level = keyframe.octaves[idxf]
             level_scale_factor =  FeatureTrackerShared.feature_manager.scale_factors[level]
             self._max_distance = dist * level_scale_factor
             self._min_distance = self._max_distance / FeatureTrackerShared.feature_manager.scale_factors[FeatureTrackerShared.feature_manager.num_levels-1]     
@@ -593,7 +595,7 @@ class MapPoint(MapPointBase):
         descriptors = [kf.des[idx] for kf,idx in observations if not kf.is_bad]
 
         N = len(descriptors)
-        if N > 2:
+        if N >= 2:
             #median_distances = [ np.median([FeatureTrackerShared.descriptor_distance(d, descriptors[i]) for d in descriptors]) for i in range(N) ]
             #median_distances = [ np.median(FeatureTrackerShared.descriptor_distances(descriptors[i], descriptors)) for i in range(N)]
             D = np.array([FeatureTrackerShared.descriptor_distances(d, descriptors) for d in descriptors])
@@ -602,7 +604,8 @@ class MapPoint(MapPointBase):
                 self.des = descriptors[np.argmin(median_distances)].copy()
             #print('descriptors: ', descriptors)
             #print('median_distances: ', median_distances)
-            #print('des: ', self.des)        
+            #print('des: ', self.des)      
+              
 
     def update_semantics(self, semantic_fusion_method, force=False):
         skip = False
@@ -617,7 +620,7 @@ class MapPoint(MapPointBase):
         if skip or len(observations)==0:
             return 
         semantics = [kf.kps_sem[idx] for kf, idx in observations if kf.kps_sem is not None]
-        if len(semantics) > 2:
+        if len(semantics) >= 2:
             fused_semantics = semantic_fusion_method(semantics)
             with self._lock_features:
                 self.semantic_des = fused_semantics

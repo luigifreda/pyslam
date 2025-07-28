@@ -172,6 +172,13 @@ class MatcherUtils:
                         idxs2[index]=m.trainIdx
         return np.array(idxs1), np.array(idxs2)
     
+    # input: 
+    #   matches: list of cv2.DMatch (expected k=2 for knn search)
+    #   des1 = query-descriptors, 
+    #   des2 = train-descriptors
+    # output: 
+    #   idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
+    # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index    
     @staticmethod
     def goodMatchesOneToOne(matches, des1, des2, ratio_test=0.7):
         matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
@@ -191,6 +198,9 @@ class MatcherUtils:
                     idxs2.append(m.trainIdx)                                                         
         return np.array(idxs1), np.array(idxs2) 
     
+    # input: des1 = query-descriptors, des2 = train-descriptors
+    # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
+    # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes    
     @staticmethod
     def goodMatchesSimple(matches, des1, des2, ratio_test=0.7):
         matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
