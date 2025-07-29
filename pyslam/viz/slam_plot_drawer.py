@@ -56,22 +56,24 @@ class SlamPlotDrawer:
         
         self.matched_points_plt = None
         self.info_3dpoints_plt = None
+        self.info_keyframes_plt = None         
         self.chi2_error_plt = None
         self.timing_plt = None
         self.traj_error_plt = None
+
         
         self.last_alignment_timestamp = None
         self.last_alignment_gt_data = TrajectoryAlignementData()
         
         # To disable one of them just comment it out
         self.matched_points_plt = factory_plot2d(xlabel='img id', ylabel='# matches',title='# matches')  
-        #self.info_3dpoints_plt = factory_plot2d(xlabel='img id', ylabel='# points',title='info 3d points')      
+        #self.info_3dpoints_plt = factory_plot2d(xlabel='img id', ylabel='# points',title='info 3d points')  
+        #self.info_keyframes_plt = factory_plot2d(xlabel='img id', ylabel='# keyframes',title='# keyframes')            
         self.chi2_error_plt = factory_plot2d(xlabel='img id', ylabel='error',title='mean chi2 error')
         self.timing_plt = factory_plot2d(xlabel='img id', ylabel='s',title='timing')        
         self.traj_error_plt = factory_plot2d(xlabel='time [s]', ylabel='error',title='trajectories: gt vs (aligned)estimated')
-        
-        
-        self.plt_list = [self.matched_points_plt, self.info_3dpoints_plt, self.chi2_error_plt, self.timing_plt, self.traj_error_plt]
+
+        self.plt_list = [self.matched_points_plt, self.info_3dpoints_plt, self.chi2_error_plt, self.timing_plt, self.traj_error_plt, self.info_keyframes_plt]
         
         self.last_processed_kf_img_id = -1
         
@@ -118,9 +120,6 @@ class SlamPlotDrawer:
                     if self.slam.local_mapping.last_num_fused_points is not None:
                         num_fused_points_signal = [img_id, self.slam.local_mapping.last_num_fused_points]
                         self.info_3dpoints_plt.draw(num_fused_points_signal,'# fused pts',color='g')
-                    if self.slam.local_mapping.last_num_culled_keyframes is not None:
-                        num_culled_keyframes_signal = [img_id, self.slam.local_mapping.last_num_culled_keyframes]
-                        self.info_3dpoints_plt.draw(num_culled_keyframes_signal,'# culled keyframes',color='b')
                     if self.slam.local_mapping.last_num_culled_points is not None:
                         num_culled_points_signal = [img_id, self.slam.local_mapping.last_num_culled_points]
                         self.info_3dpoints_plt.draw(num_culled_points_signal,'# culled pts',color='c')
@@ -178,8 +177,19 @@ class SlamPlotDrawer:
                     if self.slam.volumetric_integrator.time_volumetric_integration.value:
                         time_volumetric_integration_signal = [img_id, self.slam.volumetric_integrator.time_volumetric_integration.value]
                         self.timing_plt.draw(time_volumetric_integration_signal,'volumetric integration',color=mcolors.CSS4_COLORS['darkviolet'], marker='+')
+
+
+            # draw number of keyframes
+            if self.info_keyframes_plt is not None:
+                num_keyframes = self.slam.map.num_keyframes()
+                if num_keyframes > 0:
+                    num_keyframes_signal = [img_id, num_keyframes]
+                    self.info_keyframes_plt.draw(num_keyframes_signal,'# keyframes',color='m')
+                if self.slam.local_mapping.last_num_culled_keyframes is not None:
+                    num_culled_keyframes_signal = [img_id, self.slam.local_mapping.last_num_culled_keyframes]
+                    self.info_keyframes_plt.draw(num_culled_keyframes_signal,'# culled keyframes',color='b')                    
                         
-                    
+            
             # draw trajectory and alignment error    
             # NOTE: we must empty the alignment queue in any case
             new_alignment_data = None

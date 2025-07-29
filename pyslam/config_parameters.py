@@ -91,13 +91,16 @@ class Parameters:
     kUseVisualOdometryPoints = True
     kUseInterruptLocalMapping = False                 # Use interrupt to stop local mapping when a new keyframe is created so that the new keyframe can be processed ASAP.
                                                       # WARNING: This may degrade the performance of the local mapping under some circumstances. This makes more sense when real-time performance is attainable.
+    
+    kMaxOutliersRatioInPoseOptimization = 0.9         # Maximum ratio of outliers in pose optimization (if the ratio is greater, the pose optimization is not performed)
+    
     kUseMotionBlurDection = True                      # Use motion blur detection to find inliers and estimate the inter-frame transformation (assuming frames are very close in space). Only between consecutive frames.
     
     # Keyframe generation 
     kNumMinPointsForNewKf = 15                               # Minimum number of matched map points for spawning a new KeyFrame 
     kNumMinTrackedClosePointsForNewKfNonMonocular = 100      # Minimum number of tracked close map points that for not spawning a new KeyFrame in case of a non-monocular system
     kNumMaxNonTrackedClosePointsForNewKfNonMonocular = 70    # Maximum number of non-tracked close map points for not spawning a new KeyFrame in case of a non-monocular system    
-    kThNewKfRefRatio = 0.9                                   # For determining if a new KF must be spawned, condition 3
+    kThNewKfRefRatioMonocular = 0.9                          # For determining if a new KF must be spawned, condition 3
     kThNewKfRefRatioStereo = 0.75                            # For determining if a new KF must be spawned, condition 3, in the case non-monocular
     kThNewKfRefRatioNonMonocular = 0.25                      # For determining if a new KF must be spawned in case the system is not monocular, condition 2b
     kUseFeatureCoverageControlForNewKf = False               # [Experimental] check if all the matched map points in the current frame well cover the image (by using an image grid check)
@@ -229,8 +232,7 @@ class Parameters:
                                                         # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
     
-    # Semantic mapping. NOTE: By activating the semantic mapping, semantics will be used
-    #                         for the whole SLAM pipeline
+    # Semantic mapping. NOTE: By activating the semantic mapping, semantics will be used for the whole SLAM pipeline
     kDoSemanticMapping = False                          # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingDebugAndPrintToFile = True

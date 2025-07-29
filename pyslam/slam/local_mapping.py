@@ -177,14 +177,15 @@ class LocalMapping:
             return
         with self.reset_mutex:
             self.reset_requested = True
-        while True:
-            with self.queue_condition:
-                self.queue_condition.notify_all() # to unblock self.pop_keyframe()              
-            with self.reset_mutex:
-                if not self.reset_requested:
-                    break
-            time.sleep(0.1)
-            LocalMapping.print('LocalMapping: waiting for reset...')
+        if Parameters.kLocalMappingOnSeparateThread:
+            while True:
+                with self.queue_condition:
+                    self.queue_condition.notify_all() # to unblock self.pop_keyframe()              
+                with self.reset_mutex:
+                    if not self.reset_requested:
+                        break
+                time.sleep(0.1)
+                LocalMapping.print('LocalMapping: waiting for reset...')
         LocalMapping.print('LocalMapping: ...Reset done.')            
             
     def reset_if_requested(self):
