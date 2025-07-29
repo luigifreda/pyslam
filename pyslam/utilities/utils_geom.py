@@ -112,7 +112,9 @@ class Sim3Pose:
         if isinstance(T, np.ndarray):
             R = T[:3, :3]
             # Compute scale as the average norm of the rows of the rotation matrix
-            self.s = np.mean([np.linalg.norm(R[i, :]) for i in range(3)])  
+            #self.s = np.mean([np.linalg.norm(R[i, :]) for i in range(3)])  
+            row_norms = np.linalg.norm(R, axis=1)
+            self.s = row_norms.mean()
             self.R = R/self.s
             self.t = T[:3, 3].reshape(3,1)
         else:

@@ -72,9 +72,9 @@ kRootFolder = kScriptFolder + '/../..'
 
 
 def kf_search_frame_for_triangulation(kf1, kf2, kf2_idx, idxs1, idxs2, max_descriptor_distance, is_monocular, result_queue):
-    idxs1_out, idxs2_out, num_found_matches, _ = search_frame_for_triangulation(kf1, kf2, idxs1, idxs2, max_descriptor_distance, is_monocular)
+    idxs1_out, idxs2_out, num_found_matches = search_frame_for_triangulation(kf1, kf2, idxs1, idxs2, max_descriptor_distance, is_monocular)
     LocalMapping.print(f'\t kf_search_frame_for_triangulation: found for ({kf1.id}, {kf2.id}), #potential matches: {num_found_matches}')    
-    result_queue.put((idxs1_out, idxs2_out, num_found_matches, _, kf2_idx)) 
+    result_queue.put((idxs1_out, idxs2_out, num_found_matches, kf2_idx)) 
                 
     
 class LocalMapping:
@@ -177,14 +177,15 @@ class LocalMapping:
             return
         with self.reset_mutex:
             self.reset_requested = True
-        while True:
-            with self.queue_condition:
-                self.queue_condition.notify_all() # to unblock self.pop_keyframe()              
-            with self.reset_mutex:
-                if not self.reset_requested:
-                    break
-            time.sleep(0.1)
-            LocalMapping.print('LocalMapping: waiting for reset...')
+        if Parameters.kLocalMappingOnSeparateThread:
+            while True:
+                with self.queue_condition:
+                    self.queue_condition.notify_all() # to unblock self.pop_keyframe()              
+                with self.reset_mutex:
+                    if not self.reset_requested:
+                        break
+                time.sleep(0.1)
+                LocalMapping.print('LocalMapping: waiting for reset...')
         LocalMapping.print('LocalMapping: ...Reset done.')            
             
     def reset_if_requested(self):
@@ -609,7 +610,7 @@ class LocalMapping:
                                                                 
             # find keypoint matches between self.kf_cur and kf
             # N.B.: all the matched keypoints computed by search_frame_for_triangulation() are without a corresponding map point              
-            idxs_cur, idxs, num_found_matches, _ = search_frame_for_triangulation(self.kf_cur, kf, idxs_kf_cur, idxs_kf,
+            idxs_cur, idxs, num_found_matches = search_frame_for_triangulation(self.kf_cur, kf, idxs_kf_cur, idxs_kf,
                                                                                    max_descriptor_distance=0.5*self.descriptor_distance_sigma,
                                                                                    is_monocular=(self.sensor_type == SensorType.MONOCULAR))
             if num_found_matches == 0:
@@ -676,7 +677,7 @@ class LocalMapping:
         LocalMapping.print(f'\t processing triangulation results...')
         while not result_queue.empty():
             result = result_queue.get()    
-            idxs_cur, idxs, num_found_matches, _, kf_idx = result   
+            idxs_cur, idxs, num_found_matches, kf_idx = result   
             kf = local_keyframes[kf_idx]         
             #LocalMapping.print(f'\t adding map points for KFs ({self.kf_cur.id}, {kf.id}), #potential matches: {num_found_matches}')
             if len(idxs_cur) > 0:

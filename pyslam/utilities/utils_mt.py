@@ -19,8 +19,10 @@
 
 import sys
 import platform
+import traceback
 
 from .utils_data import SafeQueue
+from .utils_sys import Printer
 
 
 # Utilities for multithreading
@@ -50,7 +52,10 @@ class SimpleTaskTimer:
         
     def __del__(self):
         if self._thread is not None and self._thread.is_alive():
-            self.stop()
+            try:
+                self.stop()
+            except:
+                pass
 
     def _run(self):
         """Internal method to handle the timer functionality."""
@@ -59,14 +64,22 @@ class SimpleTaskTimer:
             if not self._stop_event.is_set():
                 if kVerbose:
                     print(f'SimpleTaskTimer {self.name}: single shot timer fired')
-                self.callback()
+                try:
+                    self.callback()
+                except Exception as e:
+                    Printer.red(f'SimpleTaskTimer {self.name}: error in callback: {e}')
+                    traceback.print_exc()
         else:
             while not self._stop_event.is_set():
                 time.sleep(self.interval)
                 if not self._stop_event.is_set():
                     if kVerbose:                    
                         print(f'SimpleTaskTimer {self.name}: timer fired')
-                    self.callback()
+                    try:
+                        self.callback()
+                    except Exception as e:
+                        Printer.red(f'SimpleTaskTimer {self.name}: error in callback: {e}')
+                        traceback.print_exc()
 
     def start(self):
         """Starts the timer."""

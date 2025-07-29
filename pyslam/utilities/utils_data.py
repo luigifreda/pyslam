@@ -106,21 +106,21 @@ class SingletonBase:
             
 class AtomicCounter:
     def __init__(self):
-        self.value = 0
+        self._value = 0
         self._lock = th.Lock()
 
     def increment(self):
         with self._lock:
-            self.value += 1
+            self._value += 1
 
     def value(self):
         with self._lock:
-            return self.value
+            return self._value
     
     def increment_and_get(self):
         with self._lock:
-            self.value += 1
-            return self.value
+            self._value += 1
+            return self._value
     
     
 class FixedSizeQueue:

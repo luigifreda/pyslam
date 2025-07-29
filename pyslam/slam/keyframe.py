@@ -451,7 +451,7 @@ class KeyFrame(Frame,KeyFrameGraph):
             parent_candidates = {self.parent}
 
             # Prevent infinite loop due to malformed graph
-            max_iters = len(self.children) * 2
+            max_iters = len(self.children) * 10
             iters = 0
 
             # Reassign children based on covisibility weights

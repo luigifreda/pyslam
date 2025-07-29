@@ -89,8 +89,10 @@ if __name__ == "__main__":
     
     print(f'max descriptor distance: {Parameters.kMaxDescriptorDistance}')
 
+    img_cur_epi = None
+
     idxs_ref, idxs_cur, num_found_matches, img_cur_epi = search_frame_for_triangulation_test(f_ref, f_cur, img_cur, img1=img_ref)  # test
-    #idxs_ref, idxs_cur, num_found_matches, img_cur_epi = search_frame_for_triangulation(f_ref, f_cur)
+    #idxs_ref, idxs_cur, num_found_matches = search_frame_for_triangulation(f_ref, f_cur)
 
     elapsed = timer.elapsed()
     print('time:',elapsed)

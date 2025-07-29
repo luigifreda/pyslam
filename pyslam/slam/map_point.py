@@ -293,18 +293,18 @@ class MapPoint(MapPointBase):
         self.kf_ref = keyframe      
         self.first_kid = -1     # first observation keyframe id 
         
-        if idxf is None: 
-            Printer.red('MapPoint: idxf is None')
-            raise ValueError('MapPoint: idxf is None')
-        
         if keyframe is not None:
             if keyframe.is_keyframe: 
                 self.first_kid = keyframe.kid 
-            self.des = keyframe.des[idxf]  
             # update normal and depth infos 
             po = (self._pt - self.kf_ref.Ow)
-            self.normal, dist = normalize_vector(po)         
-            level = keyframe.octaves[idxf]
+            self.normal, dist = normalize_vector(po)
+            if idxf is not None:
+                self.des = keyframe.des[idxf]           
+                level = keyframe.octaves[idxf]
+            else:
+                self.des = None
+                level = 0
             level_scale_factor =  FeatureTrackerShared.feature_manager.scale_factors[level]
             self._max_distance = dist * level_scale_factor
             self._min_distance = self._max_distance / FeatureTrackerShared.feature_manager.scale_factors[FeatureTrackerShared.feature_manager.num_levels-1]     

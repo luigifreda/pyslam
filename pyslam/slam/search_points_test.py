@@ -186,7 +186,7 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1 = None)
     kpsu1 = f1.kpsu[idxs1]
     
     if __debug__:
-        print('search_frame_for_triangulation - timer1: ', timer.elapsed())  
+        print('search_frame_for_triangulation_test - timer1: ', timer.elapsed())  
         timer.start()        
 
     # compute epipolar lines in second image 
@@ -200,7 +200,7 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1 = None)
     print(f'Number of epipolar lines: {len(line_edges)}')
 
     if __debug__:
-        print('search_frame_for_triangulation - timer3: ', timer.elapsed())
+        print('search_frame_for_triangulation_test - timer3: ', timer.elapsed())
         assert(len(line_edges) == len(idxs1))    
         timer.start()
 
@@ -241,7 +241,7 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1 = None)
             #cv2.waitKey(0)
 
     if __debug__:
-        print('search_frame_for_triangulation - timer4: ', timer.elapsed())
+        print('search_frame_for_triangulation_test - timer4: ', timer.elapsed())
 
     return idxs1_out, idxs2_out, num_found_matches, img2_epi
 

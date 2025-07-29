@@ -353,8 +353,7 @@ class FeatureMatchingResult:
 
             
 # base class 
-class FeatureMatcher: 
-    global_counter=AtomicCounter()
+class FeatureMatcher:
     def __init__(self,
                  norm_type=cv2.NORM_HAMMING,
                  cross_check = False,

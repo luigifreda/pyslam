@@ -468,10 +468,15 @@ def pose_optimization(frame, verbose=False, rounds=10):
             break                 
     
     print(f'pose optimization: available {num_point_edges} points, found {num_bad_point_edges} bad points')     
-    num_active_edges = num_point_edges - num_bad_point_edges   #len([e for e in opt.edges() if e.level() == 0])
-    if num_active_edges < 10:
+    num_valid_points = num_point_edges - num_bad_point_edges   #len([e for e in opt.edges() if e.level() == 0])
+    if num_valid_points < 10:
         Printer.red('pose_optimization: not enough edges!')   
         is_ok = False 
+              
+    ratio_bad_points = num_bad_point_edges/max(num_point_edges,1)
+    if num_valid_points > 15 and ratio_bad_points > Parameters.kMaxOutliersRatioInPoseOptimization:
+        Printer.red(f'pose_optimization: percentage of bad points is too high: {ratio_bad_points*100:.2f}%')
+        is_ok = False
         
     # update pose estimation
     if is_ok: 
@@ -503,7 +508,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
 
 
     # since we have only one frame here, each edge corresponds to a single distinct point
-    num_valid_points = num_point_edges - num_bad_point_edges
+    #num_valid_points = num_point_edges - num_bad_point_edges
     mean_squared_error = opt.active_chi2()/max(num_valid_points,1)
 
     return mean_squared_error, is_ok, num_valid_points

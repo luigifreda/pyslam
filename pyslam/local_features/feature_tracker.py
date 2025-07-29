@@ -130,9 +130,9 @@ class FeatureTracker(object):
         self.matcher_type = FeatureMatcherTypes.NONE
 
         # FeatureManager contains both detector and descriptor  
-        self.feature_manager = None      #type: FeatureManager 
+        self.feature_manager: FeatureManager | None = None       
         # FeatureMatcher contains descriptors matching methods based on BF, FLANN, etc.
-        self.matcher = None              #type: FeatureMatcher 
+        self.matcher: FeatureMatcher | None = None          
                 
     @property
     def num_features(self):

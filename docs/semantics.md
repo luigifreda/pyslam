@@ -1,8 +1,5 @@
 # Semantic pySLAM
 
-Original [David](https://github.com/dvdmc)'s document is available [here](https://docs.google.com/document/d/1MpLvLVx35Sr9fh6W-YcUlRjWY3dvww4ROGqWeOI_J_8/edit?tab=t.0#heading=h.65ibkflchz2i).
-
-
 <!-- TOC -->
 
 - [Semantic pySLAM](#semantic-pyslam)
@@ -18,7 +15,7 @@ Original [David](https://github.com/dvdmc)'s document is available [here](https:
   - [Main code changes](#main-code-changes)
     - [Data structures](#data-structures)
   - [TODOs](#todos)
-  - [TODiscuss](#todiscuss)
+  - [References](#references)
 
 <!-- /TOC -->
 
@@ -125,8 +122,7 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 - Add interaction in 3D viewer to change query word (open-vocab)
 - Refactor `sem_des_to_rgb` vs `sem_img_to_rgb` (may be redundant)
 
-## TODiscuss
 
-- Should label images be `(H,W)` or `(H,W,1)`?
-- How should configuration and factories be structured?
-- How to best structure `semantic_labels` and `semantic_utils`?
+## References 
+
+Original [David](https://github.com/dvdmc)'s notes are available [here](https://docs.google.com/document/d/1MpLvLVx35Sr9fh6W-YcUlRjWY3dvww4ROGqWeOI_J_8/edit?tab=t.0#heading=h.65ibkflchz2i).

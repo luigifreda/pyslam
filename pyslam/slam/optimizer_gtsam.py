@@ -33,6 +33,7 @@ from gtsam.symbol_shorthand import X, L
 
 import g2o  
 
+from pyslam.config_parameters import Parameters
 from pyslam.utilities.utils_sys import Printer
 from pyslam.utilities.utils_geom import poseRt, inv_T, Sim3Pose
 from pyslam.utilities.utils_mp import MultiprocessingManager
@@ -693,8 +694,13 @@ class PoseOptimizerGTSAM:
             result = result_prev
             is_ok = False
 
+        ratio_bad_points = num_bad_point_edges/max(self.num_factors,1)
+        if num_valid_points > 15 and ratio_bad_points > Parameters.kMaxOutliersRatioInPoseOptimization:
+            Printer.red(f'pose_optimization: percentage of bad points is too high: {ratio_bad_points*100:.2f}%')
+            is_ok = False
+        
         # update pose estimation
-        if result is not None: 
+        if is_ok and result is not None: 
             is_ok = True
             pose_estimated = result.atPose3(X(0))
             Twc = pose_estimated.matrix()
@@ -868,9 +874,14 @@ class PoseOptimizerGTSAM_Tcw:
             Printer.red('pose_optimization: not enough edges!')
             result = result_prev
             is_ok = False
+            
+        ratio_bad_points = num_bad_point_edges/max(self.num_factors,1)
+        if num_valid_points > 15 and ratio_bad_points > Parameters.kMaxOutliersRatioInPoseOptimization:
+            Printer.red(f'pose_optimization: percentage of bad points is too high: {ratio_bad_points*100:.2f}%')
+            is_ok = False
 
         # update pose estimation
-        if result is not None: 
+        if is_ok and result is not None: 
             is_ok = True
             Tcw = result.atPose3(X(0)).matrix()  # we stored Tcw in the vertices
             self.frame.update_pose(Tcw)

@@ -595,20 +595,129 @@ def search_more_map_points_by_projection(points: set,
     return found_pts_count, f_cur_matched_points
             
 
+# # search keypoint matches (for triangulations) between f1 and f2
+# # search for matches between unmatched keypoints (without a corresponding map point)
+# # in input we have already some pose estimates for f1 and f2
+# def search_frame_for_triangulation_old(kf1, kf2, idxs1=None, idxs2=None, 
+#                                    max_descriptor_distance=None,
+#                                    is_monocular=True):
+#     if max_descriptor_distance is None:
+#         max_descriptor_distance = 0.5*Parameters.kMaxDescriptorDistance # more conservative check
+           
+#     idxs2_out = []
+#     idxs1_out = []
+#     num_found_matches = 0
+
+#     if __debug__:
+#         timer = Timer()
+#         timer.start()
+
+#     O1w = kf1.Ow
+#     O2w = kf2.Ow
+#     # compute epipoles
+#     e1,_ = kf1.project_point(O2w)  # in first frame 
+#     e2,_ = kf2.project_point(O1w)  # in second frame  
+#     #print('e1: ', e1)
+#     #print('e2: ', e2)    
+    
+#     baseline = np.linalg.norm(O1w-O2w) 
+#     #print(f'search_frame_for_triangulation: baseline: {baseline}, camera.b: {kf2.camera.b}')
+
+#     # if the translation is too small we cannot triangulate 
+#     if not is_monocular:  # we assume the Inializer has been used for building the first map 
+#         if baseline < kf2.camera.b:
+#             return idxs1_out, idxs2_out, num_found_matches # EXIT
+#     else:    
+#         medianDepth = kf2.compute_points_median_depth()
+#         if medianDepth == -1:
+#             Printer.orange("search for triangulation: f2 with no points")        
+#             medianDepth = kf1.compute_points_median_depth()        
+#         ratioBaselineDepth = baseline/medianDepth
+#         if ratioBaselineDepth < Parameters.kMinRatioBaselineDepth:  
+#             Printer.orange("search for triangulation: impossible with too low ratioBaselineDepth!")
+#             return idxs1_out, idxs2_out, num_found_matches # EXIT        
+
+#     # compute the fundamental matrix between the two frames by using their estimated poses 
+#     F12, H21 = computeF12(kf1, kf2)
+
+#     if idxs1 is None or idxs2 is None:
+#         timerMatch = Timer()
+#         timerMatch.start()
+#         matching_result = FeatureTrackerShared.feature_matcher.match(kf1.img, kf2.img, kf1.des, kf2.des)  
+#         idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2      
+#         if __debug__:        
+#             print('search_frame_for_triangulation - matching - timer: ', timerMatch.elapsed())        
+    
+#     rot_histo = RotationHistogram()
+#     check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features
+#     level_sigmas2 = FeatureTrackerShared.feature_manager.level_sigmas2
+#     scale_factors = FeatureTrackerShared.feature_manager.scale_factors
+    
+#     # check epipolar constraints 
+#     for i1,i2 in zip(idxs1,idxs2):
+#         if kf1.get_point_match(i1) is not None or kf2.get_point_match(i2) is not None: # we are searching for keypoint matches where both keypoints do not have a corresponding map point 
+#             #print('existing point on match')
+#             continue 
+        
+#         descriptor_dist = FeatureTrackerShared.descriptor_distance(kf1.des[i1], kf2.des[i2])
+#         if descriptor_dist > max_descriptor_distance:
+#             continue     
+        
+#         kp1 = kf1.kpsu[i1]
+#         #kp1_scale_factor = scale_factors[kf1.octaves[i1]]
+#         #kp1_size = f1.sizes[i1]
+#         # discard points which are too close to the epipole            
+#         #if np.linalg.norm(kp1-e1) < Parameters.kMinDistanceFromEpipole * kp1_scale_factor:                 
+#         #if np.linalg.norm(kp1-e1) - kp1_size < Parameters.kMinDistanceFromEpipole:  # N.B.: this is too much conservative => it filters too much                                       
+#         #    continue   
+        
+#         kp2 = kf2.kpsu[i2]
+#         kp2_scale_factor = scale_factors[kf2.octaves[i2]]        
+#         # kp2_size = f2.sizes[i2]        
+#         # discard points which are too close to the epipole            
+#         delta = kp2-e2        
+#         #if np.linalg.norm(delta) < Parameters.kMinDistanceFromEpipole * kp2_scale_factor:   
+#         if np.inner(delta,delta) < kMinDistanceFromEpipole2 * kp2_scale_factor:   # OR.            
+#         # #if np.linalg.norm(delta) - kp2_size < Parameters.kMinDistanceFromEpipole:  # N.B.: this is too much conservative => it filters too much                                                  
+#              continue           
+        
+#         # check epipolar constraint         
+#         sigma2_kp2 = level_sigmas2[kf2.octaves[i2]]
+#         if check_dist_epipolar_line(kp1,kp2,F12,sigma2_kp2):
+#             idxs1_out.append(i1)
+#             idxs2_out.append(i2)
+            
+#             if check_orientation:
+#                 index_match = len(idxs1_out)-1
+#                 rot = kf1.angles[i1]-kf2.angles[i2]
+#                 rot_histo.push(rot,index_match)            
+#         #else:
+#         #    print('discarding point match non respecting epipolar constraint')
+         
+#     if check_orientation:            
+#         valid_match_idxs = rot_histo.get_valid_idxs()     
+#         #print('checking orientation consistency - valid matches % :', len(valid_match_idxs)/max(1,len(idxs1_out))*100,'% of ', len(idxs1_out),'matches')
+#         #print('rotation histogram: ', rot_histo)
+#         idxs1_out = np.array(idxs1_out)[valid_match_idxs]
+#         idxs2_out = np.array(idxs2_out)[valid_match_idxs]
+                 
+#     num_found_matches = len(idxs1_out)
+             
+#     if __debug__:
+#         print('search_frame_for_triangulation - timer: ', timer.elapsed())
+
+#     return idxs1_out, idxs2_out, num_found_matches
+
+
 # search keypoint matches (for triangulations) between f1 and f2
 # search for matches between unmatched keypoints (without a corresponding map point)
 # in input we have already some pose estimates for f1 and f2
 def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None, 
-                                   max_descriptor_distance=None,
-                                   is_monocular=True):
+                                             max_descriptor_distance=None,
+                                             is_monocular=True):
     if max_descriptor_distance is None:
         max_descriptor_distance = 0.5*Parameters.kMaxDescriptorDistance # more conservative check
            
-    idxs2_out = []
-    idxs1_out = []
-    num_found_matches = 0
-    img2_epi = None     
-
     if __debug__:
         timer = Timer()
         timer.start()
@@ -618,16 +727,13 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
     # compute epipoles
     e1,_ = kf1.project_point(O2w)  # in first frame 
     e2,_ = kf2.project_point(O1w)  # in second frame  
-    #print('e1: ', e1)
-    #print('e2: ', e2)    
     
     baseline = np.linalg.norm(O1w-O2w) 
-    #print(f'search_frame_for_triangulation: baseline: {baseline}, camera.b: {kf2.camera.b}')
 
     # if the translation is too small we cannot triangulate 
     if not is_monocular:  # we assume the Inializer has been used for building the first map 
         if baseline < kf2.camera.b:
-            return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT
+            return [], [], 0 # EXIT
     else:    
         medianDepth = kf2.compute_points_median_depth()
         if medianDepth == -1:
@@ -636,7 +742,7 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
         ratioBaselineDepth = baseline/medianDepth
         if ratioBaselineDepth < Parameters.kMinRatioBaselineDepth:  
             Printer.orange("search for triangulation: impossible with too low ratioBaselineDepth!")
-            return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT        
+            return [], [], 0 # EXIT        
 
     # compute the fundamental matrix between the two frames by using their estimated poses 
     F12, H21 = computeF12(kf1, kf2)
@@ -649,67 +755,121 @@ def search_frame_for_triangulation(kf1, kf2, idxs1=None, idxs2=None,
         if __debug__:        
             print('search_frame_for_triangulation - matching - timer: ', timerMatch.elapsed())        
     
-    rot_histo = RotationHistogram()
     check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features     
-        
-        
     level_sigmas2 = FeatureTrackerShared.feature_manager.level_sigmas2
     scale_factors = FeatureTrackerShared.feature_manager.scale_factors
     
-    # check epipolar constraints 
-    for i1,i2 in zip(idxs1,idxs2):
-        if kf1.get_point_match(i1) is not None or kf2.get_point_match(i2) is not None: # we are searching for keypoint matches where both keypoints do not have a corresponding map point 
-            #print('existing point on match')
-            continue 
+    # Convert to numpy arrays for vectorization
+    idxs1 = np.array(idxs1)
+    idxs2 = np.array(idxs2)
+    
+    # Vectorized filtering: check if points already have map points
+    has_map_point1 = np.array([kf1.get_point_match(i) is not None for i in idxs1])
+    has_map_point2 = np.array([kf2.get_point_match(i) is not None for i in idxs2])
+    valid_matches = ~(has_map_point1 | has_map_point2)
+    
+    if not np.any(valid_matches):
+        return [], [], 0  
+    
+    # Filter valid matches
+    valid_idxs1 = idxs1[valid_matches]
+    valid_idxs2 = idxs2[valid_matches]
+    
+    # Vectorized descriptor distance computation
+    des1_valid = kf1.des[valid_idxs1]
+    des2_valid = kf2.des[valid_idxs2]
+    descriptor_dists = FeatureTrackerShared.descriptor_distances(des1_valid, des2_valid)
+    
+    # Filter by descriptor distance
+    good_descriptor = descriptor_dists <= max_descriptor_distance
+    if not np.any(good_descriptor):
+        return [], [], 0  
+    
+    # Further filter by descriptor distance
+    valid_idxs1 = valid_idxs1[good_descriptor]
+    valid_idxs2 = valid_idxs2[good_descriptor]
+    descriptor_dists = descriptor_dists[good_descriptor]
+    
+    # Vectorized keypoint extraction
+    kps1_valid = kf1.kpsu[valid_idxs1]
+    kps2_valid = kf2.kpsu[valid_idxs2]
+    octaves2_valid = kf2.octaves[valid_idxs2]
+    
+    # Vectorized epipole distance check
+    kp2_scale_factors = scale_factors[octaves2_valid]
+    deltas = kps2_valid - e2
+    epipole_distances_sq = np.sum(deltas**2, axis=1)
+    min_epipole_distances_sq = kMinDistanceFromEpipole2 * kp2_scale_factors
+    good_epipole_distance = epipole_distances_sq >= min_epipole_distances_sq
+    
+    if not np.any(good_epipole_distance):
+        return [], [], 0  
+    
+    # Further filter by epipole distance
+    valid_idxs1 = valid_idxs1[good_epipole_distance]
+    valid_idxs2 = valid_idxs2[good_epipole_distance]
+    kps1_valid = kps1_valid[good_epipole_distance]
+    kps2_valid = kps2_valid[good_epipole_distance]
+    octaves2_valid = octaves2_valid[good_epipole_distance]
+    
+    # Vectorized epipolar constraint check
+    sigma2_kps2 = level_sigmas2[octaves2_valid]
+    
+    # Vectorized epipolar line computation
+    kps1_homogeneous = np.column_stack([kps1_valid, np.ones(len(kps1_valid))])
+    epipolar_lines = (F12.T @ kps1_homogeneous.T).T  # [a, b, c] for each line
+    
+    # Vectorized distance computation
+    numerators = epipolar_lines[:, 0] * kps2_valid[:, 0] + epipolar_lines[:, 1] * kps2_valid[:, 1] + epipolar_lines[:, 2]
+    denominators = epipolar_lines[:, 0]**2 + epipolar_lines[:, 1]**2
+    
+    # Handle zero denominators
+    valid_denominators = denominators > 1e-20
+    if not np.any(valid_denominators):
+        return [], [], 0  
+    
+    # Compute distances only for valid denominators
+    dists_sq = np.zeros(len(numerators))
+    dists_sq[valid_denominators] = (numerators[valid_denominators]**2) / denominators[valid_denominators]
+    
+    # Chi-square threshold check
+    chi2_threshold = 3.84 * sigma2_kps2
+    good_epipolar = dists_sq < chi2_threshold
+    
+    if not np.any(good_epipolar):
+        return [], [], 0  
+    
+    # Final filtering
+    final_idxs1 = valid_idxs1[good_epipolar]
+    final_idxs2 = valid_idxs2[good_epipolar]
+    
+    # Handle orientation consistency if needed
+    if check_orientation:
+        rot_histo = RotationHistogram()
+        angles1_valid = kf1.angles[final_idxs1]
+        angles2_valid = kf2.angles[final_idxs2]
         
-        descriptor_dist = FeatureTrackerShared.descriptor_distance(kf1.des[i1], kf2.des[i2])
-        if descriptor_dist > max_descriptor_distance:
-            continue     
-        
-        kp1 = kf1.kpsu[i1]
-        #kp1_scale_factor = scale_factors[kf1.octaves[i1]]
-        #kp1_size = f1.sizes[i1]
-        # discard points which are too close to the epipole            
-        #if np.linalg.norm(kp1-e1) < Parameters.kMinDistanceFromEpipole * kp1_scale_factor:                 
-        #if np.linalg.norm(kp1-e1) - kp1_size < Parameters.kMinDistanceFromEpipole:  # N.B.: this is too much conservative => it filters too much                                       
-        #    continue   
-        
-        kp2 = kf2.kpsu[i2]
-        kp2_scale_factor = scale_factors[kf2.octaves[i2]]        
-        # kp2_size = f2.sizes[i2]        
-        # discard points which are too close to the epipole            
-        delta = kp2-e2        
-        #if np.linalg.norm(delta) < Parameters.kMinDistanceFromEpipole * kp2_scale_factor:   
-        if np.inner(delta,delta) < kMinDistanceFromEpipole2 * kp2_scale_factor:   # OR.            
-        # #if np.linalg.norm(delta) - kp2_size < Parameters.kMinDistanceFromEpipole:  # N.B.: this is too much conservative => it filters too much                                                  
-             continue           
-        
-        # check epipolar constraint         
-        sigma2_kp2 = level_sigmas2[kf2.octaves[i2]]
-        if check_dist_epipolar_line(kp1,kp2,F12,sigma2_kp2):
-            idxs1_out.append(i1)
-            idxs2_out.append(i2)
+        # for i, (angle1, angle2) in enumerate(zip(angles1_valid, angles2_valid)):
+        #     rot = angle1 - angle2
+        #     rot_histo.push(rot, i)
             
-            if check_orientation:
-                index_match = len(idxs1_out)-1
-                rot = kf1.angles[i1]-kf2.angles[i2]
-                rot_histo.push(rot,index_match)            
-        #else:
-        #    print('discarding point match non respecting epipolar constraint')
-         
-    if check_orientation:            
-        valid_match_idxs = rot_histo.get_valid_idxs()     
-        #print('checking orientation consistency - valid matches % :', len(valid_match_idxs)/max(1,len(idxs1_out))*100,'% of ', len(idxs1_out),'matches')
-        #print('rotation histogram: ', rot_histo)
-        idxs1_out = np.array(idxs1_out)[valid_match_idxs]
-        idxs2_out = np.array(idxs2_out)[valid_match_idxs]
-                 
-    num_found_matches = len(idxs1_out)
+        rots = angles1_valid - angles2_valid   
+        rot_histo.push_entries(rots, [ii for ii in range(len(final_idxs1))])                
+        
+        valid_match_idxs = rot_histo.get_valid_idxs()
+        if len(valid_match_idxs) > 0:
+            final_idxs1 = final_idxs1[valid_match_idxs]
+            final_idxs2 = final_idxs2[valid_match_idxs]
+        else:
+            final_idxs1 = np.array([])
+            final_idxs2 = np.array([])
+    
+    num_found_matches = len(final_idxs1)
              
     if __debug__:
         print('search_frame_for_triangulation - timer: ', timer.elapsed())
 
-    return idxs1_out, idxs2_out, num_found_matches, img2_epi
+    return final_idxs1, final_idxs2, num_found_matches
 
 
 # search by projection matches between {input map points} and {keyframe points} and fuse them if they are close enough

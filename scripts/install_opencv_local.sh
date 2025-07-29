@@ -238,8 +238,9 @@ if [ "$CONDA_INSTALLED" = true ]; then
     -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_CXX_STANDARD=17 \
     -DWITH_WEBP=ON -DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON \
     -DOPENCV_FFMPEG_SKIP_BUILD_CHECK=ON"
+
+    echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
 fi
-echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
 
 if [[ $version == *"24.04"* ]] ; then
     export CMAKE_ARGS="$CMAKE_ARGS -DBUILD_opencv_sfm=OFF" # It seems this module brings some build issues with Ubuntu 24.04

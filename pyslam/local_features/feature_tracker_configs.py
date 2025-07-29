@@ -117,26 +117,8 @@ class FeatureTrackerConfigs:
                       descriptor_type = FeatureDescriptorTypes.FREAK,
                       sigma_level0 = Parameters.kSigmaLevel0,      
                       match_ratio_test = kDefaultRatioTest,                          
-                      tracker_type = kTrackerType)       
-
-    BRISK = dict(num_features=kNumFeatures,                     
-                num_levels = 4, 
-                scale_factor = 1.2,
-                detector_type = FeatureDetectorTypes.BRISK, 
-                descriptor_type = FeatureDescriptorTypes.BRISK,
-                sigma_level0 = Parameters.kSigmaLevel0, 
-                match_ratio_test = kDefaultRatioTest,                               
-                tracker_type = kTrackerType)  
+                      tracker_type = kTrackerType)
     
-    BRISK_TFEAT = dict(num_features=kNumFeatures,                     
-                       num_levels = 4, 
-                       scale_factor = 1.2,
-                       detector_type = FeatureDetectorTypes.BRISK, 
-                       descriptor_type = FeatureDescriptorTypes.TFEAT, 
-                       sigma_level0 = Parameters.kSigmaLevel0,
-                       match_ratio_test = kDefaultRatioTest,                               
-                       tracker_type = kTrackerType)        
-
     ORB = dict(num_features=kNumFeatures, 
                num_levels = 8, 
                scale_factor = 1.2, 
@@ -163,6 +145,15 @@ class FeatureTrackerConfigs:
                  match_ratio_test = kDefaultRatioTest,                           
                  tracker_type = kTrackerType)   
 
+    BRISK_TFEAT = dict(num_features=kNumFeatures,                     
+                       num_levels = 4, 
+                       scale_factor = 1.2,
+                       detector_type = FeatureDetectorTypes.BRISK, 
+                       descriptor_type = FeatureDescriptorTypes.TFEAT, 
+                       sigma_level0 = Parameters.kSigmaLevel0,
+                       match_ratio_test = kDefaultRatioTest,                               
+                       tracker_type = kTrackerType)        
+    
     KAZE = dict(num_features=kNumFeatures,
                 num_levels = 8,
                 detector_type = FeatureDetectorTypes.KAZE, 

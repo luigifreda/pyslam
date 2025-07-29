@@ -72,7 +72,7 @@ if TYPE_CHECKING:
 kVerbose = True     
 kTimerVerbose = False 
 
-kShowFeatureMatches = True            # this flag dominates over the following related ones kShowFeatureMatchesXXX
+kShowFeatureMatches = False            # this flag dominates over the following related ones kShowFeatureMatchesXXX
 kShowFeatureMatchesPrevFrame = True 
 kShowFeatureMatchesRefFrame = True
 kShowFeatureMatchesLocalMap = True
@@ -340,6 +340,32 @@ class Tracking:
         return  idxs_ref, idxs_cur
 
 
+    # Use a general homography RANSAC matcher with a large threshold of 5 pixels to model the inter-frame transformation for a generic motion
+    # NOTE: this method is used to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
+    def find_homography_with_ransac(self, f_cur, f_ref, idxs_cur, idxs_ref, reproj_threshold=5, min_num_inliers=15):
+        if len(idxs_cur) == 0 or len(idxs_cur) != len(idxs_ref):
+            Printer.red(f'find_homography_with_ransac: idxs_cur is empty or len(idxs_cur) != len(idxs_ref)')
+            return False, np.array([], dtype=int), np.array([], dtype=int), 0, 0
+        
+        ransac_method = None 
+        try: 
+            ransac_method = cv2.USAC_MSAC 
+        except: 
+            ransac_method = cv2.RANSAC                 
+        kps_cur = f_cur.kps[idxs_cur]
+        kps_ref = f_ref.kps[idxs_ref]
+        H, mask = cv2.findHomography(kps_cur, kps_ref, ransac_method, ransacReprojThreshold=reproj_threshold)
+        num_inliers = np.count_nonzero(mask)
+        num_outliers = len(idxs_cur) - num_inliers
+        if num_inliers < min_num_inliers:
+            return False, np.array([], dtype=int), np.array([], dtype=int), 0, 0    
+        else:
+            idxs_cur = idxs_cur[mask.ravel() == 1]
+            idxs_ref = idxs_ref[mask.ravel() == 1]
+            num_matched_kps = len(idxs_cur) 
+            return True, idxs_cur, idxs_ref, num_matched_kps, num_outliers
+        
+        
     def pose_optimization(self, f_cur, name=''):
         print('pose opt %s ' % (name) ) 
         pose_before=f_cur.pose.copy() 
@@ -359,26 +385,6 @@ class Tracking:
          
         return self.pose_is_ok, self.mean_pose_opt_chi2_error
     
-    
-    # Use a general RANSAC homography matcher with a large threshold of 5 pixels to model the inter-frame transformation for generic motion
-    def find_homography_with_ransac(self, f_cur, f_ref, idxs_cur, idxs_ref, threshold=5, min_num_matched=15):
-        ransac_method = None 
-        try: 
-            ransac_method = cv2.USAC_MSAC 
-        except: 
-            ransac_method = cv2.RANSAC                 
-        kps_cur = f_cur.kps[idxs_cur]
-        kps_ref = f_ref.kps[idxs_ref]
-        H, mask = cv2.findHomography(kps_cur, kps_ref, ransac_method, ransacReprojThreshold=threshold)
-        num_inliers = np.count_nonzero(mask)
-        if num_inliers < min_num_matched:
-            return False, np.array([], dtype=int), np.array([], dtype=int), 0
-        else:
-            idxs_cur = idxs_cur[mask.ravel() == 1]
-            idxs_ref = idxs_ref[mask.ravel() == 1]
-            num_matched_kps = len(idxs_cur)            
-            return True, idxs_cur, idxs_ref, num_matched_kps
-        
         
     # track camera motion of f_cur w.r.t. f_ref 
     def track_previous_frame(self, f_ref: Frame, f_cur: Frame):            
@@ -420,9 +426,9 @@ class Tracking:
                        
             if f_cur.is_blurry or f_ref.is_blurry:
                 # use homography RANSAC to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
-                matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps = self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
+                matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps, num_outliers = self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
                 if matching_is_ok:
-                    Printer.orange("# matched map points with homography and RANSAC: %d " % self.num_matched_kps)                              
+                    Printer.orange(f"# matched inter-frame map points with homography and RANSAC: {self.num_matched_kps}, percentage of inliers: {self.num_matched_kps/(num_outliers+self.num_matched_kps)*100:.2f}%")                              
                                                 
             if kShowFeatureMatches and kShowFeatureMatchesPrevFrame: 
                 img_matches = draw_feature_matches(f_ref.img, f_cur.img, 
@@ -517,12 +523,12 @@ class Tracking:
             Printer.orange('Not enough matches in search frame by projection: ', self.num_matched_kps)
             return
                   
-        # use RANSAC homography to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
+        # use homography RANSAC to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
         # only if both frames are not keyframes (so they are expected to be close in space) and at least one is blurry        
         if (f_cur.is_blurry or f_ref.is_blurry) and (not f_cur.is_keyframe and not f_ref.is_keyframe):
-            matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps = self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
+            matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps, num_outliers = self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
             if matching_is_ok:
-                Printer.orange("# matched map points with homography and RANSAC: %d " % self.num_matched_kps)               
+                Printer.orange(f"# matched inter-frame map points with homography and RANSAC: {self.num_matched_kps}, percentage of inliers: {self.num_matched_kps/(num_outliers+self.num_matched_kps)*100:.2f}%")               
              
         print("# keypoints matched: %d " % self.num_matched_kps)  
 
@@ -685,7 +691,7 @@ class Tracking:
         if num_keyframes <= 2:
             nMinObs = 2  # if just two keyframes then we can have just two observations 
         num_kf_ref_tracked_points = self.kf_ref.num_tracked_points(nMinObs)  # number of tracked points in k_ref
-        num_f_cur_tracked_points = f_cur.num_matched_inlier_map_points()     # number of inliers in f_cur
+        num_f_cur_tracked_points = f_cur.num_matched_inlier_map_points()     # number of inliers map points in f_cur
         #num_f_cur_tracked_points = self.num_matched_map_points if self.num_matched_map_points is not None else 0 # updated in the last self.track_local_map()
         tracking_info_message = f'F({f_cur.id}) #matched points: {num_f_cur_tracked_points}, KF({self.kf_ref.id}) #matched points: {num_kf_ref_tracked_points}'
         Printer.green(tracking_info_message)
@@ -724,12 +730,12 @@ class Tracking:
             thRefRatio = 0.4
 
         if self.sensor_type == SensorType.MONOCULAR:
-            thRefRatio = Parameters.kThNewKfRefRatio
+            thRefRatio = Parameters.kThNewKfRefRatioMonocular
             
         if not Parameters.kLocalMappingOnSeparateThread: 
             if self.sensor_type != SensorType.MONOCULAR:           
                 # NOTE: in single-threaded mode, is_local_mapping_idle is always True => cond1b always Trye => too many keyframes       
-                self.min_frames_between_kfs = 2         
+                self.min_frames_between_kfs = 3        
                                                                                                                                                           
         # condition 1a: more than "max_frames_between_kfs" have passed from last keyframe insertion                                        
         cond1a = f_cur.id >= (self.kf_last.id + self.max_frames_between_kfs) 
@@ -738,8 +744,9 @@ class Tracking:
         cond1b = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) and is_local_mapping_idle                                       
                   
         # condition 1c: tracking is weak 1
-        cond1c = (self.sensor_type!=SensorType.MONOCULAR) and (num_f_cur_tracked_points<num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocular or is_need_to_insert_close) 
-        
+        cond1c = (self.sensor_type!=SensorType.MONOCULAR) and \
+            (num_f_cur_tracked_points<num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocular or is_need_to_insert_close)
+                    
         # condition 1d: tracking image coverage is weak 
         # we divide the image in 3x2 cells and check that each cell is filled by at least one point (the partition is assumed to be gross in order not to generate too many KFs)
         cond1d = False 
@@ -772,7 +779,7 @@ class Tracking:
                         min_dist = np.min(dists)
                         cond3 = min_dist > self.max_fov_centers_distance
         
-        #print(f'KF conditions: cond1a: {cond1a}, cond1b: {cond1b}, cond1c: {cond1c}, cond1d: {cond1d}, cond2: {cond2}')
+        #print(f'KF conditions: 1a: {cond1a}, 1b: {cond1b}, 1c: {cond1c}, 1d: {cond1d}, 2: {cond2}, 3: {cond3}')
         condition_checks = ( (cond1a or cond1b or cond1c or cond1d) and cond2 ) or cond3    
                                                         
         if condition_checks:
@@ -1017,10 +1024,22 @@ class Tracking:
         else:
             FeatureTrackerShared.feature_tracker.set_normal_num_features()
 
+        # preprocessing 
+        f_cur_is_blurry = False
+        if Parameters.kUseMotionBlurDection:
+            f_cur_is_blurry, f_cur_laplacian_var = detect_blur_laplacian(img)
+            if f_cur_is_blurry:
+                Printer.purple(f'img {img_id} is blurry, laplacian_var: {f_cur_laplacian_var}')
+                # img = cv2.GaussianBlur(img, (5, 5), 0) # NOTE: just testing prefiltering to push feature tracking on higher levels of the pyramid
+
         # build current frame 
         self.timer_frame.start()        
         f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id)
         self.f_cur = f_cur 
+        if f_cur_is_blurry:
+            f_cur.is_blurry = True
+            f_cur.laplacian_var = f_cur_laplacian_var
+            
         #print("frame: ", f_cur.id)        
         self.timer_frame.refresh()   
         
@@ -1102,14 +1121,7 @@ class Tracking:
                             
         # HACK: Since local mapping may be not fast enough in python (and tracking is not in real-time) => give local mapping more time to process stuff  
         self.wait_for_local_mapping()  # N.B.: this must be outside the `with self.map.update_lock:` block
-                                    
-                                    
-        # preprocessing 
-        if Parameters.kUseMotionBlurDection:
-            self.f_cur.is_blurry, self.f_cur.laplacian_var = detect_blur_laplacian(self.f_cur.img)
-            if self.f_cur.is_blurry:
-                Printer.purple(f'img {img_id} is blurry, laplacian_var: {self.f_cur.laplacian_var}')
-                
+                                                    
                                     
         with self.map.update_lock:
             
@@ -1222,8 +1234,8 @@ class Tracking:
                             self.local_mapping.step()                             
                             for kf in self.map.local_map.get_keyframes():
                                 kf.update_connections()
-                        # if self.kf_ref is not None:
-                        #     self.map.local_map.update(self.kf_ref)                                
+                            # if self.kf_ref is not None:
+                            #     self.map.local_map.update(self.kf_ref)                                
                 
                                   
         # end block {with self.map.update_lock:}  
