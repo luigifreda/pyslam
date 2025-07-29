@@ -31,6 +31,8 @@ else
     echo "OS: $version"
 fi
 
+architecture=$(uname -m)
+
 # Check if conda is installed
 if command -v conda &> /dev/null; then
     CONDA_INSTALLED=true
@@ -87,34 +89,46 @@ if [[ $version != *"darwin"* ]]; then
     sudo apt-get install -y build-essential cmake 
     if [[ "$CUDA_ON" == "ON" ]]; then 
         if [[ $version == *"24.04"* ]] ; then
-            install_packages libcudnn-dev
+            sudo apt install -y libcudnn-dev
         else 
-            install_packages libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
+            sudo apt install -y libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
         fi
     fi 
 
     if [[ $version == *"22.04"* || $version == *"24.04"* ]] ; then
         sudo apt install -y libtbb-dev libeigen3-dev 
         sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
-        sudo add-apt-repository -y "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
-        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 # for libjasper-dev 
-        sudo apt update
-        sudo apt install -y libjasper-dev
+
+        if [[ $architecture != *"arm64"* ]]; then
+            sudo add-apt-repository -y "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+            sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 # for libjasper-dev 
+            sudo apt update
+            sudo apt install -y libjasper-dev
+        fi
+
         sudo apt install -y libv4l-dev libdc1394-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
                                 libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
     fi
     if [[ $version == *"20.04"* ]] ; then
         sudo apt install -y libtbb-dev libeigen3-dev 
         sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
-        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
-        sudo apt install -y libjasper-dev
+
+        if [[ $architecture != *"arm64"* ]]; then
+            sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+            sudo apt install -y libjasper-dev
+        fi
+
         sudo apt install -y libv4l-dev libdc1394-22-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
                                 libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
     fi        
     if [[ $version == *"18.04"* ]] ; then
         sudo apt-get install -y libpng-dev 
-        sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
-        sudo apt-get install -y libjasper-dev
+
+        if [[ $architecture != *"arm64"* ]]; then
+            sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
+            sudo apt-get install -y libjasper-dev
+        fi
+
     fi
     if [[ $version == *"16.04"* ]] ; then
         sudo apt-get install -y libpng12-dev libjasper-dev 
@@ -180,9 +194,12 @@ export LIBRARY_PATH="$PYTHON_ENV/lib:$LIBRARY_PATH"
 
 # Add NumPy library path if needed
 NUMPY_LIB_PATH=$(python3 -c "import numpy; print(numpy.__path__[0] + '/core/lib')")
-export LDFLAGS="-L$NUMPY_LIB_PATH:$LDFLAGS"
-export LIBRARY_PATH="$NUMPY_LIB_PATH:$LIBRARY_PATH"
-
+if [[ -d "$NUMPY_LIB_PATH" ]]; then
+    export LDFLAGS="-L$NUMPY_LIB_PATH:$LDFLAGS"
+    export LIBRARY_PATH="$NUMPY_LIB_PATH:$LIBRARY_PATH"
+else
+    print_yellow "Warning: NumPy lib path not found: $NUMPY_LIB_PATH"
+fi
 
 export CONDA_OPTIONS=""
 if [ "$CONDA_INSTALLED" = true ]; then
@@ -199,17 +216,21 @@ echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
 export CMAKE_ARGS="-DOPENCV_ENABLE_NONFREE=ON \
 -DOPENCV_EXTRA_MODULES_PATH=$MY_OPENCV_PYTHON_PATH/opencv_contrib/modules \
 -DBUILD_SHARED_LIBS=OFF \
--DWITH_FFMPEG=ON  "$CONDA_OPTIONS" \
+-DWITH_FFMPEG=ON "$CONDA_OPTIONS" \
 -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF ${EXTERNAL_OPTIONS}"
 
 if [[ $version == *"24.04"* ]] ; then
     export CMAKE_ARGS="$CMAKE_ARGS -DBUILD_opencv_sfm=OFF" # It seems this module brings some build issues with Ubuntu 24.04
 fi
 
+if [[ $architecture == *"arm64"* ]]; then
+    export CMAKE_ARGS="$CMAKE_ARGS -DWITH_JASPER=OFF"
+fi
+
 export CMAKE_ARGS="$CMAKE_ARGS" # -DCMAKE_CXX_FLAGS=$CPPFLAGS"
 export CMAKE_CXX_FLAGS="$CPPFLAGS"
 export CMAKE_INCLUDE_PATH="$CPP_INCLUDE_PATH"
-export CMAKE_LIBRARY_PATH="$LIBRARY_PATH"
+export CMAKE_LIBRARY_PATH="${LIBRARY_PATH}:${CMAKE_LIBRARY_PATH:-}"
 
 # build opencv_python 
 pip3 wheel . --verbose
