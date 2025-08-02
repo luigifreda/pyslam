@@ -145,7 +145,7 @@ SAVE_TRAJECTORY:
 
 
 # This section allows to change and override the default values of the global parameters contained in pyslam/config_parameters.py
-# In this way, this yaml configuration can be used as a unique entry-point for launching experiments. 
+# In this way, this yaml configuration serves as a unique entry point to configure and launch experiments. 
 GLOBAL_PARAMETERS: 
   #kUseVolumetricIntegration: True
   #kVolumetricIntegrationUseDepthEstimator: True

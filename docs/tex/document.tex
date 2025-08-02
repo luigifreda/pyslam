@@ -29,15 +29,9 @@
 \usepackage[a4paper, margin=1in]{geometry} % Adjust margins here
 \usepackage{amssymb,amsmath}
 \usepackage{ifxetex,ifluatex}
-\usepackage{fixltx2e} % provides \textsubscript
-\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
-  \usepackage[T1]{fontenc}
-  \usepackage[utf8]{inputenc}
-  \usepackage{textcomp} % provides euro and other symbols
-\else % if luatex or xelatex
-  \usepackage{unicode-math}
-  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
-\fi
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
 % use upquote if available, for straight quotes in verbatim environments
 \IfFileExists{upquote.sty}{\usepackage{upquote}}{}
 % use microtype if available
@@ -152,8 +146,8 @@
 \end{center}
 
 \begin{abstract}
-pySLAM is an open-source Python framework for Visual SLAM that supports monocular, stereo, and RGB-D camera inputs. It offers a flexible and modular interface, integrating a broad range of both classical and learning-based local features. The framework includes multiple loop closure strategies, a volumetric reconstruction pipeline, and support for depth prediction models. It also offers a comprehensive set of tools for the experimentation and evaluation of visual odometry and SLAM modules.
-Designed for both beginners and experienced researchers, pySLAM emphasizes rapid prototyping, extensibility, and reproducibility across diverse datasets. Its modular architecture facilitates the integration of custom components and encourages research that bridges traditional and deep learning-based approaches. Community contributions are welcomed, fostering collaborative development and innovation in the field of Visual SLAM.
+pySLAM is an open-source Python framework for Visual SLAM that supports monocular, stereo, and RGB-D camera inputs. It offers a flexible and modular interface, integrating a broad range of both classical and learning-based local features. The framework includes multiple loop closure strategies, a volumetric reconstruction pipeline, and support for depth prediction models. It also offers a comprehensive set of tools for experimenting with and evaluating visual odometry and SLAM modules.
+Designed for both beginners and experienced researchers, pySLAM emphasizes rapid prototyping, extensibility, and reproducibility across diverse datasets. Its modular architecture facilitates the integration of custom components and encourages research that bridges traditional and deep learning-based approaches. Community contributions are welcome, fostering collaborative development and innovation in the field of Visual SLAM.
 This document\footnote{You may find an updated version of this document at:\\ \href{https://github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}{github.com/luigifreda/pyslam/blob/master/docs/tex/document.pdf}} presents the pySLAM framework, outlining its main components, features, and usage.
 \end{abstract}
 
@@ -169,7 +163,7 @@ This document\footnote{You may find an updated version of this document at:\\ \h
 
 \section{Introduction}
 
-\textbf{pySLAM} is an open-source framework designed to accelerate research and development in Visual SLAM (Simultaneous Localization and Mapping) and Spatial AI. It originated from a practical need identified during the development of a SLAM/Spatial AI course: The absence of a unified, accessible, and extensible C++/Python-based SLAM ecosystem. The project was driven by several foundational motivations, including the desire to rapidly prototype and evaluate both \textit{classical} and \textit{learning-based} features within complete VO/SLAM pipelines, ensure reproducibility across a wide range of datasets, and significantly lower the entry barrier for newcomers to the field.
+\textbf{pySLAM} is an open-source framework designed to accelerate research and development in Visual SLAM (Simultaneous Localization and Mapping) and Spatial AI. It originated from a practical need identified during the development of a SLAM/Spatial AI course: The  absence of a unified, accessible, and extensible SLAM ecosystem in C++ and Python. The project was driven by several foundational motivations, including the desire to rapidly prototype and evaluate both \textit{classical} and \textit{learning-based} features within complete VO/SLAM pipelines, ensure reproducibility across a wide range of datasets, and significantly lower the entry barrier for newcomers to the field.
 
 A key decision behind pySLAM development was the choice of \textit{Python} as its primary language. Compared to C++, Python enables faster experimentation and benefits from a mature and expanding ecosystem of deep learning tools and research-oriented APIs. This choice aligns with current trends in computer vision and robotics research, where rapid prototyping and flexible experimentation are essential.
 
@@ -177,7 +171,7 @@ However, designing a modern SLAM framework in Python presents several challenges
 
 To address these issues, pySLAM is built on several key design principles. \textit{Modularity} is central: components such as local/global features, loop closure mechanisms, semantic mapping, and volumetric integration can be easily swapped or extended. This architecture supports the use of interchangeable baselines, enabling researchers to plug-and-play with different configurations depending on their goals. \textit{Extensibility} is facilitated through a base-class architecture that allows new components to be integrated with minimal friction, making pySLAM a flexible platform for benchmarking and algorithm development.
 
-In terms of usability, pySLAM emphasizes simplicity in build and deployment. It supports a unified Python environment compatible with \textit{conda}, \textit{pyenv}, and \textit{pixi}, and offers a one-command installation process that covers setup and dataset acquisition. Cross-platform compatibility (Linux, macOS, Windows with WSL2) and full source accessibility further enhance its utility for both academic and industrial use.
+In terms of usability, pySLAM emphasizes simplicity in the build and deployment process.. It supports a unified Python environment compatible with \textit{conda}, \textit{pyenv}, and \textit{pixi}, and offers a one-command installation process that covers setup and dataset acquisition. Cross-platform compatibility (Linux, macOS, Windows with WSL2) and full source accessibility further enhance its utility for both academic and industrial use.
 
 Another cornerstone of the framework is standardized dataset handling. By providing a unified interface to multiple datasets, pySLAM encourages \textit{reproducibility} and \textit{reusability}. It supports consistent data loading, map state saving/loading, and automatic generation of evaluation metrics -- including final and online trajectory estimation -- thus enabling robust comparison between algorithms.
 
@@ -223,13 +217,13 @@ The objective of this document is to present the pySLAM framework, its main feat
     
     \item Additional tools for VO (Visual Odometry) and SLAM, with built-in
     support for both \textbf{g2o} and \textbf{GTSAM}, along with custom
-    Python bindings for features not included in the original libraries
+    Python bindings for features not available in the original libraries
 
     \item Built-in support for over \textbf{\protect\hyperlink{datasets}{10 dataset
     types}}. The list is currently growing.
 \end{itemize}
 
-pySLAM serves as flexible baseline framework to experiment with VO/SLAM
+pySLAM serves as a flexible baseline framework to experiment with VO/SLAM
 techniques, \emph{\protect\hyperlink{supported-local-features}{local
 features}},
 \emph{\protect\hyperlink{supported-global-descriptors-and-local-descriptor-aggregation-methods}{descriptor
@@ -241,7 +235,7 @@ integration}}, \emph{\protect\hyperlink{depth-prediction}{depth
 prediction}} and \emph{\protect\hyperlink{semantic-mapping}{semantic
 mapping}}. It allows to explore, prototype and develop VO/SLAM
 pipelines. pySLAM is a research framework and a work in progress. It is
-not optimized for real-time performances.
+not optimized for real-time performance.
 
 
 \hypertarget{system_overview}{%
@@ -249,7 +243,7 @@ not optimized for real-time performances.
 
 \subsection{Main Scritps}
 
-A convenient entry-point are the following \textbf{main scripts}:
+A convenient entry point is the following collection of \textbf{main scripts}:
 \begin{itemize}
 \item 
 \texttt{main\_vo.py} combines the simplest VO
@@ -371,11 +365,11 @@ The \textit{Feature Tracker} consists of the following key sub-components:
 \item \textit{Feature Matcher}: Establishes correspondences between features in successive frames (or stereo pairs) by comparing their descriptors or directly inferring matches from image content. Matching can be performed using brute-force, k-NN with ratio test, or learned matching strategies. Refere to Sect.~\ref{Sect:FeatureMatcher} for futher details.
 \end{itemize}
 
-Sect.~\ref{supported-local-features} reports the list of supported local feature extractors and detectors.
+Sect.~\ref{supported-local-features} lists the supported local feature extractors and detectors.
 
 The diagram in Fig.~\ref{Fig:FeatureTracker} presents the architecture of the \textit{Feature Tracker} system. It is structured around a \texttt{feature\_tracker\_factory}, which instantiates specific tracker types such as \texttt{LK}, \texttt{DES\_BF}, \texttt{DES\_FLANN}, \texttt{XFEAT}, \texttt{LIGHTGLUE}, and \texttt{LOFTR}. Each tracker type creates a corresponding implementation (e.g., \texttt{LKFeatureTracker}, \texttt{DescriptorFeatureTracker}, etc.), all of which inherit from a common \texttt{FeatureTracker} interface.
 
-The \texttt{FeatureTracker} class is composed of several key sub-components, including a \texttt{FeatureManager}, \texttt{FeatureDetector}, \texttt{FeatureDescriptor}, \texttt{PyramidAdaptor}, \texttt{BlockAdaptor}, and \texttt{FeatureMatcher}. The \texttt{FeatureManager} itself also encapsulates instances of the detector, descriptor, and adaptors, highlighting the modular and reusable design of the tracking pipeline.
+The \texttt{FeatureTracker} class is composed of several key sub-components, including a \texttt{FeatureManager}, \texttt{FeatureDetector}, \texttt{FeatureDescriptor}, \texttt{PyramidAdaptor}, \texttt{BlockAdaptor}, and \texttt{FeatureMatcher}. The \texttt{FeatureManager} also encapsulates instances of the detector, descriptor, and adaptors, highlighting the modular and reusable design of the tracking pipeline.
 
 
 \begin{figure}[!t]
@@ -479,7 +473,7 @@ A more in-depth presentation of the semantic mapping module is provided in~\cite
 %
 %If you run into issues or errors during the installation process or at
 %run-time, please, check the
-%\href{./docs/TROUBLESHOOTING.md}{docs/TROUBLESHOOTING.md} file. Before
+%\href{https://github.com/luigifreda/pyslam/blob/master/docs/TROUBLESHOOTING.md}{docs/TROUBLESHOOTING.md} file. Before
 %submitting a new git issue please read
 %\href{docs/TROUBLESHOOTING.md\#submitting-a-git-issue}{here}.
 
@@ -500,10 +494,10 @@ new terminal you are supposed to start with this command:
 \end{Shaded}
 \end{scriptsize}
 
-The file \href{./config.yaml}{config.yaml} can be used as a unique
+The file \href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml} can be used as a unique
 entry-point to configure the system and its global configuration
 parameters contained in
-\href{./pyslam/config_parameters.py}{config\_parameters.py}. Further
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{pyslam/config\_parameters.py}. Further
 information on how to configure pySLAM are provided
 \protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{here}.
 
@@ -524,13 +518,13 @@ commands:
 \end{scriptsize}
 
 
-By default, this processes a
+By default, the script processes a
 \href{http://www.cvlibs.net/datasets/kitti/eval_odometry.php}{KITTI}
 video (available in the folder \texttt{data/videos}) by using its
 corresponding camera calibration file (available in the folder
 \texttt{settings}), and its groundtruth (available in the same
 \texttt{data/videos} folder). If matplotlib windows are used, you can
-stop \texttt{main\_vo.py} by focusing/clicking on one of them and
+stop \texttt{main\_vo.py} by clicking on one of them and
 pressing the key `Q'. As explained above, this very \emph{basic} script
 \texttt{main\_vo.py} \textbf{strictly requires a ground truth}. Now,
 with RGBD datasets, you can also test the \textbf{RGBD odometry} with
@@ -553,21 +547,21 @@ Similarly, you can test the \textbf{full SLAM} by running
 \end{scriptsize}
 
 This will process the same default
-\href{(http://www.cvlibs.net/datasets/kitti/eval_odometry.php)}{KITTI}
+\href{http://www.cvlibs.net/datasets/kitti/eval_odometry.php}{KITTI}
 video (available in the folder \texttt{data/videos}) by using its
 corresponding camera calibration file (available in the folder
-\texttt{settings}). You can stop it by focusing/clicking on one of the
+\texttt{settings}). You can stop it by clicking on one of the
 opened windows and pressing the key `Q' or closing the 3D pangolin GUI.
 \hypertarget{selecting-a-dataset-and-different-configuration-parameters}{%
 \subsubsection{Selecting a dataset and different configuration
 parameters}\label{selecting-a-dataset-and-different-configuration-parameters}}
 
-The file \href{./config.yaml}{config.yaml} can be used as a unique
+The file \href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml} can be used as a unique
 entry-point to configure the system, the target dataset and its global
 configuration parameters set in
-\href{./pyslam/config_parameters.py}{config\_parameters.py}.
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{pyslam/config\_parameters.py}.
 To process a different \textbf{dataset} with both VO and SLAM scripts,
-you need to update the file \href{./config.yaml}{config.yaml}:
+you need to update the file \href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml}:
 \begin{itemize}
 \item Select
 your dataset \texttt{type} in the section \texttt{DATASET} (further
@@ -581,13 +575,13 @@ section (e.g.~\texttt{KITTI\_DATASET}, \texttt{TUM\_DATASET}, etc).
 \emph{\protect\hyperlink{camera-settings}{Camera Settings}} below).
 \item Set the \texttt{groudtruth\_file} accordingly. Further details in the
 section \emph{\protect\hyperlink{datasets}{Datasets}} below (see also
-the files \texttt{io/ground\_truth.py},
-\texttt{io/convert\_groundtruth\_to\_simple.py}).
+the files \texttt{pyslam/io/ground\_truth.py} and
+\texttt{pyslam/io/convert\_groundtruth\_to\_simple.py}).
 \end{itemize}
 
 You can use the section \texttt{GLOBAL\_PARAMETERS} of the file
-\href{./config.yaml}{config.yaml} to override the global configuration
-parameters set in \href{./pyslam/config_parameters.py}{config\_parameters.py}.
+\href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml} to override the global configuration
+parameters set in \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{pyslam/config\_parameters.py}.
 This is particularly useful when running a
 \protect\hyperlink{evaluating-slam}{SLAM evaluation}.
 
@@ -617,7 +611,7 @@ Features}} below for further information).
 Some basic examples are available in the subfolder
 \texttt{test/cv}. In particular, as for feature
 detection/description, you may want to take a look at
-\href{./test/cv/test_feature_manager.py}{test/cv/test\_feature\_manager.py}
+\href{https://github.com/luigifreda/pyslam/blob/master/test/cv/test_feature_manager.py}{test/cv/test\_feature\_manager.py}
 too.
 
 \hypertarget{loop-closing}{%
@@ -630,14 +624,13 @@ methods} and \protect\hyperlink{global-descriptors}{global descriptors}.
 
 While running full SLAM, loop closing is enabled by default and can be
 disabled by setting \texttt{kUseLoopClosing=False} in
-\texttt{config\_parameters.py}. Different configuration options
+\texttt{pyslam/config\_parameters.py}. Different configuration options
 \texttt{LoopDetectorConfigs} can be found in
-\url{loop_closing/loop_detector_configs.py}: Code comments provide
-additional useful details.
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py}: Code comments provide additional useful details.
 
 One can start experimenting with loop closing methods by using the
 examples in \texttt{test/loopclosing}. The example
-\href{./test/loopclosing/test_loop_detector.py}{test/loopclosing/test\_loop\_detector.py}
+\href{https://github.com/luigifreda/pyslam/blob/master/test/loopclosing/test_loop_detector.py}{test/loopclosing/test\_loop\_detector.py}
 is the recommended entry point.
 
 \hypertarget{vocabulary-management}{%
@@ -645,8 +638,8 @@ is the recommended entry point.
 
 \texttt{DBoW2}, \texttt{DBoW3}, and \texttt{VLAD} require
 \textbf{pre-trained vocabularies}. ORB-based vocabularies are
-automatically downloaded in the \texttt{data} folder (see
-\url{loop_closing/loop_detector_configs.py}).
+automatically downloaded into the \texttt{data} folder (see
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py}).
 
 To create a new vocabulary, follow these steps:
 
@@ -669,9 +662,9 @@ To create a new vocabulary, follow these steps:
 \end{enumerate}
 
 Once you have trained the vocabulary, you can add it in
-\url{loop_closing/loop_detector_vocabulary.py} and correspondingly
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_vocabulary.py}{pyslam/loop\_closing/loop\_detector\_vocabulary.py} and correspondingly
 create a new loop detector configuration in
-\url{loop_closing/loop_detector_configs.py} that uses it.
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py} that uses it.
 
 \hypertarget{vocabulary-free-loop-closing}{%
 \paragraph{Vocabulary-free loop
@@ -693,7 +686,7 @@ As mentioned above, only \texttt{DBoW2}, \texttt{DBoW3}, and
 \texttt{VLAD} require pre-trained vocabularies.
 
 \hypertarget{double-check-your-loop-detection-configuration-and-verify-vocabulary-compability}{%
-\paragraph{Double-check your loop detection configuration and verify
+\paragraph{Verify your loop detection configuration and verify
 vocabulary
 compability}\label{double-check-your-loop-detection-configuration-and-verify-vocabulary-compability}}
 
@@ -709,7 +702,7 @@ ensure the following:
 same descriptor type (this is also automatically checked for
 consistency) or their descriptor managers are independent (see further
 details in the configuration options \texttt{LoopDetectorConfigs}
-available in \url{loop_closing/loop_detector_configs.py}). 
+available in \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py}). 
 \item A corresponding pre-trained vocubulary is available. For more details,
 refer to the \protect\hyperlink{vocabulary-management}{vocabulary
 management section}.
@@ -726,9 +719,9 @@ descriptor type, you can follow one of these options:\\
 section}).\\
 2. Choose an \texttt{*\_INDEPENDENT} loop detector method, which works
 with an independent local\_feature\_manager.\\
-3. Select a vocabular-free loop closing method.
+3. Select a vocabulary-free loop closing method.
 
-See the file \url{loop_closing/loop_detector_configs.py} for further
+See the file \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py} for further
 details.
 
 \hypertarget{volumetric-reconstruction}{%
@@ -742,9 +735,9 @@ The SLAM back-end hosts a volumetric reconstruction pipeline. This is
 disabled by default. You can enable it by setting
 \texttt{kUseVolumetricIntegration=True} and selecting your preferred
 method \texttt{kVolumetricIntegrationType} in
-\texttt{config\_parameters.py}. At present, two methods are available:
+\texttt{pyslam/config\_parameters.py}. At present, two methods are available:
 \texttt{TSDF} and \texttt{GAUSSIAN\_SPLATTING} (see
-\url{dense/volumetric_integrator_factory.py}). Note that you need CUDA
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/dense/volumetric_integrator_factory.py}{pyslam/dense/volumetric\_integrator\_factory.py}). Note that you need CUDA
 in order to run \texttt{GAUSSIAN\_SPLATTING} method.
 
 At present, the volumetric reconstruction pipeline works with:
@@ -761,7 +754,7 @@ for each processed keyframe.
 \end{itemize}
 \end{itemize}
 
-If you want a mesh as output then set
+To obtain a mesh as output, set
 \texttt{kVolumetricIntegrationExtractMesh=True} in
 \texttt{config\_parameters.py}.
 
@@ -770,7 +763,7 @@ If you want a mesh as output then set
 reconstruction}\label{reload-a-saved-sparse-map-and-perform-dense-reconstruction}}
 
 Use the script \texttt{main\_map\_dense\_reconstruction.py} to reload a
-saved sparse map and to perform dense reconstruction by using its posed
+saved sparse map and perform dense reconstruction by using its posed
 keyframes as input. You can select your preferred dense reconstruction
 method directly in the script.
 
@@ -813,13 +806,13 @@ editor interface).
 \codeline{python\ test\_gsm.py\ -\/-load\ \textless{}gs\_checkpoint\_path\textgreater{}}
 \end{codeblock}
 
-The \texttt{<gs\_checkpoint\_path>} is expected to have the following structure:\\
+The directory \texttt{<gs\_checkpoint\_path>} is expected to have the following structure:\\
 \begin{scriptsize}
 \begin{Shaded}
 \begin{Highlighting}[]
 \NormalTok{+-- gs_checkpoint_path}
 \NormalTok{|   +-- pointcloud         \textit{# folder containing different subfolders, each one with a saved .ply}}
-\NormalTok{|                          \textit{# encoding the gaussian splatting model at a specific iteration/checkpoint}}
+\NormalTok{|                          \textit{# encoding the Gaussian splatting model at a specific iteration/checkpoint}}
 \NormalTok{|   +-- last_camera.json}
 \NormalTok{|   +-- config.yml}
 \end{Highlighting}
@@ -837,10 +830,10 @@ centers}\label{controlling-the-spatial-distribution-of-keyframe-fov-centers}}
 If you are targeting volumetric reconstruction while running SLAM, you
 can enable a \textbf{keyframe generation policy} designed to manage the
 spatial distribution of keyframe field-of-view (FOV) centers. The
-\emph{FOV center of a camera} is defined as the backprojection of its
-image center, calculated using the median depth of the frame. With this
-policy, a new keyframe is generated only if its FOV center is farther
-than a predefined distance from the nearest existing keyframe's FOV
+\emph{FOV center} of a camera is defined as the backprojection of its
+image center, computed using the median depth of the frame. With this
+policy, a new keyframe is generated only if its FOV center lies beyond
+a predefined distance from the nearest existing keyframe's FOV
 center. You can enable this policy by setting the following parameters
 in the yaml setting:\\
 
@@ -866,10 +859,10 @@ enabled in the \protect\hyperlink{volumetric-reconstruction}{volumetric
 reconstruction} pipeline by setting the parameter
 \texttt{kVolumetricIntegrationUseDepthEstimator=True} and selecting your
 preferred \texttt{kVolumetricIntegrationDepthEstimatorType} in
-\texttt{config\_parameters.py}. 
+\texttt{pyslam/config\_parameters.py}. 
 \item \textbf{Front-end}: Depth prediction
 can be enabled in the front-end by setting the parameter
-\texttt{kUseDepthEstimatorInFrontEnd} in \texttt{config\_parameters.py}.
+\texttt{kUseDepthEstimator\allowbreak InFrontEnd} in \texttt{pyslam/config\_parameters.py}.
 This feature estimates depth images from input color images to emulate a
 RGBD camera. Please, note this functionality is still
 \emph{experimental} at present time {[}WIP{]}.
@@ -881,15 +874,15 @@ RGBD camera. Please, note this functionality is still
 depth prediction in the back-end volumetric integration: The SLAM (fake)
 scale will conflict with the absolute metric scale of depth predictions.
 With monocular datasets, you can enable depth prediction to run in the
-front-end (to emulated an RGBD sensor). 
-\item The depth inference may be
+front-end (to emulate an RGBD sensor). 
+\item Depth inference may be
 very slow (for instance, with DepthPro it takes \textasciitilde{}1s per
-image on my machine). Therefore, the resulting volumetric reconstruction
+image on a typical machine). Therefore, the resulting volumetric reconstruction
 pipeline may be very slow.
 \end{itemize}
 
 Refer to the file
-\texttt{depth\_estimation/depth\_estimator\_factory.py} for further
+\texttt{pyslam/depth\_estimation/depth\_estimator\_factory.py} for further
 details. Both stereo and monocular prediction approaches are supported.
 You can test depth prediction/estimation by using the script
 \texttt{main\_depth\_prediction.py}.
@@ -944,7 +937,8 @@ default saving path, open \texttt{config.yaml} and update target
 \begin{Shaded}
 \begin{Highlighting}[]
 \ExtensionTok{SYSTEM_STATE}\NormalTok{:}
-  \ExtensionTok{folder_path}\NormalTok{: results/slam_state   }\CommentTok{# default folder path (relative to repository root) where the system state is saved or reloaded}
+  \ExtensionTok{folder_path}\NormalTok{: results/slam_state   }\CommentTok{# default folder path (relative to repository root) where the}
+  \ExtensionTok{           }\NormalTok{                       }\CommentTok{# system state is saved or reloaded}
 \end{Highlighting}
 \end{Shaded}
 \end{scriptsize}
@@ -977,7 +971,8 @@ it}\label{reload-a-saved-map-and-relocalize-in-it}}
 \begin{Highlighting}[]
 \ExtensionTok{SYSTEM_STATE}\NormalTok{:}
   \ExtensionTok{load_state}\NormalTok{: True                  }\CommentTok{# flag to enable SLAM state reloading (map state + loop closing state)}
-  \ExtensionTok{folder_path}\NormalTok{: results/slam_state   }\CommentTok{# default folder path (relative to repository root) where the system state is saved or reloaded}
+  \ExtensionTok{folder_path}\NormalTok{: results/slam_state   }\CommentTok{# default folder path (relative to repository root) where the}
+  \ExtensionTok{           }\NormalTok{                       }\CommentTok{# system state is saved or reloaded}  
 \end{Highlighting}
 \end{Shaded}
 \end{scriptsize}
@@ -985,13 +980,13 @@ it}\label{reload-a-saved-map-and-relocalize-in-it}}
 \end{itemize}
 
 Note that pressing the \texttt{Save} button saves the current map,
-front-end, and backend configurations. Reloading a saved map overwrites
+front-end, and backend configurations. Reloading a saved map replaces
 the current system configurations to ensure descriptor compatibility.
 
 \hypertarget{trajectory-saving}{%
 \subsubsection{Trajectory saving}\label{trajectory-saving}}
 
-Estimated trajectories can be saved in three different formats:
+Estimated trajectories can be saved in three formats:
 \emph{TUM} (The Open Mapping format), \emph{KITTI} (KITTI Odometry
 format), and \emph{EuRoC} (EuRoC MAV format). pySLAM saves two
 \textbf{types} of trajectory estimates:
@@ -1001,11 +996,11 @@ format), and \emph{EuRoC} (EuRoC MAV format). pySLAM saves two
 \item
   \textbf{Online}: In \emph{online} trajectories, each pose estimate
   depends only on past poses. A pose estimate is saved at the end of
-  each front-end iteration on current frame.
+  each front-end iteration for the current frame.
 \item
   \textbf{Final}: In \emph{final} trajectories, each pose estimate
   depends on both past and future poses. A pose estimate is refined
-  multiple times by LBA windows that cover it and by PGO and GBA during
+  multiple times by LBA windows that include it, as well as by PGO and GBA during
   loop closures.
 \end{itemize}
 
@@ -1046,8 +1041,8 @@ following parameters in \texttt{config\_parameters.py}:
 \end{scriptsize}
 
 Additionally, the \texttt{gtsam\_factors} package provides custom Python
-bindings for features not included in the original gtsam framework. See
-\href{./thirdparty/gtsam_factors/README.md}{here} for further details.
+bindings for features not available in the original gtsam framework. See
+\href{https://github.com/luigifreda/pyslam/blob/master/thirdparty/gtsam_factors/README.md}{here} for further details.
 
 \hypertarget{slam-gui}{%
 \subsection{SLAM GUI}\label{slam-gui}}
@@ -1101,7 +1096,7 @@ To launch slam and check all logs in a single tmux, run:\\
 \begin{codeblock}
 \codeline{./scripts/launch\_tmux\_slam.sh}
 \end{codeblock}
-Press \texttt{CTRL+A} and then \texttt{CTRL+Q} to exit from
+Press \texttt{CTRL+A} followed by \texttt{CTRL+Q} to exit from
 \texttt{tmux} environment.
 
 \hypertarget{evaluating-slam}{%
@@ -1131,7 +1126,7 @@ Evaluation results are presented in the following subsections. For convenience, 
 \begin{minipage}{\textwidth}
 \noindent
 \captionsetup{type=table}
-\captionof{table}{TUM: Table Rmse }\label{tab:tum_table_rmse}
+\captionof{table}{TUM: Table RMSE}\label{tab:tum_table_rmse}
 
 \fontsize{7pt}{8pt}\selectfont
 
@@ -1222,7 +1217,7 @@ Best (Average) Metric & 0.38314 &  &  \\
 \begin{minipage}{\textwidth}
 \noindent
 \captionsetup{type=table}
-\captionof{table}{EUROC: Table Rmse }\label{tab:euroc_table_rmse}
+\captionof{table}{EUROC: Table RMSE}\label{tab:euroc_table_rmse}
 
 \fontsize{7pt}{8pt}\selectfont
 
@@ -1317,7 +1312,7 @@ Best (Average) Metric & 0.03444 &  &  \\
 \begin{minipage}{\textwidth}
 \noindent
 \captionsetup{type=table}
-\captionof{table}{KITTI: Table Rmse }\label{tab:kitt_table_rmse}
+\captionof{table}{KITTI: Table RMSE}\label{tab:kitt_table_rmse}
 
 \fontsize{7pt}{8pt}\selectfont
 
@@ -1511,7 +1506,7 @@ The following feature \textbf{descriptors} are supported:
     \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector + AffNet + HardNet descriptor)
 \end{itemize}
 
-For more information, refer to \url{local_features/feature_types.py}
+For more information, refer to \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_types.py}{pyslam/local\_features/feature\_types.py}
 file. Some of the local features consist of a \emph{joint
 detector-descriptor}. You can start playing with the supported local
 features by taking a look at \texttt{test/cv/test\_feature\_manager.py}
@@ -1521,11 +1516,11 @@ In both the scripts \texttt{main\_vo.py} and \texttt{main\_slam.py}, you
 can create your preferred detector-descritor configuration and feed it
 to the function \texttt{feature\_tracker\_factory()}. Some ready-to-use
 configurations are already available in the file
-\href{local_features/feature_tracker_configs.py}{local\_features/feature\_tracker.configs.py}
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_tracker_configs.py}{pyslam/local\_features/feature\_tracker.configs.py}
 
 The function \texttt{feature\_tracker\_factory()} can be found in the
-file \texttt{local\_features/feature\_tracker.py}. Take a look at the
-file \texttt{local\_features/feature\_manager.py} for further details.
+file \texttt{pyslam/local\_features/feature\_tracker.py}. Take a look at the
+file \texttt{pyslam/local\_features/feature\_manager.py} for further details.
 
 \textbf{N.B.}: You just need a \emph{single} python environment to be
 able to work with all the
@@ -1542,7 +1537,7 @@ able to work with all the
     \item \href{https://arxiv.org/abs/2104.00680}{LoFTR}
 \end{itemize}
 
-See the file \texttt{local\_features/feature\_matcher.py} for further
+See the file \texttt{pyslam/local\_features/feature\_matcher.py} for further
 details.
 
 \hypertarget{supported-global-descriptors-and-local-descriptor-aggregation-methods}{%
@@ -1591,7 +1586,7 @@ Also referred to as \emph{holistic descriptors}:
 
 Different \protect\hyperlink{loop-closing}{loop closing methods} are
 available. These combines the above aggregation methods and global
-descriptors. See the file \url{loop_closing/loop_detector_configs.py}
+descriptors. See the file \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/loop_closing/loop_detector_configs.py}{pyslam/loop\_closing/loop\_detector\_configs.py}
 for further details.
 
 \hypertarget{supported-depth-prediction-models}{%
@@ -1661,8 +1656,8 @@ methods}\label{supported-semantic-segmentation-methods}}
 Refer to
 \protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{this
 section} for how to update the main configuration file
-\href{./config.yaml}{config.yaml} and affect the configuration
-parameters in \href{./pyslam/config_parameters.py}{config\_parameters.py}.
+\href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml} and affect the configuration
+parameters in \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{config\_parameters.py}.
 
 \hypertarget{datasets}{%
 \subsubsection{Datasets}\label{datasets}}
@@ -1746,13 +1741,13 @@ folder (specified in the section \texttt{TUM\_DATASET:} of the file
 \tightlist
 \item
   Download a sequence from
-  http://vision.in.tum.de/data/datasets/rgbd-dataset/download and
+  \href{http://vision.in.tum.de/data/datasets/rgbd-dataset/download}{vision.in.tum.de/data/datasets/rgbd-dataset/download} and
   uncompress it.
 \item
   Associate RGB images and depth images using the python script
   \href{http://vision.in.tum.de/data/datasets/rgbd-dataset/tools}{associate.py}.
-  You can generate your \texttt{associations.txt} file by executing:
-  \texttt{bash\ \ \$\ python\ associate.py\ PATH\_TO\_SEQUENCE/rgb.txt\ PATH\_TO\_SEQUENCE/depth.txt\ \textgreater{}\ associations.txt\ \ \ \ \ \ \#\ pay\ attention\ to\ the\ order!}
+  You can generate your \texttt{associations.txt} file by executing:\\
+  \texttt{\$\ python\ associate.py\ PATH\_TO\_SEQUENCE/rgb.txt\ PATH\_TO\_SEQUENCE/depth.txt\ \textgreater{}\ associations.txt\ \ \ \ \ \ \#\ pay\ attention\ to\ the\ order!}
 \item
   Select the corresponding calibration settings file (section
   \texttt{TUM\_DATASET:\ settings:} in the file \texttt{config.yaml}).
@@ -1827,12 +1822,10 @@ Follow the same instructions provided for the TUM datasets.
 \tightlist
 \item
   You can download the datasets following instructions in
-  http://www.scan-net.org/. You will need to request the dataset from
+  \href{http://www.scan-net.org}{http://www.scan-net.org}. You will need to request the dataset from
   the authors.
 \item
   There are two versions you can download:
-\end{enumerate}
-
 \begin{itemize}
 \tightlist
 \item
@@ -1852,11 +1845,6 @@ Follow the same instructions provided for the TUM datasets.
   original Scannet repository is tested under Python 2.7 and does't
   support batch downloading of scenes.
 \end{itemize}
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\setcounter{enumi}{1}
-\tightlist
 \item
   Once you have the \texttt{color}, \texttt{depth}, \texttt{pose}, and
   (optional for semantic mapping) \texttt{label} folders, you should
@@ -1944,7 +1932,7 @@ or this other
 
 If you want to \textbf{use your camera}, you have to: 
 \begin{itemize}
-\item Calibrate it and configure \href{./settings/WEBCAM.yaml}{WEBCAM.yaml} accordingly.
+\item Calibrate it and configure \href{https://github.com/luigifreda/pyslam/blob/master/settings/WEBCAM.yaml}{settings/WEBCAM.yaml} accordingly.
 \item Record a video (for instance, by using \texttt{save\_video.py} in the folder \texttt{calibration}). 
 \item Configure the \texttt{VIDEO\_DATASET} section of \texttt{config.yaml} in order to point to your recorded video.
 \end{itemize}
@@ -2047,13 +2035,13 @@ The following is a list of frameworks that inspired or has been integrated into 
 \end{itemize}
 
 
-\hypertarget{contributing-to-pyslam}{%
-\section{Contributing to pySLAM}\label{contributing-to-pyslam}}
-
-If you like pySLAM and would like to contribute to the code base, you
-can report bugs, leave comments and proposing new features through
-issues and pull requests on github. Feel free to get in touch at
-\emph{luigifreda(at)gmail{[}dot{]}com}. Thank you!
+%\hypertarget{contributing-to-pyslam}{%
+%\section{Contributing to pySLAM}\label{contributing-to-pyslam}}
+%
+%If you like pySLAM and would like to contribute to the code base, you
+%can report bugs, leave comments and proposing new features through
+%issues and pull requests on github. Feel free to get in touch at
+%\emph{luigifreda(at)gmail{[}dot{]}com}. Thank you!
 
 
 %\section*{References}

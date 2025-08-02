@@ -9,10 +9,10 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping)** of the scene, such as DeepLabv3, Segformer, and dense CLIP.
-- Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not included in the original libraries.
+- Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
 
-pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performances.   
+pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performance.   
 
 **Enjoy it!**
 
@@ -44,7 +44,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
     - [Loop closing and relocalization](#loop-closing-and-relocalization)
       - [Vocabulary management](#vocabulary-management)
       - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
-      - [Double-check your loop detection configuration and verify vocabulary compability](#double-check-your-loop-detection-configuration-and-verify-vocabulary-compability)
+      - [Verify your loop detection configuration and verify vocabulary compability](#verify-your-loop-detection-configuration-and-verify-vocabulary-compability)
         - [Loop detection method based on a pre-trained vocabulary](#loop-detection-method-based-on-a-pre-trained-vocabulary)
         - [Missing vocabulary for the selected front-end descriptor type](#missing-vocabulary-for-the-selected-front-end-descriptor-type)
     - [Volumetric reconstruction](#volumetric-reconstruction)
@@ -119,6 +119,7 @@ pySLAM serves as flexible baseline framework to experiment with VO/SLAM techniqu
 ```
 
 ### Main Scripts
+
 * `main_vo.py` combines the simplest VO ingredients without performing any image point triangulation or windowed bundle adjustment. At each step $k$, `main_vo.py` estimates the current camera pose $C_k$ with respect to the previous one $C_{k-1}$. The inter-frame pose estimation returns $[R_{k-1,k},t_{k-1,k}]$ with $\Vert t_{k-1,k} \Vert=1$. With this very basic approach, you need to use a ground truth in order to recover a correct inter-frame scale $s$ and estimate a valid trajectory by composing $C_k = C_{k-1} [R_{k-1,k}, s t_{k-1,k}]$. This script is a first start to understand the basics of inter-frame feature tracking and camera pose estimation.
 
 * `main_slam.py` adds feature tracking along multiple frames, point triangulation, keyframe management, bundle adjustment, loop closing, dense mapping and depth inference in order to estimate the camera trajectory and build both a sparse and dense map. It's a full SLAM pipeline and includes all the basic and advanced blocks which are necessary to develop a real visual SLAM pipeline.
@@ -225,7 +226,7 @@ Open a new terminal and start experimenting with the scripts. In each new termin
 $ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 ```
 If you are using `pixi` then just run `pixi shell` to activate the `pyslam` environment.
-The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system and its global configuration parameters contained in [pyslam/config_parameters.py](./pyslam/config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
+The file [config.yaml](./config.yaml) serves as a single entry point to configure the system and its global configuration parameters contained in [pyslam/config_parameters.py](./pyslam/config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
 
  
 
@@ -237,7 +238,7 @@ The basic **Visual Odometry** (VO) can be run with the following commands:
 $ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 $ ./main_vo.py
 ```
-By default, this processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by focusing/clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
+By default, the script processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
 Now, with RGBD datasets, you can also test the **RGBD odometry** with the classes `VisualOdometryRgbd` or `VisualOdometryRgbdTensor` (ground truth is not required here). 
  
 
@@ -250,13 +251,13 @@ $ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once
 $ ./main_slam.py
 ```
 
-This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by focusing/clicking on one of the opened windows and pressing the key 'Q' or closing the 3D pangolin GUI. 
+This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the opened windows and pressing the key 'Q' or closing the 3D pangolin GUI. 
 
 --- 
 
 ### Selecting a dataset and different configuration parameters
 
-The file [config.yaml](./config.yaml) can be used as a unique entry-point to configure the system, the target dataset and its global configuration parameters set in [pyslam/config_parameters.py](./pyslam/config_parameters.py). 
+The file [config.yaml](./config.yaml) serves as a single entry point to configure the system, the target dataset and its global configuration parameters set in [pyslam/config_parameters.py](./pyslam/config_parameters.py). 
 
 To process a different **dataset** with both VO and SLAM scripts, you need to update the file [config.yaml](./config.yaml):
 * Select your dataset `type` in the section `DATASET` (further details in the section *[Datasets](#datasets)* below for further details). This identifies a corresponding dataset section (e.g. `KITTI_DATASET`, `TUM_DATASET`, etc). 
@@ -294,7 +295,7 @@ One can start experimenting with loop closing methods by using the examples in `
 
 #### Vocabulary management 
 
-`DBoW2`, `DBoW3`, and `VLAD` require **pre-trained vocabularies**. ORB-based vocabularies are automatically downloaded in the `data` folder (see [pyslam/loop_closing/loop_detector_configs.py](pyslam/loop_closing/loop_detector_configs.py)).
+`DBoW2`, `DBoW3`, and `VLAD` require **pre-trained vocabularies**. ORB-based vocabularies are automatically downloaded into the `data` folder (see [pyslam/loop_closing/loop_detector_configs.py](pyslam/loop_closing/loop_detector_configs.py)).
 
 To create a new vocabulary, follow these steps:
 
@@ -314,7 +315,7 @@ Most methods do not require pre-trained vocabularies. Specifically:
 
 As mentioned above, only `DBoW2`, `DBoW3`, and `VLAD` require pre-trained vocabularies.
 
-#### Double-check your loop detection configuration and verify vocabulary compability
+#### Verify your loop detection configuration and verify vocabulary compability
 
 ##### Loop detection method based on a pre-trained vocabulary
 
@@ -327,7 +328,7 @@ When selecting a **loop detection method based on a pre-trained vocabulary** (su
 If you lack a compatible vocabulary for the selected front-end descriptor type, you can follow one of these options:     
 1. Create and load the vocabulary (refer to the [vocabulary management section](#vocabulary-management)).     
 2. Choose an `*_INDEPENDENT` loop detector method, which works with an independent local_feature_manager.     
-3. Select a vocabular-free loop closing method.      
+3. Select a vocabulary-free loop closing method.      
    
 See the file [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closing/loop_detector_configs.py) for further details.
 
@@ -345,11 +346,11 @@ At present, the volumetric reconstruction pipeline works with:
   * in the back-end with STEREO datasets (you can't use depth prediction in the back-end with MONOCULAR datasets, further details [here](#depth-prediction))
   * in the front-end (to emulate an RGBD sensor) and a depth prediction/estimation gets available for each processed keyframe. 
 
-If you want a mesh as output then set `kVolumetricIntegrationExtractMesh=True` in `pyslam/config_parameters.py`.
+To obtain a mesh as output, set `kVolumetricIntegrationExtractMesh=True` in `pyslam/config_parameters.py`.
 
 #### Reload a saved sparse map and perform dense reconstruction 
 
-Use the script `main_map_dense_reconstruction.py` to reload a saved sparse map and to perform dense reconstruction by using its posed keyframes as input. You can select your preferred dense reconstruction method directly in the script. 
+Use the script `main_map_dense_reconstruction.py` to reload a saved sparse map and perform dense reconstruction by using its posed keyframes as input. You can select your preferred dense reconstruction method directly in the script. 
 
 - To check what the volumetric integrator is doing, run in another shell `tail -f logs/volumetric_integrator.log` (from repository root folder).
 - To save the obtained dense and sparse maps, press the `Save` button on the GUI. 
@@ -362,17 +363,17 @@ In the case of a saved Gaussian splatting model, you can visualize it by:
 1. Using the [superslat editor](https://playcanvas.com/supersplat/editor) (drag and drop the saved Gaussian splatting `.ply` pointcloud in the editor interface). 
 2. Getting into the folder `test/gaussian_splatting` and running:      
     `$ python test_gsm.py --load <gs_checkpoint_path>`      
-    The ` <gs_checkpoint_path>` is expected to have the following structure:      
+    The directory ` <gs_checkpoint_path>` is expected to have the following structure:      
     ```bash
     ├── gs_checkpoint_path
-        ├── pointcloud   # folder containing different subfolders, each one with a saved .ply econding the gaussian splatting model at a specific iteration/checkpoint
+        ├── pointcloud   # folder containing different subfolders, each one with a saved .ply econding the Gaussian splatting model at a specific iteration/checkpoint
         ├── last_camera.json
         ├── config.yml
     ```
 
 #### Controlling the spatial distribution of keyframe FOV centers
 
-If you are targeting volumetric reconstruction while running SLAM, you can enable a **keyframe generation policy** designed to manage the spatial distribution of keyframe field-of-view (FOV) centers. The *FOV center of a camera* is defined as the backprojection of its image center, calculated using the median depth of the frame. With this policy, a new keyframe is generated only if its FOV center is farther than a predefined distance from the nearest existing keyframe's FOV center. You can enable this policy by setting the following parameters in the yaml setting:
+If you are targeting volumetric reconstruction while running SLAM, you can enable a **keyframe generation policy** designed to manage the spatial distribution of keyframe field-of-view (FOV) centers. The *FOV center of a camera* is defined as the backprojection of its image center, calculated using the median depth of the frame. With this policy, a new keyframe is generated only if its FOV center lies beyond a predefined distance from the nearest existing keyframe's FOV center. You can enable this policy by setting the following parameters in the yaml setting:
 ```yaml
 KeyFrame.useFovCentersBasedGeneration: 1  # compute 3D fov centers of camera frames by using median depth and use their distances to control keyframe generation
 KeyFrame.maxFovCentersDistance: 0.2       # max distance between fov centers in order to generate a keyframe
@@ -387,8 +388,8 @@ The available depth prediction models can be utilized both in the SLAM back-end 
 - **Front-end**: Depth prediction can be enabled in the front-end by setting the parameter `kUseDepthEstimatorInFrontEnd` in `pyslam/config_parameters.py`. This feature estimates depth images from input color images to emulate a RGBD camera. Please, note this functionality is still *experimental* at present time [WIP].   
 
 **Notes**: 
-* In the case of a **monocular SLAM**, do NOT use depth prediction in the back-end volumetric integration: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. With monocular datasets, you can enable depth prediction to run in the front-end (to emulated an RGBD sensor).
-- The depth inference may be very slow (for instance, with DepthPro it takes ~1s per image on my machine). Therefore, the resulting volumetric reconstruction pipeline may be very slow.
+* In the case of a **monocular SLAM**, do NOT use depth prediction in the back-end volumetric integration: The SLAM (fake) scale will conflict with the absolute metric scale of depth predictions. With monocular datasets, you can enable depth prediction to run in the front-end (to emulate an RGBD sensor).
+- Depth inference may be very slow (for instance, with DepthPro it takes ~1s per image on a typical machine). Therefore, the resulting volumetric reconstruction pipeline may be very slow.
 
 Refer to the file `depth_estimation/depth_estimator_factory.py` for further details. Both stereo and monocular prediction approaches are supported. You can test depth prediction/estimation by using the script `main_depth_prediction.py`.
 
@@ -444,15 +445,15 @@ When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
     folder_path: results/slam_state   # Default folder path (relative to repository root) where the system state is saved or reloaded
   ```
 
-Note that pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map overwrites the current system configurations to ensure descriptor compatibility.  
+Note that pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map replaces the current system configurations to ensure descriptor compatibility.  
 
 
 #### Trajectory saving
 
 Estimated trajectories can be saved in three **formats**: *TUM* (The Open Mapping format), *KITTI* (KITTI Odometry format), and *EuRoC* (EuRoC MAV format). pySLAM saves two **types** of trajectory estimates:
 
-- **Online**: In *online* trajectories, each pose estimate depends only on past poses. A pose estimate is saved at the end of each front-end iteration on current frame.
-- **Final**: In *final* trajectories, each pose estimate depends on both past and future poses. A pose estimate is refined multiple times by LBA windows that cover it and by PGO and GBA during loop closures.
+- **Online**: In *online* trajectories, each pose estimate depends only on past poses. A pose estimate is saved at the end of each front-end iteration for the current frame.
+- **Final**: In *final* trajectories, each pose estimate depends on both past and future poses. A pose estimate is refined multiple times by LBA windows that include it, as well asby PGO and GBA during loop closures.
 
 
 To enable trajectory saving, open `config.yaml` and search for the `SAVE_TRAJECTORY`: set `save_trajectory: True`, select your `format_type` (`tum`, `kitti`, `euroc`), and the output filename. For instance for a `kitti` format output:   
@@ -476,7 +477,7 @@ Currently, pySLAM supports both `g2o` and `gtsam` for graph optimization, with `
   kOptimizationLoopClosingUseGtsam = True 
 ```
 
-Additionally, the `gtsam_factors` package provides custom Python bindings for features not included in the original gtsam framework. See [here](./thirdparty/gtsam_factors/README.md) for further details.
+Additionally, the `gtsam_factors` package provides custom Python bindings for features not available in the original gtsam framework. See [here](./thirdparty/gtsam_factors/README.md) for further details.
 
 ---
 

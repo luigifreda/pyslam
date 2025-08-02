@@ -48,7 +48,7 @@ kMast3rFolder = kRootFolder + '/thirdparty/mast3r'
 
 # This was an experimental feature descriptor test for the MASt3R model.
 # NOTE: The extraction of independent descriptors from a single image does not make sense for the MASt3R/DUST3R model.
-#       The model ground the image matching in a 3D context defined by two images of the same place. 
+#       The model grounds the image matching in a 3D context defined by two images of the same place. 
 #       You have to use the MAST3R matcher!
 class Mast3rFeature2D: 
     def __init__(self, num_features=None, device=None):  
