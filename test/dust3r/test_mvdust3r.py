@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys 
-sys.path.append("../../")
+
 import pyslam.config as config
 config.cfg.set_lib('mvdust3r') 
 

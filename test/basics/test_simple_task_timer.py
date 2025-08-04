@@ -3,8 +3,6 @@
 import sys 
 import time
 
-
-sys.path.append("../../")
 from pyslam.config import Config
 
 from pyslam.utilities.utils_mt import SimpleTaskTimer

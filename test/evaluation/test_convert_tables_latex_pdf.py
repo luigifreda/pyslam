@@ -18,7 +18,7 @@
 """
 
 import sys
-sys.path.append("../../")
+
 import pyslam.config as config
 
 from pyslam.utilities.utils_eval_latex import csv_list_to_pdf

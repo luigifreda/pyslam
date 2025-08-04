@@ -1,5 +1,5 @@
 import sys 
-sys.path.append("../../")
+
 import pyslam.config as config
 
 import numpy as np

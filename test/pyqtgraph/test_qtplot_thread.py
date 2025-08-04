@@ -4,10 +4,10 @@ import time
 import math
 
 import sys
-sys.path.append("../../")
+
 from pyslam.config import Config
 
-from qplot_thread import Qplot2d, Qplot3d
+from pyslam.viz.qplot_thread import Qplot2d, Qplot3d
 
 
 if __name__ == "__main__":

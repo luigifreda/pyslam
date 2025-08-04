@@ -1,7 +1,7 @@
 import numpy as np
 
 import sys 
-sys.path.append("../../")
+
 from pyslam.config import Config
 
 from pyslam.utilities.utils_geom import Sim3Pose, rotation_matrix_from_yaw_pitch_roll

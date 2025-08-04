@@ -2,9 +2,7 @@ import sys
 import numpy as np
 import os 
 
-sys.path.append("../")
-
-from .ground_truth import groundtruth_factory
+from pyslam.io.ground_truth import groundtruth_factory
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

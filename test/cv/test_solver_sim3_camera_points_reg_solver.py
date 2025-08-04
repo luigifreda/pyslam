@@ -6,7 +6,7 @@ import rerun as rr
 import cv2
 from matplotlib import pyplot as plt
 
-sys.path.append("../../")
+
 import pyslam.config as config
 import sim3solver
 

@@ -4,7 +4,7 @@ import os
 
 import os
 import sys 
-sys.path.append("../../")
+
 
 from pyslam.config import Config
 config = Config()

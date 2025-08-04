@@ -1,7 +1,7 @@
 import numpy as np
 
 import sys 
-sys.path.append("../../")
+
 from pyslam.config import Config
 
 from pyslam.utilities.utils_geom import qvec2rotmat, rotmat2qvec

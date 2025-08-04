@@ -4,7 +4,6 @@ from datetime import datetime
 from webcam import Webcam
 
 import sys
-sys.path.append("../")
 
 from pyslam.utilities.timer import Timer
 

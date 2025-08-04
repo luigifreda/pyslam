@@ -4,7 +4,7 @@ from multiprocessing import Lock, Process
 from threading import Lock as ThreadLock, Thread
 
 import sys 
-sys.path.append("../../")
+
 from pyslam.config import Config
 
 import time

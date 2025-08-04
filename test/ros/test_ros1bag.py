@@ -18,7 +18,7 @@
 """
 
 import sys
-sys.path.append("../../")
+
 from pyslam.config import Config
 
 

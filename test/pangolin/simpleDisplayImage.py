@@ -1,7 +1,7 @@
 # https://github.com/stevenlovegrove/Pangolin/tree/master/examples/SimpleDisplayImage
 
 import sys
-sys.path.append("../../")
+
 import pyslam.config as config
 
 import numpy as np

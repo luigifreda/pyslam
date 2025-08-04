@@ -1,7 +1,7 @@
 # https://github.com/stevenlovegrove/Pangolin/blob/master/examples/SimpleMultiDisplay
 
 import sys
-sys.path.append("../../")
+
 import pyslam.config as config
 
 import numpy as np

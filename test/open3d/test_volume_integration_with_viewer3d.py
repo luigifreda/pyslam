@@ -27,7 +27,7 @@ import numpy as np
 import platform 
 
 import sys 
-sys.path.append("../../")
+
 from pyslam.config import Config
 
 from pyslam.slam.slam import Slam, SlamState

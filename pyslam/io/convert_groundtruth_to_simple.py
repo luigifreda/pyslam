@@ -2,7 +2,6 @@ import sys
 import numpy as np
 import os 
 
-sys.path.append("../")
 from pyslam.config import Config 
 
 from .ground_truth import groundtruth_factory

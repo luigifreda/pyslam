@@ -7,7 +7,7 @@ import time
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 
-sys.path.append("../../")
+
 from pyslam.config import Config
 
 from pyslam.viz.viewer3D import Viewer3D

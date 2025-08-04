@@ -21,7 +21,7 @@ import sys
 import numpy as np
 import math
 import time 
-sys.path.append("../../")
+
 from pyslam.config import Config
 
 import torch.multiprocessing as mp
