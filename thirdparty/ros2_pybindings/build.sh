@@ -29,7 +29,12 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 echo "ROS2_INSTALL_PATH: $ROS2_INSTALL_PATH"
 
-pip install catkin_pkg
+export ROS2_OPTIONS=""
+if [[ "$ROS2_INSTALL_PATH" == *"jazzy"* ]]; then
+    echo "Building with ROS2 Jazzy"
+    export ROS2_OPTIONS="-DWITH_JAZZY=ON"
+    echo "ROS2_OPTIONS: $ROS2_OPTIONS"
+fi
 
 if [ -n "$ROS2_INSTALL_PATH" ]; then
 
@@ -37,7 +42,7 @@ if [ -n "$ROS2_INSTALL_PATH" ]; then
 
     make_dir build
     cd build
-    cmake .. $EXTERNAL_OPTIONS
+    cmake .. $EXTERNAL_OPTIONS $ROS2_OPTIONS
     make -j 4
     cd ..
 fi

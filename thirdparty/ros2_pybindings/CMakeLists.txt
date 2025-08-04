@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter")
 set(WITH_OPENCV_SHOW OFF CACHE BOOL "Debug with opencv")
+set(WITH_JAZZY OFF CACHE BOOL "Build with ROS2 Jazzy")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -DNDEBUG")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG")
@@ -38,6 +39,11 @@ if(WITH_OPENCV_SHOW)
   message(STATUS "WITH_OPENCV_SHOW: ${WITH_OPENCV_SHOW}")
   add_definitions(-DWITH_OPENCV_SHOW)
   find_package(OpenCV REQUIRED)
+endif()
+
+if(WITH_JAZZY)
+  message(STATUS "WITH_JAZZY: ${WITH_JAZZY}")
+  add_definitions(-DWITH_JAZZY)
 endif()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)

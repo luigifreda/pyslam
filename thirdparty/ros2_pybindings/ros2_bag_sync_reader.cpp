@@ -77,8 +77,9 @@ void visualize_depth_image(const std::string& topic_name, const sensor_msgs::msg
 Ros2BagSyncReaderATS::Ros2BagSyncReaderATS(const std::string& bag_path,
                                            const std::vector<std::string>& topics,
                                            int queue_size,
-                                           double slop)
-  : bag_path_(bag_path), topics_(topics), queue_size_(queue_size), slop_(slop) {
+                                           double slop,
+                                           const std::string& storage_id)
+  : bag_path_(bag_path), topics_(topics), queue_size_(queue_size), slop_(slop), storage_id_(storage_id) {
   load_bag();
   get_topic_timestamps_and_counts();
   setup_synchronizer();
@@ -86,9 +87,24 @@ Ros2BagSyncReaderATS::Ros2BagSyncReaderATS(const std::string& bag_path,
 
 void Ros2BagSyncReaderATS::load_bag() {
   reader_ = std::make_unique<rosbag2_cpp::readers::SequentialReader>();
+#ifdef WITH_JAZZY
+  rosbag2_storage::StorageOptions storage_options;
+#else
   rosbag2_cpp::StorageOptions storage_options;
+#endif
   storage_options.uri = bag_path_;
-  storage_options.storage_id = "sqlite3";
+
+  // Use provided storage_id or auto-detect
+  if (storage_id_ == "auto") {
+    std::string extension = rcpputils::fs::path(bag_path_).extension().string();
+    if (extension == ".mcap") {
+      storage_options.storage_id = "mcap";
+    } else {
+      storage_options.storage_id = "sqlite3";
+    }
+  } else {
+    storage_options.storage_id = storage_id_;
+  }
 
   rosbag2_cpp::ConverterOptions converter_options;
   converter_options.input_serialization_format = "cdr";
@@ -107,10 +123,24 @@ void Ros2BagSyncReaderATS::get_topic_timestamps_and_counts() {
   topic_timestamps.clear();
   topic_counts.clear();
   rosbag2_cpp::readers::SequentialReader temp_reader;
-
+#ifdef WITH_JAZZY
+  rosbag2_storage::StorageOptions storage_options;
+#else
   rosbag2_cpp::StorageOptions storage_options;
+#endif
   storage_options.uri = bag_path_;
-  storage_options.storage_id = "sqlite3";
+
+  // Use provided storage_id or auto-detect
+  if (storage_id_ == "auto") {
+    std::string extension = rcpputils::fs::path(bag_path_).extension().string();
+    if (extension == ".mcap") {
+      storage_options.storage_id = "mcap";
+    } else {
+      storage_options.storage_id = "sqlite3";
+    }
+  } else {
+    storage_options.storage_id = storage_id_;
+  }
 
   rosbag2_cpp::ConverterOptions converter_options;
   converter_options.input_serialization_format = "cdr";
@@ -283,9 +313,24 @@ Ros2BagSyncReaderATS::read_all_messages_of_topic(const std::string& topic, bool 
   std::vector<std::pair<double, sensor_msgs::msg::Image::ConstSharedPtr>> messages;
 
   rosbag2_cpp::readers::SequentialReader temp_reader;
+#ifdef WITH_JAZZY
+  rosbag2_storage::StorageOptions storage_options;
+#else
   rosbag2_cpp::StorageOptions storage_options;
+#endif
   storage_options.uri = bag_path_;
-  storage_options.storage_id = "sqlite3";
+
+  // Use provided storage_id or auto-detect
+  if (storage_id_ == "auto") {
+    std::string extension = rcpputils::fs::path(bag_path_).extension().string();
+    if (extension == ".mcap") {
+      storage_options.storage_id = "mcap";
+    } else {
+      storage_options.storage_id = "sqlite3";
+    }
+  } else {
+    storage_options.storage_id = storage_id_;
+  }
 
   rosbag2_cpp::ConverterOptions converter_options;
   converter_options.input_serialization_format = "cdr";
@@ -301,8 +346,14 @@ Ros2BagSyncReaderATS::read_all_messages_of_topic(const std::string& topic, bool 
     if (!bag_msg) continue;
 
     auto msg = std::make_shared<sensor_msgs::msg::Image>();
-    rclcpp::SerializedMessage serialized_msg(*bag_msg->serialized_data);
-    serializer.deserialize_message(&serialized_msg, msg.get());
+    try {
+      rclcpp::SerializedMessage serialized_msg(*bag_msg->serialized_data);
+      serializer.deserialize_message(&serialized_msg, msg.get());
+    } catch (const std::exception& e) {
+      std::cerr << "[Deserialization Error] Topic: " << topic 
+                << ", Error: " << e.what() << std::endl;
+      continue;
+    }
     double stamp = rclcpp::Time(msg->header.stamp).seconds();
     messages.emplace_back(stamp, msg);
   }

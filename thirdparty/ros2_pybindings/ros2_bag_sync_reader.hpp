@@ -27,7 +27,11 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <rosbag2_cpp/readers/sequential_reader.hpp>
-#include <rosbag2_cpp/storage_options.hpp>
+#ifdef WITH_JAZZY
+  #include <rosbag2_storage/storage_options.hpp>
+#else
+  #include <rosbag2_cpp/storage_options.hpp>
+#endif
 #include <rosbag2_cpp/typesupport_helpers.hpp>
 
 #include <sensor_msgs/msg/image.hpp>
@@ -49,7 +53,8 @@ public:
   Ros2BagSyncReaderATS(const std::string& bag_path,
                        const std::vector<std::string>& topics,
                        int queue_size = 100,
-                       double slop = 0.05);
+                       double slop = 0.05,
+                       const std::string& storage_id = "auto");
 
   void reset();
 
@@ -85,6 +90,9 @@ private:
   std::deque<std::tuple<sensor_msgs::msg::Image::ConstSharedPtr,
                         sensor_msgs::msg::Image::ConstSharedPtr,
                         sensor_msgs::msg::Image::ConstSharedPtr>> synced_msgs_;
+
+
+  std::string storage_id_;
 
 private: 
   void load_bag();
