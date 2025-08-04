@@ -1,3 +1,5 @@
+<p align="center"><img src="./images/pyslam-logo.png" style="height: 200px; width: auto"></p>
+
 # pySLAM v2.8.10
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
@@ -138,7 +140,13 @@ Other *test/example scripts* are provided in the `test` folder.
 
 ### System overview      
 
-[This document](./docs/system_overview.md) provides a high-level system overview, including diagrams that illustrate the main **workflow**, key **components**, and **class** relationships or dependencies.
+[This page](./docs/system_overview.md) provides a high-level system overview, including diagrams that illustrate the main **workflow**, key **components**, and **class** relationships or dependencies.
+
+**paper**: ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
+You may find an updated version of the paper [here](./docs/tex/document.pdf).
+
+**presentation**: [_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*    
+RSS 2025 Workshop: _Unifying Visual SLAM_. The recorded talk is available [here](https://www.youtube.com/watch?v=OsS4XzVDSj4).
 
 --- 
 ## Install 
