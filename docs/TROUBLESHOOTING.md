@@ -8,7 +8,7 @@
   - [Bad tracking performances](#bad-tracking-performances)
   - [Errors](#errors)
     - [*Aborted (core dumped)* or *Segmentation fault (core dumped)*](#aborted-core-dumped-or-segmentation-fault-core-dumped)
-    - [_ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
+    - [RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#red-error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
     - [_ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/x86\_64-linux-gnu/libhwy.so.1)_](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-libx86_64-linux-gnulibhwyso1)
     - [_RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile_](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
     - [_Gtk-ERROR \*\*: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported_](#gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
@@ -16,11 +16,6 @@
     - [g2o Errors](#g2o-errors)
       - [_AttributeError: 'g2o.EdgeSE3ProjectXYZ' object has no attribute 'fx'_](#attributeerror-g2oedgese3projectxyz-object-has-no-attribute-fx)
       - [Cannot properly import g2o library or other libs](#cannot-properly-import-g2o-library-or-other-libs)
-    - [OrderedSet error](#orderedset-error)
-    - [Import erros related to ROS and OpenCV](#import-erros-related-to-ros-and-opencv)
-    - [Could not import PILLOW\_VERSION from PIL](#could-not-import-pillow_version-from-pil)
-    - [_ValueError: ndarray is not C-contiguous_](#valueerror-ndarray-is-not-c-contiguous)
-    - [_Error: python3: malloc.c:2401: sysmalloc: Assertion \`(old\_top == initial\_top (av) \&\& old\_size == 0) ..._](#error-python3-mallocc2401-sysmalloc-assertion-old_top--initial_top-av--old_size--0-)
   - [When loading a neural network with CUDA everything gets stuck](#when-loading-a-neural-network-with-cuda-everything-gets-stuck)
   - [Manual install instead of using the provided install scripts](#manual-install-instead-of-using-the-provided-install-scripts)
 
@@ -92,14 +87,19 @@ pip uninstall matplotlib
 pip install "matplotlib<3.8" 
 ``` 
 
+--- 
 
-### _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_
+### RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_
 
 I have verified through numerous installation tests that the errors reported by pip's dependency resolver are typically warnings rather than critical issues. These messages do not prevent the main and test scripts from running successfully.
+
+--- 
 
 ### _ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc_s.so.1: version `GCC_12.0.0' not found (required by /lib/x86_64-linux-gnu/libhwy.so.1)_
 
 If you hit this issue, please refer to this [discussion](https://github.com/luigifreda/pyslam/issues/133).
+
+--- 
 
 ### _RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile_
 
@@ -123,6 +123,7 @@ python -c "import torch; print(torch.__version__)"
 In case your dected CUDA version is a different one, you can easily adjust the above command by changing the `cuXYZ` version code. See this reference for further details:
 https://pytorch.org/get-started/previous-versions/
 
+--- 
 
 ### _Gtk-ERROR **: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported_
 
@@ -134,6 +135,8 @@ gi.require_version('Gtk', '2.0')
 ```
 this will solve the problem. 
  
+--- 
+
 ### SURF error
 
 In order to use [non-free OpenCV features](https://stackoverflow.com/questions/50467696/pycharm-installation-of-non-free-opencv-modules-for-operations-like-sift-surf) (i.e. **SURF**, etc.), you need to install the module `opencv-contrib-python` built with the enabled option `OPENCV_ENABLE_NONFREE`. 
@@ -146,7 +149,10 @@ or use the following command:
 How to check if you have non-free OpenCV module support (no errors imply success):          
 `$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"`    
 
+--- 
+
 ### g2o Errors
+
 
 #### _AttributeError: 'g2o.EdgeSE3ProjectXYZ' object has no attribute 'fx'_
 
@@ -169,6 +175,7 @@ Please,follow these steps:
 - Please, double check that you have the file like `thirdparty/g2opy/lib/g2o.cpython-36m-x86_64-linux-gnu.so`. 
 
 
+
 #### Cannot properly import g2o library or other libs 
 
 If you get an error message like 
@@ -183,7 +190,7 @@ On the other hand, if you already have a compiled `thirdparty/g2opy/lib/g2o.cpyt
 Last but not least, please recall that you need to activate your `pyenv`/`conda` environment before launching any pySLAM script.
 
 
-### OrderedSet error 
+<!-- ### OrderedSet error 
 
 Reference: https://github.com/luigifreda/pyslam/issues/48 
 
@@ -198,9 +205,10 @@ TypeError: unsupported operand type(s) for |=: 'OrderedSet' and 'OrderedSet'
 You can solve such an issue by installing a lower version of OrderedSet
 ```
 pip3 install ordered-set==3.1.1 --force-reinstall
-``` 
+```  -->
 
-### Import erros related to ROS and OpenCV
+
+<!-- ### Import erros related to ROS and OpenCV
 
 If you have ROS installed in your system and got the following error:
 ```
@@ -211,10 +219,10 @@ You can run the following command in your shell:
 ```
 $ export PYTHONPATH=""
 ```
-this will remove the ROS OpenCV python modules from your python path and will solve the issue. 
+this will remove the ROS OpenCV python modules from your python path and will solve the issue.  -->
 
 
-### Could not import PILLOW_VERSION from PIL 
+<!-- ### Could not import PILLOW_VERSION from PIL 
 
 Or **ImportError: cannot import name 'PILLOW_VERSION'**
 
@@ -224,10 +232,10 @@ If you get this error, it is very likely that pillow 7.0.0 has some troubles wit
 $ pip3 uninstall pillow 
 $ pip3 install pillow==6.2.2
 ```
-(fix from this [page](https://stackoverflow.com/questions/59659146/could-not-import-pillow-version-from-pil))
+(fix from this [page](https://stackoverflow.com/questions/59659146/could-not-import-pillow-version-from-pil)) -->
 
 
-### _ValueError: ndarray is not C-contiguous_
+<!-- ### _ValueError: ndarray is not C-contiguous_
 
 If the following error pops-up:
 ```
@@ -243,9 +251,9 @@ projs = f_cur.project_map_points(points)
 projs = projs.copy(order='C')
 ```
 
-(thanks to [naughtyStark](https://github.com/naughtyStark))
+(thanks to [naughtyStark](https://github.com/naughtyStark)) -->
 
-### _Error: python3: malloc.c:2401: sysmalloc: Assertion `(old_top == initial_top (av) && old_size == 0) ..._
+<!-- ### _Error: python3: malloc.c:2401: sysmalloc: Assertion `(old_top == initial_top (av) && old_size == 0) ..._
 
 I got this error after messing up with the installation of different python packages related to torch and torchvision. The result was that tfeat was generating segmentation faults. In order to check if this is actually your case, run
 ```
@@ -257,7 +265,7 @@ and check if you get a segmenation fault. If this is the case, try to run
 $ pip3 uninstall torch torchvision 
 $ pip3 install torch torchvision 
 ```
-in order to get a clean installation of the torch packages. 
+in order to get a clean installation of the torch packages.  -->
 
 --- 
 

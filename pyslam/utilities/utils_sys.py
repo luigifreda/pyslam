@@ -44,17 +44,6 @@ import time
 import signal 
 import traceback
 
-# colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
-myjet = np.array([[0.        , 0.        , 0.5       ],
-                  [0.        , 0.        , 0.99910873],
-                  [0.        , 0.37843137, 1.        ],
-                  [0.        , 0.83333333, 1.        ],
-                  [0.30044276, 1.        , 0.66729918],
-                  [0.66729918, 1.        , 0.30044276],
-                  [1.        , 0.90123457, 0.        ],
-                  [1.        , 0.48002905, 0.        ],
-                  [0.99910873, 0.07334786, 0.        ],
-                  [0.5       , 0.        , 0.        ]])
 
 
 def getchar():
@@ -73,9 +62,9 @@ def str2bool(v):
 # Class to print 
 # colored text and background 
 # from https://www.geeksforgeeks.org/print-colors-python-terminal/
-class Colors(object):
+class TerminalColors:
     '''
-    Colors class:reset all colors with colors.reset; two  
+    TerminalColors class:reset all colors with colors.reset; two  
     sub classes fg for foreground  
     and bg for background; use as colors.subclass.colorname. 
     i.e. colors.fg.red or colors.bg.greenalso, the generic bold, disable,  
@@ -118,79 +107,79 @@ class Colors(object):
 class Printer(object):
     @staticmethod
     def red(*args, **kwargs):
-        print(Colors.fg.red, *args, **kwargs)
-        print(Colors.reset, end="")
+        print(TerminalColors.fg.red, *args, **kwargs)
+        print(TerminalColors.reset, end="")
 
     @staticmethod
     def green(*args, **kwargs):
-        print(Colors.fg.green, *args, **kwargs)
-        print(Colors.reset, end="")
+        print(TerminalColors.fg.green, *args, **kwargs)
+        print(TerminalColors.reset, end="")
 
     @staticmethod
     def blue(*args, **kwargs):
-        print(Colors.fg.blue, *args, **kwargs)
-        print(Colors.reset, end="")      
+        print(TerminalColors.fg.blue, *args, **kwargs)
+        print(TerminalColors.reset, end="")      
         
     @staticmethod
     def lightblue(*args, **kwargs):
-        print(Colors.fg.lightblue, *args, **kwargs)
-        print(Colors.reset, end="")  
+        print(TerminalColors.fg.lightblue, *args, **kwargs)
+        print(TerminalColors.reset, end="")  
         
     @staticmethod
     def cyan(*args, **kwargs):
-        print(Colors.fg.cyan, *args, **kwargs)
-        print(Colors.reset, end="")             
+        print(TerminalColors.fg.cyan, *args, **kwargs)
+        print(TerminalColors.reset, end="")             
         
     @staticmethod
     def orange(*args, **kwargs):
-        print(Colors.fg.orange, *args, **kwargs)
-        print(Colors.reset, end="")     
+        print(TerminalColors.fg.orange, *args, **kwargs)
+        print(TerminalColors.reset, end="")     
         
     @staticmethod
     def purple(*args, **kwargs):
-        print(Colors.fg.purple, *args, **kwargs)
-        print(Colors.reset, end="")  
+        print(TerminalColors.fg.purple, *args, **kwargs)
+        print(TerminalColors.reset, end="")  
         
     @staticmethod
     def yellow(*args, **kwargs):
-        print(Colors.fg.yellow, *args, **kwargs)
-        print(Colors.reset, end="")                                   
+        print(TerminalColors.fg.yellow, *args, **kwargs)
+        print(TerminalColors.reset, end="")                                   
 
     @staticmethod
     def error(*args, **kwargs):
-        print(Colors.fg.red, *args, **kwargs, file=sys.stderr)
-        print(Colors.reset, end="")        
+        print(TerminalColors.fg.red, *args, **kwargs, file=sys.stderr)
+        print(TerminalColors.reset, end="")        
         
     @staticmethod
     def warning(*args, **kwargs):
-        print(Colors.fg.yellow, *args, **kwargs)
-        print(Colors.reset, end="")  
+        print(TerminalColors.fg.yellow, *args, **kwargs)
+        print(TerminalColors.reset, end="")  
         
     @staticmethod
     def info(*args, **kwargs):
-        print(Colors.fg.cyan, *args, **kwargs)
-        print(Colors.reset, end="")                  
+        print(TerminalColors.fg.cyan, *args, **kwargs)
+        print(TerminalColors.reset, end="")                  
 
     @staticmethod
     def bold(*args, **kwargs):
-        print(Colors.bold, *args, **kwargs)
-        print(Colors.reset, end="")
+        print(TerminalColors.bold, *args, **kwargs)
+        print(TerminalColors.reset, end="")
 
     def bold_blue(*args, **kwargs):
-        print(f"{Colors.bold}{Colors.fg.blue}", *args, **kwargs)
-        print(Colors.reset, end="")
+        print(f"{TerminalColors.bold}{TerminalColors.fg.blue}", *args, **kwargs)
+        print(TerminalColors.reset, end="")
 
     def bold_green(*args, **kwargs):
-        print(f"{Colors.bold}{Colors.fg.green}", *args, **kwargs)
-        print(Colors.reset, end="")
+        print(f"{TerminalColors.bold}{TerminalColors.fg.green}", *args, **kwargs)
+        print(TerminalColors.reset, end="")
         
     def bold_purple(*args, **kwargs):
-        print(f"{Colors.bold}{Colors.fg.purple}", *args, **kwargs)
-        print(Colors.reset, end="")
+        print(f"{TerminalColors.bold}{TerminalColors.fg.purple}", *args, **kwargs)
+        print(TerminalColors.reset, end="")
         
     def bold_cyan(*args, **kwargs):
-        print(f"{Colors.bold}{Colors.fg.cyan}", *args, **kwargs)
-        print(Colors.reset, end="")        
+        print(f"{TerminalColors.bold}{TerminalColors.fg.cyan}", *args, **kwargs)
+        print(TerminalColors.reset, end="")        
                 
         
         
@@ -526,7 +515,8 @@ def print_options(opt, opt_name='OPTIONS'):
     for arg in args:
         content_list += [arg.rjust(25, ' ') + '  ' + str(getattr(opt, arg))]
     print_notification(content_list, opt_name)    
-    
+
+
 def print_notification(content_list, notifi_type='NOTIFICATION'):
     print(('---------------------- {0} ----------------------'.format(notifi_type)))
     print()
@@ -535,11 +525,13 @@ def print_notification(content_list, notifi_type='NOTIFICATION'):
     print()
     print('----------------------------------------------------')    
     
+
 def get_opencv_version():
     opencv_major =  int(cv2.__version__.split('.')[0])
     opencv_minor =  int(cv2.__version__.split('.')[1])    
     opencv_build = int(cv2.__version__.split('.')[2])    
     return (opencv_major, opencv_minor, opencv_build)
+
 
 def is_opencv_version_greater_equal(a, b, c):
     opencv_version = get_opencv_version()

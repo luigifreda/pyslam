@@ -45,7 +45,7 @@ echo $(which python)
 # 1. install system packages 
 $SCRIPTS_DIR/install_system_packages.sh    
 
-# 2. Install worksapace packages
+# 2. Install workspace packages
 pip install -e .
 
 # 3. set up git submodules (we need to install gdown before this) 

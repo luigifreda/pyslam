@@ -39,7 +39,8 @@ from pyslam.slam.camera_pose import CameraPose
 
 from pyslam.utilities.utils_geom import add_ones, poseRt
 from pyslam.utilities.utils_geom_triangulation import triangulate_normalized_points
-from pyslam.utilities.utils_sys import myjet, Printer
+from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.utils_colors import Colors
 
 from pyslam.local_features.feature_types import FeatureInfo
 from pyslam.local_features.feature_matcher import FeatureMatcherTypes
@@ -1102,7 +1103,7 @@ class Frame(FrameBase):
                 #radius = self.sizes[kp_idx] # actual size
                 radius = kDrawFeatureRadius[self.octaves[kp_idx]] # fake size for visualization
                 
-                #color = myjet[self.octaves[i1]]*255
+                #color = Colors.myjet[self.octaves[i1]]*255
                 point = self.points[kp_idx]
                 if point is not None and not point.is_bad:
                     p_frame_views = point.frame_views()
@@ -1122,7 +1123,7 @@ class Frame(FrameBase):
                             pts.append(tuple(map(int,np.round(f.kps[idx]))))
                             lfid = f.id                    
                         if len(pts) > 1:
-                            color = myjet[len(pts)] * 255
+                            color = Colors.myjet[len(pts)] * 255
                             cv2.polylines(img, np.array([pts], dtype=np.int32), False, color, thickness=1, lineType=16)
                 else:
                     # no corresponding 3D point

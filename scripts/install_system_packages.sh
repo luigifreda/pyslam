@@ -103,7 +103,8 @@ else
 
     install_package libprotobuf-dev 
 
-    install_packages libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev
+    install_packages libavcodec-dev libavformat-dev libavutil-dev libpostproc-dev libswscale-dev 
+
     install_package libglew-dev 
     install_package libgoogle-glog-dev
 
