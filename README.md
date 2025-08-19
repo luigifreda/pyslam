@@ -1,4 +1,4 @@
-<p align="center"><img src="./images/pyslam-logo.png" style="height: 200px; width: auto"></p>
+<p align="center"><img src="./images/pyslam-logo.png" style="height: 160px; width: auto"></p>
 
 # pySLAM v2.8.10
 
