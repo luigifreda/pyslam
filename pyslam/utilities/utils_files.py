@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
-
 
 # From torchvision.uitls
 import smtplib, socket, hashlib, errno
@@ -64,21 +63,25 @@ def download_url(url, root, filename, md5):
         except:
             if url[:5] == "https":
                 url = url.replace("https:", "http:")
-                print("Failed download. Trying https -> http instead." " Downloading " + url + " to " + fpath)
+                print(
+                    "Failed download. Trying https -> http instead."
+                    " Downloading " + url + " to " + fpath
+                )
                 urllib.request.urlretrieve(url, fpath)
 
 
 def check_dir(dir):
     if not os.path.isdir(dir):
         os.mkdir(dir)
-        
+
+
 def create_folder(file):
-    if not file: 
+    if not file:
         return
     path = os.path.dirname(file)
     if path and not os.path.exists(path):
         os.makedirs(path)
-        
+
 
 def list_dir(root, prefix=False):
     ### List all directories at a given root
@@ -98,7 +101,11 @@ def list_files(root, suffix, prefix=False):
     # suffix (str or tuple): Suffix of the files to match, e.g. '.png' or ('.jpg', '.png'). It uses the Python "str.endswith" method and is passed directly
     # prefix (bool, optional): If true, prepends the path to each result, otherwise only returns the name of the files found
     root = os.path.expanduser(root)
-    files = list(filter(lambda p: os.path.isfile(os.path.join(root, p)) and p.endswith(suffix), os.listdir(root)))
+    files = list(
+        filter(
+            lambda p: os.path.isfile(os.path.join(root, p)) and p.endswith(suffix), os.listdir(root)
+        )
+    )
 
     if prefix is True:
         files = [os.path.join(root, d) for d in files]
@@ -114,8 +121,8 @@ def make_dirs(dir, exist_ok=True):
             pass
     else:
         os.makedirs(dir)
-        
-        
+
+
 # Open a plain text file for reading.  For this example, assume that
 # the text file contains only ASCII characters.
 # with open(textfile) as fp:
@@ -126,7 +133,9 @@ def send_email(recipient, ignore_host="", login_gmail="", login_password=""):
 
     if socket.gethostname() == ignore_host:
         return
-    msg["Subject"] = socket.gethostname() + " just finished running a job " + os.path.basename(main.__file__)
+    msg["Subject"] = (
+        socket.gethostname() + " just finished running a job " + os.path.basename(main.__file__)
+    )
     msg["From"] = "pyslam@gmail.com"
     msg["To"] = recipient
 
@@ -147,11 +156,11 @@ def gdrive_download_lambda(*args, **kwargs):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     if not os.path.exists(output):
-        print(f'downloading {url} to {output}')
+        print(f"downloading {url} to {output}")
         gdown.download(url, output)
-    else: 
-        print(f'file already exists: {output}')
-        
+    else:
+        print(f"file already exists: {output}")
+
 
 # Select n_frame images from images_path starting from start_frame_name with delta_frame between each frame
 def select_image_files(images_path, start_frame_name, n_frame, delta_frame):
@@ -162,14 +171,16 @@ def select_image_files(images_path, start_frame_name, n_frame, delta_frame):
     # Ensure the start_frame_name exists in img_paths
     if start_frame_name not in img_paths:
         raise ValueError(f"'{start_frame_name}' not found in the directory '{images_path}'.")
-    
+
     # Get the index of the starting frame
     start_idx = img_paths.index(start_frame_name)
     num_files = len(img_paths)
-    
+
     # Validate that the selection does not go out of bounds
     if start_idx + (n_frame - 1) * delta_frame >= num_files:
-        raise ValueError(f"Not enough images in the directory to select {n_frame} frames with delta {delta_frame}.")
+        raise ValueError(
+            f"Not enough images in the directory to select {n_frame} frames with delta {delta_frame}."
+        )
 
     # Select the images
     selected_img_paths = [img_paths[start_idx + i * delta_frame] for i in range(n_frame)]

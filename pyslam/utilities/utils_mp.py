@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -25,46 +25,52 @@ from .utils_data import SafeQueue
 
 # Utilities for multiprocessing
 
+
 class MultiprocessingManager:
-    # NOTE: The usage of the multiprocessing Manager().Queue() generates pickling problems 
+    # NOTE: The usage of the multiprocessing Manager().Queue() generates pickling problems
     #       when we use set_start_method('spawn') with torch.multiprocessing (which is needed by torch with CUDA).
     #       Thereofore, we use this MultiprocessingManager to manage queues in slightly different way.
     #       In general, the usage of the multiprocessing Manager() seem to return smoother interactions. For this
-    #       reason, we use it by default. 
+    #       reason, we use it by default.
     def __init__(self, use_manager=True, verbose=False):
         import torch.multiprocessing as mp
+
         self.manager = None
         self.start_method = mp.get_start_method()
         self.verbose = verbose
         if verbose:
-            print(f'MultiprocessingManager: start method: {self.start_method}')
-        if use_manager and self.start_method != 'spawn':
-            self.manager = mp.Manager() # use a memory manager when start method is not 'spawn'
-            
+            print(f"MultiprocessingManager: start method: {self.start_method}")
+        if use_manager and self.start_method != "spawn":
+            self.manager = mp.Manager()  # use a memory manager when start method is not 'spawn'
+
     @staticmethod
     def is_start_method_spawn():
         import torch.multiprocessing as mp
-        return mp.get_start_method() == 'spawn'
-            
+
+        return mp.get_start_method() == "spawn"
+
     def Queue(self, maxsize=0):
         import torch.multiprocessing as mp
+
         if self.manager is not None:
             # the start method is not 'spawn' => we prefer to use the multiprocessing manager
             return self.manager.Queue(maxsize=maxsize)
         else:
             # the start method is 'spawn' => we prefer to use standard multiprocessing Queue
-            if platform.system() == 'Darwin':
+            if platform.system() == "Darwin":
                 return SafeQueue(maxsize=maxsize)
             else:
                 return mp.Queue()
-                    
+
     def Value(self, typecode_or_type, *args, lock=True):
         import torch.multiprocessing as mp
+
         return mp.Value(typecode_or_type=typecode_or_type, *args, lock=lock)
-        
+
     def Dict(self):
         import torch.multiprocessing as mp
+
         if self.manager is not None:
             return self.manager.dict()
-        else: 
+        else:
             return {}

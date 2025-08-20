@@ -1,8 +1,8 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 * This file contains a revised and fixed version of the class in https://github.com/uoip/stereo_ptam/blob/master/motion.py
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,46 +18,48 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-import numpy as np 
+import numpy as np
 import g2o
 
 
 class MotionModelBase(object):
-    def __init__(self, 
-            timestamp=None, 
-            initial_position=None, 
-            initial_orientation=None, 
-            initial_covariance=None):
+    def __init__(
+        self,
+        timestamp=None,
+        initial_position=None,
+        initial_orientation=None,
+        initial_covariance=None,
+    ):
 
         self.timestamp = timestamp
-        if initial_position is not None: 
+        if initial_position is not None:
             self.position = np.array(initial_position)
         else:
             self.position = np.zeros(3)
-        if initial_orientation is not None: 
+        if initial_orientation is not None:
             self.orientation = initial_orientation
         else:
-            self.orientation = g2o.Quaternion()            
-        self.covariance = initial_covariance    # pose covariance
+            self.orientation = g2o.Quaternion()
+        self.covariance = initial_covariance  # pose covariance
 
-        self.is_ok = False 
+        self.is_ok = False
         self.initialized = False
 
     def current_pose(self):
-        '''
+        """
         Get the current camera pose.
-        '''
+        """
         return (g2o.Isometry3d(self.orientation, self.position), self.covariance)
 
     def predict_pose(self, timestamp, prev_position=None, prev_orientation=None):
-        return None 
+        return None
 
     def update_pose(self, timestamp, new_position, new_orientation, new_covariance=None):
-        return None 
+        return None
 
     # correction= Tcw_old.inverse() * Tcw_new  (transform from world_new to worl_old)
-    def apply_correction(self, correction):     # corr: g2o.Isometry3d or matrix44
-        return None 
+    def apply_correction(self, correction):  # corr: g2o.Isometry3d or matrix44
+        return None
 
     def reset(self):
         self.timestamp = None
@@ -70,55 +72,57 @@ class MotionModelBase(object):
 
 # simple kinematic motion model without damping (does not actually use timestamps)
 class MotionModel(MotionModelBase):
-    def __init__(self, 
-            timestamp=None, 
-            initial_position=None, 
-            initial_orientation=None, 
-            initial_covariance=None):
+    def __init__(
+        self,
+        timestamp=None,
+        initial_position=None,
+        initial_orientation=None,
+        initial_covariance=None,
+    ):
         super().__init__(timestamp, initial_position, initial_orientation, initial_covariance)
-        
-        self.delta_position = np.zeros(3)    # delta translation 
+
+        self.delta_position = np.zeros(3)  # delta translation
         self.delta_orientation = g2o.Quaternion()
 
     def predict_pose(self, timestamp, prev_position=None, prev_orientation=None):
-        '''
+        """
         Predict the next camera pose.
-        '''
+        """
         if prev_position is not None:
             self.position = prev_position
         if prev_orientation is not None:
-            self.orientation = prev_orientation            
-        
+            self.orientation = prev_orientation
+
         if not self.initialized:
             return (g2o.Isometry3d(self.orientation, self.position), self.covariance)
-        
-        orientation = self.delta_orientation * self.orientation 
-        position = self.position + self.delta_orientation * self.delta_position    
-        orientation.normalize()    
+
+        orientation = self.delta_orientation * self.orientation
+        position = self.position + self.delta_orientation * self.delta_position
+        orientation.normalize()
 
         return (g2o.Isometry3d(orientation, position), self.covariance)
 
     def update_pose(self, timestamp, new_position, new_orientation, new_covariance=None):
-        '''
+        """
         Update the motion model when given a new camera pose.
-        '''
+        """
         if self.initialized:
-            self.delta_position    = new_position - self.position            
+            self.delta_position = new_position - self.position
             self.delta_orientation = new_orientation * self.orientation.inverse()
             self.delta_orientation.normalize()
-                        
+
         self.timestamp = timestamp
         self.position = new_position
-        self.orientation = new_orientation                        
+        self.orientation = new_orientation
         self.covariance = new_covariance
         self.initialized = True
 
     # correction = Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
-    def apply_correction(self, correction):     # corr: g2o.Isometry3d or matrix44
-        '''
+    def apply_correction(self, correction):  # corr: g2o.Isometry3d or matrix44
+        """
         Reset the model given a new camera pose.
         Note: This method will be called when it happens an abrupt change in the pose (LoopClosing)
-        '''
+        """
         if not isinstance(correction, g2o.Isometry3d):
             correction = g2o.Isometry3d(correction)
 
@@ -130,58 +134,58 @@ class MotionModel(MotionModelBase):
         self.orientation.normalize()
 
         # correction = Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
-        self.delta_orientation = correction.orientation() * self.delta_orientation    
+        self.delta_orientation = correction.orientation() * self.delta_orientation
         self.delta_position = correction.orientation() * self.delta_position
 
 
-# motion model with damping 
+# motion model with damping
 class MotionModelDamping(MotionModelBase):
-    def __init__(self, 
-            timestamp=None, 
-            initial_position=None, 
-            initial_orientation=None, 
-            initial_covariance=None,
-            damping=0.95):
-        super().__init__(timestamp, initial_position, initial_orientation, initial_covariance)        
+    def __init__(
+        self,
+        timestamp=None,
+        initial_position=None,
+        initial_orientation=None,
+        initial_covariance=None,
+        damping=0.95,
+    ):
+        super().__init__(timestamp, initial_position, initial_orientation, initial_covariance)
 
-        self.v_linear = np.zeros(3)    # linear velocity
+        self.v_linear = np.zeros(3)  # linear velocity
         self.v_angular_angle = 0
         self.v_angular_axis = np.array([1, 0, 0])
-                
-        self.damp = damping         # damping factor
+
+        self.damp = damping  # damping factor
 
     def predict_pose(self, timestamp, prev_position=None, prev_orientation=None):
-        '''
+        """
         Predict the next camera pose.
-        '''
+        """
         if prev_position is not None:
             self.position = prev_position
         if prev_orientation is not None:
-            self.orientation = prev_orientation            
-                
+            self.orientation = prev_orientation
+
         if not self.initialized:
             return (g2o.Isometry3d(self.orientation, self.position), self.covariance)
-        
+
         if self.timestamp is None:
             dt = 0
         else:
             dt = timestamp - self.timestamp
 
-        delta_angle = g2o.AngleAxis(
-            self.v_angular_angle * dt * self.damp, 
-            self.v_angular_axis)
+        delta_angle = g2o.AngleAxis(self.v_angular_angle * dt * self.damp, self.v_angular_axis)
         delta_orientation = g2o.Quaternion(delta_angle)
 
-        orientation = delta_orientation * self.orientation 
-        position = self.position + delta_orientation * (self.v_linear * dt * self.damp)        
+        orientation = delta_orientation * self.orientation
+        position = self.position + delta_orientation * (self.v_linear * dt * self.damp)
         orientation.normalize()
-        
+
         return (g2o.Isometry3d(orientation, position), self.covariance)
 
     def update_pose(self, timestamp, new_position, new_orientation, new_covariance=None):
-        '''
+        """
         Update the motion model when given a new camera pose.
-        '''
+        """
         if self.initialized:
             dt = timestamp - self.timestamp
             assert dt != 0
@@ -202,24 +206,24 @@ class MotionModelDamping(MotionModelBase):
 
             self.v_angular_axis = axis
             self.v_angular_angle = angle / dt
-        
+
         self.timestamp = timestamp
         self.position = new_position
-        self.orientation = new_orientation                        
+        self.orientation = new_orientation
         self.covariance = new_covariance
-        self.initialized = True        
+        self.initialized = True
 
     # correction = Tcw_corrected * Tcw_uncorrected.inverse()  (transform from camera_uncorrected to camera_corrected)
-    def apply_correction(self, correction):     # corr: g2o.Isometry3d or matrix44
-        '''
+    def apply_correction(self, correction):  # corr: g2o.Isometry3d or matrix44
+        """
         Reset the model given a new camera pose.
         Note: This method will be called when it happens an abrupt change in the pose (LoopClosing)
-        '''
+        """
         if not isinstance(correction, g2o.Isometry3d):
             correction = g2o.Isometry3d(correction)
 
         current = g2o.Isometry3d(self.orientation, self.position)
-        current = correction * current  
+        current = correction * current
 
         self.position = current.position()
         self.orientation = current.orientation()

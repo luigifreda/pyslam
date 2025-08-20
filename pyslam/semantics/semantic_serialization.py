@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,20 +18,23 @@
 """
 
 import numpy as np
-from .semantic_types import SemanticFeatureType, SemanticEntityType  # Only imported when type checking, not at runtime
-      
-    
+from .semantic_types import (
+    SemanticFeatureType,
+    SemanticEntityType,
+)  # Only imported when type checking, not at runtime
+
+
 def serialize_semantic_des(semantic_des, semantic_type: SemanticFeatureType):
     if semantic_des is None or semantic_type is None:
-        return {
-            "type": None,
-            "value": None
-        }
+        return {"type": None, "value": None}
     return {
-        "type": semantic_type.name,   # store name, e.g., "LABEL"
-        "value": int(semantic_des) if semantic_type == SemanticFeatureType.LABEL else list(semantic_des)
+        "type": semantic_type.name,  # store name, e.g., "LABEL"
+        "value": (
+            int(semantic_des) if semantic_type == SemanticFeatureType.LABEL else list(semantic_des)
+        ),
     }
-    
+
+
 def deserialize_semantic_des(data: dict):
     data_type = data["type"]
     semantic_type = SemanticFeatureType[data_type] if data_type is not None else None

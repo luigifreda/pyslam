@@ -1,5 +1,6 @@
 import cv2
 
+
 def stream_webcam():
     # Capture video from the webcam (0 is the default camera)
     cap = cv2.VideoCapture(0)
@@ -20,15 +21,16 @@ def stream_webcam():
                 break
 
             # Display the resulting frame
-            cv2.imshow('Webcam Stream', frame)
+            cv2.imshow("Webcam Stream", frame)
 
             # Press 'q' to close the window
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     finally:
         # When everything done, release the capture
         cap.release()
         cv2.destroyAllWindows()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     stream_webcam()

@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ import cv2
 from pyslam.utilities.utils_sys import Printer
 import traceback
 
-try: 
+try:
     import ros2_pybindings
     from cv_bridge import CvBridge
 except:
@@ -96,7 +96,7 @@ from .dataset import Dataset
 #             return ref_stamp, dict(zip(self.topics, [m[1] for m in synced]))
 
 #         return None
-    
+
 
 def decode_ros2_depth_image(msg):
     assert msg.encoding == "32FC1", f"Unsupported encoding: {msg.encoding}"
@@ -111,45 +111,54 @@ def decode_ros2_depth_image(msg):
 
     # Convert list of ints to raw bytes
     data_bytes = bytes(msg.data)
-    
+
     # Interpret buffer as float32 and reshape
     data = np.frombuffer(data_bytes, dtype=dtype)
     image = data.reshape((height, width))
-    
+
     return image
 
 
 class Ros2bagDataset(Dataset):
-    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, 
-                 type=DatasetType.ROS1BAG, 
-                 environment_type=DatasetEnvironmentType.INDOOR,
-                 fps=30,
-                 config=None): 
+    def __init__(
+        self,
+        path,
+        name,
+        sensor_type=SensorType.RGBD,
+        associations=None,
+        start_frame_id=0,
+        type=DatasetType.ROS1BAG,
+        environment_type=DatasetEnvironmentType.INDOOR,
+        fps=30,
+        config=None,
+    ):
         super().__init__(path, name, sensor_type, fps, associations, start_frame_id, type)
         ros_settings = config.ros_settings
         assert ros_settings is not None
         self.ros_settings = ros_settings
 
-        assert 'bag_path' in ros_settings
-        self.bag_path = ros_settings['bag_path']
+        assert "bag_path" in ros_settings
+        self.bag_path = ros_settings["bag_path"]
         if not os.path.exists(self.bag_path):
             raise ValueError(f"[Ros2bagDataset] Bag path {self.bag_path} does not exist")
 
-        self.topics_dict = ros_settings['topics']
+        self.topics_dict = ros_settings["topics"]
         self.topics_list = list(self.topics_dict.values())
 
-        print(f'[Ros2bagDataset]: Bag: {self.bag_path}, Topics: {self.topics_dict}')
+        print(f"[Ros2bagDataset]: Bag: {self.bag_path}, Topics: {self.topics_dict}")
 
-        self.sync_queue_size = int(self.ros_settings['sync_queue_size'])
-        self.sync_slop = float(self.ros_settings['sync_slop'])
-        self.depth_factor = float(self.ros_settings.get('depth_factor', 1.0))
+        self.sync_queue_size = int(self.ros_settings["sync_queue_size"])
+        self.sync_slop = float(self.ros_settings["sync_slop"])
+        self.depth_factor = float(self.ros_settings.get("depth_factor", 1.0))
 
-        print(f'[Ros2bagDataset] sync_queue_size: {self.sync_queue_size}, sync_slop: {self.sync_slop}')
+        print(
+            f"[Ros2bagDataset] sync_queue_size: {self.sync_queue_size}, sync_slop: {self.sync_slop}"
+        )
 
-        self.color_image_topic = self.topics_dict.get('color_image')
-        self.depth_image_topic = self.topics_dict.get('depth_image')
-        self.right_color_image_topic = self.topics_dict.get('right_color_image')
-        self.imu_topic = self.topics_dict.get('imu')
+        self.color_image_topic = self.topics_dict.get("color_image")
+        self.depth_image_topic = self.topics_dict.get("depth_image")
+        self.right_color_image_topic = self.topics_dict.get("right_color_image")
+        self.imu_topic = self.topics_dict.get("imu")
 
         assert self.color_image_topic is not None, "Color image topic not found"
         if self.sensor_type == SensorType.STEREO:
@@ -161,42 +170,46 @@ class Ros2bagDataset(Dataset):
             bag_path=self.bag_path,
             topics=self.topics_list,
             queue_size=self.sync_queue_size,
-            slop=self.sync_slop
+            slop=self.sync_slop,
         )
         self.topic_timestamps = self.reader.topic_timestamps
         self.topic_counts = self.reader.topic_counts
         self.bridge = CvBridge()
 
         self.environment_type = environment_type
-        self.Ts = 1. / fps
+        self.Ts = 1.0 / fps
         self.scale_viewer_3d = 0.1 if sensor_type != SensorType.MONOCULAR else 0.05
 
-        print('Processing ROS2 bag')
+        print("Processing ROS2 bag")
         self.num_frames = self.topic_counts[self.color_image_topic]
         self.max_frame_id = self.num_frames
-        print(f'Number of frames: {self.num_frames}')
+        print(f"Number of frames: {self.num_frames}")
 
         num_timestamps = len(self.topic_timestamps[self.color_image_topic])
-        print(f'Number of timestamps: {num_timestamps}')
+        print(f"Number of timestamps: {num_timestamps}")
         assert num_timestamps == self.num_frames
 
         self.cam_stereo_settings = config.cam_stereo_settings
         if self.sensor_type == SensorType.STEREO:
-            Printer.yellow('[Ros2bagDataset] automatically rectifying the stereo images')
+            Printer.yellow("[Ros2bagDataset] automatically rectifying the stereo images")
             if self.cam_stereo_settings is None:
-                sys.exit('ERROR: Missing stereo settings in YAML config!')
-            width = config.cam_settings['Camera.width']
-            height = config.cam_settings['Camera.height']
+                sys.exit("ERROR: Missing stereo settings in YAML config!")
+            width = config.cam_settings["Camera.width"]
+            height = config.cam_settings["Camera.height"]
 
-            K_l, D_l, R_l, P_l = self.cam_stereo_settings['left'].values()
-            K_r, D_r, R_r, P_r = self.cam_stereo_settings['right'].values()
+            K_l, D_l, R_l, P_l = self.cam_stereo_settings["left"].values()
+            K_r, D_r, R_r, P_r = self.cam_stereo_settings["right"].values()
 
-            self.M1l, self.M2l = cv2.initUndistortRectifyMap(K_l, D_l, R_l, P_l[:3, :3], (width, height), cv2.CV_32FC1)
-            self.M1r, self.M2r = cv2.initUndistortRectifyMap(K_r, D_r, R_r, P_r[:3, :3], (width, height), cv2.CV_32FC1)
+            self.M1l, self.M2l = cv2.initUndistortRectifyMap(
+                K_l, D_l, R_l, P_l[:3, :3], (width, height), cv2.CV_32FC1
+            )
+            self.M1r, self.M2r = cv2.initUndistortRectifyMap(
+                K_r, D_r, R_r, P_r[:3, :3], (width, height), cv2.CV_32FC1
+            )
         self.debug_rectification = False
 
         self.count = -1
-        self.color_img = None 
+        self.color_img = None
         self.depth_img = None
         self.right_color_img = None
 
@@ -208,27 +221,38 @@ class Ros2bagDataset(Dataset):
             ts, synced = result
             self._timestamp = ts
             if self.color_image_topic in synced:
-                self.color_img = self.bridge.imgmsg_to_cv2(synced[self.color_image_topic], desired_encoding="bgr8")
-                print(f'[read] color image shape: {self.color_img.shape}')                
+                self.color_img = self.bridge.imgmsg_to_cv2(
+                    synced[self.color_image_topic], desired_encoding="bgr8"
+                )
+                print(f"[read] color image shape: {self.color_img.shape}")
             if self.depth_image_topic in synced:
-                try: 
+                try:
                     depth_msg = synced[self.depth_image_topic]
-                    #print(f"Depth encoding: {depth_msg.encoding}")             
-                    #print(f"Width: {depth_msg.width}, Height: {depth_msg.height}, Step: {depth_msg.step}, Endianness: {depth_msg.is_bigendian}, Encoding: {depth_msg.encoding}, expected step: {depth_msg.width * 4}")
-                    #self.depth_img = self.depth_factor * self.bridge.imgmsg_to_cv2(synced[self.depth_image_topic], desired_encoding="passthrough")
-                    #self.depth_img = self.bridge.imgmsg_to_cv2(synced[self.depth_image_topic], desired_encoding="passthrough")
-                    self.depth_img = self.depth_factor * decode_ros2_depth_image(depth_msg)        
+                    # print(f"Depth encoding: {depth_msg.encoding}")
+                    # print(f"Width: {depth_msg.width}, Height: {depth_msg.height}, Step: {depth_msg.step}, Endianness: {depth_msg.is_bigendian}, Encoding: {depth_msg.encoding}, expected step: {depth_msg.width * 4}")
+                    # self.depth_img = self.depth_factor * self.bridge.imgmsg_to_cv2(synced[self.depth_image_topic], desired_encoding="passthrough")
+                    # self.depth_img = self.bridge.imgmsg_to_cv2(synced[self.depth_image_topic], desired_encoding="passthrough")
+                    self.depth_img = self.depth_factor * decode_ros2_depth_image(depth_msg)
                     if False:
                         valid_depths = self.depth_img[np.isfinite(self.depth_img)]
                         print("Depth range:", np.min(valid_depths), np.max(valid_depths))
-                        print("Depth nans:", np.isnan(self.depth_img).sum(), " zeros:", np.count_nonzero(self.depth_img == 0))   
-                    print(f'[read] depth image shape: {self.depth_img.shape}, type: {self.depth_img.dtype}')
+                        print(
+                            "Depth nans:",
+                            np.isnan(self.depth_img).sum(),
+                            " zeros:",
+                            np.count_nonzero(self.depth_img == 0),
+                        )
+                    print(
+                        f"[read] depth image shape: {self.depth_img.shape}, type: {self.depth_img.dtype}"
+                    )
                 except Exception as e:
-                    print(f'Error reading depth image: {e}')
+                    print(f"Error reading depth image: {e}")
                     print(traceback.format_exc())
             if self.right_color_image_topic in synced:
-                self.right_color_img = self.bridge.imgmsg_to_cv2(synced[self.right_color_image_topic], desired_encoding="bgr8")
-                print(f'[read] left color image shape: {self.right_color_img.shape}')                
+                self.right_color_img = self.bridge.imgmsg_to_cv2(
+                    synced[self.right_color_image_topic], desired_encoding="bgr8"
+                )
+                print(f"[read] left color image shape: {self.right_color_img.shape}")
             self.count += 1
             self.is_ok = True
         else:
@@ -245,9 +269,12 @@ class Ros2bagDataset(Dataset):
             img = self.color_img
             if self.sensor_type == SensorType.STEREO and img is not None:
                 img = cv2.remap(img, self.M1l, self.M2l, cv2.INTER_LINEAR)
-            self.is_ok = (img is not None)
-            self._next_timestamp = (self.topic_timestamps[self.color_image_topic][frame_id + 1]
-                                    if frame_id + 1 < self.max_frame_id else self._timestamp + self.Ts)
+            self.is_ok = img is not None
+            self._next_timestamp = (
+                self.topic_timestamps[self.color_image_topic][frame_id + 1]
+                if frame_id + 1 < self.max_frame_id
+                else self._timestamp + self.Ts
+            )
             return img
         self.is_ok = False
         self._timestamp = None
@@ -262,9 +289,12 @@ class Ros2bagDataset(Dataset):
             img = self.right_color_img
             if self.sensor_type == SensorType.STEREO and img is not None:
                 img = cv2.remap(img, self.M1r, self.M2r, cv2.INTER_LINEAR)
-            self.is_ok = (img is not None)
-            self._next_timestamp = (self.topic_timestamps[self.right_color_image_topic][frame_id + 1]
-                                    if frame_id + 1 < self.max_frame_id else self._timestamp + self.Ts)
+            self.is_ok = img is not None
+            self._next_timestamp = (
+                self.topic_timestamps[self.right_color_image_topic][frame_id + 1]
+                if frame_id + 1 < self.max_frame_id
+                else self._timestamp + self.Ts
+            )
             return img
         self.is_ok = False
         self._timestamp = None
@@ -278,9 +308,12 @@ class Ros2bagDataset(Dataset):
             while self.count < frame_id and self.is_ok:
                 self.read()
             img = self.depth_img
-            self.is_ok = (img is not None)
-            self._next_timestamp = (self.topic_timestamps[self.depth_image_topic][frame_id + 1]
-                                    if frame_id + 1 < self.max_frame_id else self._timestamp + self.Ts)
+            self.is_ok = img is not None
+            self._next_timestamp = (
+                self.topic_timestamps[self.depth_image_topic][frame_id + 1]
+                if frame_id + 1 < self.max_frame_id
+                else self._timestamp + self.Ts
+            )
             return img
         self.is_ok = False
         self._timestamp = None

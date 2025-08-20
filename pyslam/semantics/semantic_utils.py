@@ -20,8 +20,19 @@
 import numpy as np
 import cv2
 
-from .semantic_labels import get_ade20k_color_map, get_cityscapes_color_map, get_nyu40_color_map, get_voc_color_map, get_generic_color_map
-from .semantic_labels import get_ade20k_labels, get_cityscapes_labels, get_nyu40_labels, get_voc_labels
+from .semantic_labels import (
+    get_ade20k_color_map,
+    get_cityscapes_color_map,
+    get_nyu40_color_map,
+    get_voc_color_map,
+    get_generic_color_map,
+)
+from .semantic_labels import (
+    get_ade20k_labels,
+    get_cityscapes_labels,
+    get_nyu40_labels,
+    get_voc_labels,
+)
 from pyslam.utilities.utils_serialization import SerializableEnum, register_class
 
 
@@ -37,8 +48,8 @@ def similarity_heatmap_image(sim_map, colormap=cv2.COLORMAP_JET, sim_scale=1.0, 
         np.ndarray: RGB image (H, W, 3) visualizing similarity
     """
     # Normalize to 0–255 for colormap (skip min-max if values are already in [0,1])
-    sim_map = np.clip(sim_map*sim_scale, 0.0, 1.0)
-    sim_map = ((1-sim_map) * 255).astype(np.uint8)
+    sim_map = np.clip(sim_map * sim_scale, 0.0, 1.0)
+    sim_map = ((1 - sim_map) * 255).astype(np.uint8)
 
     # Apply colormap and convert to RGB
     sim_color = cv2.applyColorMap(sim_map, colormap)
@@ -58,8 +69,8 @@ def similarity_heatmap_point(sim_point, colormap=cv2.COLORMAP_JET, sim_scale=1.0
     Returns:
         np.ndarray: RGB image (H, W, 3) visualizing similarity
     """
-    sim_point = np.clip(sim_point*sim_scale, 0.0, 1.0)
-    sim_point = ((1-sim_point) * 255).astype(np.uint8)
+    sim_point = np.clip(sim_point * sim_scale, 0.0, 1.0)
+    sim_point = ((1 - sim_point) * 255).astype(np.uint8)
     sim_color = cv2.applyColorMap(sim_point, colormap)
     if bgr:
         sim_color = cv2.cvtColor(sim_color, cv2.COLOR_BGR2RGB)
@@ -67,9 +78,7 @@ def similarity_heatmap_point(sim_point, colormap=cv2.COLORMAP_JET, sim_scale=1.0
 
 
 # create a scaled image of uint8 from a image of semantics
-def labels_to_image(
-    label_img, semantics_color_map, bgr=False, ignore_labels=[], rgb_image=None
-):
+def labels_to_image(label_img, semantics_color_map, bgr=False, ignore_labels=[], rgb_image=None):
     """
     Converts a class label image to an RGB image.
     Args:
@@ -145,11 +154,12 @@ def labels_color_map_factory(semantic_dataset_type=SemanticDatasetType.CITYSCAPE
     elif semantic_dataset_type == SemanticDatasetType.NYU40:
         return get_nyu40_color_map()
     elif semantic_dataset_type == SemanticDatasetType.CUSTOM_SET:
-        if 'num_classes' not in kwargs:
+        if "num_classes" not in kwargs:
             raise ValueError("num_classes must be provided if semantic_dataset_type is CUSTOM_SET")
-        return get_generic_color_map(kwargs['num_classes'])
+        return get_generic_color_map(kwargs["num_classes"])
     else:
         raise ValueError("Unknown dataset name: {}".format(semantic_dataset_type))
+
 
 def labels_name_factory(semantic_dataset_type=SemanticDatasetType.CITYSCAPES):
     if semantic_dataset_type == SemanticDatasetType.VOC:
@@ -165,6 +175,7 @@ def labels_name_factory(semantic_dataset_type=SemanticDatasetType.CITYSCAPES):
     else:
         raise ValueError("Unknown dataset name: {}".format(semantic_dataset_type))
 
+
 def information_weights_factory(semantic_dataset_type=SemanticDatasetType.CITYSCAPES, **kwargs):
     if semantic_dataset_type == SemanticDatasetType.VOC:
         return get_voc_information_weights()
@@ -175,9 +186,9 @@ def information_weights_factory(semantic_dataset_type=SemanticDatasetType.CITYSC
     elif semantic_dataset_type == SemanticDatasetType.NYU40:
         return get_nyu40_information_weights()
     elif semantic_dataset_type == SemanticDatasetType.CUSTOM_SET:
-        if 'num_classes' not in kwargs:
+        if "num_classes" not in kwargs:
             raise ValueError("num_classes must be provided if semantic_dataset_type is CUSTOM_SET")
-        return get_trivial_information(kwargs['num_classes'])
+        return get_trivial_information(kwargs["num_classes"])
     else:
         raise ValueError("Unknown dataset name: {}".format(semantic_dataset_type))
 
@@ -234,8 +245,10 @@ def get_cityscapes_information_weights():
 def get_ade20k_information_weights():
     return get_trivial_information(num_classes=150)
 
+
 def get_nyu40_information_weights():
     return get_trivial_information(num_classes=41)
+
 
 def get_trivial_information(num_classes):
     return np.ones(num_classes)

@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
-* Adpated from adapted from https://github.com/lzx551402/contextdesc/blob/master/utils/tf.py, see the license therein. 
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* This file is part of PYSLAM
+* Adpated from adapted from https://github.com/lzx551402/contextdesc/blob/master/utils/tf.py, see the license therein.
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@ def to_device(batch, device, callback=None, non_blocking=False):
         return type(batch)(to_device(x, device) for x in batch)
 
     x = batch
-    if device == 'numpy':
+    if device == "numpy":
         if isinstance(x, torch.Tensor):
             x = x.detach().cpu().numpy()
     elif x is not None:
@@ -59,6 +59,13 @@ def to_device(batch, device, callback=None, non_blocking=False):
     return x
 
 
-def to_numpy(x): return to_device(x, 'numpy')
-def to_cpu(x): return to_device(x, 'cpu')
-def to_cuda(x): return to_device(x, 'cuda')
+def to_numpy(x):
+    return to_device(x, "numpy")
+
+
+def to_cpu(x):
+    return to_device(x, "cpu")
+
+
+def to_cuda(x):
+    return to_device(x, "cuda")

@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 
 import pyslam.config as config
 from enum import Enum
-import numpy as np 
+import numpy as np
 import cv2
 
 from .feature_base import BaseFeature2D
@@ -34,14 +34,14 @@ class RootSIFTFeature2D(BaseFeature2D):
 
     def detect(self, frame, mask=None):
         return self.feature.detect(frame, mask)
- 
-    def transform_descriptors(self, des, eps=1e-7): 
-        # apply the Hellinger kernel by first L1-normalizing and 
+
+    def transform_descriptors(self, des, eps=1e-7):
+        # apply the Hellinger kernel by first L1-normalizing and
         # taking the square-root
-        des /= (des.sum(axis=1, keepdims=True) + eps)
-        des = np.sqrt(des)        
-        return des 
-            
+        des /= des.sum(axis=1, keepdims=True) + eps
+        des = np.sqrt(des)
+        return des
+
     def compute(self, frame, kps, eps=1e-7):
         # compute SIFT descriptors
         (kps, des) = self.feature.compute(frame, kps)
@@ -50,7 +50,7 @@ class RootSIFTFeature2D(BaseFeature2D):
         if len(kps) == 0:
             return ([], None)
 
-        # apply the Hellinger kernel by first L1-normalizing and 
+        # apply the Hellinger kernel by first L1-normalizing and
         # taking the square-root
         des = self.transform_descriptors(des)
 
@@ -58,7 +58,7 @@ class RootSIFTFeature2D(BaseFeature2D):
         return (kps, des)
 
     # detect keypoints and their descriptors
-    # out: kps, des 
+    # out: kps, des
     def detectAndCompute(self, frame, mask=None):
         # compute SIFT keypoints and descriptors
         (kps, des) = self.feature.detectAndCompute(frame, mask)
@@ -67,7 +67,7 @@ class RootSIFTFeature2D(BaseFeature2D):
         if len(kps) == 0:
             return ([], None)
 
-        # apply the Hellinger kernel by first L1-normalizing and 
+        # apply the Hellinger kernel by first L1-normalizing and
         # taking the square-root
         des = self.transform_descriptors(des)
 

@@ -1,5 +1,5 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
 * Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 * Copyright (C) 2024 Anathonic <anathonic@protonmail.com>
@@ -18,13 +18,12 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 from datetime import datetime
-#import quaternion
+
+# import quaternion
 from scipy.spatial.transform import Rotation as R_scipy
 import numpy as np
 import os
-
 
 
 class UnsupportedFormatException(Exception):
@@ -34,18 +33,18 @@ class UnsupportedFormatException(Exception):
         super().__init__(self.message)
 
     def __str__(self):
-        return f'{self.message}: {self.format_type}'
+        return f"{self.message}: {self.format_type}"
 
 
 class TrajectoryWriter:
-    KITTI_FORMAT = 'kitti'
-    TUM_FORMAT = 'tum'
-    EUROC_FORMAT = 'euroc'
+    KITTI_FORMAT = "kitti"
+    TUM_FORMAT = "tum"
+    EUROC_FORMAT = "euroc"
 
     FORMAT_FUNCTIONS = {
-        KITTI_FORMAT: '_write_kitti_trajectory',
-        TUM_FORMAT: '_write_tum_trajectory',
-        EUROC_FORMAT: '_write_euroc_trajectory'
+        KITTI_FORMAT: "_write_kitti_trajectory",
+        TUM_FORMAT: "_write_tum_trajectory",
+        EUROC_FORMAT: "_write_euroc_trajectory",
     }
 
     def __init__(self, format_type: str, filename: str = None) -> None:
@@ -62,16 +61,16 @@ class TrajectoryWriter:
         if folder_path and not os.path.exists(folder_path):
             os.makedirs(folder_path)
         if not self.file:
-            self.file = open(self.filename, 'w')
-            print(f'Trajectory file {self.filename} opened')
+            self.file = open(self.filename, "w")
+            print(f"Trajectory file {self.filename} opened")
         else:
-            print(f'ERROR: trajectory file {self.filename} already open')
+            print(f"ERROR: trajectory file {self.filename} already open")
 
     def close_file(self):
         if self.file:
             self.file.close()
             self.file = None
-            print(f'Trajectory saved to {self.filename}')
+            print(f"Trajectory saved to {self.filename}")
 
     def set_format_type(self, format_type):
         self.format_type = format_type.lower()
@@ -98,7 +97,7 @@ class TrajectoryWriter:
         elif isinstance(array_or_scalar, (np.float32, np.float64)):
             dtype = array_or_scalar.dtype
         elif isinstance(array_or_scalar, float):
-            dtype = np.dtype('float64')  # Python float is 64-bit
+            dtype = np.dtype("float64")  # Python float is 64-bit
         else:
             dtype = np.dtype(type(array_or_scalar))
 
@@ -110,29 +109,40 @@ class TrajectoryWriter:
     def _write_kitti_trajectory(self, R, t, timestamp) -> None:
         fmt = self._get_format_func(R)
         elements = [
-            R[0, 0], R[0, 1], R[0, 2], t[0],
-            R[1, 0], R[1, 1], R[1, 2], t[1],
-            R[2, 0], R[2, 1], R[2, 2], t[2]
+            R[0, 0],
+            R[0, 1],
+            R[0, 2],
+            t[0],
+            R[1, 0],
+            R[1, 1],
+            R[1, 2],
+            t[1],
+            R[2, 0],
+            R[2, 1],
+            R[2, 2],
+            t[2],
         ]
-        self.file.write(' '.join(fmt(x) for x in elements) + '\n')
+        self.file.write(" ".join(fmt(x) for x in elements) + "\n")
 
     def _write_tum_trajectory(self, R, t, timestamp) -> None:
         fmt = self._get_format_func(t)
         timestamp_fmt = self._get_format_func(timestamp)
-        #q = quaternion.from_rotation_matrix(R)
+        # q = quaternion.from_rotation_matrix(R)
         q = R_scipy.from_matrix(R).as_quat()  # [x, y, z, w]
-        #elements = [timestamp, t[0], t[1], t[2], q.x, q.y, q.z, q.w]
+        # elements = [timestamp, t[0], t[1], t[2], q.x, q.y, q.z, q.w]
         elements = [timestamp, t[0], t[1], t[2], q[0], q[1], q[2], q[3]]
-        self.file.write(' '.join(fmt(x) if i else timestamp_fmt(x) for i, x in enumerate(elements)) + '\n')
+        self.file.write(
+            " ".join(fmt(x) if i else timestamp_fmt(x) for i, x in enumerate(elements)) + "\n"
+        )
 
     def _write_euroc_trajectory(self, R, t, timestamp) -> None:
         fmt = self._get_format_func(t)
         timestamp_fmt = self._get_format_func(timestamp)
-        #q = quaternion.from_rotation_matrix(R)
+        # q = quaternion.from_rotation_matrix(R)
         q = R_scipy.from_matrix(R).as_quat()  # [x, y, z, w]
-        t_str = ', '.join(fmt(x) for x in t)
-        #q_str = ', '.join(fmt(x) for x in [q.x, q.y, q.z, q.w])
-        q_str = ', '.join(fmt(x) for x in [q[0], q[1], q[2], q[3]])
+        t_str = ", ".join(fmt(x) for x in t)
+        # q_str = ', '.join(fmt(x) for x in [q.x, q.y, q.z, q.w])
+        q_str = ", ".join(fmt(x) for x in [q[0], q[1], q[2], q[3]])
         self.file.write(f"{timestamp_fmt(timestamp)}, {t_str}, {q_str}\n")
 
     @staticmethod

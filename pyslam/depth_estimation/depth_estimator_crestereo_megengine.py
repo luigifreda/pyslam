@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 import cv2
 import numpy as np
 import os
@@ -25,12 +24,13 @@ import sys
 import platform
 
 import pyslam.config as config
-config.cfg.set_lib('crestereo')
+
+config.cfg.set_lib("crestereo")
 
 
 from pyslam.slam.camera import Camera
 from pyslam.io.dataset_types import DatasetEnvironmentType
-from pyslam.utilities.utils_depth import img_from_depth 
+from pyslam.utilities.utils_depth import img_from_depth
 from pyslam.utilities.utils_sys import Printer, set_rlimit
 
 from .depth_estimator_base import DepthEstimator
@@ -38,18 +38,19 @@ from .depth_estimator_base import DepthEstimator
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder + '/../..'
+kRootFolder = kScriptFolder + "/../.."
 
 
 def enforce_megengine_linking():
     # Experimental: trying to enforce correct linking
     import ctypes
+
     # Path to the directory containing your libraries
-    site_packages_path = next(p for p in sys.path if 'site-packages' in p)
-    lib_path = os.path.join(site_packages_path, 'megengine', 'core', 'lib')        
-    print(f'DepthEstimatorCrestereoMegengine: lib_path = {lib_path}')
+    site_packages_path = next(p for p in sys.path if "site-packages" in p)
+    lib_path = os.path.join(site_packages_path, "megengine", "core", "lib")
+    print(f"DepthEstimatorCrestereoMegengine: lib_path = {lib_path}")
     if not os.path.exists(lib_path):
-        Printer.red(f'DepthEstimatorCrestereoMegengine: lib_path does not exist: {lib_path}')
+        Printer.red(f"DepthEstimatorCrestereoMegengine: lib_path does not exist: {lib_path}")
         return
 
     # Add the library path to the environment variable
@@ -63,50 +64,68 @@ def enforce_megengine_linking():
     ctypes.CDLL(os.path.join(lib_path, "libcublasLt.so.11"))
     ctypes.CDLL(os.path.join(lib_path, "libnvrtc.so.11.2"))
     ctypes.CDLL(os.path.join(lib_path, "libmegengine_shared.so"))  # Load the main library last
-    
-    
+
+
 try:
     # Unfortunately, megengine is not fully supported on macOS
-    #enforce_megengine_linking()
+    # enforce_megengine_linking()
     import megengine as mge
     import crestereo.nets as crestereo_nets
-    HAS_MEGENGINE=True
+
+    HAS_MEGENGINE = True
 except:
-    HAS_MEGENGINE=False
-    #Printer.orange(f'DepthEstimatorCrestereoMegengine: megengine not found')
-    print(f'DepthEstimatorCrestereoMegengine: megengine not found')
+    HAS_MEGENGINE = False
+    # Printer.orange(f'DepthEstimatorCrestereoMegengine: megengine not found')
+    print(f"DepthEstimatorCrestereoMegengine: megengine not found")
+
 
 # Stereo depth prediction using the Crestereo model.
 class DepthEstimatorCrestereoMegengine(DepthEstimator):
-    kCrestereoBasePath=kRootFolder +'/thirdparty/crestereo'
-    kCrestereoModelPath=kCrestereoBasePath +'/crestereo_eth3d.mge'
-    def __init__(self, device=None, camera:Camera=None,
-                 min_depth=0, max_depth=50, dataset_env_type=DatasetEnvironmentType.OUTDOOR,
-                 n_iter = 20):
-        
+    kCrestereoBasePath = kRootFolder + "/thirdparty/crestereo"
+    kCrestereoModelPath = kCrestereoBasePath + "/crestereo_eth3d.mge"
+
+    def __init__(
+        self,
+        device=None,
+        camera: Camera = None,
+        min_depth=0,
+        max_depth=50,
+        dataset_env_type=DatasetEnvironmentType.OUTDOOR,
+        n_iter=20,
+    ):
+
         min_z = camera.b
         self.min_disparity = camera.bf / max_depth
-        self.max_disparity = camera.bf / min_z          
-                
+        self.max_disparity = camera.bf / min_z
+
         self.n_iter = n_iter
         model = self.load_model()
-        super().__init__(model=model, transform=None, device=None, camera=camera, 
-                         min_depth=min_depth, max_depth=max_depth, 
-                         dataset_env_type=dataset_env_type, precision=None)        
-        
+        super().__init__(
+            model=model,
+            transform=None,
+            device=None,
+            camera=camera,
+            min_depth=min_depth,
+            max_depth=max_depth,
+            dataset_env_type=dataset_env_type,
+            precision=None,
+        )
+
     def load_model(self, model_path=kCrestereoModelPath):
-        if HAS_MEGENGINE:  
-                  
+        if HAS_MEGENGINE:
+
             print("DepthEstimatorCrestereoMegengine: Loading model:", os.path.abspath(model_path))
             if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model file not found: {model_path}")        
+                raise FileNotFoundError(f"Model file not found: {model_path}")
             pretrained_dict = mge.load(model_path)
-            model = crestereo_nets.Model(max_disp=self.max_disparity, mixed_precision=False, test_mode=True)
+            model = crestereo_nets.Model(
+                max_disp=self.max_disparity, mixed_precision=False, test_mode=True
+            )
             model.load_state_dict(pretrained_dict["state_dict"], strict=True)
             model.eval()
             return model
-        
-        else: 
+
+        else:
             Printer.red("DepthEstimatorCrestereoMegengine: Not implemented for MacOS")
             raise NotImplementedError
             return None
@@ -114,14 +133,16 @@ class DepthEstimatorCrestereoMegengine(DepthEstimator):
     # Return the predicted depth map and the point cloud (if any)
     def infer(self, image, image_right=None):
         if HAS_MEGENGINE:
-            
+
             if image_right is None:
-                message = 'Image right is None. Are you using a stereo dataset? If not, you cant use a stereo depth estimator here.'
+                message = "Image right is None. Are you using a stereo dataset? If not, you cant use a stereo depth estimator here."
                 Printer.red(message)
                 raise ValueError(message)
-            
-            in_shape = image.shape 
-            print(f'DepthEstimatorCrestereoMegengine: Running inference: {image.shape} {image_right.shape}')
+
+            in_shape = image.shape
+            print(
+                f"DepthEstimatorCrestereoMegengine: Running inference: {image.shape} {image_right.shape}"
+            )
 
             # Compute disparity map
             imgL = image.transpose(2, 0, 1)
@@ -148,31 +169,36 @@ class DepthEstimatorCrestereoMegengine(DepthEstimator):
 
             pred_flow = self.model(imgL, imgR, iters=self.n_iter, flow_init=pred_flow_dw2)
             disparity_map = mge.functional.squeeze(pred_flow[:, 0, :, :]).numpy()
-                
+
             out_shape = disparity_map.shape
             if out_shape[0] != in_shape[0] or out_shape[1] != in_shape[1]:
                 in_w = in_shape[1]
                 out_w = out_shape[1]
                 # got this formula from the original testing code
                 t = float(in_w) / float(out_w)
-                disparity_map = cv2.resize(disparity_map, (in_shape[1], in_shape[0]), interpolation=cv2.INTER_AREA)*t
+                disparity_map = (
+                    cv2.resize(
+                        disparity_map, (in_shape[1], in_shape[0]), interpolation=cv2.INTER_AREA
+                    )
+                    * t
+                )
 
             self.disparity_map = disparity_map
 
             bf = self.camera.bf if self.camera is not None else 1.0
             if self.camera is None:
-                Printer.red('Camera is None!')
-                    
+                Printer.red("Camera is None!")
+
             # Compute depth map
             abs_disparity_map = np.abs(disparity_map, dtype=float)
-            depth_map = np.where(abs_disparity_map > self.min_disparity, bf / abs_disparity_map, 0.0)
+            depth_map = np.where(
+                abs_disparity_map > self.min_disparity, bf / abs_disparity_map, 0.0
+            )
             self.depth_map = depth_map
-            
-            print(f'DepthEstimatorCrestereoMegengine: Depth map shape: {depth_map.shape}')
+
+            print(f"DepthEstimatorCrestereoMegengine: Depth map shape: {depth_map.shape}")
             return depth_map, None
-        
-        else: 
+
+        else:
             Printer.red("DepthEstimatorCrestereoMegengine: Not implemented for MacOS")
             raise NotImplementedError
-    
-    

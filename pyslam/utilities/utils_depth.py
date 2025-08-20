@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,26 +20,26 @@
 import numpy as np
 
 
-# create a scaled image of uint8 from a image of floats 
+# create a scaled image of uint8 from a image of floats
 def img_from_depth(img_flt, img_max=None, img_min=None, eps=1e-9):
-    assert(img_flt.dtype in [np.float32, np.float64, np.float16, np.double, np.single])
+    assert img_flt.dtype in [np.float32, np.float64, np.float16, np.double, np.single]
     img_max = np.max(img_flt) if img_max is None else img_max
     img_min = np.min(img_flt) if img_min is None else img_min
     if img_max is not None or img is not None:
-        img_flt = np.clip(img_flt, img_min, img_max) 
+        img_flt = np.clip(img_flt, img_min, img_max)
     img_range = img_max - img_min
     if img_range < eps:
         img_range = 1
-    img = (img_flt-img_min)/img_range * 255   
-    return img.astype(np.uint8) 
+    img = (img_flt - img_min) / img_range * 255
+    return img.astype(np.uint8)
 
 
 class PointCloud:
     def __init__(self, points=None, colors=None):
-        self.points = points    # array Nx3
-        self.colors = colors    # array Nx3
+        self.points = points  # array Nx3
+        self.colors = colors  # array Nx3
 
-        
+
 def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
     # mask for valid depth values
     valid = (depth > min_depth) & (depth < max_depth)
@@ -52,6 +52,7 @@ def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
     # colors corresponding to valid depth values
     colors = image[rows, cols] / 255.0
     return PointCloud(points, colors)
+
 
 def depth2pointcloud_v2(depth, image, fx, fy, cx, cy):
     width, height = depth.shape[0], depth.shape[1]
@@ -70,10 +71,10 @@ def depth2pointcloud_v2(depth, image, fx, fy, cx, cy):
 # If delta_depth=None, it uses the median absolute deviation (MAD) of the depth differences.
 def filter_shadow_points(depth, delta_depth=None, delta_x=2, delta_y=2, fill_value=-1):
     depth_out = depth.copy()
-    
+
     # Initialize mask with False
     mask = np.zeros_like(depth, dtype=bool)
-    
+
     # Check depth differences in all directions
     delta_values = []
     if delta_y > 0:
@@ -82,27 +83,31 @@ def filter_shadow_points(depth, delta_depth=None, delta_x=2, delta_y=2, fill_val
             delta_values.append(delta_depth_y.flatten())
     if delta_x > 0:
         delta_depth_x = np.abs(depth[:, delta_x:] - depth[:, :-delta_x])
-        if delta_depth is None:        
+        if delta_depth is None:
             delta_values.append(delta_depth_x.flatten())
-    if delta_depth is None:            
+    if delta_depth is None:
         delta_values = np.concatenate(delta_values)
         delta_values = delta_values[delta_values > 0]
-        
-        mad = np.median(delta_values) # MAD, approximating median(deltas)=0 in MAD=median(deltas - median(deltas))
+
+        mad = np.median(
+            delta_values
+        )  # MAD, approximating median(deltas)=0 in MAD=median(deltas - median(deltas))
         sigma_depth = 1.4826 * mad
-        delta_depth = 3 * sigma_depth # + mad  # the final "+ mad" is for adding back a bias (the median itself) to the depth threshold since the delta distribution is not centered at zero
-        #print(f'filter_shadow_points: delta_depth={delta_depth}, mad: {mad}')
-            
-    # Update mask        
+        delta_depth = (
+            3 * sigma_depth
+        )  # + mad  # the final "+ mad" is for adding back a bias (the median itself) to the depth threshold since the delta distribution is not centered at zero
+        # print(f'filter_shadow_points: delta_depth={delta_depth}, mad: {mad}')
+
+    # Update mask
     if delta_y > 0:
         delta_depth_y_is_big = delta_depth_y > delta_depth
         mask[delta_y:, :] |= delta_depth_y_is_big
-        mask[:-delta_y, :] |= delta_depth_y_is_big  
-        
+        mask[:-delta_y, :] |= delta_depth_y_is_big
+
     if delta_x > 0:
         delta_depth_x_is_big = delta_depth_x > delta_depth
         mask[:, delta_x:] |= delta_depth_x_is_big
-        mask[:, :-delta_x] |= delta_depth_x_is_big              
+        mask[:, :-delta_x] |= delta_depth_x_is_big
 
     # Set invalid depth values to fill_value
     depth_out[mask] = fill_value
@@ -113,13 +118,13 @@ def filter_shadow_points(depth, delta_depth=None, delta_x=2, delta_y=2, fill_val
 def point_cloud_to_depth(points, K, w, h):
     """
     Generate a depth image from a point cloud.
-    
+
     Parameters:
       points: (N, 3) numpy array of points in the camera coordinate system.
       K: (3, 3) intrinsic calibration matrix.
       w: target image width.
       h: target image height.
-    
+
     Returns:
       depth_img: (h, w) numpy array with depth values. Pixels with no point are set to 0.
     """
@@ -129,7 +134,7 @@ def point_cloud_to_depth(points, K, w, h):
     # Only consider points with positive depth
     valid = points[:, 2] > 0
     valid_points = points[valid]
-    
+
     X, Y, Z = valid_points[:, 0], valid_points[:, 1], valid_points[:, 2]
     # Using round to get pixel coordinates
     u = np.round((X / Z) * fx + cx).astype(np.int32)

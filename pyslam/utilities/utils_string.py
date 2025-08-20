@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 """
 
 
-# Compute the Levenshtein distance between two strings 
+# Compute the Levenshtein distance between two strings
 def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
         return levenshtein_distance(s2, s1)
@@ -32,7 +32,7 @@ def levenshtein_distance(s1, s2):
         current_row = [i + 1]
         for j, c2 in enumerate(s2):
             insertions = previous_row[j + 1] + 1  # cost for insertion
-            deletions = current_row[j] + 1        # cost for deletion
+            deletions = current_row[j] + 1  # cost for deletion
             substitutions = previous_row[j] + (c1 != c2)  # cost for substitution
             current_row.append(min(insertions, deletions, substitutions))
         previous_row = current_row

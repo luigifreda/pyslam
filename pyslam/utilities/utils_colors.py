@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -23,16 +23,20 @@ import numpy as np
 
 class Colors:
     # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
-    myjet = np.array([[0.        , 0.        , 0.5       ],
-                    [0.        , 0.        , 0.99910873],
-                    [0.        , 0.37843137, 1.        ],
-                    [0.        , 0.83333333, 1.        ],
-                    [0.30044276, 1.        , 0.66729918],
-                    [0.66729918, 1.        , 0.30044276],
-                    [1.        , 0.90123457, 0.        ],
-                    [1.        , 0.48002905, 0.        ],
-                    [0.99910873, 0.07334786, 0.        ],
-                    [0.5       , 0.        , 0.        ]])
+    myjet = np.array(
+        [
+            [0.0, 0.0, 0.5],
+            [0.0, 0.0, 0.99910873],
+            [0.0, 0.37843137, 1.0],
+            [0.0, 0.83333333, 1.0],
+            [0.30044276, 1.0, 0.66729918],
+            [0.66729918, 1.0, 0.30044276],
+            [1.0, 0.90123457, 0.0],
+            [1.0, 0.48002905, 0.0],
+            [0.99910873, 0.07334786, 0.0],
+            [0.5, 0.0, 0.0],
+        ]
+    )
 
 
 class GlColors:
@@ -66,21 +70,25 @@ class GlColors:
     kViolet = np.array([0.5, 0.0, 0.5, 1.0])
     kPinkViolet = np.array([0.5, 0.5, 0.5, 1.0])
     kCyanViolet = np.array([0.5, 0.5, 0.5, 1.0])
-    
+
     _instance = None
-    
+
     def __init__(self):
         # get colors from static fields by iterating over them
-        self.colors = [getattr(GlColors, color) for color in dir(GlColors) if isinstance(getattr(GlColors, color), np.ndarray) and color.startswith("k")]
+        self.colors = [
+            getattr(GlColors, color)
+            for color in dir(GlColors)
+            if isinstance(getattr(GlColors, color), np.ndarray) and color.startswith("k")
+        ]
         self.num_colors = len(self.colors)
-        
+
     @staticmethod
     def get_color(i):
         if not GlColors._instance:
             GlColors._instance = GlColors()
         return getattr(GlColors, GlColors._instance.colors[i % GlColors._instance.num_colors])
-    
-    @staticmethod 
+
+    @staticmethod
     def get_colors():
         if not GlColors._instance:
             GlColors._instance = GlColors()
@@ -90,4 +98,4 @@ class GlColors:
     def get_random_color():
         if not GlColors._instance:
             GlColors._instance = GlColors()
-        return GlColors._instance.colors[random.randint(0, GlColors._instance.num_colors-1)]
+        return GlColors._instance.colors[random.randint(0, GlColors._instance.num_colors - 1)]

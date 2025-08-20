@@ -8,7 +8,7 @@ from pyslam.utilities.utils_download import download_file_from_url
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder + '/../..'
+kRootFolder = kScriptFolder + "/../.."
 kDataFolder = os.path.join(kRootFolder, "data")
 
 
@@ -74,17 +74,13 @@ class SkyMaskExtractor:
         if result.ndim == 4:
             return result[0, 0]  # [1, 1, H, W] → [H, W]
         elif result.ndim == 3:
-            return result[0]     # [1, H, W]
+            return result[0]  # [1, H, W]
         else:
             raise RuntimeError(f"Unexpected model output shape: {result.shape}")
 
-
     @staticmethod
     def colorize_sky_region(
-        image: np.ndarray,
-        mask: np.ndarray,
-        color: tuple = (0, 0, 255),
-        alpha: float = 0.4
+        image: np.ndarray, mask: np.ndarray, color: tuple = (0, 0, 255), alpha: float = 0.4
     ) -> np.ndarray:
         """
         Overlays a color on the sky region of an image with adjustable transparency.

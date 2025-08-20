@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -112,7 +112,9 @@ def so3_log(r: np.ndarray, return_skew: bool = False) -> np.ndarray:
              3x3 skew symmetric logarithmic map in so(3) (Ma, Soatto eq. 2.8)
     """
     if not is_so3(r):
-        raise LieAlgebraException(f"matrix is not a valid SO(3) group element: {r}, det: {np.linalg.det(r)}")
+        raise LieAlgebraException(
+            f"matrix is not a valid SO(3) group element: {r}, det: {np.linalg.det(r)}"
+        )
     rotation_vector = _sst_rotation_from_matrix(r).as_rotvec()
     if return_skew:
         return hat(rotation_vector)

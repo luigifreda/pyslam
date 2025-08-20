@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 """
 
 import torch.multiprocessing as mp
-import threading as th    
+import threading as th
 
 import traceback
 import platform
@@ -47,41 +47,44 @@ def static_fields_to_dict(cls):
     return {
         key: value
         for key, value in vars(cls).items()
-        if not key.startswith('__') and not callable(value)
+        if not key.startswith("__") and not callable(value)
     }
 
 
 def push_to_front(queue, item):
-    temp_list = [item] 
+    temp_list = [item]
     while not queue.empty():
         temp_list.append(queue.get())
     # Put all items back in the queue, starting with the new item at the front
     for i in temp_list:
         queue.put(i)
-        
+
 
 # empty a queue before exiting from the consumer thread/process for safety
 def empty_queue(queue, verbose=True):
-    #if platform.system() == 'Darwin':
-        try:             
-            while not queue.empty():
-                queue.get_nowait() 
-        except Exception as e:
-            if verbose:
-                Printer.red(f'EXCEPTION in empty_queue: {e}')
-                if kPrintTrackebackDetails:
-                    traceback_details = traceback.format_exc()
-                    print(f'\t traceback details: {traceback_details}')
-    # else:
-    #     try:
-    #         while queue.qsize()>0:
-    #             queue.get_nowait()
-    #     except Exception as e:
-    #         if verbose:
-    #             Printer.red(f'EXCEPTION in empty_queue: {e}')
-    #             if kPrintTrackebackDetails:
-    #                 traceback_details = traceback.format_exc()
-    #                 print(f'\t traceback details: {traceback_details}')
+    # if platform.system() == 'Darwin':
+    try:
+        while not queue.empty():
+            queue.get_nowait()
+    except Exception as e:
+        if verbose:
+            Printer.red(f"EXCEPTION in empty_queue: {e}")
+            if kPrintTrackebackDetails:
+                traceback_details = traceback.format_exc()
+                print(f"\t traceback details: {traceback_details}")
+
+
+# else:
+#     try:
+#         while queue.qsize()>0:
+#             queue.get_nowait()
+#     except Exception as e:
+#         if verbose:
+#             Printer.red(f'EXCEPTION in empty_queue: {e}')
+#             if kPrintTrackebackDetails:
+#                 traceback_details = traceback.format_exc()
+#                 print(f'\t traceback details: {traceback_details}')
+
 
 class Value:
     def __init__(self, type, value):
@@ -102,8 +105,8 @@ class SingletonBase:
             instance = cls(*args)
             cls._instances[key] = instance
         return cls._instances[key]
-    
-            
+
+
 class AtomicCounter:
     def __init__(self):
         self._value = 0
@@ -116,30 +119,30 @@ class AtomicCounter:
     def value(self):
         with self._lock:
             return self._value
-    
+
     def increment_and_get(self):
         with self._lock:
             self._value += 1
             return self._value
-    
-    
+
+
 class FixedSizeQueue:
     def __init__(self, maxsize):
-        self.queue = mp.Queue() 
+        self.queue = mp.Queue()
         self.maxsize = maxsize
-        self.size = mp.Value('i', 0) 
+        self.size = mp.Value("i", 0)
 
     def put(self, item):
-        with self.size.get_lock(): 
+        with self.size.get_lock():
             if self.size.value >= self.maxsize:
                 # pop the oldest element from the queue without using it
                 item = self.queue.get()
-                self.size.value -= 1                
+                self.size.value -= 1
             self.queue.put(item)
             self.size.value += 1
 
     def get(self):
-        with self.size.get_lock(): 
+        with self.size.get_lock():
             if self.size.value > 0:
                 item = self.queue.get()
                 self.size.value -= 1
@@ -150,17 +153,17 @@ class FixedSizeQueue:
     def qsize(self):
         with self.size.get_lock():
             return self.size.value
-        
+
 
 class SafeQueue:
     def __init__(self, maxsize=0):
         """
         A wrapper around multiprocessing.Queue with a custom qsize method.
-        
+
         :param maxsize: The maximum size of the queue (default: 0 for unlimited size).
         """
         self.queue = mp.Queue(maxsize)
-        self._size = mp.Value('i', 0)  # Shared integer to track the size of the queue
+        self._size = mp.Value("i", 0)  # Shared integer to track the size of the queue
         self._lock = mp.Lock()  # Lock to ensure thread-safe operations
 
     def put(self, item, block=True, timeout=None):
@@ -175,7 +178,7 @@ class SafeQueue:
         with self._lock:
             self._size.value -= 1
         return item
-    
+
     def get_nowait(self):
         """Remove and return an item from the queue without blocking."""
         item = self.queue.get_nowait()
@@ -212,8 +215,8 @@ class SafeQueue:
     def cancel_join_thread(self):
         """Cancel the queue's worker thread."""
         self.queue.cancel_join_thread()
-        
-        
+
+
 class FakeQueue:
     def put(self, arg):
         del arg
@@ -245,7 +248,7 @@ def merge_dicts(a, b):
             else:
                 merged_dict[key] = copy.deepcopy(b[key])  # replace value
         else:
-            merged_dict[key] = copy.deepcopy(a[key])      # add key
+            merged_dict[key] = copy.deepcopy(a[key])  # add key
     for key in b:
         if key not in a:
             merged_dict[key] = copy.deepcopy(b[key])

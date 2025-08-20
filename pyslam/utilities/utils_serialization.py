@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -32,12 +32,14 @@ from .utils_sys import Printer
 kVerbose = False
 
 if not kVerbose:
+
     def print(*args, **kwargs):
-        pass    
+        pass
 
 
 # Global registry dictionary used for registering the serializable classes below
 class_registry = {}
+
 
 def register_class(cls):
     """
@@ -64,19 +66,21 @@ class SerializableEnum(Enum):
     def from_json(cls, serialized_str):
         # Deserialize by extracting the class name and enum name
         try:
-            class_name, enum_name = serialized_str.split('.')
+            class_name, enum_name = serialized_str.split(".")
             # Dynamically get the enum class from the module
             enum_class = cls.get_enum_class(class_name)
             return enum_class[enum_name]
         except (ValueError, KeyError) as e:
-            raise ValueError(f"Invalid serialized string '{serialized_str}' for enum '{cls.__name__}'") from e
+            raise ValueError(
+                f"Invalid serialized string '{serialized_str}' for enum '{cls.__name__}'"
+            ) from e
 
     @staticmethod
     def get_enum_class(class_name):
         # Look for the class in the registry first
         if class_name in class_registry:
             return class_registry[class_name]
-        
+
         # Otherwise, look for the class among subclasses
         for subclass in SerializableEnum.__subclasses__():
             if subclass.__name__ == class_name:
@@ -89,16 +93,17 @@ class SerializableEnum(Enum):
 
     @classmethod
     def deserialize_if_member(cls, value):
-        print(f'SerializableEnum.deserialize_if_member: value {value}')
+        print(f"SerializableEnum.deserialize_if_member: value {value}")
         if isinstance(value, str):
             try:
                 # Try to deserialize using from_json without checking if it's a member first
                 ret = cls.from_json(value)
-                print(f'\tSerializableEnum.deserialize_if_member: got ret {ret}')
+                print(f"\tSerializableEnum.deserialize_if_member: got ret {ret}")
                 return ret
             except ValueError:
                 return value
         return value
+
 
 class SerializableEnumEncoder(json_.JSONEncoder):
     def default(self, obj):
@@ -107,6 +112,7 @@ class SerializableEnumEncoder(json_.JSONEncoder):
         if isinstance(obj, Serializable):
             return json.loads(obj.to_json())
         return super().default(obj)
+
 
 # Define Serializable for regular objects with nested structures
 # NOTE: each child class must use @register_class to get registered in the class registry
@@ -118,9 +124,11 @@ class Serializable:
         This method will serialize the object's dictionary.
         """
         dict_data = self.serialize(self.__dict__)
-        dict_data['class_name'] = self.__class__.__name__  # add this information to get it recognizable
+        dict_data["class_name"] = (
+            self.__class__.__name__
+        )  # add this information to get it recognizable
         return json.dumps(dict_data)
-    
+
     @classmethod
     def from_json(cls, json_str):
         """
@@ -131,7 +139,7 @@ class Serializable:
         print
         data = json.loads(json_str)
         return cls.deserialize(data)
-    
+
     @classmethod
     def serialize(cls, data):
         """
@@ -147,7 +155,7 @@ class Serializable:
         elif isinstance(data, SerializableEnum):
             return data.to_json()  # Use the built-in to_json of Enum
         return data  # Return unchanged if it's not a dict, list, or Serializable/SerializableEnum
-    
+
     @classmethod
     def deserialize(cls, data):
         """
@@ -155,29 +163,32 @@ class Serializable:
         into their appropriate class instances.
         """
         if isinstance(data, dict):
-            print(f'Serializable.deserialize: data dict {data}')
+            print(f"Serializable.deserialize: data dict {data}")
             # Check if the dictionary has a 'class_name' key indicating a Serializable subclass
-            class_name = data.get('class_name')
+            class_name = data.get("class_name")
             if class_name and class_name in class_registry:
                 # Find the class from the registry and create an instance
                 specific_cls = class_registry[class_name]
                 # Remove 'class_name' before passing to the constructor
-                data.pop('class_name')
-                instance = specific_cls.__new__(specific_cls)  # Create an instance without calling __init__
-                instance.__dict__.update(cls.deserialize(data))  # Update instance dictionary with deserialized data
+                data.pop("class_name")
+                instance = specific_cls.__new__(
+                    specific_cls
+                )  # Create an instance without calling __init__
+                instance.__dict__.update(
+                    cls.deserialize(data)
+                )  # Update instance dictionary with deserialized data
                 return instance
             else:
                 # If it's a normal dictionary, recursively deserialize its items
                 return {k: cls.deserialize(v) for k, v in data.items()}
         elif isinstance(data, list):
-            print(f'Serializable.deserialize: data list {data}')            
+            print(f"Serializable.deserialize: data list {data}")
             return [cls.deserialize(v) for v in data]
         elif isinstance(data, str):
-            print(f'Serializable.deserialize: data str {data}')               
+            print(f"Serializable.deserialize: data str {data}")
             # If it's a string, attempt to deserialize as a SerializableEnum member
             return SerializableEnum.deserialize_if_member(data)
         return data  # Return unchanged if it's not a dict, list, or string
-    
 
 
 def is_json_dict(data):
@@ -198,22 +209,24 @@ def is_json_dict(data):
 
 # Define SerializerCodec with better dynamic import handling
 class SerializationJSON:
-        
-    @staticmethod    
-    def deserialize_dict_data(data):    
-        # Check if the dictionary represents a Serializable subclass by class name        
-        class_name = data.get('class_name')
-        print(f'SerializationJSON.deserialize_dict_data: data dict {data}, class_name: {class_name}, in registry: {class_name in class_registry}')            
+
+    @staticmethod
+    def deserialize_dict_data(data):
+        # Check if the dictionary represents a Serializable subclass by class name
+        class_name = data.get("class_name")
+        print(
+            f"SerializationJSON.deserialize_dict_data: data dict {data}, class_name: {class_name}, in registry: {class_name in class_registry}"
+        )
         if class_name in class_registry:
             cls = class_registry[class_name]
-            #print(f'\t SerializationJSON.deserialize: got cls: {cls}')
-            ret = cls.deserialize(data) # Instantiate using the class method
-            print(f'\t SerializationJSON.deserialize_dict_data: ret: {ret}')
-            return ret  
+            # print(f'\t SerializationJSON.deserialize: got cls: {cls}')
+            ret = cls.deserialize(data)  # Instantiate using the class method
+            print(f"\t SerializationJSON.deserialize_dict_data: ret: {ret}")
+            return ret
         else:
-            #Printer.yellow(f'SerializationJSON.deserialize: data {data} NOT in class registry')
+            # Printer.yellow(f'SerializationJSON.deserialize: data {data} NOT in class registry')
             return {k: SerializationJSON.deserialize(v) for k, v in data.items()}
-            
+
     @staticmethod
     def serialize(data):
         """
@@ -226,7 +239,7 @@ class SerializationJSON:
         elif isinstance(data, Serializable):
             # If the object has a to_json method, use it
             return data.to_json()  # Serialize Serializable instances
-        elif isinstance(data, SerializableEnum):         
+        elif isinstance(data, SerializableEnum):
             # If the object is an Enum (SerializableEnum), use its to_json method
             return data.to_json()  # Use the built-in to_json of Enum
         elif isinstance(data, np.ndarray):
@@ -239,23 +252,23 @@ class SerializationJSON:
         Recursively deserialize data, handling both standard Python objects and Serializable/SerializableEnum.
         """
         if isinstance(data, dict):
-            print(f'SerializationJSON.deserialize: data dict {data}')            
+            print(f"SerializationJSON.deserialize: data dict {data}")
             if NumpyJson.is_encoded(data):
                 return NumpyJson.json_to_numpy(data)
             elif NumpyB64Json.is_encoded(data):
-                return NumpyB64Json.json_to_numpy(data) 
-            else:           
+                return NumpyB64Json.json_to_numpy(data)
+            else:
                 return SerializationJSON.deserialize_dict_data(data)
         elif isinstance(data, list):
-            print(f'SerializationJSON.deserialize: data list {data}')            
+            print(f"SerializationJSON.deserialize: data list {data}")
             return [SerializationJSON.deserialize(item) for item in data]
         elif isinstance(data, str):
-            print(f'SerializationJSON.deserialize: data str {data}')
-            dict_data = is_json_dict(data)          
+            print(f"SerializationJSON.deserialize: data str {data}")
+            dict_data = is_json_dict(data)
             if dict_data is not None:
                 return SerializationJSON.deserialize_dict_data(dict_data)
             else:
-                print(f'SerializationJSON.deserialize: try_from_json {data}')
+                print(f"SerializationJSON.deserialize: try_from_json {data}")
                 # Try deserializing to SerializableEnum or other Serializable classes using from_json
                 try:
                     return SerializationJSON.try_from_json(data)
@@ -265,29 +278,38 @@ class SerializationJSON:
 
     @staticmethod
     def try_from_json(data):
-        if isinstance(data, str) and '.' in data:
-            class_name, enum_name = data.split('.', 1)
+        if isinstance(data, str) and "." in data:
+            class_name, enum_name = data.split(".", 1)
             try:
                 # Look up the class in the registry
                 enum_class = class_registry.get(class_name)
                 if enum_class:
                     return enum_class[enum_name]  # Access the enum member
-                else: 
-                    Printer.yellow(f'SerializationJSON: Could not find class {class_name}, enum_name: {enum_name} in class registry') # {class_registry}')
+                else:
+                    Printer.yellow(
+                        f"SerializationJSON: Could not find class {class_name}, enum_name: {enum_name} in class registry"
+                    )  # {class_registry}')
             except KeyError:
-                Printer.red(f'SerializationJSON: Could not find enum member {enum_name} in class {class_name}')
+                Printer.red(
+                    f"SerializationJSON: Could not find enum member {enum_name} in class {class_name}"
+                )
         return data
-    
 
-    
+
 # Custom encoder/decoder for saving and loading numpy arrays in json format.
-# Better to be used for small numpy arrays. For large arrays, use NumpyB64Json  
+# Better to be used for small numpy arrays. For large arrays, use NumpyB64Json
 class NumpyJson:
-    
+
     @staticmethod
     def is_encoded(data):
-        return isinstance(data, dict) and data.get("type") == "np" and "dtype" in data and "shape" in data and "data" in data
-    
+        return (
+            isinstance(data, dict)
+            and data.get("type") == "np"
+            and "dtype" in data
+            and "shape" in data
+            and "data" in data
+        )
+
     @staticmethod
     def numpy_to_json(data):
         if isinstance(data, np.ndarray):
@@ -296,9 +318,9 @@ class NumpyJson:
                 "data": data.tolist(),
                 "dtype": str(data.dtype),
                 "shape": data.shape,
-                "type": "np"
+                "type": "np",
             }
-        else: 
+        else:
             raise TypeError(f"numpy_to_json: Expected np.ndarray, got {type(data)}")
 
     @staticmethod
@@ -311,57 +333,68 @@ class NumpyJson:
                 if isinstance(array_data, list):
                     return np.array(array_data, dtype=dtype).reshape(shape)
                 else:
-                    raise TypeError(f"json_to_numpy: 'data' should be a list, got {type(array_data)}")
+                    raise TypeError(
+                        f"json_to_numpy: 'data' should be a list, got {type(array_data)}"
+                    )
             except (TypeError, ValueError) as e:
                 raise TypeError(f"json_to_numpy: Error converting data to numpy array: {e}")
         else:
-            raise TypeError(f"json_to_numpy: Invalid input data format, expected dict with keys 'dtype', 'shape', 'data', 'type'='np'")
-         
-    
+            raise TypeError(
+                f"json_to_numpy: Invalid input data format, expected dict with keys 'dtype', 'shape', 'data', 'type'='np'"
+            )
+
+
 # Custom encoder/decoder for saving and loading numpy arrays in json format by using base64 encoding.
-# Better to be used for large numpy arrays.  
+# Better to be used for large numpy arrays.
 class NumpyB64Json:
-    
+
     @staticmethod
     def is_encoded(data):
-        return isinstance(data, dict) and data.get("type") == "npB64" and "dtype" in data and "shape" in data and "data" in data
-        
+        return (
+            isinstance(data, dict)
+            and data.get("type") == "npB64"
+            and "dtype" in data
+            and "shape" in data
+            and "data" in data
+        )
+
     @staticmethod
     def numpy_to_json(data):
         if isinstance(data, np.ndarray):
             return {
-                "data": base64.b64encode(data.tobytes()).decode('utf-8'),
+                "data": base64.b64encode(data.tobytes()).decode("utf-8"),
                 "dtype": str(data.dtype),
                 "shape": data.shape,
-                "type": "npB64"
+                "type": "npB64",
             }
-        else: 
+        else:
             raise TypeError(f"numpy_to_json: Expected np.ndarray, got {type(data)}")
 
     @staticmethod
     def json_to_numpy(data):
         if NumpyB64Json.is_encoded(data):
             try:
-                buffer = base64.b64decode(data['data'])
-                shape = tuple(data['shape'])
-                dtype = np.dtype(data['dtype'])
+                buffer = base64.b64decode(data["data"])
+                shape = tuple(data["shape"])
+                dtype = np.dtype(data["dtype"])
                 return np.frombuffer(buffer, dtype=dtype).reshape(shape)
             except (TypeError, ValueError) as e:
                 raise TypeError(f"json_to_numpy: Error converting data to numpy array: {e}")
         else:
-            raise TypeError(f"json_to_numpy: Invalid input data format, expected dict with keys 'dtype', 'shape', 'data', 'type'='npB64'")
-        
+            raise TypeError(
+                f"json_to_numpy: Invalid input data format, expected dict with keys 'dtype', 'shape', 'data', 'type'='npB64'"
+            )
+
     # Serialize map id -> dense numpy array
     @staticmethod
     def map_id2img_to_json(map_obj, output={}):
         for k, v in map_obj.items():
             output[k] = NumpyB64Json.numpy_to_json(v)
         return output
-                  
+
     # Deserialize map id -> dense numpy array
     @staticmethod
     def map_id2img_from_json(map_data, output_obj={}):
         for k, v in map_data.items():
             output_obj[int(k)] = NumpyB64Json.json_to_numpy(v)
         return output_obj
-    

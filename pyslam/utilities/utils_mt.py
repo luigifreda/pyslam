@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -33,6 +33,7 @@ import time
 
 kVerbose = False
 
+
 # A simple task timer that can be started and stopped. Similar to QTimer in Qt.
 # It works in a separate thread and calls a callback function at regular intervals.
 class SimpleTaskTimer:
@@ -49,7 +50,7 @@ class SimpleTaskTimer:
         self.single_shot = single_shot
         self._thread = None
         self._stop_event = threading.Event()
-        
+
     def __del__(self):
         if self._thread is not None and self._thread.is_alive():
             try:
@@ -63,22 +64,22 @@ class SimpleTaskTimer:
             time.sleep(self.interval)
             if not self._stop_event.is_set():
                 if kVerbose:
-                    print(f'SimpleTaskTimer {self.name}: single shot timer fired')
+                    print(f"SimpleTaskTimer {self.name}: single shot timer fired")
                 try:
                     self.callback()
                 except Exception as e:
-                    Printer.red(f'SimpleTaskTimer {self.name}: error in callback: {e}')
+                    Printer.red(f"SimpleTaskTimer {self.name}: error in callback: {e}")
                     traceback.print_exc()
         else:
             while not self._stop_event.is_set():
                 time.sleep(self.interval)
                 if not self._stop_event.is_set():
-                    if kVerbose:                    
-                        print(f'SimpleTaskTimer {self.name}: timer fired')
+                    if kVerbose:
+                        print(f"SimpleTaskTimer {self.name}: timer fired")
                     try:
                         self.callback()
                     except Exception as e:
-                        Printer.red(f'SimpleTaskTimer {self.name}: error in callback: {e}')
+                        Printer.red(f"SimpleTaskTimer {self.name}: error in callback: {e}")
                         traceback.print_exc()
 
     def start(self):

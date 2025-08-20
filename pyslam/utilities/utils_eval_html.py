@@ -92,10 +92,14 @@ html_template = """
 </html>
 """
 
+
 def escape_html_df(df: pd.DataFrame) -> pd.DataFrame:
     return df.applymap(lambda x: html.escape(str(x)) if pd.notna(x) else "")
 
-def csv_list_to_html(csv_paths, output_html_path, title="Evaluation Report", git_commit_hash=None, open_browser=True):
+
+def csv_list_to_html(
+    csv_paths, output_html_path, title="Evaluation Report", git_commit_hash=None, open_browser=True
+):
     tables = []
     author_name = getpass.getuser().capitalize()
     for csv_path in csv_paths:
@@ -111,7 +115,13 @@ def csv_list_to_html(csv_paths, output_html_path, title="Evaluation Report", git
         tables.append(table_data)
 
     template = Template(html_template)
-    rendered_html = template.render(tables=tables, title=title, user=author_name, date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"), git_hash=git_commit_hash)
+    rendered_html = template.render(
+        tables=tables,
+        title=title,
+        user=author_name,
+        date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        git_hash=git_commit_hash,
+    )
 
     Path(output_html_path).write_text(rendered_html, encoding="utf-8")
     print(f"✅ HTML report saved to: {output_html_path}")

@@ -8,7 +8,17 @@ from pathlib import Path
 
 # Known ROS distros
 ROS1_DISTROS = ["noetic"]
-ROS2_DISTROS = ["foxy", "galactic", "humble", "iron", "rolling", "eloquent", "dashing", "crystal", "ardent"]
+ROS2_DISTROS = [
+    "foxy",
+    "galactic",
+    "humble",
+    "iron",
+    "rolling",
+    "eloquent",
+    "dashing",
+    "crystal",
+    "ardent",
+]
 
 
 def find_first_ros_path(distros):
@@ -18,6 +28,7 @@ def find_first_ros_path(distros):
         if (path / "setup.bash").is_file():
             return str(path)
     return ""
+
 
 def setup_ros_env():
     # Discover installations
@@ -37,10 +48,10 @@ def setup_ros_env():
     else:
         print("⚠️ No ROS 2 installation found.")
     return ros1_install_path, ros2_install_path
-    
+
 
 def source_cmds(*sources):
-    return ' && '.join([f'source {src}' for src in sources])
+    return " && ".join([f"source {src}" for src in sources])
 
 
 def launch_ros1_core(ros1_env):
@@ -59,7 +70,7 @@ def wait_for_ros1_core(ros1_env, timeout=30):
                 f'bash -c "{source_cmds(ros1_env)} && rosnode list"',
                 shell=True,
                 stderr=subprocess.DEVNULL,
-                text=True
+                text=True,
             )
             print("[INFO] ROS1 core is running.")
             break
@@ -70,11 +81,13 @@ def wait_for_ros1_core(ros1_env, timeout=30):
             time.sleep(1)
 
 
-def launch_ros1_bridge(ros1_bridge_package="ros1_bridge", 
-                       ros1_bridge_executable="dynamic_bridge",
-                       ros1_env=None,
-                       ros2_env=None, 
-                       bridge_all=True):
+def launch_ros1_bridge(
+    ros1_bridge_package="ros1_bridge",
+    ros1_bridge_executable="dynamic_bridge",
+    ros1_env=None,
+    ros2_env=None,
+    bridge_all=True,
+):
     print("[INFO] Launching ros1_bridge dynamic_bridge...")
     bridge_flag = "--bridge-all-topics" if bridge_all else ""
     cmd = f'bash -c "{source_cmds(ros1_env, ros2_env)} && ros2 run {ros1_bridge_package} {ros1_bridge_executable} {bridge_flag}"'

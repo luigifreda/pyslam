@@ -96,3 +96,24 @@ thirdparty = "thirdparty"
 
 [project.urls]
 Repository = "https://github.com/luigifreda/pyslam"
+
+
+[tool.black]
+line-length = 100           # default 88; 100 or 120 are common in industry
+target-version = ['py311']
+
+# only format .py / .pyi files
+include = '\.pyi?$'
+
+# exclude dirs (regex; Black uses re.VERBOSE so whitespace/comments are OK)
+exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.venv
+  | logs
+  | results
+  | thirdparty/(?! (contextdesc|g2opy|geodesc|gtsam_factors|l2net|l2net_keras|lietorch|monogs|mvdust3r_scripts|orbslam2_features|pangolin|pybind11|pydbow2|pydbow3|pyibow|ros2_pybindings) (?:/|$) )
+)/
+'''

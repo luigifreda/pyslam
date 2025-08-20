@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com> 
+* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,8 @@ from . import semantic_types
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder + '/../..'
+kRootFolder = kScriptFolder + "/../.."
+
 
 # Base class for semantic estimators via inference
 class SemanticSegmentationBase:
@@ -39,7 +40,7 @@ class SemanticSegmentationBase:
 
     def infer(self, image):
         raise NotImplementedError
-    
+
     # TODO(dvdmc): test if this works directly for transforming a single label
     def to_rgb(self, semantics, bgr=False):
         return NotImplementedError

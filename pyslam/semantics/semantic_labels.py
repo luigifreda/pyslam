@@ -20,6 +20,7 @@
 import colorsys
 import numpy as np
 
+
 def get_generic_color_map(num_classes):
     """Generates a color map for generic semantic segmentation
 
@@ -31,9 +32,10 @@ def get_generic_color_map(num_classes):
     """
     return generate_hsv_color_map(num_classes)
 
+
 def generate_hsv_color_map(n: int, s=0.65, v=0.95):
     """Generates `n` visually distinct RGB colors using HSV color space.
-    
+
     Args:
         n (int): Number of colors to generate.
         s (float): Saturation (0-1)
@@ -46,6 +48,7 @@ def generate_hsv_color_map(n: int, s=0.65, v=0.95):
     rgb_colors = [colorsys.hsv_to_rgb(*hsv) for hsv in hsv_colors]
     rgb_colors = [(int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors]
     return np.array(rgb_colors, dtype=np.uint8)
+
 
 def get_voc_color_map():
     """Load the mapping that associates pascal VOC classes with label colors
@@ -475,106 +478,106 @@ def get_ade20k_color_map(bgr=False):
             [0, 163, 255],  # 47: sink
             [140, 140, 140],  # 48: skyscraper
             [250, 10, 15],  # 49: fireplace
-            [20, 255, 0],  # 50: refrigerator  
-            [31, 255, 0],  # 51: grandstand  
-            [255, 31, 0],  # 52: path  
-            [255, 224, 0],  # 53: stairs  
-            [153, 255, 0],  # 54: runway  
-            [0, 0, 255],  # 55: case  
-            [255, 71, 0],  # 56: pool table  
-            [0, 235, 255],  # 57: pillow  
-            [0, 173, 255],  # 58: screen door  
-            [31, 0, 255],  # 59: stairway  
-            [11, 200, 200],  # 60: river  
-            [255, 82, 0],  # 61: bridge  
-            [0, 255, 245],  # 62: bookcase  
-            [0, 61, 255],  # 63: blind  
-            [0, 255, 112],  # 64: coffee table  
-            [0, 255, 133],  # 65: toilet  
-            [255, 0, 0],  # 66: flower  
-            [255, 163, 0],  # 67: book  
-            [255, 102, 0],  # 68: hill  
-            [194, 255, 0],  # 69: bench  
-            [0, 143, 255],  # 70: countertop  
-            [51, 255, 0],  # 71: stove  
-            [0, 82, 255],  # 72: palm tree  
-            [0, 255, 41],  # 73: kitchen island  
-            [0, 255, 173],  # 74: computer  
-            [10, 0, 255],  # 75: swivel chair  
-            [173, 255, 0],  # 76: boat  
-            [0, 255, 153],  # 77: bar  
-            [255, 92, 0],  # 78: arcade machine  
-            [255, 0, 255],  # 79: hovel  
-            [255, 0, 245],  # 80: bus  
-            [255, 0, 102],  # 81: towel  
-            [255, 173, 0],  # 82: light  
-            [255, 0, 20],  # 83: truck  
-            [255, 184, 184],  # 84: tower  
-            [0, 31, 255],  # 85: chandelier  
-            [0, 255, 61],  # 86: awning  
-            [0, 71, 255],  # 87: streetlight  
-            [255, 0, 204],  # 88: booth  
-            [0, 255, 194],  # 89: television  
-            [0, 255, 82],  # 90: airplane  
-            [0, 10, 255],  # 91: dirt track  
-            [0, 112, 255],  # 92: apparel  
-            [51, 0, 255],  # 93: pole  
-            [0, 194, 255],  # 94: land  
-            [0, 122, 255],  # 95: bannister  
-            [0, 255, 163],  # 96: escalator  
-            [255, 153, 0],  # 97: ottoman  
-            [0, 255, 10],  # 98: bottle  
-            [255, 112, 0],  # 99: buffet  
-            [143, 255, 0],  # 100: poster  
-            [82, 0, 255],  # 101: stage  
-            [163, 255, 0],  # 102: van  
-            [255, 235, 0],  # 103: ship  
-            [8, 184, 170],  # 104: fountain  
-            [133, 0, 255],  # 105: conveyer belt  
-            [0, 255, 92],  # 106: canopy  
-            [184, 0, 255],  # 107: washer  
-            [255, 0, 31],  # 108: toy  
-            [0, 184, 255],  # 109: swimming pool  
-            [0, 214, 255],  # 110: stool  
-            [255, 0, 112],  # 111: barrel  
-            [92, 255, 0],  # 112: basket  
-            [0, 224, 255],  # 113: waterfall  
-            [112, 224, 255],  # 114: tent  
-            [70, 184, 160],  # 115: bag  
-            [163, 0, 255],  # 116: minibike  
-            [153, 0, 255],  # 117: cradle  
-            [71, 255, 0],  # 118: oven  
-            [255, 0, 163],  # 119: ball  
-            [255, 204, 0],  # 120: food  
-            [255, 0, 143],  # 121: step  
-            [0, 255, 235],  # 122: tank  
-            [133, 255, 0],  # 123: trade name  
-            [255, 0, 235],  # 124: microwave  
-            [245, 0, 255],  # 125: pot  
-            [255, 0, 122],  # 126: animal  
-            [255, 245, 0],  # 127: bicycle  
-            [10, 190, 212],  # 128: lake  
-            [214, 255, 0],  # 129: dishwasher  
-            [0, 204, 255],  # 130: screen  
-            [20, 0, 255],  # 131: blanket  
-            [255, 255, 0],  # 132: sculpture  
-            [0, 153, 255],  # 133: hood  
-            [0, 41, 255],  # 134: sconce  
-            [0, 255, 204],  # 135: vase  
-            [41, 0, 255],  # 136: traffic light  
-            [41, 255, 0],  # 137: tray  
-            [173, 0, 255],  # 138: ashcan  
-            [0, 245, 255],  # 139: fan  
-            [71, 0, 255],  # 140: pier  
-            [122, 0, 255],  # 141: crt screen  
-            [0, 255, 184],  # 142: plate  
-            [0, 92, 255],  # 143: monitor  
-            [184, 255, 0],  # 144: bulletin board  
-            [0, 133, 255],  # 145: shower  
-            [255, 214, 0],  # 146: radiator  
-            [25, 194, 194],  # 147: glass  
-            [102, 255, 0],  # 148: clock  
-            [92, 0, 255],  # 149: flag  
+            [20, 255, 0],  # 50: refrigerator
+            [31, 255, 0],  # 51: grandstand
+            [255, 31, 0],  # 52: path
+            [255, 224, 0],  # 53: stairs
+            [153, 255, 0],  # 54: runway
+            [0, 0, 255],  # 55: case
+            [255, 71, 0],  # 56: pool table
+            [0, 235, 255],  # 57: pillow
+            [0, 173, 255],  # 58: screen door
+            [31, 0, 255],  # 59: stairway
+            [11, 200, 200],  # 60: river
+            [255, 82, 0],  # 61: bridge
+            [0, 255, 245],  # 62: bookcase
+            [0, 61, 255],  # 63: blind
+            [0, 255, 112],  # 64: coffee table
+            [0, 255, 133],  # 65: toilet
+            [255, 0, 0],  # 66: flower
+            [255, 163, 0],  # 67: book
+            [255, 102, 0],  # 68: hill
+            [194, 255, 0],  # 69: bench
+            [0, 143, 255],  # 70: countertop
+            [51, 255, 0],  # 71: stove
+            [0, 82, 255],  # 72: palm tree
+            [0, 255, 41],  # 73: kitchen island
+            [0, 255, 173],  # 74: computer
+            [10, 0, 255],  # 75: swivel chair
+            [173, 255, 0],  # 76: boat
+            [0, 255, 153],  # 77: bar
+            [255, 92, 0],  # 78: arcade machine
+            [255, 0, 255],  # 79: hovel
+            [255, 0, 245],  # 80: bus
+            [255, 0, 102],  # 81: towel
+            [255, 173, 0],  # 82: light
+            [255, 0, 20],  # 83: truck
+            [255, 184, 184],  # 84: tower
+            [0, 31, 255],  # 85: chandelier
+            [0, 255, 61],  # 86: awning
+            [0, 71, 255],  # 87: streetlight
+            [255, 0, 204],  # 88: booth
+            [0, 255, 194],  # 89: television
+            [0, 255, 82],  # 90: airplane
+            [0, 10, 255],  # 91: dirt track
+            [0, 112, 255],  # 92: apparel
+            [51, 0, 255],  # 93: pole
+            [0, 194, 255],  # 94: land
+            [0, 122, 255],  # 95: bannister
+            [0, 255, 163],  # 96: escalator
+            [255, 153, 0],  # 97: ottoman
+            [0, 255, 10],  # 98: bottle
+            [255, 112, 0],  # 99: buffet
+            [143, 255, 0],  # 100: poster
+            [82, 0, 255],  # 101: stage
+            [163, 255, 0],  # 102: van
+            [255, 235, 0],  # 103: ship
+            [8, 184, 170],  # 104: fountain
+            [133, 0, 255],  # 105: conveyer belt
+            [0, 255, 92],  # 106: canopy
+            [184, 0, 255],  # 107: washer
+            [255, 0, 31],  # 108: toy
+            [0, 184, 255],  # 109: swimming pool
+            [0, 214, 255],  # 110: stool
+            [255, 0, 112],  # 111: barrel
+            [92, 255, 0],  # 112: basket
+            [0, 224, 255],  # 113: waterfall
+            [112, 224, 255],  # 114: tent
+            [70, 184, 160],  # 115: bag
+            [163, 0, 255],  # 116: minibike
+            [153, 0, 255],  # 117: cradle
+            [71, 255, 0],  # 118: oven
+            [255, 0, 163],  # 119: ball
+            [255, 204, 0],  # 120: food
+            [255, 0, 143],  # 121: step
+            [0, 255, 235],  # 122: tank
+            [133, 255, 0],  # 123: trade name
+            [255, 0, 235],  # 124: microwave
+            [245, 0, 255],  # 125: pot
+            [255, 0, 122],  # 126: animal
+            [255, 245, 0],  # 127: bicycle
+            [10, 190, 212],  # 128: lake
+            [214, 255, 0],  # 129: dishwasher
+            [0, 204, 255],  # 130: screen
+            [20, 0, 255],  # 131: blanket
+            [255, 255, 0],  # 132: sculpture
+            [0, 153, 255],  # 133: hood
+            [0, 41, 255],  # 134: sconce
+            [0, 255, 204],  # 135: vase
+            [41, 0, 255],  # 136: traffic light
+            [41, 255, 0],  # 137: tray
+            [173, 0, 255],  # 138: ashcan
+            [0, 245, 255],  # 139: fan
+            [71, 0, 255],  # 140: pier
+            [122, 0, 255],  # 141: crt screen
+            [0, 255, 184],  # 142: plate
+            [0, 92, 255],  # 143: monitor
+            [184, 255, 0],  # 144: bulletin board
+            [0, 133, 255],  # 145: shower
+            [255, 214, 0],  # 146: radiator
+            [25, 194, 194],  # 147: glass
+            [102, 255, 0],  # 148: clock
+            [92, 0, 255],  # 149: flag
         ],
         dtype=np.uint8,
     )
@@ -582,6 +585,7 @@ def get_ade20k_color_map(bgr=False):
     if bgr:
         color_map = color_map[:, ::-1]  # Convert RGB to BGR
     return color_map
+
 
 def get_ade20k_labels():
     return [

@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -17,18 +17,18 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 from collections import defaultdict
 from threading import Lock
 
 from pyslam.slam.keyframe import KeyFrame
 from pyslam.slam.frame import Frame
 
+
 class KeyFrameDatabaseDBow(object):
     def __init__(self, voc=None):
         self.voc = voc
         self.inverted_file = defaultdict(list[KeyFrame])  # Similar to mvInvertedFile
-        self.mutex = Lock() 
+        self.mutex = Lock()
 
     def add(self, keyframe):
         with self.mutex:  # Locking for thread safety

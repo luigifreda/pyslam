@@ -13,10 +13,10 @@ def gdrive_download(url, output, position=0):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     if not os.path.exists(output):
-        print(f'downloading {url} to {output}')
+        print(f"downloading {url} to {output}")
         gdown.download(url, output)
     else:
-        print(f'file already exists: {output}')
+        print(f"file already exists: {output}")
 
 
 def download_file_from_url(url, filename):
@@ -42,8 +42,8 @@ def download_file_from_url(url, filename):
 
     except requests.exceptions.RequestException as e:
         print(f"Error downloading file: {e}")
-        
-        
+
+
 def http_download(url, output, position=0):
     # Create a temporary file in the same directory as the destination output
     temp_dir = tempfile.mkdtemp()
@@ -61,14 +61,14 @@ def http_download(url, output, position=0):
             response = requests.get(url, stream=True)
             response.raise_for_status()
 
-            total_size_in_bytes = int(response.headers.get('content-length', 0))
+            total_size_in_bytes = int(response.headers.get("content-length", 0))
             block_size = 1024  # 1 KiB
 
             # Use tqdm with dynamic_ncols to adjust the progress bar size dynamically
             progress_bar = tqdm(
                 total=total_size_in_bytes,
                 unit="iB",
-                unit_scale=True, #position=position, # TODO: position does not seem to work as expected
+                unit_scale=True,  # position=position, # TODO: position does not seem to work as expected
                 leave=False,  # Prevent the progress bar from leaving a line after finishing
                 ncols=100,  # Set a fixed width for the progress bar
                 dynamic_ncols=True,  # Allow dynamic width adjustment
@@ -116,7 +116,7 @@ class DataDownloader:
         position = 0  # Start progress bars at position 1
         for pth, (url, type) in self.download_json.items():
             p = self.download_process(url=url, path=pth, type=type, position=position)
-            position += 1  
+            position += 1
             processes.append(p)
             p.start()
 
