@@ -14,7 +14,7 @@
     - [_Gtk-ERROR \*\*: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported_](#gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
     - [SURF error](#surf-error)
     - [g2o Errors](#g2o-errors)
-      - [_AttributeError: 'g2o.EdgeSE3ProjectXYZ' object has no attribute 'fx'_](#attributeerror-g2oedgese3projectxyz-object-has-no-attribute-fx)
+      - [AttributeError g2o.EdgeSE3ProjectXYZ object has no attribute 'fx'](#attributeerror-g2oedgese3projectxyz-object-has-no-attribute-fx)
       - [Cannot properly import g2o library or other libs](#cannot-properly-import-g2o-library-or-other-libs)
   - [When loading a neural network with CUDA everything gets stuck](#when-loading-a-neural-network-with-cuda-everything-gets-stuck)
   - [Manual install instead of using the provided install scripts](#manual-install-instead-of-using-the-provided-install-scripts)
@@ -81,11 +81,16 @@ If you experience bad tracking performances, go in [config_parameters.py](./conf
 
 ### *Aborted (core dumped)* or *Segmentation fault (core dumped)*
 
-It is very likely this issue is related to `matplolib` and `qt` installation. See [here](https://github.com/matplotlib/matplotlib/issues/9294) for a related discussion. The quickest fix should be to reinstall matplot lib and possibly downgrade its version:
+It is very likely this issue is related to `matplolib` and `qt` installation. See this [issue](https://github.com/matplotlib/matplotlib/issues/9294) for a related discussion. The quickest fix should be to reinstall `matplotlib` and possibly downgrade its version:
 ```bash
 pip uninstall matplotlib
 pip install "matplotlib<3.8" 
 ``` 
+
+In another pySLAM [issue](https://github.com/luigifreda/pyslam/issues/193), the problem was generated (under conda) by a conflicting version of `pyarrow` and it was fixed by running
+```bash
+pip install "pyarrow<19"
+```
 
 If the problem persists, you can gather more details by running your script under gdb:
 ```bash
@@ -94,7 +99,7 @@ gdb --args python main_slam.py
 # when it aborts:
 (gdb) bt
 ```
-Please consider opening an issue and attaching the logs (including the gdb backtrace), so we can investigate further.
+Please consider opening an issue and attaching the logs (including the *gdb backtrace*), so we can investigate further.
 
 --- 
 
@@ -162,8 +167,7 @@ How to check if you have non-free OpenCV module support (no errors imply success
 
 ### g2o Errors
 
-
-#### _AttributeError: 'g2o.EdgeSE3ProjectXYZ' object has no attribute 'fx'_
+#### AttributeError g2o.EdgeSE3ProjectXYZ object has no attribute 'fx'
 
 If you run into the following error
 ```

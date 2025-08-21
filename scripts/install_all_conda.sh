@@ -57,8 +57,7 @@ $SCRIPTS_DIR/install_git_modules.sh
 export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
  # 5. install pip packages: some unresolved dep conflicts found in requirement-pip3.txt may be managed by the following command: 
-#. install_pip3_packages.sh 
-. $SCRIPTS_DIR/install_pip3_packages2.sh 
+. $SCRIPTS_DIR/install_pip3_packages.sh 
 
 # 6. build and install cpp stuff 
 . $SCRIPTS_DIR/install_cpp.sh                    # use . in order to inherit python env configuration and other environment vars 
@@ -69,5 +68,8 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # 8. install tools for semantics
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "./"
+
+# 9. Outliers under conda
+pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
 
 cd "$STARTING_DIR"

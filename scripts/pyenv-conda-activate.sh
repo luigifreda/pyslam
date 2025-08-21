@@ -72,7 +72,9 @@ gcc_version=$(gcc -dumpversion | cut -d. -f1)
 # Check if the Ubuntu version is 20.04 and GCC version is less than 11
 # If so, set GCC to version 11 to avoid linking errors due undefined reference to new GLIBCXX stuff
 if [[ "$ubuntu_version" == "20" && "$gcc_version" -lt 11 ]]; then
-    echo "Setting GCC to version 11"
-    export CC=/usr/bin/gcc-11
-    export CXX=/usr/bin/g++-11
+    if [[ -f /usr/bin/gcc-11 ]]; then
+        echo "Setting GCC to version 11"
+        export CC=/usr/bin/gcc-11
+        export CXX=/usr/bin/g++-11
+    fi
 fi
