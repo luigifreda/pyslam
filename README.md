@@ -153,14 +153,14 @@ RSS 2025 Workshop: _Unifying Visual SLAM_. The recorded talk is available [here]
 
 First, clone this repo and its submodules by running 
 ```bash
-$ git clone --recursive https://github.com/luigifreda/pyslam.git
-$ cd pyslam 
+git clone --recursive https://github.com/luigifreda/pyslam.git
+cd pyslam 
 ```
 
 Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
-#$ pixi shell      # If you want to use pixi, this is the first step that prepares the installation. 
-$ ./install_all.sh    
+#pixi shell      # If you want to use pixi, this is the first step that prepares the installation. 
+./install_all.sh    
 ``` 
 
 This install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. An internet connection is required.
@@ -210,14 +210,14 @@ If you prefer docker or you have an OS that is not supported yet, you can use [r
 
 The provided install scripts take care of installing a recent opencv version (>=**4.10**) with non-free modules enabled (see [scripts/install_opencv_python.sh](./scripts/install_opencv_python.sh)). To quickly verify your installed opencv version run:
 ```bash       
-#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
-$ ./scripts/opencv_check.py
+#pixi shell           # If you use pixi, this activates the pyslam environment. 
+. pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
+./scripts/opencv_check.py
 ```
 <!-- Otherwise, run the following commands: 
 ```bash       
-$ python3 -c "import cv2; print(cv2.__version__)" # check opencv version               
-$ python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"  # check if you have non-free OpenCV module support (no errors imply success)
+python3 -c "import cv2; print(cv2.__version__)" # check opencv version               
+python3 -c "import cv2; detector = cv2.xfeatures2d.SURF_create()"  # check if you have non-free OpenCV module support (no errors imply success)
 ``` -->
 
 ### Troubleshooting and performance issues
@@ -230,8 +230,8 @@ If you run into issues or errors during the installation process or at run-time,
 
 Open a new terminal and start experimenting with the scripts. In each new terminal, you are supposed to start with this command:
 ```bash
-#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
+#pixi shell           # If you use pixi, this activates the pyslam environment. 
+. pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 ```
 If you are using `pixi` then just run `pixi shell` to activate the `pyslam` environment.
 The file [config.yaml](./config.yaml) serves as a single entry point to configure the system and its global configuration parameters contained in [pyslam/config_parameters.py](./pyslam/config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
@@ -242,9 +242,9 @@ The file [config.yaml](./config.yaml) serves as a single entry point to configur
 
 The basic **Visual Odometry** (VO) can be run with the following commands:
 ```bash
-#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
-$ ./main_vo.py
+#pixi shell           # If you use pixi, this activates the pyslam environment. 
+. pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
+./main_vo.py
 ```
 By default, the script processes a [KITTI](http://www.cvlibs.net/datasets/kitti/eval_odometry.php) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`), and its groundtruth (available in the same `data/videos` folder). If matplotlib windows are used, you can stop `main_vo.py` by clicking on one of them and pressing the key 'Q'. As explained above, this very *basic* script `main_vo.py` **strictly requires a ground truth**. 
 Now, with RGBD datasets, you can also test the **RGBD odometry** with the classes `VisualOdometryRgbd` or `VisualOdometryRgbdTensor` (ground truth is not required here). 
@@ -254,9 +254,9 @@ Now, with RGBD datasets, you can also test the **RGBD odometry** with the classe
 
 Similarly, you can test the **full SLAM** by running `main_slam.py`:
 ```bash
-#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
-$ ./main_slam.py
+#pixi shell           # If you use pixi, this activates the pyslam environment. 
+. pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
+./main_slam.py
 ```
 
 This will process the same default [KITTI]((http://www.cvlibs.net/datasets/kitti/eval_odometry.php)) video (available in the folder `data/videos`) by using its corresponding camera calibration file (available in the folder `settings`). You can stop it by clicking on one of the opened windows and pressing the key 'Q' or closing the 3D pangolin GUI. 
@@ -281,9 +281,9 @@ You can use the section `GLOBAL_PARAMETERS` of the file [config.yaml](./config.y
 
 If you just want to test the basic feature tracking capabilities (*feature detector* + *feature descriptor* + *feature matcher*) and get a taste of the different available local features, run
 ```bash
-#$ pixi shell           # If you use pixi, this activates the pyslam environment. 
-$ . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
-$ ./main_feature_matching.py
+#pixi shell           # If you use pixi, this activates the pyslam environment. 
+. pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
+./main_feature_matching.py
 ```
 
 In any of the above scripts, you can choose any detector/descriptor among *ORB*, *SIFT*, *SURF*, *BRISK*, *AKAZE*, *SuperPoint*, etc. (see the section *[Supported Local Features](#supported-local-features)* below for further information). 
@@ -370,7 +370,7 @@ You can check the output pointcloud/mesh by using [CloudCompare](https://www.clo
 In the case of a saved Gaussian splatting model, you can visualize it by:
 1. Using the [superslat editor](https://playcanvas.com/supersplat/editor) (drag and drop the saved Gaussian splatting `.ply` pointcloud in the editor interface). 
 2. Getting into the folder `test/gaussian_splatting` and running:      
-    `$ python test_gsm.py --load <gs_checkpoint_path>`      
+    `python test_gsm.py --load <gs_checkpoint_path>`      
     The directory ` <gs_checkpoint_path>` is expected to have the following structure:      
     ```bash
     ├── gs_checkpoint_path
@@ -442,8 +442,8 @@ When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
 
 - A saved map can be loaded and visualized in the GUI by running: 
   ```bash
-  $ . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
-  $ ./main_map_viewer.py  #  Use the --path options to change the input path
+  . pyenv-activate.sh   #  Activate pyslam python virtual environment. This is only needed once in a new terminal.
+  ./main_map_viewer.py  #  Use the --path options to change the input path
   ```
   
 - To enable map reloading and relocalization when running `main_slam.py`, open `config.yaml` and set 
@@ -502,11 +502,11 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 ### Monitor the logs of tracking, local mapping, loop closing and volumetric mapping simultaneously
 
 The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, `global_bundle_adjustments.py`, and `volumetric integrator_<X>.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, `gba.log`, and `volumetric_integrator.log`, respectively. These logs files are all stored in the folder `logs`. At runtime, for debugging purposes, you can individually monitor any of the log files by running the following command:    
-`$ tail -f logs/<log file name>`     
+`tail -f logs/<log file name>`     
 Otherwise, to check all logs at the same time, run this `tmux`-based script:          
-`$ ./scripts/launch_tmux_logs.sh`           
+`./scripts/launch_tmux_logs.sh`           
 To launch slam and check all logs, run:     
-`$ ./scripts/launch_tmux_slam.sh`      
+`./scripts/launch_tmux_slam.sh`      
 Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 --- 
@@ -719,7 +719,7 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 1. Download a sequence from http://vision.in.tum.de/data/datasets/rgbd-dataset/download and uncompress it.
 2. Associate RGB images and depth images using the python script [associate.py](http://vision.in.tum.de/data/datasets/rgbd-dataset/tools). You can generate your `associations.txt` file by executing:
     ```bash
-    $ python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt      # pay attention to the order!
+    python associate.py PATH_TO_SEQUENCE/rgb.txt PATH_TO_SEQUENCE/depth.txt > associations.txt      # pay attention to the order!
     ```
 3. Select the corresponding calibration settings file (section `TUM_DATASET: settings:` in the file `config.yaml`).
 
@@ -739,7 +739,7 @@ Follow the same instructions provided for the TUM datasets.
 #### Replica Datasets
 
 1. You can download the zip file containing all the sequences by running:    
-   `$ wget https://cvg-data.inf.ethz.ch/nice-slam/data/Replica.zip`    
+   `wget https://cvg-data.inf.ethz.ch/nice-slam/data/Replica.zip`    
 2. Then, uncompress it and deploy the files as you wish.
 3. Select the corresponding calibration settings file (section `REPLICA_DATASET: settings:` in the file `config.yaml`).
 

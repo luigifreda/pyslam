@@ -81,11 +81,20 @@ If you experience bad tracking performances, go in [config_parameters.py](./conf
 
 ### *Aborted (core dumped)* or *Segmentation fault (core dumped)*
 
-This issue is related to `matplolib` and `qt` install. See [here](https://github.com/matplotlib/matplotlib/issues/9294) for a related discussion. The fastest solution should be to reinstall matplot lib and possibly downgrade its version:
+It is very likely this issue is related to `matplolib` and `qt` installation. See [here](https://github.com/matplotlib/matplotlib/issues/9294) for a related discussion. The quickest fix should be to reinstall matplot lib and possibly downgrade its version:
 ```bash
 pip uninstall matplotlib
 pip install "matplotlib<3.8" 
 ``` 
+
+If the problem persists, you can gather more details by running your script under gdb:
+```bash
+gdb --args python main_slam.py
+(gdb) run
+# when it aborts:
+(gdb) bt
+```
+Please consider opening an issue and attaching the logs (including the gdb backtrace), so we can investigate further.
 
 --- 
 
