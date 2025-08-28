@@ -33,6 +33,7 @@ if [ ! -d megengine ]; then
     git clone --recursive https://github.com/MegEngine/MegEngine.git megengine
     cd megengine
     git checkout v1.13.4
+    git apply $ROOT_DIR/thirdparty/megengine.patch
     cd ..
 fi
 
@@ -43,8 +44,8 @@ cd megengine
 ./third_party/install-mkl.sh
 
 CUDA_OPTION=""
-export CUDA_VERSION="cuda-11.8"  # must be an installed CUDA path in "/usr/local"; 
-                                 # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
+export CUDA_VERSION="cuda"  # must be an installed CUDA path in "/usr/local"; 
+                           # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
 if [ ! -d /usr/local/$CUDA_VERSION ]; then
     CUDA_VERSION="cuda"  # use last installed CUDA path in standard path as a fallback 
     export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}
@@ -79,6 +80,10 @@ else
     echo "CUDA not found. Please install CUDA."
 fi
 
+cd $ROOT_DIR/thirdparty/megengine
 ./scripts/cmake-build/host_build.sh -d $CUDA_OPTION
+
+cd $ROOT_DIR/thirdparty/megengine/scripts/whl/manylinux2014
+./build_image.sh
 
 cd "$STARTING_DIR"

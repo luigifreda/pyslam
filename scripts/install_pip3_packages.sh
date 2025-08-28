@@ -69,6 +69,10 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     pip install --upgrade cryptography pyOpenSSL
     python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
     #pip install megengine  # This brings issues with non-supported CUDA architecture on my machine
+    # NOTE: if your system does not succeed to install megengine, you can try to install it from source with the following command:
+    #   $SCRIPTS_DIR/install_megengine.sh    
+    # Megengine supports `DepthEstimatorCrestereoMegengine`. However, there is an equivalent 
+    #`DepthEstimatorCrestereoPytorch` that is fully working.
 
     # for ROS
     pip install pycryptodomex
