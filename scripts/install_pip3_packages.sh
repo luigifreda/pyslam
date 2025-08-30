@@ -69,7 +69,7 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     pip install --upgrade cryptography pyOpenSSL
     python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
     #pip install megengine  # This brings issues with non-supported CUDA architecture on my machine
-    # NOTE: if your system does not succeed to install megengine, you can try to install it from source with the following command:
+    # NOTE: if you do not succeed in installing megengine in your system with the pre-built wheels, you can try to install it from source with the following command:
     #   $SCRIPTS_DIR/install_megengine.sh    
     # Megengine supports `DepthEstimatorCrestereoMegengine`. However, there is an equivalent 
     #`DepthEstimatorCrestereoPytorch` that is fully working.
@@ -81,7 +81,7 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
 fi
 
 if [ "$CUDA_VERSION" != "0" ]; then
-    install_pip_package faiss-gpu  # for loop closure database on GPU
+    $SCRIPTS_DIR/install_faiss.sh # for loop closure database on GPU
 
     # MonoGS required packages
     ./thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)

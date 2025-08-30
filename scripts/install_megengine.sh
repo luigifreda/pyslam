@@ -27,63 +27,79 @@ print_blue '================================================'
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
 
 
-
+# Download MegEngine source code and build it from source
 cd thirdparty
 if [ ! -d megengine ]; then
     git clone --recursive https://github.com/MegEngine/MegEngine.git megengine
     cd megengine
     git checkout v1.13.4
     git apply $ROOT_DIR/thirdparty/megengine.patch
+
+    # Install Prerequisites
+    ./third_party/prepare.sh
+    ./third_party/install-mkl.sh
+
     cd ..
 fi
 
 cd megengine
 
-# Install Prerequisites
-./third_party/prepare.sh
-./third_party/install-mkl.sh
+export CUDA_OPTION=""
+. "$ROOT_DIR"/cuda_config.sh
+if [ "$CUDA_VERSION" != "0" ]; then
+    #export CUDA_OPTION="-c"   # we need a more complex detection with cuDNN and TensorRT discovery
 
-CUDA_OPTION=""
-export CUDA_VERSION="cuda"  # must be an installed CUDA path in "/usr/local"; 
-                           # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
-if [ ! -d /usr/local/$CUDA_VERSION ]; then
-    CUDA_VERSION="cuda"  # use last installed CUDA path in standard path as a fallback 
-    export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}
-    export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-    export CUDADIR=/usr/local/$CUDA_VERSION
-    CUDA_OPTION="-c"
-fi 
-
-# Build MegEngine
-
-if [ -d /usr/local/$CUDA_VERSION ]; then
-    
-    print_blue "Using CUDA: /usr/local/cuda/bin"
-    export CUDA_ROOT_DIR=$CUDADIR
-
-    # Check for cuDNN installation
-    if [ -d "$CUDADIR/include/cudnn.h" ]; then
-        export CUDNN_ROOT_DIR=$CUDADIR
-        print_blue "Using cuDNN: $CUDADIR"
-    else
-        echo "cuDNN not found. Please install cuDNN."
-    fi
-
-    # Check for TensorRT installation
-    if [ -d "/usr/local/tensorrt" ]; then
-        export TRT_ROOT_DIR="/usr/local/tensorrt"
-        print_blue "Using TensorRT: /usr/local/tensorrt"
-    else
-        echo "TensorRT not found. Please install TensorRT."
-    fi
-else
-    echo "CUDA not found. Please install CUDA."
+    export CUDA_ROOT_DIR=$CUDA_HOME
 fi
 
+echo "CUDA_OPTION: $CUDA_OPTION"
+
 cd $ROOT_DIR/thirdparty/megengine
-./scripts/cmake-build/host_build.sh -d $CUDA_OPTION
+EXTRA_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=RelWithDebInfo" ./scripts/cmake-build/host_build.sh -d $CUDA_OPTION
 
 cd $ROOT_DIR/thirdparty/megengine/scripts/whl/manylinux2014
 ./build_image.sh
 
+./scripts/whl/manylinux2014/build_wheel_common.sh -sdk cpu # build the megengine wheel for cpu
+
 cd "$STARTING_DIR"
+
+
+
+
+# export CUDA_OPTION=""
+# export CUDA_VERSION="cuda"  # must be an installed CUDA path in "/usr/local"; 
+#                            # if available, you can use the simple path "/usr/local/cuda" which should be a symbolic link to the last installed cuda version 
+# if [ ! -d "/usr/local/$CUDA_VERSION" ]; then
+#     CUDA_VERSION="cuda"  # use last installed CUDA path in standard path as a fallback 
+#     export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}
+#     export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+#     export CUDADIR=/usr/local/$CUDA_VERSION
+#     CUDA_OPTION="-c"
+# fi 
+
+# # Build MegEngine
+
+# if [ -d /usr/local/$CUDA_VERSION ]; then
+    
+#     print_blue "Using CUDA: /usr/local/cuda/bin"
+#     export CUDA_ROOT_DIR=$CUDADIR
+
+#     # Check for cuDNN installation
+#     if [ -d "$CUDADIR/include/cudnn.h" ]; then
+#         export CUDNN_ROOT_DIR=$CUDADIR
+#         print_blue "Using cuDNN: $CUDADIR"
+#     else
+#         echo "cuDNN not found. Please install cuDNN."
+#     fi
+
+#     # Check for TensorRT installation
+#     if [ -d "/usr/local/tensorrt" ]; then
+#         export TRT_ROOT_DIR="/usr/local/tensorrt"
+#         print_blue "Using TensorRT: /usr/local/tensorrt"
+#     else
+#         echo "TensorRT not found. Please install TensorRT."
+#     fi
+# else
+#     echo "CUDA not found. Please install CUDA."
+# fi
