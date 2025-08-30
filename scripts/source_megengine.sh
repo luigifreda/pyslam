@@ -25,11 +25,11 @@ cd "$ROOT_DIR"
 
 
 if [ -d thirdparty/megengine/imperative/python ]; then
-    PYTHONPATH=imperative/python:$PYTHONPATH python3 
+    PYTHONPATH=$ROOT_DIR/thirdparty/megengine/imperative/python:$PYTHONPATH 
 fi
 
 if [ -d thirdparty/megengine/lite/pylite ]; then
-    PYTHONPATH=lite/pylite:$PYTHONPATH python3 
+    PYTHONPATH=$ROOT_DIR/thirdparty/megengine/lite/pylite:$PYTHONPATH 
 fi
 
 cd "$STARTING_DIR"

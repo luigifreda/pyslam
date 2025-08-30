@@ -60,7 +60,12 @@ EXTRA_CMAKE_ARGS="-DCMAKE_BUILD_TYPE=RelWithDebInfo" ./scripts/cmake-build/host_
 cd $ROOT_DIR/thirdparty/megengine/scripts/whl/manylinux2014
 ./build_image.sh
 
-./scripts/whl/manylinux2014/build_wheel_common.sh -sdk cpu # build the megengine wheel for cpu
+./build_wheel_common.sh -sdk cpu # build the megengine wheel for cpu
+
+if [ -f ]; then 
+    pip install  $ROOT_DIR/thirdparty/megengine/scripts/whl/manylinux2014/output/wheelhouse/cpu/MegEngine-1.13.4+cpu-cp311-cp311-linux_x86_64.whl
+else
+fi
 
 cd "$STARTING_DIR"
 
