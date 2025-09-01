@@ -48,3 +48,7 @@ else
 fi
 
 cd "$STARTING_DIR"
+
+
+# NOTE: Once you build lietorch, you can run the following command to test it: 
+# ./run_tests.sh  # same folder of this script 

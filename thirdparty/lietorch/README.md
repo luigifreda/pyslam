@@ -56,12 +56,11 @@ python setup.py install
 ```
 
 ### Installing (pip)
+
 You can install the library directly using pip
 ```bash
 pip install git+https://github.com/princeton-vl/lietorch.git
 ```
-
-
 
 ## Overview
 

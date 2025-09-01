@@ -39,12 +39,14 @@ if command -v conda &> /dev/null; then
 else
     CONDA_INSTALLED=false
 fi
+echo "CONDA_INSTALLED: $CONDA_INSTALLED"
 
 if [[ -n "$PIXI_PROJECT_NAME" ]]; then
     PIXI_ACTIVATED=true
 else
     PIXI_ACTIVATED=false
 fi
+echo "PIXI_ACTIVATED: $PIXI_ACTIVATED"
 
 
 # Get the current Python environment's base directory
@@ -151,7 +153,7 @@ if [[ $version != *"darwin"* ]]; then
             libtiff zlib jpeg eigen tbb glew libpng \
             x264 ffmpeg \
             freetype cairo \
-            pygobject gtk3 glib libwebp expat
+            pygobject gtk3 gtk2 glib libwebp expat
     fi
 else
     brew install pkg-config 
@@ -210,6 +212,10 @@ if [ "$CONDA_INSTALLED" = true ]; then
     -DPKG_CONFIG_EXECUTABLE=$(which pkg-config) \
     -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_CXX_STANDARD=17 \
     -DWITH_WEBP=ON -DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON"
+
+    # For some reason, OpenCV fails to build its protobuf module under conda. 
+    # Let's install protobuf-compiler on the system in order to build the protobuf module.
+    sudo apt-get install -y protobuf-compiler
 fi
 echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
 
@@ -231,6 +237,8 @@ export CMAKE_ARGS="$CMAKE_ARGS" # -DCMAKE_CXX_FLAGS=$CPPFLAGS"
 export CMAKE_CXX_FLAGS="$CPPFLAGS"
 export CMAKE_INCLUDE_PATH="$CPP_INCLUDE_PATH"
 export CMAKE_LIBRARY_PATH="${LIBRARY_PATH}:${CMAKE_LIBRARY_PATH:-}"
+
+echo "Building opencv_python with CMAKE_ARGS: $CMAKE_ARGS"
 
 # build opencv_python 
 pip3 wheel . --verbose

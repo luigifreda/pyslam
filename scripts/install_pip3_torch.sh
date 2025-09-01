@@ -2,7 +2,7 @@
 # Author: Luigi Freda 
 # This file is part of https://github.com/luigifreda/pyslam
 
-SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
 ROOT_DIR="$SCRIPT_DIR_/.."
@@ -15,6 +15,7 @@ cd "$ROOT_DIR"
 
 # ====================================================
 
+#set -x
 #set -e
 
 PYTHON_ENV=$(python3 -c "import sys; print(sys.prefix)")
@@ -49,7 +50,8 @@ if [ "$OSTYPE" == darwin* ]; then
 else
     TORCH_CUDA_VERSION=0
     if [ "$CUDA_VERSION" != "0" ]; then
-        TORCH_CUDA_VERSION=$(python3 -c "import torch; print(torch.version.cuda)")
+        #TORCH_CUDA_VERSION=$(python3 -c "import torch; print(torch.version.cuda)")
+        TORCH_CUDA_VERSION=$(get_installed_torch_cuda_ver)
     fi
 
     INSTALL_CUDA_SPECIFIC_TORCH=false
@@ -58,6 +60,7 @@ else
     fi
 
     print_blue "CUDA_VERSION: $CUDA_VERSION, TORCH_CUDA_VERSION: $TORCH_CUDA_VERSION"
+    print_blue "INSTALL_CUDA_SPECIFIC_TORCH: $INSTALL_CUDA_SPECIFIC_TORCH"
 
     if $INSTALL_CUDA_SPECIFIC_TORCH; then
         print_green "System CUDA_VERSION is $CUDA_VERSION but the detected TORCH CUDA version is $TORCH_CUDA_VERSION. Installing torch==2.2.0+cu${CUDA_VERSION_STRING_COMPACT} and torchvision==0.17+cu${CUDA_VERSION_STRING_COMPACT}"

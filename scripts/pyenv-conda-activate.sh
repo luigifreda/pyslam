@@ -14,6 +14,10 @@ export ENV_NAME="${1:-pyslam}"  # get the first input if any, otherwise use 'pys
 # fi
 
 
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
+SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
+
+
 # This variable is used to indicate that we want to use conda
 export USING_CONDA_PYSLAM=1
 
@@ -57,18 +61,28 @@ else
     echo "OS: $version"
 fi
 
-# for conda potentially needed under Ubuntu 24.04
-if [[ "$version" == *"24.04"* ]] ; then
-    export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
-    echo "Preloading libstdc++..."
-fi
-# export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATH
-# echo "Setting CPLUS_INCLUDE_PATH: $CPLUS_INCLUDE_PATH"
-export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
-echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-
 ubuntu_version=$(lsb_release -rs | cut -d. -f1)
 gcc_version=$(gcc -dumpversion | cut -d. -f1)
+#echo "Ubuntu version: $ubuntu_version, GCC version: $gcc_version"
+
+# for conda potentially needed under Ubuntu 22.04 and 24.04
+if [[ "$ubuntu_version" == "22" || "$ubuntu_version" == "24" ]]; then
+    export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+    echo "Preloading libstdc++..."
+fi 
+
+if [[ "$ubuntu_version" == "22" ]]; then
+    # find the following libraries in $CONDA_PREFIX/lib and add them individually to LD_LIBRARY_PATH
+    LIBRARIES_TO_PRELOAD="libjpeg.so libgio-2.0.so"
+    export LD_PRELOAD=$(python3 $SCRIPT_DIR_/set_conda_preload.py $LIBRARIES_TO_PRELOAD):$LD_PRELOAD
+else 
+    # export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATH
+    # echo "Setting CPLUS_INCLUDE_PATH: $CPLUS_INCLUDE_PATH"
+    export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" # This solves some issues but it may cause other issues (wrong linking to conda libraries under ubuntu 22.04) 
+    echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+fi
+
+
 # Check if the Ubuntu version is 20.04 and GCC version is less than 11
 # If so, set GCC to version 11 to avoid linking errors due undefined reference to new GLIBCXX stuff
 if [[ "$ubuntu_version" == "20" && "$gcc_version" -lt 11 ]]; then

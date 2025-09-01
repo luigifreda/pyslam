@@ -299,3 +299,19 @@ stop_sudo_alive() {
 if [[ "$OSTYPE" == "darwin"* ]]; then
     alias nproc="sysctl -n hw.logicalcpu"
 fi 
+
+
+# ====================================================
+
+# Helper: get currently installed torch CUDA version if torch is already present; else empty
+get_installed_torch_cuda_ver() {
+  python3 - <<'PY'
+import importlib.util
+spec = importlib.util.find_spec("torch")
+if spec is None:
+    print("")
+else:
+    import torch
+    print(getattr(torch.version, "cuda", "") or "")
+PY
+}

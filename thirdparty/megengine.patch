@@ -1,3 +1,855 @@
+diff --git a/imperative/python/setup.py b/imperative/python/setup.py
+index 31bacd676..32eb752ba 100644
+--- a/imperative/python/setup.py
++++ b/imperative/python/setup.py
+@@ -125,6 +125,7 @@ setup_kwargs.update(dict(
+     'Programming Language :: Python :: 3.8',
+     'Programming Language :: Python :: 3.9',
+     'Programming Language :: Python :: 3.10',
++    'Programming Language :: Python :: 3.11',
+     'Topic :: Scientific/Engineering',
+     'Topic :: Scientific/Engineering :: Mathematics',
+     'Topic :: Scientific/Engineering :: Artificial Intelligence',
+diff --git a/imperative/python/src/backtrace.cpp b/imperative/python/src/backtrace.cpp
+index 01d48fadd..5fd0e8f81 100644
+--- a/imperative/python/src/backtrace.cpp
++++ b/imperative/python/src/backtrace.cpp
+@@ -2,6 +2,24 @@
+ #include <cstdint>
+ #include "megbrain/common.h"
+ #include "megbrain/imperative/transformation.h"
++
++// ---- PY311 frame-compat shim ----------------------------------------------
++// Python 3.11 made PyFrameObject opaque; avoid direct field access.
++#if PY_MAJOR_VERSION > 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11)
++  #define MGE_GET_CODE(f)    ((PyCodeObject*)PyObject_GetAttrString((PyObject*)(f), "f_code"))
++  #define MGE_GET_TRACE(f)   (PyObject_GetAttrString((PyObject*)(f), "f_trace"))
++  #define MGE_SET_TRACE(f,v) (PyObject_SetAttrString((PyObject*)(f), "f_trace", (v)))
++  #define MGE_GET_BACK(f)    ((PyFrameObject*)PyObject_GetAttrString((PyObject*)(f), "f_back"))
++  #define MGE_GET_GEN(f)     (PyObject_GetAttrString((PyObject*)(f), "f_gen"))
++#else
++  #define MGE_GET_CODE(f)    ((f)->f_code)
++  #define MGE_GET_TRACE(f)   ((f)->f_trace)
++  #define MGE_SET_TRACE(f,v) ((f)->f_trace = (v), 0)
++  #define MGE_GET_BACK(f)    ((f)->f_back)
++  #define MGE_GET_GEN(f)     ((f)->f_gen)
++#endif
++// ----------------------------------------------------------------------------
++
+ namespace mgb::imperative::python {
+ 
+ static bool enable_py_bt = false;
+@@ -14,7 +32,14 @@ std::pair<FrameInfoPtr, int> FrameInfo::make(
+     if (frame == NULL) {
+         return std::make_pair(nullptr, -1);
+     }
++    // Try to read our trace key wrapper from frame.f_trace
++#if PY_MAJOR_VERSION > 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11)
++    PyObject* _trace_obj = MGE_GET_TRACE(frame);  // new ref (may be nullptr)
++    auto* keywrapper = TraceKeyWrapper::try_cast(_trace_obj);
++    Py_XDECREF(_trace_obj);
++#else
+     auto* keywrapper = TraceKeyWrapper::try_cast(frame->f_trace);
++#endif
+     auto key = keywrapper ? keywrapper->key : -1;
+ #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 10
+     int lineno = frame->f_lasti;
+@@ -30,7 +55,7 @@ std::pair<FrameInfoPtr, int> FrameInfo::make(
+     if (cache_finfo) {
+         return std::make_pair(cache_finfo, key);
+     } else {
+-        PyCodeObject* code = frame->f_code;
++        PyCodeObject* code = MGE_GET_CODE(frame);  // 3.11: new ref; kept alive by FrameInfo
+         FrameInfoPtr f = std::make_shared<FrameInfo>(code, lineno);
+         if (keywrapper) {
+             f->scope = keywrapper->scope;
+@@ -148,17 +173,34 @@ void FrameInfoCache::update_cache(
+     for (; it != frames.rend(); it++, cur_key++) {
+         auto&& [frame, finfo] = *it;
+         stack_cache[cur_key] = finfo;
++#if PY_MAJOR_VERSION > 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11)
++        PyObject* _trace = MGE_GET_TRACE(frame);  // new ref
++        if (auto* key_ptr = TraceKeyWrapper::try_cast(_trace)) {
++            key_ptr->key = cur_key;
++        } else {
++            auto* py_key = TraceKeyWrapper::make(cur_key, _trace);
++            MGE_SET_TRACE(frame, py_key);
++        }
++        Py_XDECREF(_trace);
++#else
+         if (auto* key_ptr = TraceKeyWrapper::try_cast(frame->f_trace)) {
+             key_ptr->key = cur_key;
+         } else {
+             auto* py_key = TraceKeyWrapper::make(cur_key, frame->f_trace);
+             frame->f_trace = py_key;
+         }
++#endif
+     }
+ }
+ 
+ int FrameInfoCache::get_frame_key(PyFrameObject* frame) {
++#if PY_MAJOR_VERSION > 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11)
++    PyObject* _trace = MGE_GET_TRACE(frame);  // new ref
++    auto* key = TraceKeyWrapper::try_cast(_trace);
++    Py_XDECREF(_trace);
++#else
+     auto* key = TraceKeyWrapper::try_cast(frame->f_trace);
++#endif
+     if (key == nullptr) {
+         return -1;
+     } else {
+@@ -173,8 +215,18 @@ FrameInfoPtr get_frameinfo_from_pyframe(PyFrameObject* frame) {
+     SmallVector<std::pair<PyFrameObject*, FrameInfoPtr>, 100> frames;
+     py::object cur_frame = py::reinterpret_borrow<py::object>((PyObject*)frame);
+     while (key == -1) {
++#if PY_MAJOR_VERSION > 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11)
++        {
++            PyObject* _gen = MGE_GET_GEN((PyFrameObject*)cur_frame.ptr()); // new ref
++            bool no_gen = (_gen == nullptr || _gen == Py_None);
++            Py_XDECREF(_gen);
++            if (no_gen)
++                frames.push_back({(PyFrameObject*)cur_frame.ptr(), cur_info});
++        }
++#else
+         if (((PyFrameObject*)cur_frame.ptr())->f_gen == NULL)
+             frames.push_back({(PyFrameObject*)cur_frame.ptr(), cur_info});
++#endif
+         auto prev_frame = py::getattr(py::handle(cur_frame), "f_back");
+         if (prev_frame.is_none())
+             break;
+@@ -213,7 +265,14 @@ void record_py_backtrace() {
+ 
+ void record_scope(PyFrameObject* frame, std::string scope) {
+     if (enable_py_bt) {
++#if PY_MAJOR_VERSION > 3 || (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11)
++        PyObject* _trace = MGE_GET_TRACE(frame);  // new ref
++        auto* py_key = TraceKeyWrapper::make(-1, _trace, std::move(scope));
++        Py_XDECREF(_trace);
++        MGE_SET_TRACE(frame, py_key);
++#else
+         frame->f_trace = TraceKeyWrapper::make(-1, frame->f_trace, std::move(scope));
++#endif
+     }
+ }
+ 
+@@ -222,4 +281,4 @@ std::string get_py_backtrace() {
+     return get_frameinfo_from_pyframe(frame)->traceback();
+ }
+ 
+-}  // namespace mgb::imperative::python
+\ No newline at end of file
++}  // namespace mgb::imperative::python
+diff --git a/imperative/python/src/numpy_dtypes_bfloat16.cpp b/imperative/python/src/numpy_dtypes_bfloat16.cpp
+index c9c6bc168..28e02c739 100644
+--- a/imperative/python/src/numpy_dtypes_bfloat16.cpp
++++ b/imperative/python/src/numpy_dtypes_bfloat16.cpp
+@@ -183,7 +183,8 @@ bool BFloat16Type::NpyType::init() {
+             NULL,
+             NULL,
+             &funcs};
+-    Py_TYPE(&descr) = &PyArrayDescr_Type;
++    //Py_TYPE(&descr) = &PyArrayDescr_Type;
++    Py_SET_TYPE((PyObject*)&descr, (PyTypeObject*)PyArray_API[3]);
+     PyArray_InitArrFuncs(&funcs);
+     funcs.copyswap = copyswap;
+     funcs.getitem = getitem;
+diff --git a/imperative/python/src/numpy_dtypes_intbx.cpp b/imperative/python/src/numpy_dtypes_intbx.cpp
+index 1c0966b79..139ccce7e 100644
+--- a/imperative/python/src/numpy_dtypes_intbx.cpp
++++ b/imperative/python/src/numpy_dtypes_intbx.cpp
+@@ -233,7 +233,8 @@ bool LowBitType<N>::NpyType::init() {
+             NULL,
+             NULL,
+             &funcs};
+-    Py_TYPE(&descr) = &PyArrayDescr_Type;
++    //Py_TYPE(&descr) = &PyArrayDescr_Type;
++    Py_SET_TYPE((PyObject*)&descr, (PyTypeObject*)PyArray_API[3]);
+     PyArray_InitArrFuncs(&funcs);
+     funcs.copyswap = copyswap;
+     funcs.getitem = getitem;
+diff --git a/scripts/cmake-build/host_build.sh b/scripts/cmake-build/host_build.sh
+index 25933e16b..54fdbbead 100755
+--- a/scripts/cmake-build/host_build.sh
++++ b/scripts/cmake-build/host_build.sh
+@@ -141,6 +141,14 @@ function cmake_build() {
+     MGE_WITH_CUDA=$1
+     MGE_INFERENCE_ONLY=$2
+     BUILD_TYPE=$3
++
++    # ls /opt/python/
++
++    # PYTHON_BIN=/opt/python/cp311-cp311/bin/python3
++    # NUMPY_INC=$($PYTHON_BIN -c "import numpy; print(numpy.get_include())")
++    # echo "NUMPY_INC: $NUMPY_INC"
++    # EXTRA_CMAKE_ARGS+="-DNUMPY_INCLUDE_DIR=$NUMPY_INC -DNUMPY_VERSION=$($PYTHON_BIN -c 'import numpy; print(numpy.__version__)')"
++
+     echo "build dir: $BUILD_DIR"
+     echo "install dir: $INSTALL_DIR"
+     echo "build type: $BUILD_TYPE"
+diff --git a/scripts/whl/android/utils.sh b/scripts/whl/android/utils.sh
+index d9cad53ce..a22bb07dc 100755
+--- a/scripts/whl/android/utils.sh
++++ b/scripts/whl/android/utils.sh
+@@ -3,7 +3,7 @@
+ source ${SRC_DIR}/scripts/whl/utils/utils.sh
+ 
+ ALL_PYTHON=${ALL_PYTHON}
+-FULL_PYTHON_VER="3.8.3 3.9.9 3.10.1"
++FULL_PYTHON_VER="3.8.3 3.9.9 3.10.1 3.11.9"
+ if [[ -z ${ALL_PYTHON} ]]
+ then
+     ALL_PYTHON=${FULL_PYTHON_VER}
+diff --git a/scripts/whl/macos/macos_build_whl.sh b/scripts/whl/macos/macos_build_whl.sh
+index c6cc142f3..c10e9d43a 100755
+--- a/scripts/whl/macos/macos_build_whl.sh
++++ b/scripts/whl/macos/macos_build_whl.sh
+@@ -40,9 +40,9 @@ source ${SRC_DIR}/scripts/whl/utils/utils.sh
+ ALL_PYTHON=${ALL_PYTHON}
+ platform=$(uname -m | awk '{print $0}')
+ if [ $platform = 'arm64' ];then
+-    FULL_PYTHON_VER="3.8.10 3.9.4 3.10.1"
++    FULL_PYTHON_VER="3.8.10 3.9.4 3.10.1 3.11.9"
+ else
+-    FULL_PYTHON_VER="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1"
++    FULL_PYTHON_VER="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1 3.11.9"
+ fi
+ 
+ if [[ -z ${ALL_PYTHON} ]]
+@@ -91,6 +91,9 @@ function config_python_env() {
+     elif [ "$1" = "3.10.1" ]; then
+         PYTHON_INCLUDE_DIR=${PYTHON_DIR}include/python3.10
+         PYTHON_LIBRARY=${PYTHON_DIR}/lib/libpython3.10.dylib
++    elif [ "$1" = "3.11.9" ]; then
++        PYTHON_INCLUDE_DIR=${PYTHON_DIR}include/python3.11
++        PYTHON_LIBRARY=${PYTHON_DIR}/lib/libpython3.11.dylib
+     else
+         echo "ERR: DO NOT SUPPORT PYTHON VERSION"
+         echo "now support list: ${FULL_PYTHON_VER}"
+diff --git a/scripts/whl/macos/macos_whl_env_prepare.sh b/scripts/whl/macos/macos_whl_env_prepare.sh
+index 18fcd07db..f79398428 100755
+--- a/scripts/whl/macos/macos_whl_env_prepare.sh
++++ b/scripts/whl/macos/macos_whl_env_prepare.sh
+@@ -48,9 +48,9 @@ echo ${SRC_DIR}
+ 
+ platform=$(uname -m | awk '{print $0}')
+ if [ $platform = 'arm64' ];then
+-    ALL_PYTHON="3.8.10 3.9.4 3.10.1"
++    ALL_PYTHON="3.8.10 3.9.4 3.10.1 3.11.9"
+ else
+-    ALL_PYTHON="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1"
++    ALL_PYTHON="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1 3.11.9"
+ fi
+ 
+ USER=$(whoami)
+diff --git a/scripts/whl/manylinux2014/Dockerfile b/scripts/whl/manylinux2014/Dockerfile
+index d4bc4a9e4..e9b7addd5 100644
+--- a/scripts/whl/manylinux2014/Dockerfile
++++ b/scripts/whl/manylinux2014/Dockerfile
+@@ -4,7 +4,7 @@ ENV UID=1024 \
+     PATH=${PATH}:/usr/local/cuda/bin \
+     LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:/opt/cudnn/lib64:/opt/tensorrt/lib
+ 
+-ARG platform
++ARG platform=brainpp
+ COPY setup_mirror.sh .
+ RUN ./setup_mirror.sh "$platform"
+ 
+diff --git a/scripts/whl/manylinux2014/Dockerfile_x86_64_ubuntu2004 b/scripts/whl/manylinux2014/Dockerfile_x86_64_ubuntu2004
+new file mode 100644
+index 000000000..4ddc8d427
+--- /dev/null
++++ b/scripts/whl/manylinux2014/Dockerfile_x86_64_ubuntu2004
+@@ -0,0 +1,41 @@
++FROM ubuntu:20.04
++
++ENV UID=1024 PATH=${PATH}:/usr/local/cuda/bin
++
++# update
++RUN apt-get update -y
++
++# build env
++RUN DEBIAN_FRONTEND=noninteractive \
++TZ=Etc/UTC apt-get install -y \
++pkg-config build-essential git-lfs \
++autoconf gdb git-core gnupg flex bison gperf \
++zip curl zlib1g-dev gcc \
++g++ rsync wget vim llvm clang
++
++# install cmake 3.15.2
++RUN cd /tmp ; wget https://cmake.org/files/v3.15/cmake-3.15.2.tar.gz;tar -xzvf cmake-3.15.2.tar.gz;cd cmake-3.15.2;./configure; make -j8; make install
++
++# install base python3
++RUN apt-get install -y python3
++RUN apt-get update -y && apt-get install --fix-missing && apt-get install -y python3-dev python3-pip python3-numpy python3-setuptools
++
++# install pyenv
++RUN curl https://pyenv.run | bash
++
++# install more env for build python3 from src
++RUN apt-get install -y checkinstall libncursesw5-dev \
++libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libreadline-dev \
++libffi-dev liblzma-dev libncurses5-dev libdb-dev libexpat-dev libtinfo5 libtinfo-dev
++
++# install more env for build swig and ninja
++RUN apt-get install -y libpcre3 libpcre3-dev re2c
++
++# call other build env
++ADD init_ubuntu2004.sh /tmp
++RUN /tmp/init_ubuntu2004.sh && rm -f /tmp/init_ubuntu2004.sh
++
++# install lsb-release to distinguish is ubuntu or manylinux
++RUN apt-get install -y lsb-release
++
++# Note: No GCC version downgrade needed for x86_64 - using default system GCC
+diff --git a/scripts/whl/manylinux2014/build_image.sh b/scripts/whl/manylinux2014/build_image.sh
+index b06bc58cc..25e0e833b 100755
+--- a/scripts/whl/manylinux2014/build_image.sh
++++ b/scripts/whl/manylinux2014/build_image.sh
+@@ -4,9 +4,11 @@ SRC_DIR=$(readlink -f "`dirname $0`/../../../")
+ source ${SRC_DIR}/scripts/whl/utils/utils.sh
+ config_docker_file
+ 
++echo "using docker_file: ${docker_file}"
++
+ cd $(dirname $0)
+ echo "docker_file is ${docker_file}"
+-docker build -t env_manylinux2014:latest -f ${docker_file} .
++docker build --no-cache -t env_manylinux2014:latest -f ${docker_file} .
+ 
+ OS=$(uname -m)
+ if [[ $OS = "aarch64" ]]; then
+diff --git a/scripts/whl/manylinux2014/build_wheel_common.sh b/scripts/whl/manylinux2014/build_wheel_common.sh
+index df7f786e6..e0edc4c21 100755
+--- a/scripts/whl/manylinux2014/build_wheel_common.sh
++++ b/scripts/whl/manylinux2014/build_wheel_common.sh
+@@ -395,6 +395,12 @@ if [ -z "${PYTHON_EXTRA_REQUIRES}" ]; then
+     PYTHON_EXTRA_REQUIRES=""
+ fi
+ 
++cd ${BASEDIR}/third_party/pybind11
++git fetch --tags
++git checkout v2.13.1    # or newer 2.11.x; 2.12+ also works with 3.11
++cd -
++
++
+ docker run --rm ${docker_args} $TMPFS_ARGS \
+     -e UID=${USERID} \
+     -e PUBLIC_VERSION_POSTFIX=${PUBLIC_VERSION_POSTFIX} \
+diff --git a/scripts/whl/manylinux2014/do_build_common.sh b/scripts/whl/manylinux2014/do_build_common.sh
+index 6f2765a38..1d18a04d8 100755
+--- a/scripts/whl/manylinux2014/do_build_common.sh
++++ b/scripts/whl/manylinux2014/do_build_common.sh
+@@ -1,11 +1,39 @@
+ #!/bin/bash -e
+ 
++git config --global --add safe.directory /home/code
++git config --global --add safe.directory /home/code/third_party/flatbuffers
++git config --global --add safe.directory /home/code/third_party/intel-mkl-dnn
++
++/root/.pyenv/versions/3.11.9/bin/python3 -m pip install -U mypy pygments PyYAML
++
++# install modern pybind11 (3.11-compatible)
++# PY311=/root/.pyenv/versions/3.11.9/bin/python3
++# $PY311 -m pip install -U "pybind11>=2.11,<3"
++# PYBIND11_INC=$($PY311 -c "import pybind11,sys;print(pybind11.get_include())")
++# echo "PYBIND11_INC: $PYBIND11_INC"
++
++# --- force the build to see modern pybind11 first ---
++# VENDORED_INC="${SRC_DIR}/third_party/pybind11/include"
++# mkdir -p "$(dirname "$VENDORED_INC")"
++# # replace vendored include with a symlink to pip's include
++# rm -rf "$VENDORED_INC"
++# ln -s "$PYBIND11_INC" "$VENDORED_INC"
++
++# hard reset build cache so CMake re-detects headers
++#rm -rf "/home/code/build_dir"
++
++# Fallback (if the symlink fails due to RO mount): also pass flags via CMake args
++# export EXTRA_CMAKE_ARGS="${EXTRA_CMAKE_ARGS} -DCMAKE_CXX_FLAGS=-I${PYBIND11_INC}"
++# export CPATH="${PYBIND11_INC}:${CPATH}"   # compiler fallback path, very reliable
++
+ IN_UBUNTU_DOCKER_ENV="OFF"
+ if which lsb_release && lsb_release -a | grep "Ubuntu"; then
+     IN_UBUNTU_DOCKER_ENV="ON"
+     # some code will take about 1h to run as on aarch64-ubuntu
+-    export CC=gcc-8
+-    export CXX=g++-8
++    if [ $ARCH = "aarch64" ]; then
++        export CC="gcc-8"
++        export CXX="g++-8"
++    fi
+ fi
+ 
+ function handle_strip() {
+@@ -107,9 +135,11 @@ function patch_elf_depend_lib_megenginelite() {
+ SRC_DIR=$(readlink -f "`dirname $0`/../../../")
+ source ${SRC_DIR}/scripts/whl/utils/utils.sh
+ 
+-SUPPORT_ALL_VERSION="36m 37m 38 39 310"
++#SUPPORT_ALL_VERSION="36m 37m 38 39 310 311"
++SUPPORT_ALL_VERSION="311"
+ if [ ${IN_UBUNTU_DOCKER_ENV} = "ON" ]; then
+-    SUPPORT_ALL_VERSION="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1"
++    #SUPPORT_ALL_VERSION="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1 3.11.9"
++    SUPPORT_ALL_VERSION="3.11.9"
+     echo "in ubuntu docker env, override support all python version: ${SUPPORT_ALL_VERSION}"
+ fi
+ ALL_PYTHON=${ALL_PYTHON}
+@@ -160,6 +190,9 @@ function config_ubuntu_python_env() {
+     elif [ "$1" = "3.10.1" ]; then
+         PYTHON_INCLUDE_DIR=${PYTHON_DIR}include/python3.10
+         PYTHON_LIBRARY=${PYTHON_DIR}/lib/libpython3.10.so
++    elif [ "$1" = "3.11.9" ]; then
++        PYTHON_INCLUDE_DIR=${PYTHON_DIR}include/python3.11
++        PYTHON_LIBRARY=${PYTHON_DIR}/lib/libpython3.11.so
+     else
+         echo "ERR: DO NOT SUPPORT PYTHON VERSION"
+         echo "now support list: ${FULL_PYTHON_VER}"
+@@ -171,7 +204,7 @@ function config_ubuntu_python_env() {
+ INCREMENT_KEY_WORDS=".cu.o is dirty"
+ IS_IN_FIRST_LOOP=TRUE
+ 
+-ORG_EXTRA_CMAKE_FLAG=${EXTRA_CMAKE_FLAG}
++ORG_EXTRA_CMAKE_FLAG="${EXTRA_CMAKE_FLAG}"
+ for ver in ${ALL_PYTHON}
+ do
+     # we want run a full clean build at the first loop
+@@ -288,4 +321,6 @@ do
+     chmod -R 777 .
+     echo "python $ver done"
+     IS_IN_FIRST_LOOP=FALSE
++
++    apt install doxygen -y
+ done
+diff --git a/scripts/whl/manylinux2014/init_image.sh b/scripts/whl/manylinux2014/init_image.sh
+index c98fb91a1..b1fe7b391 100755
+--- a/scripts/whl/manylinux2014/init_image.sh
++++ b/scripts/whl/manylinux2014/init_image.sh
+@@ -1,92 +1,200 @@
+-#!/bin/bash -e
++#!/bin/bash
++set -Eeuo pipefail
+ 
+ SWIG_URL='https://codeload.github.com/swig/swig/tar.gz/refs/tags/rel-3.0.12'
+-LLVM_URL='https://github.com/llvm-mirror/llvm/archive/release_60.tar.gz' 
++LLVM_URL='https://github.com/llvm-mirror/llvm/archive/release_60.tar.gz'
+ CLANG_URL='https://github.com/llvm-mirror/clang/archive/release_60.tar.gz'
+ NINJA_URL='https://codeload.github.com/ninja-build/ninja/tar.gz/refs/tags/v1.10.0'
+ 
+-
+-ARCH=$1
++ARCH="${1:-x86_64}"
+ echo "ARCH: ${ARCH}"
++
++# ---------------------------
++# Nuke any system pip configs
++# ---------------------------
++export PIP_CONFIG_FILE=/dev/null
++unset PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST
++unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
++rm -f /etc/pip.conf /etc/pip/pip.conf /root/.pip/pip.conf /root/.config/pip/pip.conf || true
++
++# Single canonical index
++PYPI_URL="https://pypi.org/simple"
++
++# Old-pip-safe args (pip 9 compatible) for the bootstrap step
++PIP_BOOTSTRAP_ARGS=(--no-cache-dir --timeout 60 -i "$PYPI_URL")
++
++# Non-interactive pip
++export PIP_NO_INPUT=1
++export PIP_DEFAULT_TIMEOUT=60
++export PIP_DISABLE_PIP_VERSION_CHECK=1
++
++# ---------------------------
++# System packages & toolchain
++# ---------------------------
+ yum install -y pcre-devel devtoolset-9-libatomic-devel.${ARCH}
+ yum install -y devtoolset-8 devtoolset-8-libatomic-devel.${ARCH}
+-# install a default python3 for cmake PYTHON3_EXECUTABLE_WITHOUT_VERSION
+-yum install -y python3 python3-devel
+-python3 -m pip install cython -i https://mirrors.aliyun.com/pypi/simple
+-python3 -m pip install numpy -i https://mirrors.aliyun.com/pypi/simple
+-
+-ALL_PYTHON="36m 37m 38 39 310"
+-for ver in ${ALL_PYTHON}
+-do
+-    python_ver=`echo $ver | tr -d m`
+-    numpy_version="1.19.5"
+-    if [ ${ver} = "310" ];then
+-        numpy_version="1.21.6"
+-    fi
+-    /opt/python/cp${python_ver}-cp${ver}/bin/pip install \
+-    --no-cache-dir --only-binary :all: numpy==${numpy_version} setuptools==46.1.3 \
+-    -i https://mirrors.aliyun.com/pypi/simple
++yum install -y python3 python3-devel curl tar make gcc gcc-c++ openssl openssl-devel zlib-devel
++# CMake (fall back to cmake3 if needed)
++yum install -y cmake || (yum install -y cmake3 && ln -sf /usr/bin/cmake3 /usr/bin/cmake) || true
++
++# -----------------------------------
++# Bootstrap pip (force real upgrade)
++# -----------------------------------
++python3 -m ensurepip --upgrade || true
++# IMPORTANT: raise the lower bound so it upgrades away from pip 9.0.3
++python3 -m pip install -U "${PIP_BOOTSTRAP_ARGS[@]}" 'pip>=21,<24' 'setuptools>=45,<60' wheel
++
++# After upgrading pip, we can use newer flags safely
++PIP_ARGS=(--no-cache-dir --timeout 60 --index-url "$PYPI_URL" --only-binary=:all: --prefer-binary)
++
++# ---------------------------------------
++# Helper: pip with retries (post-upgrade)
++# ---------------------------------------
++pip_install_with_retry() {
++  local package_spec="$1"
++  local max_attempts=3
++  local attempt=1
++  local indexes=(
++    "https://pypi.org/simple"
++    "https://mirrors.aliyun.com/pypi/simple"
++    "https://pypi.tuna.tsinghua.edu.cn/simple"
++    "https://pypi.douban.com/simple"
++  )
++  while (( attempt <= max_attempts )); do
++    echo "Attempt $attempt/$max_attempts: pip install $package_spec"
++    for idx in "${indexes[@]}"; do
++      echo "  -> Index: $idx"
++      if python3 -m pip install "${PIP_ARGS[@]}" --index-url "$idx" "$package_spec"; then
++        echo "  OK: $package_spec from $idx"
++        return 0
++      else
++        echo "  FAIL: $package_spec from $idx"
++      fi
++    done
++    (( attempt == max_attempts )) && { echo "ERROR: all indexes failed for $package_spec"; exit 1; }
++    echo "Retrying in 2s…"; sleep 2; attempt=$((attempt+1))
++  done
++}
++
++# Avoid source builds: force wheels & pin Cython to a wheel-rich series
++pip_install_with_retry 'Cython<3'
++pip_install_with_retry 'numpy'
++
++# -------------------------------------------------------
++# Per-ABI (manylinux) Pythons under /opt/python if present
++# -------------------------------------------------------
++#ALL_PYTHON="36m 37m 38 39 310 311"
++ALL_PYTHON="311"
++for ver in ${ALL_PYTHON}; do
++  python_ver="${ver//m/}"                 # 36m -> 36
++  pyroot="/opt/python/cp${python_ver}-cp${ver}"
++  if [[ ! -x "$pyroot/bin/python" ]]; then
++    echo "Skip: $pyroot not found"
++    continue
++  fi
++
++  echo "Configuring pip in $pyroot (bootstrap minimal flags) ..."
++  "$pyroot/bin/python" -m ensurepip --upgrade || true
++  "$pyroot/bin/pip" install -U "${PIP_BOOTSTRAP_ARGS[@]}" 'pip>=21,<24' 'setuptools>=45,<60' wheel
++
++  pip_install_version_with_retry() {
++    local pkg="$1" verpin="$2"
++    local max_attempts=3 attempt=1
++    local indexes=(
++      "https://pypi.org/simple"
++      "https://mirrors.aliyun.com/pypi/simple"
++      "https://pypi.tuna.tsinghua.edu.cn/simple"
++      "https://pypi.douban.com/simple"
++    )
++    while (( attempt <= max_attempts )); do
++      echo "Attempt $attempt/$max_attempts: $pyroot pip install $pkg==$verpin"
++      for idx in "${indexes[@]}"; do
++        echo "  -> Index: $idx"
++        if "$pyroot/bin/pip" install "${PIP_ARGS[@]}" --index-url "$idx" "$pkg==$verpin"; then
++          echo "  OK: $pkg==$verpin from $idx"
++          return 0
++        else
++          echo "  FAIL: $pkg==$verpin from $idx"
++        fi
++      done
++      (( attempt == max_attempts )) && { echo "ERROR: indexes failed for $pkg==$verpin ($pyroot)"; exit 1; }
++      echo "Retrying in 2s…"; sleep 2; attempt=$((attempt+1))
++    done
++  }
++
++  # Older ABIs need older numpy wheels
++  numpy_version="1.19.5"
++  [[ "$ver" == "310" ]] && numpy_version="1.21.6"
++  [[ "$ver" == "311" ]] && numpy_version="1.24.3"  # Add this line
++  
++  pip_install_version_with_retry "numpy" "$numpy_version"
++  pip_install_version_with_retry "setuptools" "46.1.3"
++  # Optional: Cython per-ABI (wheel-only & pinned)
++  pip_install_version_with_retry "Cython" "0.29.36" || true
+ done
+ 
++# -------------------
++# Build SWIG/LLVM/etc
++# -------------------
+ pushd /home >/dev/null
+-    echo "Install swig"
+-    curl -sSL ${SWIG_URL} | tar xz
+-    pushd swig-rel-3.0.12 >/dev/null
+-        ./autogen.sh
+-        mkdir build
+-       	pushd build >/dev/null
+-	    ../configure
+-	    make -j$(nproc)
+-	    make install
+-        popd >/dev/null
++  echo "Install swig"
++  curl -sSL "${SWIG_URL}" | tar xz
++  pushd swig-rel-3.0.12 >/dev/null
++    ./autogen.sh
++    mkdir -p build && pushd build >/dev/null
++      ../configure
++      make -j"$(nproc)"
++      make install
+     popd >/dev/null
+-    rm -rf swig-3.0.12
+-    
+-    echo "Install llvm"
+-    curl -sSL ${LLVM_URL} | tar xz
+-    pushd llvm-release_60 >/dev/null
+-        mkdir build
+-       	pushd build >/dev/null
+-            cmake .. -DCMAKE_PREFIX_PATH=/opt/python/cp36-cp36m/ \
+-		-DCMAKE_BUILD_TYPE=Release
+-	    make -j$(nproc)
+-	    make install
+-	popd >/dev/null
++  popd >/dev/null
++  rm -rf swig-rel-3.0.12
++
++  echo "Install llvm"
++  curl -sSL "${LLVM_URL}" | tar xz
++  pushd llvm-release_60 >/dev/null
++    mkdir -p build && pushd build >/dev/null
++      cmake .. -DCMAKE_PREFIX_PATH=/opt/python/cp36-cp36m/ -DCMAKE_BUILD_TYPE=Release
++      make -j"$(nproc)"
++      make install
+     popd >/dev/null
+-    rm -rf llvm-release_60
+-
+-    echo "Install clang"
+-    curl -sSL ${CLANG_URL} | tar xz
+-    pushd clang-release_60 >/dev/null
+-        mkdir build
+-       	pushd build >/dev/null
+-            cmake .. -DCMAKE_PREFIX_PATH=/opt/python/cp36-cp36m/ \
+-                -DCMAKE_BUILD_TYPE=Release
+-	    make -j$(nproc)
+-	    make install
+-	popd >/dev/null
++  popd >/dev/null
++  rm -rf llvm-release_60
++
++  echo "Install clang"
++  curl -sSL "${CLANG_URL}" | tar xz
++  pushd clang-release_60 >/dev/null
++    mkdir -p build && pushd build >/dev/null
++      cmake .. -DCMAKE_PREFIX_PATH=/opt/python/cp36-cp36m/ -DCMAKE_BUILD_TYPE=Release
++      make -j"$(nproc)"
++      make install
+     popd >/dev/null
+-    rm -rf clang-release_60 
+-    echo "Install ninja build"
+-    curl -sSL ${NINJA_URL} | tar xz
+-    pushd ninja-1.10.0 >/dev/null
+-        mkdir build
+-	pushd build >/dev/null
+-            cmake .. -DCMAKE_BUILD_TYPE=Release
+-	    make -j$(nproc)
+-	    cp ninja /usr/bin/
+-	popd >/dev/null
++  popd >/dev/null
++  rm -rf clang-release_60
++
++  echo "Install ninja build"
++  curl -sSL "${NINJA_URL}" | tar xz
++  pushd ninja-1.10.0 >/dev/null
++    mkdir -p build && pushd build >/dev/null
++      cmake .. -DCMAKE_BUILD_TYPE=Release
++      make -j"$(nproc)"
++      install -m 0755 ninja /usr/bin/ninja
+     popd >/dev/null
+-    rm -rf ninja-1.10.0
++  popd >/dev/null
++  rm -rf ninja-1.10.0
+ popd >/dev/null
+ 
++# ---------------
++# Build patchelf
++# ---------------
+ pushd /tmp >/dev/null
+-    curl -sSL https://github.com/NixOS/patchelf/archive/0.12.tar.gz | tar xz
+-    pushd /tmp/patchelf-0.12 >/dev/null
+-        sed -i '331s/32/256/' ./src/patchelf.cc
+-        ./bootstrap.sh && ./configure && make install-strip
+-    popd
+-    rm -rf /tmp/patchelf-0.12
+-popd
+-
+-yum clean all
++  curl -sSL https://github.com/NixOS/patchelf/archive/0.12.tar.gz | tar xz
++  pushd /tmp/patchelf-0.12 >/dev/null
++    # widen max number of segments
++    sed -i '331s/32/256/' ./src/patchelf.cc
++    ./bootstrap.sh && ./configure && make install-strip
++  popd >/dev/null
++  rm -rf /tmp/patchelf-0.12
++popd >/dev/null
++
++yum clean all -y
++echo "Done."
+diff --git a/scripts/whl/manylinux2014/init_ubuntu2004.sh b/scripts/whl/manylinux2014/init_ubuntu2004.sh
+index 25299ac96..8fd5e1fc2 100755
+--- a/scripts/whl/manylinux2014/init_ubuntu2004.sh
++++ b/scripts/whl/manylinux2014/init_ubuntu2004.sh
+@@ -1,6 +1,7 @@
+ #!/bin/bash -e
+ 
+-ALL_PYTHON="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1"
++#ALL_PYTHON="3.6.10 3.7.7 3.8.3 3.9.4 3.10.1 3.11.9"
++ALL_PYTHON="3.11.9"
+ SWIG_URL='https://codeload.github.com/swig/swig/tar.gz/refs/tags/rel-3.0.12'
+ 
+ NINJA_URL='https://codeload.github.com/ninja-build/ninja/tar.gz/refs/tags/v1.10.0'
+@@ -9,6 +10,8 @@ do
+     numpy_version="1.19.5"
+     if [ ${ver} = "3.10.1" ];then
+         numpy_version="1.21.6"
++    elif [ ${ver} = "3.11.9" ];then
++        numpy_version="1.24.3"
+     fi
+     echo "Install python ${ver}"
+     env PYTHON_CONFIGURE_OPTS="--enable-shared" ~/.pyenv/bin/pyenv install ${ver}
+diff --git a/scripts/whl/manylinux2014/setup_mirror.sh b/scripts/whl/manylinux2014/setup_mirror.sh
+index 3f62e60fc..72aae2140 100755
+--- a/scripts/whl/manylinux2014/setup_mirror.sh
++++ b/scripts/whl/manylinux2014/setup_mirror.sh
+@@ -19,15 +19,48 @@ function set_tuna_yum_mirror() {
+ }
+ 
+ function set_epel() {
+-    mv /etc/yum.repos.d/epel.repo /etc/yum.repos.d/epel.repo.backup
+-    mv /etc/yum.repos.d/epel-testing.repo /etc/yum.repos.d/epel-testing.repo.backup
++    # Check if files exist before trying to move them
++    if [ -f /etc/yum.repos.d/epel.repo ]; then
++        mv /etc/yum.repos.d/epel.repo /etc/yum.repos.d/epel.repo.backup
++    fi
++    if [ -f /etc/yum.repos.d/epel-testing.repo ]; then
++        mv /etc/yum.repos.d/epel-testing.repo /etc/yum.repos.d/epel-testing.repo.backup
++    fi
+     curl -o /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-7.repo
+ }
+ 
+ function set_yum_mirror() {
+-    mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.backup
++    # Backup all existing CentOS repositories
++    mkdir -p /etc/yum.repos.d/backup
++    mv /etc/yum.repos.d/CentOS-*.repo /etc/yum.repos.d/backup/ 2>/dev/null || true
++    
++    # Download the base CentOS 7 repository configuration from Aliyun
+     curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo
+-    yum makecache 
++    
++    # Create SCLo repositories with proper configuration
++    cat > /etc/yum.repos.d/CentOS-SCLo-scl.repo << 'EOF'
++[centos-sclo-sclo]
++name=CentOS-7 - SCLo sclo
++baseurl=https://mirrors.aliyun.com/centos/7/sclo/$basearch/sclo/
++gpgcheck=1
++enabled=1
++gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
++
++[centos-sclo-rh]
++name=CentOS-7 - SCLo rh
++baseurl=https://mirrors.aliyun.com/centos/7/sclo/$basearch/rh/
++gpgcheck=1
++enabled=1
++gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
++EOF
++    
++    # Disable fastestmirror plugin to avoid issues
++    if [ -f /etc/yum/pluginconf.d/fastestmirror.conf ]; then
++        sed -i 's/enabled=1/enabled=0/g' /etc/yum/pluginconf.d/fastestmirror.conf
++    fi
++    
++    yum clean all
++    yum makecache
+ }
+ 
+ function set_pip_mirror() {
+@@ -45,7 +78,6 @@ trusted-host =
+ EOF
+ }
+ 
+-
+ function main() {
+     local platform=$1
+     case $platform in
+diff --git a/scripts/whl/utils/utils.sh b/scripts/whl/utils/utils.sh
+index 88fedb2c5..2dd77364b 100755
+--- a/scripts/whl/utils/utils.sh
++++ b/scripts/whl/utils/utils.sh
+@@ -8,7 +8,8 @@ OS=$(uname -s)
+ docker_file=""
+ function config_docker_file() {
+     case $(uname -m) in
+-        x86_64) docker_file=Dockerfile ;;
++        #x86_64) docker_file=Dockerfile ;;
++        x86_64) docker_file=Dockerfile_x86_64_ubuntu2004 ;;
+         aarch64) docker_file=Dockerfile_aarch64 ;;
+         *) echo "nonsupport env!!!";exit -1 ;;
+     esac
+@@ -78,7 +79,7 @@ function check_build_ninja_python_api() {
+         echo "org args: ${ver}"
+         if [[ $OS =~ "NT" ]]; then
+             INCLUDE_KEYWORD="${ver}\\\\include"
+-            PYTHON_API_INCLUDES="3.6.8\\\\include 3.7.7\\\\include 3.8.3\\\\include 3.9.4\\\\include 3.10.1\\\\include"
++            PYTHON_API_INCLUDES="3.6.8\\\\include 3.7.7\\\\include 3.8.3\\\\include 3.9.4\\\\include 3.10.1\\\\include 3.11.9\\\\include"
+         elif [[ $OS =~ "Linux" ]]; then
+             if which lsb_release && lsb_release -a | grep "Ubuntu"; then
+                 echo "into Ubuntu env"
+@@ -87,7 +88,7 @@ function check_build_ninja_python_api() {
+                 if [ ${is_punctuation} = "." ]; then
+                     INCLUDE_KEYWORD="include/python3.${ver:2:2}"
+                 fi
+-                PYTHON_API_INCLUDES="include/python3.5 include/python3.6 include/python3.7 include/python3.8 include/python3.9 include/python3.10"
++                PYTHON_API_INCLUDES="include/python3.5 include/python3.6 include/python3.7 include/python3.8 include/python3.9 include/python3.10 include/python3.11"
+             else
+                 echo "into manylinux env"
+                 ver=`echo $ver | tr -d m`
+@@ -101,7 +102,7 @@ function check_build_ninja_python_api() {
+                         INCLUDE_KEYWORD="include/python3.${ver:2:2}"
+                     fi
+                 fi
+-                PYTHON_API_INCLUDES="include/python3.5 include/python3.6 include/python3.7 include/python3.8 include/python3.9 include/python3.10"
++                PYTHON_API_INCLUDES="include/python3.5 include/python3.6 include/python3.7 include/python3.8 include/python3.9 include/python3.10 include/python3.11"
+             fi
+         elif [[ $OS =~ "Darwin" ]]; then
+             is_punctuation=${ver:4:1}
+@@ -109,7 +110,7 @@ function check_build_ninja_python_api() {
+             if [ ${is_punctuation} = "." ]; then
+                 INCLUDE_KEYWORD="include/python3.${ver:2:2}"
+             fi
+-            PYTHON_API_INCLUDES="include/python3.5 include/python3.6 include/python3.7 include/python3.8 include/python3.9 include/python3.10"
++            PYTHON_API_INCLUDES="include/python3.5 include/python3.6 include/python3.7 include/python3.8 include/python3.9 include/python3.10 include/python3.11"
+         else
+             echo "unknown OS: ${OS}"
+             exit -1
+diff --git a/scripts/whl/windows/config.sh b/scripts/whl/windows/config.sh
+index 767a5893d..68b1c609b 100755
+--- a/scripts/whl/windows/config.sh
++++ b/scripts/whl/windows/config.sh
+@@ -36,7 +36,7 @@ CVARS_VER_NEED="14.26.28801"
+ PYTHON3_MEGENGINE_DEV_DIR=${MEGENGINE_DEV_TOOLS_PREFIX_DIR}
+ PYTHON_PACK_MIRROR="https://mirrors.sustech.edu.cn/pypi/simple"
+ ALL_PYTHON=${ALL_PYTHON}
+-FULL_PYTHON_VER="3.6.8 3.7.7 3.8.3 3.9.4 3.10.1"
++FULL_PYTHON_VER="3.6.8 3.7.7 3.8.3 3.9.4 3.10.1 3.11.9"
+ 
+ if [[ -z ${ALL_PYTHON} ]]
+ then
 diff --git a/third_party/install-mkl.sh b/third_party/install-mkl.sh
 index ae7e124ce..6d9856bd3 100755
 --- a/third_party/install-mkl.sh
@@ -22,3 +874,10 @@ index ae7e124ce..6d9856bd3 100755
 +
 +echo done
 \ No newline at end of file
+diff --git a/third_party/pybind11 b/third_party/pybind11
+index b3d8fec06..941f45bcb 160000
+--- a/third_party/pybind11
++++ b/third_party/pybind11
+@@ -1 +1 @@
+-Subproject commit b3d8fec066285c831b69fd77c092f1cc70e38882
++Subproject commit 941f45bcb51457884fa1afd6e24a67377d70f75c

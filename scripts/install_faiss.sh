@@ -28,10 +28,10 @@ else
     echo "faiss-gpu-cu12 not available for this Python/CUDA version."
     # check if faiss-cpu was installed
     if pip show faiss-cpu >/dev/null 2>&1; then
-        echo "faiss-cpu was installed. Uninstalling it..."
-        pip uninstall -y faiss-cpu
+        echo "faiss-cpu was already installed"
+    else 
+        echo "Installing faiss-cpu..."
+        pip install faiss-cpu
+        echo "Done: faiss-cpu installed."
     fi
-    echo "Installing faiss-cpu..."
-    pip install faiss-cpu
-    echo "Done: faiss-cpu installed."
 fi
