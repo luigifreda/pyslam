@@ -172,7 +172,8 @@ class KeyFrameGraph(object):
     def add_loop_edge(self, keyframe):
         with self._lock_connections:
             self.not_to_erase = True
-            self.loop_edges.add(keyframe)
+            if keyframe not in self.loop_edges:
+                self.loop_edges.add(keyframe)
 
     def get_loop_edges(self):
         with self._lock_connections:
@@ -492,7 +493,7 @@ class KeyFrame(Frame, KeyFrameGraph):
             parent_candidates = {self.parent}
 
             # Prevent infinite loop due to malformed graph
-            max_iters = len(self.children) * 10
+            max_iters = len(self.children) * 100
             iters = 0
 
             # Reassign children based on covisibility weights
@@ -511,12 +512,12 @@ class KeyFrame(Frame, KeyFrameGraph):
 
                     covisible = kf_child.get_covisible_keyframes()
                     # Intersect with parent candidates
-                    for candidate_parent in parent_candidates:
-                        if candidate_parent in covisible:
-                            w = kf_child.get_weight(candidate_parent)
+                    for candidate in parent_candidates:
+                        if candidate in covisible:
+                            w = kf_child.get_weight(candidate)
                             if w > max_weight:
                                 best_child = kf_child
-                                best_parent = candidate_parent
+                                best_parent = candidate
                                 max_weight = w
 
                 if best_child and best_parent:
@@ -526,8 +527,8 @@ class KeyFrame(Frame, KeyFrameGraph):
                 else:
                     break  # No valid parent found; exit
 
-            if iters >= max_iters:
-                Printer.orange("KeyFrame: set_bad - max iterations reached")
+                if iters >= max_iters:
+                    Printer.orange("KeyFrame: set_bad - max iterations reached")
 
             # --- 4. Reassign unconnected children to original parent ---
             for kf_child in remaining_children:

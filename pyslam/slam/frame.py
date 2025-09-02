@@ -53,9 +53,12 @@ from pyslam.utilities.utils_features import (
     stereo_match_subpixel_correlation,
 )
 from pyslam.utilities.utils_serialization import NumpyJson, NumpyB64Json
+from pyslam.viz.rerun_interface import Rerun
 
 import rerun as rr  # pip install rerun-sdk
-from pyslam.viz.rerun_interface import Rerun
+
+import atexit
+import traceback
 
 
 from typing import TYPE_CHECKING, Any
@@ -82,10 +85,10 @@ class FeatureTrackerShared:
     descriptor_distances = None
     oriented_features = False
     feature_tracker_right: "FeatureTracker | None" = None
+    _is_cpp_initialized = False
 
     @staticmethod
     def set_feature_tracker(feature_tracker, force=False):
-
         FrameBase._id = 0  # reset the frame counter
 
         if not force and FeatureTrackerShared.feature_tracker is not None:
@@ -101,18 +104,141 @@ class FeatureTrackerShared:
         )
         FeatureTrackerShared.oriented_features = feature_tracker.feature_manager.oriented_features
 
-        # for the following guys we need to store the images since they need them at each matching step
+        # For the following guys we need to store the images since they need them at each matching step
         if FeatureTrackerShared.feature_matcher is not None and (
             FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE
             or FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR
         ):
             Frame.is_store_imgs = True
 
+        # Initialize the C++ module with the feature tracker info
+        FeatureTrackerShared.init_cpp_module(feature_tracker)
+
     @staticmethod
     def set_feature_tracker_right(feature_tracker, force=False):
         if not force and FeatureTrackerShared.feature_tracker_right is not None:
             raise Exception("FeatureTrackerShared: Tracker-right is already set!")
         FeatureTrackerShared.feature_tracker_right = feature_tracker
+
+    @staticmethod
+    def init_cpp_module(feature_tracker):
+        """Initialize the C++ module with the feature tracker info"""
+        try:
+            from pyslam.slam.cpp import cpp_core
+
+            # Set FeatureTrackerShared static properties
+            cpp_core.FeatureSharedInfo.scale_factor = feature_tracker.feature_manager.scale_factor
+            cpp_core.FeatureSharedInfo.inv_scale_factor = (
+                feature_tracker.feature_manager.inv_scale_factor
+            )
+            cpp_core.FeatureSharedInfo.log_scale_factor = (
+                feature_tracker.feature_manager.log_scale_factor
+            )
+            cpp_core.FeatureSharedInfo.scale_factors = feature_tracker.feature_manager.scale_factors
+            cpp_core.FeatureSharedInfo.inv_scale_factors = (
+                feature_tracker.feature_manager.inv_scale_factors
+            )
+            cpp_core.FeatureSharedInfo.level_sigmas = feature_tracker.feature_manager.level_sigmas
+            cpp_core.FeatureSharedInfo.level_sigmas2 = feature_tracker.feature_manager.level_sigmas2
+            cpp_core.FeatureSharedInfo.inv_level_sigmas2 = (
+                feature_tracker.feature_manager.inv_level_sigmas2
+            )
+            cpp_core.FeatureSharedInfo.num_levels = feature_tracker.feature_manager.num_levels
+            cpp_core.FeatureSharedInfo.num_features = feature_tracker.feature_manager.num_features
+
+            # WIP: at present, we just pass the value of the detector and descriptor enum
+            #       in the future, we should pass the actual detector and descriptor object
+            cpp_core.FeatureSharedInfo.detector_type = (
+                feature_tracker.feature_manager.detector_type.value
+            )
+            cpp_core.FeatureSharedInfo.descriptor_type = (
+                feature_tracker.feature_manager.descriptor_type.value
+            )
+            cpp_core.FeatureSharedInfo.norm_type = feature_tracker.feature_manager.norm_type
+
+            # Set the feature detection callbacks that will be used by pyslam::MapPoint
+            FeatureTrackerShared.setup_feature_detection_callbacks("C++", cpp_core)
+
+            # Set the C++ module initialized flag
+            FeatureTrackerShared._is_cpp_initialized = True
+            # Register cleanup handler to be called on program exit
+            # to prevent hanging on exit if the callbacks are not cleared
+            FeatureTrackerShared._register_cleanup_handler()
+        except Exception as e:
+            Printer.orange(f"WARNING: FeatureTrackerShared: cannot set cpp_core: {e}")
+            traceback.print_exc()
+
+    @staticmethod
+    def setup_feature_detection_callbacks(module_type: str, module: Any):
+        """Setup feature detection callbacks using FeatureTrackerShared"""
+
+        # def detect_and_compute_cb(image):
+        #     kps, des = FeatureTrackerShared.feature_tracker.detectAndCompute(image)
+        #     return kps, des
+
+        def convert_keypoints_to_tuples(kps):
+            # Convert cv2.KeyPoint objects to tuples for C++ compatibility
+            if kps is not None and len(kps) > 0:
+                # Convert cv2.KeyPoint objects to tuples for C++ compatibility
+                if isinstance(kps[0], cv2.KeyPoint):
+                    kps_tuples = [
+                        (kp.pt[0], kp.pt[1], kp.size, kp.angle, kp.response, kp.octave)
+                        for kp in kps
+                    ]
+                elif isinstance(kps[0], tuple):
+                    kps_tuples = kps
+                else:
+                    raise ValueError(f"Unknown keypoint type: {type(kps[0])}")
+                return kps_tuples
+            else:
+                return []
+
+        # match pyslam::FeatureDetectAndComputeCallback signature
+        def detect_and_compute_cb(image):
+            kps, des = FeatureTrackerShared.feature_tracker.detectAndCompute(image)
+            return convert_keypoints_to_tuples(kps), des
+
+        # match pyslam::FeatureDetectAndComputeCallback signature
+        def detect_and_compute_right_cb(image):
+            kps, des = FeatureTrackerShared.feature_tracker_right.detectAndCompute(image)
+            return convert_keypoints_to_tuples(kps), des
+
+        # match pyslam::StereoMatchingCallback signature
+        def stereo_matching_cb(
+            image, image_right, des, des_r, kps, kps_r, ratio_test, row_matching, max_disparity
+        ):
+            results = FeatureTrackerShared.feature_matcher.match(
+                image, image_right, des, des_r, kps, kps_r, ratio_test, row_matching, max_disparity
+            )
+            return results.idxs1, results.idxs2
+
+        module.FeatureSharedInfo.set_feature_detect_and_compute_callback(detect_and_compute_cb)
+        module.FeatureSharedInfo.set_feature_detect_and_compute_right_callback(
+            detect_and_compute_right_cb
+        )
+        module.FeatureSharedInfo.set_stereo_matching_callback(stereo_matching_cb)
+
+    @staticmethod
+    def clear_cpp_module_callbacks():
+        """Clear C++ module callbacks to prevent hanging on exit"""
+        try:
+            from pyslam.slam.cpp import cpp_core
+
+            cpp_core.FeatureSharedInfo.clear_callbacks()
+            print("✅ C++ module callbacks cleared")
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to clear C++ module callbacks: {e}")
+
+    @staticmethod
+    def _register_cleanup_handler():
+        """Register cleanup handler to be called on program exit"""
+        # NOTE: The key insight is that the static callback functions in the C++ module are holding
+        # references to Python objects, creating a circular reference that prevents the Python process
+        # from exiting. By clearing these callbacks before the process exits, we break the circular
+        # reference and allow clean shutdown.
+        if FeatureTrackerShared._is_cpp_initialized:
+            atexit.register(FeatureTrackerShared.clear_cpp_module_callbacks)
+            FeatureTrackerShared._is_cpp_initialized = False
 
 
 # for parallel stereo processing
@@ -390,6 +516,8 @@ class FrameBase(object):
 class Frame(FrameBase):
     is_store_imgs = False  # to store images when needed for debugging or processing purposes
     is_compute_median_depth = False  # to compute median depth when needed
+    feature_detect_and_compute_callback = None  # symmetric to C++
+    feature_detect_and_compute_right_callback = None  # symmetric to C++
 
     def __init__(
         self,
@@ -1207,6 +1335,7 @@ class Frame(FrameBase):
             kpsn_r = self.camera.unproject_points(
                 self.kps_r
             )  # assuming rectified stereo images and so kps_r is undistorted
+
             pts3d, mask_pts3d = triangulate_normalized_points(
                 pose_l, pose_rl, self.kpsn[good_matched_idxs1], kpsn_r[good_matched_idxs2]
             )
@@ -1371,9 +1500,9 @@ class Frame(FrameBase):
                 radius = kDrawFeatureRadius[self.octaves[kp_idx]]  # fake size for visualization
 
                 # color = Colors.myjet[self.octaves[i1]]*255
-                point = self.points[kp_idx]
+                point = self.points[kp_idx]  # MapPoint
                 if point is not None and not point.is_bad:
-                    p_frame_views = point.frame_views()
+                    p_frame_views = point.frame_views()  # list of (Frame, idx)
                     if p_frame_views:
                         # there's a corresponding 3D map point
                         color = (0, 255, 0) if len(p_frame_views) > 2 else (255, 0, 0)
@@ -1389,7 +1518,7 @@ class Frame(FrameBase):
                             if lfid is not None and lfid - 1 != f.id:
                                 # stop when there is a jump in the ids of frame observations
                                 break
-                            pts.append(tuple(map(int, np.round(f.kps[idx]))))
+                            pts.append(tuple(map(int, np.floor(f.kps[idx]))))
                             lfid = f.id
                         if len(pts) > 1:
                             color = Colors.myjet[len(pts)] * 255
@@ -1410,6 +1539,26 @@ class Frame(FrameBase):
     def draw_all_feature_trails(self, img):
         kps_idxs = range(len(self.kps))
         return self.draw_feature_trails(img, kps_idxs)
+
+    @staticmethod
+    def set_feature_detect_and_compute_callback(callback):
+        Frame.feature_detect_and_compute_callback = callback
+
+    @staticmethod
+    def set_feature_detect_and_compute_right_callback(callback):
+        Frame.feature_detect_and_compute_right_callback = callback
+
+    def feature_detect_and_compute(self, img):
+        if self.feature_detect_and_compute_callback:
+            return self.feature_detect_and_compute_callback(img)
+        else:
+            return None, None
+
+    def feature_detect_and_compute_right(self, img):
+        if self.feature_detect_and_compute_right_callback:
+            return self.feature_detect_and_compute_right_callback(img)
+        else:
+            return None, None
 
 
 ####################################################################################

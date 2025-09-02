@@ -23,7 +23,7 @@ import numpy as np
 from threading import RLock, Lock, Thread
 
 from pyslam.utilities.utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
-from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.slam.frame import FeatureTrackerShared
 from pyslam.utilities.utils_sys import Printer
 from pyslam.config_parameters import Parameters
 
@@ -33,7 +33,8 @@ from pyslam.semantics.semantic_serialization import serialize_semantic_des, dese
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .keyframe import KeyFrame
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.frame import Frame
 
 
 class MapPointBase(object):
@@ -672,7 +673,9 @@ class MapPoint(MapPointBase):
                 skip = True
         if skip or len(observations) == 0:
             return
-        semantics = [kf.kps_sem[idx] for kf, idx in observations if kf.kps_sem is not None]
+        semantics = [
+            kf.kps_sem[idx] for kf, idx in observations if not kf.is_bad and kf.kps_sem is not None
+        ]
         if len(semantics) >= 2:
             fused_semantics = semantic_fusion_method(semantics)
             with self._lock_features:
