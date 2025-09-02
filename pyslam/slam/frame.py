@@ -1370,9 +1370,9 @@ class Frame(FrameBase):
                 radius = kDrawFeatureRadius[self.octaves[kp_idx]]  # fake size for visualization
 
                 # color = Colors.myjet[self.octaves[i1]]*255
-                point = self.points[kp_idx]
+                point = self.points[kp_idx]  # MapPoint
                 if point is not None and not point.is_bad:
-                    p_frame_views = point.frame_views()
+                    p_frame_views = point.frame_views()  # list of (Frame, idx)
                     if p_frame_views:
                         # there's a corresponding 3D map point
                         color = (0, 255, 0) if len(p_frame_views) > 2 else (255, 0, 0)

@@ -524,7 +524,7 @@ class MapPoint(MapPointBase):
             return self.normal
 
     # replace this point with map point p
-    def replace_with(self, p: "MapPointBase"):
+    def replace_with(self, p: "MapPoint"):
         if p.id == self.id:
             return
         # if __debug__:

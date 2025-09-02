@@ -217,7 +217,7 @@ class Parameters:
     kRelocalizationMaxReprojectionDistanceMapSearchFine = 3  # [pixels]    o:3
 
     # Volumetric Integration
-    kUseVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
+    kUseVolumetricIntegration = True  # To enable/disable volumetric integration (dense mapping)
     kVolumetricIntegrationType = (
         "TSDF"  # "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_factory.py)
     )

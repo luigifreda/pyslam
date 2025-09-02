@@ -27,13 +27,18 @@ from numba import njit
 # import json
 import ujson as json
 
-# import g2o
+from pyslam.config import Config
 from pyslam.utilities.utils_geom import add_ones, add_ones_numba
 from pyslam.utilities.utils_sys import Printer
 from pyslam.io.dataset_types import SensorType
 
+from typing import TYPE_CHECKING
 
-class CameraTypes(Enum):
+# if TYPE_CHECKING:
+#     from pyslam.config import Config
+
+
+class CameraType(Enum):
     NONE = 0
     PINHOLE = 1
 
@@ -187,7 +192,7 @@ class CameraUtils:
 
 class CameraBase:
     def __init__(self):
-        self.type = CameraTypes.NONE
+        self.type = CameraType.NONE
         self.width, self.height = None, None
         self.fx, self.fy = None, None
         self.cx, self.cy = None, None
@@ -208,10 +213,16 @@ class CameraBase:
 
 
 class Camera(CameraBase):
-    def __init__(self, config):
+    def __init__(self, config: "Config"):
         super().__init__()
         if config is None:
             return
+        if isinstance(config, dict):
+            # convert a possibly dict input into Config
+            config_ = Config()
+            config_.from_json(config)
+            config = config_
+
         width = (
             config.cam_settings["Camera.width"]
             if "Camera.width" in config.cam_settings
@@ -257,7 +268,7 @@ class Camera(CameraBase):
         self.depth_factor = 1.0  # Depthmap values factor
         if "DepthMapFactor" in config.cam_settings:
             self.depth_factor = 1.0 / float(config.cam_settings["DepthMapFactor"])
-            # print('Using DepthMapFactor = %f' % self.depth_factor)
+            # print("Using DepthMapFactor = %f" % self.depth_factor)
         if config.sensor_type == "rgbd" and self.depth_factor is None:
             raise ValueError("Camera: Expecting the field DepthMapFactor in the camera config file")
         self.depth_threshold = float("inf")  # Close/Far threshold.
@@ -298,7 +309,7 @@ class Camera(CameraBase):
         }
 
     def init_from_json(self, json_str):
-        self.type = CameraTypes(int(json_str["type"]))
+        self.type = CameraType(int(json_str["type"]))
         self.width = int(json_str["width"])
         self.height = int(json_str["height"])
         self.fx = float(json_str["fx"])
@@ -376,7 +387,7 @@ class Camera(CameraBase):
 class PinholeCamera(Camera):
     def __init__(self, config=None):
         super().__init__(config)
-        self.type = CameraTypes.PINHOLE
+        self.type = CameraType.PINHOLE
 
         if config is None:
             return

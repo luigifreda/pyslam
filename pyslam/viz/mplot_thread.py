@@ -117,7 +117,7 @@ class SharedSingletonLock:
 
 # use mplotlib figure to draw in 2d dynamic data
 class Mplot2d:
-    def __init__(self, xlabel="", ylabel="", title=""):
+    def __init__(self, xlabel: str = "", ylabel: str = "", title: str = ""):
         self.xlabel = xlabel
         self.ylabel = ylabel
         self.title = title
@@ -144,8 +144,9 @@ class Mplot2d:
         self.key_queue = self.mp_manager.Queue()
 
         self.figure_num = mp.Value("i", int(FigureNum.getFigureNum()))
-        print(f"Mplot2d: starting the process on figure: {self.figure_num.value}")
-        print(f"Mplot2d: backend {matplotlib.get_backend()}")
+        print(
+            f"Mplot2d: starting process {self.title} on figure: {self.figure_num.value}, backend: {matplotlib.get_backend()}"
+        )
 
         self.lock = SharedSingletonLock().get_lock
 
@@ -340,7 +341,7 @@ class Mplot2d:
 
 # use mplotlib figure to draw in 3D trajectories
 class Mplot3d:
-    def __init__(self, title=""):
+    def __init__(self, title: str = ""):
         self.title = title
 
         self.data = None

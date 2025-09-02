@@ -8,8 +8,10 @@ __pycache__
 .vscode 
 !.vscode/settings.json
 
+
 tmp
 build
+roadmap
 debug.txt
 groundtruth.txt
 kitti
@@ -55,8 +57,11 @@ leftover/
 results/
 
 thirdparty/pydbow3/ORBvoc.txt
-
 thirdparty/protoc 
+
+pyslam/slam/cpp/build
+pyslam/slam/cpp/build_simple
+pyslam/slam/cpp/lib
 
 logs/*.log
 
