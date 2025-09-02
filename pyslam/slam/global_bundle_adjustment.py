@@ -310,7 +310,7 @@ class GlobalBundleAdjustment:
                 while keyframes_to_check:
                     keyframe = keyframes_to_check.pop(0)
                     child_keyframes = keyframe.get_children()
-                    Twc = keyframe.Twc
+                    Twc = keyframe.Twc()
 
                     if keyframe.Tcw_GBA is None:
                         GlobalBundleAdjustment.print(
@@ -321,12 +321,12 @@ class GlobalBundleAdjustment:
                     for child in child_keyframes:
                         if child.GBA_kf_id != self.loop_kf_id:
                             if keyframe.Tcw_GBA is not None:
-                                T_child_c = child.Tcw @ Twc
+                                T_child_c = child.Tcw() @ Twc
                                 child.Tcw_GBA = T_child_c @ keyframe.Tcw_GBA
                                 child.GBA_kf_id = self.loop_kf_id
                         keyframes_to_check.append(child)
 
-                    keyframe.Tcw_before_GBA = keyframe.Tcw
+                    keyframe.Tcw_before_GBA = keyframe.Tcw()
                     if keyframe.Tcw_GBA is not None:
                         keyframe.update_pose(keyframe.Tcw_GBA)
 
@@ -356,7 +356,7 @@ class GlobalBundleAdjustment:
                         Xc = Rcw @ map_point.pt + tcw
 
                         # Backproject using corrected camera
-                        Twc = ref_keyframe.Twc
+                        Twc = ref_keyframe.Twc()
                         Rwc = Twc[0:3, 0:3]
                         twc = Twc[0:3, 3]
 

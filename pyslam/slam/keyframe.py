@@ -25,7 +25,7 @@ import ujson as json
 
 from scipy.spatial import cKDTree
 
-from threading import RLock
+from threading import Lock
 
 from pyslam.config_parameters import Parameters
 from pyslam.utilities.utils_sys import Printer
@@ -37,7 +37,7 @@ from .camera_pose import CameraPose
 
 class KeyFrameGraph(object):
     def __init__(self):
-        self._lock_connections = RLock()
+        self._lock_connections = Lock()
         # spanning tree
         self.init_parent = False  # is parent initialized?
         self.parent = None
@@ -56,7 +56,7 @@ class KeyFrameGraph(object):
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
-        # Remove the RLock from the state (don't pickle it)
+        # Remove the Lock from the state (don't pickle it)
         if "_lock_connections" in state:
             del state["_lock_connections"]
         return state
@@ -64,8 +64,8 @@ class KeyFrameGraph(object):
     def __setstate__(self, state):
         # Restore the state (without 'lock' initially)
         self.__dict__.update(state)
-        # Recreate the RLock after unpickling
-        self._lock_connections = RLock()
+        # Recreate the Lock after unpickling
+        self._lock_connections = Lock()
 
     def to_json(self):
         with self._lock_connections:
@@ -135,16 +135,27 @@ class KeyFrameGraph(object):
 
     # ===============================
     # spanning tree
+
+    def add_child_no_lock_(self, keyframe):
+        self.children.add(keyframe)
+
     def add_child(self, keyframe):
         with self._lock_connections:
-            self.children.add(keyframe)
+            self.add_child_no_lock_(keyframe)
+
+    def erase_child_no_lock_(self, keyframe):
+        try:
+            self.children.remove(keyframe)
+        except:
+            pass
 
     def erase_child(self, keyframe):
         with self._lock_connections:
-            try:
-                self.children.remove(keyframe)
-            except:
-                pass
+            self.erase_child_no_lock_(keyframe)
+
+    def set_parent_no_lock_(self, keyframe):
+        self.parent = keyframe
+        keyframe.add_child(self)
 
     def set_parent(self, keyframe):
         with self._lock_connections:
@@ -152,8 +163,7 @@ class KeyFrameGraph(object):
                 if __debug__:
                     Printer.orange("KeyFrameGraph.set_parent - trying to set self as parent")
                 return
-            self.parent = keyframe
-            keyframe.add_child(self)
+            self.set_parent_no_lock_(keyframe)
 
     def get_children(self):
         with self._lock_connections:
@@ -172,7 +182,8 @@ class KeyFrameGraph(object):
     def add_loop_edge(self, keyframe):
         with self._lock_connections:
             self.not_to_erase = True
-            self.loop_edges.add(keyframe)
+            if keyframe not in self.loop_edges:
+                self.loop_edges.add(keyframe)
 
     def get_loop_edges(self):
         with self._lock_connections:
@@ -185,34 +196,41 @@ class KeyFrameGraph(object):
         self.connected_keyframes_weights = Counter()
         self.ordered_keyframes_weights = OrderedDict()
 
+    def update_best_covisibles_no_lock_(self):
+        self.ordered_keyframes_weights = OrderedDict(
+            sorted(self.connected_keyframes_weights.items(), key=lambda x: x[1], reverse=True)
+        )  # order by value (decreasing order)
+
+    def add_connection_no_lock_(self, keyframe, weight):
+        self.connected_keyframes_weights[keyframe] = weight
+        self.update_best_covisibles_no_lock_()
+
     def add_connection(self, keyframe, weight):
         with self._lock_connections:
-            self.connected_keyframes_weights[keyframe] = weight
-            self.update_best_covisibles()
+            self.add_connection_no_lock_(keyframe, weight)
 
-    def erase_connection(self, keyframe):
-        with self._lock_connections:
-            try:
-                del self.connected_keyframes_weights[keyframe]
-                self.update_best_covisibles()
-            except:
-                pass
+    def erase_connection_no_lock_(self, keyframe):
+        try:
+            del self.connected_keyframes_weights[keyframe]
+            self.update_best_covisibles_no_lock_()
+        except:
+            pass
 
-    def update_best_covisibles(self):
-        with self._lock_connections:
-            self.ordered_keyframes_weights = OrderedDict(
-                sorted(self.connected_keyframes_weights.items(), key=lambda x: x[1], reverse=True)
-            )  # order by value (decreasing order)
+    def get_connected_keyframes_no_lock_(self):
+        return list(self.connected_keyframes_weights.keys())  # returns a copy
 
     # get a list of all the keyframe that shares points
     def get_connected_keyframes(self):
         with self._lock_connections:
-            return list(self.connected_keyframes_weights.keys())  # returns a copy
+            return self.get_connected_keyframes_no_lock_()
+
+    def get_covisible_keyframes_no_lock_(self):
+        return list(self.ordered_keyframes_weights.keys())  # returns a copy
 
     # get an ordered list of covisible keyframes
     def get_covisible_keyframes(self):
         with self._lock_connections:
-            return list(self.ordered_keyframes_weights.keys())  # returns a copy
+            return self.get_covisible_keyframes_no_lock_()
 
     # get an ordered list of covisible keyframes
     def get_best_covisible_keyframes(self, N):
@@ -223,9 +241,12 @@ class KeyFrameGraph(object):
         with self._lock_connections:
             return [kf for kf, w in self.ordered_keyframes_weights.items() if w > weight]
 
+    def get_weight_no_lock_(self, keyframe):
+        return self.connected_keyframes_weights[keyframe]
+
     def get_weight(self, keyframe):
         with self._lock_connections:
-            return self.connected_keyframes_weights[keyframe]
+            return self.get_weight_no_lock_(keyframe)
 
 
 class KeyFrame(Frame, KeyFrameGraph):
@@ -235,7 +256,7 @@ class KeyFrame(Frame, KeyFrameGraph):
             self,
             img=None,
             camera=frame.camera,
-            pose=frame.pose,
+            pose=frame.pose(),
             id=frame.id,
             timestamp=frame.timestamp,
             img_id=frame.img_id,
@@ -272,7 +293,7 @@ class KeyFrame(Frame, KeyFrameGraph):
         self.is_blurry = frame.is_blurry
         self.laplacian_var = frame.laplacian_var
 
-        # pose relative to parent: self.Tcw @ self.parent.Twc (this is computed when bad flag is activated)
+        # pose relative to parent: self.Tcw() @ self.parent.Twc() (this is computed when bad flag is activated)
         self._pose_Tcp = CameraPose()
 
         # share keypoints info with frame (these are computed once for all on frame initialization and they are not changed anymore)
@@ -356,7 +377,7 @@ class KeyFrame(Frame, KeyFrameGraph):
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
-        # Remove the RLock from the state (don't pickle it)
+        # Remove the Lock from the state (don't pickle it)
         if "_lock_pose" in state:  # from FrameBase
             del state["_lock_pose"]
         if "_lock_features" in state:  # from Frame
@@ -366,12 +387,12 @@ class KeyFrame(Frame, KeyFrameGraph):
         return state
 
     def __setstate__(self, state):
-        # Restore the state (without 'RLock' initially)
+        # Restore the state (without 'Lock' initially)
         self.__dict__.update(state)
-        # Recreate the RLock after unpickling
-        self._lock_pose = RLock()  # from FrameBase
-        self._lock_features = RLock()
-        self._lock_connections = RLock()
+        # Recreate the Lock after unpickling
+        self._lock_pose = Lock()  # from FrameBase
+        self._lock_features = Lock()
+        self._lock_connections = Lock()
 
     # post processing after deserialization to replace saved ids with reloaded objects
     def replace_ids_with_objects(self, points, frames, keyframes):
@@ -420,14 +441,14 @@ class KeyFrame(Frame, KeyFrameGraph):
                 self.ordered_keyframes_weights = OrderedDict()
                 for kf, w in covisible_keyframes:
                     if w >= Parameters.kMinNumOfCovisiblePointsForCreatingConnection:
-                        kf.add_connection(self, w)
+                        kf.add_connection_no_lock_(self, w)
                         self.ordered_keyframes_weights[kf] = w
                     else:
                         break
             else:
                 self.connected_keyframes_weights = Counter({kf_max: w_max})
                 self.ordered_keyframes_weights = OrderedDict([(kf_max, w_max)])
-                kf_max.add_connection(self, w_max)
+                kf_max.add_connection_no_lock_(self, w_max)
 
             # update spanning tree
             # we need to avoid setting the parent to None or self or a bad keyframe
@@ -438,7 +459,7 @@ class KeyFrame(Frame, KeyFrameGraph):
                 and kf_max != self
                 and not kf_max.is_bad
             ):
-                self.set_parent(kf_max)
+                self.set_parent_no_lock_(kf_max)
                 self.is_first_connection = False
         # print('ordered_keyframes_weights: ', self.ordered_keyframes_weights)
 
@@ -447,7 +468,7 @@ class KeyFrame(Frame, KeyFrameGraph):
         with self._lock_connections:
             return (
                 self._pose_Tcp.get_matrix()
-            )  # pose relative to parent: self.Tcw @ self.parent.Twc (this is computed when bad flag is activated)
+            )  # pose relative to parent: self.Tcw() @ self.parent.Twc() (this is computed when bad flag is activated)
 
     @property
     def is_bad(self):
@@ -475,8 +496,8 @@ class KeyFrame(Frame, KeyFrameGraph):
                 return
 
             # --- 1. Remove covisibility connections ---
-            for kf_connected in list(self.connected_keyframes_weights.keys()):
-                kf_connected.erase_connection(self)
+            for kf_connected in self.get_connected_keyframes_no_lock_():
+                kf_connected.erase_connection_no_lock_(self)
 
             # --- 2. Remove feature observations ---
             for idx, p in enumerate(self.points):
@@ -492,7 +513,7 @@ class KeyFrame(Frame, KeyFrameGraph):
             parent_candidates = {self.parent}
 
             # Prevent infinite loop due to malformed graph
-            max_iters = len(self.children) * 10
+            max_iters = len(self.children) * 100
             iters = 0
 
             # Reassign children based on covisibility weights
@@ -509,33 +530,33 @@ class KeyFrame(Frame, KeyFrameGraph):
                     if kf_child.is_bad:
                         continue
 
-                    covisible = kf_child.get_covisible_keyframes()
+                    covisibles = kf_child.get_covisible_keyframes_no_lock_()
                     # Intersect with parent candidates
-                    for candidate_parent in parent_candidates:
-                        if candidate_parent in covisible:
-                            w = kf_child.get_weight(candidate_parent)
+                    for candidate in parent_candidates:
+                        if candidate in covisibles:
+                            w = kf_child.get_weight_no_lock_(candidate)
                             if w > max_weight:
                                 best_child = kf_child
-                                best_parent = candidate_parent
+                                best_parent = candidate
                                 max_weight = w
 
                 if best_child and best_parent:
-                    best_child.set_parent(best_parent)
+                    best_child.set_parent_no_lock_(best_parent)
                     parent_candidates.add(best_child)
                     remaining_children.remove(best_child)
                 else:
                     break  # No valid parent found; exit
 
-            if iters >= max_iters:
-                Printer.orange("KeyFrame: set_bad - max iterations reached")
+                if iters >= max_iters:
+                    Printer.orange("KeyFrame: set_bad - max iterations reached")
 
             # --- 4. Reassign unconnected children to original parent ---
             for kf_child in remaining_children:
-                kf_child.set_parent(self.parent)
+                kf_child.set_parent_no_lock_(self.parent)
 
             # --- 5. Cleanup ---
-            self.parent.erase_child(self)
-            self._pose_Tcp.update(self.Tcw @ self.parent.Twc)
+            self.parent.erase_child_no_lock_(self)
+            self._pose_Tcp.update(self.Tcw() @ self.parent.Twc())
             self._is_bad = True
 
         if self.map is not None:

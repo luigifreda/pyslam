@@ -21,13 +21,16 @@ import numpy as np
 import time
 import cv2
 import random
-
-from pyslam.slam.frame import Frame, FeatureTrackerShared, match_frames
-from pyslam.slam.keyframe import KeyFrame
-
 from collections import deque
 
-from pyslam.slam.map import Map
+
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
+from pyslam.slam.frame import match_frames
+from pyslam.slam import (
+    Frame,
+    KeyFrame,
+    Map,
+)
 from pyslam.utilities.utils_geom import poseRt, inv_T
 from pyslam.utilities.utils_geom_triangulation import triangulate_normalized_points
 from pyslam.utilities.utils_sys import Printer
@@ -36,7 +39,7 @@ from pyslam.config_parameters import Parameters
 from pyslam.io.dataset_types import SensorType
 from pyslam.utilities.rotation_histogram import filter_matches_with_histogram_orientation
 
-from pyslam.utilities.utils_draw import draw_feature_matches
+from pyslam.utilities.utils_draw import draw_feature_matches, draw_points
 
 
 kVerbose = True
@@ -46,6 +49,7 @@ kRansacProb = 0.999
 kMinIdDistBetweenIntializingFrames = 2
 kMaxIdDistBetweenIntializingFrames = 5  # N.B.: worse performances with values smaller than 5!
 
+kShowFeatureKps = False  # show the feature kps during initialization
 kShowFeatureMatches = False  # show the feature matches during initialization
 kShowGridCellCoverage = False
 
@@ -249,6 +253,12 @@ class Initializer(object):
                 idxs_ref = idxs_ref[valid_match_idxs]
 
         if kShowFeatureMatches:  # debug frame matching
+            if kShowFeatureKps:
+                frame_img_kps1 = draw_points(img_cur, f_cur.kps)
+                frame_img_kps2 = draw_points(self.f_ref.img, self.f_ref.kps)
+                cv2.imshow("initializer frame kps1", frame_img_kps1)
+                cv2.imshow("initializer frame kps2", frame_img_kps2)
+
             frame_img_matches = draw_feature_matches(
                 img_cur,
                 self.f_ref.img,
@@ -325,7 +335,10 @@ class Initializer(object):
             )
         else:
             pts3d, mask_pts3d = triangulate_normalized_points(
-                kf_cur.Tcw, kf_ref.Tcw, kf_cur.kpsn[idxs_cur_inliers], kf_ref.kpsn[idxs_ref_inliers]
+                kf_cur.Tcw(),
+                kf_ref.Tcw(),
+                kf_cur.kpsn[idxs_cur_inliers],
+                kf_ref.kpsn[idxs_ref_inliers],
             )
 
         new_pts_count, mask_points, added_map_points = map.add_points(
@@ -375,7 +388,7 @@ class Initializer(object):
 
             if is_ok and self.is_monocular:
                 median_depth = kf_cur.compute_points_median_depth(out_pts3d)
-                baseline = np.linalg.norm(kf_cur.Ow - kf_ref.Ow)
+                baseline = np.linalg.norm(kf_cur.Ow() - kf_ref.Ow())
                 is_ok = median_depth > 0 and baseline > 0
 
             if is_ok and self.is_monocular:
@@ -394,7 +407,7 @@ class Initializer(object):
                     f"Initializer: forcing current median depth {median_depth} to {desired_median_depth}, depth_scale: {depth_scale}"
                 )
                 out.pts[:, :3] = out.pts[:, :3] * depth_scale  # scale points
-                tcw = kf_cur.tcw * depth_scale  # scale initial baseline
+                tcw = kf_cur.tcw() * depth_scale  # scale initial baseline
                 kf_cur.update_translation(tcw)
 
             if is_ok and self.is_monocular and self.check_cell_coverage:

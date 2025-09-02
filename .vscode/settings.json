@@ -87,5 +87,24 @@
     "valarray": "cpp",
     "variant": "cpp"
   },
-  "commentTranslate.hover.enabled": true
+  // C++ formatting - just tell VS Code to use clang-format
+  "[cpp]": {
+    "editor.formatOnSave": true
+  },
+  "[c]": {
+    "editor.formatOnSave": true
+  },
+  "[hpp]": {
+    "editor.formatOnSave": true
+  },
+  "[h]": {
+    "editor.formatOnSave": true
+  },
+  // Tell VS Code to use your .clang-format file
+  "C_Cpp.clang_format_style": "file",
+  "C_Cpp.clang_format_path": "clang-format",
+  "editor.formatOnSave": true,
+  "commentTranslate.hover.enabled": false,
+  // Point C/C++ extension to the project compile_commands for precise navigation
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/pyslam/slam/cpp/build/compile_commands.json",
 }

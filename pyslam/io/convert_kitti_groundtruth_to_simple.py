@@ -18,8 +18,8 @@ groundtruth_settings["name"] = "06"
 # Convert the configured kitti ground truth in a simple format which can be used with video datasets
 def main(settings=groundtruth_settings, out_filename=kResultsFolder + "simple_groundtruth.txt"):
     print(f"converting {groundtruth_settings}")
-    grountruth = groundtruth_factory(groundtruth_settings)
-    grountruth.convertToSimpleDataset(filename=out_filename)
+    groundtruth = groundtruth_factory(groundtruth_settings)
+    groundtruth.convertToSimpleDataset(filename=out_filename)
 
 
 if __name__ == "__main__":

@@ -22,17 +22,22 @@ import os
 import numpy as np
 import time
 import traceback
+import atexit
+import weakref
 
 # import json
 import ujson as json
 
 from pyslam.config_parameters import Parameters
 
-from .frame import Frame, FeatureTrackerShared, match_frames
-from .keyframe import KeyFrame
-from .map_point import MapPoint
-from .map import Map
-from .camera import Camera
+from pyslam.slam import (
+    Frame,
+    Camera,
+    MapPoint,
+    KeyFrame,
+    Map,
+)
+from .feature_tracker_shared import FeatureTrackerShared
 from .local_mapping import LocalMapping
 from .global_bundle_adjustment import GlobalBundleAdjustment
 from .slam_commons import SlamState
@@ -42,14 +47,8 @@ from pyslam.loop_closing.loop_closing import LoopClosing
 
 from pyslam.io.dataset_types import SensorType, DatasetEnvironmentType
 
-from pyslam.local_features.feature_types import (
-    FeatureDetectorTypes,
-    FeatureDescriptorTypes,
-    FeatureInfo,
-)
 from pyslam.local_features.feature_tracker import (
     feature_tracker_factory,
-    FeatureTracker,
     FeatureTrackerTypes,
 )
 
@@ -125,6 +124,8 @@ class Slam(object):
         self.volumetric_integrator = None
         self.reset_requested = False
 
+        self.has_quit = False
+
         if slam_mode == SlamMode.SLAM:
             self.init_semantic_mapping(semantic_mapping_config, headless=headless)
             self.init_volumetric_integrator()
@@ -196,6 +197,9 @@ class Slam(object):
         self.map.reset_session()
 
     def quit(self):
+        if self.has_quit:
+            return
+        self.has_quit = True
         print("SLAM: quitting ...")
         if Parameters.kLocalMappingOnSeparateThread:
             self.local_mapping.quit()
@@ -206,6 +210,9 @@ class Slam(object):
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.quit()
         print("SLAM: done")
+
+    def __del__(self):
+        self.quit()
 
     def init_feature_tracker(self, feature_tracker_config):
         feature_tracker = feature_tracker_factory(**feature_tracker_config)
@@ -472,7 +479,7 @@ class Slam(object):
 
         # Transform all keyframes so that the first keyframe is at the origin.
         # After a loop closure the first keyframe might not be at the origin.
-        Two = keyframes[0].Twc
+        Two = keyframes[0].Twc()
 
         # Frame pose is stored relative to its reference keyframe (which is optimized by BA and pose graph).
         # We need to get first the keyframe pose and then concatenate the relative transformation.
@@ -498,7 +505,7 @@ class Slam(object):
                 Tcr = Tcr @ keyframe.Tcp
                 keyframe = keyframe.parent
 
-            Trw = Tcr @ keyframe.Tcw @ Two
+            Trw = Tcr @ keyframe.Tcw() @ Two
 
             Tcw = rel_pose.matrix() @ Trw
             Twc = inv_T(Tcw)

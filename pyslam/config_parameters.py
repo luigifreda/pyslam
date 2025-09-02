@@ -168,13 +168,13 @@ class Parameters:
     )
 
     # Bundle Adjustment (BA)
-    kLocalBAWindow = 20  #  [# frames]
+    kLocalBAWindowSize = 20  #  [# frames]
     kUseLargeWindowBA = (
         False  # True: perform BA over a large window; False: do not perform large window BA
     )
     kEveryNumFramesLargeWindowBA = 10  # Number of frames between two large window BA
-    kLargeBAWindow = 20  #  [# frames]
-    kUseParallelProcessLBA = False  # [Experimental] Not super stable yet!
+    kLargeBAWindowSize = 20  #  [# frames]
+    kUseParallelProcessLBA = False  # [Experimental] Running LBA in a parallel process (not thread). Not super stable yet!
 
     # Global Bundle Adjustment (GBA)
     kUseGBA = True  # Activated by loop closing
@@ -267,3 +267,7 @@ def set_from_dict(cls, config):
             setattr(cls, key, value)
         else:
             print(f"Unknown config key: {key}")
+
+
+def to_dict(cls):
+    return {key: getattr(cls, key) for key in dir(cls) if not key.startswith("__")}

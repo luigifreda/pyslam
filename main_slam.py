@@ -29,11 +29,7 @@ import platform
 
 from pyslam.config import Config  # , dump_config_to_json
 
-from pyslam.semantics.semantic_mapping import SemanticMappingType
-from pyslam.semantics.semantic_types import SemanticFeatureType
 from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
-from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
-from pyslam.semantics.semantic_utils import SemanticDatasetType
 from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
 
 from pyslam.slam.slam import Slam, SlamState
@@ -41,7 +37,7 @@ from pyslam.viz.slam_plot_drawer import SlamPlotDrawer
 from pyslam.slam.camera import PinholeCamera
 from pyslam.io.ground_truth import groundtruth_factory
 from pyslam.io.dataset_factory import dataset_factory
-from pyslam.io.dataset_types import DatasetType, SensorType
+from pyslam.io.dataset_types import SensorType
 from pyslam.io.trajectory_writer import TrajectoryWriter
 
 from pyslam.viz.viewer3D import Viewer3D
@@ -64,14 +60,10 @@ from pyslam.utilities.utils_depth import img_from_depth, filter_shadow_points
 
 from pyslam.config_parameters import Parameters
 
-from pyslam.viz.rerun_interface import Rerun
-
 from datetime import datetime
 import traceback
 
 import argparse
-
-from matplotlib import pyplot as plt
 
 
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")

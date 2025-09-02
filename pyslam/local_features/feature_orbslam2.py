@@ -24,7 +24,7 @@ import numpy as np
 
 from pyslam.utilities.utils_sys import Printer
 from .feature_base import BaseFeature2D
-from orbslam2_features import ORBextractor
+from orbslam2_features import ORBextractor, ORBextractorDeterministic
 
 
 kVerbose = True
@@ -32,9 +32,12 @@ kVerbose = True
 
 # Interface for pySLAM
 class Orbslam2Feature2D(BaseFeature2D):
-    def __init__(self, num_features=2000, scale_factor=1.2, num_levels=8):
+    def __init__(self, num_features=2000, scale_factor=1.2, num_levels=8, deterministic=False):
         print("Using Orbslam2Feature2D")
-        self.orb_extractor = ORBextractor(num_features, scale_factor, num_levels)
+        if deterministic:
+            self.orb_extractor = ORBextractorDeterministic(num_features, scale_factor, num_levels)
+        else:
+            self.orb_extractor = ORBextractor(num_features, scale_factor, num_levels)
 
     # extract keypoints
     def detect(
