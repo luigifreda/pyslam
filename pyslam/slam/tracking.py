@@ -195,6 +195,7 @@ class Tracking:
         )
 
         self.last_num_static_stereo_map_points = None
+        self.total_num_static_stereo_map_points = 0
 
         self.last_reloc_frame_id = -float("inf")
 
@@ -292,6 +293,7 @@ class Tracking:
         )
 
         self.last_num_static_stereo_map_points = None
+        self.total_num_static_stereo_map_points = 0
 
         self.mask_match = None
 
@@ -1136,6 +1138,7 @@ class Tracking:
                 pts3d, pts3d_mask, f, kf, sorted_idx_values, img
             )
             self.last_num_static_stereo_map_points = num_added_points
+            self.total_num_static_stereo_map_points += num_added_points
 
     # Since we do not have real-time performances, we can slow-down things and make tracking wait till local mapping gets idle
     # N.B.: this function must be called outside 'with self.map.update_lock' blocks,

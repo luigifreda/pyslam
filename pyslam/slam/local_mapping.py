@@ -135,9 +135,14 @@ class LocalMapping:
 
         self.last_processed_kf_img_id = None
         self.last_num_triangulated_points = None
+        self.total_num_triangulated_points = 0
         self.last_num_fused_points = None
+        self.total_num_fused_points = 0
         self.last_num_culled_points = None
+        self.total_num_culled_points = 0
+
         self.last_num_culled_keyframes = None
+        self.total_num_culled_keyframes = 0
 
         self.init_print()
 
@@ -202,6 +207,10 @@ class LocalMapping:
                 empty_queue(self.queue)
                 self.recently_added_points.clear()
                 self.reset_requested = False
+                self.total_num_triangulated_points = 0
+                self.total_num_fused_points = 0
+                self.total_num_culled_points = 0
+                self.total_num_culled_keyframes = 0
                 LocalMapping.print("LocalMapping: reset_if_requested() ...done")
 
     def start(self):
@@ -381,6 +390,7 @@ class LocalMapping:
         self.timer_pts_culling.start()
         num_culled_points = self.cull_map_points()
         self.last_num_culled_points = num_culled_points
+        self.total_num_culled_points += num_culled_points
         self.timer_pts_culling.refresh()
         LocalMapping.print(
             f"#culled points: {num_culled_points}, timing: {self.timer_pts_culling.last_elapsed}"
@@ -391,6 +401,7 @@ class LocalMapping:
         total_new_pts = self.create_new_map_points()
         # total_new_pts = self.create_new_map_points_parallel()  # use parallel triangulation
         self.last_num_triangulated_points = total_new_pts
+        self.total_num_triangulated_points += total_new_pts
         self.timer_triangulation.refresh()
         LocalMapping.print(
             f"#new map points: {total_new_pts}, timing: {self.timer_triangulation.last_elapsed}"
@@ -401,6 +412,7 @@ class LocalMapping:
             self.timer_pts_fusion.start()
             total_fused_pts = self.fuse_map_points()
             self.last_num_fused_points = total_fused_pts
+            self.total_num_fused_points += total_fused_pts
             self.timer_pts_fusion.refresh()
             LocalMapping.print(
                 f"#fused map points: {total_fused_pts}, timing: {self.timer_pts_fusion.last_elapsed}"
@@ -437,6 +449,7 @@ class LocalMapping:
             self.timer_kf_culling.start()
             num_culled_keyframes = self.cull_keyframes()
             self.last_num_culled_keyframes = num_culled_keyframes
+            self.total_num_culled_keyframes += num_culled_keyframes
             self.timer_kf_culling.refresh()
             LocalMapping.print(
                 f"\t #culled keyframes: {num_culled_keyframes}, timing: {self.timer_kf_culling.last_elapsed}"

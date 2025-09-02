@@ -68,8 +68,13 @@ class SlamPlotDrawer:
         self.matched_points_plt = factory_plot2d(
             xlabel="img id", ylabel="# matches", title="# matches"
         )
-        # self.info_3dpoints_plt = factory_plot2d(xlabel='img id', ylabel='# points',title='info 3d points')
-        # self.info_keyframes_plt = factory_plot2d(xlabel='img id', ylabel='# keyframes',title='# keyframes')
+        if False:
+            self.info_3dpoints_plt = factory_plot2d(
+                xlabel="img id", ylabel="# points", title="info 3d points"
+            )
+            self.info_keyframes_plt = factory_plot2d(
+                xlabel="img id", ylabel="# keyframes", title="# keyframes"
+            )
         self.chi2_error_plt = factory_plot2d(
             xlabel="img id", ylabel="error", title="mean chi2 error"
         )
@@ -150,7 +155,20 @@ class SlamPlotDrawer:
                             self.slam.local_mapping.last_num_triangulated_points,
                         ]
                         self.info_3dpoints_plt.draw(
-                            num_triangulated_points_signal, "# temporal triangulated pts", color="r"
+                            num_triangulated_points_signal,
+                            "# curr temporal triangulated pts",
+                            color="r",
+                        )
+                    if self.slam.local_mapping.total_num_triangulated_points is not None:
+                        total_num_triangulated_points_signal = [
+                            img_id,
+                            self.slam.local_mapping.total_num_triangulated_points,
+                        ]
+                        self.info_3dpoints_plt.draw(
+                            total_num_triangulated_points_signal,
+                            "# total triangulated pts",
+                            color="r",
+                            marker="*",
                         )
                     if self.slam.local_mapping.last_num_fused_points is not None:
                         num_fused_points_signal = [
@@ -158,7 +176,18 @@ class SlamPlotDrawer:
                             self.slam.local_mapping.last_num_fused_points,
                         ]
                         self.info_3dpoints_plt.draw(
-                            num_fused_points_signal, "# fused pts", color="g"
+                            num_fused_points_signal, "# currfused pts", color="g"
+                        )
+                    if self.slam.local_mapping.total_num_fused_points is not None:
+                        total_num_fused_points_signal = [
+                            img_id,
+                            self.slam.local_mapping.total_num_fused_points,
+                        ]
+                        self.info_3dpoints_plt.draw(
+                            total_num_fused_points_signal,
+                            "# total fused pts",
+                            color="g",
+                            marker="*",
                         )
                     if self.slam.local_mapping.last_num_culled_points is not None:
                         num_culled_points_signal = [
@@ -166,7 +195,18 @@ class SlamPlotDrawer:
                             self.slam.local_mapping.last_num_culled_points,
                         ]
                         self.info_3dpoints_plt.draw(
-                            num_culled_points_signal, "# culled pts", color="c"
+                            num_culled_points_signal, "# curr culled pts", color="c"
+                        )
+                    if self.slam.local_mapping.total_num_culled_points is not None:
+                        total_num_culled_points_signal = [
+                            img_id,
+                            self.slam.local_mapping.total_num_culled_points,
+                        ]
+                        self.info_3dpoints_plt.draw(
+                            total_num_culled_points_signal,
+                            "# total culled pts",
+                            color="c",
+                            marker="*",
                         )
                     if self.slam.tracking.last_num_static_stereo_map_points is not None:
                         num_static_stereo_map_points_signal = [
@@ -175,10 +215,20 @@ class SlamPlotDrawer:
                         ]
                         self.info_3dpoints_plt.draw(
                             num_static_stereo_map_points_signal,
-                            "# static triangulated pts",
+                            "# curr static triangulated pts",
                             color="k",
                         )
-
+                    if self.slam.tracking.total_num_static_stereo_map_points is not None:
+                        total_num_static_stereo_map_points_signal = [
+                            img_id,
+                            self.slam.tracking.total_num_static_stereo_map_points,
+                        ]
+                        self.info_3dpoints_plt.draw(
+                            total_num_static_stereo_map_points_signal,
+                            "# total static triangulated pts",
+                            color="k",
+                            marker="*",
+                        )
             #  draw chi2 error
             if self.chi2_error_plt is not None:
                 if self.slam.tracking.mean_pose_opt_chi2_error is not None:
@@ -300,12 +350,25 @@ class SlamPlotDrawer:
                     num_keyframes_signal = [img_id, num_keyframes]
                     self.info_keyframes_plt.draw(num_keyframes_signal, "# keyframes", color="m")
                 if self.slam.local_mapping.last_num_culled_keyframes is not None:
-                    num_culled_keyframes_signal = [
+                    last_num_culled_keyframes_signal = [
                         img_id,
                         self.slam.local_mapping.last_num_culled_keyframes,
                     ]
                     self.info_keyframes_plt.draw(
-                        num_culled_keyframes_signal, "# culled keyframes", color="b"
+                        last_num_culled_keyframes_signal,
+                        "# curr culled keyframes",
+                        color="b",
+                    )
+                if self.slam.local_mapping.total_num_culled_keyframes is not None:
+                    total_num_culled_keyframes_signal = [
+                        img_id,
+                        self.slam.local_mapping.total_num_culled_keyframes,
+                    ]
+                    self.info_keyframes_plt.draw(
+                        total_num_culled_keyframes_signal,
+                        "# total culled keyframes",
+                        color="b",
+                        marker="*",
                     )
 
             # draw trajectory and alignment error
