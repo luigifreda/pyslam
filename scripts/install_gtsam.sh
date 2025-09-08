@@ -40,13 +40,23 @@ if command -v conda &> /dev/null; then
     echo "Conda is installed"
     CONDA_INSTALLED=true
 else
-    echo "Conda is not installed"
+    #echo "Conda is not installed"
     CONDA_INSTALLED=false
 fi
 
 
 ubuntu_version=$(lsb_release -rs | cut -d. -f1)
-gcc_version=$($CC -dumpversion | cut -d. -f1)
+
+# Check if CC is set and available, otherwise use default gcc
+if command -v "$CC" &> /dev/null; then
+    gcc_version=$($CC -dumpversion | cut -d. -f1)
+elif command -v gcc &> /dev/null; then
+    gcc_version=$(gcc -dumpversion | cut -d. -f1)
+else
+    print_red "Error: No C compiler found. Please install gcc or a equivalent compiler."
+fi
+echo "gcc_version: $gcc_version"
+
 if [[ "$CONDA_INSTALLED" == true && "$ubuntu_version" == "20" && "$gcc_version" == 11 ]]; then
     print_blue "Setting GCC and G++ to version 9"
     export CC=/usr/bin/gcc-9
