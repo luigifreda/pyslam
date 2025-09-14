@@ -1,7 +1,7 @@
-import sys 
-sys.path.append("../../")
-import config
-config.cfg.set_lib('crestereo') 
+import sys
+import pyslam.config as config
+
+config.cfg.set_lib("crestereo")
 import os
 
 import megengine as mge
@@ -14,8 +14,9 @@ import time
 from crestereo.nets import Model
 
 
-data_path = '../data'
-crestereo_base_path='../../thirdparty/crestereo'
+data_path = "../data"
+crestereo_base_path = "../../thirdparty/crestereo"
+
 
 def load_model(model_path):
     print("Loading model:", os.path.abspath(model_path))
@@ -58,8 +59,8 @@ def inference(left, right, model, n_iter=20):
     return pred_disp
 
 
-if __name__ == "__main__":    
-        
+if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="A demo to run CREStereo.")
     parser.add_argument(
         "--model_path",
@@ -67,10 +68,10 @@ if __name__ == "__main__":
         help="The path of pre-trained MegEngine model.",
     )
     parser.add_argument(
-        "--left", default=data_path + '/stereo_bicycle/im0.png', help="The path of left image."
+        "--left", default=data_path + "/stereo_bicycle/im0.png", help="The path of left image."
     )
     parser.add_argument(
-        "--right", default=data_path + '/stereo_bicycle/im1.png', help="The path of right image."
+        "--right", default=data_path + "/stereo_bicycle/im1.png", help="The path of right image."
     )
     parser.add_argument(
         "--size",
@@ -78,9 +79,7 @@ if __name__ == "__main__":
         help="The image size for inference. Te default setting is 1024x1536. \
                         To evaluate on ETH3D Benchmark, use 768x1024 instead.",
     )
-    parser.add_argument(
-        "--output", default="disparity.png", help="The path of output disparity."
-    )
+    parser.add_argument("--output", default="disparity.png", help="The path of output disparity.")
     args = parser.parse_args()
 
     assert os.path.exists(args.model_path), "The model path do not exist."
@@ -108,7 +107,7 @@ if __name__ == "__main__":
     disp = cv2.resize(pred, (in_w, in_h), interpolation=cv2.INTER_LINEAR) * t
 
     print("Inference Time:", end_time - start_time)
-    
+
     disp_vis = (disp - disp.min()) / (disp.max() - disp.min()) * 255.0
     disp_vis = disp_vis.astype("uint8")
     disp_vis = cv2.applyColorMap(disp_vis, cv2.COLORMAP_INFERNO)

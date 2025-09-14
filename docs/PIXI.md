@@ -21,7 +21,7 @@ Here you can find the instructions to install `pyslam` under `pixi` and a very c
 
 <!-- /TOC -->
 
---- 
+---
 
 
 ## Install `pyslam` with pixi

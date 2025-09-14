@@ -6,29 +6,30 @@ Conduct pair-wise image matching.
 
 # adapted from https://github.com/lzx551402/geodesc/blob/master/examples/image_matching.py
 
-import sys 
-sys.path.append("../../")
-import config
-config.cfg.set_lib('geodesc') 
+import sys
+import pyslam.config as config
 
-#from __future__ import print_function
+config.cfg.set_lib("geodesc")
+
+# from __future__ import print_function
 
 import os
 import sys
 import time
 
 from threading import Thread
-from multiprocessing import Queue 
+from multiprocessing import Queue
 
 import cv2
 import numpy as np
 
-import warnings # to disable tensorflow-numpy warnings: from https://github.com/tensorflow/tensorflow/issues/30427
-warnings.filterwarnings('ignore', category=FutureWarning)
+import warnings  # to disable tensorflow-numpy warnings: from https://github.com/tensorflow/tensorflow/issues/30427
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 if False:
     import tensorflow as tf
-else: 
+else:
     # from https://stackoverflow.com/questions/56820327/the-name-tf-session-is-deprecated-please-use-tf-compat-v1-session-instead
     import tensorflow.compat.v1 as tf
 
@@ -37,9 +38,9 @@ else:
 # "[...tensorflow/stream_executor/cuda/cuda_dnn.cc:329] Could not create cudnn handle: CUDNN_STATUS_INTERNAL_ERROR"
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
-#session = tf.Session(config=config, ...)
+# session = tf.Session(config=config, ...)
 
-from pyslam.utilities.utils_sys import Printer 
+from pyslam.utilities.utils_sys import Printer
 
 # CURDIR = os.path.dirname(__file__)
 # sys.path.append(os.path.abspath(os.path.join(CURDIR, '..')))
@@ -47,60 +48,65 @@ from pyslam.utilities.utils_sys import Printer
 # from utils.tf import load_frozen_model
 # from utils.opencvhelper import SiftWrapper, MatcherWrapper
 
-#sys.path.append(os.path.join('third_party', 'geodesc'))
-#from thirdparty.geodesc.utils.tf import load_frozen_model
-#from thirdparty.geodesc.utils.opencvhelper import SiftWrapper, MatcherWrapper
+# sys.path.append(os.path.join('third_party', 'geodesc'))
+# from thirdparty.geodesc.utils.tf import load_frozen_model
+# from thirdparty.geodesc.utils.opencvhelper import SiftWrapper, MatcherWrapper
 from geodesc.utils.tf import load_frozen_model
 from geodesc.utils.opencvhelper import SiftWrapper, MatcherWrapper
 
 
-geodesc_base_path='../../thirdparty/geodesc/'
+geodesc_base_path = "../../thirdparty/geodesc/"
 
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('model_path', geodesc_base_path + 'model/geodesc.pb',
-                           """Path to evaluati3n model.""")
-tf.app.flags.DEFINE_integer('batch_size', 512,
-                            """Inference batch size.""")
-tf.app.flags.DEFINE_integer('max_kpt_num', 8192,
-                            """Maximum number of keypoints. Sampled by octave.""")
-tf.app.flags.DEFINE_string('img1_path', geodesc_base_path + '/img/test_img1.png',
-                           """Path to the first image.""")
-tf.app.flags.DEFINE_string('img2_path', geodesc_base_path + '/img/test_img2.png',
-                           """Path to the second image.""")
-tf.app.flags.DEFINE_boolean('cf_sift', False,
-                            """Compare with SIFT feature.""")
+tf.app.flags.DEFINE_string(
+    "model_path", geodesc_base_path + "model/geodesc.pb", """Path to evaluati3n model."""
+)
+tf.app.flags.DEFINE_integer("batch_size", 512, """Inference batch size.""")
+tf.app.flags.DEFINE_integer(
+    "max_kpt_num", 8192, """Maximum number of keypoints. Sampled by octave."""
+)
+tf.app.flags.DEFINE_string(
+    "img1_path", geodesc_base_path + "/img/test_img1.png", """Path to the first image."""
+)
+tf.app.flags.DEFINE_string(
+    "img2_path", geodesc_base_path + "/img/test_img2.png", """Path to the second image."""
+)
+tf.app.flags.DEFINE_boolean("cf_sift", False, """Compare with SIFT feature.""")
 # SIFT options
-tf.app.flags.DEFINE_boolean('pyr_off', False,
-                            """Whether to construct image pyramid.""")
-tf.app.flags.DEFINE_boolean('half_sigma', True,
-                            """Whether to halve the sigma value of SIFT when constructing the pyramid.""")
-tf.app.flags.DEFINE_boolean('ori_off', False,
-                            """Whether to use the orientation estimated from SIFT.""")
+tf.app.flags.DEFINE_boolean("pyr_off", False, """Whether to construct image pyramid.""")
+tf.app.flags.DEFINE_boolean(
+    "half_sigma",
+    True,
+    """Whether to halve the sigma value of SIFT when constructing the pyramid.""",
+)
+tf.app.flags.DEFINE_boolean(
+    "ori_off", False, """Whether to use the orientation estimated from SIFT."""
+)
 
 
 def extract_deep_features(sift_wrapper, sess, img_path, qtz=True):
     img = cv2.imread(img_path)
     if img is None:
-        Printer.red('cannot find img: ', img_path)
+        Printer.red("cannot find img: ", img_path)
         sys.exit(0)
     gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     # detect SIFT keypoints.
     start = time.time()
     _, cv_kpts = sift_wrapper.detect(gray_img)
     end = time.time()
-    print('Time cost in keypoint detection', end - start)
+    print("Time cost in keypoint detection", end - start)
 
     start = time.time()
     sift_wrapper.build_pyramid(gray_img)
     end = time.time()
-    print('Time cost in scale space construction', end - start)
+    print("Time cost in scale space construction", end - start)
 
     start = time.time()
     all_patches = sift_wrapper.get_patches(cv_kpts)
     end = time.time()
-    print('Time cost in patch cropping', end - start)
+    print("Time cost in patch cropping", end - start)
 
     num_patch = all_patches.shape[0]
 
@@ -117,7 +123,7 @@ def extract_deep_features(sift_wrapper, sess, img_path, qtz=True):
                 return
             feat = sess.run("squeeze_1:0", feed_dict={"input:0": np.expand_dims(patch_data, -1)})
             all_feat.append(feat)
-            #patch_queue.task_done()
+            # patch_queue.task_done()
 
     all_feat = []
     patch_queue = Queue()
@@ -130,16 +136,16 @@ def extract_deep_features(sift_wrapper, sess, img_path, qtz=True):
     # enqueue
     for i in range(loop_num + 1):
         if i < loop_num:
-            patch_queue.put(all_patches[i * FLAGS.batch_size: (i + 1) * FLAGS.batch_size])
+            patch_queue.put(all_patches[i * FLAGS.batch_size : (i + 1) * FLAGS.batch_size])
         else:
-            patch_queue.put(all_patches[i * FLAGS.batch_size:])
+            patch_queue.put(all_patches[i * FLAGS.batch_size :])
     # poison pill
     patch_queue.put(None)
     # wait for extraction.
     worker_thread.join()
 
     end = time.time()
-    print('Time cost in feature extraction', end - start)
+    print("Time cost in feature extraction", end - start)
 
     all_feat = np.concatenate(all_feat, axis=0)
     # quantize output features.
@@ -156,42 +162,48 @@ def main(argv=None):  # pylint: disable=unused-argument
     sift_wrapper.ori_off = FLAGS.ori_off
     sift_wrapper.create()
     # create deep feature extractor.
-    Printer.yellow('loading model:',FLAGS.model_path,'...')
+    Printer.yellow("loading model:", FLAGS.model_path, "...")
     graph = load_frozen_model(FLAGS.model_path, print_nodes=False)
-    #sess = tf.Session(graph=graph)
-    Printer.yellow('...done')    
+    # sess = tf.Session(graph=graph)
+    Printer.yellow("...done")
 
-    with tf.Session(graph=graph, config=config) as sess:    
+    with tf.Session(graph=graph, config=config) as sess:
         # extract deep feature from images.
         deep_feat1, cv_kpts1, img1 = extract_deep_features(
-            sift_wrapper, sess, FLAGS.img1_path, qtz=False)
+            sift_wrapper, sess, FLAGS.img1_path, qtz=False
+        )
         deep_feat2, cv_kpts2, img2 = extract_deep_features(
-            sift_wrapper, sess, FLAGS.img2_path, qtz=False)
+            sift_wrapper, sess, FLAGS.img2_path, qtz=False
+        )
     # match features by OpenCV brute-force matcher (CPU).
     matcher_wrapper = MatcherWrapper()
     # the ratio criterion is set to 0.89 for GeoDesc as described in the paper.
     deep_good_matches, deep_mask = matcher_wrapper.get_matches(
-        deep_feat1, deep_feat2, cv_kpts1, cv_kpts2, ratio=0.89, cross_check=True, info='deep')
+        deep_feat1, deep_feat2, cv_kpts1, cv_kpts2, ratio=0.89, cross_check=True, info="deep"
+    )
 
     deep_display = matcher_wrapper.draw_matches(
-        img1, cv_kpts1, img2, cv_kpts2, deep_good_matches, deep_mask)
+        img1, cv_kpts1, img2, cv_kpts2, deep_good_matches, deep_mask
+    )
     # compare with SIFT.
     if FLAGS.cf_sift:
         sift_feat1 = sift_wrapper.compute(img1, cv_kpts1)
         sift_feat2 = sift_wrapper.compute(img2, cv_kpts2)
         sift_good_matches, sift_mask = matcher_wrapper.get_matches(
-            sift_feat1, sift_feat2, cv_kpts1, cv_kpts2, ratio=0.80, cross_check=True, info='sift')
+            sift_feat1, sift_feat2, cv_kpts1, cv_kpts2, ratio=0.80, cross_check=True, info="sift"
+        )
         sift_display = matcher_wrapper.draw_matches(
-            img1, cv_kpts1, img2, cv_kpts2, sift_good_matches, sift_mask)
+            img1, cv_kpts1, img2, cv_kpts2, sift_good_matches, sift_mask
+        )
         display = np.concatenate((sift_display, deep_display), axis=0)
     else:
         display = deep_display
 
-    cv2.imshow('display', display)
+    cv2.imshow("display", display)
     cv2.waitKey()
 
     sess.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     tf.app.run()

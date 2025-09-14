@@ -9,7 +9,8 @@
   - [Errors](#errors)
     - [*Aborted (core dumped)* or *Segmentation fault (core dumped)*](#aborted-core-dumped-or-segmentation-fault-core-dumped)
     - [RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#red-error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
-    - [_ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/x86\_64-linux-gnu/libhwy.so.1)_](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-libx86_64-linux-gnulibhwyso1)
+    - [ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found](#modulenotfounderror-no-module-named-pyslam_utils--glutils--sim3solver--or-trajectory_tools-not-found)
+    - [_ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/-linux-gnu/libhwy.so.1)_](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-lib-linux-gnulibhwyso1)
     - [_RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile_](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
     - [_Gtk-ERROR \*\*: ... GTK+ 2.x symbols detected. Using GTK+ 2.x and GTK+ 3 in the same process is not supported_](#gtk-error---gtk-2x-symbols-detected-using-gtk-2x-and-gtk-3-in-the-same-process-is-not-supported)
     - [SURF error](#surf-error)
@@ -107,9 +108,42 @@ Please consider opening an issue and attaching the logs (including the *gdb back
 
 I have verified through numerous installation tests that the errors reported by pip's dependency resolver are typically warnings rather than critical issues. These messages do not prevent the main and test scripts from running successfully.
 
+
 --- 
 
-### _ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc_s.so.1: version `GCC_12.0.0' not found (required by /lib/x86_64-linux-gnu/libhwy.so.1)_
+### ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found
+
+If you encounter an error like:
+```bash
+ModuleNotFoundError: No module named pyslam_utils not found
+```
+(or for `glutils`, `sim3solver`, or `trajectory_tools`) after installation, follow these steps.
+- Verify the C++ build outputs: Check that the compiled .so libraries exist under `<pyslam>/cpp/lib`:
+  ```bash
+  cpp
+  ├── lib
+  │   ├── glutils.cpython-311-<your-arc>-linux-gnu.so
+  │   ├── pnpsolver.cpython-311-<your-arc>-linux-gnu.so
+  │   ├── pyslam_utils.cpython-311-<your-arc>-linux-gnu.so        
+  │   ├── sim3solver.cpython-311-<your-arc>-linux-gnu.so
+  │   └── trajectory_tools.cpython-311-<your-arc>-linux-gnu.so
+  ```
+  If any of these files are missing, the build did not complete successfully.
+- Rebuild the C++ pybind11 libraries: Run the following commands from your working copy of `pyslam`:
+  ```bash
+  cd <pyslam-working-directory>
+  . pyenv-activate.sh     # activate the Python environment
+  cd cpp
+  ./clean.sh              # remove previous build artifacts
+  ./build.sh              # rebuild pybind11 libraries
+  ```
+- Debug further if issues persist: Make sure you activated `<pyslam>` Python environment. Inspect the build logs from `./build.sh` for possible missing dependencies or compiler errors.
+
+If you are still stuck, feel free to open a git issue and include the terminal output you got with the previous commands. 
+
+--- 
+
+### _ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc_s.so.1: version `GCC_12.0.0' not found (required by /lib/<your-arc>-linux-gnu/libhwy.so.1)_
 
 If you hit this issue, please refer to this [discussion](https://github.com/luigifreda/pyslam/issues/133).
 

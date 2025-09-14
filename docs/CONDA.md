@@ -3,46 +3,56 @@
 <!-- TOC -->
 
 - [Install under Anaconda or Miniconda](#install-under-anaconda-or-miniconda)
-    - [1. Installation](#1-installation)
-    - [2. Usage](#2-usage)
-    - [3. Create a pyslam conda environment](#3-create-a-pyslam-conda-environment)
-    - [4. Activate the created pyslam conda environment](#4-activate-the-created-pyslam-conda-environment)
-    - [5. Deactivate pyslam conda environment](#5-deactivate-pyslam-conda-environment)
-    - [6. Delete pyslam conda environment](#6-delete-pyslam-conda-environment)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Manually create a `pyslam` conda environment](#manually-create-a-pyslam-conda-environment)
+  - [Activate the created `pyslam` conda environment](#activate-the-created-pyslam-conda-environment)
+  - [Deactivate `pyslam` conda environment](#deactivate-pyslam-conda-environment)
+  - [Delete `pyslam` conda environment](#delete-pyslam-conda-environment)
 - [General Notes About Conda](#general-notes-about-conda)
-    - [1. Install packages/env from file](#1-install-packagesenv-from-file)
-    - [2. Deleting an environment](#2-deleting-an-environment)
-    - [3. Creating an environment](#3-creating-an-environment)
+  - [Install packages/env from file](#install-packagesenv-from-file)
+  - [Deleting an environment](#deleting-an-environment)
+  - [Creating an environment](#creating-an-environment)
 
 <!-- /TOC -->
 
-I successfully tested `pyslam` with [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (SHA256 hash *4b3b3b1b99215e85fd73fb2c2d7ebf318ac942a457072de62d885056556eb83e*) under Linux.   
-Please, follow the instructions below. I assume you already installed Anaconda or Miniconda, and correctly initialized your conda python environment. 
+I successfully tested `pyslam` with [Miniconda](https://docs.conda.io/en/latest/miniconda.html#linux-installers) (conda 25.7.0) under Linux.
+
+I assume you already installed Anaconda or Miniconda, and correctly initialized your conda python environment in your terminal (you should see a `(base)` in your bash prefix). 
 
 ## Installation 
 
-In order to use `pyslam` under conda, check you have activated `conda` in your terminal. Get in the root of this repository and run the following command:
+In order to use `pyslam` under conda, ensure `conda` is active in your terminal. From the root of this repository, run the following command:
 ```bash
-$ ./scripts/install_all_conda.sh  
+git clone --recursive https://github.com/luigifreda/pyslam.git 
+cd pyslam
+./scripts/install_all.sh    # unified install procedure
 ```
-This will compile the required thirdparty packages and will also create a `pyslam` conda environment.      
-Please, discard any error like this: `ERROR: pip's dependency resolver does not currently take into account all the packages that are installed....`. See [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for further details.
+This script will detect your active `conda`, create a dedicated `pyslam` conda environment, and build the required thirdparty packages. Under the hood, the script `install_all.sh` calls the conda-specific script `scripts/install_all_conda.sh`. 
+
+Please, discard any error like this: 
+```bash
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed....
+```
+These are typically warnings rather than critical issues. These messages do not prevent the main and test scripts from running successfully. See [TROUBLESHOOTING](./TROUBLESHOOTING.md) file for further details.
 
 ## Usage 
 
 Now, from the same terminal, you can run: 
 ```bash
-$ . scripts/pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . scripts/pyenv-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_vo.py               # test visual odometry
 ```
 or
 ```bash
-$ . scripts/pyenv-conda-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
+$ . scripts/pyenv-activate.sh  # Activate pyslam python virtual environment. This is just needed once in a new terminal.
 $ ./main_slam.py             # test full SLAM
 ```
+The script `scripts/pyenv-activate.sh` will call `scripts/pyenv-conda-activate.sh`, which is a conda-specific script.
+
 If you want to use a new terminal, you need to activate the `pyslam` environment as explained in this [section](#activate-the-created-pyslam-conda-environment).
 
-## Create a `pyslam` conda environment 
+## Manually create a `pyslam` conda environment 
 
 You already see this above. In order to create a custom `pyslam` conda environment, get in the root of this repository and run the following command: 
 ```
@@ -53,9 +63,10 @@ $ . pyenv-conda-create.sh
 
 Run the following command (**N.B.**, do not forget the dot!): 
 ```
-$ . scripts/pyenv-conda-activate.sh 
+$ . scripts/pyenv-conda-activate.sh  # This will also set some environment variables
 ```
-or 
+
+Under the hood this will call
 ```
 $ conda activate pyslam 
 ```

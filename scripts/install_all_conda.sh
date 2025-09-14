@@ -71,5 +71,6 @@ $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "./"
 
 # 9. Outliers under conda
 pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
+pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
 
 cd "$STARTING_DIR"
