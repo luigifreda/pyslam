@@ -81,6 +81,7 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
         parameters_dict,
     ):
         VolumetricIntegratorBase.init(self, camera, environment_type, sensor_type, parameters_dict)
+        self.init_print()
 
         self.volumetric_integration_depth_trunc = (
             Parameters.kVolumetricIntegrationDepthTruncIndoor

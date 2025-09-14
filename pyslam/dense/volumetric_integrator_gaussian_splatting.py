@@ -96,6 +96,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
         parameters_dict,
     ):
         VolumetricIntegratorBase.init(self, camera, environment_type, sensor_type, parameters_dict)
+        self.init_print()
 
         if not os.path.exists(kGaussianSplattingOutputFolder):
             os.makedirs(kGaussianSplattingOutputFolder, exist_ok=True)

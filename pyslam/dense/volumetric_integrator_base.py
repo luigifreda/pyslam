@@ -168,8 +168,8 @@ class VolumetricIntegrationOutput:
     ):
         self.task_type = task_type
         self.id = id
-        self.point_cloud = point_cloud  # type: VolumetricIntegrationPointCloud
-        self.mesh = mesh  # type: VolumetricIntegrationMesh
+        self.point_cloud: VolumetricIntegrationPointCloud = point_cloud
+        self.mesh: VolumetricIntegrationMesh = mesh
         self.timestamp = time.perf_counter()
 
 
@@ -576,6 +576,7 @@ class VolumetricIntegratorBase:
         color_right = keyframe_data.img_right
         depth = keyframe_data.depth
         semantic = keyframe_data.semantic_img
+        semantic_undistorted = None
 
         pts3d = None
 
