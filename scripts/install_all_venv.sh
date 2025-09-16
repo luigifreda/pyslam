@@ -40,7 +40,7 @@ fi
 $SCRIPTS_DIR/install_system_packages.sh    
 
 # 2. create a pyslam environment within venv 
-$SCRIPTS_DIR/pyenv-venv-create.sh  # NOTE: Keep the use of "$SCRIPTS_DIR/" seems. It seems crucial for the correct identification of the python libs for C++ projects 
+$SCRIPTS_DIR/pyenv-venv-create.sh  # NOTE: Keep the use of "$SCRIPTS_DIR/". It seems crucial for the correct identification of the python libs for C++ projects 
 
 # 3. activate the created python virtual environment 
 . "$ROOT_DIR"/pyenv-activate.sh   

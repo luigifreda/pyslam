@@ -31,7 +31,12 @@ if ! pyenv install --list &> /dev/null; then
         echo "folder ~/.pyenv is already set"
     fi  
 
-    if grep -q "PYENV_ROOT" "~/.bashrc"; then 
+    # Necessary under docker build
+    if ! -f "$HOME/.bashrc"; then 
+        touch "$HOME/.bashrc"
+    fi
+
+    if grep -q "PYENV_ROOT" "$HOME/.bashrc"; then 
         echo "already found pyenv settings in ~/.bashrc"  
     else 
         echo "adding pyenv setting to bashrc"

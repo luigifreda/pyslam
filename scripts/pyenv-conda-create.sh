@@ -35,16 +35,15 @@ if ! command -v conda &> /dev/null ; then
 fi
 
 ubuntu_version=$(lsb_release -rs | cut -d. -f1)
-if [[ "$ubuntu_version" == "22" ]]; then
-    # Auto-accept ToS for Anaconda channels
-    conda install -n base -y conda-anaconda-tos
-    conda config --set plugins.auto_accept_tos yes || export CONDA_PLUGINS_AUTO_ACCEPT_TOS=yes
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2
-    conda config --add channels conda-forge
-    conda config --set channel_priority strict
-fi
+
+conda install -n base -y conda-anaconda-tos
+conda config --set plugins.auto_accept_tos yes || export CONDA_PLUGINS_AUTO_ACCEPT_TOS=yes
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+
 conda update conda -y
 
 

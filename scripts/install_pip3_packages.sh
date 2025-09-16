@@ -67,7 +67,7 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     # for crestereo
     # Unfortunately, megengine is not supported on macOS with arm architecture
     pip install --upgrade cryptography pyOpenSSL
-    python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html # This brings issues when launched in parallel processes
+    python3 -m pip install megengine -f https://megengine.org.cn/whl/mge.html
     #pip install megengine  # This brings issues with non-supported CUDA architecture on my machine
     # NOTE: if you do not succeed in installing megengine in your system with the pre-built wheels, you can try to install it from source with the following command:
     #   $SCRIPTS_DIR/install_megengine.sh    

@@ -3,9 +3,20 @@ import os
 from pyslam.utilities.utils_serialization import SerializableEnum, register_class
 from pyslam.utilities.utils_sys import Printer, import_from
 
-from .volumetric_integrator_base import VolumetricIntegratorBase
-from .volumetric_integrator_tsdf import VolumetricIntegratorTsdf
-
+try:
+    from .volumetric_integrator_base import VolumetricIntegratorBase
+except ImportError:
+    VolumetricIntegratorBase = import_from(
+        "pyslam.dense.volumetric_integrator_base",
+        "VolumetricIntegratorBase",
+    )
+try:
+    from .volumetric_integrator_tsdf import VolumetricIntegratorTsdf
+except ImportError:
+    VolumetricIntegratorTsdf = import_from(
+        "pyslam.dense.volumetric_integrator_tsdf",
+        "VolumetricIntegratorTsdf",
+    )
 try:
     from .volumetric_integrator_gaussian_splatting import VolumetricIntegratorGaussianSplatting
 except ImportError:

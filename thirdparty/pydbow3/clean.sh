@@ -4,9 +4,17 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 cd ${SCRIPT_DIR}
 cd modules/dbow3
-rm -Rf build 
-rm -Rf install
+if [ -d "build" ]; then
+    rm -Rf build
+fi
+if [ -d "install" ]; then
+    rm -Rf install
+fi  
 
 cd ${SCRIPT_DIR}
-rm -Rf build 
-rm -Rf lib
+if [ -d "build" ]; then
+    rm -Rf build
+fi
+if [ -d "lib" ]; then
+    rm -Rf lib
+fi

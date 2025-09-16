@@ -4,7 +4,7 @@
 
 #N.B: this install script allows you to run main_slam.py and all the scripts 
 
-set -e
+#set -e
 
 SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
 SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used

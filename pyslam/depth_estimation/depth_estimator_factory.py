@@ -33,11 +33,42 @@ from pyslam.utilities.utils_sys import import_from
 from pyslam.utilities.utils_serialization import SerializableEnum, register_class
 
 from .depth_estimator_base import DepthEstimator, DepthEstimatorSgbm
-from .depth_estimator_depth_pro import DepthEstimatorDepthPro
-from .depth_estimator_depth_anything_v2 import DepthEstimatorDepthAnythingV2
-from .depth_estimator_raft_stereo import DepthEstimatorRaftStereo
-from .depth_estimator_crestereo_megengine import DepthEstimatorCrestereoMegengine
-from .depth_estimator_crestereo_pytorch import DepthEstimatorCrestereoPytorch
+
+try:
+    from .depth_estimator_depth_pro import DepthEstimatorDepthPro
+except ImportError:
+    DepthEstimatorDepthPro = import_from(
+        "pyslam.depth_estimation.depth_estimator_depth_pro",
+        "DepthEstimatorDepthPro",
+    )
+try:
+    from .depth_estimator_depth_anything_v2 import DepthEstimatorDepthAnythingV2
+except ImportError:
+    DepthEstimatorDepthAnythingV2 = import_from(
+        "pyslam.depth_estimation.depth_estimator_depth_anything_v2",
+        "DepthEstimatorDepthAnythingV2",
+    )
+try:
+    from .depth_estimator_raft_stereo import DepthEstimatorRaftStereo
+except ImportError:
+    DepthEstimatorRaftStereo = import_from(
+        "pyslam.depth_estimation.depth_estimator_raft_stereo",
+        "DepthEstimatorRaftStereo",
+    )
+try:
+    from .depth_estimator_crestereo_megengine import DepthEstimatorCrestereoMegengine
+except ImportError:
+    DepthEstimatorCrestereoMegengine = import_from(
+        "pyslam.depth_estimation.depth_estimator_crestereo_megengine",
+        "DepthEstimatorCrestereoMegengine",
+    )
+try:
+    from .depth_estimator_crestereo_pytorch import DepthEstimatorCrestereoPytorch
+except ImportError:
+    DepthEstimatorCrestereoPytorch = import_from(
+        "pyslam.depth_estimation.depth_estimator_crestereo_pytorch",
+        "DepthEstimatorCrestereoPytorch",
+    )
 
 
 kScriptPath = os.path.realpath(__file__)
