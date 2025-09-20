@@ -42,16 +42,16 @@ CV2_SO_PATH=$PYTHON_ENV/lib/python$PYTHON_VERSION/site-packages/cv2
 # Find the actual .so file (handles different naming variations)
 CV2_SO_FILE=$(ls "$CV2_SO_PATH"/cv2.*.so 2>/dev/null | head -n 1)
 # Check if a valid file was found
-if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
-    if ldd "$CV2_SO_FILE" | grep -q "libffi"; then
-        if [[ -f /lib/x86_64-linux-gnu/libffi.so ]]; then
-            echo "Preloading libffi..."
-            export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
-        else
-            echo "WARNING: /lib/x86_64-linux-gnu/libffi.so not found; check your libffi dependencies"
-        fi
-    fi
-fi
+# if [[ -n "$CV2_SO_FILE" && -f "$CV2_SO_FILE" ]]; then
+#     if ldd "$CV2_SO_FILE" | grep -q "libffi"; then
+#         if [[ -f /lib/x86_64-linux-gnu/libffi.so ]]; then
+#             echo "Preloading libffi..."
+#             export LD_PRELOAD=/lib/x86_64-linux-gnu/libffi.so
+#         else
+#             echo "WARNING: /lib/x86_64-linux-gnu/libffi.so not found; check your libffi dependencies"
+#         fi
+#     fi
+# fi
 
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -66,22 +66,28 @@ gcc_version=$(gcc -dumpversion | cut -d. -f1)
 #echo "Ubuntu version: $ubuntu_version, GCC version: $gcc_version"
 
 # for conda potentially needed under Ubuntu 22.04 and 24.04
-if [[ "$ubuntu_version" == "22" || "$ubuntu_version" == "24" ]]; then
-    export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
-    echo "Preloading libstdc++..."
-fi 
+# if [[ "$ubuntu_version" == "22" || "$ubuntu_version" == "24" ]]; then
+#     export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+#     echo "Preloading libstdc++..."
+#     # NOTE: This seems to cause some issues with the linking to cmake under ubuntu 22.04
+# fi 
 
-if [[ "$ubuntu_version" == "22" ]]; then
-    # find the following libraries in $CONDA_PREFIX/lib and add them individually to LD_LIBRARY_PATH
-    LIBRARIES_TO_PRELOAD="libjpeg.so libgio-2.0.so"
-    export LD_PRELOAD=$(python3 $SCRIPT_DIR_/set_conda_preload.py $LIBRARIES_TO_PRELOAD):$LD_PRELOAD
-else 
-    # export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATH
-    # echo "Setting CPLUS_INCLUDE_PATH: $CPLUS_INCLUDE_PATH"
-    export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" # This solves some issues but it may cause other issues (wrong linking to conda libraries under ubuntu 22.04) 
-    echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-fi
+# if [[ "$ubuntu_version" == "22" ]]; then
+#     # find the following libraries in $CONDA_PREFIX/lib and add them individually to LD_LIBRARY_PATH
+#     # LIBRARIES_TO_PRELOAD="libjpeg.so libgio-2.0.so libtiff.so libavcodec.so libavformat.so \
+#     #     libavutil.so libpostproc.so libswscale.so libavdevice.so libv4l.so libprotobuf.so"
+#     # export LD_PRELOAD=$(python3 $SCRIPT_DIR_/set_conda_preload.py $LIBRARIES_TO_PRELOAD):$LD_PRELOAD
+# else 
+#     # export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATH
+#     # echo "Setting CPLUS_INCLUDE_PATH: $CPLUS_INCLUDE_PATH"
+#     export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" # This solves some issues but it may cause other issues (wrong linking to conda libraries under ubuntu 22.04) 
+#     echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+# fi
 
+# Let's unify 
+export LD_LIBRARY_PATH_OLD=$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" # This solves some issues but it may cause other issues (wrong linking to conda libraries under ubuntu 22.04) 
+echo "Setting LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
 
 # Check if the Ubuntu version is 20.04 and GCC version is less than 11
 # If so, set GCC to version 11 to avoid linking errors due undefined reference to new GLIBCXX stuff

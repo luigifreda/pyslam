@@ -36,6 +36,15 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # activate pyslam python environment
 #. "$ROOT_DIR"/pyenv-activate.sh
 
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    echo "Conda is installed"
+    CONDA_INSTALLED=true
+else
+    echo "Conda is not installed"
+    CONDA_INSTALLED=false
+fi
+
 # ====================================================
 # check if we have external options
 EXTERNAL_OPTIONS=$@
@@ -54,7 +63,14 @@ if [[ -d "$OpenCV_DIR" ]]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
 fi 
 
-EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+export CONDA_OPTIONS=""
+if [ "$CONDA_INSTALLED" = true ]; then
+    CONDA_OPTIONS="-DOPENGL_opengl_LIBRARY=/usr/lib/x86_64-linux-gnu/libOpenGL.so \
+        -DOPENGL_glx_LIBRARY=/usr/lib/x86_64-linux-gnu/libGLX.so"
+    echo "Using CONDA_OPTIONS for build: $CONDA_OPTIONS"
+fi
+
+EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS $CONDA_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
 echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 

@@ -146,8 +146,10 @@ if [ -f "$ROOT_DIR/.env" ]; then
     rm "$ROOT_DIR/.env"
 fi
 
-# clean downloaded models and reset submodules
+# clean downloaded models, reset submodules and clean repo itself
 if [ $HARD_CLEAN -eq 1 ]; then
     print_blue "Resetting git submodules"
     git submodule foreach 'git reset --hard; git clean -xfd'
+    print_blue "Cleaning repo itself"
+    git clean -xfd
 fi

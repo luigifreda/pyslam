@@ -180,7 +180,7 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
             sudo apt update
             sudo apt install -y libjasper-dev
             sudo apt install -y libv4l-dev libdc1394-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
-                                    libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+                                    libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev libva-dev           
         fi
         if [[ $version == *"20.04"* ]] ; then
             sudo apt install -y libtbb-dev libeigen3-dev 
@@ -216,7 +216,19 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
                 libtiff zlib jpeg eigen tbb glew libpng \
                 x264 ffmpeg \
                 freetype cairo \
-                pygobject gtk3 glib libwebp expat
+                pygobject gtk2 gtk3 glib xorg-xorgproto \
+                libwebp expat \
+                compilers gcc_linux-64 gxx_linux-64 tbb tbb-devel \
+                boost openblas
+
+            if [[ "$CUDA_ON" == "ON" ]]; then 
+                conda install -y -c conda-forge libcudnn-dev
+                # check if last command failed 
+                if [[ $? -ne 0 ]]; then
+                    print_yellow "Warning: failed to install libcudnn-dev. Setting WITH_DNN=OFF."
+                    WITH_DNN=OFF
+                fi
+            fi
         fi        
     else
         brew install pkg-config 

@@ -17,7 +17,9 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
 message(STATUS "CXX flags: ${CMAKE_CXX_FLAGS}")
 
-find_package(OpenCV 4 QUIET)
+find_package(Eigen3 REQUIRED)
+
+find_package(OpenCV 4 REQUIRED)
 message(STATUS "found OpenCV version: ${OpenCV_VERSION}")
 message(STATUS "opencv include: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "opencv lib dirs: ${OpenCV_INSTALL_PATH}")

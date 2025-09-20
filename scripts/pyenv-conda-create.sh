@@ -72,8 +72,21 @@ fi
 pip install --upgrade pip setuptools wheel build
 pip install -e .
 
-
-conda install -y -c conda-forge doxygen
+# NOTE: these are the "system" packages that are needed within conda to build code from source
+conda install -y -c conda-forge \
+    pkg-config \
+    glew \
+    cmake \
+    suitesparse \
+    lapack \
+    glew glfw mesa-libgl-devel-cos7-x86_64 \
+    libtiff zlib jpeg eigen tbb libpng \
+    x264 ffmpeg \
+    freetype cairo \
+    pygobject gtk2 gtk3 glib xorg-xorgproto \
+    libwebp expat \
+    compilers gcc_linux-64 gxx_linux-64 tbb tbb-devel \
+    boost openblas
 
 cd "$STARTING_DIR"
 

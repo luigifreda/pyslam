@@ -153,7 +153,10 @@ if [[ $version != *"darwin"* ]]; then
             libtiff zlib jpeg eigen tbb glew libpng \
             x264 ffmpeg \
             freetype cairo \
-            pygobject gtk3 gtk2 glib libwebp expat
+            pygobject gtk2 gtk3 glib xorg-xorgproto \
+            libwebp expat \
+            compilers gcc_linux-64 gxx_linux-64 tbb tbb-devel \
+            boost openblas
     fi
 else
     brew install pkg-config 
