@@ -180,7 +180,7 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
             sudo apt update
             sudo apt install -y libjasper-dev
             sudo apt install -y libv4l-dev libdc1394-dev libtheora-dev libvorbis-dev libxvidcore-dev libx264-dev yasm \
-                                    libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev            
+                                    libopencore-amrnb-dev libopencore-amrwb-dev libxine2-dev libva-dev           
         fi
         if [[ $version == *"20.04"* ]] ; then
             sudo apt install -y libtbb-dev libeigen3-dev 
