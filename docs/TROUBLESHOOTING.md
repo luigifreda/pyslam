@@ -9,6 +9,7 @@
   - [Errors](#errors)
     - [*Aborted (core dumped)* or *Segmentation fault (core dumped)*](#aborted-core-dumped-or-segmentation-fault-core-dumped)
     - [RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#red-error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
+    - [Cannot import DelfFeature2D from pyslam.local\_features.feature\_delf](#cannot-import-delffeature2d-from-pyslamlocal_featuresfeature_delf)
     - [ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found](#modulenotfounderror-no-module-named-pyslam_utils--glutils--sim3solver--or-trajectory_tools-not-found)
     - [_ImportError: /home/.../anaconda3/envs/pyslam/bin/../lib/libgcc\_s.so.1: version \`GCC\_12.0.0' not found (required by /lib/-linux-gnu/libhwy.so.1)_](#importerror-homeanaconda3envspyslambinliblibgcc_sso1-version-gcc_1200-not-found-required-by-lib-linux-gnulibhwyso1)
     - [_RuntimeError: The detected CUDA version (11.8) mismatches the version that was used to compile_](#runtimeerror-the-detected-cuda-version-118-mismatches-the-version-that-was-used-to-compile)
@@ -108,6 +109,20 @@ Please consider opening an issue and attaching the logs (including the *gdb back
 
 I have verified through numerous installation tests that the errors reported by pip's dependency resolver are typically warnings rather than critical issues. These messages do not prevent the main and test scripts from running successfully.
 
+
+---
+
+### Cannot import DelfFeature2D from pyslam.local_features.feature_delf
+
+If you are hitting the following warning
+```bash
+WARNING: cannot import DelfFeature2D from pyslam.local_features.feature_delf, check the file docs/TROUBLESHOOTING.md
+```
+then run the following commands:
+```bash
+cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
+protoc -I=. --python_out=. delf/protos/*.proto
+```
 
 --- 
 
