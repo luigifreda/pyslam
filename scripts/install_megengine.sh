@@ -62,9 +62,16 @@ cd $ROOT_DIR/thirdparty/megengine/scripts/whl/manylinux2014
 
 ./build_wheel_common.sh -sdk cpu # build the megengine wheel for cpu
 
-if [ -f ]; then 
-    pip install  $ROOT_DIR/thirdparty/megengine/scripts/whl/manylinux2014/output/wheelhouse/cpu/MegEngine-1.13.4+cpu-cp311-cp311-linux_x86_64.whl
+# Search for any MegEngine wheel file in the cpu directory
+WHEEL_DIR="$ROOT_DIR/thirdparty/megengine/scripts/whl/manylinux2014/output/wheelhouse/cpu"
+WHEEL_FILE=$(find "$WHEEL_DIR" -name "MegEngine-*.whl" | head -1)
+
+if [ -n "$WHEEL_FILE" ] && [ -f "$WHEEL_FILE" ]; then 
+    echo "Found MegEngine wheel: $WHEEL_FILE"
+    pip install "$WHEEL_FILE"
 else
+    echo "MegEngine wheel not found in $WHEEL_DIR. Something went wrong. Please build it first."
+    exit 1
 fi
 
 cd "$STARTING_DIR"

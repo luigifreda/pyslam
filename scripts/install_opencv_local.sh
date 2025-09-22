@@ -143,8 +143,8 @@ if [[ "$arch" == "arm64" || "$arch" == "aarch64" || "$arch" == arm* ]]; then
     WITH_NEON=ON
 fi
 
-WITH_QT=ON 
-WITH_GTK=OFF
+WITH_QT=OFF  # it seems to interfere with python packages that use Qt
+WITH_GTK=ON
 if [ "$CONDA_INSTALLED" = true ]; then
     WITH_QT=OFF
     WITH_GTK=ON
