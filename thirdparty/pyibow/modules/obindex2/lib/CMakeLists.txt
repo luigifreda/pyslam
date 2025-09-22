@@ -46,7 +46,7 @@ endif()
 
 # Packages required to work with the library
 find_package(OpenCV REQUIRED) # OpenCV
-find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+find_package(Boost REQUIRED COMPONENTS serialization filesystem)
 
 if(APPLE)
   set(OpenMP_C "${CMAKE_C_COMPILER}")

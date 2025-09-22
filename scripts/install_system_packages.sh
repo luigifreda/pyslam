@@ -77,6 +77,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
     brew install openssl
     brew install libpng
     brew install openblas
+    brew install protobuf
     brew install vtk; brew link vtk
     #brew install numpy
     #brew install open3d     # we are going to build open3d from source for different issues 

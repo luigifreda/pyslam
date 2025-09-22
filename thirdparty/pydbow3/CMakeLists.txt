@@ -46,9 +46,10 @@ add_subdirectory(modules/pybind11)
 
 find_package(OpenCV REQUIRED)
 
-find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+find_package(Boost REQUIRED COMPONENTS serialization filesystem)
 message(STATUS "Boost_VERSION: ${Boost_VERSION}")
 message(STATUS "Boost includes: ${Boost_INCLUDE_DIRS}")
+include_directories(${Boost_INCLUDE_DIRS})
 
 set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/modules/dbow3/install/lib/cmake/)
 find_package(DBoW3 REQUIRED)

@@ -236,11 +236,15 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
         brew install cmake
         brew install suitesparse 
         brew install lapack
-        brew install libtiff zlib jpeg eigen tbb glew libpng webp x264 ffmpeg
+        brew install libtiff zlib jpeg eigen tbb glew libpng webp 
+        brew install x264 ffmpeg
+        brew install protobuf
     fi 
 fi
 
 export CONDA_OPTIONS=""
+export MAC_OPTIONS=""
+
 if [ "$CONDA_INSTALLED" = true ]; then
 
     CPPFLAGS="$CPPFLAGS -Wl,--disable-new-dtags" # enable RPATH support in conda environments
@@ -256,6 +260,13 @@ fi
 
 if [[ $version == *"24.04"* ]] ; then
     export CMAKE_ARGS="$CMAKE_ARGS -DBUILD_opencv_sfm=OFF" # It seems this module brings some build issues with Ubuntu 24.04
+fi
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    MAC_OPTIONS="-DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON \
+    -DVIDEOIO_ENABLE_STRICT=ON -DWITH_FFMPEG=OFF \
+    -DWITH_OPENGL=OFF"
+    echo "Using MAC_OPTIONS for opencv build: $MAC_OPTIONS"
 fi
 
 export CMAKE_ARGS="$CONDA_OPTIONS $CMAKE_ARGS" # -DCMAKE_CXX_FLAGS=$CPPFLAGS"
@@ -336,7 +347,7 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
           -DPYTHON_LIBRARY=$(python3 -c "import sysconfig; import os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY')))") \
           -DPYTHON_EXECUTABLE=$(which python3) \
           -DPYTHON3_EXECUTABLE=$(which python3) \
-          $CONDA_OPTIONS ..
+          $CONDA_OPTIONS $MAC_OPTIONS ..
     else
         # Nvidia Jetson aarch64
         echo "building NVIDIA Jetson config"
