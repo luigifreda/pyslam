@@ -198,7 +198,7 @@ class EssentialMatrixPoseEstimator2d2d(PoseEstimator):
         )  # np.mean(fx1,fy1,fx2,fy2)
 
         # Compute pose with OpenCV
-        # ransac_method = cv2.USAC_MSAC
+        # ransac_method = cv2.RANSAC
         ransac_method = cv2.USAC_MAGSAC
         E, mask = cv2.findEssentialMat(
             kpts1,

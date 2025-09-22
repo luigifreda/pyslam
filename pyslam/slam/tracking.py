@@ -343,7 +343,7 @@ class Tracking:
         self.timer_pose_est.start()
         ransac_method = None
         try:
-            ransac_method = cv2.USAC_MSAC
+            ransac_method = cv2.USAC_MAGSAC
         except:
             ransac_method = cv2.RANSAC
         try:
@@ -399,7 +399,7 @@ class Tracking:
 
         ransac_method = None
         try:
-            ransac_method = cv2.USAC_MSAC
+            ransac_method = cv2.USAC_MAGSAC
         except:
             ransac_method = cv2.RANSAC
         kps_cur = f_cur.kps[idxs_cur]

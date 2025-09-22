@@ -403,7 +403,7 @@ class MatcherUtils:
 
         ransac_method = None
         try:
-            ransac_method = cv2.USAC_MSAC
+            ransac_method = cv2.USAC_MAGSAC
         except:
             ransac_method = cv2.RANSAC
         _, mask = cv2.findFundamentalMat(

@@ -908,9 +908,9 @@ class Map(object):
 
 # Local map base class
 class LocalMapBase(object):
-    def __init__(self, map=None):
+    def __init__(self, map: "Map" = None):
         self._lock = RLock()
-        self.map = map  # type: Map
+        self.map = map
         self.keyframes = OrderedSet()  # collection of local keyframes
         self.points = set()  # points visible in 'keyframes'
         self.ref_keyframes = (
@@ -1040,7 +1040,7 @@ class LocalMapBase(object):
 
 # Local window map (last N keyframes)
 class LocalWindowMap(LocalMapBase):
-    def __init__(self, map=None, local_window=Parameters.kLocalBAWindow):
+    def __init__(self, map: "Map" = None, local_window=Parameters.kLocalBAWindow):
         super().__init__(map)
         self.local_window = local_window  # length of the local window
 
@@ -1061,7 +1061,7 @@ class LocalWindowMap(LocalMapBase):
 
 # Local map from covisibility graph
 class LocalCovisibilityMap(LocalMapBase):
-    def __init__(self, map=None):
+    def __init__(self, map: "Map" = None):
         super().__init__(map)
 
     def __getstate__(self):

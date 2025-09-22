@@ -27,6 +27,7 @@ import os
 import yaml
 import numpy as np
 import math
+import ujson as json
 
 from pyslam.utilities.utils_sys import Printer, locally_configure_qt_environment
 
@@ -244,13 +245,13 @@ class Config:
     @property
     def DistCoef(self):
         if not hasattr(self, "_DistCoef"):
-            k1 = self.cam_settings["Camera.k1"]
-            k2 = self.cam_settings["Camera.k2"]
-            p1 = self.cam_settings["Camera.p1"]
-            p2 = self.cam_settings["Camera.p2"]
+            k1 = self.cam_settings.get("Camera.k1", 0)
+            k2 = self.cam_settings.get("Camera.k2", 0)
+            p1 = self.cam_settings.get("Camera.p1", 0)
+            p2 = self.cam_settings.get("Camera.p2", 0)
             k3 = 0
             if "Camera.k3" in self.cam_settings:
-                k3 = self.cam_settings["Camera.k3"]
+                k3 = self.cam_settings.get("Camera.k3", 0)
             self._DistCoef = np.array([k1, k2, p1, p2, k3])
             if self.sensor_type == "stereo":
                 self._DistCoef = np.array([0, 0, 0, 0, 0])
@@ -291,8 +292,8 @@ class Config:
     @property
     def depth_factor(self):
         if not hasattr(self, "_depth_factor"):
-            if "Camera.DepthMapFactor" in self.cam_settings:
-                self._depth_factor = self.cam_settings["Camera.DepthMapFactor"]
+            if "DepthMapFactor" in self.cam_settings:
+                self._depth_factor = self.cam_settings["DepthMapFactor"]
             else:
                 self._depth_factor = 1.0
         return self._depth_factor
@@ -300,8 +301,8 @@ class Config:
     @property
     def depth_threshold(self):
         if not hasattr(self, "_depth_threshold"):
-            if "Camera.ThDepth" in self.cam_settings:
-                self._depth_threshold = self.cam_settings["Camera.ThDepth"]
+            if "ThDepth" in self.cam_settings:
+                self._depth_threshold = self.cam_settings["ThDepth"]
             else:
                 self._depth_threshold = float("inf")
         return self._depth_threshold
@@ -438,47 +439,98 @@ class Config:
         # print(f'[config] stereo settings: {self._cam_stereo_settings}')
         return self._cam_stereo_settings
 
+    def from_json(self, json_str: dict | str):
+        """
+        Update the config from a JSON string or dict.
+        The payload may contain any of the following optional fields; missing fields
+        leave current values unchanged:
+        - cam_settings: dict
+        - cam_stereo_settings: dict
+        - dataset_settings: dict
+        - system_settings: dict
+        - ros_settings: dict
+        - feature_tracker_config: dict
+        - loop_detection_config: dict
+        - semantic_mapping_config: dict
+        """
+        # Accept a JSON string or already-parsed dict; normalize to dict
+        data = json_str
+        if isinstance(json_str, str):
+            data = json.loads(json_str)
+        if not isinstance(data, dict):
+            raise ValueError(f"from_json expects a JSON string or dict, got {type(data)}")
 
-# TODO(dvdmc): needs testing but it should be added for evaluation
-# def dump_config_to_json(config, output_path: str):
-#     print("STARTING DUMP")
-#     feature_tracker_config_json = SerializationJSON.serialize(config.feature_tracker_config)
-#     data = {
-#         "config_path": config.config_path,
-#         "config_libs_path": config.config_libs_path,
-#         "dataset_type": config.dataset_type,
-#         "sensor_type": config.sensor_type,
-#         "dataset_settings": SerializationJSON.serialize(config.dataset_settings),
-#         "system_settings": SerializationJSON.serialize(config.system_settings),
-#         "cam_settings": SerializationJSON.serialize(config.cam_settings),
-#         "ros_settings": SerializationJSON.serialize(config.ros_settings),
-#         "feature_tracker_config": SerializationJSON.serialize(config.feature_tracker_config),
-#         "loop_detection_config": SerializationJSON.serialize(config.loop_detection_config),
-#         "semantic_mapping_config": SerializationJSON.serialize(config.semantic_mapping_config),
-#         "trajectory_saving_settings": SerializationJSON.serialize(config.trajectory_saving_settings),
-#         "system_state_settings": SerializationJSON.serialize(config.system_state_settings),
-#         "K": SerializationJSON.serialize(config.K),
-#         "Kinv": SerializationJSON.serialize(config.Kinv),
-#         "DistCoef": SerializationJSON.serialize(config.DistCoef),
-#         "bf": SerializationJSON.serialize(config.bf),
-#         "width": SerializationJSON.serialize(config.width),
-#         "height": SerializationJSON.serialize(config.height),
-#         "fps": SerializationJSON.serialize(config.fps),
-#         "depth_factor": SerializationJSON.serialize(config.depth_factor),
-#         "depth_threshold": SerializationJSON.serialize(config.depth_threshold),
-#         "num_features_to_extract": SerializationJSON.serialize(config.num_features_to_extract),
-#         "feature_tracker_config_name": SerializationJSON.serialize(config.feature_tracker_config_name),
-#         "loop_detection_config_name": SerializationJSON.serialize(config.loop_detection_config_name),
-#         "semantic_mapping_config_name": SerializationJSON.serialize(config.semantic_mapping_config_name),
-#         "far_points_threshold": SerializationJSON.serialize(config.far_points_threshold),
-#         "use_fov_centers_based_kf_generation": SerializationJSON.serialize(config.use_fov_centers_based_kf_generation),
-#         "max_fov_centers_distance": SerializationJSON.serialize(config.max_fov_centers_distance),
-#         "cam_stereo_settings": SerializationJSON.serialize(config.cam_stereo_settings),
-#     }
-#     with open(output_path, "w") as f:
-#         f.write(json.dumps(data, indent=4))
+        # Update top-level settings if present; keep existing if missing
+        cam_settings = data.get("cam_settings")
+        if cam_settings is not None:
+            self.cam_settings = cam_settings
 
-#     Printer.green(f"Configuration dumped to {output_path}")
+        # Stereo settings are optional; if absent, let property recompute from cam_settings
+        cam_stereo_settings = data.get("cam_stereo_settings")
+        if cam_stereo_settings is not None:
+            self._cam_stereo_settings = cam_stereo_settings
+        else:
+            if hasattr(self, "_cam_stereo_settings"):
+                delattr(self, "_cam_stereo_settings")
+
+        dataset_settings = data.get("dataset_settings")
+        if dataset_settings is not None:
+            self.dataset_settings = dataset_settings
+
+        # sensor_type may be provided via dataset_settings; guard for absence
+        sensor_type = None
+        if isinstance(self.dataset_settings, dict):
+            sensor_type = self.dataset_settings.get("sensor_type")
+        if sensor_type is not None:
+            self.sensor_type = str(sensor_type).lower()
+
+        system_settings = data.get("system_settings")
+        if system_settings is not None:
+            self.system_settings = system_settings
+
+        self.ros_settings = data.get("ros_settings", self.ros_settings or {})
+        self.feature_tracker_config = data.get(
+            "feature_tracker_config", self.feature_tracker_config
+        )
+        self.loop_detection_config = data.get("loop_detection_config", self.loop_detection_config)
+        self.semantic_mapping_config = data.get(
+            "semantic_mapping_config", self.semantic_mapping_config
+        )
+
+        # Invalidate cached derived properties to ensure consistency with new settings
+        for attr in (
+            "_K",
+            "_Kinv",
+            "_DistCoef",
+            "_bf",
+            "_width",
+            "_height",
+            "_fps",
+            "_depth_factor",
+            "_depth_threshold",
+            "_num_features_to_extract",
+            "_feature_tracker_config_name",
+            "_loop_detection_config_name",
+            "_semantic_mapping_config_name",
+            "_far_points_threshold",
+            "_use_fov_centers_based_kf_generation",
+            "_max_fov_centers_distance",
+        ):
+            if hasattr(self, attr):
+                delattr(self, attr)
+
+    def to_json(self):
+        return {
+            "cam_settings": self.cam_settings,
+            "cam_stereo_settings": self.cam_stereo_settings,
+            "dataset_settings": self.dataset_settings,
+            "system_settings": self.system_settings,
+            "ros_settings": self.ros_settings,
+            "feature_tracker_config": self.feature_tracker_config,
+            "loop_detection_config": self.loop_detection_config,
+            "semantic_mapping_config": self.semantic_mapping_config,
+        }
+
 
 if __name__ != "__main__":
     # We automatically read and set lib paths when this file is called via 'import'

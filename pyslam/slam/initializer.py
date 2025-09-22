@@ -108,7 +108,7 @@ class Initializer(object):
     def estimatePose(self, kpn_ref, kpn_cur):
         ransac_method = None
         try:
-            ransac_method = cv2.USAC_MSAC
+            ransac_method = cv2.USAC_MAGSAC
         except:
             ransac_method = cv2.RANSAC
         # here, the essential matrix algorithm uses the five-point algorithm solver by D. Nister (see the notes and paper above )

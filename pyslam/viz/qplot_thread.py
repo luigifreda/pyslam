@@ -20,9 +20,23 @@
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QColor, QPainter, QVector3D
+try:
+    # Prefer the compatibility shim so any installed Qt binding works.
+    from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
+except Exception:
+    # Fallback (only used if the shim isn't available)
+    from PyQt5 import QtCore, QtGui, QtWidgets
+
+# Unified names
+QLabel = QtWidgets.QLabel
+QVBoxLayout = QtWidgets.QVBoxLayout
+QWidget = QtWidgets.QWidget
+
+Qt = QtCore.Qt
+QFont = QtGui.QFont
+QColor = QtGui.QColor
+QVector3D = QtGui.QVector3D
+
 
 import numpy as np
 import time
@@ -103,7 +117,7 @@ class SharedSingletonLock:
 # Qplot2d class for dynamic 2D plotting using pyqtgraph
 # NOTE: This is a good tutorial https://www.pythonguis.com/tutorials/plotting-pyqtgraph/
 class Qplot2d:
-    def __init__(self, xlabel="", ylabel="", title=""):
+    def __init__(self, xlabel: str = "", ylabel: str = "", title: str = ""):
         self.xlabel = xlabel
         self.ylabel = ylabel
         self.title = title
@@ -505,7 +519,14 @@ class LegendOverlay(QLabel):
 
 
 class Qplot3d:
-    def __init__(self, title="", xlabel="", ylabel="", zlabel="", auto_view=True):
+    def __init__(
+        self,
+        title: str = "",
+        xlabel: str = "",
+        ylabel: str = "",
+        zlabel: str = "",
+        auto_view: bool = True,
+    ):
         self.xlabel = xlabel if xlabel != "" else "X Axis"
         self.ylabel = ylabel if ylabel != "" else "Y Axis"
         self.zlabel = zlabel if zlabel != "" else "Z Axis"

@@ -251,7 +251,7 @@ if kps1_matched.shape[0] > 10:
     print("model fitting for", model_fitting_type)
     ransac_method = None
     try:
-        ransac_method = cv2.USAC_MSAC
+        ransac_method = cv2.USAC_MAGSAC
     except:
         ransac_method = cv2.RANSAC
     if model_fitting_type == "homography":

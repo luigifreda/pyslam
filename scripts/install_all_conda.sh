@@ -72,9 +72,8 @@ $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "./"
 # 9. Outliers under conda
 pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
 pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
-# NOTE: There can be a possible issue with delf and protobuf 
+# NOTE: There can be a possible issues with delf and protobuf. To solve them, run the following command:
 # cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
 # protoc -I=. --python_out=. delf/protos/*.proto
-
 
 cd "$STARTING_DIR"

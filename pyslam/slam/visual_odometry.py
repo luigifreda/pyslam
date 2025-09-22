@@ -63,7 +63,7 @@ class VisualOdometryEducational(VisualOdometryBase):
         self.kps_cur = None  # current keypoints
         self.des_cur = None  # current descriptors
 
-        self.feature_tracker = feature_tracker  # type: FeatureTracker
+        self.feature_tracker: FeatureTracker = feature_tracker
 
         self.pose_estimation_inliers = None
 
@@ -117,7 +117,9 @@ class VisualOdometryEducational(VisualOdometryBase):
         if kUseEssentialMatrixEstimation:
             ransac_method = None
             try:
-                ransac_method = cv2.USAC_MSAC  # cv2.USAC_MSAC, cv2.USAC_MAGSAC
+                # with VO RANSAC seems to return better results than USAC_MAGSAC
+                # probably, better tuning is needed for USAC_MAGSAC
+                ransac_method = cv2.RANSAC  # cv2.USAC_MAGSAC
             except:
                 ransac_method = cv2.RANSAC
             # the essential matrix algorithm is more robust since it uses the five-point algorithm solver by D. Nister (see the notes and paper above )

@@ -23,7 +23,7 @@ import numpy as np
 from threading import RLock, Lock, Thread
 
 from pyslam.utilities.utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
-from .frame import Frame, FeatureTrackerShared
+from pyslam.slam.frame import Frame, FeatureTrackerShared
 from pyslam.utilities.utils_sys import Printer
 from pyslam.config_parameters import Parameters
 
@@ -376,11 +376,15 @@ class MapPoint(MapPointBase):
             "num_times_found": self.num_times_found,
             "last_frame_id_seen": self.last_frame_id_seen,
             "pt": self.pt.tolist(),
-            "color": self.color,
+            "color": (
+                self.color.tolist()
+                if self.color is not None and isinstance(self.color, np.ndarray)
+                else self.color
+            ),
             "semantic_des": serialize_semantic_des(
                 self.semantic_des, SemanticMappingShared.semantic_feature_type
             ),
-            "des": self.des.tolist(),
+            "des": self.des.tolist() if self.des is not None else None,
             "_min_distance": self._min_distance,
             "_max_distance": self._max_distance,
             "normal": self.normal.tolist(),
@@ -524,7 +528,7 @@ class MapPoint(MapPointBase):
             return self.normal
 
     # replace this point with map point p
-    def replace_with(self, p: "MapPointBase"):
+    def replace_with(self, p: "MapPoint"):
         if p.id == self.id:
             return
         # if __debug__:

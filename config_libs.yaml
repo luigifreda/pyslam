@@ -9,16 +9,6 @@ CORE_LIB_PATHS:
   thirdparty: thirdparty  # considering the folders in thirdparty as modules
   gtsam_factors: thirdparty/gtsam_factors/lib
   ros2_pybindings: thirdparty/ros2_pybindings/lib
-  # utilities: pyslam/utilities
-  # depth_estimation: pyslam/depth_estimation
-  # semantics: pyslam/semantics
-  # local_features: pyslam/local_features
-  # loop_closing: pyslam/loop_closing
-  # slam: pyslam/slam
-  # viz: pyslam/viz
-  # io: pyslam/io
-  # dense: pyslam/dense
-  # evaluation: pyslam/evaluation  
 
 
 LIB_PATHS:

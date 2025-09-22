@@ -21,9 +21,6 @@
 import torch.multiprocessing as mp
 from pyslam.utilities.utils_mp import MultiprocessingManager
 
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow
-from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt, QTimer
 import numpy as np
 import cv2
 import time
@@ -31,6 +28,27 @@ import time
 from pyslam.utilities.utils_sys import Logging, locally_configure_qt_environment
 from pyslam.utilities.utils_data import empty_queue
 
+try:
+    # Prefer the compatibility shim so any installed Qt binding works.
+    from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
+except Exception:
+    # Fallback (only used if the shim isn't available)
+    from PyQt5 import QtCore, QtGui, QtWidgets
+
+# Unified names
+QApplication = QtWidgets.QApplication
+QLabel = QtWidgets.QLabel
+QVBoxLayout = QtWidgets.QVBoxLayout
+QWidget = QtWidgets.QWidget
+
+Qt = QtCore.Qt
+QFont = QtGui.QFont
+QColor = QtGui.QColor
+QVector3D = QtGui.QVector3D
+QPixmap = QtGui.QPixmap
+QImage = QtGui.QImage
+QTimer = QtCore.QTimer
+QMainWindow = QtWidgets.QMainWindow
 
 kVerbose = False
 

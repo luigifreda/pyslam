@@ -58,14 +58,14 @@ import rerun as rr  # pip install rerun-sdk
 from pyslam.viz.rerun_interface import Rerun
 
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     # Only imported when type checking, not at runtime
     from pyslam.local_features.feature_tracker import FeatureTracker
     from pyslam.local_features.feature_matcher import FeatureMatcher
     from pyslam.local_features.feature_manager import FeatureManager
-    from pyslam.slam.map_point import MapPointBase, MapPoint
+    from pyslam.slam.map_point import MapPoint
 
 
 kMinDepth = 1e-2
@@ -502,7 +502,7 @@ class Frame(FrameBase):
             if self.semantic_img is None:
                 self.semantic_img = frame_data_dict["semantic_img"]
 
-            self.ensure_contiguous()
+            self.ensure_contiguous_arrays()
             return
 
         if img is not None:
@@ -524,7 +524,7 @@ class Frame(FrameBase):
                 self.kps, self.des = FeatureTrackerShared.feature_tracker.detectAndCompute(img)
 
             # convert from a list of keypoints to arrays of points, octaves, sizes
-            if self.kps is not None:
+            if self.kps is not None and len(self.kps) > 0:
                 kps_data = np.ascontiguousarray(
                     [[x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps],
                     dtype=np.float32,
@@ -553,7 +553,7 @@ class Frame(FrameBase):
                 self.kps_r = kps_data_r[:, :2] if kps_data_r is not None else None
                 self.octaves_r = np.uint8(kps_data_r[:, 2])  # print('octaves: ', self.octaves)
 
-            if self.kps is not None:
+            if self.kps is not None and len(self.kps) > 0:
                 # compute stereo matches: if there is depth available, use it, otherwise use stereo matching
                 if depth is not None:
                     self.compute_stereo_from_rgbd(kps_data, depth)
@@ -562,9 +562,10 @@ class Frame(FrameBase):
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
 
-            self.ensure_contiguous()
+            self.ensure_contiguous_arrays()
 
-    def ensure_contiguous(self):
+    # ensure contiguous arrays
+    def ensure_contiguous_arrays(self):
         for attr in [
             "kps",
             "kpsu",
@@ -656,7 +657,7 @@ class Frame(FrameBase):
                 else None
             ),
             "is_blurry": bool(self.is_blurry),
-            "laplacian_var": float(self.laplacian_var),
+            "laplacian_var": float(self.laplacian_var) if self.laplacian_var is not None else None,
             "kps": json.dumps(self.kps.astype(float).tolist()) if self.kps is not None else None,
             "kps_r": json.dumps(
                 self.kps_r.astype(float).tolist() if self.kps_r is not None else None
@@ -1112,7 +1113,7 @@ class Frame(FrameBase):
         if do_check_with_fundamental_mat:
             ransac_method = None
             try:
-                ransac_method = cv2.USAC_MSAC
+                ransac_method = cv2.USAC_MAGSAC
             except:
                 ransac_method = cv2.RANSAC
             fmat_err_thld = 3.0  # threshold for fundamental matrix estimation: maximum allowed distance from a point to an epipolar line in pixels (to treat a point pair as an inlier)

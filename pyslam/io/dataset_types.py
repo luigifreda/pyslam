@@ -50,8 +50,8 @@ class DatasetEnvironmentType(SerializableEnum):
 
 @register_class
 class SensorType(SerializableEnum):
-    MONOCULAR = (0,)
-    STEREO = (1,)
+    MONOCULAR = 0
+    STEREO = 1
     RGBD = 2
 
 

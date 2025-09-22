@@ -371,12 +371,13 @@ if __name__ == "__main__":
         if not args.headless:
             # get keys
             key = plot_drawer.get_key() if plot_drawer else None
-            key_cv = cv2.waitKey(1) & 0xFF
 
             # manage SLAM states
             if slam.tracking.state == SlamState.LOST:
                 # key_cv = cv2.waitKey(0) & 0xFF   # wait key for debugging
                 key_cv = cv2.waitKey(500) & 0xFF
+            else:
+                key_cv = cv2.waitKey(1) & 0xFF
 
         if slam.tracking.state == SlamState.LOST:
             num_tracking_lost += 1

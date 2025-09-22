@@ -85,6 +85,9 @@ class CameraPose(object):
     def position(self):  # 3D vector tcw (world origin w.r.t. camera frame)
         return self._pose.position()
 
+    def get_rotation_matrix(self):
+        return self._pose.rotation_matrix()
+
     def get_rotation_angle_axis(self):
         angle_axis = g2o.AngleAxis(self._pose.orientation())
         # angle = angle_axis.angle()
