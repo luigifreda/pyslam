@@ -103,6 +103,20 @@ gdb --args python main_slam.py
 ```
 Please consider opening an issue and attaching the logs (including the *gdb backtrace*), so we can investigate further.
 
+
+#### Under mac
+
+I got a segmentation fault problem due to a tensorflow import problem. I solved it with
+```bash
+pip uninstall tensorflow
+pip install "tensorflow==2.15.*"
+```
+
+Under mac a first step is to run: 
+```bash
+python3 -I -X dev -X faulthandler main_slam.py
+```
+and check the output.
 --- 
 
 ### RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_

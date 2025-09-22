@@ -44,7 +44,7 @@ endif()
 add_subdirectory(modules/pybind11)
 
 find_package(OpenCV REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system filesystem serialization)
+find_package(Boost REQUIRED COMPONENTS filesystem serialization)
 
 set(OBINDEX2_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/modules/obindex2/lib/include/)
 set(OBINDEX2_LIB_DIR ${PROJECT_SOURCE_DIR}/modules/obindex2/lib/build/)

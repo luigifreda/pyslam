@@ -45,7 +45,7 @@ message(STATUS "gtsam include: ${GTSAM_INCLUDE_DIR}")
 message(STATUS "gtsam lib dirs: ${GTSAM_LIBRARY_DIRS}")
 message(STATUS "gtsam libs: ${GTSAM_LIBS}")
 
-find_package(Boost REQUIRED COMPONENTS system serialization filesystem)
+find_package(Boost REQUIRED COMPONENTS serialization filesystem)
 message(STATUS "Boost_VERSION: ${Boost_VERSION}")
 message(STATUS "Boost includes: ${Boost_INCLUDE_DIRS}")
 
