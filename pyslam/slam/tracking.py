@@ -101,7 +101,9 @@ kUseGroundTruthScale = False
 
 kNumMinInliersPoseOptimizationTrackFrame = 10
 kNumMinInliersPoseOptimizationTrackLocalMap = 20
-kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 60  # defines bad/weak tracking condition
+kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = (
+    50  # 60  # defines bad/weak tracking condition
+)
 
 
 kUseMotionModel = Parameters.kUseMotionModel or Parameters.kUseSearchFrameByProjection
@@ -1146,7 +1148,7 @@ class Tracking:
         if Parameters.kTrackingWaitForLocalMappingToGetIdle:
             # If there are still keyframes in the queue, wait for local mapping to get idle
             if not self.local_mapping.is_idle():
-                while self.local_mapping.queue_size() > 0:
+                while self.local_mapping.queue_size() > 0 and not self.local_mapping.is_idle():
                     print(">>>> waiting for local mapping...")
                     self.local_mapping.wait_idle(
                         print=print, timeout=None
@@ -1158,7 +1160,8 @@ class Tracking:
                 and self.num_matched_map_points
                 < kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle
             ):
-                if self.local_mapping.queue_size() > 0:
+                # if self.local_mapping.queue_size() > 0: # less restrictive
+                if not self.local_mapping.is_idle() or self.local_mapping.queue_size() > 0:
                     Printer.orange(
                         ">>>> close to bad tracking: forcing waiting for local mapping..."
                     )
@@ -1171,9 +1174,12 @@ class Tracking:
                     )
                     self.local_mapping.wait_idle(print=print, timeout=timeout)
 
-            if self.local_mapping.queue_size() > 0:
+            local_mapping_queue_size = self.local_mapping.queue_size()
+            local_mapping_is_idle = self.local_mapping.is_idle()
+            # if local_mapping_queue_size > 0 or not local_mapping_is_idle:  # more restrictive
+            if local_mapping_queue_size > 0:  # before
                 Printer.orange(
-                    f">>>> waiting for local mapping idle (queue_size={self.local_mapping.queue_size()})..."
+                    f">>>> waiting for local mapping idle (queue_size={local_mapping_queue_size}, idle={local_mapping_is_idle})..."
                 )
                 self.local_mapping.wait_idle(print=print, timeout=timeout)
 

@@ -162,6 +162,9 @@ class LoopDetectingProcess:
         if MultiprocessingManager.is_start_method_spawn():
             time.sleep(3)  # give a bit of time for the process to start and initialize
 
+    def is_ready(self):
+        return self.is_running.value == 1
+
     def save(self, path):
         task_type = LoopDetectorTaskType.SAVE
         task = LoopDetectorTask(None, None, task_type, load_save_path=path)

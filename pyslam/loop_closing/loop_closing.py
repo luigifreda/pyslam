@@ -787,6 +787,9 @@ class LoopClosing:
 
             LoopClosing.print = staticmethod(print_file)
 
+    def is_ready(self):
+        return self.is_running and self.loop_detecting_process.is_ready()
+
     @property
     def map(self):
         return self.slam.map
