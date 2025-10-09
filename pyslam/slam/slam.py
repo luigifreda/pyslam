@@ -251,6 +251,9 @@ class Slam(object):
             self.loop_closing = LoopClosing(self, loop_detector_config, headless=headless)
             self.GBA = self.loop_closing.GBA
             self.loop_closing.start()
+            while not self.loop_closing.is_ready():
+                time.sleep(0.1)
+            Printer.green(f"SLAM: loop closing initialized and ready")
             time.sleep(1)
 
     def init_volumetric_integrator(self):
