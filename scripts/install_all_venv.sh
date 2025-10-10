@@ -63,5 +63,12 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "$SCRIPTS_DIR/"
 
+# 9. outliers under venv
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # To solve under mac the (crash) issue mentioned in the troubleshoting document
+    pip uninstall tensorflow
+    pip install "tensorflow==2.15.*"
+fi 
+
 
 cd "$STARTING_DIR"
