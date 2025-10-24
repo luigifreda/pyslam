@@ -39,6 +39,7 @@ endif()
 # Find required packages
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(TBB REQUIRED)
 
 set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/../../../)
 set(PYSLAM_SRC ${PYSLAM_ROOT}/pyslam)
@@ -90,6 +91,7 @@ message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${G2O_INCLUDE_DIRS})
+include_directories(${TBB_INCLUDE_DIRS})
 
 # cpp core
 
@@ -110,9 +112,10 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/utils/features.cpp    
     ${PYSLAM_SLAM_SRC}/utils/geom_2views.cpp
     ${PYSLAM_SLAM_SRC}/optimizer_g2o.cpp
-    ${PYSLAM_SLAM_SRC}/tracking_utils.cpp
+    ${PYSLAM_SLAM_SRC}/tracking_core.cpp
     ${PYSLAM_SLAM_SRC}/config_parameters.cpp
     ${PYSLAM_SLAM_SRC}/geometry_matchers.cpp
+    ${PYSLAM_SLAM_SRC}/local_mapping_core.cpp
 )
 
 if (USE_PYTHON)
@@ -122,6 +125,7 @@ if (USE_PYTHON)
         ${PYSLAM_SLAM_SRC}/map_point_serialization_py.cpp
         ${PYSLAM_SLAM_SRC}/frame_serialization_py.cpp
         ${PYSLAM_SLAM_SRC}/keyframe_serialization_py.cpp
+        ${PYSLAM_SLAM_SRC}/map_serialization_py.cpp
     )
 endif()
 
@@ -146,10 +150,11 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/utils/accessors.h
     ${PYSLAM_SLAM_SRC}/utils/geom_2views.h
     ${PYSLAM_SLAM_SRC}/eigen_aliases.h
-    ${PYSLAM_SLAM_SRC}/tracking_utils.h
+    ${PYSLAM_SLAM_SRC}/tracking_core.h
     ${PYSLAM_SLAM_SRC}/rotation_histogram.h
     ${PYSLAM_SLAM_SRC}/config_parameters.h
     ${PYSLAM_SLAM_SRC}/geometry_matchers.h
+    ${PYSLAM_SLAM_SRC}/local_mapping_core.h
 )
 
 if (USE_PYTHON)
@@ -166,12 +171,20 @@ endif()
 set(SEMANTICS_CPP_CORE_SOURCES
     ${PYSLAM_SEMANTICS_SRC}/semantic_fusion_methods.cpp
     ${PYSLAM_SEMANTICS_SRC}/semantic_serialization.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_utils.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_colormap.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_labels.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_mapping_shared_resources.cpp
 )
 
 set(SEMANTICS_CPP_CORE_HEADERS
     ${PYSLAM_SEMANTICS_SRC}/semantic_fusion_methods.h
     ${PYSLAM_SEMANTICS_SRC}/semantic_serialization.h
     ${PYSLAM_SEMANTICS_SRC}/semantic_types.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_utils.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_colormap.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_labels.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_mapping_shared_resources.h
 )
 
 
@@ -194,9 +207,12 @@ set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/py_module/optimizer_g2o_module.h
     ${PYSLAM_SLAM_SRC}/py_module/sim3_pose_module.h
     ${PYSLAM_SLAM_SRC}/py_module/eigen_module.h
-    ${PYSLAM_SLAM_SRC}/py_module/tracking_utils_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/tracking_core_module.h
     ${PYSLAM_SLAM_SRC}/py_module/rotation_histogram_module.h
     ${PYSLAM_SLAM_SRC}/py_module/geometry_matchers_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/local_mapping_core_module.h
+    # semantics
+    ${PYSLAM_SEMANTICS_SRC}/py_module/semantic_mapping_shared_resources_module.h
 )
 
 # all source and header files
@@ -215,6 +231,7 @@ set(CPP_CORE_LINK_LIBRARIES
     ${OpenCV_LIBS}
     ${EIGEN3_LIBRARIES}
     ${G2O_LIBRARIES}
+    ${TBB_LIBRARIES}
     nlohmann_json::nlohmann_json
 )
 

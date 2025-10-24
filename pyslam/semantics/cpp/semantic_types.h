@@ -52,6 +52,21 @@ enum class SemanticEntityType : int {
     OBJECT = 1 // The semantics are associated to each object
 };
 
+enum class SemanticDatasetType : int {
+    CITYSCAPES = 0,
+    ADE20K = 1,
+    VOC = 2,
+    NYU40 = 3,
+    FEATURE_SIMILARITY = 4,
+    CUSTOM_SET = 5
+};
+
+enum class SemanticSegmentationType : int {
+    DEEPLABV3 = 0, // Semantics from torchvision DeepLab's v3
+    SEGFORMER = 1, // Semantics from transformer's Segformer
+    CLIP = 2,      // Semantics from CLIP's segmentation head
+};
+
 // ------------------------------------------------------------
 //  serialization
 // ------------------------------------------------------------
@@ -121,6 +136,90 @@ inline SemanticEntityType string_to_semantic_entity_type(const std::string &str)
         return SemanticEntityType::OBJECT;
     } else {
         throw std::invalid_argument("Invalid SemanticEntityType: " + str);
+    }
+}
+
+/**
+ * Convert SemanticDatasetType enum to string representation
+ * @param type The semantic dataset type
+ * @return String representation of the enum value
+ */
+inline std::string semantic_dataset_type_to_string(SemanticDatasetType type) {
+    switch (type) {
+    case SemanticDatasetType::CITYSCAPES:
+        return "CITYSCAPES";
+    case SemanticDatasetType::ADE20K:
+        return "ADE20K";
+    case SemanticDatasetType::VOC:
+        return "VOC";
+    case SemanticDatasetType::NYU40:
+        return "NYU40";
+    case SemanticDatasetType::FEATURE_SIMILARITY:
+        return "FEATURE_SIMILARITY";
+    case SemanticDatasetType::CUSTOM_SET:
+        return "CUSTOM_SET";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+/**
+ * Convert string to SemanticDatasetType enum
+ * @param str String representation of the enum value
+ * @return SemanticDatasetType enum value
+ * @throws std::invalid_argument if string is not a valid enum value
+ */
+inline SemanticDatasetType string_to_semantic_dataset_type(const std::string &str) {
+    if (str == "CITYSCAPES") {
+        return SemanticDatasetType::CITYSCAPES;
+    } else if (str == "ADE20K") {
+        return SemanticDatasetType::ADE20K;
+    } else if (str == "VOC") {
+        return SemanticDatasetType::VOC;
+    } else if (str == "NYU40") {
+        return SemanticDatasetType::NYU40;
+    } else if (str == "FEATURE_SIMILARITY") {
+        return SemanticDatasetType::FEATURE_SIMILARITY;
+    } else if (str == "CUSTOM_SET") {
+        return SemanticDatasetType::CUSTOM_SET;
+    } else {
+        throw std::invalid_argument("Invalid SemanticDatasetType: " + str);
+    }
+}
+
+/**
+ * Convert SemanticSegmentationType enum to string representation
+ * @param type The semantic segmentation type
+ * @return String representation of the enum value
+ */
+inline std::string semantic_segmentation_type_to_string(SemanticSegmentationType type) {
+    switch (type) {
+    case SemanticSegmentationType::DEEPLABV3:
+        return "DEEPLABV3";
+    case SemanticSegmentationType::SEGFORMER:
+        return "SEGFORMER";
+    case SemanticSegmentationType::CLIP:
+        return "CLIP";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+/**
+ * Convert string to SemanticSegmentationType enum
+ * @param str String representation of the enum value
+ * @return SemanticSegmentationType enum value
+ * @throws std::invalid_argument if string is not a valid enum value
+ */
+inline SemanticSegmentationType string_to_semantic_segmentation_type(const std::string &str) {
+    if (str == "DEEPLABV3") {
+        return SemanticSegmentationType::DEEPLABV3;
+    } else if (str == "SEGFORMER") {
+        return SemanticSegmentationType::SEGFORMER;
+    } else if (str == "CLIP") {
+        return SemanticSegmentationType::CLIP;
+    } else {
+        throw std::invalid_argument("Invalid SemanticSegmentationType: " + str);
     }
 }
 

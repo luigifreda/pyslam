@@ -31,11 +31,20 @@ kRootFolder = os.path.join(kScriptFolder, "..")
 # List of shared static parameters for configuring SLAM modules
 class Parameters:
 
+    # ================================================================
+    # C++ core
+    # ================================================================
     USE_CPP_CORE = False  # True: use the C++ core; False: use the Python core
 
-    kLogsFolder = (
-        kRootFolder + "/logs"
-    )  # Folder where logs are stored. This can be changed by pyslam/config.py to redirect the logs in a different folder.
+    # ================================================================
+    # Logs
+    # ================================================================
+    # Folder where logs are stored. This can be changed by pyslam/config.py to redirect the logs in a different folder.
+    kLogsFolder = kRootFolder + "/logs"
+
+    # ================================================================
+    # Sparse SLAM
+    # ================================================================
 
     # SLAM tracking-mapping threads
     kLocalMappingOnSeparateThread = True  # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread
@@ -168,15 +177,21 @@ class Parameters:
 
     # Sparse map visualization
     kSparseImageColorPatchDelta = 1  # center +- delta
+    kMinWeightForDrawingCovisibilityEdge = 100
+    kMaxSparseMapPointsToVisualize = 1e6  # Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth and GL load
 
+    # ================================================================
     # Optimization engine
+    # ================================================================
     kOptimizationFrontEndUseGtsam = False  # Use GTSAM in pose optimization in the frontend
     kOptimizationBundleAdjustUseGtsam = False  # Use GTSAM for LBA and GBA
     kOptimizationLoopClosingUseGtsam = (
         False  # [Experimental,WIP] Use GTSAM for loop closing (relocalization and PGO)
     )
 
+    # ================================================================
     # Bundle Adjustment (BA and LBA)
+    # ================================================================
     kLocalBAWindowSize = 20  #  [# frames]
     kUseLargeWindowBA = (
         False  # True: perform BA over a large window; False: do not perform large window BA
@@ -185,12 +200,16 @@ class Parameters:
     kLargeBAWindowSize = 20  #  [# frames]
     kUseParallelProcessLBA = False  # [Experimental] Running LBA in a parallel process (not thread). Not super stable yet!
 
+    # ================================================================
     # Global Bundle Adjustment (GBA)
+    # ================================================================
     kUseGBA = True  # Activated by loop closing
     kGBADebugAndPrintToFile = True
     kGBAUseRobustKernel = True
 
+    # ================================================================
     # Loop closing
+    # ================================================================
     kUseLoopClosing = True  # To enable/disable loop closing.
     kMinDeltaFrameForMeaningfulLoopClosure = 10
     kMaxResultsForLoopClosure = 5
@@ -211,7 +230,9 @@ class Parameters:
         0.75  # TODO: put it in an table and make it configurable per descriptor
     )
 
+    # ================================================================
     # Relocatization
+    # ================================================================
     kRelocalizationDebugAndPrintToFile = False
     kRelocalizationMinKpsMatches = 15  # o:15
     kRelocalizationParallelKpsMatching = True
@@ -225,7 +246,9 @@ class Parameters:
     kRelocalizationMaxReprojectionDistanceMapSearchCoarse = 10  # [pixels]    o:10
     kRelocalizationMaxReprojectionDistanceMapSearchFine = 3  # [pixels]    o:3
 
+    # ================================================================
     # Volumetric Integration
+    # ================================================================
     kUseVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
     kVolumetricIntegrationType = (
         "TSDF"  # "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_factory.py)
@@ -253,7 +276,10 @@ class Parameters:
     # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
 
-    # Semantic mapping. NOTE: By activating the semantic mapping, semantics will be used for the whole SLAM pipeline
+    # ================================================================
+    # Semantic mapping
+    # ================================================================
+    # NOTE: By activating the semantic mapping, semantics will be used for the whole SLAM pipeline
     kDoSemanticMapping = False  # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingDebugAndPrintToFile = True
@@ -263,7 +289,9 @@ class Parameters:
         10  #  [# frames]   only used in object-based to decide the best semantic descriptor
     )
 
+    # ================================================================
     # Other parameters
+    # ================================================================
     kChi2Mono = 5.991  # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
     kChi2Stereo = (
         7.815  # chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

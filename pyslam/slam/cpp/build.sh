@@ -9,6 +9,8 @@ echo "Building PYSLAM C++ Core Module..."
 
 # Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
+
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 CPP_DIR="$SCRIPT_DIR"
 

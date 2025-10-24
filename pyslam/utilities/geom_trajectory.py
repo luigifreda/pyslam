@@ -529,9 +529,9 @@ class TrajectoryAlignerProcess(mp.Process):
         self.output_queue = output_queue
         self.is_running_flag = is_running_flag
 
-        # Copy GT data to avoid issues with process boundaries
-        self.gt_trajectory = np.array(gt_trajectory, copy=True)
-        self.gt_timestamps = np.array(gt_timestamps, copy=True)
+        # Copy (contiguous) GT data to avoid issues with process boundaries
+        self.gt_trajectory = np.array(gt_trajectory, copy=True, order="C")
+        self.gt_timestamps = np.array(gt_timestamps, copy=True, order="C")
         self.find_scale = find_scale
         self.compute_align_error = compute_align_error
 
@@ -560,6 +560,27 @@ class TrajectoryAlignerProcess(mp.Process):
         align_trajectories_fun = align_trajectories_with_svd
         # align_trajectories_fun = align_trajectories_with_ransac   # WIP (just a test)
         try:
+            pose_timestamps = np.ascontiguousarray(pose_timestamps)
+            estimated_trajectory = np.ascontiguousarray(estimated_trajectory)
+            if False:
+                print(
+                    f"pose_timestamps: {pose_timestamps.shape}, contiguous: {pose_timestamps.flags.c_contiguous}"
+                )
+                print(
+                    f"estimated_trajectory: {estimated_trajectory.shape}, contiguous: {estimated_trajectory.flags.c_contiguous}"
+                )
+                print(
+                    f"self.gt_timestamps: {self.gt_timestamps.shape}, contiguous: {self.gt_timestamps.flags.c_contiguous}"
+                )
+                print(
+                    f"self.gt_trajectory: {self.gt_trajectory.shape}, contiguous: {self.gt_trajectory.flags.c_contiguous}"
+                )
+                print(
+                    f"self.gt_timestamps: {self.gt_timestamps.shape}, contiguous: {self.gt_timestamps.flags.c_contiguous}"
+                )
+                print(
+                    f"self.gt_trajectory: {self.gt_trajectory.shape}, contiguous: {self.gt_trajectory.flags.c_contiguous}"
+                )
             T_gt_est, error, alignment_gt_data = align_trajectories_fun(
                 pose_timestamps,
                 estimated_trajectory,

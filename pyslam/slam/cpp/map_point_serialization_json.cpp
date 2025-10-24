@@ -176,7 +176,7 @@ MapPointPtr MapPoint::from_json(const std::string &json_str) {
 
     // Parse normal
     p->normal = safe_parse_vector3d<double>(json_obj, "normal");
-    if (p->normal.norm() < 1e-6) {
+    if (p->normal.norm() < kMin3dVectorNorm) {
         p->normal = Eigen::Vector3d(0, 0, 1); // Default normal
     }
 

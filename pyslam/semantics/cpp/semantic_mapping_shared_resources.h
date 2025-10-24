@@ -19,25 +19,24 @@
 
 #pragma once
 
-#include "frame.h"
-
-#include <vector>
-
+#include "semantic_colormap.h"
+#include "semantic_fusion_methods.h"
+#include "semantic_types.h"
+#include <memory>
 namespace pyslam {
 
-// SLAM Dynamic Config - simplified version
-class SLAMDynamicConfig {
+class SemanticMappingSharedResources {
   public:
-    double max_descriptor_distance;
+    static SemanticFeatureType semantic_feature_type;
+    static SemanticDatasetType semantic_dataset_type;
+    static SemanticEntityType semantic_entity_type;
+    static SemanticSegmentationType semantic_segmentation_type;
 
-    SLAMDynamicConfig(double max_des_dist) : max_descriptor_distance(max_des_dist) {}
+    static std::shared_ptr<SemanticColorMap> semantic_color_map;
 
-    double update_descriptor_stats(const FramePtr &f_ref, const FramePtr &f_cur,
-                                   const std::vector<int> &idxs_ref,
-                                   const std::vector<int> &idxs_cur) {
-        // Simplified implementation - would compute dynamic statistics
-        return max_descriptor_distance;
-    }
+  public:
+    static void init_color_map(const SemanticDatasetType &semantic_dataset_type,
+                               int num_classes = 0);
 };
 
 } // namespace pyslam

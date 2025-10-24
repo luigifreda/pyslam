@@ -32,15 +32,15 @@
 
 namespace pyslam {
 
-/**
- * Semantic fusion methods for combining multiple semantic measurements
- */
-enum class SemanticFusionMethod {
-    NONE = -1,
-    COUNT_LABELS = 0,    // The label with the highest count
-    BAYESIAN_FUSION = 1, // Integrate measurements iteratively in a bayesian manner
-    AVERAGE_FUSION = 2   // Average all measurements
-};
+// /**
+//  * Semantic fusion methods for combining multiple semantic measurements
+//  */
+// enum class SemanticFusionMethod {
+//     NONE = -1,
+//     COUNT_LABELS = 0,    // The label with the highest count
+//     BAYESIAN_FUSION = 1, // Integrate measurements iteratively in a bayesian manner
+//     AVERAGE_FUSION = 2   // Average all measurements
+// };
 
 /**
  * Count labels fusion: returns the label with the highest count

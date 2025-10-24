@@ -32,6 +32,7 @@
 
 #include "camera.h"
 #include "camera_pose.h"
+#include "casters/nlohmann_json_type_casters.h"
 #include "dictionary.h"
 #include "utils/numpy_helpers.h"
 
@@ -210,7 +211,7 @@ void bind_camera(py::module &m) {
             "Kinv", [](const pyslam::Camera &self) { return self.Kinv; }, // copy out
             [](pyslam::Camera &self, const Eigen::Matrix3d &val) { self.Kinv = val; })
         // Methods
-        .def("compute_intrinsic_matrices", &pyslam::Camera::compute_intrinsic_matrices)
+        .def("set_intrinsic_matrices", &pyslam::Camera::set_intrinsic_matrices)
         .def(
             "project_point",
             [](const pyslam::Camera &self, pyslam::Vec3fRef xcs) {
@@ -257,18 +258,26 @@ void bind_camera(py::module &m) {
             py::arg("xcs"))
         .def(
             "undistort_points",
-            [](const pyslam::Camera &self, pyslam::MatNx2fRef uvs) {
+            [](pyslam::Camera &self, pyslam::MatNx2fRef uvs) {
                 return self.undistort_points(uvs);
             },
             py::arg("uvs"))
         .def(
             "undistort_points",
-            [](const pyslam::Camera &self, pyslam::MatNx2dRef uvs) {
+            [](pyslam::Camera &self, pyslam::MatNx2dRef uvs) {
                 return self.undistort_points(uvs);
             },
             py::arg("uvs"))
         .def("is_stereo", &pyslam::Camera::is_stereo)
-        .def("to_json", &pyslam::Camera::to_json)
+        .def("to_json", [](const pyslam::PinholeCamera &self) {
+            try {
+                std::string json_str = self.to_json();
+                nlohmann::json j = nlohmann::json::parse(json_str);
+                return pyslam::json_to_dict(j);
+            } catch (const std::exception &e) {
+                throw std::runtime_error("Failed to convert camera to dict: " + std::string(e.what()));
+            }
+        })
         .def("init_from_json", &pyslam::Camera::init_from_json, py::arg("json_str"))
         .def(
             "is_in_image",
@@ -344,7 +353,7 @@ void bind_camera(py::module &m) {
              }),
              py::arg("config"))
         .def("init", &pyslam::PinholeCamera::init)
-        .def("compute_intrinsic_matrices", &pyslam::PinholeCamera::compute_intrinsic_matrices)
+        .def("set_intrinsic_matrices", &pyslam::PinholeCamera::set_intrinsic_matrices)
         .def(
             "project",
             [](const pyslam::PinholeCamera &self, pyslam::MatNx3dRef xcs) {
@@ -383,12 +392,20 @@ void bind_camera(py::module &m) {
             py::arg("uvs"), py::arg("depths"))
         .def(
             "undistort_points",
-            [](const pyslam::PinholeCamera &self, pyslam::MatNx2dRef uvs) {
+            [](pyslam::PinholeCamera &self, pyslam::MatNx2dRef uvs) {
                 return self.undistort_points(uvs);
             },
             py::arg("uvs"))
         .def("undistort_image_bounds", &pyslam::PinholeCamera::undistort_image_bounds)
-        .def("to_json", &pyslam::PinholeCamera::to_json)
+        .def("to_json", [](const pyslam::PinholeCamera &self) {
+            try {
+                std::string json_str = self.to_json();
+                nlohmann::json j = nlohmann::json::parse(json_str);
+                return pyslam::json_to_dict(j);
+            } catch (const std::exception &e) {
+                throw std::runtime_error("Failed to convert camera to dict: " + std::string(e.what()));
+            }
+        })
         .def_static("from_json", &pyslam::PinholeCamera::from_json, py::arg("json_str"))
         .def(py::pickle([](const pyslam::PinholeCamera &self) { return self.state_tuple(); },
         [](py::tuple t) {

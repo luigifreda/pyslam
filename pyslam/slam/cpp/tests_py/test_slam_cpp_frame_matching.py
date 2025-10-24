@@ -1,3 +1,22 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import sys
 import os
 import numpy as np
@@ -6,9 +25,10 @@ from matplotlib import pyplot as plt
 
 
 from pyslam.config import Config
+from pyslam.config_parameters import Parameters
 
-
-os.environ["PYSLAM_USE_CPP"] = "true"  # set environment variable to use C++ module
+USE_CPP = True
+Parameters.USE_CPP_CORE = USE_CPP
 
 from pyslam.slam import (
     Frame,
@@ -70,7 +90,7 @@ if __name__ == "__main__":
     # ============================================
 
     # select your tracker configuration (see the file feature_tracker_configs.py)
-    tracker_config = FeatureTrackerConfigs.ORB2
+    tracker_config = FeatureTrackerConfigs.ROOT_SIFT
     tracker_config["num_features"] = 1000
     tracker_config["deterministic"] = True
     feature_tracker = feature_tracker_factory(**tracker_config)
@@ -98,7 +118,8 @@ if __name__ == "__main__":
 
     timer.start()
 
-    matching_result = match_frames(f_ref, f_cur, ratio_test=0.8)
+    print(f"f_ref: {f_ref}, f_cur: {f_cur}")
+    matching_result = match_frames(f_ref, f_cur)
     idxs_ref, idxs_cur, num_found_matches = (
         matching_result.idxs1,
         matching_result.idxs2,

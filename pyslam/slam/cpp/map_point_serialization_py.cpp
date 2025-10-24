@@ -43,8 +43,9 @@ namespace pyslam {
 //=======================================
 
 py::tuple MapPoint::state_tuple(bool need_lock) const {
-    CONDITIONAL_LOCK(_lock_pos, need_lock);
+    // Acquire feature lock before position lock to stay consistent with MapPoint methods.
     CONDITIONAL_LOCK(_lock_features, need_lock);
+    CONDITIONAL_LOCK(_lock_pos, need_lock);
 
     int version = 1;
 
@@ -88,8 +89,9 @@ py::tuple MapPoint::state_tuple(bool need_lock) const {
 }
 
 void MapPoint::restore_from_state(const py::tuple &t, bool need_lock) {
-    CONDITIONAL_LOCK(_lock_pos, need_lock);
+    // Keep lock order aligned with state_tuple() to prevent deadlocks.
     CONDITIONAL_LOCK(_lock_features, need_lock);
+    CONDITIONAL_LOCK(_lock_pos, need_lock);
 
     int idx = 0;
     int version = t[idx++].cast<int>();

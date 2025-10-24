@@ -257,7 +257,7 @@ class Camera(CameraBase):
 
         self.K: np.ndarray | None = None
         self.Kinv: np.ndarray | None = None
-        self.compute_intrinsic_matrices()
+        self.set_intrinsic_matrices()
 
         self.fovx = focal2fov(fx, width)
         self.fovy = focal2fov(fy, height)
@@ -297,7 +297,7 @@ class Camera(CameraBase):
             raise ValueError("Camera: Expecting the field ThDepth in the camera config file")
         print(f"Camera: is_stereo = {self.is_stereo()}")
 
-    def compute_intrinsic_matrices(self):
+    def set_intrinsic_matrices(self):
         fx, fy, cx, cy = self.fx, self.fy, self.cx, self.cy
         self.K = np.array([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], dtype=np.float64)
         self.Kinv = np.array(

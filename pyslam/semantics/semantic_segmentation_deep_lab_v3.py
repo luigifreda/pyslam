@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -86,6 +87,8 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
 
         self.semantic_dataset_type = semantic_dataset_type
 
+        self.encoder_name = encoder_name
+
         if semantic_feature_type not in self.supported_feature_types:
             raise ValueError(
                 f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}"
@@ -121,6 +124,36 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
         else:
             print("SemanticSegmentationDeepLabV3: Using CPU")
         return device
+
+    def num_classes(self):
+        # 1) Prefer the weight metadata (works for torchvision pretrained weights)
+        try:
+            weights = self.model_configs[self.encoder_name]["weights"]
+            meta = getattr(weights, "meta", None)
+            if meta and "categories" in meta and meta["categories"]:
+                return len(meta["categories"])
+        except Exception:
+            pass
+
+        # 2) Introspect the classifier head: grab the last Conv2d's out_channels
+        try:
+            head = getattr(self.model, "classifier", None)
+            if isinstance(head, torch.nn.Module):
+                for m in reversed(list(head.modules())):
+                    if isinstance(m, torch.nn.Conv2d):
+                        return m.out_channels
+        except Exception:
+            pass
+
+        # 3) Last resort: run a tiny forward and read the channel count
+        try:
+            with torch.no_grad():
+                H, W = self.model_configs[self.encoder_name]["image_size"]
+                dummy = torch.zeros(1, 3, H, W, device=self.device)
+                out = self.model(dummy)["out"]
+                return out.shape[1]
+        except Exception:
+            raise Exception("SemanticSegmentationDeepLabV3: Failed to get number of classes")
 
     @torch.no_grad()
     def infer(self, image):
