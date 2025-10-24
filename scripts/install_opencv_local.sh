@@ -160,7 +160,7 @@ fi
 if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
     if [[ $version != *"darwin"* ]]; then
         sudo apt-get update
-        sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev
+        sudo apt-get install -y pkg-config libglew-dev libtiff5-dev zlib1g-dev libjpeg-dev libeigen3-dev libtbb-dev libgtk2.0-dev libopenblas-dev libgtk-3-dev
         sudo apt-get install -y curl software-properties-common unzip
         sudo apt-get install -y libicu-dev        
         sudo apt-get install -y build-essential cmake 
@@ -174,7 +174,7 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
 
         if [[ $version == *"22.04"* || $version == *"24.04"* ]] ; then
             sudo apt install -y libtbb-dev libeigen3-dev 
-            sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev 
+            sudo apt install -y zlib1g-dev libjpeg-dev libwebp-dev libpng-dev libtiff5-dev
             sudo add-apt-repository -y "deb http://security.ubuntu.com/ubuntu xenial-security main"  # for libjasper-dev 
             sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 # for libjasper-dev 
             sudo apt update
