@@ -34,15 +34,15 @@ import numpy as np
 
 # import open3d as o3d # apparently, this generates issues under mac
 
-from pyslam.slam.map import Map
+from pyslam.slam import Map
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
-from pyslam.utilities.utils_geom import poseRt, inv_poseRt, inv_T
-from pyslam.utilities.utils_geom_trajectory import TrajectoryAlignerProcess
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_data import empty_queue
-from pyslam.utilities.utils_colors import GlColors
+from pyslam.utilities.geometry import poseRt, inv_poseRt, inv_T
+from pyslam.utilities.geom_trajectory import TrajectoryAlignerProcess
+from pyslam.utilities.system import Printer
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.data_management import empty_queue
+from pyslam.utilities.colors import GlColors
 
 from typing import TYPE_CHECKING
 
@@ -71,6 +71,8 @@ kAlignGroundTruthMaxEveryNFrames = 20  # maximum number of frames between alignm
 kAlignGroundTruthMaxEveryTimeInterval = 3  # [s] maximum time interval between alignments
 
 kRefreshDurationTime = 0.03  # [s]
+
+kMaxMapPointsToVisualize = 1e6  # Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth and GL load
 
 
 class VizPointCloud:
@@ -866,8 +868,9 @@ class Viewer3D(object):
         map_state.cur_frame_id = slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
 
         if map.num_frames() > 0:
-            map_state.cur_pose = map.get_frame(-1).Twc()
-            map_state.cur_pose_timestamp = map.get_frame(-1).timestamp
+            last_f = map.get_frame(-1)
+            map_state.cur_pose = last_f.Twc().copy()
+            map_state.cur_pose_timestamp = last_f.timestamp
 
         if slam.tracking.predicted_pose is not None:
             map_state.predicted_pose = slam.tracking.predicted_pose.inverse().matrix().copy()
@@ -879,62 +882,92 @@ class Viewer3D(object):
         keyframes = map.get_keyframes()
         num_map_keyframes = len(keyframes)
         if num_map_keyframes > 0:
-            for kf in keyframes:
-                map_state.poses.append(kf.Twc())
-                map_state.pose_timestamps.append(kf.timestamp)
-                if kf.fov_center_w is not None:
-                    map_state.fov_centers.append(kf.fov_center_w.T)
-                    map_state.fov_centers_colors.append(np.array([1.0, 0.0, 0.0]))  # green
-        map_state.poses = np.array(map_state.poses, dtype=float)
-        map_state.pose_timestamps = np.array(map_state.pose_timestamps, dtype=np.float64)
-        if len(map_state.fov_centers) > 0:
-            map_state.fov_centers = np.array(map_state.fov_centers).reshape(-1, 3)
-            map_state.fov_centers_colors = np.array(map_state.fov_centers_colors).reshape(-1, 3)
+            # Twc() and timestamp collection
+            map_state.poses = np.array([kf.Twc() for kf in keyframes], dtype=float)
+            map_state.pose_timestamps = np.array(
+                [kf.timestamp for kf in keyframes], dtype=np.float64
+            )
 
+            # Only gather fov centers that exist
+            fov_centers = [kf.fov_center_w.T for kf in keyframes if kf.fov_center_w is not None]
+            if fov_centers:
+                map_state.fov_centers = np.asarray(fov_centers, dtype=float).reshape(-1, 3)
+                map_state.fov_centers_colors = np.tile(
+                    np.array([1.0, 0.0, 0.0], dtype=float), (len(fov_centers), 1)
+                )
+
+        # map points
         map_points = map.get_points()
         num_map_points = len(map_points)
         if num_map_points > 0:
-            map_state.points = np.empty((num_map_points, 3), dtype=np.float32)
-            map_state.colors = np.empty((num_map_points, 3), dtype=np.float32)
-            map_state.semantic_colors = np.empty((num_map_points, 3), dtype=np.float32)
+            # Downsampling for very large clouds to reduce queue bandwidth and GL load
+            if num_map_points > kMaxMapPointsToVisualize:
+                Printer.orange(
+                    f"Viewer3D: draw_slam_map - downsampling map points from {num_map_points} to {kMaxMapPointsToVisualize}"
+                )
+                idx = np.random.choice(num_map_points, kMaxMapPointsToVisualize, replace=False)
+                sel_points = [map_points[i] for i in idx]
+            else:
+                sel_points = map_points
+
+            N = len(sel_points)
+            pts = np.empty((N, 3), dtype=np.float32)
+            cols_rgb = np.empty((N, 3), dtype=np.float32)
+            sem_colors = np.zeros((N, 3), dtype=np.float32)
+
+            is_semantic_mapping_active = SemanticMappingShared.sem_des_to_rgb is not None
             try:
-                for i, p in enumerate(map_points):
-                    map_state.points[i] = p.pt
-                    map_state.colors[i] = np.flip(p.color)
-                    if (
-                        p.semantic_des is not None
-                        and SemanticMappingShared.sem_des_to_rgb is not None
-                    ):
-                        map_state.semantic_colors[i] = SemanticMappingShared.sem_des_to_rgb(
-                            p.semantic_des, bgr=False
-                        )
-                    else:
-                        map_state.semantic_colors[i] = np.array([0.0, 0.0, 0.0])
+                if is_semantic_mapping_active:
+                    for i, p in enumerate(sel_points):
+                        pts[i] = p.pt()
+                        cols_rgb[i] = p.color
+                        if p.semantic_des is not None:
+                            sem_colors[i] = SemanticMappingShared.sem_des_to_rgb(
+                                p.semantic_des, bgr=False
+                            )
+                else:
+                    for i, p in enumerate(sel_points):
+                        pts[i] = p.pt()
+                        cols_rgb[i] = p.color
             except Exception as e:
                 Printer.red(f"Viewer3D: draw_slam_map - error: {e}")
 
-        map_state.points = np.array(map_state.points)
-        map_state.colors = np.array(map_state.colors) / 256.0
-        map_state.semantic_colors = np.array(map_state.semantic_colors) / 256.0
+            map_state.points = pts
+            map_state.colors = cols_rgb[:, ::-1] / 255.0  # BGR -> RGB and normalize
+            map_state.semantic_colors = (
+                sem_colors / 255.0 if is_semantic_mapping_active else sem_colors
+            )
 
-        for kf in keyframes:
-            for kf_cov in kf.get_covisible_by_weight(kMinWeightForDrawingCovisibilityEdge):
-                if kf_cov.kid > kf.kid:
-                    map_state.covisibility_graph.append([*kf.Ow(), *kf_cov.Ow()])
-            if kf.parent is not None:
-                map_state.spanning_tree.append([*kf.Ow(), *kf.parent.Ow()])
-            for kf_loop in kf.get_loop_edges():
-                if kf_loop.kid > kf.kid:
-                    map_state.loops.append([*kf.Ow(), *kf_loop.Ow()])
-        map_state.covisibility_graph = np.array(map_state.covisibility_graph)
-        map_state.spanning_tree = np.array(map_state.spanning_tree)
-        map_state.loops = np.array(map_state.loops)
+        # graphs
+        if keyframes:
+            cov_lines = []
+            span_lines = []
+            loop_lines = []
+            for kf in keyframes:
+                Ow = kf.Ow()
+                for kf_cov in kf.get_covisible_by_weight(kMinWeightForDrawingCovisibilityEdge):
+                    if kf_cov.kid > kf.kid:
+                        cov_lines.append([*Ow, *kf_cov.Ow()])
+                if kf.parent is not None:
+                    span_lines.append([*Ow, *kf.parent.Ow()])
+                for kf_loop in kf.get_loop_edges():
+                    if kf_loop.kid > kf.kid:
+                        loop_lines.append([*Ow, *kf_loop.Ow()])
+            map_state.covisibility_graph = (
+                np.asarray(cov_lines, dtype=float) if cov_lines else np.empty((0, 6), dtype=float)
+            )
+            map_state.spanning_tree = (
+                np.asarray(span_lines, dtype=float) if span_lines else np.empty((0, 6), dtype=float)
+            )
+            map_state.loops = (
+                np.asarray(loop_lines, dtype=float) if loop_lines else np.empty((0, 6), dtype=float)
+            )
 
-        if self.gt_trajectory is not None:
-            if not self._is_gt_set.value:
-                map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
-                map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
-                map_state.align_gt_with_scale = self.align_gt_with_scale
+        # Ground truth one-shot set
+        if self.gt_trajectory is not None and not self._is_gt_set.value:
+            map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
+            map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
+            map_state.align_gt_with_scale = self.align_gt_with_scale
 
         self.qmap.put(map_state)
 

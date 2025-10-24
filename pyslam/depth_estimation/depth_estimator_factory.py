@@ -26,11 +26,11 @@ import pyslam.config as config
 import torch
 import platform
 
-from pyslam.slam.camera import Camera
+from pyslam.slam import Camera
 from pyslam.io.dataset_types import DatasetEnvironmentType
-from pyslam.utilities.utils_sys import import_from
+from pyslam.utilities.system import import_from
 
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
+from pyslam.utilities.serialization import SerializableEnum, register_class
 
 from .depth_estimator_base import DepthEstimator, DepthEstimatorSgbm
 

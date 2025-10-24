@@ -28,12 +28,14 @@
 
 #include "map.h"
 #include "optimizer_g2o_bind_helpers.h"
+#include "py_wrappers.h"
+#include "utils/map_helpers.h"
 
 namespace py = pybind11;
 
 namespace pyslam {
 
-#define DISABLE_MAP_ABORT_FLAG 0
+using PyMapMutexWrapper = pyslam::PyMutexWrapperT<pyslam::MapMutex>;
 
 // Wrapper for map->optimize to return double (mean_squared_error)
 inline std::pair<double, py::dict> map_optimize_wrapper(MapPtr map, int local_window_size,
@@ -41,22 +43,17 @@ inline std::pair<double, py::dict> map_optimize_wrapper(MapPtr map, int local_wi
                                                         bool use_robust_kernel, bool do_cull_points,
                                                         py::object abort_flag) {
 
-#if DISABLE_MAP_ABORT_FLAG
-    bool *abort_flag_value_ptr = nullptr;
-#else
-    G2oAbortFlag abort_flag_wrapper(abort_flag);
+    PyG2oAbortFlag abort_flag_wrapper(abort_flag);
     bool *abort_flag_value_ptr = abort_flag_wrapper.get_value_ptr();
-#endif
     double mean_squared_error = 0.0;
     {
-#if !DISABLE_MAP_ABORT_FLAG
+
         py::gil_scoped_release release;
-#endif
+
         mean_squared_error = map->optimize(local_window_size, verbose, rounds, use_robust_kernel,
                                            do_cull_points, abort_flag_value_ptr);
-#if !DISABLE_MAP_ABORT_FLAG
+
         abort_flag_wrapper.stop_monitoring();
-#endif
     }
 
     return std::make_pair(mean_squared_error, py::dict());
@@ -66,33 +63,39 @@ inline std::pair<double, py::dict> map_optimize_wrapper(MapPtr map, int local_wi
 inline double map_locally_optimize_wrapper(MapPtr map, KeyFramePtr kf_ref, bool verbose, int rounds,
                                            py::object abort_flag,
                                            py::object mp_abort_flag = py::none()) {
-#if DISABLE_MAP_ABORT_FLAG
-    bool *abort_flag_value_ptr = nullptr;
-#else
+
     py::object abort_flag_object = abort_flag.is_none() ? mp_abort_flag : abort_flag;
-    G2oAbortFlag abort_flag_wrapper(abort_flag_object);
+    PyG2oAbortFlag abort_flag_wrapper(abort_flag_object);
     bool *abort_flag_value_ptr = abort_flag_wrapper.get_value_ptr();
-#endif
 
     double mean_squared_error = 0.0;
     {
-#if !DISABLE_MAP_ABORT_FLAG
         py::gil_scoped_release release;
-#endif
+
         mean_squared_error = map->locally_optimize(kf_ref, verbose, rounds, abort_flag_value_ptr);
-#if !DISABLE_MAP_ABORT_FLAG
+
         abort_flag_wrapper.stop_monitoring();
-#endif
     }
 
     return mean_squared_error;
 }
 
 // Wrapper for LocalMapBase::update_from_keyframes template method
-inline std::tuple<pyslam::KeyFrameIdSet, std::set<pyslam::MapPointPtr>, pyslam::KeyFrameIdSet>
+inline std::tuple<pyslam::KeyFrameIdSet, std::unordered_set<pyslam::MapPointPtr>,
+                  pyslam::KeyFrameIdSet>
 local_map_update_from_keyframes_wrapper(std::shared_ptr<pyslam::LocalMapBase> local_map,
                                         const pyslam::KeyFrameIdSet &local_keyframes) {
     return local_map->update_from_keyframes(local_keyframes);
+}
+
+std::tuple<pyslam::KeyFramePtr, std::vector<pyslam::KeyFramePtr>, std::vector<pyslam::MapPointPtr>>
+get_frame_covisibles_wrapper(pyslam::LocalMapBase &self, pyslam::FramePtr frame) {
+    auto [kf_ref, local_keyframes, local_points_set] = self.get_frame_covisibles(frame);
+
+    // Use the safer validation function to filter valid MapPoints
+    std::vector<pyslam::MapPointPtr> local_points_vector = filter_valid_mappoints(local_points_set);
+
+    return std::make_tuple(kf_ref, local_keyframes, local_points_vector);
 }
 
 } // namespace pyslam
@@ -165,6 +168,7 @@ void bind_map(pybind11::module &m) {
         .def("num_points", &pyslam::Map::num_points)
         .def("add_point", &pyslam::Map::add_point)
         .def("remove_point", &pyslam::Map::remove_point)
+        .def("remove_point_no_lock", &pyslam::Map::remove_point_no_lock)
 
         // Frame operations
         .def("get_frame", &pyslam::Map::get_frame, py::arg("idx"))
@@ -174,7 +178,8 @@ void bind_map(pybind11::module &m) {
         .def("remove_frame", &pyslam::Map::remove_frame)
 
         // KeyFrame operations
-        .def("get_keyframes", &pyslam::Map::get_keyframes)
+        .def("get_keyframes",
+             &pyslam::Map::get_keyframes_vector) // NOTE: returns a vector of KeyFramePtrs
         .def("get_last_keyframe", &pyslam::Map::get_last_keyframe)
         .def("get_last_keyframes", &pyslam::Map::get_last_keyframes,
              py::arg("local_window_size") = 5)
@@ -208,7 +213,7 @@ void bind_map(pybind11::module &m) {
                 return pyslam::map_optimize_wrapper(self, local_window_size, verbose, rounds,
                                                     use_robust_kernel, do_cull_points, abort_flag);
             },
-            py::arg("local_window_size") = pyslam::Map::kLargeBAWindowSize,
+            py::arg("local_window_size") = pyslam::Parameters::kLargeBAWindowSize,
             py::arg("verbose") = false, py::arg("rounds") = 10,
             py::arg("use_robust_kernel") = false, py::arg("do_cull_points") = false,
             py::arg("abort_flag") = nullptr)
@@ -227,13 +232,26 @@ void bind_map(pybind11::module &m) {
         // Session management
         .def("is_reloaded", &pyslam::Map::is_reloaded)
         .def("set_reloaded_session_info", &pyslam::Map::set_reloaded_session_info)
-        .def("get_reloaded_session_info", &pyslam::Map::get_reloaded_session_info);
+        .def("get_reloaded_session_info", &pyslam::Map::get_reloaded_session_info)
+        // Lock properties
+        .def_property_readonly(
+            "lock",
+            [](pyslam::Map &self) {
+                return std::make_shared<pyslam::PyMapMutexWrapper>(self.lock());
+            },
+            py::keep_alive<0, 1>() // keep Map (arg #1) alive as long as the returned wrapper lives
+            )
+        .def_property_readonly(
+            "update_lock",
+            [](pyslam::Map &self) {
+                return std::make_shared<pyslam::PyMapMutexWrapper>(self.update_lock());
+            },
+            py::keep_alive<0, 1>() // keep Map (arg #1) alive as long as the returned wrapper lives
+        );
 
     // LocalMapBase class - complete interface matching Python LocalMapBase
     py::class_<pyslam::LocalMapBase, std::shared_ptr<pyslam::LocalMapBase>>(m, "LocalMapBase")
-        .def(py::init([](std::shared_ptr<pyslam::Map> map) {
-                 return std::make_shared<pyslam::LocalMapBase>(map);
-             }),
+        .def(py::init([](pyslam::Map *map) { return std::make_shared<pyslam::LocalMapBase>(map); }),
              py::arg("map") = nullptr,
              py::keep_alive<0, 1>()) // Keep map alive as long as LocalMapBase is alive
 
@@ -245,8 +263,13 @@ void bind_map(pybind11::module &m) {
 
         // Lock property
         .def_property_readonly(
-            "lock", [](pyslam::LocalMapBase &self) -> std::mutex & { return self.lock(); })
-
+            "lock",
+            [](pyslam::LocalMapBase &self) {
+                return std::make_shared<pyslam::PyMapMutexWrapper>(self.lock());
+            },
+            py::keep_alive<0, 1>() // keep LocalMapBase (arg #1) alive as long as the returned
+                                   // wrapper lives
+            )
         // Core operations
         .def("reset", &pyslam::LocalMapBase::reset)
         .def("reset_session", &pyslam::LocalMapBase::reset_session,
@@ -265,12 +288,12 @@ void bind_map(pybind11::module &m) {
         // Update methods
         .def("update_from_keyframes", &pyslam::local_map_update_from_keyframes_wrapper,
              py::arg("local_keyframes"))
-        .def("get_frame_covisibles", &pyslam::LocalMapBase::get_frame_covisibles);
+        .def("get_frame_covisibles", &pyslam::LocalMapBase::get_frame_covisibles, py::arg("frame"));
 
     // LocalWindowMap class - complete interface matching Python LocalWindowMap
     py::class_<pyslam::LocalWindowMap, pyslam::LocalMapBase,
                std::shared_ptr<pyslam::LocalWindowMap>>(m, "LocalWindowMap")
-        .def(py::init([](pyslam::MapPtr map, int local_window_size) {
+        .def(py::init([](pyslam::Map *map, int local_window_size) {
                  return std::make_shared<pyslam::LocalWindowMap>(map, local_window_size);
              }),
              py::arg("map") = nullptr, py::arg("local_window_size") = 5)
@@ -288,7 +311,7 @@ void bind_map(pybind11::module &m) {
     // LocalCovisibilityMap class - complete interface matching Python
     py::class_<pyslam::LocalCovisibilityMap, pyslam::LocalMapBase,
                std::shared_ptr<pyslam::LocalCovisibilityMap>>(m, "LocalCovisibilityMap")
-        .def(py::init([](pyslam::MapPtr map) {
+        .def(py::init([](pyslam::Map *map) {
                  return std::make_shared<pyslam::LocalCovisibilityMap>(map);
              }),
              py::arg("map") = nullptr)

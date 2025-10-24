@@ -24,16 +24,13 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.utils_sys import getchar, Printer
-from pyslam.utilities.utils_features import transform_float_to_binary_descriptor
+from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.features import transform_float_to_binary_descriptor
 
 from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_types import FeatureInfo
 
 from pyslam.utilities.timer import TimerFps
-
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
 
 from .loop_detector_base import (
     LoopDetectorTaskType,

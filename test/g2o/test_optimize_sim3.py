@@ -9,20 +9,24 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
-from pyslam.slam.frame import Frame, FeatureTrackerShared
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.map_point import MapPoint
-from pyslam.slam.camera import Camera, PinholeCamera
-from pyslam.utilities.utils_geom import rotation_matrix_from_yaw_pitch_roll, poseRt, inv_T
-from pyslam.slam.sim3_pose import Sim3Pose
-from pyslam.utilities.utils_gen_synthetic_data import (
+from pyslam.slam import (
+    Frame,
+    Sim3Pose,
+    MapPoint,
+    KeyFrame,
+    Camera,
+    PinholeCamera,
+    optimizer_gtsam,
+    optimizer_g2o,
+)
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
+
+from pyslam.utilities.geometry import rotation_matrix_from_yaw_pitch_roll, poseRt, inv_T
+from pyslam.utilities.synthetic_data import (
     generate_random_points_2d,
     backproject_points,
     project_points,
 )
-
-from pyslam.slam import optimizer_gtsam
-from pyslam.slam import optimizer_g2o
 
 
 class FakeFeatureManager:
@@ -246,7 +250,7 @@ class TestOptimizeSim3(TestCase):
 
         # print(f'gt Sc1c2: {self.gt_Sc1c2}')
 
-        # update camera 2 pose after relative motion (starting from pyslam.slam.camera 1 pose)
+        # update camera 2 pose after relative motion (starting from camera 1 pose)
         Rwc2 = self.Rwc1 @ self.Rc1c2
         twc2 = self.Rwc1 @ self.tc1c2 + self.twc1
         Rc2w = Rwc2.T

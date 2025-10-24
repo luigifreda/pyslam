@@ -23,7 +23,7 @@ import numpy as np
 
 import pyslam.config as config
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 from .feature_base import BaseFeature2D
 
 import kornia as K

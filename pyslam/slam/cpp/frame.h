@@ -19,23 +19,26 @@
 
 #pragma once
 
+#include "camera.h"
+#include "camera_pose.h"
+#include "feature_shared_resources.h"
+
+#include "ckdtree_eigen.h"
+#include "smart_pointers.h"
+#include "utils/inheritable_shared_from_this.h"
+
 #include <Eigen/Dense>
 #include <atomic>
 #include <memory>
 #include <mutex>
-#include <opencv2/opencv.hpp>
-#include <shared_mutex>
 #include <vector>
 
-#include "camera.h"
-#include "camera_pose.h"
-#include "feature_shared_info.h"
+#include <opencv2/opencv.hpp>
 
+#ifdef USE_PYTHON
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
-
-#include "ckdtree_eigen.h"
-#include "smart_pointers.h"
+#endif
 
 namespace pyslam {
 
@@ -44,10 +47,13 @@ class Camera;
 class CameraPose;
 class MapPoint;
 class KeyFrame;
+class TrackingUtils;
 
 // Base object class for frame info management - matches Python FrameBase
 // exactly
 class FrameBase {
+
+    friend class TrackingUtils;
 
   protected:
     static std::atomic<int> _id; // shared frame counter
@@ -119,9 +125,12 @@ class FrameBase {
     const Eigen::Vector3d position() const; // 3D vector tcw (world origin w.r.t. camera frame)
 
     void update_pose(const CameraPose &pose);
+    void update_pose(const Eigen::Isometry3d &isometry3d);
     void update_pose(const Eigen::Matrix4d &Tcw);
     void update_translation(const Eigen::Vector3d &tcw);
     void update_rotation_and_translation(const Eigen::Matrix3d &Rcw, const Eigen::Vector3d &tcw);
+    void update_rotation_and_translation_no_lock_(const Eigen::Matrix3d &Rcw,
+                                                  const Eigen::Vector3d &tcw);
 
     template <typename Scalar> Vec3<Scalar> transform_point(Vec3Ref<Scalar> pw) const;
     template <typename Scalar> MatNx3<Scalar> transform_points(MatNx3Ref<Scalar> points) const;
@@ -136,16 +145,18 @@ class FrameBase {
                        bool do_stereo_project = false) const;
 
     template <typename Scalar>
-    std::pair<Vec2<Scalar>, Scalar> project_point(Vec3Ref<Scalar> pw) const;
+    std::pair<VecN<Scalar>, Scalar> project_point(Vec3Ref<Scalar> pw,
+                                                  bool do_stereo_project = false) const;
     template <typename Scalar>
-    std::pair<Vec2<Scalar>, Scalar> project_map_point(const MapPointPtr &map_point) const;
+    std::pair<VecN<Scalar>, Scalar> project_map_point(const MapPointPtr &map_point,
+                                                      bool do_stereo_project = false) const;
 
     template <typename Scalar> bool is_in_image(Vec2Ref<Scalar> uv, Scalar z) const {
         return camera->is_in_image(uv, z);
     }
 
     template <typename Scalar>
-    std::vector<bool> are_in_image(MatNx2Ref<Scalar> uvs, VecNRef<Scalar> zs) const {
+    std::vector<bool> are_in_image(MatNxMRef<Scalar> uvs, VecNRef<Scalar> zs) const {
         return camera->are_in_image(uvs, zs);
     }
 
@@ -153,7 +164,7 @@ class FrameBase {
     std::tuple<bool, Vec2<Scalar>, Scalar> is_visible(const MapPointPtr &map_point) const;
 
     template <typename Scalar>
-    std::tuple<std::vector<bool>, MatNx2<Scalar>, VecN<Scalar>, VecN<Scalar>>
+    std::tuple<std::vector<bool>, MatNxM<Scalar>, VecN<Scalar>, VecN<Scalar>>
     are_visible(const std::vector<MapPointPtr> &map_points, bool do_stereo_project = false) const;
 
     // Comparison operators
@@ -167,12 +178,13 @@ class FrameBase {
 
 // A Frame mainly collects keypoints, descriptors and their corresponding 3D
 // points - matches Python Frame exactly
-class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
+class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame> {
   protected:
     mutable std::mutex _lock_features;
     mutable std::mutex _lock_kd;
 
   protected:
+    friend class TrackingUtils;
     friend void bind_frame(pybind11::module &m);
 
   public:
@@ -229,6 +241,11 @@ class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
     // KDTree
     std::shared_ptr<cKDTree2f> _kd;
 
+  protected:
+    // Temporary storage for ID-based data during deserialization
+    std::vector<int> _points_id_data;
+    int _kf_ref_id = -1;
+
   public:
     // Constructor
     Frame(const CameraPtr &camera, const cv::Mat &img = cv::Mat(),
@@ -240,7 +257,7 @@ class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
     explicit Frame(int id) : FrameBase(id) {}
 
     // Destructor
-    ~Frame() { reset(); }
+    virtual ~Frame() { reset(); }
 
     // Delete copy constructor, assignment, move constructor, assignment
     Frame(const Frame &other) = delete;
@@ -266,13 +283,13 @@ class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
     std::vector<MapPointPtr> get_points() const;
     std::vector<MapPointPtr> get_matched_points() const;
     std::vector<int> get_unmatched_points_idxs() const;
-    std::vector<MapPointPtr> get_matched_inlier_points() const;
+    std::pair<std::vector<MapPointPtr>, std::vector<int>> get_matched_inlier_points() const;
     std::vector<MapPointPtr> get_matched_good_points() const;
     std::pair<std::vector<int>, std::vector<MapPointPtr>> get_matched_good_points_with_idxs() const;
 
     int num_tracked_points(int minObs = 1) const;
     int num_matched_inlier_map_points() const;
-    void update_map_points_statistics(int sensor_type = 0); // SensorType.MONOCULAR = 0
+    int update_map_points_statistics(const SensorType &sensor_type = SensorType::MONOCULAR);
     int clean_outlier_map_points();
     void clean_bad_map_points();
     void clean_vo_matches();
@@ -291,7 +308,7 @@ class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
     unproject_points_3d(const std::vector<int> &idxs, bool transform_in_world = false) const;
 
     template <typename Scalar>
-    Scalar compute_points_median_depth(MatNx3Ref<Scalar> points3d = {},
+    Scalar compute_points_median_depth(MatNx3Ref<Scalar> points3d = MatNx3<Scalar>(),
                                        const Scalar percentile = 0.5f) const;
 
     void set_img_right(const cv::Mat &img_right);
@@ -302,8 +319,9 @@ class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
 
     // Cleanup method for proper shutdown
     void clear_references() {
-        points.clear();
-        kf_ref = nullptr;
+        // points.clear();
+        // kf_ref = nullptr;
+        reset();
     }
 
   public:
@@ -320,9 +338,12 @@ class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
                                   const std::vector<FramePtr> &frames,
                                   const std::vector<KeyFramePtr> &keyframes);
 
+#ifdef USE_PYTHON
     // Numpy serialization
-    pybind11::tuple state_tuple() const;              // builds the versioned tuple
-    void restore_from_state(const pybind11::tuple &); // fills this object from the tuple
+    pybind11::tuple state_tuple(bool need_lock = true) const; // builds the versioned tuple
+    void restore_from_state(const pybind11::tuple &,
+                            bool need_lock = true); // fills this object from the tuple
+#endif
 
   public:
     // Methods to perform feature detection
@@ -335,6 +356,11 @@ class Frame : public FrameBase, public std::enable_shared_from_this<Frame> {
     template <typename T>
     void extract_depth_values(const cv::Mat_<T> &depth, std::vector<bool> &valid_depth_mask,
                               std::vector<float> &valid_depths);
+};
+
+struct FrameIdCompare {
+    bool operator()(const Frame *a, const Frame *b) const noexcept { return a->id < b->id; }
+    bool operator()(const FramePtr &a, const FramePtr &b) const noexcept { return a->id < b->id; }
 };
 
 } // namespace pyslam

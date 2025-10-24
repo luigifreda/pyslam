@@ -28,9 +28,9 @@ from numba import njit
 import ujson as json
 
 from pyslam.config import Config
-from pyslam.utilities.utils_geom import add_ones, add_ones_numba
-from pyslam.utilities.utils_sys import Printer
-from pyslam.io.dataset_types import SensorType
+from pyslam.utilities.geometry import add_ones, add_ones_numba
+from pyslam.utilities.system import Printer
+from pyslam.io.dataset_types import SensorType, get_sensor_type
 
 from typing import TYPE_CHECKING
 
@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 #     from pyslam.config import Config
 
 
-class CameraType(Enum):
+class CameraType(Enum):  # keep it consistent with C++ CameraType
     NONE = 0
     PINHOLE = 1
 
@@ -250,6 +250,11 @@ class Camera(CameraBase):
         self.cx = cx
         self.cy = cy
 
+        if not self.width or not self.height:
+            raise ValueError(
+                "Camera: Expecting the fields Camera.width and Camera.height in the camera config file"
+            )
+
         self.K: np.ndarray | None = None
         self.Kinv: np.ndarray | None = None
         self.compute_intrinsic_matrices()
@@ -262,32 +267,35 @@ class Camera(CameraBase):
 
         self.fps = fps
 
-        self.sensor_type = (
-            config.sensor_type if hasattr(config, "sensor_type") else SensorType.MONOCULAR
-        )
+        sensor_type = config.sensor_type if hasattr(config, "sensor_type") else "mono"
+        self.sensor_type = get_sensor_type(sensor_type)
+        print(f"Camera: sensor_type = {self.sensor_type}")
 
         # If stereo camera => assuming rectified images as input at present (so no need of left-right transformation matrix Tlr)
-        if "Camera.bf" in config.cam_settings:
+        if "Camera.bf" in config.cam_settings and self.sensor_type != SensorType.MONOCULAR:
             self.bf = config.cam_settings["Camera.bf"]
             self.b = self.bf / self.fx
-        if config.sensor_type == "stereo" and self.bf is None:
+        if config.sensor_type == SensorType.STEREO and self.bf is None:
             raise ValueError("Camera: Expecting the field Camera.bf in the camera config file")
+
         self.depth_factor = 1.0  # Depthmap values factor
         if "DepthMapFactor" in config.cam_settings:
             self.depth_factor = 1.0 / float(config.cam_settings["DepthMapFactor"])
             # print("Using DepthMapFactor = %f" % self.depth_factor)
-        if config.sensor_type == "rgbd" and self.depth_factor is None:
+        if config.sensor_type == SensorType.RGBD and self.depth_factor <= 0:
             raise ValueError("Camera: Expecting the field DepthMapFactor in the camera config file")
+
         self.depth_threshold = float("inf")  # Close/Far threshold.
-        if "ThDepth" in config.cam_settings:
+        if "ThDepth" in config.cam_settings and self.sensor_type != SensorType.MONOCULAR:
             depth_threshold = float(config.cam_settings["ThDepth"])  # Baseline times.
             assert self.bf is not None
             self.depth_threshold = self.bf * depth_threshold / self.fx  # Depth threshold in meters
             print("Camera: Using depth_threshold = %f" % self.depth_threshold)
         if (
-            config.sensor_type == "rgbd" or config.sensor_type == "stereo"
+            config.sensor_type == SensorType.RGBD or config.sensor_type == SensorType.STEREO
         ) and self.depth_threshold is None:
             raise ValueError("Camera: Expecting the field ThDepth in the camera config file")
+        print(f"Camera: is_stereo = {self.is_stereo()}")
 
     def compute_intrinsic_matrices(self):
         fx, fy, cx, cy = self.fx, self.fy, self.cx, self.cy
@@ -298,7 +306,18 @@ class Camera(CameraBase):
         )
 
     def is_stereo(self):
-        return self.bf is not None
+        return self.bf is not None and self.sensor_type != SensorType.MONOCULAR
+
+    # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
+    # out: Nx2 image points, [Nx1] array of map point depths
+    def project(self, xcs):
+        pass
+
+    # stereo-project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
+    # (assuming rectified stereo images)
+    # out: Nx3 image points, [Nx1] array of map point depths
+    def project_stereo(self, xcs):
+        pass
 
     def to_json(self):
         return {
@@ -310,9 +329,9 @@ class Camera(CameraBase):
             "cx": float(self.cx),
             "cy": float(self.cy),
             "D": json.dumps(self.D.astype(float).tolist() if self.D is not None else None),
-            "fps": int(self.fps),
-            "bf": float(self.bf),
-            "b": float(self.b),
+            "fps": int(self.fps) if self.fps is not None else None,
+            "bf": float(self.bf) if self.bf is not None else None,
+            "b": float(self.b) if self.b is not None else None,
             "depth_factor": float(self.depth_factor) if self.depth_factor is not None else None,
             "depth_threshold": (
                 float(self.depth_threshold) if self.depth_threshold is not None else None

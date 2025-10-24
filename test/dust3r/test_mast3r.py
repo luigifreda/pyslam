@@ -1,7 +1,8 @@
-import sys 
+import sys
 
 import pyslam.config as config
-config.cfg.set_lib('mast3r') 
+
+config.cfg.set_lib("mast3r")
 
 import os
 import torch
@@ -10,7 +11,7 @@ import argparse
 
 from contextlib import nullcontext
 
-#from mast3r.demo import get_args_parser, main_demo
+# from mast3r.demo import get_args_parser, main_demo
 from mast3r.model import AsymmetricMASt3R
 from mast3r.utils.misc import hash_md5
 
@@ -41,17 +42,19 @@ import mast3r.utils.path_to_dust3r  # noqa
 from dust3r.image_pairs import make_pairs
 from dust3r.utils.device import to_numpy
 from dust3r.viz import add_scene_cam, CAM_COLORS, OPENGL, pts3d_to_trimesh, cat_meshes
-#from dust3r.demo import get_args_parser as dust3r_get_args_parser
 
-from pyslam.utilities.utils_files import select_image_files 
-from pyslam.utilities.utils_dust3r import Dust3rImagePreprocessor, convert_mv_output_to_geometry
-from pyslam.utilities.utils_img import img_from_floats
+# from dust3r.demo import get_args_parser as dust3r_get_args_parser
+
+from pyslam.utilities.file_management import select_image_files
+from pyslam.utilities.dust3r import Dust3rImagePreprocessor, convert_mv_output_to_geometry
+from pyslam.utilities.img_management import img_from_floats
 
 from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
-from pyslam.utilities.utils_img import ImageTable
+from pyslam.utilities.img_management import ImageTable
 import time
 
 import matplotlib.pyplot as pl
+
 pl.ion()
 
 
@@ -60,9 +63,9 @@ torch.backends.cuda.matmul.allow_tf32 = True  # for gpu >= Ampere and pytorch >=
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder + '/../..'
-kMast3rFolder = kRootFolder + '/thirdparty/mast3r'
-kResultsFolder = kRootFolder + '/results/mast3r'
+kRootFolder = kScriptFolder + "/../.."
+kMast3rFolder = kRootFolder + "/thirdparty/mast3r"
+kResultsFolder = kRootFolder + "/results/mast3r"
 
 
 # Euroc
@@ -76,13 +79,14 @@ kResultsFolder = kRootFolder + '/results/mast3r'
 # gl_reverse_rgb = False
 
 # TUM desk long_office_household (no distortion here)
-images_path = '/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb'
-start_frame_name = '1341847980.722988.png'
+images_path = (
+    "/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb"
+)
+start_frame_name = "1341847980.722988.png"
 gl_reverse_rgb = True
 
 
-
-class SparseGAState():
+class SparseGAState:
     def __init__(self, sparse_ga, should_delete=False, cache_dir=None, outfile_name=None):
         self.sparse_ga = sparse_ga
         self.cache_dir = cache_dir
@@ -100,9 +104,19 @@ class SparseGAState():
         self.outfile_name = None
 
 
-def _convert_scene_output_to_glb(outfile, imgs, pts3d, mask, focals, cams2world, cam_size=0.05,
-                                 cam_color=None, as_pointcloud=False,
-                                 transparent_cams=False, silent=False):
+def _convert_scene_output_to_glb(
+    outfile,
+    imgs,
+    pts3d,
+    mask,
+    focals,
+    cams2world,
+    cam_size=0.05,
+    cam_color=None,
+    as_pointcloud=False,
+    transparent_cams=False,
+    silent=False,
+):
     assert len(pts3d) == len(mask) <= len(imgs) <= len(cams2world) == len(focals)
     pts3d = to_numpy(pts3d)
     imgs = to_numpy(imgs)
@@ -133,15 +147,21 @@ def _convert_scene_output_to_glb(outfile, imgs, pts3d, mask, focals, cams2world,
             camera_edge_color = cam_color[i]
         else:
             camera_edge_color = cam_color or CAM_COLORS[i % len(CAM_COLORS)]
-        add_scene_cam(scene, pose_c2w, camera_edge_color,
-                      None if transparent_cams else imgs[i], focals[i],
-                      imsize=imgs[i].shape[1::-1], screen_width=cam_size)
+        add_scene_cam(
+            scene,
+            pose_c2w,
+            camera_edge_color,
+            None if transparent_cams else imgs[i],
+            focals[i],
+            imsize=imgs[i].shape[1::-1],
+            screen_width=cam_size,
+        )
 
     rot = np.eye(4)
-    rot[:3, :3] = Rotation.from_euler('y', np.deg2rad(180)).as_matrix()
+    rot[:3, :3] = Rotation.from_euler("y", np.deg2rad(180)).as_matrix()
     scene.apply_transform(np.linalg.inv(cams2world[0] @ OPENGL @ rot))
     if not silent:
-        print('(exporting 3D scene to', outfile, ')')
+        print("(exporting 3D scene to", outfile, ")")
     scene.export(file_obj=outfile)
     return outfile
 
@@ -173,8 +193,18 @@ def _convert_scene_output_to_glb(outfile, imgs, pts3d, mask, focals, cams2world,
 #     return _convert_scene_output_to_glb(outfile, rgbimg, pts3d, msk, focals, cams2world, as_pointcloud=as_pointcloud,
 #                                         transparent_cams=transparent_cams, cam_size=cam_size, silent=silent)
 
-def get_3D_dense_map(silent, scene_state, min_conf_thr=2, as_pointcloud=False, mask_sky=False,
-                            clean_depth=False, transparent_cams=False, cam_size=0.05, TSDF_thresh=0):
+
+def get_3D_dense_map(
+    silent,
+    scene_state,
+    min_conf_thr=2,
+    as_pointcloud=False,
+    mask_sky=False,
+    clean_depth=False,
+    transparent_cams=False,
+    cam_size=0.05,
+    TSDF_thresh=0,
+):
     """
     extract point cloud or mesh (3D_model) from a reconstructed scene
     """
@@ -197,18 +227,20 @@ def get_3D_dense_map(silent, scene_state, min_conf_thr=2, as_pointcloud=False, m
     else:
         pts3d, _, confs = to_numpy(scene.get_dense_pts3d(clean_depth=clean_depth))
     mask = to_numpy([c > min_conf_thr for c in confs])
-    
+
     # return _convert_scene_output_to_glb(outfile, rgb_imgs, pts3d, msk, focals, cams2world, as_pointcloud=as_pointcloud,
     #                                     transparent_cams=transparent_cams, cam_size=cam_size, silent=silent)
-    
-    global_pc, global_mesh = convert_mv_output_to_geometry(rgb_imgs, pts3d, mask, as_pointcloud)  
-    
-    for i,p in enumerate(pts3d):
-        print(f'pts3d[{i}].shape: {pts3d[i].shape}, mask[{i}].shape: {mask[i].shape}, confs[{i}].shape: {confs[i].shape}')
-    
+
+    global_pc, global_mesh = convert_mv_output_to_geometry(rgb_imgs, pts3d, mask, as_pointcloud)
+
+    for i, p in enumerate(pts3d):
+        print(
+            f"pts3d[{i}].shape: {pts3d[i].shape}, mask[{i}].shape: {mask[i].shape}, confs[{i}].shape: {confs[i].shape}"
+        )
+
     confs = [to_numpy(x) for x in confs]
-        
-    # NOTE: 
+
+    # NOTE:
     # rgb_imgs[i] is the i-th image
     # pts3d[i] is the 3D points of the i-th image
     # msk[i] is the mask of the i-th image
@@ -241,7 +273,7 @@ def get_3D_dense_map(silent, scene_state, min_conf_thr=2, as_pointcloud=False, m
 #     pairs = make_pairs(imgs, scene_graph=scene_graph, prefilter=None, symmetrize=True)
 #     if optim_level == 'coarse':
 #         niter2 = 0
-        
+
 #     # Sparse GA (forward mast3r -> matching -> 3D optim -> 2D refinement -> triangulation)
 #     if current_scene_state is not None and \
 #         not current_scene_state.should_delete and \
@@ -264,25 +296,50 @@ def get_3D_dense_map(silent, scene_state, min_conf_thr=2, as_pointcloud=False, m
 #         outfile_name = tempfile.mktemp(suffix='_scene.glb', dir=outdir)
 
 #     scene_state = SparseGAState(scene, gradio_delete_cache, cache_dir, outfile_name)
-    
+
 #     outfile = get_3D_model_from_scene(silent, scene_state, min_conf_thr, as_pointcloud, mask_sky,
 #                                       clean_depth, transparent_cams, cam_size, TSDF_thresh)
 #     return scene_state, outfile
 
 
-def get_reconstructed_scene(outdir, gradio_delete_cache, model, device, silent, current_scene_state,
-                            imgs, filelist, optim_level, lr1, niter1, lr2, niter2, min_conf_thr, matching_conf_thr,
-                            as_pointcloud, mask_sky, clean_depth, transparent_cams, cam_size, scenegraph_type, winsize,
-                            win_cyclic, refid, TSDF_thresh, shared_intrinsics, **kw):
+def get_reconstructed_scene(
+    outdir,
+    gradio_delete_cache,
+    model,
+    device,
+    silent,
+    current_scene_state,
+    imgs,
+    filelist,
+    optim_level,
+    lr1,
+    niter1,
+    lr2,
+    niter2,
+    min_conf_thr,
+    matching_conf_thr,
+    as_pointcloud,
+    mask_sky,
+    clean_depth,
+    transparent_cams,
+    cam_size,
+    scenegraph_type,
+    winsize,
+    win_cyclic,
+    refid,
+    TSDF_thresh,
+    shared_intrinsics,
+    **kw,
+):
     """
     from a list of images, run mast3r inference, sparse global aligner.
     then run get_3D_model_from_scene
     """
-    #imgs = load_images(filelist, size=image_size, verbose=not silent)
+    # imgs = load_images(filelist, size=image_size, verbose=not silent)
     if len(imgs) == 1:
         imgs = [imgs[0], copy.deepcopy(imgs[0])]
-        imgs[1]['idx'] = 1
-        filelist = [filelist[0], filelist[0] + '_2']
+        imgs[1]["idx"] = 1
+        filelist = [filelist[0], filelist[0] + "_2"]
 
     scene_graph_params = [scenegraph_type]
     if scenegraph_type in ["swin", "logwin"]:
@@ -290,42 +347,66 @@ def get_reconstructed_scene(outdir, gradio_delete_cache, model, device, silent, 
     elif scenegraph_type == "oneref":
         scene_graph_params.append(str(refid))
     if scenegraph_type in ["swin", "logwin"] and not win_cyclic:
-        scene_graph_params.append('noncyclic')
-    scene_graph = '-'.join(scene_graph_params)
-    
-    print(f'starting make_pairs...')    
+        scene_graph_params.append("noncyclic")
+    scene_graph = "-".join(scene_graph_params)
+
+    print(f"starting make_pairs...")
     pairs = make_pairs(imgs, scene_graph=scene_graph, prefilter=None, symmetrize=True)
-    if optim_level == 'coarse':
+    if optim_level == "coarse":
         niter2 = 0
-        
+
     # Sparse GA (forward mast3r -> matching -> 3D optim -> 2D refinement -> triangulation)
-    if current_scene_state is not None and \
-        not current_scene_state.should_delete and \
-            current_scene_state.cache_dir is not None:
+    if (
+        current_scene_state is not None
+        and not current_scene_state.should_delete
+        and current_scene_state.cache_dir is not None
+    ):
         cache_dir = current_scene_state.cache_dir
     elif gradio_delete_cache:
-        cache_dir = tempfile.mkdtemp(suffix='_cache', dir=outdir)
+        cache_dir = tempfile.mkdtemp(suffix="_cache", dir=outdir)
     else:
-        cache_dir = os.path.join(outdir, 'cache')
+        cache_dir = os.path.join(outdir, "cache")
     os.makedirs(cache_dir, exist_ok=True)
-    
-    print(f'starting sparse_global_alignment...')        
-    scene = sparse_global_alignment(filelist, pairs, cache_dir,
-                                    model, lr1=lr1, niter1=niter1, lr2=lr2, niter2=niter2, device=device,
-                                    opt_depth='depth' in optim_level, shared_intrinsics=shared_intrinsics,
-                                    matching_conf_thr=matching_conf_thr, **kw)
-    if current_scene_state is not None and \
-        not current_scene_state.should_delete and \
-            current_scene_state.outfile_name is not None:
+
+    print(f"starting sparse_global_alignment...")
+    scene = sparse_global_alignment(
+        filelist,
+        pairs,
+        cache_dir,
+        model,
+        lr1=lr1,
+        niter1=niter1,
+        lr2=lr2,
+        niter2=niter2,
+        device=device,
+        opt_depth="depth" in optim_level,
+        shared_intrinsics=shared_intrinsics,
+        matching_conf_thr=matching_conf_thr,
+        **kw,
+    )
+    if (
+        current_scene_state is not None
+        and not current_scene_state.should_delete
+        and current_scene_state.outfile_name is not None
+    ):
         outfile_name = current_scene_state.outfile_name
     else:
-        outfile_name = tempfile.mktemp(suffix='_scene.glb', dir=outdir)
+        outfile_name = tempfile.mktemp(suffix="_scene.glb", dir=outdir)
 
     scene_state = SparseGAState(scene, gradio_delete_cache, cache_dir, outfile_name)
-    
-    print(f'starting get_3D_dense_map...')        
-    return get_3D_dense_map(silent, scene_state, min_conf_thr, as_pointcloud, mask_sky,
-                                      clean_depth, transparent_cams, cam_size, TSDF_thresh)
+
+    print(f"starting get_3D_dense_map...")
+    return get_3D_dense_map(
+        silent,
+        scene_state,
+        min_conf_thr,
+        as_pointcloud,
+        mask_sky,
+        clean_depth,
+        transparent_cams,
+        cam_size,
+        TSDF_thresh,
+    )
 
 
 # def set_scenegraph_options(inputfiles, win_cyclic, refid, scenegraph_type):
@@ -354,60 +435,59 @@ def get_reconstructed_scene(outdir, gradio_delete_cache, model, device, silent, 
 #     return win_col, winsize, win_cyclic, refid
 
 
-
 class Mast3rConfig:
     def __init__(self):
         # Coarse learning rate (Range: 0.01 - 0.2, Step: 0.01)
         self.lr1 = 0.07
-        
+
         # Number of iterations for coarse alignment (Range: 0 - 10,000)
         self.niter1 = 500
-        
+
         # Fine learning rate (Range: 0.005 - 0.05, Step: 0.001)
         self.lr2 = 0.014
-        
+
         # Number of iterations for refinement (Range: 0 - 100,000)
         self.niter2 = 200
-        
+
         # Optimization level (Options: 'coarse', 'refine', 'refine+depth')
-        self.optim_level = 'refine+depth'
-        
+        self.optim_level = "refine+depth"
+
         # Matching confidence threshold (Range: 0.0 - 30.0, Step: 0.1)
         self.matching_conf_thr = 5.0
-        
+
         # Shared intrinsics flag
         self.shared_intrinsics = False
-        
+
         # Scenegraph type (Options: 'complete', 'swin', 'logwin', 'oneref')
-        self.scenegraph_type = 'complete'
-        
+        self.scenegraph_type = "complete"
+
         # Scene Graph: Window Size (Range: 1 - 1, Step: 1)
         self.winsize = 1
-        
+
         # Cyclic sequence flag
         self.win_cyclic = False
-        
+
         # Scene Graph: Id (Range: 0 - 0, Step: 1)
         self.refid = 0
-        
+
         # Minimum confidence threshold (Range: 0.0 - 10.0, Step: 0.1)
         self.min_conf_thr = 1.5
-        
+
         # Camera size in output point cloud (Range: 0.001 - 1.0, Step: 0.001)
         self.cam_size = 0.2
-        
+
         # TSDF threshold (Range: 0.0 - 1.0, Step: 0.01)
         self.TSDF_thresh = 0.0
-        
+
         # As pointcloud flag
         self.as_pointcloud = True
-        
+
         # Mask sky flag
         self.mask_sky = False
-        
+
         # Clean-up depthmaps flag
         self.clean_depth = True
-        
+
         # Transparent cameras flag
         self.transparent_cams = False
 
@@ -530,7 +610,6 @@ class Mast3rConfig:
 #                                             clean_depth, transparent_cams, cam_size, TSDF_thresh],
 #                                     outputs=outmodel)
 #     demo.launch(share=share, server_name=server_name, server_port=server_port)
-    
 
 
 def set_print_with_timestamp(time_format="%Y-%m-%d %H:%M:%S"):
@@ -540,49 +619,81 @@ def set_print_with_timestamp(time_format="%Y-%m-%d %H:%M:%S"):
         now = datetime.datetime.now()
         formatted_date_time = now.strftime(time_format)
 
-        builtin_print(f'[{formatted_date_time}] ', end='')  # print with time stamp
+        builtin_print(f"[{formatted_date_time}] ", end="")  # print with time stamp
         builtin_print(*args, **kwargs)
 
     builtins.print = print_with_timestamp
-    
+
+
 def dust3r_get_args_parser():
     parser = argparse.ArgumentParser()
     parser_url = parser.add_mutually_exclusive_group()
-    parser_url.add_argument("--local_network", action='store_true', default=False,
-                            help="make app accessible on local network: address will be set to 0.0.0.0")
-    parser_url.add_argument("--server_name", type=str, default=None, help="server url, default is 127.0.0.1")
-    parser.add_argument("--image_size", type=int, default=512, choices=[512, 224], help="image size for inference")
-    parser.add_argument("--server_port", type=int, help=("will start gradio app on this port (if available). "
-                                                         "If None, will search for an available port starting at 7860."),default=None)
+    parser_url.add_argument(
+        "--local_network",
+        action="store_true",
+        default=False,
+        help="make app accessible on local network: address will be set to 0.0.0.0",
+    )
+    parser_url.add_argument(
+        "--server_name", type=str, default=None, help="server url, default is 127.0.0.1"
+    )
+    parser.add_argument(
+        "--image_size", type=int, default=512, choices=[512, 224], help="image size for inference"
+    )
+    parser.add_argument(
+        "--server_port",
+        type=int,
+        help=(
+            "will start gradio app on this port (if available). "
+            "If None, will search for an available port starting at 7860."
+        ),
+        default=None,
+    )
     parser_weights = parser.add_mutually_exclusive_group(required=False)
-    #parser_weights.add_argument("--weights", type=str, help="path to the model weights", default=None)
-    parser_weights.add_argument("--weights", type=str, help="path to the model weights", default=kMast3rFolder + "/checkpoints/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth")
-    parser_weights.add_argument("--model_name", type=str, help="name of the model weights",
-                                choices=["DUSt3R_ViTLarge_BaseDecoder_512_dpt",
-                                         "DUSt3R_ViTLarge_BaseDecoder_512_linear",
-                                         "DUSt3R_ViTLarge_BaseDecoder_224_linear"])
-    
-    parser.add_argument("--device", type=str, default='cuda', help="pytorch device")
+    # parser_weights.add_argument("--weights", type=str, help="path to the model weights", default=None)
+    parser_weights.add_argument(
+        "--weights",
+        type=str,
+        help="path to the model weights",
+        default=kMast3rFolder + "/checkpoints/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth",
+    )
+    parser_weights.add_argument(
+        "--model_name",
+        type=str,
+        help="name of the model weights",
+        choices=[
+            "DUSt3R_ViTLarge_BaseDecoder_512_dpt",
+            "DUSt3R_ViTLarge_BaseDecoder_512_linear",
+            "DUSt3R_ViTLarge_BaseDecoder_224_linear",
+        ],
+    )
+
+    parser.add_argument("--device", type=str, default="cuda", help="pytorch device")
     parser.add_argument("--tmp_dir", type=str, default=None, help="value for tempfile.tempdir")
-    parser.add_argument("--silent", action='store_true', default=False, help="silence logs")
+    parser.add_argument("--silent", action="store_true", default=False, help="silence logs")
     return parser
+
 
 def mast3r_get_args_parser():
     parser = dust3r_get_args_parser()
-    parser.add_argument('--share', action='store_true')
-    parser.add_argument('--gradio_delete_cache', default=None, type=int,
-                        help='age/frequency at which gradio removes the file. If >0, matching cache is purged')
+    parser.add_argument("--share", action="store_true")
+    parser.add_argument(
+        "--gradio_delete_cache",
+        default=None,
+        type=int,
+        help="age/frequency at which gradio removes the file. If >0, matching cache is purged",
+    )
 
     actions = parser._actions
     for action in actions:
-        if action.dest == 'model_name':
+        if action.dest == "model_name":
             action.choices = ["MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric"]
     # change defaults
-    parser.prog = 'mast3r demo'
+    parser.prog = "mast3r demo"
     return parser
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = mast3r_get_args_parser()
     args = parser.parse_args()
     set_print_with_timestamp()
@@ -599,107 +710,135 @@ if __name__ == '__main__':
 
     model = AsymmetricMASt3R.from_pretrained(weights_path).to(args.device)
     chkpt_tag = hash_md5(weights_path)
-    
+
     image_filenames = select_image_files(images_path, start_frame_name, n_frame=10, delta_frame=30)
-    print(f'selected image files: {image_filenames}')
-        
+    print(f"selected image files: {image_filenames}")
+
     img_paths = [os.path.join(images_path, x) for x in image_filenames]
     imgs = [cv2.imread(x) for x in img_paths]
     if False:
         for img in imgs:
             if img.ndim == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
-    dust3r_preprocessor = Dust3rImagePreprocessor(inference_size=args.image_size, verbose=not args.silent)
+
+    dust3r_preprocessor = Dust3rImagePreprocessor(
+        inference_size=args.image_size, verbose=not args.silent
+    )
     imgs_preproc = dust3r_preprocessor.preprocess_images(imgs)
-    print(f'done preprocessing images')    
+    print(f"done preprocessing images")
 
     def get_context(tmp_dir):
-        return tempfile.TemporaryDirectory(suffix='_mast3r_gradio_demo') if tmp_dir is None \
+        return (
+            tempfile.TemporaryDirectory(suffix="_mast3r_gradio_demo")
+            if tmp_dir is None
             else nullcontext(tmp_dir)
+        )
+
     with get_context(args.tmp_dir) as tmpdirname:
         cache_path = os.path.join(tmpdirname, chkpt_tag)
         os.makedirs(cache_path, exist_ok=True)
-        print(f'cache_path: {cache_path}')
-        #main_demo(cache_path, model, args.device, args.image_size, server_name, args.server_port, silent=args.silent,
+        print(f"cache_path: {cache_path}")
+        # main_demo(cache_path, model, args.device, args.image_size, server_name, args.server_port, silent=args.silent,
         #          share=args.share, gradio_delete_cache=args.gradio_delete_cache)
-            
+
         mast3r_config = Mast3rConfig()
-        
-        print(f'mast3r_config: {mast3r_config.get_dict()}')
-    
-        print(f'starting get_reconstructed_scene...')
-        global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = \
-            get_reconstructed_scene(outdir=cache_path, 
-                                gradio_delete_cache=args.gradio_delete_cache, 
-                                model=model, 
-                                device=args.device, 
-                                silent=args.silent, 
-                                current_scene_state=None,
-                                imgs=imgs_preproc, 
-                                filelist=image_filenames, **mast3r_config.get_dict())
 
+        print(f"mast3r_config: {mast3r_config.get_dict()}")
 
-    for i,img in enumerate(rgb_imgs):
-            rgb_imgs[i] = to_numpy(img)
-            confs[i] = img_from_floats(to_numpy(confs[i]))
-            print(f'conf {i}: {confs[i].shape}, {confs[i].dtype}')
-        
-    print(f'done extracting 3d model from inference')      
-    
+        print(f"starting get_reconstructed_scene...")
+        global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = (
+            get_reconstructed_scene(
+                outdir=cache_path,
+                gradio_delete_cache=args.gradio_delete_cache,
+                model=model,
+                device=args.device,
+                silent=args.silent,
+                current_scene_state=None,
+                imgs=imgs_preproc,
+                filelist=image_filenames,
+                **mast3r_config.get_dict(),
+            )
+        )
+
+    for i, img in enumerate(rgb_imgs):
+        rgb_imgs[i] = to_numpy(img)
+        confs[i] = img_from_floats(to_numpy(confs[i]))
+        print(f"conf {i}: {confs[i].shape}, {confs[i].dtype}")
+
+    print(f"done extracting 3d model from inference")
+
     viewer3D = Viewer3D()
     time.sleep(1)
-    
-    viz_point_cloud = VizPointCloud(points=global_pc.vertices, colors=global_pc.colors, normalize_colors=True, reverse_colors=True) if global_pc is not None else None
-    viz_mesh = VizMesh(vertices=global_mesh.vertices, triangles=global_mesh.faces, vertex_colors=global_mesh.visual.vertex_colors, normalize_colors=True) if global_mesh is not None else None
+
+    viz_point_cloud = (
+        VizPointCloud(
+            points=global_pc.vertices,
+            colors=global_pc.colors,
+            normalize_colors=True,
+            reverse_colors=True,
+        )
+        if global_pc is not None
+        else None
+    )
+    viz_mesh = (
+        VizMesh(
+            vertices=global_mesh.vertices,
+            triangles=global_mesh.faces,
+            vertex_colors=global_mesh.visual.vertex_colors,
+            normalize_colors=True,
+        )
+        if global_mesh is not None
+        else None
+    )
     viz_camera_images = []
     for i, img in enumerate(rgb_imgs):
-        img_char = (img*255).astype(np.uint8)
-        #is_contiguous = img_char.flags['C_CONTIGUOUS']
-        #print(f'image {i}, min {np.min(img_char)}, max {np.max(img_char)}, is contiguous: {is_contiguous}')
+        img_char = (img * 255).astype(np.uint8)
+        # is_contiguous = img_char.flags['C_CONTIGUOUS']
+        # print(f'image {i}, min {np.min(img_char)}, max {np.max(img_char)}, is contiguous: {is_contiguous}')
         if gl_reverse_rgb:
             img_char = cv2.cvtColor(img_char, cv2.COLOR_RGB2BGR)
         h_ratio = img_char.shape[0] / args.image_size
-        viz_camera_images.append(VizCameraImage(image=img_char, Twc=cams2world[i], h_ratio=h_ratio, scale=0.1))
-    viewer3D.draw_dense_geometry(point_cloud=viz_point_cloud, mesh=viz_mesh, camera_images=viz_camera_images)
-    
-    
-    # inverted_images = invert_dust3r_preprocess_images([(im*255).astype(np.uint8) for im in rgb_imgs], 
-    #                                            [im.shape[0:2] for im in imgs], 
+        viz_camera_images.append(
+            VizCameraImage(image=img_char, Twc=cams2world[i], h_ratio=h_ratio, scale=0.1)
+        )
+    viewer3D.draw_dense_geometry(
+        point_cloud=viz_point_cloud, mesh=viz_mesh, camera_images=viz_camera_images
+    )
+
+    # inverted_images = invert_dust3r_preprocess_images([(im*255).astype(np.uint8) for im in rgb_imgs],
+    #                                            [im.shape[0:2] for im in imgs],
     #                                            args.image_size)
 
     show_image_tables = True
-    table_resize_scale=0.8    
+    table_resize_scale = 0.8
     if show_image_tables:
         img_table_originals = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         for i, img in enumerate(imgs):
             img_table_originals.add(img)
         img_table_originals.render()
-        cv2.imshow('Original Images', img_table_originals.image())
-        
+        cv2.imshow("Original Images", img_table_originals.image())
+
         img_table = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         for i, img in enumerate(rgb_imgs):
             img_table.add(img)
         img_table.render()
-        cv2.imshow('Dust3r Images', img_table.image())
-        
+        cv2.imshow("Dust3r Images", img_table.image())
+
         # img_inverted_table = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         # for i, img in enumerate(inverted_images):
         #     img_inverted_table.add(img)
         # img_inverted_table.render()
         # cv2.imshow('Inverted Images', img_inverted_table.image())
-        
+
         img_table_conf = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         for i, conf in enumerate(confs):
             img_table_conf.add(conf)
         img_table_conf.render()
-        cv2.imshow('Confidence Images', img_table_conf.image())
-
+        cv2.imshow("Confidence Images", img_table_conf.image())
 
     while viewer3D.is_running():
         key = cv2.waitKey(10) & 0xFF
-        if key == ord('q') or key == 27:
-            break    
-        
+        if key == ord("q") or key == 27:
+            break
+
     viewer3D.quit()
-        

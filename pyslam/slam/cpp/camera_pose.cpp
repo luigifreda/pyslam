@@ -28,16 +28,34 @@ CameraPose::CameraPose()
       Rcw_(Eigen::Matrix3d::Identity()), tcw_(Eigen::Vector3d::Zero()),
       Rwc_(Eigen::Matrix3d::Identity()), Ow_(Eigen::Vector3d::Zero()) {
     // Ensure identity initialization for default constructor
-    pose_ = Eigen::Isometry3d::Identity();
-    initialize_covariance();
+    // pose_ = Eigen::Isometry3d::Identity();
+    // initialize_covariance();
+    // update_cached_matrices();
+}
+
+CameraPose::CameraPose(const Eigen::Isometry3d &pose) : pose_(pose) {
+    // initialize_covariance();
     update_cached_matrices();
 }
 
-CameraPose::CameraPose(const Eigen::Isometry3d &pose)
-    : pose_(pose), Tcw_(Eigen::Matrix4d::Identity()), Rcw_(Eigen::Matrix3d::Identity()),
-      tcw_(Eigen::Vector3d::Zero()), Rwc_(Eigen::Matrix3d::Identity()),
-      Ow_(Eigen::Vector3d::Zero()) {
-    initialize_covariance();
+CameraPose::CameraPose(const Eigen::Matrix4d &Tcw) : pose_(Eigen::Isometry3d(Tcw)) {
+    // initialize_covariance();
+    update_cached_matrices();
+}
+
+CameraPose::CameraPose(const Eigen::Matrix3d &Rcw, const Eigen::Vector3d &tcw) {
+    pose_ = Eigen::Isometry3d::Identity();
+    pose_.linear() = Rcw;
+    pose_.translation() = tcw;
+    // initialize_covariance();
+    update_cached_matrices();
+}
+
+CameraPose::CameraPose(const Eigen::Quaterniond &quaternion, const Eigen::Vector3d &position) {
+    pose_ = Eigen::Isometry3d::Identity();
+    pose_.linear() = quaternion.normalized().toRotationMatrix();
+    pose_.translation() = position;
+    // initialize_covariance();
     update_cached_matrices();
 }
 
@@ -73,7 +91,7 @@ void CameraPose::update(const Eigen::Matrix4d &Tcw) {
 }
 
 void CameraPose::set_mat(const Eigen::Matrix4d &Tcw) {
-    this->Tcw_ = Tcw;
+    Tcw_ = Tcw;
     Rcw_ = Tcw.block<3, 3>(0, 0);
     tcw_ = Tcw.block<3, 1>(0, 3);
     Rwc_ = Rcw_.transpose();
@@ -135,12 +153,20 @@ void CameraPose::set_translation(const Eigen::Vector3d &tcw) {
     update_cached_matrices();
 }
 
-void CameraPose::update_cached_matrices() {
-    Tcw_ = pose_.matrix();
-    Rcw_ = Tcw_.block<3, 3>(0, 0);
-    tcw_ = Tcw_.block<3, 1>(0, 3);
-    Rwc_ = Rcw_.transpose();
-    Ow_ = -(Rwc_ * tcw_);
+void CameraPose::update_cached_matrices(bool initialize) {
+    if (initialize) {
+        Tcw_ = Eigen::Matrix4d::Identity();
+        Rcw_ = Eigen::Matrix3d::Identity();
+        tcw_ = Eigen::Vector3d::Zero();
+        Rwc_ = Eigen::Matrix3d::Identity();
+        Ow_ = Eigen::Vector3d::Zero();
+    } else {
+        Tcw_ = pose_.matrix();
+        Rcw_ = Tcw_.block<3, 3>(0, 0);
+        tcw_ = Tcw_.block<3, 1>(0, 3);
+        Rwc_ = Rcw_.transpose();
+        Ow_ = -(Rwc_ * tcw_);
+    }
 }
 
 void CameraPose::initialize_covariance() { covariance_ = Eigen::Matrix<double, 6, 6>::Identity(); }

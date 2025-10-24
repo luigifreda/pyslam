@@ -3,13 +3,12 @@ import os
 from multiprocessing import Lock, Process
 from threading import Lock as ThreadLock, Thread
 
-import sys 
+import sys
 
 from pyslam.config import Config
 
 import time
-from pyslam.utilities.utils_sys import FileLogger, LoggerQueue
-
+from pyslam.utilities.system import FileLogger, LoggerQueue
 
 
 # Function to log messages in threads
@@ -28,10 +27,10 @@ def process_logging(logger, process_id):
 
 # Usage example with threads and processes
 if __name__ == "__main__":
-    
+
     if False:
         logger = FileLogger("test.log")
-    else: 
+    else:
         logging_manager = LoggerQueue.get_instance("test.log")
         logger = logging_manager.get_logger("test")
 
@@ -58,5 +57,5 @@ if __name__ == "__main__":
         process.join()
 
     # Closing the logger
-    #logger.close()
-    print('Done')
+    # logger.close()
+    print("Done")

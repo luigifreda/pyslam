@@ -103,11 +103,12 @@ void bind_fixed_tree(py::module_ &m, const char *pyname) {
             },
             py::arg("x"), py::arg("k"), py::arg("return_distance") = true, "k-NN query")
 
-        // query_ball_point(x, r) -> indices
+        // query_ball_point overloaded: single query or batch queries
         .def(
             "query_ball_point",
             [](const Tree &self, py::array_t<Scalar, py::array::c_style | py::array::forcecast> x,
                Scalar r) {
+                // Single query case: x is 1D, r is scalar
                 auto q = to_fixed_query<Scalar, D>(x);
                 std::vector<typename Tree::index_t> idx;
                 {
@@ -121,6 +122,38 @@ void bind_fixed_tree(py::module_ &m, const char *pyname) {
                 return indices;
             },
             py::arg("x"), py::arg("r"), "Radius query: indices within distance r")
+
+        .def(
+            "query_ball_point",
+            [](const Tree &self,
+               py::array_t<Scalar, py::array::c_style | py::array::forcecast> queries,
+               py::array_t<Scalar, py::array::c_style | py::array::forcecast> radii) {
+                // Batch query case: queries is 2D, radii is 1D
+                ensure_2d(queries, "queries");
+                ensure_1d_len(radii, queries.shape(0), "radii");
+                if (queries.shape(1) != D)
+                    throw std::invalid_argument("queries.shape[1] must be D=" + std::to_string(D));
+
+                const size_t num_queries = static_cast<size_t>(queries.shape(0));
+                std::vector<std::vector<typename Tree::index_t>> results;
+                {
+                    py::gil_scoped_release release;
+                    results =
+                        self.query_ball_point_batch(queries.data(), radii.data(), num_queries);
+                }
+
+                py::list out;
+                for (const auto &result : results) {
+                    py::array_t<long long> indices(result.size());
+                    auto *ip = indices.mutable_data();
+                    for (size_t i = 0; i < result.size(); ++i)
+                        ip[i] = static_cast<long long>(result[i]);
+                    out.append(indices);
+                }
+                return out;
+            },
+            py::arg("queries"), py::arg("radii"),
+            "Batch radius query: list of indices for each query point")
 
         // query_pairs(r) -> list[tuple(i,j)]
         .def(
@@ -213,10 +246,12 @@ void bind_dynamic_tree(py::module_ &m, const char *pyname) {
             },
             py::arg("x"), py::arg("k"), py::arg("return_distance") = true)
 
+        // query_ball_point overloaded: single query or batch queries
         .def(
             "query_ball_point",
             [](const Tree &self, py::array_t<Scalar, py::array::c_style | py::array::forcecast> x,
                Scalar r) {
+                // Single query case: x is 1D, r is scalar
                 if (x.ndim() != 1 || x.shape(0) != self.d())
                     throw std::invalid_argument("x must be 1D with length d()");
                 std::vector<Scalar> q(self.d());
@@ -233,6 +268,38 @@ void bind_dynamic_tree(py::module_ &m, const char *pyname) {
                 return indices;
             },
             py::arg("x"), py::arg("r"))
+
+        .def(
+            "query_ball_point",
+            [](const Tree &self,
+               py::array_t<Scalar, py::array::c_style | py::array::forcecast> queries,
+               py::array_t<Scalar, py::array::c_style | py::array::forcecast> radii) {
+                // Batch query case: queries is 2D, radii is 1D
+                ensure_2d(queries, "queries");
+                ensure_1d_len(radii, queries.shape(0), "radii");
+                if (queries.shape(1) != self.d())
+                    throw std::invalid_argument("queries.shape[1] must equal tree.d()");
+
+                const size_t num_queries = static_cast<size_t>(queries.shape(0));
+                std::vector<std::vector<typename Tree::index_t>> results;
+                {
+                    py::gil_scoped_release release;
+                    results =
+                        self.query_ball_point_batch(queries.data(), radii.data(), num_queries);
+                }
+
+                py::list out;
+                for (const auto &result : results) {
+                    py::array_t<long long> indices(result.size());
+                    auto *ip = indices.mutable_data();
+                    for (size_t i = 0; i < result.size(); ++i)
+                        ip[i] = static_cast<long long>(result[i]);
+                    out.append(indices);
+                }
+                return out;
+            },
+            py::arg("queries"), py::arg("radii"),
+            "Batch radius query: list of indices for each query point")
 
         .def(
             "query_pairs",

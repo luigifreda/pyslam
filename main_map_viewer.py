@@ -28,13 +28,13 @@ from datetime import datetime
 from pyslam.config import Config
 
 from pyslam.slam.slam import Slam, SlamState, SlamMode
-from pyslam.slam.camera import PinholeCamera
+from pyslam.slam import PinholeCamera
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import DatasetType, SensorType
 from pyslam.io.ground_truth import GroundTruth
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.utils_sys import getchar, Printer
+from pyslam.utilities.system import getchar, Printer
 
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 

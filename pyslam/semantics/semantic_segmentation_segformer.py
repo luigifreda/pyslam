@@ -32,7 +32,7 @@ from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_types import SemanticFeatureType
 from .semantic_utils import SemanticDatasetType, labels_color_map_factory, labels_to_image
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

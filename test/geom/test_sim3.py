@@ -4,8 +4,8 @@ import sys
 
 from pyslam.config import Config
 
-from pyslam.slam.sim3_pose import Sim3Pose
-from pyslam.utilities.utils_geom import rotation_matrix_from_yaw_pitch_roll
+from pyslam.slam import Sim3Pose
+from pyslam.utilities.geometry import rotation_matrix_from_yaw_pitch_roll
 
 if __name__ == "__main__":
 

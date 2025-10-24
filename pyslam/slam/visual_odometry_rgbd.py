@@ -23,18 +23,25 @@ import open3d.core as o3c
 import cv2
 
 from pyslam.utilities.timer import TimerFps
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_geom import poseRt, inv_poseRt
+from pyslam.utilities.system import Printer
+from pyslam.utilities.geometry import poseRt, inv_poseRt
 
 from pyslam.io.ground_truth import GroundTruth
 from .visual_odometry_base import VoState, VisualOdometryBase
 
 
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from .camera import Camera
+
 kVerbose = True
 
 
 class VisualOdometryRgbdBase:
-    def __init__(self, cam):
+    def __init__(self, cam: Camera):
         self.depth_factor = cam.depth_factor
 
         self.prev_rgbd = None

@@ -1,7 +1,7 @@
 import os
 
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
-from pyslam.utilities.utils_sys import Printer, import_from
+from pyslam.utilities.serialization import SerializableEnum, register_class
+from pyslam.utilities.system import Printer, import_from
 
 try:
     from .volumetric_integrator_base import VolumetricIntegratorBase

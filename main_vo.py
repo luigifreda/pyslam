@@ -32,7 +32,7 @@ from pyslam.slam.visual_odometry_rgbd import (
     VisualOdometryRgbd,
     VisualOdometryRgbdTensor,
 )
-from pyslam.slam.camera import PinholeCamera
+from pyslam.slam import PinholeCamera
 
 from pyslam.io.ground_truth import groundtruth_factory
 from pyslam.io.dataset_factory import dataset_factory
@@ -48,7 +48,7 @@ from pyslam.local_features.feature_tracker import (
 )
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 
 kScriptPath = os.path.realpath(__file__)

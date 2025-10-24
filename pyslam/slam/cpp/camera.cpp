@@ -19,15 +19,36 @@
 
 #include "camera.h"
 
+#include "utils/serialization_json.h"
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <iomanip>
 #include <limits>
 #include <sstream>
+#include <string>
 
 namespace pyslam {
+
+// Utility function to get sensor type
+SensorType get_sensor_type(const std::string &sensor_str) {
+    SensorType sensor_type = SensorType::MONOCULAR;
+    // Convert to lowercase
+    std::string sensor_lower = sensor_str;
+    std::transform(sensor_lower.begin(), sensor_lower.end(), sensor_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (sensor_lower == "monocular" || sensor_lower == "mono") {
+        sensor_type = SensorType::MONOCULAR;
+    }
+    if (sensor_lower == "stereo") {
+        sensor_type = SensorType::STEREO;
+    } else if (sensor_lower == "rgbd") {
+        sensor_type = SensorType::RGBD;
+    }
+    return sensor_type;
+}
 
 // Utility functions
 double fov2focal(double fov, int pixels) {
@@ -38,8 +59,11 @@ double focal2fov(double focal, int pixels) {
     return 2.0 * std::atan(static_cast<double>(pixels) / (2.0 * focal));
 }
 
-// std::pair<pyslam::MatNx2d, pyslam::VecNd> CameraUtils::project_points(pyslam::MatNx3dRef xcs,
-//                                                                       pyslam::Mat3dRef K);
+// ================================================================
+// CameraUtils Implementation
+// ================================================================
+
+constexpr double kMinZ = 1e-10;
 
 template <typename Scalar>
 std::pair<MatNx2<Scalar>, VecN<Scalar>> CameraUtils::project_points(MatNx3Ref<Scalar> xcs,
@@ -59,50 +83,48 @@ std::pair<MatNx2<Scalar>, VecN<Scalar>> CameraUtils::project_points(MatNx3Ref<Sc
     uv.col(1) = Q.col(1).array() / z.array();
 
     // Handle near-zero depths
-    auto bad = (z.array() <= static_cast<Scalar>(1e-6));
-    if (bad.any()) {
-        for (int i = 0; i < N; ++i) {
-            if (bad(i)) {
-                uv(i, 0) = static_cast<Scalar>(-1.0);
-                uv(i, 1) = static_cast<Scalar>(-1.0);
-            }
+    const Scalar min_z = static_cast<Scalar>(kMinZ);
+    for (int i = 0; i < N; ++i) {
+        if (z(i) <= min_z) {
+            uv(i, 0) = static_cast<Scalar>(-1.0);
+            uv(i, 1) = static_cast<Scalar>(-1.0);
         }
     }
+
     return {std::move(uv), std::move(z)};
 }
-
-// ------------------------------------------------------------------------
 
 template <typename Scalar>
 std::pair<MatNx3<Scalar>, VecN<Scalar>>
 CameraUtils::project_points_stereo(MatNx3Ref<Scalar> xcs, Mat3Ref<Scalar> K, const Scalar bf) {
     const int N = static_cast<int>(xcs.rows());
     MatNx3<Scalar> projections(N, 3);
-    VecN<Scalar> depths(N);
+    VecN<Scalar> z(N);
 
     // Work in row space to avoid a 3xN transpose/copy:
     // Q = [X Y Z] = xcs * K^T  (Nx3)
     const auto Q = xcs * K.transpose();
 
     // Depths
-    depths = Q.col(2);
+    z = Q.col(2);
 
-    auto u = Q.col(0).array() / depths.array();
-    auto v = Q.col(1).array() / depths.array();
-    auto ur = u.array() - bf / depths.array();
+    auto u = Q.col(0).array() / z.array();
+    auto v = Q.col(1).array() / z.array();
+    auto ur = u.array() - bf / z.array();
 
+    const Scalar min_z = static_cast<Scalar>(kMinZ);
     for (int i = 0; i < N; ++i) {
-        if (depths(i) > 1e-6) {
+        if (z(i) > min_z) {
             projections(i, 0) = u(i);
             projections(i, 1) = v(i);
             projections(i, 2) = ur(i);
         } else {
-            projections(i, 0) = -1.0;
-            projections(i, 1) = -1.0;
-            projections(i, 2) = -1.0;
+            projections(i, 0) = static_cast<Scalar>(-1.0);
+            projections(i, 1) = static_cast<Scalar>(-1.0);
+            projections(i, 2) = static_cast<Scalar>(-1.0);
         }
     }
-    return std::make_pair(projections, depths);
+    return std::make_pair(std::move(projections), std::move(z));
 }
 
 template <typename Scalar>
@@ -120,9 +142,10 @@ MatNx2<Scalar> CameraUtils::unproject_points(MatNx2Ref<Scalar> uvs, Mat3Ref<Scal
     return std::move(result);
 }
 
-// ------------------------------------------------------------------------
-
+// ================================================================
 // CameraBase Implementation
+// ================================================================
+
 CameraBase::CameraBase()
     : type(CameraType::NONE), width(0), height(0), fx(0.0), fy(0.0), cx(0.0), cy(0.0),
       is_distorted(false), fps(0), bf(0.0), b(0.0), u_min(0.0), u_max(0.0), v_min(0.0), v_max(0.0),
@@ -157,7 +180,14 @@ CameraBase &CameraBase::operator=(const CameraBase &other) {
     return *this;
 }
 
+// ================================================================
 // Camera Implementation
+// ================================================================
+
+Camera::Camera()
+    : CameraBase(), fovx(0.0), fovy(0.0), sensor_type(SensorType::MONOCULAR), depth_factor(1.0),
+      depth_threshold(std::numeric_limits<double>::infinity()) {}
+
 Camera::Camera(const ConfigDict &config)
     : CameraBase(), fovx(0.0), fovy(0.0), sensor_type(SensorType::MONOCULAR), depth_factor(1.0),
       depth_threshold(std::numeric_limits<double>::infinity()) {
@@ -171,7 +201,13 @@ Camera::Camera(const ConfigDict &config)
 
     // Extract parameters from config
     width = cam_settings.get("Camera.width", 0);
+    if (width <= 0) {
+        width = dataset_settings.get("Camera.w", 0);
+    }
     height = cam_settings.get("Camera.height", 0);
+    if (height <= 0) {
+        height = dataset_settings.get("Camera.h", 0);
+    }
 
     fx = cam_settings.get("Camera.fx", 0.0);
     // fy should be read from cam_settings like the other intrinsics
@@ -180,6 +216,13 @@ Camera::Camera(const ConfigDict &config)
     cy = cam_settings.get("Camera.cy", 0.0);
     D = cam_settings.get("Camera.DistCoef", std::vector<double>{});
     fps = cam_settings.get("Camera.fps", 30);
+
+    if (width == 0 || height == 0) {
+        throw std::runtime_error("Camera: Expecting the fields Camera.width and "
+                                 "Camera.height in the camera config file");
+    }
+
+    compute_intrinsic_matrices();
 
     fovx = focal2fov(fx, width);
     fovy = focal2fov(fy, height);
@@ -192,33 +235,46 @@ Camera::Camera(const ConfigDict &config)
     is_distorted = std::sqrt(norm) > 1e-10;
 
     // Sensor type
-    std::string sensor_str = dataset_settings.get<std::string>("sensor_type", "monocular");
-    if (sensor_str == "stereo") {
-        sensor_type = SensorType::STEREO;
-    } else if (sensor_str == "rgbd") {
-        sensor_type = SensorType::RGBD;
-    } else {
-        sensor_type = SensorType::MONOCULAR;
-    }
+    std::string sensor_str = dataset_settings.get<std::string>("sensor_type", "mono");
+    sensor_type = get_sensor_type(sensor_str);
 
     // Stereo parameters
-    if (cam_settings.has("Camera.bf")) {
+    if (cam_settings.has("Camera.bf") && sensor_type != SensorType::MONOCULAR) {
         bf = cam_settings.get("Camera.bf", 0.0);
         // Avoid division by zero if fx is missing/zero
         b = (fx != 0.0) ? (bf / fx) : 0.0;
+        std::cout << "Camera: bf = " << bf << ", b = " << b
+                  << ", sensor_type = " << (int)sensor_type << std::endl;
+    }
+    if (sensor_type == SensorType::STEREO and bf <= 0) {
+        throw std::runtime_error("Camera: Expecting the field Camera.bf in the camera config file");
     }
 
     // Depth factor
+    depth_factor = 1.0;
     if (cam_settings.has("DepthMapFactor")) {
         depth_factor = 1.0 / cam_settings.get("DepthMapFactor", 1.0);
     }
+    if (sensor_type == SensorType::RGBD and depth_factor <= 0) {
+        throw std::runtime_error(
+            "Camera: Expecting the field DepthMapFactor in the camera config file");
+    }
 
     // Depth threshold
-    if (cam_settings.has("ThDepth")) {
+    depth_threshold = std::numeric_limits<double>::infinity();
+    if (cam_settings.has("ThDepth") && sensor_type != SensorType::MONOCULAR) {
         double th_depth = cam_settings.get("ThDepth", 0.0);
+        if (bf <= 0) {
+            throw std::runtime_error(
+                "Camera: Expecting the field ThDepth in the camera config file");
+        }
         // Only compute if fx is valid; otherwise keep the default (infinity)
         if (fx != 0.0)
             depth_threshold = bf * th_depth / fx;
+    }
+    if ((sensor_type == SensorType::RGBD || sensor_type == SensorType::STEREO) &&
+        depth_threshold == std::numeric_limits<double>::infinity()) {
+        throw std::runtime_error("Camera: Expecting the field ThDepth in the camera config file");
     }
 }
 
@@ -241,101 +297,34 @@ Camera &Camera::operator=(const Camera &other) {
     return *this;
 }
 
+Camera::Camera(Camera &&other) noexcept
+    : CameraBase(std::move(other)), fovx(other.fovx), fovy(other.fovy),
+      sensor_type(other.sensor_type), depth_factor(other.depth_factor),
+      depth_threshold(other.depth_threshold), K(std::move(other.K)), Kinv(std::move(other.Kinv)) {}
+
+Camera &Camera::operator=(Camera &&other) noexcept {
+    if (this != &other) {
+        CameraBase::operator=(std::move(other));
+        fovx = other.fovx;
+        fovy = other.fovy;
+        sensor_type = other.sensor_type;
+        depth_factor = other.depth_factor;
+        depth_threshold = other.depth_threshold;
+        K = std::move(other.K);
+        Kinv = std::move(other.Kinv);
+    }
+    return *this;
+}
+
 void Camera::compute_intrinsic_matrices() {
     // Compute intrinsic matrix K
     K << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0;
 
     // Compute inverse intrinsic matrix explicitly
-    Kinv = Eigen::Matrix3d::Zero();
-    Kinv(0, 0) = 1.0 / fx;
-    Kinv(1, 1) = 1.0 / fy;
-    Kinv(0, 2) = -cx / fx;
-    Kinv(1, 2) = -cy / fy;
-    Kinv(2, 2) = 1.0;
+    Kinv << 1.0 / fx, 0.0, -cx / fx, 0.0, 1.0 / fy, -cy / fy, 0.0, 0.0, 1.0;
 }
 
-bool Camera::is_stereo() const { return bf > 0; }
-
-std::string Camera::to_json() const {
-    std::ostringstream oss;
-    oss << "{";
-    oss << "\"type\": " << static_cast<int>(type) << ", ";
-    oss << "\"width\": " << width << ", ";
-    oss << "\"height\": " << height << ", ";
-    oss << "\"fx\": " << fx << ", ";
-    oss << "\"fy\": " << fy << ", ";
-    oss << "\"cx\": " << cx << ", ";
-    oss << "\"cy\": " << cy << ", ";
-    oss << "\"D\": [";
-    for (size_t i = 0; i < D.size(); ++i) {
-        if (i > 0)
-            oss << ", ";
-        oss << D[i];
-    }
-    oss << "], ";
-    oss << "\"fps\": " << fps << ", ";
-    oss << "\"bf\": " << bf << ", ";
-    oss << "\"b\": " << b << ", ";
-    oss << "\"depth_factor\": " << depth_factor << ", ";
-    oss << "\"depth_threshold\": " << depth_threshold << ", ";
-    oss << "\"is_distorted\": " << (is_distorted ? "true" : "false") << ", ";
-    oss << "\"u_min\": " << u_min << ", ";
-    oss << "\"u_max\": " << u_max << ", ";
-    oss << "\"v_min\": " << v_min << ", ";
-    oss << "\"v_max\": " << v_max << ", ";
-    oss << "\"initialized\": " << (initialized ? "true" : "false");
-    oss << "}";
-    return oss.str();
-}
-
-void Camera::init_from_json(const std::string &json_str) {
-    nlohmann::json json_data = nlohmann::json::parse(json_str);
-
-    // Parse basic camera parameters
-    type = static_cast<CameraType>(json_data["type"].get<int>());
-    width = json_data["width"].get<int>();
-    height = json_data["height"].get<int>();
-    fx = json_data["fx"].get<double>();
-    fy = json_data["fy"].get<double>();
-    cx = json_data["cx"].get<double>();
-    cy = json_data["cy"].get<double>();
-
-    // Parse distortion coefficients
-    if (!json_data["D"].is_null()) {
-        std::vector<double> D_vec = json_data["D"].get<std::vector<double>>();
-        D = D_vec;
-    } else {
-        D.clear();
-    }
-
-    fps = json_data["fps"].get<int>();
-    bf = json_data["bf"].get<double>();
-    b = json_data["b"].get<double>();
-    depth_factor = json_data["depth_factor"].get<double>();
-    depth_threshold = json_data["depth_threshold"].get<double>();
-    is_distorted = json_data["is_distorted"].get<bool>();
-    u_min = json_data["u_min"].get<double>();
-    u_max = json_data["u_max"].get<double>();
-    v_min = json_data["v_min"].get<double>();
-    v_max = json_data["v_max"].get<double>();
-    initialized = json_data["initialized"].get<bool>();
-
-    // Compute field of view if not already set
-    if (fovx == 0.0) {
-        fovx = focal2fov(fx, width);
-    }
-    if (fovy == 0.0) {
-        fovy = focal2fov(fy, height);
-    }
-
-    // Parse intrinsic matrices
-    std::vector<double> K_vec = json_data["K"].get<std::vector<double>>();
-    std::vector<double> Kinv_vec = json_data["Kinv"].get<std::vector<double>>();
-
-    // Convert vectors to Eigen matrices (assuming 3x3 matrices)
-    K = Eigen::Map<Eigen::Matrix3d>(K_vec.data());
-    Kinv = Eigen::Map<Eigen::Matrix3d>(Kinv_vec.data());
-}
+bool Camera::is_stereo() const { return bf > 0 && sensor_type != SensorType::MONOCULAR; }
 
 Eigen::Matrix4d Camera::get_render_projection_matrix(double znear, double zfar) const {
     double W = width, H = height;
@@ -372,19 +361,18 @@ void Camera::set_fovy(double fovy) {
     this->fovy = fovy;
 }
 
+// ================================================================
+// PinholeCamera Implementation
+// ================================================================
+
+PinholeCamera::PinholeCamera() : Camera() { type = CameraType::PINHOLE; }
+
 // PinholeCamera Implementation
 PinholeCamera::PinholeCamera(const ConfigDict &config) : Camera(config) {
     type = CameraType::PINHOLE;
 
     if (config.is_empty()) {
         return;
-    }
-
-    compute_intrinsic_matrices();
-
-    if (width == 0 || height == 0) {
-        throw std::runtime_error("Camera: Expecting the fields Camera.width and "
-                                 "Camera.height in the camera config file");
     }
 
     u_min = 0.0;
@@ -395,11 +383,38 @@ PinholeCamera::PinholeCamera(const ConfigDict &config) : Camera(config) {
     init();
 }
 
-PinholeCamera::PinholeCamera(const PinholeCamera &other) : Camera(other) {}
+PinholeCamera::PinholeCamera(const PinholeCamera &other) : Camera(other) {
+    u_min = other.u_min;
+    u_max = other.u_max;
+    v_min = other.v_min;
+    v_max = other.v_max;
+}
 
 PinholeCamera &PinholeCamera::operator=(const PinholeCamera &other) {
     if (this != &other) {
         Camera::operator=(other);
+        u_min = other.u_min;
+        u_max = other.u_max;
+        v_min = other.v_min;
+        v_max = other.v_max;
+    }
+    return *this;
+}
+
+PinholeCamera::PinholeCamera(PinholeCamera &&other) noexcept : Camera(std::move(other)) {
+    u_min = other.u_min;
+    u_max = other.u_max;
+    v_min = other.v_min;
+    v_max = other.v_max;
+}
+
+PinholeCamera &PinholeCamera::operator=(PinholeCamera &&other) noexcept {
+    if (this != &other) {
+        Camera::operator=(std::move(other));
+        u_min = other.u_min;
+        u_max = other.u_max;
+        v_min = other.v_min;
+        v_max = other.v_max;
     }
     return *this;
 }
@@ -459,20 +474,6 @@ void PinholeCamera::undistort_image_bounds() {
     v_max = std::max({uv_bounds(1, 1), uv_bounds(3, 1)});
 }
 
-std::string PinholeCamera::to_json() const {
-    std::string camera_json = Camera::to_json();
-    // Add K and Kinv matrices to JSON
-    // TODO: Implement proper JSON formatting for matrices
-    return camera_json;
-}
-
-PinholeCamera PinholeCamera::from_json(const std::string &json_str) {
-    nlohmann::json json_data = nlohmann::json::parse(json_str);
-
-    ConfigDict config = ConfigDict::from_json(json_data);
-    return PinholeCamera(config);
-}
-
 void PinholeCamera::compute_fov() {
     fovx = focal2fov(fx, width);
     fovy = focal2fov(fy, height);
@@ -487,35 +488,6 @@ void PinholeCamera::update_distortion_flag() {
             norm += d * d;
         }
         is_distorted = std::sqrt(norm) > 1e-10;
-    }
-}
-
-// ===============================
-
-// Helper function to create camera from JSON with proper type detection
-CameraPtr create_camera_from_json(const nlohmann::json &camera_json) {
-    if (camera_json.is_null()) {
-        return nullptr;
-    }
-
-    try {
-        // Check camera type from JSON
-        if (camera_json.contains("camera_type")) {
-            std::string camera_type = camera_json["camera_type"].get<std::string>();
-            if (camera_type == "PinholeCamera") {
-                return std::make_shared<PinholeCamera>(
-                    PinholeCamera::from_json(camera_json.dump()));
-            }
-            // Add support for other camera types here as they are implemented
-            else {
-                throw std::runtime_error("Unsupported camera type: " + camera_type);
-            }
-        } else {
-            // Fallback: assume PinholeCamera if no type specified
-            return std::make_shared<PinholeCamera>(PinholeCamera::from_json(camera_json.dump()));
-        }
-    } catch (const std::exception &e) {
-        throw std::runtime_error("Failed to create camera from JSON: " + std::string(e.what()));
     }
 }
 

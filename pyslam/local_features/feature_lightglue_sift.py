@@ -23,7 +23,7 @@ import numpy as np
 import torch
 from threading import RLock
 
-from pyslam.utilities.utils_sys import Printer, import_from, is_opencv_version_greater_equal
+from pyslam.utilities.system import Printer, import_from, is_opencv_version_greater_equal
 from .feature_base import BaseFeature2D
 
 import pyslam.config as config

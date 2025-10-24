@@ -29,8 +29,8 @@ from pyslam.config_parameters import Parameters
 
 from .feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 
-from pyslam.utilities.utils_sys import Printer, import_from
-from pyslam.utilities.utils_features import (
+from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.features import (
     unpackSiftOctaveKps,
     UnpackOctaveMethod,
     sat_num_features,
@@ -39,7 +39,7 @@ from pyslam.utilities.utils_features import (
     octree_nms,
     grid_nms,
 )
-from pyslam.utilities.utils_geom import (
+from pyslam.utilities.geometry import (
     hamming_distance,
     hamming_distances,
     l2_distance,
@@ -917,9 +917,8 @@ class FeatureManager:
             self.max_descriptor_distance = FeatureInfo.max_descriptor_distance[self.descriptor_type]
             # Initialze the global max descriptor distance if it was not initialized
             if Parameters.kMaxDescriptorDistance == 0:
-                Parameters.kMaxDescriptorDistance = FeatureInfo.max_descriptor_distance[
-                    self.descriptor_type
-                ]
+                # update the global max descriptor distance
+                Parameters.kMaxDescriptorDistance = self.max_descriptor_distance
                 # Printer.green('Set the global max descriptor distance to: ', Parameters.kMaxDescriptorDistance)
         except:
             Printer.red(

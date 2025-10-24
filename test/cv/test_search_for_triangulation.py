@@ -9,16 +9,13 @@ from pyslam.config import Config
 
 from pyslam.viz.mplot_figure import MPlotFigure
 
-from pyslam.utilities.utils_geom import add_ones, poseRt, skew
-from pyslam.utilities.utils_draw import draw_points2, draw_feature_matches
-from pyslam.slam.search_points_test import search_frame_for_triangulation_test
-from pyslam.slam.map_point import MapPoint
+from pyslam.utilities.geometry import add_ones, poseRt, skew
+from pyslam.utilities.drawing import draw_points2, draw_feature_matches
+from pyslam.slam.geometry_matchers_test import EpipolarMatcherTest
 from pyslam.slam.slam import Slam
-from pyslam.slam.camera import Camera, PinholeCamera
-from pyslam.slam.initializer import Initializer
-from pyslam.utilities.timer import TimerFps
+from pyslam.slam import Camera, PinholeCamera
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 from pyslam.local_features.feature_tracker import FeatureTrackerTypes
 
@@ -91,10 +88,10 @@ if __name__ == "__main__":
 
     img_cur_epi = None
 
-    idxs_ref, idxs_cur, num_found_matches, img_cur_epi = search_frame_for_triangulation_test(
-        f_ref, f_cur, img_cur, img1=img_ref
+    idxs_ref, idxs_cur, num_found_matches, img_cur_epi = (
+        EpipolarMatcherTest.search_frame_for_triangulation(f_ref, f_cur, img_cur, img1=img_ref)
     )  # test
-    # idxs_ref, idxs_cur, num_found_matches = search_frame_for_triangulation(f_ref, f_cur)
+    # idxs_ref, idxs_cur, num_found_matches = EpipolarMatcher.search_frame_for_triangulation(f_ref, f_cur)
 
     elapsed = timer.elapsed()
     print("time:", elapsed)

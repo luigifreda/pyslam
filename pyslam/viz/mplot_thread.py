@@ -35,8 +35,8 @@ import logging
 
 # import multiprocessing as mp
 import torch.multiprocessing as mp
-from pyslam.utilities.utils_sys import Logging, locally_configure_qt_environment
-from pyslam.utilities.utils_mp import MultiprocessingManager
+from pyslam.utilities.system import Logging, locally_configure_qt_environment
+from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.config_parameters import Parameters
 
 kPlotSleep = 0.04

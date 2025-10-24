@@ -27,14 +27,14 @@ from collections import Counter, deque
 from ordered_set import OrderedSet  # from https://pypi.org/project/ordered-set/
 from threading import RLock, Thread
 
-from pyslam.utilities.utils_geom import poseRt, add_ones, add_ones_1D
+from pyslam.utilities.geometry import poseRt, add_ones, add_ones_1D
 
 from .frame import Frame, FrameBase
 from .feature_tracker_shared import FeatureTrackerShared
 from .keyframe import KeyFrame
 from .map_point import MapPoint, MapPointBase
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 from pyslam.config_parameters import Parameters
 
@@ -108,7 +108,6 @@ class Map(object):
                 self.points.clear()
 
                 self.keyframe_origins.clear()
-
                 self.keyframes_map.clear()
 
                 self.local_map.reset()
@@ -252,6 +251,13 @@ class Map(object):
             except:
                 pass
             point.delete()
+
+    def remove_point_no_lock(self, point: MapPoint):
+        try:
+            self.points.remove(point)
+        except:
+            pass
+        point.delete()
 
     def add_frame(self, frame: Frame, ovverride_id=False):
         with self._lock:
@@ -784,8 +790,8 @@ class Map(object):
 
                 # non-static stuff
                 out_json["frames"] = [f.to_json() for f in self.frames]
-                out_json["keyframes"] = [kf.to_json() for kf in self.keyframes if not kf.is_bad]
-                out_json["points"] = [p.to_json() for p in self.points if not p.is_bad]
+                out_json["keyframes"] = [kf.to_json() for kf in self.keyframes if not kf.is_bad()]
+                out_json["points"] = [p.to_json() for p in self.points if not p.is_bad()]
                 out_json["keyframe_origins"] = [kf.to_json() for kf in self.keyframe_origins]
 
                 out_json["max_frame_id"] = self.max_frame_id
@@ -933,7 +939,7 @@ class LocalMapBase(object):
     # given some input local keyframes, get all the viewed points and all the reference keyframes (that see the viewed points but are not in the local keyframes)
     def update_from_keyframes(self, local_keyframes):
         # remove possible bad keyframes
-        local_keyframes = {kf for kf in local_keyframes if not kf.is_bad}
+        local_keyframes = {kf for kf in local_keyframes if not kf.is_bad()}
 
         # all good points in local_keyframes (only one instance per point)
         viewed_good_points = {p for kf in local_keyframes for p in kf.get_matched_good_points()}
@@ -944,7 +950,7 @@ class LocalMapBase(object):
             kf_viewing
             for p in viewed_good_points
             for kf_viewing in p.keyframes()
-            if not kf_viewing.is_bad and kf_viewing not in local_keyframes
+            if not kf_viewing.is_bad() and kf_viewing not in local_keyframes
         }
 
         with self.lock:
@@ -968,7 +974,7 @@ class LocalMapBase(object):
         # for all map points in frame check in which other keyframes are they seen
         # increase counter for those keyframes
         viewing_keyframes = [
-            kf for p in points for kf in p.keyframes() if not kf.is_bad
+            kf for p in points for kf in p.keyframes() if not kf.is_bad()
         ]  # if kf in keyframes]
         viewing_keyframes = Counter(viewing_keyframes)
         if len(viewing_keyframes) == 0:
@@ -997,7 +1003,7 @@ class LocalMapBase(object):
         for kf, c in local_keyframes_counts:
             local_points.update(kf.get_matched_points())
             local_keyframes.append(kf)
-        return kf_ref, local_keyframes, local_points
+        return kf_ref, local_keyframes, list(local_points)
 
 
 # Local window map (last N keyframes)
@@ -1045,7 +1051,7 @@ class LocalCovisibilityMap(LocalMapBase):
             assert kf_ref is not None
             self.keyframes = OrderedSet()
             self.keyframes.add(kf_ref)
-            neighbor_kfs = [kf for kf in kf_ref.get_covisible_keyframes() if not kf.is_bad]
+            neighbor_kfs = [kf for kf in kf_ref.get_covisible_keyframes() if not kf.is_bad()]
             self.keyframes.update(neighbor_kfs)
             return self.keyframes
 

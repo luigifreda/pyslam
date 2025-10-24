@@ -23,14 +23,14 @@ from pyslam.slam import (
 
 from pyslam.viz.mplot_figure import MPlotFigure
 
-from pyslam.utilities.utils_geom import add_ones, poseRt, skew
-from pyslam.utilities.utils_draw import draw_points2, draw_feature_matches
-from pyslam.slam.search_points_test import search_frame_for_triangulation_test
+from pyslam.utilities.geometry import add_ones, poseRt, skew
+from pyslam.utilities.drawing import draw_points2, draw_feature_matches
+
 from pyslam.slam.slam import Slam
 from pyslam.slam.initializer import Initializer
 from pyslam.utilities.timer import TimerFps
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 from pyslam.local_features.feature_tracker import FeatureTrackerTypes
 

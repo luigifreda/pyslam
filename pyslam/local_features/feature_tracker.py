@@ -24,9 +24,9 @@ from .feature_manager import feature_manager_factory
 from .feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 from .feature_matcher import feature_matcher_factory, FeatureMatcherTypes
 
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
-from pyslam.utilities.utils_sys import Printer, import_from
-from pyslam.utilities.utils_geom import (
+from pyslam.utilities.serialization import SerializableEnum, register_class
+from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.geometry import (
     hamming_distance,
     hamming_distances,
     l2_distance,

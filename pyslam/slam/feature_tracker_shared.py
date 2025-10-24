@@ -22,8 +22,9 @@ import cv2
 import numpy as np
 
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 from pyslam.local_features.feature_matcher import FeatureMatcherTypes
+from pyslam.config_parameters import Parameters
 
 
 import atexit
@@ -48,11 +49,14 @@ class FeatureTrackerShared:
     descriptor_distances = None
     oriented_features = False
     feature_tracker_right: "FeatureTracker | None" = None
+    _is_cpp_used = False
+    _is_cpp_available = False
     _is_cpp_initialized = False
+    _cpp_module_parameters = None
 
     @staticmethod
     def set_feature_tracker(feature_tracker, force=False):
-        from pyslam.slam.frame import FrameBase, Frame  # Import at runtime
+        from pyslam.slam import FrameBase, Frame  # Import at runtime
 
         FrameBase._id = 0  # reset the frame counter
 
@@ -86,19 +90,23 @@ class FeatureTrackerShared:
         FeatureTrackerShared.feature_tracker_right = feature_tracker
 
     @staticmethod
-    def init_cpp_module(feature_tracker):
+    def init_cpp_module(feature_tracker: "FeatureTracker"):
         """Initialize the C++ module with the feature tracker info"""
         try:
-            from pyslam.slam.cpp import cpp_core
+            from pyslam.slam.cpp import cpp_module
             from pyslam.slam.cpp import CPP_AVAILABLE
             from pyslam.slam import USE_CPP
 
-            if not USE_CPP or not CPP_AVAILABLE:
+            if not CPP_AVAILABLE:
                 return
 
-            # Set C++ FeatureSharedInfo static properties from the feature manager
+            FeatureTrackerShared._is_cpp_used = USE_CPP
+            FeatureTrackerShared._is_cpp_available = True
+            FeatureTrackerShared._cpp_module_parameters = cpp_module.Parameters
+
+            # Set C++ FeatureSharedResources static properties from the feature manager
             py_fm = feature_tracker.feature_manager
-            cpp_fsi = cpp_core.FeatureSharedInfo
+            cpp_fsr = cpp_module.FeatureSharedResources
 
             def to_enum_value(e):
                 return e.value
@@ -114,7 +122,7 @@ class FeatureTrackerShared:
                 if value is None:
                     Printer.red(f"FeatureTrackerShared: feature_manager.{attr} is None")
                     return
-                setattr(cpp_fsi, attr, transform(value))
+                setattr(cpp_fsr, attr, transform(value))
 
             # --- attributes and their transformations ---
             attributes = [
@@ -131,28 +139,32 @@ class FeatureTrackerShared:
                 ("detector_type", to_enum_value),
                 ("descriptor_type", to_enum_value),
                 ("norm_type", identity),
+                ("oriented_features", identity),
             ]
 
             for attr, transform in attributes:
                 set_cpp_or_warn(attr, transform)
 
             # Set the feature detection callbacks that will be used by pyslam::MapPoint
-            FeatureTrackerShared.setup_feature_detection_callbacks("C++", cpp_core)
+            FeatureTrackerShared.setup_feature_detection_callbacks("C++", cpp_module)
 
             # Register cleanup handler to be called on program exit
             # to prevent hanging on exit if the callbacks are not cleared
             FeatureTrackerShared._register_cleanup_handler()
 
+            # Init the C++ module config parameters
+            FeatureTrackerShared.init_cpp_module_config_parameters()
+
             # Set the C++ module initialized flag
             FeatureTrackerShared._is_cpp_initialized = True
         except Exception as e:
-            Printer.orange(f"WARNING: FeatureTrackerShared: cannot set cpp_core: {e}")
+            Printer.orange(f"WARNING: FeatureTrackerShared: cannot set cpp_module: {e}")
             traceback.print_exc()
 
     @staticmethod
     def setup_feature_detection_callbacks(module_type: str, module: Any):
         """Setup feature detection callbacks using FeatureTrackerShared"""
-        from pyslam.utilities.utils_features import convert_keypoints_to_tuples
+        from pyslam.utilities.features import convert_keypoints_to_tuples
 
         if module_type != "C++":
             raise ValueError(f"FeatureTrackerShared: module_type must be 'C++', got {module_type}")
@@ -185,7 +197,8 @@ class FeatureTrackerShared:
             # Convert cv2.KeyPoint objects to tuples for C++ compatibility
             return convert_keypoints_to_tuples(kps), des
 
-        # match pyslam::StereoMatchingCallback signature
+        # match pyslam::FeatureMatchingCallback signature
+        # TODO: use a different dedicated feature matcher for stereo matching
         def stereo_matching_cb(
             image, image_right, des, des_r, kps, kps_r, ratio_test, row_matching, max_disparity
         ):
@@ -194,19 +207,50 @@ class FeatureTrackerShared:
             )
             return results.idxs1, results.idxs2
 
-        module.FeatureSharedInfo.set_feature_detect_and_compute_callback(detect_and_compute_cb)
-        module.FeatureSharedInfo.set_feature_detect_and_compute_right_callback(
+        # match pyslam::FeatureMatchingCallback signature
+        def feature_matching_cb(
+            image, image_right, des, des_r, kps, kps_r, ratio_test, row_matching, max_disparity
+        ):
+            results = FeatureTrackerShared.feature_matcher.match(
+                image, image_right, des, des_r, kps, kps_r, ratio_test, row_matching, max_disparity
+            )
+            return results.idxs1, results.idxs2
+
+        module.FeatureSharedResources.set_feature_detect_and_compute_callback(detect_and_compute_cb)
+        module.FeatureSharedResources.set_feature_detect_and_compute_right_callback(
             detect_and_compute_right_cb
         )
-        module.FeatureSharedInfo.set_stereo_matching_callback(stereo_matching_cb)
+        module.FeatureSharedResources.set_stereo_matching_callback(stereo_matching_cb)
+        module.FeatureSharedResources.set_feature_matching_callback(feature_matching_cb)
+
+    @staticmethod
+    def init_cpp_module_config_parameters():
+        """Init the C++ module config parameters"""
+        if not FeatureTrackerShared._is_cpp_used:
+            return
+        FeatureTrackerShared._cpp_module_parameters.kFeatureMatchDefaultRatioTest = (
+            FeatureTrackerShared.feature_matcher.ratio_test
+        )
+        FeatureTrackerShared._cpp_module_parameters.kMaxDescriptorDistance = (
+            Parameters.kMaxDescriptorDistance  # this needs to be updated dynamically
+        )
+
+    @staticmethod
+    def update_cpp_module_dynamic_config_parameters():
+        """Update the C++ module config parameters"""
+        if not FeatureTrackerShared._is_cpp_used:
+            return
+        FeatureTrackerShared._cpp_module_parameters.kMaxDescriptorDistance = (
+            Parameters.kMaxDescriptorDistance
+        )
 
     @staticmethod
     def clear_cpp_module_callbacks():
         """Clear C++ module callbacks to prevent hanging on exit"""
         try:
-            from pyslam.slam.cpp import cpp_core
+            from pyslam.slam.cpp import cpp_module
 
-            cpp_core.FeatureSharedInfo.clear_callbacks()
+            cpp_module.FeatureSharedResources.clear_callbacks()
             print("✅ C++ module callbacks cleared")
         except Exception as e:
             print(f"⚠️  Warning: Failed to clear C++ module callbacks: {e}")

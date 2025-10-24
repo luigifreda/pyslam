@@ -24,7 +24,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.utils_sys import getchar, Printer, check_if_main_thread
+from pyslam.utilities.system import getchar, Printer, check_if_main_thread
 
 from typing import List
 
@@ -32,9 +32,6 @@ from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_types import FeatureInfo
 
 from pyslam.utilities.timer import TimerFps
-
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
 
 import traceback
 from .loop_detector_base import (
@@ -177,7 +174,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
     def save(self, path):
         filepath = path + "/loop_closing.db"
         LoopDetectorBase.print(f"LoopDetectorVprBase: saving database to {filepath}...")
-        LoopDetectorBase.print(f"\t Dabased size: {self.global_db.size()}")
+        LoopDetectorBase.print(f"\t Database size: {self.global_db.size()}")
         self.global_db.save(filepath)
 
     def load(self, path):
@@ -187,7 +184,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
             return
         LoopDetectorBase.print(f"LoopDetectorVprBase: loading database from {filepath}...")
         self.global_db.load(filepath)
-        LoopDetectorBase.print(f"\t Dabased size: {self.global_db.size()}")
+        LoopDetectorBase.print(f"\t Database size: {self.global_db.size()}")
         LoopDetectorBase.print(f"LoopDetectorVprBase: ...done")
 
     def init(self):

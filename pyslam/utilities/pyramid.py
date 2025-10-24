@@ -23,8 +23,8 @@ from enum import Enum
 import numpy as np
 import cv2
 
-from .utils_img import img_blocks
-from .utils_sys import Printer
+from .img_management import img_blocks
+from .system import Printer
 
 
 kVerbose = True

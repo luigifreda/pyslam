@@ -49,6 +49,7 @@ void bind_keyframe(py::module &m) {
         .def("reset_covisibility", &pyslam::KeyFrameGraph::reset_covisibility)
         .def("get_connected_keyframes", &pyslam::KeyFrameGraph::get_connected_keyframes)
         .def("get_covisible_keyframes", &pyslam::KeyFrameGraph::get_covisible_keyframes)
+        .def("get_covisible_by_weight", &pyslam::KeyFrameGraph::get_covisible_by_weight)
         .def("get_best_covisible_keyframes", &pyslam::KeyFrameGraph::get_best_covisible_keyframes)
         .def("get_children", &pyslam::KeyFrameGraph::get_children)
         .def("get_parent", &pyslam::KeyFrameGraph::get_parent)
@@ -65,12 +66,26 @@ void bind_keyframe(py::module &m) {
     // KeyFrame class - matches Python KeyFrame
     py::class_<pyslam::KeyFrame, pyslam::Frame, pyslam::KeyFrameGraph,
                std::shared_ptr<pyslam::KeyFrame>>(m, "KeyFrame")
-        .def(py::init([](pyslam::FramePtr frame, const cv::Mat &img, const cv::Mat &img_right,
-                         const cv::Mat &depth, int kid) {
+        .def(py::init([](pyslam::FramePtr frame, py::object img_obj, py::object img_right_obj,
+                         py::object depth_obj, py::object kid_obj) {
+                 cv::Mat img = img_obj.is_none() ? cv::Mat() : py::cast<cv::Mat>(img_obj);
+                 cv::Mat img_right =
+                     img_right_obj.is_none() ? cv::Mat() : py::cast<cv::Mat>(img_right_obj);
+                 cv::Mat depth = depth_obj.is_none() ? cv::Mat() : py::cast<cv::Mat>(depth_obj);
+                 int kid = kid_obj.is_none() ? -1 : py::cast<int>(kid_obj);
                  return std::make_shared<pyslam::KeyFrame>(frame, img, img_right, depth, kid);
              }),
-             py::arg("frame"), py::arg("img") = cv::Mat(), py::arg("img_right") = cv::Mat(),
-             py::arg("depth") = cv::Mat(), py::arg("kid") = -1)
+             py::arg("frame"),                  // 1
+             py::arg("img") = py::none(),       // 2
+             py::arg("img_right") = py::none(), // 3
+             py::arg("depth") = py::none(),     // 4
+             py::arg("kid") = py::none(),       // 5
+             py::keep_alive<0, 1>(),            // frame
+             py::keep_alive<0, 2>(),            // img
+             py::keep_alive<0, 3>(),            // img_right
+             py::keep_alive<0, 4>(),            // depth
+             py::keep_alive<0, 5>()             // kid
+             )
         .def_readwrite("kid", &pyslam::KeyFrame::kid)
         .def_readwrite("_is_bad", &pyslam::KeyFrame::_is_bad)
         .def_readwrite("lba_count", &pyslam::KeyFrame::lba_count)
@@ -84,8 +99,13 @@ void bind_keyframe(py::module &m) {
         .def_readwrite("reloc_score", &pyslam::KeyFrame::reloc_score)
         .def_readwrite("GBA_kf_id", &pyslam::KeyFrame::GBA_kf_id)
         .def_readwrite("Tcw_GBA", &pyslam::KeyFrame::Tcw_GBA)
+        .def_readwrite("is_Tcw_GBA_valid", &pyslam::KeyFrame::is_Tcw_GBA_valid)
         .def_readwrite("Tcw_before_GBA", &pyslam::KeyFrame::Tcw_before_GBA)
         .def_readwrite("map", &pyslam::KeyFrame::map)
+        .def("Tcp", &pyslam::KeyFrame::Tcp)
+        .def("is_bad", &pyslam::KeyFrame::is_bad)
+        .def("set_not_erase", &pyslam::KeyFrame::set_not_erase)
+        .def("set_erase", &pyslam::KeyFrame::set_erase)
         .def("set_bad", &pyslam::KeyFrame::set_bad)
         .def("get_matched_points", &pyslam::KeyFrame::get_matched_points)
         .def("get_matched_good_points", &pyslam::KeyFrame::get_matched_good_points)

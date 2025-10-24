@@ -33,48 +33,51 @@ import g2o
 
 from pyslam.config_parameters import Parameters
 
-from .frame import Frame, match_frames
+from .frame import match_frames
 from .feature_tracker_shared import FeatureTrackerShared
 
-# from .keyframe import KeyFrame
-# from .map_point import MapPoint
-# from .map import Map
 from pyslam.slam import (
     Frame,
     MapPoint,
     KeyFrame,
     Map,
+    optimizer_g2o,
+    TrackingUtils,
+    RotationHistogram,
+    ProjectionMatcher,
 )
 
 from .slam_commons import SlamState
-from .search_points import (
-    propagate_map_point_matches,
-    search_map_by_projection,
-    search_frame_by_projection,
-)
-from .local_mapping import LocalMapping
+
 from .initializer import Initializer
 from .slam_dynamic_config import SLAMDynamicConfig
 from .motion_model import MotionModel, MotionModelDamping
-from . import optimizer_g2o
-from . import optimizer_gtsam
 
-from pyslam.io.dataset import SensorType
+from pyslam.io.dataset_types import SensorType
 
-from pyslam.utilities.utils_sys import Printer, Logging
-from pyslam.utilities.utils_draw import draw_feature_matches
-from pyslam.utilities.utils_geom import poseRt, inv_T
-from pyslam.utilities.utils_geom_2views import estimate_pose_ess_mat
-from pyslam.utilities.utils_features import ImageGrid
-from pyslam.utilities.rotation_histogram import filter_matches_with_histogram_orientation
+from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.drawing import draw_feature_matches
+from pyslam.utilities.geometry import poseRt, inv_T
+from pyslam.utilities.geom_2views import estimate_pose_ess_mat
+from pyslam.utilities.features import ImageGrid
 from pyslam.utilities.timer import TimerFps
-from pyslam.utilities.utils_img_processing import detect_blur_laplacian
+from pyslam.utilities.img_processing import detect_blur_laplacian
 
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pyslam.slam.slam import Slam, SlamState  # Only imported when type checking, not at runtime
+    # Only imported when type checking, not at runtime
+    from .slam import Slam, SlamState
+    from .frame import Frame
+    from .keyframe import KeyFrame
+    from .map_point import MapPoint
+    from .map import Map
+    from .optimizer_g2o import optimizer_g2o
+    from .optimizer_gtsam import optimizer_gtsam
+    from .tracking_utils import TrackingUtils
+    from .rotation_histogram import RotationHistogram
+    from .slam import ProjectionMatcher
 
 
 kVerbose = True
@@ -113,7 +116,7 @@ kUseSearchFrameByProjection = (
 
 kNumMinObsForKeyFrameDefault = 3
 
-kMinDepth = 1e-2
+kMinDepth = Parameters.kMinDepth
 
 
 kScriptPath = os.path.realpath(__file__)
@@ -404,13 +407,25 @@ class Tracking:
         H, mask = cv2.findHomography(
             kps_cur, kps_ref, ransac_method, ransacReprojThreshold=reproj_threshold
         )
+
+        # Check if homography was found (mask is not None)
+        if mask is None:
+            return False, np.array([], dtype=int), np.array([], dtype=int), 0, 0
+
+        # Ensure mask is a numpy array and convert to boolean
+        mask = np.asarray(mask, dtype=bool).ravel()
+
         num_inliers = np.count_nonzero(mask)
         num_outliers = len(idxs_cur) - num_inliers
         if num_inliers < min_num_inliers:
             return False, np.array([], dtype=int), np.array([], dtype=int), 0, 0
         else:
-            idxs_cur = idxs_cur[mask.ravel() == 1]
-            idxs_ref = idxs_ref[mask.ravel() == 1]
+            # Ensure idxs_cur and idxs_ref are numpy arrays for proper indexing
+            idxs_cur = np.asarray(idxs_cur)
+            idxs_ref = np.asarray(idxs_ref)
+
+            idxs_cur = idxs_cur[mask]
+            idxs_ref = idxs_ref[mask]
             num_matched_kps = len(idxs_cur)
             return True, idxs_cur, idxs_ref, num_matched_kps, num_outliers
 
@@ -458,7 +473,7 @@ class Tracking:
 
             f_cur.reset_points()
             self.timer_seach_frame_proj.start()
-            idxs_ref, idxs_cur, num_found_map_pts = search_frame_by_projection(
+            idxs_ref, idxs_cur, num_found_map_pts = ProjectionMatcher.search_frame_by_projection(
                 f_ref,
                 f_cur,
                 max_reproj_distance=search_radius,
@@ -474,27 +489,33 @@ class Tracking:
             if self.num_matched_kps < Parameters.kMinNumMatchedFeaturesSearchFrameByProjection:
                 f_cur.remove_frame_views(idxs_cur)
                 f_cur.reset_points()
-                idxs_ref, idxs_cur, num_found_map_pts = search_frame_by_projection(
-                    f_ref,
-                    f_cur,
-                    max_reproj_distance=2 * search_radius,
-                    max_descriptor_distance=self.descriptor_distance_sigma,
-                    ratio_test=Parameters.kMatchRatioTestFrameByProjection,  # not used at the moment
-                    is_monocular=(self.sensor_type == SensorType.MONOCULAR),
+                idxs_ref, idxs_cur, num_found_map_pts = (
+                    ProjectionMatcher.search_frame_by_projection(
+                        f_ref,
+                        f_cur,
+                        max_reproj_distance=2 * search_radius,
+                        max_descriptor_distance=self.descriptor_distance_sigma,
+                        ratio_test=Parameters.kMatchRatioTestFrameByProjection,  # not used at the moment
+                        is_monocular=(self.sensor_type == SensorType.MONOCULAR),
+                    )
                 )
                 self.num_matched_kps = len(idxs_cur)
                 Printer.orange(
                     "# matched map points in prev frame (wider search): %d " % self.num_matched_kps
                 )
 
-            if f_cur.is_blurry or f_ref.is_blurry:
+            if (
+                (f_cur.is_blurry or f_ref.is_blurry)
+                and self.num_matched_kps
+                < Parameters.kMotionBlurDetectionMaxNumMatchedKpsToEnablRansacHomography
+            ):
                 # use homography RANSAC to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
                 matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps, num_outliers = (
                     self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
                 )
                 if matching_is_ok:
                     Printer.orange(
-                        f"# matched inter-frame map points with homography and RANSAC: {self.num_matched_kps}, percentage of inliers: {self.num_matched_kps/(num_outliers+self.num_matched_kps)*100:.2f}%"
+                        f"# matched inter-frame map points with homography and RANSAC (blurry frames): {self.num_matched_kps}, percentage of inliers: {self.num_matched_kps/(num_outliers+self.num_matched_kps)*100:.2f}%"
                     )
 
             if kShowFeatureMatches and kShowFeatureMatchesPrevFrame:
@@ -573,7 +594,7 @@ class Tracking:
 
         # match only the reference keypoints in f_ref that correspond to map points and are not bad
         idxs_ref_map_points = np.array(
-            [i for i, p in enumerate(f_ref.points) if p is not None and not p.is_bad], dtype=int
+            [i for i, p in enumerate(f_ref.points) if p is not None and not p.is_bad()], dtype=int
         )
         des_ref = f_ref.des[idxs_ref_map_points]
         kps_ref = f_ref.kps[idxs_ref_map_points]
@@ -603,8 +624,8 @@ class Tracking:
                 f"[track_reference_frame]: # keypoint matches: idxs_cur: {len(idxs_cur)}, idxs_ref: {len(idxs_ref)}"
             )
         if FeatureTrackerShared.oriented_features and len(idxs_cur) > 0 and len(idxs_ref) > 0:
-            valid_match_idxs = filter_matches_with_histogram_orientation(
-                idxs_cur, idxs_ref, f_cur, f_ref
+            valid_match_idxs = RotationHistogram.filter_matches_with_histogram_orientation(
+                idxs_cur, idxs_ref, f_cur.angles, f_ref.angles
             )
             des_distances = FeatureTrackerShared.descriptor_distances(
                 f_cur.des[idxs_cur], f_ref.des[idxs_ref]
@@ -629,15 +650,18 @@ class Tracking:
 
         # use homography RANSAC to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
         # only if both frames are not keyframes (so they are expected to be close in space) and at least one is blurry
-        if (f_cur.is_blurry or f_ref.is_blurry) and (
-            not f_cur.is_keyframe and not f_ref.is_keyframe
+        if (
+            (f_cur.is_blurry or f_ref.is_blurry)
+            and (not f_cur.is_keyframe and not f_ref.is_keyframe)
+            and self.num_matched_kps
+            < Parameters.kMotionBlurDetectionMaxNumMatchedKpsToEnablRansacHomography
         ):
             matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps, num_outliers = (
                 self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
             )
             if matching_is_ok:
                 Printer.orange(
-                    f"# matched inter-frame map points with homography and RANSAC: {self.num_matched_kps}, percentage of inliers: {self.num_matched_kps/(num_outliers+self.num_matched_kps)*100:.2f}%"
+                    f"# matched inter-frame map points with homography and RANSAC (blurry frames): {self.num_matched_kps}, percentage of inliers: {self.num_matched_kps/(num_outliers+self.num_matched_kps)*100:.2f}%"
                 )
 
         print("# keypoints matched: %d " % self.num_matched_kps)
@@ -667,8 +691,10 @@ class Tracking:
             if not f_ref.is_keyframe
             else 0.5 * self.descriptor_distance_sigma
         )
-        num_found_map_pts_inter_frame, idx_ref_prop, idx_cur_prop = propagate_map_point_matches(
-            f_ref, f_cur, idxs_ref, idxs_cur, max_descriptor_distance=max_descriptor_distance
+        num_found_map_pts_inter_frame, idx_ref_prop, idx_cur_prop = (
+            TrackingUtils.propagate_map_point_matches(
+                f_ref, f_cur, idxs_ref, idxs_cur, max_descriptor_distance=max_descriptor_distance
+            )
         )
         print("# matched map points in reference frame: %d " % num_found_map_pts_inter_frame)
 
@@ -728,6 +754,14 @@ class Tracking:
         if self.kf_ref is not None:
             self.f_cur.kf_ref = self.kf_ref
 
+        if False:
+            # one-time diagnostic
+            if any(not isinstance(p, MapPoint) for p in self.local_points):
+                bad = [type(p) for p in self.local_points if not isinstance(p, MapPoint)]
+                print(
+                    f"[update_local_map] local_points contains non-MapPoint: {bad[:5]}{'...' if len(bad)>5 else ''}"
+                )
+
     # track camera motion of f_cur w.r.t. the built local map
     # find matches between {local map points} (points in the built local map) and {unmatched keypoints of f_cur}
     def track_local_map(self, f_cur: Frame):
@@ -749,7 +783,7 @@ class Tracking:
             self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapReloc
 
         # use the updated local map to search for matches between {local map points} and {unmatched keypoints of f_cur}
-        num_found_map_pts, matched_points_frame_idxs = search_map_by_projection(
+        num_found_map_pts, matched_points_frame_idxs = ProjectionMatcher.search_map_by_projection(
             self.local_points,
             f_cur,
             max_reproj_distance=self.reproj_err_frame_map_sigma,
@@ -870,8 +904,9 @@ class Tracking:
         num_non_tracked_close = 0
         num_tracked_close = 0
         # Create a mask for tracked points (not None and not an outlier)
-        # tracked_mask = (f_cur.points != None) & (~f_cur.outliers)
-        tracked_mask = np.not_equal(f_cur.points, None) & (~f_cur.outliers)
+        points_mask = np.array([p is not None for p in f_cur.points])
+        outliers_mask = ~np.array(f_cur.outliers)
+        tracked_mask = points_mask & outliers_mask
         if self.sensor_type != SensorType.MONOCULAR:
             # Create a mask to identify valid depth values within the threshold
             depth_mask = (f_cur.depths > kMinDepth) & (f_cur.depths < f_cur.camera.depth_threshold)
@@ -1025,114 +1060,24 @@ class Tracking:
 
         print("Creating VO points...")
 
-        # Create "visual odometry" MapPoints
-        # Sort points according to their measured depth by the stereo/RGB-D sensor
-        valid_mask = self.f_ref.depths > kMinDepth
-        if not np.any(valid_mask):
-            return
-
-        valid_depths = self.f_ref.depths[valid_mask]
-        valid_indices = np.where(valid_mask)[0]
-
-        # Sort by depth (increasing order)
-        sort_indices = np.argsort(valid_depths)
-        sorted_depths = valid_depths[sort_indices]
-        sorted_indices = valid_indices[sort_indices]
-
-        # Configuration
-        max_num_vo_points = 100  # TODO: Make this configurable
-
-        # Create new map points where the depth is smaller than the prefixed depth threshold
-        # or at least max_num_vo_points new points with the closest depths
-        depth_threshold = self.f_ref.camera.depth_threshold
-        mask_depths_smaller_than_th = sorted_depths < depth_threshold
-        mask_first_N_points = np.arange(len(sorted_depths)) < max_num_vo_points
-        mask_first_selection = np.logical_or(mask_depths_smaller_than_th, mask_first_N_points)
-
-        # Apply first selection mask
-        # selected_depths = sorted_depths[mask_first_selection]
-        selected_indices = sorted_indices[mask_first_selection]
-        selected_points = self.f_ref.points[selected_indices]
-
-        # Get points that are None or where the number of observations is smaller than 1
-        vector_num_mp_observations = np.array(
-            [p.num_observations if p is not None else 0 for p in selected_points], dtype=np.int32
+        # Create VO points using the new frame method
+        created_points = TrackingUtils.create_vo_points(
+            self.f_ref, max_num_points=Parameters.kMaxNumVisualOdometryPoints
         )
-        mask_where_to_create_new_map_points = vector_num_mp_observations < 1
 
-        # Apply final selection mask
-        final_indices = selected_indices[mask_where_to_create_new_map_points]
+        # Add to VO points list
+        self.vo_points.extend(created_points)
 
-        # Create the new points on the last frame
-        pts3d, pts3d_mask = self.f_ref.unproject_points_3d(final_indices, transform_in_world=True)
-        if pts3d is None or pts3d_mask is None:
-            return
-
-        num_added_points = 0
-        for i, (p, is_valid) in enumerate(zip(pts3d, pts3d_mask)):
-            if not is_valid:
-                continue
-
-            # Use a consistent color for VO points (red in BGR)
-            color = (0, 0, 255)  # TODO: Make this configurable
-
-            # Create new map point (VO point)
-            mp = MapPoint(p[0:3], color, self.f_ref, final_indices[i])
-            self.f_ref.points[final_indices[i]] = mp
-            self.vo_points.append(mp)
-            num_added_points += 1
-
-        print(f"Added #new VO points: {num_added_points}")
+        num_added_points = len(created_points)
+        print(
+            f"Added #new VO points: {num_added_points}, current #VO points: {len(self.vo_points)}"
+        )
 
     # kf is a newly created keyframe starting from frame f
     def create_and_add_stereo_map_points_on_new_kf(self, f: Frame, kf: KeyFrame, img):
         if self.sensor_type != SensorType.MONOCULAR and kf.depths is not None:
-            valid_depths_and_idxs = [(z, i) for i, z in enumerate(kf.depths) if z > kMinDepth]
-            valid_depths_and_idxs.sort()  # increasing-depth order
-
-            if len(valid_depths_and_idxs) == 0:
-                Printer.yellow(
-                    "[create_and_add_stereo_map_points_on_new_kf] no valid depths and idxs found, returning"
-                )
-                return
-
-            sorted_z_values, sorted_idx_values = zip(
-                *valid_depths_and_idxs
-            )  # unpack the sorted z values and i values into separate lists
-            sorted_z_values = np.array(sorted_z_values, dtype=np.float32)
-            sorted_idx_values = np.array(sorted_idx_values, dtype=np.int32)
-
-            N = 100
-            # create new map points where the depth is smaller than the prefixed depth threshold
-            #        or at least N new points with the closest depths
-            mask_depths_smaller_than_th = sorted_z_values < kf.camera.depth_threshold
-            mask_first_N_points = np.zeros(len(sorted_z_values), dtype=bool)
-            mask_first_N_points[: min(N, len(sorted_z_values))] = (
-                True  # set True for the first N points otherwise set all True if len(sorted_z_values) < N
-            )
-            mask_first_selection = np.logical_or(mask_depths_smaller_than_th, mask_first_N_points)
-
-            sorted_z_values = sorted_z_values[mask_first_selection]
-            sorted_idx_values = sorted_idx_values[mask_first_selection]
-            sorted_points = kf.points[sorted_idx_values]
-
-            # get the points that are None or where the num of observations is smaller than 1
-            vector_num_mp_observations = np.array(
-                [p.num_observations if p is not None else 0 for p in sorted_points], dtype=np.int32
-            )
-            mask_where_to_create_new_map_points = vector_num_mp_observations < 1
-
-            sorted_z_values = sorted_z_values[mask_where_to_create_new_map_points]
-            sorted_idx_values = sorted_idx_values[mask_where_to_create_new_map_points]
-            # sorted_points = sorted_points[mask_where_to_create_new_map_points]
-
-            # we need to reset the points in the originary frame
-            null_array = np.full(len(sorted_idx_values), None, dtype=object)
-            f.points[sorted_idx_values] = null_array
-
-            pts3d, pts3d_mask = f.unproject_points_3d(sorted_idx_values, transform_in_world=True)
-            num_added_points = self.map.add_stereo_points(
-                pts3d, pts3d_mask, f, kf, sorted_idx_values, img
+            num_added_points = TrackingUtils.create_and_add_stereo_map_points_on_new_kf(
+                f, kf, self.map, img
             )
             self.last_num_static_stereo_map_points = num_added_points
             self.total_num_static_stereo_map_points += num_added_points
@@ -1248,7 +1193,9 @@ class Tracking:
         # preprocessing
         f_cur_is_blurry = False
         if Parameters.kUseMotionBlurDection:
-            f_cur_is_blurry, f_cur_laplacian_var = detect_blur_laplacian(img)
+            f_cur_is_blurry, f_cur_laplacian_var = detect_blur_laplacian(
+                img, threshold=Parameters.kMotionBlurDetectionLalacianVarianceThreshold
+            )
             if f_cur_is_blurry:
                 Printer.purple(f"img {img_id} is blurry, laplacian_var: {f_cur_laplacian_var}")
                 # img = cv2.GaussianBlur(img, (5, 5), 0) # NOTE: just testing prefiltering to push feature tracking on higher levels of the pyramid
