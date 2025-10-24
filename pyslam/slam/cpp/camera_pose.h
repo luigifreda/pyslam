@@ -39,12 +39,15 @@ class CameraPose {
     Eigen::Vector3d Ow_ = Eigen::Vector3d::Zero();      // camera origin in world coordinates
 
     // Pose covariance - matches Python's covariance
-    Eigen::Matrix<double, 6, 6> covariance_;
+    Eigen::Matrix<double, 6, 6> covariance_ = Eigen::Matrix<double, 6, 6>::Identity();
 
   public:
     // Constructor - matches Python's __init__(self, pose=None)
     CameraPose();
     explicit CameraPose(const Eigen::Isometry3d &pose);
+    explicit CameraPose(const Eigen::Matrix4d &Tcw);
+    explicit CameraPose(const Eigen::Matrix3d &Rcw, const Eigen::Vector3d &tcw);
+    explicit CameraPose(const Eigen::Quaterniond &quaternion, const Eigen::Vector3d &position);
 
     // Destructor
     ~CameraPose() = default;
@@ -107,7 +110,7 @@ class CameraPose {
 
   private:
     // Helper methods
-    void update_cached_matrices();
+    void update_cached_matrices(bool initialize = false);
     void initialize_covariance();
 };
 

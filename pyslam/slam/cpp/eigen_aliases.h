@@ -43,12 +43,15 @@ template <typename Scalar> using VecN = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>
 
 using Mat2f = Eigen::Matrix<float, 2, 2>;
 using Mat3f = Eigen::Matrix<float, 3, 3>;
+using Mat4f = Eigen::Matrix<float, 4, 4>;
 
 using Mat2d = Eigen::Matrix<double, 2, 2>;
 using Mat3d = Eigen::Matrix<double, 3, 3>;
+using Mat4d = Eigen::Matrix<double, 4, 4>;
 
 template <typename Scalar> using Mat2 = Eigen::Matrix<Scalar, 2, 2>;
 template <typename Scalar> using Mat3 = Eigen::Matrix<Scalar, 3, 3>;
+template <typename Scalar> using Mat4 = Eigen::Matrix<Scalar, 4, 4>;
 
 // -- Row-major dynamic matrices we exchange with NumPy
 
@@ -70,7 +73,7 @@ using MatNxM = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowM
 // -- Convenient Refs for const input
 
 // NOTE: These Ref types are:
-// - Lightweight view
+// - Lightweight const view
 // - Can bind to many compatible Eigen objects without copying
 // - Good for function arguments in APIs.
 
@@ -91,6 +94,9 @@ using Mat2dRef = Eigen::Ref<const Mat2d>;
 using Mat3fRef = Eigen::Ref<const Mat3f>;
 using Mat3dRef = Eigen::Ref<const Mat3d>;
 
+using Mat4fRef = Eigen::Ref<const Mat4f>;
+using Mat4dRef = Eigen::Ref<const Mat4d>;
+
 using MatNx2fRef = Eigen::Ref<const MatNx2f>;
 using MatNx3fRef = Eigen::Ref<const MatNx3f>;
 using MatNxMfRef = Eigen::Ref<const MatNxMf>;
@@ -105,6 +111,7 @@ template <typename Scalar> using VecNRef = Eigen::Ref<const VecN<Scalar>>;
 
 template <typename Scalar> using Mat2Ref = Eigen::Ref<const Mat2<Scalar>>;
 template <typename Scalar> using Mat3Ref = Eigen::Ref<const Mat3<Scalar>>;
+template <typename Scalar> using Mat4Ref = Eigen::Ref<const Mat4<Scalar>>;
 
 template <typename Scalar> using MatNx2Ref = Eigen::Ref<const MatNx2<Scalar>>;
 template <typename Scalar> using MatNx3Ref = Eigen::Ref<const MatNx3<Scalar>>;

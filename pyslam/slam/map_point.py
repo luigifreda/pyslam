@@ -22,9 +22,9 @@ import time
 import numpy as np
 from threading import RLock, Lock, Thread
 
-from pyslam.utilities.utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
+from pyslam.utilities.geometry import poseRt, add_ones, normalize_vector, normalize_vector2
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 from pyslam.config_parameters import Parameters
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
@@ -144,10 +144,11 @@ class MapPointBase(object):
     def get_observation_idx(self, keyframe: "KeyFrame"):
         assert keyframe.is_keyframe
         with self._lock_features:
-            try:
-                return self._observations[keyframe]
-            except KeyError:
-                return -1
+            return self._observations.get(keyframe, -1)
+
+    def get_frame_view_idx(self, frame: "Frame"):
+        with self._lock_features:
+            return self._frame_views.get(frame, -1)
 
     def add_observation_no_lock_(self, keyframe: "KeyFrame", idx):
         success = False
@@ -170,19 +171,18 @@ class MapPointBase(object):
             success = self.add_observation_no_lock_(keyframe, idx)
         return success
 
-    def remove_observation(self, keyframe: "KeyFrame", idx=None):
+    def remove_observation(self, keyframe: "KeyFrame", idx=None, map_no_lock=False):
         assert keyframe.is_keyframe
-        map_remove_point = False
         kf_remove_point_match = False
         kf_remove_point = False
+        set_bad = False
 
         with self._lock_features:
             # remove point association
             if idx is not None:
-                if __debug__:
-                    assert self == keyframe.get_point_match(idx)
                 kf_remove_point_match = True
                 if __debug__:
+                    assert self == keyframe.get_point_match(idx)
                     assert not self in keyframe.points  # checking there are no multiple instances
             else:
                 kf_remove_point = True
@@ -192,12 +192,9 @@ class MapPointBase(object):
                     self._num_observations = max(0, self._num_observations - 2)
                 else:
                     self._num_observations = max(0, self._num_observations - 1)
-                self._is_bad = self._num_observations <= 2
+                set_bad = self._num_observations <= 2
                 if self.kf_ref is keyframe and self._observations:
                     self.kf_ref = list(self._observations.keys())[0]
-                # if bad remove it from pyslam.slam.map
-                if self._is_bad and self.map is not None:
-                    map_remove_point = True
             except KeyError:
                 pass
 
@@ -206,8 +203,8 @@ class MapPointBase(object):
             keyframe.remove_point_match(idx)
         if kf_remove_point:
             keyframe.remove_point(self)
-        if map_remove_point:
-            self.map.remove_point(self)
+        if set_bad:
+            self.set_bad(map_no_lock=map_no_lock)
 
     # return a copy of the dictionary’s list of (key, value) pairs
     def frame_views(self):
@@ -282,7 +279,6 @@ class MapPointBase(object):
         if frame_remove_point:
             frame.remove_point(self)
 
-    @property
     def is_bad(self):
         with self._lock_features:
             # with self._lock_pos:
@@ -293,7 +289,6 @@ class MapPointBase(object):
             assert keyframe.is_keyframe
             return self._is_bad or (keyframe in self._observations)
 
-    @property
     def num_observations(self):
         with self._lock_features:
             return self._num_observations
@@ -369,6 +364,7 @@ class MapPoint(MapPointBase):
 
         # for GBA
         self.pt_GBA = None
+        self.is_pt_GBA_valid = False  # For easing C++ equivalent code
         self.GBA_kf_id = 0
 
     def __getstate__(self):
@@ -462,10 +458,9 @@ class MapPoint(MapPointBase):
         if self.kf_ref is not None:
             self.kf_ref = get_object_with_id(self.kf_ref, keyframes_dict)
 
-    @property
     def pt(self):
         with self._lock_pos:
-            return self._pt
+            return self._pt.copy()
 
     def homogeneous(self):
         with self._lock_pos:
@@ -477,13 +472,11 @@ class MapPoint(MapPointBase):
             with self._lock_pos:
                 self._pt = position
 
-    @property
     def min_distance(self):
         with self._lock_pos:
             # return FeatureTrackerShared.feature_manager.inv_scale_factor * self._min_distance  # give it one level of margin (can be too much with scale factor = 2)
             return Parameters.kMinDistanceToleranceFactor * self._min_distance
 
-    @property
     def max_distance(self):
         with self._lock_pos:
             # return FeatureTrackerShared.feature_manager.scale_factor * self._max_distance  # give it one level of margin (can be too much with scale factor = 2)
@@ -514,27 +507,15 @@ class MapPoint(MapPointBase):
             return FeatureTrackerShared.descriptor_distance(self.des, descriptor)
 
     def delete(self):
-        with self._lock_features:
-            with self._lock_pos:
-                # if __debug__:
-                #    Printer.red('deleting ', self, ' is_replaced: ', self.replacement != None)
-                self._is_bad = True
-                self._num_observations = 0
-                observations = list(self._observations.items())
-                # frame_views = list(self._frame_views.items())
-                self._observations.clear()
-                # self._frame_views.clear()
-        for kf, idx in observations:
-            kf.remove_point_match(idx)
-        # for f,idx in _frame_views:
-        #    f.remove_point_match(idx)
+        if not self._is_bad:
+            self.set_bad()
         del self  # delete if self is the last reference
 
-    def set_bad(self):
+    def set_bad(self, map_no_lock=False):
+        if self._is_bad:
+            return
         with self._lock_features:
             with self._lock_pos:
-                # if __debug__:
-                #    Printer.red('setting bad ', self, ' is_replaced: ', self.replacement != None)
                 self._is_bad = True
                 self._num_observations = 0
                 observations = list(self._observations.items())
@@ -542,7 +523,10 @@ class MapPoint(MapPointBase):
         for kf, idx in observations:
             kf.remove_point_match(idx)
         if self.map is not None:
-            self.map.remove_point(self)
+            if map_no_lock:
+                self.map.remove_point_no_lock(self)
+            else:
+                self.map.remove_point(self)
 
     def get_replacement(self):
         with self._lock_features:
@@ -609,20 +593,22 @@ class MapPoint(MapPointBase):
         #         f.replace_point_match(p,idx)
         #         p.add_frame_view(f,idx)
 
-        self.map.remove_point(self)
+        if self.map is not None:
+            self.map.remove_point(self)
+        else:
+            Printer.warn("MapPoint: replace_with() - map is None")
         # if __debug__:
         #    Printer.green('after replacement ', p)
 
     # update normal and depth representations
-    def update_normal_and_depth(self, frame=None, idxf=None, force=False):
+    def update_normal_and_depth(self, force=False):
         skip = False
         with self._lock_features:
             with self._lock_pos:
                 if self._is_bad:
                     return
-                if (
-                    self._num_observations > self.num_observations_on_last_update_normals or force
-                ):  # implicit if self._num_observations > 1
+                if self._num_observations > self.num_observations_on_last_update_normals or force:
+                    # implicit if self._num_observations > 1
                     self.num_observations_on_last_update_normals = self._num_observations
                     observations = list(self._observations.items())
                     kf_ref = self.kf_ref
@@ -668,7 +654,7 @@ class MapPoint(MapPointBase):
                 skip = True
         if skip or len(observations) == 0:
             return
-        descriptors = [kf.des[idx] for kf, idx in observations if not kf.is_bad]
+        descriptors = [kf.des[idx] for kf, idx in observations if not kf.is_bad()]
 
         N = len(descriptors)
         if N >= 2:
@@ -699,7 +685,9 @@ class MapPoint(MapPointBase):
         if skip or len(observations) == 0:
             return
         semantics = [
-            kf.kps_sem[idx] for kf, idx in observations if not kf.is_bad and kf.kps_sem is not None
+            kf.kps_sem[idx]
+            for kf, idx in observations
+            if not kf.is_bad() and kf.kps_sem is not None
         ]
         if len(semantics) >= 2:
             fused_semantics = semantic_fusion_method(semantics)
@@ -709,8 +697,6 @@ class MapPoint(MapPointBase):
     def update_info(self):
         # if self._is_bad:
         #    return
-        # with self._lock_features:
-        #     with self._lock_pos:
         self.update_normal_and_depth()
         self.update_best_descriptor()
 
@@ -725,15 +711,15 @@ class MapPoint(MapPointBase):
             level = FeatureTrackerShared.feature_manager.num_levels - 1
         return level
 
-
-# predict detection levels from pyslam.slam.map point distances
-def predict_detection_levels(points: list[MapPoint], dists: np.ndarray):
-    assert len(points) == len(dists)
-    max_distances = np.array([p._max_distance for p in points])
-    ratios = max_distances / dists
-    ratios = np.maximum(ratios, 1e-8)  # prevent log(0) or log(negative)
-    levels = np.ceil(np.log(ratios) / FeatureTrackerShared.feature_manager.log_scale_factor).astype(
-        np.intp
-    )
-    levels = np.clip(levels, 0, FeatureTrackerShared.feature_manager.num_levels - 1)
-    return levels
+    # predict detection levels from pyslam.slam.map point distances
+    @staticmethod
+    def predict_detection_levels(points: list["MapPoint"], dists: np.ndarray):
+        assert len(points) == len(dists)
+        max_distances = np.array([p._max_distance for p in points])
+        ratios = max_distances / dists
+        ratios = np.maximum(ratios, 1e-8)  # prevent log(0) or log(negative)
+        levels = np.ceil(
+            np.log(ratios) / FeatureTrackerShared.feature_manager.log_scale_factor
+        ).astype(np.intp)
+        levels = np.clip(levels, 0, FeatureTrackerShared.feature_manager.num_levels - 1)
+        return levels

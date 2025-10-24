@@ -36,14 +36,14 @@ from pyslam.config import Config
 from pyslam.config_parameters import Parameters
 
 from pyslam.slam.slam import Slam, SlamState, SlamMode
-from pyslam.slam.camera import PinholeCamera
+from pyslam.slam import PinholeCamera
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import DatasetType, SensorType
 from pyslam.io.ground_truth import groundtruth_factory, GroundTruth
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.utils_sys import getchar, Printer
-from pyslam.utilities.utils_geom import inv_T
+from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.geometry import inv_T
 
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
@@ -109,9 +109,7 @@ if __name__ == "__main__":
     print(f"Sensor_type: {slam.sensor_type}")
 
     # Select your volumetric integrator here (see the file volumetric_integrator_factory.py)
-    volumetric_integrator_type = (
-        VolumetricIntegratorType.TSDF
-    )  # TSDF, GAUSSIAN_SPLATTING
+    volumetric_integrator_type = VolumetricIntegratorType.TSDF  # TSDF, GAUSSIAN_SPLATTING
     Parameters.kVolumetricIntegrationUseDepthEstimator = (
         slam.sensor_type == SensorType.STEREO
     )  # Use depth estimator for volumetric integration in the back-end in the case of stereo data.
@@ -121,9 +119,7 @@ if __name__ == "__main__":
     Parameters.kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
     Parameters.kVolumetricIntegrationMinNumLBATimes = 0  # NOTE: This avoids the volumetric integrator integrates just keyframes with lba_count >= kVolumetricIntegrationMinNumLBATimes
     if Parameters.kVolumetricIntegrationUseDepthEstimator:
-        print(
-            f"Using depth estimator: {Parameters.kVolumetricIntegrationDepthEstimatorType}"
-        )
+        print(f"Using depth estimator: {Parameters.kVolumetricIntegrationDepthEstimatorType}")
     volumetric_integrator = volumetric_integrator_factory(
         volumetric_integrator_type, camera, slam.environment_type, slam.sensor_type
     )
@@ -188,9 +184,7 @@ if __name__ == "__main__":
         if volumetric_integrator.q_out.qsize() > 0:
             dense_map_output = volumetric_integrator.pop_output()
             if dense_map_output is not None:
-                viewer3D.draw_dense_geometry(
-                    dense_map_output.point_cloud, dense_map_output.mesh
-                )
+                viewer3D.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
 
         is_map_save = viewer3D.is_map_save() and is_map_save == False
         if is_map_save:

@@ -19,7 +19,7 @@
 
 import cv2
 from .moving_average import MovingAverage
-from .utils_sys import Printer
+from .system import Printer
 
 # timer_print = print
 timer_print = Printer.cyan

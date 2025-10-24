@@ -33,7 +33,7 @@ from .semantic_labels import (
     get_nyu40_labels,
     get_voc_labels,
 )
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
+from pyslam.utilities.serialization import SerializableEnum, register_class
 
 
 def similarity_heatmap_image(sim_map, colormap=cv2.COLORMAP_JET, sim_scale=1.0, bgr=False):

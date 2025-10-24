@@ -20,16 +20,23 @@
 import numpy as np
 import cv2
 
-from pyslam.slam.camera import Camera
+from pyslam.slam import Camera
 from pyslam.local_features.feature_tracker import (
     FeatureTrackerTypes,
     FeatureTrackingResult,
     FeatureTracker,
 )
-from pyslam.utilities.utils_geom import poseRt, is_rotation_matrix, closest_rotation_matrix
+from pyslam.utilities.geometry import poseRt, is_rotation_matrix, closest_rotation_matrix
 from pyslam.utilities.timer import TimerFps
 from pyslam.io.ground_truth import GroundTruth
 from pyslam.slam.visual_odometry_base import VoState, VisualOdometryBase
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from .camera import Camera
 
 
 kVerbose = True

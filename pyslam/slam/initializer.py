@@ -26,20 +26,26 @@ from collections import deque
 
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.slam.frame import match_frames
-from pyslam.slam import (
-    Frame,
-    KeyFrame,
-    Map,
-)
-from pyslam.utilities.utils_geom import poseRt, inv_T
-from pyslam.utilities.utils_geom_triangulation import triangulate_normalized_points
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_features import ImageGrid
+from pyslam.slam import Frame, KeyFrame, Map, RotationHistogram
+from pyslam.utilities.geometry import poseRt, inv_T
+from pyslam.utilities.geom_triangulation import triangulate_normalized_points
+from pyslam.utilities.system import Printer
+from pyslam.utilities.features import ImageGrid
 from pyslam.config_parameters import Parameters
 from pyslam.io.dataset_types import SensorType
-from pyslam.utilities.rotation_histogram import filter_matches_with_histogram_orientation
 
-from pyslam.utilities.utils_draw import draw_feature_matches, draw_points
+from pyslam.utilities.drawing import draw_feature_matches, draw_points
+
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from .map import Map
+    from .frame import Frame
+    from .keyframe import KeyFrame
+    from .rotation_histogram import RotationHistogram
 
 
 kVerbose = True
@@ -245,8 +251,8 @@ class Initializer(object):
             )
             return out, is_ok
         if FeatureTrackerShared.oriented_features and len(idxs_cur) > 0 and len(idxs_ref) > 0:
-            valid_match_idxs = filter_matches_with_histogram_orientation(
-                idxs_cur, idxs_ref, f_cur, f_ref
+            valid_match_idxs = RotationHistogram.filter_matches_with_histogram_orientation(
+                idxs_cur, idxs_ref, f_cur.angles, f_ref.angles
             )
             if len(valid_match_idxs) > 0:
                 idxs_cur = idxs_cur[valid_match_idxs]
@@ -307,9 +313,17 @@ class Initializer(object):
             # unproject 3D points by using available depths
             pts3d, mask_pts3d = kf_ref.unproject_points_3d(idxs_ref_inliers)
 
+            if not isinstance(pts3d, np.ndarray):
+                pts3d = np.asarray(pts3d)
+
+            if not isinstance(mask_pts3d, np.ndarray):
+                mask_pts3d = np.asarray(mask_pts3d)
+
             num_valid_pts3d = np.sum(mask_pts3d)
             if num_valid_pts3d < Parameters.kInitializerNumMinNumPointsForPnPWithDepth:
                 return out, is_ok
+
+            print(f"Initializer: pts3d: {pts3d.shape}, mask_pts3d: {mask_pts3d.shape}")
 
             # solve pnp to get a pose of the current frame w.r.t. the reference frame (the scale is defined by the depths of the reference frame)
             mask_pts3d = mask_pts3d.flatten()
@@ -318,7 +332,7 @@ class Initializer(object):
                 pts3d[mask_pts3d],
                 kf_cur.kps[idxs_cur_inliers[mask_pts3d]],
                 kf_cur.camera.K,
-                kf_cur.camera.D,
+                np.asarray(kf_cur.camera.D),
                 flags=cv2.SOLVEPNP_EPNP,
             )
             if success:
@@ -374,7 +388,7 @@ class Initializer(object):
 
             if is_ok:
                 # after optimization
-                out_pts3d = [p.pt for p in added_map_points]  # get the optimized points
+                out_pts3d = [p.pt() for p in added_map_points]  # get the optimized points
                 out_pts3d = np.array(out_pts3d).reshape(-1, 3)
 
                 # reproj_error_after = map.compute_mean_reproj_error(added_map_points)

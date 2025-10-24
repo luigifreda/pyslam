@@ -40,7 +40,7 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 # session = tf.Session(config=config, ...)
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 # CURDIR = os.path.dirname(__file__)
 # sys.path.append(os.path.abspath(os.path.join(CURDIR, '..')))

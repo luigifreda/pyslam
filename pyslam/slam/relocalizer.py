@@ -22,20 +22,19 @@ from collections import defaultdict
 import os
 import numpy as np
 
-from .frame import (
+from pyslam.slam import (
     Frame,
-    compute_frame_matches,
-    prepare_input_data_for_pnpsolver,
+    optimizer_g2o,
+    RotationHistogram,
 )
-from .feature_tracker_shared import FeatureTrackerShared
+from . import optimizer_gtsam
+from .frame import compute_frame_matches, prepare_input_data_for_pnpsolver
 
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
+from pyslam.slam import ProjectionMatcher
 
-from pyslam.utilities.rotation_histogram import filter_matches_with_histogram_orientation
-from pyslam.slam import optimizer_gtsam
-from pyslam.slam import optimizer_g2o
-from pyslam.utilities.utils_sys import Printer, Logging
+from pyslam.utilities.system import Printer, Logging
 from pyslam.loop_closing.loop_detector_base import LoopDetectorOutput
-from pyslam.slam.search_points import search_frame_by_projection, search_keyframe_by_projection
 
 from pyslam.utilities.timer import TimerFps
 from pyslam.config_parameters import Parameters
@@ -44,6 +43,17 @@ import logging
 
 import traceback
 import pnpsolver
+
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from .frame import Frame
+    from . import optimizer_gtsam
+    from . import optimizer_g2o
+    from .rotation_histogram import RotationHistogram
 
 
 kVerbose = True
@@ -136,7 +146,7 @@ class Relocalizer:
                 lambda: (None, None)
             )  # dictionary of map point matches  (kf_i, kf_j) -> (idxs_i,idxs_j)
             for i, kf in enumerate(reloc_candidate_kfs):
-                if kf.id == frame.id or kf.is_bad:
+                if kf.id == frame.id or kf.is_bad():
                     continue
 
                 # extract matches from precomputed map
@@ -146,8 +156,8 @@ class Relocalizer:
                 # if features have descriptors with orientation then let's check the matches with a rotation histogram
                 if FeatureTrackerShared.oriented_features:
                     # num_matches_before = len(idxs_frame)
-                    valid_match_idxs = filter_matches_with_histogram_orientation(
-                        idxs_frame, idxs_kf, frame, kf
+                    valid_match_idxs = RotationHistogram.filter_matches_with_histogram_orientation(
+                        idxs_frame, idxs_kf, frame.angles, kf.angles
                     )
                     if len(valid_match_idxs) > 0:
                         idxs_frame = idxs_frame[valid_match_idxs]
@@ -255,7 +265,7 @@ class Relocalizer:
                     # if few inliers, search by projection in a coarse window and optimize again
                     if num_matched_map_points < Parameters.kRelocalizationDoPoseOpt2NumInliers:
                         idxs_kf, idxs_frame, num_new_found_map_points = (
-                            search_keyframe_by_projection(
+                            ProjectionMatcher.search_keyframe_by_projection(
                                 kf,
                                 frame,
                                 max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchCoarse,
@@ -292,7 +302,7 @@ class Relocalizer:
                                 matched_ref_idxs = np.flatnonzero(frame.points != None)
 
                                 idxs_kf, idxs_frame, num_new_found_map_points = (
-                                    search_keyframe_by_projection(
+                                    ProjectionMatcher.search_keyframe_by_projection(
                                         kf,
                                         frame,
                                         max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchFine,

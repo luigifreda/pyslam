@@ -1,7 +1,7 @@
 """
-* This file is part of PYSLAM 
+* This file is part of PYSLAM
 *
-* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com> 
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ import sys
 
 import pyslam.config as config
 
-from pyslam.utilities.utils_eval_html import csv_list_to_html
+from pyslam.utilities.evaluation_html import csv_list_to_html
 
 # Example usage
 if __name__ == "__main__":
@@ -30,8 +30,8 @@ if __name__ == "__main__":
             "data/table_max_10cols.csv",
             "data/table_rmse_10cols.csv",
             "data/table_max.csv",
-            "data/table_rmse.csv",   
+            "data/table_rmse.csv",
         ],
         output_html_path="pyslam_evaluation_report.html",
-        title="pySLAM Evaluation Report"
+        title="pySLAM Evaluation Report",
     )

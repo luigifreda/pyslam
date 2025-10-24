@@ -42,7 +42,7 @@ from .semantic_utils import (
     labels_to_image,
 )
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 
 kScriptPath = os.path.realpath(__file__)

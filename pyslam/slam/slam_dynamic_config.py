@@ -20,8 +20,8 @@
 import math
 import numpy as np
 
-from pyslam.utilities.utils_features import descriptor_sigma_mad, descriptor_sigma_mad_v2
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.features import descriptor_sigma_mad, descriptor_sigma_mad_v2
+from pyslam.utilities.system import Printer
 
 from .feature_tracker_shared import FeatureTrackerShared
 
@@ -77,6 +77,7 @@ class SLAMDynamicConfig:
             print("descriptor sigma: ", self.descriptor_distance_sigma)
             # dynamicall update the static parameter descriptor distance
             Parameters.kMaxDescriptorDistance = self.descriptor_distance_sigma
+            FeatureTrackerShared.update_cpp_module_dynamic_config_parameters()
         else:
             Printer.red(f"[SLAMDynamicConfig] No matches to initialize descriptor sigma")
             self.descriptor_distance_sigma = None

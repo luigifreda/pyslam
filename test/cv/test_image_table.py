@@ -5,7 +5,7 @@ from pyslam.config import Config
 import numpy as np
 import cv2
 
-from pyslam.utilities.utils_img import ImageTable
+from pyslam.utilities.img_management import ImageTable
 
 
 # Example usage
@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     # Add some images
     for i in range(6):
-        img = np.random.randint(0, 256, (100+i*2, 100+i*3, 3), dtype=np.uint8)
+        img = np.random.randint(0, 256, (100 + i * 2, 100 + i * 3, 3), dtype=np.uint8)
         image_table.add(img)
 
     # Render the table

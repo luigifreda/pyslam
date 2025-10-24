@@ -19,7 +19,6 @@
 
 from __future__ import print_function  # This must be the first statement before other statements
 
-from ast import Param
 import os
 import time
 import numpy as np
@@ -35,15 +34,15 @@ from queue import Queue
 from pyslam.config_parameters import Parameters
 
 from .frame import compute_frame_matches
-from .search_points import search_frame_for_triangulation, search_and_fuse
 
+from pyslam.slam import ProjectionMatcher, EpipolarMatcher
 from pyslam.io.dataset_types import SensorType
 from pyslam.utilities.timer import TimerFps
 
-from pyslam.utilities.utils_sys import Printer, Logging
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_geom_triangulation import triangulate_normalized_points
-from pyslam.utilities.utils_data import empty_queue
+from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.geom_triangulation import triangulate_normalized_points
+from pyslam.utilities.data_management import empty_queue
 
 import multiprocessing as mp
 import traceback
@@ -52,8 +51,10 @@ from scipy.spatial import cKDTree
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .slam import Slam  # Only imported when type checking, not at runtime
+    # Only imported when type checking, not at runtime
+    from .slam import Slam  #
     from .keyframe import KeyFrame
+    from .slam import EpipolarMatcher, ProjectionMatcher
 
 
 kVerbose = True
@@ -75,7 +76,7 @@ kRootFolder = kScriptFolder + "/../.."
 def kf_search_frame_for_triangulation(
     kf1, kf2, kf2_idx, idxs1, idxs2, max_descriptor_distance, is_monocular, result_queue
 ):
-    idxs1_out, idxs2_out, num_found_matches = search_frame_for_triangulation(
+    idxs1_out, idxs2_out, num_found_matches = EpipolarMatcher.search_frame_for_triangulation(
         kf1, kf2, idxs1, idxs2, max_descriptor_distance, is_monocular
     )
     LocalMapping.print(
@@ -315,6 +316,7 @@ class LocalMapping:
             self.do_not_stop = value
             return True
 
+    # release the local mapping thread
     def release(self):
         if not self.is_running:
             return
@@ -486,6 +488,9 @@ class LocalMapping:
         LocalMapping.print(f"local mapping elapsed time: {elapsed_time}")
 
     def local_BA(self):
+        if self.slam.loop_closing is not None and self.slam.loop_closing.is_correcting():
+            return
+
         # local optimization
         self.time_local_opt.start()
         LocalMapping.print(">>>> local optimization (LBA) ...")
@@ -507,7 +512,7 @@ class LocalMapping:
         # large window optimization of the map
         self.kid_last_BA = self.kf_cur.kid
         self.time_large_opt.start()
-        err = self.map.optimize(
+        err, _ = self.map.optimize(
             local_window_size=Parameters.kLargeBAWindowSize, abort_flag=self.opt_abort_flag
         )  # verbose=True)
         self.time_large_opt.refresh()
@@ -519,7 +524,7 @@ class LocalMapping:
         kf_cur_points = self.kf_cur.get_points()
         LocalMapping.print(f">>>> updating map points ({len(kf_cur_points)})...")
         valid_points = [
-            (idx, p) for idx, p in enumerate(kf_cur_points) if p is not None and not p.is_bad
+            (idx, p) for idx, p in enumerate(kf_cur_points) if p is not None and not p.is_bad()
         ]
         for idx, p in valid_points:
             # Try to add observation
@@ -543,13 +548,13 @@ class LocalMapping:
         current_kid = self.kf_cur.kid
         remove_set = set()
         for p in self.recently_added_points:
-            if p.is_bad:
+            if p.is_bad():
                 remove_set.add(p)
             elif p.get_found_ratio() < min_found_ratio:
                 p.set_bad()
                 self.map.remove_point(p)
                 remove_set.add(p)
-            elif (current_kid - p.first_kid) >= 2 and p.num_observations <= th_num_observations:
+            elif (current_kid - p.first_kid) >= 2 and p.num_observations() <= th_num_observations:
                 p.set_bad()
                 self.map.remove_point(p)
                 remove_set.add(p)
@@ -592,23 +597,23 @@ class LocalMapping:
             kf_num_points = 0  # num good points for kf
             kf_num_redundant_observations = 0  # num redundant observations for kf
             idxs_and_kf_points = [
-                (i, p) for i, p in enumerate(kf.get_points()) if p is not None and not p.is_bad
+                (i, p) for i, p in enumerate(kf.get_points()) if p is not None and not p.is_bad()
             ]
             # for i,p in enumerate(kf.get_points()):
-            #     if p is not None and not p.is_bad:
+            #     if p is not None and not p.is_bad():
             for i, p in idxs_and_kf_points:
                 if kf.depths is not None and (
                     kf.depths[i] > kf.camera.depth_threshold or kf.depths[i] < 0.0
                 ):
                     continue
                 kf_num_points += 1
-                if p.num_observations > th_num_observations:
+                if p.num_observations() > th_num_observations:
                     scale_level = kf.octaves[i]  # scale level of observation in kf
                     p_num_observations = 0
                     for kf_j, idx in p.observations():
                         if kf_j is kf:
                             continue
-                        assert not kf_j.is_bad
+                        assert not kf_j.is_bad()
                         scale_level_i = kf_j.octaves[idx]  # scale level of observation in kfi
                         if (
                             scale_level_i <= scale_level + 1
@@ -659,7 +664,7 @@ class LocalMapping:
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur, N=num_neighbors)
         LocalMapping.print(
             "local map keyframes: ",
-            [kf.id for kf in local_keyframes if not kf.is_bad],
+            [kf.id for kf in local_keyframes if not kf.is_bad()],
             " + ",
             self.kf_cur.id,
             "...",
@@ -682,10 +687,10 @@ class LocalMapping:
         idxs_and_kfs = [
             (i, kf)
             for i, kf in enumerate(local_keyframes)
-            if kf is not self.kf_cur and not kf.is_bad
+            if kf is not self.kf_cur and not kf.is_bad()
         ]
         # for i,kf in enumerate(local_keyframes):
-        #     if kf is self.kf_cur or kf.is_bad:
+        #     if kf is self.kf_cur or kf.is_bad():
         #         continue
         for i, kf in idxs_and_kfs:
             if i > 0 and not self.queue.empty():
@@ -698,8 +703,8 @@ class LocalMapping:
             # LocalMapping.print(f'\t adding map points for KFs ({self.kf_cur.id}, {kf.id})...')
 
             # find keypoint matches between self.kf_cur and kf
-            # N.B.: all the matched keypoints computed by search_frame_for_triangulation() are without a corresponding map point
-            idxs_cur, idxs, num_found_matches = search_frame_for_triangulation(
+            # N.B.: all the matched keypoints computed by EpipolarMatcher.search_frame_for_triangulation() are without a corresponding map point
+            idxs_cur, idxs, num_found_matches = EpipolarMatcher.search_frame_for_triangulation(
                 self.kf_cur,
                 kf,
                 idxs_kf_cur,
@@ -747,7 +752,7 @@ class LocalMapping:
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur, N=num_neighbors)
         LocalMapping.print(
             "local map keyframes: ",
-            [kf.id for kf in local_keyframes if not kf.is_bad],
+            [kf.id for kf in local_keyframes if not kf.is_bad()],
             " + ",
             self.kf_cur.id,
             "...",
@@ -774,10 +779,10 @@ class LocalMapping:
         idxs_and_kfs = [
             (i, kf)
             for i, kf in enumerate(local_keyframes)
-            if kf is not self.kf_cur and not kf.is_bad
+            if kf is not self.kf_cur and not kf.is_bad()
         ]
         # for kf_idx,kf in enumerate(local_keyframes):
-        #     if kf is self.kf_cur or kf.is_bad:
+        #     if kf is self.kf_cur or kf.is_bad():
         #         continue
         for kf_idx, kf in idxs_and_kfs:
             if kf_idx > 0 and not self.queue.empty():
@@ -848,12 +853,12 @@ class LocalMapping:
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur, N=num_neighbors)
         target_kfs = set()
         for kf in local_keyframes:
-            if kf is self.kf_cur or kf.is_bad:
+            if kf is self.kf_cur or kf.is_bad():
                 continue
             target_kfs.add(kf)
             # 2. Add second neighbors
             for kf2 in self.map.local_map.get_best_neighbors(kf, N=5):
-                if kf2 is self.kf_cur or kf2.is_bad:
+                if kf2 is self.kf_cur or kf2.is_bad():
                     continue
                 target_kfs.add(kf2)
 
@@ -863,7 +868,7 @@ class LocalMapping:
 
         # 3. Fuse current keyframe's points into all target keyframes
         for kf in target_kfs:
-            num_fused_pts = search_and_fuse(
+            num_fused_pts = ProjectionMatcher.search_and_fuse(
                 self.kf_cur.get_points(),
                 kf,
                 max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
@@ -876,11 +881,11 @@ class LocalMapping:
 
         # 4. Fuse all target keyframes' points into current keyframe
         fuse_candidates = {
-            p for kf in target_kfs for p in kf.get_points() if p is not None and not p.is_bad
+            p for kf in target_kfs for p in kf.get_points() if p is not None and not p.is_bad()
         }
         fuse_candidates = np.array(list(fuse_candidates))  # Remove duplicates
 
-        num_fused_pts = search_and_fuse(
+        num_fused_pts = ProjectionMatcher.search_and_fuse(
             fuse_candidates,
             self.kf_cur,
             max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
@@ -892,7 +897,7 @@ class LocalMapping:
         total_fused_pts += num_fused_pts
 
         # 5. Update all map points in current keyframe
-        points_to_update = [p for p in self.kf_cur.get_points() if p and not p.is_bad]
+        points_to_update = [p for p in self.kf_cur.get_points() if p and not p.is_bad()]
         with ThreadPoolExecutor(
             max_workers=Parameters.kLocalMappingParallelFusePointsNumWorkers
         ) as executor:

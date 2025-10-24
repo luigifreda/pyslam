@@ -20,8 +20,16 @@
 from collections import defaultdict
 from threading import Lock
 
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
+from pyslam.slam import KeyFrame, Frame
+
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.frame import Frame
 
 
 class KeyFrameDatabaseDBow(object):

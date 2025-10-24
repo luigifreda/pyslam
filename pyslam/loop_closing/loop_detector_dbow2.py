@@ -25,17 +25,14 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.utils_files import gdrive_download_lambda
-from pyslam.utilities.utils_sys import getchar, Printer
-from pyslam.utilities.utils_features import transform_float_to_binary_descriptor
+from pyslam.utilities.file_management import gdrive_download_lambda
+from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.features import transform_float_to_binary_descriptor
 
 from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_types import FeatureInfo
 
 from pyslam.utilities.timer import TimerFps
-
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
 
 from .loop_detector_base import (
     LoopDetectorTaskType,
@@ -94,7 +91,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
     def save(self, path):
         filepath = path + "/loop_closing.db"
         LoopDetectorBase.print(f"LoopDetectorDBoW2: saving database to {filepath}...")
-        LoopDetectorBase.print(f"\t Dabased size: {self.kf_database.size()}")
+        LoopDetectorBase.print(f"\t Database size: {self.kf_database.size()}")
         self.kf_database.save(filepath)
 
     def load(self, path):
@@ -103,7 +100,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
         self.kf_database.set_vocabulary(self.voc)
         self.kf_database.load(filepath)
         self.kf_database.print_status()
-        LoopDetectorBase.print(f"\t Dabased size: {self.kf_database.size()}")
+        LoopDetectorBase.print(f"\t Database size: {self.kf_database.size()}")
         LoopDetectorBase.print(f"LoopDetectorDBoW2: ...done")
 
     def compute_global_des(self, local_des, img):
@@ -170,6 +167,8 @@ class LoopDetectorDBoW2(LoopDetectorBase):
                 keyframe.g_des = dbow2.BowVector(
                     keyframe.g_des
                 )  # transform back from vec to bow vector
+            else:
+                g_des_vec = keyframe.g_des.toVec()
 
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
             # add image descriptors to global_des_database

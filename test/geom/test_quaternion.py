@@ -1,10 +1,10 @@
 import numpy as np
 
-import sys 
+import sys
 
 from pyslam.config import Config
 
-from pyslam.utilities.utils_geom import qvec2rotmat, rotmat2qvec
+from pyslam.utilities.geometry import qvec2rotmat, rotmat2qvec
 
 if __name__ == "__main__":
     # Test quaternion
@@ -16,10 +16,12 @@ if __name__ == "__main__":
     qvec_recovered = rotmat2qvec(R)
 
     # Check consistency
-    print(f'Original quaternion: {qvec}')
-    print(f'Rotation matrix:\n{R}')
+    print(f"Original quaternion: {qvec}")
+    print(f"Rotation matrix:\n{R}")
     RxRT = np.dot(R, R.T)
-    print(f'R * R.T:\n{RxRT}, squared norm: {np.linalg.norm(RxRT)**2}, det: {np.linalg.det(RxRT)}')
+    print(f"R * R.T:\n{RxRT}, squared norm: {np.linalg.norm(RxRT)**2}, det: {np.linalg.det(RxRT)}")
     print(f'Recovered quaternion:" {qvec_recovered}')
-    
-    print(f'Error % in recovered quaternion: {100 * np.linalg.norm(qvec - qvec_recovered)/np.linalg.norm(qvec)}')
+
+    print(
+        f"Error % in recovered quaternion: {100 * np.linalg.norm(qvec - qvec_recovered)/np.linalg.norm(qvec)}"
+    )

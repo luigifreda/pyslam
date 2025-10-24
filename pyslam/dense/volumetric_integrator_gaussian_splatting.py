@@ -29,13 +29,12 @@ config.cfg.set_lib("gaussian_splatting")
 import cv2
 import numpy as np
 
-from pyslam.slam.camera import Camera
-from pyslam.slam.map import Map
+from pyslam.slam import Camera, Map, KeyFrame, Frame
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
 
-from pyslam.utilities.utils_geom import inv_T
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.geometry import inv_T
+from pyslam.utilities.system import Printer
 
 from pyslam.utilities.timer import TimerFps
 
@@ -45,8 +44,6 @@ import traceback
 
 from collections import deque
 
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
 
 from enum import Enum
 
@@ -154,7 +151,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                             self.estimate_depth_if_needed_and_rectify(keyframe_data)
                         )
 
-                        pose = keyframe_data.pose()  # Tcw
+                        pose = keyframe_data.pose  # Tcw
                         # inv_pose = inv_T(pose)   # Twc
 
                         VolumetricIntegratorBase.print(

@@ -144,6 +144,41 @@ template <typename Scalar, int D, typename IndexT = size_t> class CKDTreeEigen {
         return query_ball_point(q, r);
     }
 
+    // Batch query_ball_point: multiple query points with individual radii
+    std::vector<std::vector<index_t>>
+    query_ball_point_batch(const Scalar *queries, const Scalar *radii, size_t num_queries) const {
+        std::vector<std::vector<index_t>> results;
+        results.reserve(num_queries);
+
+        for (size_t i = 0; i < num_queries; ++i) {
+            const Scalar *q = queries + i * D;
+            Scalar r = radii[i];
+            results.push_back(query_ball_point(q, r));
+        }
+
+        return results;
+    }
+
+    // Batch query_ball_point with Eigen matrices
+    template <typename DerivedQ, typename DerivedR>
+    std::vector<std::vector<index_t>>
+    query_ball_point_batch(const Eigen::MatrixBase<DerivedQ> &queries,
+                           const Eigen::MatrixBase<DerivedR> &radii) const {
+        const size_t num_queries = static_cast<size_t>(queries.rows());
+        std::vector<std::vector<index_t>> results;
+        results.reserve(num_queries);
+
+        for (size_t i = 0; i < num_queries; ++i) {
+            Scalar q[D];
+            for (int j = 0; j < D; ++j)
+                q[j] = static_cast<Scalar>(queries(i, j));
+            Scalar r = static_cast<Scalar>(radii(i));
+            results.push_back(query_ball_point(q, r));
+        }
+
+        return results;
+    }
+
     std::vector<std::pair<index_t, index_t>> query_pairs(Scalar r) const {
         const Scalar r2 = r * r;
         std::vector<std::pair<index_t, index_t>> pairs;
@@ -274,6 +309,41 @@ template <typename Scalar, typename IndexT> class CKDTreeEigenDyn {
         for (int i = 0; i < D_; ++i)
             q[i] = static_cast<Scalar>(x(i));
         return query_ball_point(q.data(), r);
+    }
+
+    // Batch query_ball_point: multiple query points with individual radii
+    std::vector<std::vector<index_t>>
+    query_ball_point_batch(const Scalar *queries, const Scalar *radii, size_t num_queries) const {
+        std::vector<std::vector<index_t>> results;
+        results.reserve(num_queries);
+
+        for (size_t i = 0; i < num_queries; ++i) {
+            const Scalar *q = queries + i * D_;
+            Scalar r = radii[i];
+            results.push_back(query_ball_point(q, r));
+        }
+
+        return results;
+    }
+
+    // Batch query_ball_point with Eigen matrices
+    template <typename DerivedQ, typename DerivedR>
+    std::vector<std::vector<index_t>>
+    query_ball_point_batch(const Eigen::MatrixBase<DerivedQ> &queries,
+                           const Eigen::MatrixBase<DerivedR> &radii) const {
+        const size_t num_queries = static_cast<size_t>(queries.rows());
+        std::vector<std::vector<index_t>> results;
+        results.reserve(num_queries);
+
+        for (size_t i = 0; i < num_queries; ++i) {
+            std::vector<Scalar> q(D_);
+            for (int j = 0; j < D_; ++j)
+                q[j] = static_cast<Scalar>(queries(i, j));
+            Scalar r = static_cast<Scalar>(radii(i));
+            results.push_back(query_ball_point(q.data(), r));
+        }
+
+        return results;
     }
 
     std::vector<std::pair<index_t, index_t>> query_pairs(Scalar r) const {

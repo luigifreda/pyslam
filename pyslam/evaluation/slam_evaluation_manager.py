@@ -30,9 +30,9 @@ import yaml
 import json
 import concurrent.futures
 
-from pyslam.utilities.utils_data import merge_dicts
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_run import run_command_async, run_command_sync
+from pyslam.utilities.data_management import merge_dicts
+from pyslam.utilities.system import Printer
+from pyslam.utilities.run_command import run_command_async, run_command_sync
 import traceback
 from pathlib import Path
 
@@ -571,7 +571,7 @@ class SlamEvaluationManager:
         print("git commit hash: ", git_commit_hash)
 
         try:
-            from pyslam.utilities.utils_eval_latex import csv_list_to_pdf
+            from pyslam.utilities.evaluation_latex import csv_list_to_pdf
 
             csv_list_to_pdf(
                 table_paths,
@@ -584,7 +584,7 @@ class SlamEvaluationManager:
             print(traceback.format_exc())
 
         try:
-            from pyslam.utilities.utils_eval_html import csv_list_to_html
+            from pyslam.utilities.evaluation_html import csv_list_to_html
 
             csv_list_to_html(
                 table_paths,

@@ -21,11 +21,21 @@ import numpy as np
 import cv2
 import open3d as o3d
 
-from .camera import CameraUtils
-from pyslam.utilities.utils_serialization import SerializableEnum
+# from .camera import CameraUtils
+from pyslam.slam import CameraUtils
+
+from pyslam.utilities.serialization import SerializableEnum
 
 import sim3solver
 import pnpsolver
+
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from .camera import CameraUtils
 
 
 # NOTE: This file collects a set of pose estimators that estimate the interframe pose between two frames starting from 2D-2D/2D-3D/3D-3D correspondences.

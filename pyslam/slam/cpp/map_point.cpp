@@ -25,10 +25,12 @@
 #include <cmath>
 #include <sstream>
 
-#include "feature_shared_info.h"
+#include "feature_shared_resources.h"
 #include "semantic_fusion_methods.h"
+#include "utils/messages.h"
 
-#include "utils/serialization.h"
+#include "config_parameters.h"
+#include "utils/serialization_json.h"
 
 namespace pyslam {
 
@@ -37,36 +39,21 @@ std::atomic<int> MapPointBase::_id{0};
 std::mutex MapPointBase::_id_lock;
 std::mutex MapPoint::global_lock_;
 
+// =====================================================
+// MapPointBase methods
+// =====================================================
+
 // MapPointBase constructor - matches Python: __init__(self, id=None)
 MapPointBase::MapPointBase(int id)
-    : id(id), map(nullptr), _is_bad(false), _num_observations(0), num_times_visible(1),
-      num_times_found(1), last_frame_id_seen(-1), replacement(nullptr), corrected_by_kf(0),
-      corrected_reference(0), kf_ref(nullptr) {
+    : id(id), _is_bad(false), _num_observations(0), num_times_visible(1), num_times_found(1),
+      last_frame_id_seen(-1), replacement(nullptr), corrected_by_kf(0), corrected_reference(0),
+      kf_ref(nullptr) {
     if (id < 0) {
         std::lock_guard<std::mutex> lock(_id_lock);
         this->id = _id++;
     }
 }
 
-// MapPoint constructor - matches Python: MapPoint(position, color,
-// keyframe=None, idxf=None, id=None)
-MapPoint::MapPoint(const Eigen::Vector3d &position, const Eigen::Matrix<unsigned char, 3, 1> &color,
-                   const KeyFramePtr &keyframe, int idxf, int id)
-    : MapPointBase(id), _pt(position), color(color), semantic_des(), des(), first_kid(-1),
-      num_observations_on_last_update_des(1), num_observations_on_last_update_normals(1),
-      num_observations_on_last_update_semantics(1), pt_GBA(Eigen::Vector3d::Zero()), GBA_kf_id(0),
-      _min_distance(0.0f), _max_distance(std::numeric_limits<float>::infinity()),
-      normal(Eigen::Vector3d(0, 0, 1)) // Default normal
-{
-    kf_ref = keyframe;
-
-    if (keyframe) {
-        first_kid = keyframe->kid;
-        update_normal_and_depth_from_keyframe(keyframe, idxf);
-    }
-}
-
-// MapPointBase methods
 std::vector<std::pair<KeyFramePtr, int>> MapPointBase::observations() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     return std::vector<std::pair<KeyFramePtr, int>>(_observations.begin(), _observations.end());
@@ -100,14 +87,27 @@ bool MapPointBase::is_in_keyframe(const KeyFramePtr &keyframe) const {
 
 int MapPointBase::get_observation_idx(const KeyFramePtr &keyframe) const {
     std::lock_guard<std::mutex> lock(_lock_features);
-    auto it = _observations.find(keyframe);
+    const auto it = _observations.find(keyframe);
     if (it != _observations.end()) {
         return it->second;
     }
     return -1;
 }
 
+int MapPointBase::get_frame_view_idx(const FramePtr &frame) const {
+    std::lock_guard<std::mutex> lock(_lock_features);
+    const auto it = _frame_views.find(frame);
+    if (it != _frame_views.end()) {
+        return it->second;
+    }
+    return -1;
+}
+
 bool MapPointBase::add_observation_no_lock_(KeyFramePtr &keyframe, int idx) {
+    if (idx < 0) {
+        MSG_ERROR("MapPointBase: add_observation_no_lock_ - idx is negative");
+        return false;
+    }
     bool success = false;
     if (_observations.find(keyframe) == _observations.end()) {
         // if the point is not in the keyframe observations, add it
@@ -125,7 +125,7 @@ bool MapPointBase::add_observation_no_lock_(KeyFramePtr &keyframe, int idx) {
         if (this_as_mp == nullptr) {
             throw std::runtime_error("MapPointBase is not a MapPoint");
         }
-        keyframe->set_point_match(WrapPtr(this_as_mp), idx);
+        keyframe->set_point_match(this_as_mp->shared_from_this(), idx);
     }
     return success;
 }
@@ -135,41 +135,43 @@ bool MapPointBase::add_observation(KeyFramePtr keyframe, int idx) {
     return add_observation_no_lock_(keyframe, idx);
 }
 
-void MapPointBase::remove_observation(KeyFramePtr keyframe, int idx) {
+void MapPointBase::remove_observation(KeyFramePtr keyframe, int idx, bool map_no_lock) {
+    if (idx < 0) {
+        MSG_ERROR("MapPointBase: remove_observation - idx is negative");
+        return;
+    }
     bool kf_remove_point_match = false;
     bool kf_remove_point = false;
-    bool map_remove_point = false;
+    bool set_bad = false;
 
-    std::lock_guard<std::mutex> lock(_lock_features);
-    auto it = _observations.find(keyframe);
-    if (it != _observations.end()) {
-        // Remove point association from keyframe
-        if (idx >= 0) {
-            kf_remove_point_match = true;
-        } else {
-            kf_remove_point = true;
-        }
+    {
+        std::lock_guard<std::mutex> lock(_lock_features);
+        auto it = _observations.find(keyframe);
+        if (it != _observations.end()) {
+            // Remove point association from keyframe
+            if (idx >= 0) {
+                kf_remove_point_match = true;
+            } else {
+                kf_remove_point = true;
+            }
 
-        // Remove from observations
-        _observations.erase(it);
+            // Remove from observations
+            _observations.erase(it);
 
-        const bool is_stereo_observation = keyframe->is_stereo_observation(idx);
-        if (is_stereo_observation) {
-            _num_observations = std::max(0, _num_observations - 2);
-        } else {
-            _num_observations = std::max(0, _num_observations - 1);
-        }
+            const bool is_stereo_observation = keyframe->is_stereo_observation(idx);
+            if (is_stereo_observation) {
+                _num_observations = std::max(0, _num_observations - 2);
+            } else {
+                _num_observations = std::max(0, _num_observations - 1);
+            }
 
-        // Check if point becomes bad
-        _is_bad = (_num_observations <= 2);
+            // Check if point becomes bad
+            set_bad = (_num_observations <= 2);
 
-        // Update reference keyframe if needed
-        if (kf_ref == keyframe && !_observations.empty()) {
-            kf_ref = _observations.begin()->first;
-        }
-
-        if (_is_bad && map) {
-            map_remove_point = true;
+            // Update reference keyframe if needed
+            if (kf_ref == keyframe && !_observations.empty()) {
+                kf_ref = _observations.begin()->first;
+            }
         }
     }
 
@@ -181,10 +183,10 @@ void MapPointBase::remove_observation(KeyFramePtr keyframe, int idx) {
         throw std::runtime_error("MapPointBase is not a MapPoint");
     }
     if (kf_remove_point) {
-        keyframe->remove_point(WrapPtr(this_as_mp));
+        keyframe->remove_point(this_as_mp->shared_from_this());
     }
-    if (map_remove_point) {
-        map->remove_point(WrapPtr(this_as_mp));
+    if (set_bad) {
+        this_as_mp->set_bad(map_no_lock);
     }
 }
 
@@ -221,17 +223,19 @@ bool MapPointBase::is_in_frame(const FramePtr &frame) const {
 
 bool MapPointBase::add_frame_view(FramePtr &frame, int idx) {
     bool success = false;
-    std::lock_guard<std::mutex> lock(_lock_features);
-    if (_frame_views.find(frame) == _frame_views.end()) {
-        _frame_views[frame] = idx;
-        success = true;
+    {
+        std::lock_guard<std::mutex> lock(_lock_features);
+        if (_frame_views.find(frame) == _frame_views.end()) {
+            _frame_views[frame] = idx;
+            success = true;
+        }
     }
     if (success) {
         auto this_as_mp = dynamic_cast<MapPoint *>(this);
         if (this_as_mp == nullptr) {
             throw std::runtime_error("MapPointBase is not a MapPoint");
         }
-        frame->set_point_match(WrapPtr(this_as_mp), idx);
+        frame->set_point_match(this_as_mp->shared_from_this(), idx);
     }
     return success;
 }
@@ -239,20 +243,20 @@ bool MapPointBase::add_frame_view(FramePtr &frame, int idx) {
 void MapPointBase::remove_frame_view(FramePtr frame, int idx) {
     bool frame_remove_point_match = false;
     bool frame_remove_point = false;
+    {
+        std::lock_guard<std::mutex> lock(_lock_features);
+        auto it = _frame_views.find(frame);
+        if (it != _frame_views.end()) {
+            // Remove point association from frame
+            if (idx >= 0) {
+                frame_remove_point_match = true;
+            } else {
+                frame_remove_point = true;
+            }
 
-    std::lock_guard<std::mutex> lock(_lock_features);
-
-    auto it = _frame_views.find(frame);
-    if (it != _frame_views.end()) {
-        // Remove point association from frame
-        if (idx >= 0) {
-            frame_remove_point_match = true;
-        } else {
-            frame_remove_point = true;
+            // Remove from frame views
+            _frame_views.erase(it);
         }
-
-        // Remove from frame views
-        _frame_views.erase(it);
     }
     if (frame_remove_point_match) {
         frame->remove_point_match(idx);
@@ -262,7 +266,7 @@ void MapPointBase::remove_frame_view(FramePtr frame, int idx) {
         throw std::runtime_error("MapPointBase is not a MapPoint");
     }
     if (frame_remove_point) {
-        frame->remove_point(WrapPtr(this_as_mp));
+        frame->remove_point(this_as_mp->shared_from_this());
     }
 }
 
@@ -283,13 +287,14 @@ bool MapPointBase::is_good_with_min_obs(int minObs) const {
 
 std::pair<bool, bool> MapPointBase::is_bad_and_is_good_with_min_obs(int minObs) const {
     std::lock_guard<std::mutex> lock(_lock_features);
-    bool good = !_is_bad && _num_observations >= minObs;
-    return std::make_pair(_is_bad, good);
+    const bool is_bad = _is_bad.load();
+    const bool good = !is_bad && _num_observations >= minObs;
+    return std::make_pair(is_bad, good);
 }
 
 bool MapPointBase::is_bad_or_is_in_keyframe(const KeyFramePtr &keyframe) const {
     std::lock_guard<std::mutex> lock(_lock_features);
-    return _is_bad || (_observations.find(keyframe) != _observations.end());
+    return _is_bad ? true : (_observations.find(keyframe) != _observations.end());
 }
 
 void MapPointBase::increase_visible(int num_times) {
@@ -307,7 +312,52 @@ float MapPointBase::get_found_ratio() const {
     return static_cast<float>(num_times_found) / static_cast<float>(num_times_visible);
 }
 
+// =====================================================
 // MapPoint methods
+// =====================================================
+
+MapPoint::MapPoint(const Eigen::Vector3d &position, const Eigen::Matrix<unsigned char, 3, 1> &color)
+    : MapPointBase(-1), _pt(position), color(color) {}
+
+MapPoint::MapPoint(const Eigen::Vector3d &position, const Eigen::Matrix<unsigned char, 3, 1> &color,
+                   const FramePtr &keyframe, const int idxf, const int id)
+    : MapPointBase(id), _pt(position), color(color) {
+    if (keyframe) {
+        if (keyframe->is_keyframe) {
+            std::cout << "MapPoint: MapPoint constructor - casting input frame to KeyFrame"
+                      << std::endl;
+            KeyFramePtr cast_keyframe = std::dynamic_pointer_cast<KeyFrame>(keyframe);
+            if (cast_keyframe) {
+                kf_ref = cast_keyframe;
+                first_kid = cast_keyframe->kid;
+            } else {
+                MSG_ERROR("MapPoint: MapPoint constructor - keyframe is not a KeyFrame");
+            }
+        }
+        update_normal_and_depth_from_frame(keyframe, idxf);
+        if (idxf >= 0) {
+            des = keyframe->des.row(idxf);
+        } else {
+            des = cv::Mat();
+        }
+    }
+}
+
+MapPoint::MapPoint(const Eigen::Vector3d &position, const Eigen::Matrix<unsigned char, 3, 1> &color,
+                   const KeyFramePtr &keyframe, const int idxf, const int id)
+    : MapPointBase(id), _pt(position), color(color) {
+    kf_ref = keyframe;
+    if (keyframe) {
+        if (keyframe->is_keyframe) {
+            first_kid = keyframe->kid;
+        }
+        update_normal_and_depth_from_frame(keyframe, idxf);
+        if (idxf >= 0) {
+            des = keyframe->des.row(idxf);
+        }
+    }
+}
+
 Eigen::Vector3d MapPoint::pt() const {
     std::lock_guard<std::mutex> lock(_lock_pos);
     return _pt;
@@ -326,17 +376,18 @@ void MapPoint::update_position(const Eigen::Vector3d &position) {
 
 float MapPoint::min_distance() const {
     std::lock_guard<std::mutex> lock(_lock_pos);
-    return _min_distance;
+    return Parameters::kMinDistanceToleranceFactor * _min_distance;
 }
 
 float MapPoint::max_distance() const {
     std::lock_guard<std::mutex> lock(_lock_pos);
-    return _max_distance;
+    return Parameters::kMaxDistanceToleranceFactor * _max_distance;
 }
 
 std::tuple<Eigen::Vector3d, Eigen::Vector3d, float, float> MapPoint::get_all_pos_info() const {
     std::lock_guard<std::mutex> lock(_lock_pos);
-    return std::make_tuple(_pt, normal, _min_distance, _max_distance);
+    return std::make_tuple(_pt, normal, Parameters::kMinDistanceToleranceFactor * _min_distance,
+                           Parameters::kMaxDistanceToleranceFactor * _max_distance);
 }
 
 KeyFramePtr MapPoint::get_reference_keyframe() const {
@@ -362,31 +413,19 @@ std::vector<cv::Mat> MapPoint::descriptors() const {
 
 float MapPoint::min_des_distance(const cv::Mat &descriptor) const {
     std::lock_guard<std::mutex> lock(_lock_features);
-    return pyslam::descriptor_distance(des, descriptor, FeatureSharedInfo::norm_type);
+    return pyslam::descriptor_distance(des, descriptor, FeatureSharedResources::norm_type);
 }
 
 void MapPoint::delete_point() {
-    std::vector<std::pair<KeyFramePtr, int>> observations;
-
-    {
-        std::lock_guard<std::mutex> lock_features(_lock_features);
-        std::lock_guard<std::mutex> lock_pos(_lock_pos);
-
-        _is_bad = true;
-        _num_observations = 0;
-        observations =
-            std::vector<std::pair<KeyFramePtr, int>>(_observations.begin(), _observations.end());
-        _observations.clear();
-    }
-
-    for (const auto &obs : observations) {
-        KeyFramePtr kf = obs.first;
-        int idx = obs.second;
-        kf->remove_point_match(idx);
+    if (!_is_bad) {
+        set_bad();
     }
 }
 
-void MapPoint::set_bad() {
+void MapPoint::set_bad(bool map_no_lock) {
+    if (_is_bad) {
+        return;
+    }
     std::vector<std::pair<KeyFramePtr, int>> observations;
 
     {
@@ -407,7 +446,11 @@ void MapPoint::set_bad() {
     }
 
     if (map) {
-        map->remove_point(WrapPtr(this));
+        if (map_no_lock) {
+            map->remove_point_no_lock(this->shared_from_this());
+        } else {
+            map->remove_point(this->shared_from_this());
+        }
     }
 }
 
@@ -428,7 +471,7 @@ void MapPoint::replace_with(MapPointPtr &p) {
     }
 
     std::vector<std::pair<KeyFramePtr, int>> observations;
-    int num_times_visible, num_times_found;
+    int num_times_visible = 0, num_times_found = 0;
 
     {
         std::lock_guard<std::mutex> lock_features(_lock_features);
@@ -461,9 +504,15 @@ void MapPoint::replace_with(MapPointPtr &p) {
     p->increase_visible(num_times_visible);
     p->increase_found(num_times_found);
     p->update_best_descriptor(true);
+
+    if (map) {
+        map->remove_point(this->shared_from_this());
+    } else {
+        MSG_WARN("MapPoint: replace_with() - map is nullptr");
+    }
 }
 
-void MapPoint::update_normal_and_depth(const FramePtr &frame, int idxf, bool force) {
+void MapPoint::update_normal_and_depth(const bool force) {
     bool skip = false;
     std::vector<std::pair<KeyFramePtr, int>> observations;
     KeyFramePtr kf_ref_local;
@@ -482,6 +531,10 @@ void MapPoint::update_normal_and_depth(const FramePtr &frame, int idxf, bool for
             observations = std::vector<std::pair<KeyFramePtr, int>>(_observations.begin(),
                                                                     _observations.end());
             kf_ref_local = kf_ref;
+            if (!kf_ref_local) {
+                MSG_ERROR("MapPoint: update_normal_and_depth - kf_ref_local is nullptr");
+                return;
+            }
             idx_ref = _observations[kf_ref];
             position = _pt;
         } else {
@@ -514,18 +567,20 @@ void MapPoint::update_normal_and_depth(const FramePtr &frame, int idxf, bool for
 
     // Compute distance range
     int level = kf_ref_local->octaves[idx_ref];
-    float scale_factor = std::pow(2.0f, level);
+    float scale_factor = FeatureSharedResources::scale_factors[level];
     float dist = (position - kf_ref_local->Ow()).norm();
 
     {
         std::lock_guard<std::mutex> lock_pos(_lock_pos);
         _max_distance = dist * scale_factor;
-        _min_distance = _max_distance / std::pow(2.0f, 7); // Assuming 8 levels
+        _min_distance =
+            _max_distance /
+            FeatureSharedResources::scale_factors[FeatureSharedResources::num_levels - 1];
         normal = mean_normal;
     }
 }
 
-void MapPoint::update_best_descriptor(bool force) {
+void MapPoint::update_best_descriptor(const bool force) {
     bool skip = false;
     std::vector<std::pair<KeyFramePtr, int>> observations;
 
@@ -563,7 +618,7 @@ void MapPoint::update_best_descriptor(bool force) {
         const int num_descriptors = descriptors.size();
         // compute the descriptor distances (all pairs)
         std::vector<std::vector<float>> distances_matrix =
-            compute_distances_matrix(descriptors, FeatureSharedInfo::norm_type);
+            compute_distances_matrix(descriptors, FeatureSharedResources::norm_type);
 
         // find the descriptor with the least median distance
         int best_descriptor_idx = 0;
@@ -585,7 +640,7 @@ void MapPoint::update_best_descriptor(bool force) {
     }
 }
 
-void MapPoint::update_semantics(void *semantic_fusion_method, bool force) {
+void MapPoint::update_semantics(void *semantic_fusion_method, const bool force) {
     bool skip = false;
     std::vector<std::pair<KeyFramePtr, int>> observations;
 
@@ -621,7 +676,7 @@ void MapPoint::update_semantics(void *semantic_fusion_method, bool force) {
     if (semantics.rows >= 2) {
         // Fuse semantic descriptors
         const auto &fused_semantic =
-            semantic_fusion(semantics, FeatureSharedInfo::semantic_feature_type);
+            semantic_fusion(semantics, FeatureSharedResources::semantic_feature_type);
 
         {
             std::lock_guard<std::mutex> lock(_lock_features);
@@ -635,19 +690,19 @@ void MapPoint::update_info() {
     update_best_descriptor();
 }
 
-int MapPoint::predict_detection_level(float dist) const {
+int MapPoint::predict_detection_level(const float dist) const {
     std::lock_guard<std::mutex> lock(_lock_pos);
 
     if (_max_distance <= 0.0f || dist <= 0.0f) {
         return 0;
     }
 
-    float ratio = _max_distance / dist;
+    float ratio = _max_distance / std::max(dist, 1e-8f);
     int level = static_cast<int>(std::ceil(
-        std::log(ratio) / FeatureSharedInfo::log_scale_factor)); // Assuming scale factor of 2
+        std::log(ratio) / FeatureSharedResources::log_scale_factor)); // Assuming scale factor of 2
 
     // Clamp to valid range (assuming 8 levels)
-    return std::max(0, std::min(7, level));
+    return std::max(0, std::min(FeatureSharedResources::num_levels - 1, level));
 }
 
 void MapPoint::set_pt_GBA(const Eigen::Vector3d &pt_GBA) {
@@ -661,7 +716,7 @@ void MapPoint::set_GBA_kf_id(int GBA_kf_id) {
 }
 
 // Helper methods
-void MapPoint::update_normal_and_depth_from_keyframe(const KeyFramePtr &kf, int idx) {
+void MapPoint::update_normal_and_depth_from_frame(const FramePtr &kf, int idx) {
     if (!kf) {
         return;
     }
@@ -673,22 +728,23 @@ void MapPoint::update_normal_and_depth_from_keyframe(const KeyFramePtr &kf, int 
 
     if (norm > 1e-6) {
         normal = direction / norm;
-
-        // Compute distance range based on octave level
-        if (idx >= 0) {
-            int octave_level = kf->octaves[idx];
-            compute_distance_range(octave_level, static_cast<float>(norm));
-        }
+    } else {
+        MSG_WARN("MapPoint: update_normal_and_depth_from_frame - norm is too small");
+        normal = Eigen::Vector3d(0, 0, 1);
+    }
+    // Compute distance range based on octave level
+    if (idx >= 0) {
+        int octave_level = kf->octaves[idx];
+        compute_distance_range(octave_level, static_cast<float>(norm));
     }
 }
 
 void MapPoint::compute_distance_range(int octave_level, float distance) {
-    // Simplified distance range computation
-    // The actual implementation would use proper scale factors
 
-    float scale_factor = std::pow(2.0f, octave_level);
+    const float scale_factor = FeatureSharedResources::scale_factors[octave_level];
     _max_distance = distance * scale_factor;
-    _min_distance = _max_distance / std::pow(2.0f, 7); // Assuming 8 levels
+    _min_distance = _max_distance /
+                    FeatureSharedResources::scale_factors[FeatureSharedResources::num_levels - 1];
 }
 
 void MapPoint::normalize_vector(const Eigen::Vector3d &v, Eigen::Vector3d &result) const {
@@ -696,6 +752,7 @@ void MapPoint::normalize_vector(const Eigen::Vector3d &v, Eigen::Vector3d &resul
     if (norm > 1e-6) {
         result = v / norm;
     } else {
+        MSG_WARN("MapPoint: normalize_vector - norm is too small");
         result = Eigen::Vector3d(0, 0, 1);
     }
 }
@@ -738,6 +795,21 @@ std::string MapPointBase::to_string() const {
     oss << frame_views_string();
     oss << " }";
     return oss.str();
+}
+
+std::vector<int> MapPoint::predict_detection_levels(const std::vector<MapPointPtr> &points,
+                                                    const std::vector<float> &dists) {
+    if (points.empty() || dists.empty()) {
+        return std::vector<int>();
+    }
+    MSG_FORCED_ASSERT(points.size() == dists.size(),
+                      "MapPoint: predict_detection_levels - points and dists have different sizes");
+    std::vector<int> levels;
+    levels.reserve(points.size());
+    for (size_t i = 0; i < points.size(); ++i) {
+        levels.push_back(points[i]->predict_detection_level(dists[i]));
+    }
+    return levels;
 }
 
 } // namespace pyslam

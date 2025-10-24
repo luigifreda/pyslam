@@ -32,7 +32,7 @@ config.cfg.set_lib("unets")
 import cv2
 from threading import RLock
 
-from pyslam.utilities.utils_sys import Printer, is_opencv_version_greater_equal
+from pyslam.utilities.system import Printer, is_opencv_version_greater_equal
 from .feature_base import BaseFeature2D
 
 import torch, h5py, imageio, os, argparse

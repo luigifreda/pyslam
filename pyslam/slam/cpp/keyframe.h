@@ -21,16 +21,19 @@
 
 #include "camera_pose.h"
 #include "frame.h"
+#include "utils/inheritable_shared_from_this.h"
+
 #include <atomic>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <unordered_map>
 #include <vector>
 
+#ifdef USE_PYTHON
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#endif
 
 namespace pyslam {
 
@@ -40,21 +43,21 @@ class MapPoint;
 class KeyFrame;
 
 // KeyFrameGraph class - matches Python KeyFrameGraph exactly
-class KeyFrameGraph {
+class KeyFrameGraph : public inheritable_enable_shared_from_this<KeyFrameGraph> {
   protected:
     mutable std::mutex _lock_connections;
 
   public:
     // Data members
-    bool init_parent; // is parent initialized?
+    bool init_parent = false; // is parent initialized?
     KeyFramePtr parent;
     std::set<KeyFramePtr> children;
     std::set<KeyFramePtr> loop_edges;
-    bool not_to_erase; // if there is a loop edge then you cannot erase this
-                       // keyframe
-    std::unordered_map<KeyFramePtr, int> connected_keyframes_weights; // Counter equivalent
-    std::map<KeyFramePtr, int> ordered_keyframes_weights;             // OrderedDict equivalent
-    bool is_first_connection;
+    bool not_to_erase = false; // if there is a loop edge then you cannot erase this
+                               // keyframe
+    std::unordered_map<KeyFramePtr, int> connected_keyframes_weights;   // Counter equivalent
+    std::vector<std::pair<KeyFramePtr, int>> ordered_keyframes_weights; // OrderedDict equivalent
+    bool is_first_connection = true;
 
   public:
     // Constructor
@@ -83,22 +86,23 @@ class KeyFrameGraph {
     void erase_child(KeyFramePtr keyframe);         // no reference passing here!
     void erase_child_no_lock(KeyFramePtr keyframe); // no reference passing here!
 
-    void set_parent(KeyFramePtr &keyframe);
-    void set_parent_no_lock(KeyFramePtr &keyframe);
+    void set_parent(KeyFramePtr keyframe);
+    void set_parent_no_lock(KeyFramePtr keyframe);
 
     std::set<KeyFramePtr> get_children() const;
     KeyFramePtr get_parent() const;
-    bool has_child(const KeyFramePtr &keyframe) const;
+    bool has_child(const KeyFramePtr keyframe) const;
 
     // Loop edges methods
-    void add_loop_edge(KeyFramePtr &keyframe);
+    void add_loop_edge(KeyFramePtr keyframe);
     std::set<KeyFramePtr> get_loop_edges() const;
 
     // Covisibility methods
     void reset_covisibility();
 
-    void add_connection(KeyFramePtr keyframe, int weight);         // no reference passing here!
-    void add_connection_no_lock(KeyFramePtr keyframe, int weight); // no reference passing here!
+    void add_connection(KeyFramePtr keyframe, int weight); // no reference passing here!
+    void add_connection_no_lock(KeyFramePtr keyframe,
+                                int weight); // no reference passing here!
 
     void erase_connection(KeyFramePtr keyframe);         // no reference passing here!
     void erase_connection_no_lock(KeyFramePtr keyframe); // no reference passing here!
@@ -122,13 +126,13 @@ class KeyFrameGraph {
     int _parent_id_temp;
     std::vector<int> _children_ids_temp;
     std::vector<int> _loop_edges_ids_temp;
-    std::vector<std::pair<int, int>> _connected_keyframes_weights_ids_temp;
-    std::vector<std::pair<int, int>> _ordered_keyframes_weights_ids_temp;
+    std::vector<std::pair<int, int>> _connected_keyframes_ids_weights_temp;
+    std::vector<std::pair<int, int>> _ordered_keyframes_ids_weights_temp;
 };
 
 // KeyFrame class - inherits from Frame and KeyFrameGraph, matches Python
 // KeyFrame exactly
-class KeyFrame : public Frame, public KeyFrameGraph, public std::enable_shared_from_this<KeyFrame> {
+class KeyFrame : public Frame, public KeyFrameGraph {
 
   private:
     // Thread-safe ID management
@@ -137,30 +141,39 @@ class KeyFrame : public Frame, public KeyFrameGraph, public std::enable_shared_f
 
   public:
     // Data members
-    int kid; // keyframe id (keyframe counter-id, different from frame.id)
-    bool _is_bad;
-    bool to_be_erased;
-    int lba_count; // how many time this keyframe has adjusted by LBA
+    int kid = -1; // keyframe id (keyframe counter-id, different from frame.id)
+    bool _is_bad = false;
+    bool to_be_erased = false;
+    int lba_count = 0; // how many time this keyframe has adjusted by LBA
 
     // Pose relative to parent
     CameraPose _pose_Tcp; // pose relative to parent: self.Tcw @ self.parent.Twc
 
-    // Loop closing and relocalization
-    cv::Mat g_des; // global descriptor for loop closing
-    int loop_query_id;
-    int num_loop_words;
-    float loop_score;
-    int reloc_query_id;
-    int num_reloc_words;
-    float reloc_score;
+// Loop closing and relocalization
+#ifdef USE_PYTHON
+    pybind11::object g_des =
+        pybind11::none(); // global descriptor for loop closing (accepts any type from Python)
+#else
+    // global descriptor for loop closing (accepts any type)
+    cv::Mat g_des;
+    // GlobalDescriptor g_des;  // WIP
+
+#endif
+    int loop_query_id = -1; // query id for loop closing
+    int num_loop_words = 0;
+    float loop_score = 0.0f;
+    int reloc_query_id = -1; // query id for relocalization
+    int num_reloc_words = 0;
+    float reloc_score = 0.0f;
 
     // Global Bundle Adjustment
-    int GBA_kf_id;
-    Eigen::Matrix4d Tcw_GBA;
-    Eigen::Matrix4d Tcw_before_GBA;
+    int GBA_kf_id = 0;
+    bool is_Tcw_GBA_valid = false;
+    Eigen::Matrix4d Tcw_GBA = Eigen::Matrix4d::Identity();
+    Eigen::Matrix4d Tcw_before_GBA = Eigen::Matrix4d::Identity();
 
     // Map reference
-    MapPtr map;
+    Map *map = nullptr; // Pointer to Map object
 
     // Constructor
     KeyFrame(const FramePtr &frame, const cv::Mat &img = cv::Mat(),
@@ -171,12 +184,8 @@ class KeyFrame : public Frame, public KeyFrameGraph, public std::enable_shared_f
     // Destructor
     ~KeyFrame() {
         // Clear references to prevent circular dependencies during shutdown
-        children.clear();
-        loop_edges.clear();
-        connected_keyframes_weights.clear();
-        ordered_keyframes_weights.clear();
-        parent = nullptr;
-        map = nullptr;
+        clear_references();
+        _is_bad = true;
     }
 
     // Deleted due to mutexes
@@ -191,10 +200,6 @@ class KeyFrame : public Frame, public KeyFrameGraph, public std::enable_shared_f
     void replace_ids_with_objects(const std::vector<MapPointPtr> &points,
                                   const std::vector<FramePtr> &frames,
                                   const std::vector<KeyFramePtr> &keyframes);
-
-    // Numpy serialization
-    pybind11::tuple state_tuple() const;              // builds the versioned tuple
-    void restore_from_state(const pybind11::tuple &); // fills this object from the tuple
 
     void init_observations();
 
@@ -218,6 +223,13 @@ class KeyFrame : public Frame, public KeyFrameGraph, public std::enable_shared_f
     void set_not_erase();
     void set_erase();
     void set_bad();
+
+#ifdef USE_PYTHON
+    // Numpy serialization
+    pybind11::tuple state_tuple(bool need_lock = true) const; // builds the versioned tuple
+    void restore_from_state(const pybind11::tuple &,
+                            bool need_lock = true); // fills this object from the tuple
+#endif
 };
 
 struct KeyFrameIdCompare {

@@ -3,7 +3,7 @@ import pyslam.config as config
 
 import os
 
-from pyslam.utilities.utils_sys import DataDownloader
+from pyslam.utilities.system import DataDownloader
 
 data_path = "../../data/models/"
 

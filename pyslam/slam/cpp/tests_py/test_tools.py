@@ -538,11 +538,11 @@ class TestSuite:
 
             if passed:
                 print(
-                    f"✅ PASSED - Speedup: {result.speedup:.1f}x (C++: {result.cpp_time:.4f}s, Python: {result.python_time:.4f}s)"
+                    f"✅ PASSED - Speedup: {result.speedup:.1f}x (C++: {result.cpp_time:.6f}s, Python: {result.python_time:.6f}s)"
                 )
             else:
                 print(
-                    f"❌ FAILED - C++ slower (C++: {result.cpp_time:.4f}s, Python: {result.python_time:.4f}s)"
+                    f"❌ FAILED - C++ slower (C++: {result.cpp_time:.6f}s, Python: {result.python_time:.6f}s)"
                 )
 
         return results

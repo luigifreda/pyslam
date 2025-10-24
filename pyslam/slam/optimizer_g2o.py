@@ -35,12 +35,13 @@ import g2o
 from pyslam.semantics.semantic_mapping_shared import (
     SemanticMappingShared,
 )  # TODO(dvdmc): do we want semnatics to be used in this file?
-from pyslam.utilities.utils_geom import poseRt
-from pyslam.slam.sim3_pose import Sim3Pose
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_draw import draw_histogram
+from pyslam.utilities.geometry import poseRt
 
+from pyslam.utilities.system import Printer
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.drawing import draw_histogram
+
+from .sim3_pose import Sim3Pose
 from .feature_tracker_shared import FeatureTrackerShared
 from .map_point import MapPoint
 from .keyframe import KeyFrame
@@ -134,7 +135,7 @@ def bundle_adjustment(
     for kf in (
         local_frames if fixed_points else keyframes
     ):  # if points are fixed then consider just the local frames, otherwise we need all frames or at least two frames for each point
-        if kf.is_bad:
+        if kf.is_bad():
             continue
         # print('adding vertex frame ', f.id, ' to graph')
         kf_Tcw = kf.Tcw()
@@ -156,7 +157,7 @@ def bundle_adjustment(
 
     # add point vertices to graph
     for p in points:
-        if p is None or p.is_bad:  # do not consider bad points
+        if p is None or p.is_bad():  # do not consider bad points
             continue
         # if __debug__:
         #     if not any([f in keyframes for f in p.keyframes()]):
@@ -165,7 +166,7 @@ def bundle_adjustment(
         # print('adding vertex point ', p.id,' to graph')
         v_p = g2o.VertexSBAPointXYZ()
         v_p.set_id(p.id * 2 + 1)  # odd ids
-        v_p.set_estimate(p.pt[0:3].copy())
+        v_p.set_estimate(p.pt()[0:3].copy())
         v_p.set_marginalized(True)
         v_p.set_fixed(fixed_points)
         opt.add_vertex(v_p)
@@ -173,7 +174,7 @@ def bundle_adjustment(
 
         # add edges
         for kf, idx in p.observations():
-            # if kf.is_bad:  # redundant since we check kf is in graph_keyframes (selected as non-bad)
+            # if kf.is_bad():  # redundant since we check kf is in graph_keyframes (selected as non-bad)
             #     continue
             try:
                 v_se3_kf = graph_keyframes[kf]
@@ -289,6 +290,7 @@ def bundle_adjustment(
             else:
                 # update for loop closure
                 kf.Tcw_GBA = T
+                kf.is_Tcw_GBA_valid = True
                 kf.GBA_kf_id = loop_kf_id
 
     # put points back
@@ -307,6 +309,7 @@ def bundle_adjustment(
                 for p, v_p in graph_points.items():
                     # update for loop closure
                     p.pt_GBA = np.array(v_p.estimate())
+                    p.is_pt_GBA_valid = True
                     p.GBA_kf_id = loop_kf_id
 
     num_active_edges = num_edges - num_bad_edges
@@ -468,7 +471,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
                 edge.cx = cx
                 edge.cy = cy
                 edge.bf = bf
-                edge.Xw = p.pt[0:3]
+                edge.Xw = p.pt()[0:3]
             else:
                 # print('adding mono edge between point ', p.id,' and frame ', frame.id)
                 edge = g2o.EdgeSE3ProjectXYZOnlyPose()
@@ -483,7 +486,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
                 edge.fy = fy
                 edge.cx = cx
                 edge.cy = cy
-                edge.Xw = p.pt[0:3]
+                edge.Xw = p.pt()[0:3]
 
             opt.add_edge(edge)
 
@@ -638,11 +641,11 @@ def local_bundle_adjustment(
     opt.set_algorithm(solver)
     opt.set_force_stop_flag(abort_flag)
 
-    good_keyframes = [kf for kf in keyframes if not kf.is_bad] + [
-        kf for kf in keyframes_ref if not kf.is_bad
+    good_keyframes = [kf for kf in keyframes if not kf.is_bad()] + [
+        kf for kf in keyframes_ref if not kf.is_bad()
     ]
     good_points = [
-        p for p in points if p is not None and not p.is_bad
+        p for p in points if p is not None and not p.is_bad()
     ]  # and any(f in keyframes for f in p.keyframes())]
 
     thHuberMono = math.sqrt(5.991)  # chi-square 2 DOFS
@@ -675,7 +678,7 @@ def local_bundle_adjustment(
     for p in good_points:
 
         # assert(p is not None)
-        # if p.is_bad:  # do not consider bad points
+        # if p.is_bad():  # do not consider bad points
         #     continue
         # if not any([f in keyframes for f in p.keyframes()]):
         #     Printer.orange('point %d without a viewing keyframe in input keyframes!!' %(p.id))
@@ -685,14 +688,14 @@ def local_bundle_adjustment(
         # print('adding vertex point ', p.id,' to graph')
         v_p = g2o.VertexSBAPointXYZ()
         v_p.set_id(p.id * 2 + 1)  # odd ids
-        v_p.set_estimate(p.pt[0:3].copy())
+        v_p.set_estimate(p.pt()[0:3].copy())
         v_p.set_marginalized(True)
         v_p.set_fixed(fixed_points)
         opt.add_vertex(v_p)
         graph_points[p] = v_p
 
         for kf, p_idx in p.observations():
-            if kf.is_bad:
+            if kf.is_bad():
                 continue
 
             try:
@@ -768,7 +771,7 @@ def local_bundle_adjustment(
         # check inliers observation
         for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
 
-            # if p.is_bad: # redundant check since the considered points come from good_points
+            # if p.is_bad(): # redundant check since the considered points come from good_points
             #     continue
 
             edge_chi2 = edge.chi2()
@@ -790,7 +793,7 @@ def local_bundle_adjustment(
 
     for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
 
-        # if p.is_bad: # redundant check since the considered points come from good_points
+        # if p.is_bad(): # redundant check since the considered points come from good_points
         #     continue
 
         assert kf.get_point_match(p_idx) is p
@@ -808,7 +811,7 @@ def local_bundle_adjustment(
             p_f = kf.get_point_match(p_idx)
             if p_f is not None:
                 assert p_f is p
-                p.remove_observation(kf, p_idx)
+                p.remove_observation(kf, p_idx, map_no_lock=True)
                 # the following instruction is now included in p.remove_observation()
                 # f.remove_point(p)   # it removes multiple point instances (if these are present)
                 # f.remove_point_match(p_idx) # this does not remove multiple point instances, but now there cannot be multiple instances any more
@@ -820,7 +823,6 @@ def local_bundle_adjustment(
             t = est.translation()
             kf.update_pose(poseRt(R, t))
             kf.lba_count += 1
-            # kf.update_pose(g2o.Isometry3d(est.orientation(), est.position()))
 
         # put points back
         if not fixed_points:
@@ -908,7 +910,7 @@ def lba_optimization_process(
         for p in good_points:
             v_p = g2o.VertexSBAPointXYZ()
             v_p.set_id(p.id * 2 + 1)
-            v_p.set_estimate(p.pt[0:3].copy())
+            v_p.set_estimate(p.pt()[0:3].copy())
             v_p.set_marginalized(True)
             v_p.set_fixed(fixed_points)
             opt.add_vertex(v_p)
@@ -916,7 +918,7 @@ def lba_optimization_process(
 
             # add edges
             for kf, p_idx in p.observations():
-                if kf.is_bad:
+                if kf.is_bad():
                     continue
                 try:
                     v_se3_kf = graph_keyframes[kf]
@@ -999,7 +1001,7 @@ def lba_optimization_process(
 
             # check inliers observation
             for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
-                # if p.is_bad: # redundant check since the considered points come from good_points
+                # if p.is_bad(): # redundant check since the considered points come from good_points
                 #     continue
 
                 edge_chi2 = edge.chi2()
@@ -1026,7 +1028,7 @@ def lba_optimization_process(
 
         for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
 
-            # if p.is_bad: # redundant check since the considered points come from good_points
+            # if p.is_bad(): # redundant check since the considered points come from good_points
             #     continue
 
             assert kf.get_point_match(p_idx) is p
@@ -1091,11 +1093,11 @@ def local_bundle_adjustment_parallel(
     print = LocalMapping.print
 
     # NOTE: we need a keyframe map (kf.id->kf) in order to be able retrieve and discard the outlier-edge keyframes after optimization
-    good_keyframes = {kf.kid: kf for kf in keyframes if not kf.is_bad}
-    good_keyframes.update({kf.kid: kf for kf in keyframes_ref if not kf.is_bad})
+    good_keyframes = {kf.kid: kf for kf in keyframes if not kf.is_bad()}
+    good_keyframes.update({kf.kid: kf for kf in keyframes_ref if not kf.is_bad()})
 
     good_points = [
-        p for p in points if p is not None and not p.is_bad
+        p for p in points if p is not None and not p.is_bad()
     ]  # and any(f in keyframes for f in p.keyframes())]
 
     # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
@@ -1156,7 +1158,7 @@ def local_bundle_adjustment_parallel(
                     p_f = kf.get_point_match(p_idx)
                     if p_f is not None:
                         assert p_f.id == p_idx
-                        p_f.remove_observation(kf, p_idx)
+                        p_f.remove_observation(kf, p_idx, map_no_lock=True)
                         # the following instruction is now included in p.remove_observation()
                         # f.remove_point(p)   # it removes multiple point instances (if these are present)
                         # f.remove_point_match(p_idx) # this does not remove multiple point instances, but now there cannot be multiple instances any more
@@ -1275,10 +1277,10 @@ def optimize_sim3(
     num_correspondences = 0
     for i in range(num_matches):
         mp1 = map_points1[i]
-        if mp1 is None or mp1.is_bad:
+        if mp1 is None or mp1.is_bad():
             continue
         mp2 = map_point_matches12[i]  # map point of kf2 matched with i-th map point of kf1
-        if mp2 is None or mp2.is_bad:
+        if mp2 is None or mp2.is_bad():
             continue
 
         vertex_id1 = 2 * i + 1
@@ -1287,14 +1289,14 @@ def optimize_sim3(
         if index2 >= 0:
             # Create and set vertex for map point 1 (fixed)
             v_mp1 = g2o.VertexSBAPointXYZ()
-            v_mp1.set_estimate(R1w @ mp1.pt + t1w)
+            v_mp1.set_estimate(R1w @ mp1.pt() + t1w)
             v_mp1.set_id(vertex_id1)
             v_mp1.set_fixed(True)
             optimizer.add_vertex(v_mp1)
 
             # Create and set vertex for map point 2 (fixed)
             v_mp2 = g2o.VertexSBAPointXYZ()
-            v_mp2.set_estimate(R2w @ mp2.pt + t2w)
+            v_mp2.set_estimate(R2w @ mp2.pt() + t2w)
             v_mp2.set_id(vertex_id2)
             v_mp2.set_fixed(True)
             optimizer.add_vertex(v_mp2)
@@ -1440,7 +1442,7 @@ def optimize_essential_graph(
 
     # Set KeyFrame vertices
     for keyframe in all_keyframes:
-        if keyframe.is_bad:
+        if keyframe.is_bad():
             continue
         vertex_sim3 = g2o.VertexSim3Expmap()
 
@@ -1557,7 +1559,7 @@ def optimize_essential_graph(
                 connected_keyframe != parent_keyframe
                 and not keyframe.has_child(connected_keyframe)
                 and connected_keyframe.kid < keyframe_id
-                and not connected_keyframe.is_bad
+                and not connected_keyframe.is_bad()
                 and (
                     min(keyframe_id, connected_keyframe.kid),
                     max(keyframe_id, connected_keyframe.kid),
@@ -1603,7 +1605,7 @@ def optimize_essential_graph(
 
     # Correct points: Transform to "non-optimized" reference keyframe pose and transform back with optimized pose
     for map_point in all_map_points:
-        if map_point.is_bad:
+        if map_point.is_bad():
             continue
 
         if map_point.corrected_by_kf == current_keyframe.kid:
@@ -1615,7 +1617,7 @@ def optimize_essential_graph(
         Srw = vec_Scw[reference_id]
         corrected_Swr = vec_corrected_Swc[reference_id]
 
-        P3Dw = map_point.pt
+        P3Dw = map_point.pt()
         corrected_P3Dw = corrected_Swr.map(Srw.map(P3Dw)).ravel()
         map_point.update_position(corrected_P3Dw)
 

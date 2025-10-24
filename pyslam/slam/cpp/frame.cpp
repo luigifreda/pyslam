@@ -23,18 +23,22 @@
 #include "map_point.h"
 #include "utils/features.h"
 #include "utils/messages.h"
-#include "utils/serialization.h"
+#include "utils/serialization_json.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <future>
 
+#ifdef USE_PYTHON
 #include <pybind11/pybind11.h> // for gil_scoped_acquire and gil_scoped_release
+#endif
+
+#include "config_parameters.h"
+#include "utils/color_helpers.h"
+#include "utils/drawing.h"
 
 namespace pyslam {
-
-constexpr float kMinDepth = 1e-2f;
 
 inline constexpr auto kDrawFeatureRadius = []() {
     std::array<int, 100> a{};
@@ -42,24 +46,6 @@ inline constexpr auto kDrawFeatureRadius = []() {
         a[i] = static_cast<int>(i) * 5;
     return a;
 }();
-
-// colors from
-// https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
-constexpr std::array<std::array<float, 3>, 10> colors_myjet = {{{{0.0, 0.0, 0.5}},
-                                                                {{0.0, 0.0, 0.99910873}},
-                                                                {{0.0, 0.37843137, 1.0}},
-                                                                {{0.0, 0.83333333, 1.0}},
-                                                                {{0.30044276, 1.0, 0.66729918}},
-                                                                {{0.66729918, 1.0, 0.30044276}},
-                                                                {{1.0, 0.90123457, 0.0}},
-                                                                {{1.0, 0.48002905, 0.0}},
-                                                                {{0.99910873, 0.07334786, 0.0}},
-                                                                {{0.5, 0.0, 0.0}}}};
-
-constexpr float kChi2Mono =
-    5.991; // chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
-constexpr float kChi2Stereo =
-    7.815; // chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
 
 // Static member definitions for FrameBase
 std::atomic<int> FrameBase::_id{0};
@@ -87,9 +73,15 @@ void FrameBase::copy_from(const FrameBase &other) {
     camera = other.camera; // shallow copy
 
     {
-        pose_lock_guard_type lock(_lock_pose);
-        pose_lock_guard_type other_lock(other._lock_pose);
-        _pose = other._pose; // deep copy
+        CameraPose other_pose;
+        {
+            pose_lock_guard_type other_lock(other._lock_pose);
+            other_pose = other._pose;
+        }
+        {
+            pose_lock_guard_type lock(_lock_pose);
+            _pose = other_pose; // deep copy
+        }
     }
 
     id = other.id;
@@ -186,6 +178,14 @@ void FrameBase::update_pose(const CameraPose &pose) {
     }
 }
 
+void FrameBase::update_pose(const Eigen::Isometry3d &isometry3d) {
+    pose_lock_guard_type lock(_lock_pose);
+    _pose.set(isometry3d);
+    if (fov_center_c != Eigen::Vector3d::Zero()) {
+        fov_center_w = _pose.Rwc() * fov_center_c + _pose.Ow();
+    }
+}
+
 void FrameBase::update_pose(const Eigen::Matrix4d &Tcw) {
     pose_lock_guard_type lock(_lock_pose);
     _pose.set_from_matrix(Tcw);
@@ -202,13 +202,18 @@ void FrameBase::update_translation(const Eigen::Vector3d &tcw) {
     }
 }
 
-void FrameBase::update_rotation_and_translation(const Eigen::Matrix3d &Rcw,
-                                                const Eigen::Vector3d &tcw) {
-    pose_lock_guard_type lock(_lock_pose);
+void FrameBase::update_rotation_and_translation_no_lock_(const Eigen::Matrix3d &Rcw,
+                                                         const Eigen::Vector3d &tcw) {
     _pose.set_from_rotation_and_translation(Rcw, tcw);
     if (fov_center_c != Eigen::Vector3d::Zero()) {
         fov_center_w = _pose.Rwc() * fov_center_c + _pose.Ow();
     }
+}
+
+void FrameBase::update_rotation_and_translation(const Eigen::Matrix3d &Rcw,
+                                                const Eigen::Vector3d &tcw) {
+    pose_lock_guard_type lock(_lock_pose);
+    update_rotation_and_translation_no_lock_(Rcw, tcw);
 }
 
 template <typename Scalar> Vec3<Scalar> FrameBase::transform_point(Vec3Ref<Scalar> pw) const {
@@ -259,14 +264,29 @@ FrameBase::project_map_points(const std::vector<MapPointPtr> &map_points,
 }
 
 template <typename Scalar>
-std::pair<Vec2<Scalar>, Scalar> FrameBase::project_point(Vec3Ref<Scalar> pw) const {
-    Vec3<Scalar> pc = transform_point(pw); // p w.r.t. camera
-    return camera->project_point(pc);
+std::pair<VecN<Scalar>, Scalar> FrameBase::project_point(Vec3Ref<Scalar> pw,
+                                                         bool do_stereo_project) const {
+    const Vec3<Scalar> pc = transform_point<Scalar>(pw); // p w.r.t. camera
+    if (do_stereo_project) {
+        auto [proj, z] = camera->project_point_stereo(pc);
+        VecN<Scalar> vec_result(3);
+        vec_result(0) = proj(0); // u
+        vec_result(1) = proj(1); // v
+        vec_result(2) = proj(2); // ur
+        return std::make_pair(std::move(vec_result), z);
+    } else {
+        auto [proj, z] = camera->project_point(pc);
+        VecN<Scalar> vec_result(2);
+        vec_result(0) = proj(0); // u
+        vec_result(1) = proj(1); // v
+        return std::make_pair(std::move(vec_result), z);
+    }
 }
 
 template <typename Scalar>
-std::pair<Vec2<Scalar>, Scalar> FrameBase::project_map_point(const MapPointPtr &map_point) const {
-    return project_point<Scalar>(map_point->pt().template cast<Scalar>());
+std::pair<VecN<Scalar>, Scalar> FrameBase::project_map_point(const MapPointPtr &map_point,
+                                                             bool do_stereo_project) const {
+    return project_point<Scalar>(map_point->pt().template cast<Scalar>(), do_stereo_project);
 }
 
 template <typename Scalar>
@@ -285,28 +305,35 @@ std::tuple<bool, Vec2<Scalar>, Scalar> FrameBase::is_visible(const MapPointPtr &
     }
     // viewing angle must be less than 60 deg
     if (PO.dot(map_point->get_normal().template cast<Scalar>()) <
-        0.5 * dist3D) { // Parameters.kViewingCosLimitForPoint = 0.5
+        Parameters::kViewingCosLimitForPoint * dist3D) {
         return std::make_tuple(false, uv.template cast<Scalar>(), z);
     }
     return std::make_tuple(true, uv.template cast<Scalar>(), z);
 }
 
 template <typename Scalar>
-std::tuple<std::vector<bool>, MatNx2<Scalar>, VecN<Scalar>, VecN<Scalar>>
+std::tuple<std::vector<bool>, MatNxM<Scalar>, VecN<Scalar>, VecN<Scalar>>
 FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stereo_project) const {
+    // Handle empty input
+    if (map_points.empty()) {
+        return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
+                               VecN<Scalar>());
+    }
+
     // Let's make the computations in double precision and then cast to Scalar at the end
     MatNx3<double> points_in;
     MatNx3<double> normals_in;
     VecN<double> min_dists_in;
     VecN<double> max_dists_in;
 
-    points_in.resize(map_points.size(), 3);
-    normals_in.resize(map_points.size(), 3);
-    min_dists_in.resize(map_points.size());
-    max_dists_in.resize(map_points.size());
+    const int num_points = map_points.size();
+    points_in.resize(num_points, 3);
+    normals_in.resize(num_points, 3);
+    min_dists_in.resize(num_points);
+    max_dists_in.resize(num_points);
 
     int r = 0;
-    for (size_t i = 0; i < map_points.size(); ++i) {
+    for (size_t i = 0; i < num_points; ++i) {
         const auto &mp = map_points[i];
         if (mp) {
             points_in.row(r) = mp->pt();
@@ -318,6 +345,19 @@ FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stere
             r++;
         }
     }
+
+    if (r != num_points) {
+        MSG_ERROR("Number of valid map points mismatch in are_visible");
+        return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
+                               VecN<Scalar>());
+    }
+
+    // Handle case where no valid map points were found
+    if (r == 0) {
+        return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
+                               VecN<Scalar>());
+    }
+
     points_in.conservativeResize(r, 3);
     normals_in.conservativeResize(r, 3);
     min_dists_in.conservativeResize(r);
@@ -327,36 +367,58 @@ FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stere
     const auto &uvs = projection_result.first;
     const auto &zs = projection_result.second;
 
+    // Validate that projection returned expected number of points
+    if (uvs.rows() != r || zs.size() != r) {
+        MSG_ERROR("Projection result size mismatch in are_visible");
+        return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
+                               VecN<Scalar>());
+    }
+
     const Eigen::RowVector3d Ow_row = Ow().transpose().template cast<double>();
     MatNx3<double> POs;
+    POs.resize(points_in.rows(), 3);
     VecN<double> dists_in;
-    POs.resize(points_in.size(), 3);
-    dists_in.resize(points_in.size());
+    dists_in.resize(points_in.rows());
 
-    for (size_t i = 0; i < points_in.size(); ++i) {
+    for (size_t i = 0; i < points_in.rows(); ++i) {
         const auto &point = points_in.row(i);
         const Eigen::RowVector3d PO = point - Ow_row;
-        dists_in(i) = PO.norm();
-        POs.row(i) = PO / dists_in(i);
+        dists_in[i] = PO.norm();
+
+        // Safety check for division by zero
+        if (dists_in[i] < static_cast<double>(1e-10)) {
+            // Point is too close to camera center, mark as not visible
+            POs.row(i) = Eigen::RowVector3d::Zero();
+        } else {
+            POs.row(i) = PO / dists_in[i];
+        }
     }
 
     VecN<double> cos_view;
-    cos_view.resize(normals_in.size());
-    for (size_t i = 0; i < normals_in.size(); ++i) {
-        cos_view(i) = normals_in.row(i).dot(POs.row(i));
+    cos_view.resize(normals_in.rows());
+    for (size_t i = 0; i < normals_in.rows(); ++i) {
+        cos_view[i] = normals_in.row(i).dot(POs.row(i));
     }
 
     auto are_in_image_flags = are_in_image<double>(uvs, zs.template cast<double>());
+
+    // Validate array sizes are consistent
+    if (are_in_image_flags.size() != r || cos_view.size() != r || dists_in.size() != r) {
+        MSG_ERROR("Array size mismatch in are_visible");
+        return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
+                               VecN<Scalar>());
+    }
+
     std::vector<bool> are_in_good_view_angle;
     are_in_good_view_angle.resize(cos_view.size());
     for (size_t i = 0; i < cos_view.size(); ++i) {
-        are_in_good_view_angle[i] = cos_view(i) > 0.5;
+        are_in_good_view_angle[i] = cos_view[i] > 0.5;
     }
 
     std::vector<bool> are_in_good_distance;
     are_in_good_distance.resize(dists_in.size());
     for (size_t i = 0; i < dists_in.size(); ++i) {
-        are_in_good_distance[i] = dists_in(i) >= min_dists_in(i) && dists_in(i) <= max_dists_in(i);
+        are_in_good_distance[i] = dists_in[i] >= min_dists_in[i] && dists_in[i] <= max_dists_in[i];
     }
 
     std::vector<bool> out_flags;
@@ -418,7 +480,7 @@ void Frame::copy_from(const Frame &other) {
     kps_ur = other.kps_ur;
 
     points = other.points;
-    outliers = other.outliers;
+    // outliers = other.outliers;  // We don't preserve Frame outliers
 
     is_blurry = other.is_blurry;
     laplacian_var = other.laplacian_var;
@@ -468,8 +530,7 @@ void Frame::reset() {
 Frame::Frame(const CameraPtr &camera, const cv::Mat &img, const cv::Mat &img_right,
              const cv::Mat &depth, const CameraPose &pose, int id, double timestamp, int img_id,
              const cv::Mat &semantic_img, const pyslam::FrameDataDict &frame_data_dict)
-    : FrameBase(camera, pose, id, timestamp, img_id), img(img), img_right(img_right),
-      depth_img(depth), semantic_img(semantic_img) {
+    : FrameBase(camera, pose, id, timestamp, img_id) {
 
     // Initialize other members
     is_keyframe = false;
@@ -497,20 +558,27 @@ Frame::Frame(const CameraPtr &camera, const cv::Mat &img, const cv::Mat &img_rig
     outliers.clear();
 
     // Initialize image data
-    if (is_store_imgs && !img.empty()) {
+    if (!img.empty() && Frame::is_store_imgs) {
         this->img = img.clone();
     }
-    if (is_store_imgs && !img_right.empty()) {
+    if (!img_right.empty() && Frame::is_store_imgs) {
         this->img_right = img_right.clone();
     }
-    if (is_store_imgs && !depth.empty()) {
-        if (camera && camera->depth_factor != 1.0) {
-            this->depth_img = depth * camera->depth_factor;
+    cv::Mat depth_ = depth;
+    if (!depth.empty()) {
+        if (camera) {
+            if (fabs(camera->depth_factor - 1.0) > 1e-5 && depth.type() != CV_32F) {
+                depth_.convertTo(depth_, CV_32F, camera->depth_factor);
+            }
         } else {
-            this->depth_img = depth.clone();
+            MSG_ERROR("Frame::Frame() - camera is nullptr");
+        }
+
+        if (Frame::is_store_imgs) {
+            this->depth_img = depth_.clone();
         }
     }
-    if (is_store_imgs && !semantic_img.empty()) {
+    if (!semantic_img.empty() && Frame::is_store_imgs) {
         this->semantic_img = semantic_img.clone();
     }
 
@@ -520,8 +588,8 @@ Frame::Frame(const CameraPtr &camera, const cv::Mat &img, const cv::Mat &img_rig
 
     const int N = kps.rows();
     if (N > 0) {
-        if (!depth_img.empty()) {
-            compute_stereo_from_rgbd(depth_img);
+        if (!depth_.empty()) {
+            compute_stereo_from_rgbd(depth_);
         } else if (!img_right.empty()) {
             depths.resize(N, -1.0);
             kps_ur.resize(N, -1.0);
@@ -592,14 +660,17 @@ void Frame::remove_frame_views(const std::vector<int> &idxs) {
     }
 
     std::vector<std::pair<MapPointPtr, int>> frame_views_to_remove;
-    std::lock_guard<std::mutex> lock(_lock_features);
-    for (int idx : idxs) {
-        if (idx >= 0 && idx < static_cast<int>(points.size()) && points[idx]) {
-            frame_views_to_remove.emplace_back(points[idx], idx);
+    {
+        std::lock_guard<std::mutex> lock(_lock_features);
+        for (int idx : idxs) {
+            if (idx >= 0 && idx < static_cast<int>(points.size()) && points[idx]) {
+                frame_views_to_remove.emplace_back(points[idx], idx);
+            }
         }
     }
+    auto self = shared_from_this();
     for (const auto &[p, idx] : frame_views_to_remove) {
-        p->remove_frame_view(WrapPtr(this), idx);
+        p->remove_frame_view(self, idx);
     }
 }
 
@@ -637,15 +708,19 @@ std::vector<int> Frame::get_unmatched_points_idxs() const {
     return unmatched_idxs;
 }
 
-std::vector<MapPointPtr> Frame::get_matched_inlier_points() const {
+std::pair<std::vector<MapPointPtr>, std::vector<int>> Frame::get_matched_inlier_points() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     std::vector<MapPointPtr> matched_points;
+    std::vector<int> matched_idxs;
+    matched_points.reserve(points.size());
+    matched_idxs.reserve(points.size());
     for (size_t i = 0; i < points.size(); ++i) {
         if (points[i] && !outliers[i]) {
             matched_points.push_back(points[i]);
+            matched_idxs.push_back(i);
         }
     }
-    return matched_points;
+    return std::make_pair(matched_points, matched_idxs);
 }
 
 std::vector<MapPointPtr> Frame::get_matched_good_points() const {
@@ -677,7 +752,7 @@ int Frame::num_tracked_points(int minObs) const {
     std::lock_guard<std::mutex> lock(_lock_features);
     int count = 0;
     for (const auto &p : points) {
-        if (p && !p->is_bad() && p->is_good_with_min_obs(minObs)) {
+        if (p && p->is_good_with_min_obs(minObs)) {
             count++;
         }
     }
@@ -688,62 +763,93 @@ int Frame::num_matched_inlier_map_points() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     int count = 0;
     for (size_t i = 0; i < points.size(); ++i) {
-        if (points[i] && !outliers[i] && points[i]->num_observations() > 0) {
+        const auto &p = points[i];
+        if (p && !outliers[i] && p->num_observations() > 0) {
             count++;
         }
     }
     return count;
 }
 
-int Frame::clean_outlier_map_points() {
+int Frame::update_map_points_statistics(const SensorType &sensor_type) {
     std::lock_guard<std::mutex> lock(_lock_features);
-    int num_matched_points = 0;
-    std::vector<std::pair<MapPointPtr, int>> points_to_remove;
+    int num_matched_inlier_points = 0;
     for (size_t i = 0; i < points.size(); ++i) {
-        const auto &p = points[i];
-        if (p) {
-            if (outliers[i]) {
-                points_to_remove.emplace_back(p, static_cast<int>(i));
+        if (points[i]) {
+            if (!outliers[i]) {
+                points[i]->increase_found();
+                if (points[i]->num_observations() > 0) {
+                    num_matched_inlier_points++;
+                }
+            } else if (sensor_type == SensorType::STEREO) {
                 points[i] = nullptr;
-                outliers[i] = false;
-                p->last_frame_id_seen = this->id;
-            } else if (p->num_observations() > 0) {
-                num_matched_points++;
             }
         }
     }
-    for (const auto &[p, idx] : points_to_remove) {
-        p->remove_frame_view(WrapPtr(this), idx);
+    return num_matched_inlier_points;
+}
+
+int Frame::clean_outlier_map_points() {
+    int num_matched_points = 0;
+    std::vector<std::pair<MapPointPtr, int>> frame_views_to_remove;
+
+    {
+        std::lock_guard<std::mutex> lock(_lock_features);
+        for (size_t i = 0; i < points.size(); ++i) {
+            const auto &p = points[i];
+            if (p) {
+                if (outliers[i]) {
+                    frame_views_to_remove.emplace_back(p, static_cast<int>(i));
+                    p->last_frame_id_seen = this->id;
+                    points[i] = nullptr;
+                    outliers[i] = false;
+                } else if (p->num_observations() > 0) {
+                    num_matched_points++;
+                }
+            }
+        }
+    }
+
+    auto self = shared_from_this();
+    for (const auto &[p, idx] : frame_views_to_remove) {
+        p->remove_frame_view(self, idx);
     }
     return num_matched_points;
 }
 
 void Frame::clean_bad_map_points() {
-    std::lock_guard<std::mutex> lock(_lock_features);
-    std::vector<std::pair<MapPointPtr, int>> points_to_remove;
-    for (size_t i = 0; i < points.size(); ++i) {
-        const auto &p = points[i];
-        if (!p)
-            continue;
-        if (p->is_bad()) {
-            points_to_remove.emplace_back(p, static_cast<int>(i));
-            points[i] = nullptr;
-            outliers[i] = false;
-        } else {
-            p->last_frame_id_seen = this->id;
-            p->increase_visible();
+    std::vector<std::pair<MapPointPtr, int>> frame_views_to_remove;
+
+    {
+        std::lock_guard<std::mutex> lock(_lock_features);
+        for (size_t i = 0; i < points.size(); ++i) {
+            const auto &p = points[i];
+            if (!p)
+                continue;
+            if (p->is_bad()) {
+                frame_views_to_remove.emplace_back(p, static_cast<int>(i));
+                points[i] = nullptr;
+                outliers[i] = false;
+            } else {
+                p->last_frame_id_seen = this->id;
+                p->increase_visible();
+            }
         }
     }
-    for (const auto &[p, idx] : points_to_remove) {
-        p->remove_frame_view(WrapPtr(this), idx);
+
+    auto self = shared_from_this();
+    for (const auto &[p, idx] : frame_views_to_remove) {
+        p->remove_frame_view(self, idx);
     }
 }
 
 void Frame::clean_vo_matches() {
     std::lock_guard<std::mutex> lock(_lock_features);
     for (size_t i = 0; i < points.size(); ++i) {
-        if (points[i] && points[i]->num_observations() < 1) {
+        const auto &p = points[i];
+        if (p && p->num_observations() < 1) {
             points[i] = nullptr;
+            outliers[i] = false;
         }
     }
 }
@@ -752,8 +858,9 @@ void Frame::check_replaced_map_points() {
     std::lock_guard<std::mutex> lock(_lock_features);
     int num_replaced_points = 0;
     for (size_t i = 0; i < points.size(); ++i) {
-        if (points[i]) {
-            MapPointPtr replacement = points[i]->get_replacement();
+        const auto &p = points[i];
+        if (p) {
+            const MapPointPtr replacement = p->get_replacement();
             if (replacement) {
                 points[i] = replacement;
                 num_replaced_points++;
@@ -766,7 +873,6 @@ void Frame::check_replaced_map_points() {
 template <typename T>
 void Frame::extract_depth_values(const cv::Mat_<T> &depth, std::vector<bool> &valid_depth_mask,
                                  std::vector<float> &valid_depths) {
-    constexpr double kMinDepth = 1e-2;
     const int N = kps.rows();
     valid_depth_mask.resize(N, false);
     valid_depths.reserve(N);
@@ -780,7 +886,7 @@ void Frame::extract_depth_values(const cv::Mat_<T> &depth, std::vector<bool> &va
         if (u >= 0 && u < depth.cols && v >= 0 && v < depth.rows) {
             // Get depth value at keypoint location (v, u) - note the order
             const float depth_val = static_cast<float>(depth.template at<T>(v, u));
-            valid_depth_mask[i] = (depth_val > kMinDepth) && std::isfinite(depth_val);
+            valid_depth_mask[i] = (depth_val > Parameters::kMinDepth) && std::isfinite(depth_val);
             if (valid_depth_mask[i]) {
                 depths[i] = static_cast<float>(depth_val);
                 kps_ur[i] = static_cast<float>(kpsu(i, 0) - camera->bf / depth_val);
@@ -791,7 +897,6 @@ void Frame::extract_depth_values(const cv::Mat_<T> &depth, std::vector<bool> &va
 }
 
 void Frame::compute_stereo_from_rgbd(const cv::Mat &depth) {
-    constexpr double kMinDepth = 1e-2;
 
     // Get number of keypoints
     const int N = kps.rows();
@@ -809,7 +914,9 @@ void Frame::compute_stereo_from_rgbd(const cv::Mat &depth) {
 
     if (depth.type() == CV_32F) {
         extract_depth_values<float>(depth, valid_depth_mask, valid_depths);
-    } else if (depth.type() == CV_64F) {
+    }
+#if 0
+    else if (depth.type() == CV_64F) {
         extract_depth_values<double>(depth, valid_depth_mask, valid_depths);
     } else if (depth.type() == CV_16U) { // <- use 16U for unsigned short
         extract_depth_values<uint16_t>(depth, valid_depth_mask, valid_depths);
@@ -821,6 +928,11 @@ void Frame::compute_stereo_from_rgbd(const cv::Mat &depth) {
     } else {
         MSG_ERROR("Frame::compute_stereo_from_rgbd() - unknown depth type");
     }
+#else
+    else {
+        MSG_ERROR("Frame::compute_stereo_from_rgbd() - unknown depth type");
+    }
+#endif
 
     // Compute median depth if enabled
     if (Frame::is_compute_median_depth) {
@@ -854,18 +966,18 @@ void Frame::compute_stereo_from_rgbd(const cv::Mat &depth) {
 }
 
 void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right) {
-    constexpr float kRatioTest = 0.9;
     constexpr bool kRowMatching = true;
+    const float kRatioTest = Parameters::kFeatureMatchDefaultRatioTest;
     const float min_z = camera->b;
     const float min_disparity = 0;
     const float max_disparity = camera->bf / min_z;
 
-    if (!FeatureSharedInfo::stereo_matching_callback) {
+    if (!FeatureSharedResources::stereo_matching_callback) {
         MSG_ERROR("Frame::compute_stereo_matches() - stereo_matching_callback not set");
         return;
     }
 
-    const auto &[idxs1, idxs2] = FeatureSharedInfo::stereo_matching_callback(
+    const auto &[idxs1, idxs2] = FeatureSharedResources::stereo_matching_callback(
         img, img_right, des, des_r, kps, kps_r, kRatioTest, kRowMatching, max_disparity);
     if (idxs1.size() == 0 || idxs2.size() == 0) {
         MSG_WARN("Frame::compute_stereo_matches() - no stereo matches found");
@@ -967,13 +1079,13 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
         final_disparities.reserve(valid_idxs.size());
 
         for (size_t i = 0; i < valid_idxs.size(); ++i) {
-            int idx = valid_idxs[i];
+            const int idx = valid_idxs[i];
             final_idxs1.push_back(good_matched_idxs1[idx]);
             final_idxs2.push_back(good_matched_idxs2[idx]);
-            final_disparities.push_back(refined_disparities[i]);
+            final_disparities.push_back(refined_disparities[idx]);
 
             // Update kps_ur with refined right u-coordinates
-            kps_ur[good_matched_idxs1[idx]] = refined_us_right[i];
+            kps_ur[good_matched_idxs1[idx]] = refined_us_right[idx];
         }
 
         good_matched_idxs1 = std::move(final_idxs1);
@@ -1038,8 +1150,8 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
                 // if (depth_l > 0 && depth_r > 0) {
                 if (depth_r > 0) {
                     // Compute reprojection errors
-                    // Eigen::Vector2d err_l = uv_l - Eigen::Vector2d(kps(good_matched_idxs1[i], 0),
-                    // kps(good_matched_idxs1[i], 1));
+                    // Eigen::Vector2d err_l = uv_l - Eigen::Vector2d(kps(good_matched_idxs1[i],
+                    // 0), kps(good_matched_idxs1[i], 1));
                     Eigen::Vector2f err_r = uv_r - Eigen::Vector2f(kps_r(good_matched_idxs2[i], 0),
                                                                    kps_r(good_matched_idxs2[i], 1));
 
@@ -1047,14 +1159,17 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
                     float err_r_sqr = err_r.squaredNorm();
 
                     // Get sigma from octave levels
-                    // float sigma_l = std::pow(2.0, octaves[good_matched_idxs1[i]]);
-                    float sigma_r = std::pow(2.0, octaves_r[good_matched_idxs2[i]]);
+                    // const float inv_sigma2_l =
+                    // FeatureSharedResources::inv_level_sigmas2[octaves[good_matched_idxs1[i]]];
+                    const float inv_sigma2_r =
+                        FeatureSharedResources::inv_level_sigmas2[octaves_r[good_matched_idxs2[i]]];
 
                     // float chi2_l = err_l_sqr / (sigma_l * sigma_l);
-                    float chi2_r = err_r_sqr / (sigma_r * sigma_r);
+                    float chi2_r = err_r_sqr * inv_sigma2_r;
 
-                    // good_chi2_mask.push_back(chi2_l < kChi2Mono && chi2_r < kChi2Mono);
-                    good_chi2_mask.push_back(chi2_r < kChi2Mono);
+                    // good_chi2_mask.push_back(chi2_l < Parameters::kChi2Mono && chi2_r <
+                    // Parameters::kChi2Mono);
+                    good_chi2_mask.push_back(chi2_r < Parameters::kChi2Mono);
                 } else {
                     good_chi2_mask.push_back(false);
                 }
@@ -1085,10 +1200,11 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
 
     // Update depths and kps_ur arrays
     for (size_t i = 0; i < good_matched_idxs1.size(); ++i) {
-        const int idx = good_matched_idxs1[i];
-        depths[idx] = camera->bf / good_disparities[i];
+        const int idx1 = good_matched_idxs1[i];
+        const int idx2 = good_matched_idxs2[i];
+        depths[idx1] = camera->bf / good_disparities[i];
         if (!do_subpixel_stereo_matching) {
-            kps_ur[idx] = kps_r(good_matched_idxs2[i], 0);
+            kps_ur[idx1] = kps_r(idx2, 0);
         }
     }
 
@@ -1101,7 +1217,7 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
         valid_depths.reserve(depths.size());
 
         for (float depth : depths) {
-            if (depth > kMinDepth) {
+            if (depth > Parameters::kMinDepth) {
                 valid_depths.push_back(depth);
             }
         }
@@ -1119,12 +1235,28 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
                       << std::endl;
         }
     }
+
+    // Show stereo matches if enabled
+    if (Parameters::kStereoMatchingShowMatchedPoints) {
+        MatNx2f matched_kps1(static_cast<int>(good_matched_idxs1.size()), 2);
+        MatNx2f matched_kps2(static_cast<int>(good_matched_idxs2.size()), 2);
+        for (size_t i = 0; i < good_matched_idxs1.size(); ++i) {
+            matched_kps1(i, 0) = kps(good_matched_idxs1[i], 0);
+            matched_kps1(i, 1) = kps(good_matched_idxs1[i], 1);
+            matched_kps2(i, 0) = kps_r(good_matched_idxs2[i], 0);
+            matched_kps2(i, 1) = kps_r(good_matched_idxs2[i], 1);
+        }
+        cv::Mat stereo_img_matches = pyslam::draw_feature_matches(img, img_right, matched_kps1,
+                                                                  matched_kps2, {}, {}, /**/ false);
+        cv::imshow("stereo_img_matches", stereo_img_matches);
+        cv::waitKey(1);
+    }
 }
 
 template <typename Scalar>
 std::pair<Vec3<Scalar>, bool> Frame::unproject_point_3d(int idx, bool transform_in_world) const {
     const double &depth = depths[idx];
-    if (depth > kMinDepth) {
+    if (depth > Parameters::kMinDepth) {
         Vec3<Scalar> pt3d(depth * kpsn(idx, 0), depth * kpsn(idx, 1), depth);
         if (transform_in_world) {
             pt3d = _pose.Rwc().template cast<Scalar>() * pt3d + _pose.Ow().template cast<Scalar>();
@@ -1138,20 +1270,21 @@ std::pair<Vec3<Scalar>, bool> Frame::unproject_point_3d(int idx, bool transform_
 template <typename Scalar>
 std::pair<std::vector<Vec3<Scalar>>, std::vector<bool>>
 Frame::unproject_points_3d(const std::vector<int> &idxs, bool transform_in_world) const {
-    std::vector<Vec3<Scalar>> pts3d;
-    pts3d.reserve(idxs.size());
+    std::vector<Vec3<Scalar>> pts3d(idxs.size(), Vec3<Scalar>());
     std::vector<bool> valid_mask(idxs.size(), false);
 
-    for (const int idx : idxs) {
+    for (size_t i = 0; i < idxs.size(); ++i) {
+        const int idx = idxs[i];
         const double &depth = depths[idx];
-        if (depth > kMinDepth) {
+        if (depth > Parameters::kMinDepth) {
             Vec3<Scalar> pt3d(depth * kpsn(idx, 0), depth * kpsn(idx, 1), depth);
             if (transform_in_world) {
-                pt3d =
+                pts3d[i] =
                     _pose.Rwc().template cast<Scalar>() * pt3d + _pose.Ow().template cast<Scalar>();
+            } else {
+                pts3d[i] = pt3d;
             }
-            pts3d.emplace_back(pt3d);
-            valid_mask[idx] = true;
+            valid_mask[i] = true;
         }
     }
     return std::make_pair(pts3d, valid_mask);
@@ -1168,36 +1301,45 @@ Scalar Frame::compute_points_median_depth(MatNx3Ref<Scalar> points3d,
         tcw2 = static_cast<Scalar>(_pose.tcw()[2]);        // just 2-nd element (z-axis)
     }
     MatNx3<Scalar> points3d_frame;
-    if (points3d.rows() == 0) {
+    const bool use_input_points3d = points3d.rows() > 0;
+    Eigen::Index n = points3d.rows();
+    if (!use_input_points3d) {
+        pose_lock_guard_type lock(_lock_features);
+        // The input points3d is empty, so we use the points array (from this Frame)
         points3d_frame.resize(points.size(), 3);
-        int r = 0;
-        // we use points array (from Frame)
+        Eigen::Index r = 0;
         for (const auto &mp : points) {
             if (mp) {
-                points3d_frame.row(r) = mp->pt().template cast<Scalar>();
-                r++;
+                points3d_frame.row(r++) = mp->pt().template cast<Scalar>();
             }
         }
         points3d_frame.conservativeResize(r, 3);
+        n = r;
     }
-    MatNx3Ref<Scalar> points3d_to_use =
-        (points3d.rows() == 0) ? Eigen::Ref<const MatNx3<Scalar>>(points3d_frame) : points3d;
 
-    if (points3d_to_use.rows() > 0) {
-        std::vector<Scalar> depths;
-        depths.reserve(points3d_to_use.rows());
-        for (int i = 0; i < points3d_to_use.rows(); ++i) {
-            const Scalar zc = Rcw2.dot(points3d_to_use.row(i)) + tcw2;
-            depths.push_back(zc);
-        }
-
-        std::sort(depths.begin(), depths.end());
-        const size_t idx =
-            std::min(static_cast<size_t>(depths.size() * percentile), depths.size() - 1);
-        return depths[idx];
-    } else {
+    if (n == 0) {
         return static_cast<Scalar>(-1.0);
     }
+
+    const MatNx3Ref<Scalar> points3d_to_use =
+        (use_input_points3d) ? points3d : Eigen::Ref<const MatNx3<Scalar>>(points3d_frame);
+
+    std::vector<Scalar> depths;
+    depths.reserve(n);
+    for (Eigen::Index i = 0; i < n; ++i) {
+        const Scalar zc = Rcw2.dot(points3d_to_use.row(i)) + tcw2;
+        depths.push_back(zc);
+    }
+#if 0
+    std::sort(depths.begin(), depths.end());
+    const size_t idx = std::min(static_cast<size_t>(depths.size() * percentile), depths.size() - 1);
+#else
+    // Clamp percentile to [0,1], then select in linear time
+    const Scalar p = std::max<Scalar>(0, std::min<Scalar>(1, percentile));
+    const size_t idx = std::min(static_cast<size_t>(depths.size() * p), depths.size() - 1);
+    std::nth_element(depths.begin(), depths.begin() + idx, depths.end());
+#endif
+    return depths[idx];
 }
 
 void Frame::set_img_right(const cv::Mat &img_right) { this->img_right = img_right.clone(); }
@@ -1344,6 +1486,7 @@ cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &k
                 std::vector<cv::Point> pts;
                 int count = 0;
                 int last_frame_id = -1;
+
                 for (auto it = p_frame_views.rbegin(); it != p_frame_views.rend(); ++it) {
                     const auto &[f, idx] = *it;
                     if (!f)
@@ -1361,7 +1504,7 @@ cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &k
                     }
                 }
                 if (pts.size() > 1) {
-                    const auto &color = colors_myjet[pts.size()];
+                    const auto &color = pyslam::Colors::myjet_color(pts.size());
                     const auto &cv_color = cv::Scalar(color[0], color[1], color[2]) * 255;
                     cv::polylines(img_out, pts, false, cv_color, 1, cv::LINE_AA);
                 }
@@ -1382,7 +1525,7 @@ cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img) const {
 
 void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
     constexpr bool kVerbose = false;
-    if (FeatureSharedInfo::feature_detect_and_compute_callback) {
+    if (FeatureSharedResources::feature_detect_and_compute_callback) {
         if constexpr (kVerbose) {
             std::cout << "Frame::manage_features() called" << std::endl;
         }
@@ -1518,9 +1661,10 @@ void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
 
 std::pair<FeatureDetectAndComputeOutput, FeatureDetectAndComputeOutput>
 Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &img_right) {
-    constexpr bool kVerbose = true; // Fix: reduce logging
-    const bool both_callbacks_set = FeatureSharedInfo::feature_detect_and_compute_callback &&
-                                    FeatureSharedInfo::feature_detect_and_compute_right_callback;
+    constexpr bool kVerbose = false; // Fix: reduce logging
+    const bool both_callbacks_set =
+        FeatureSharedResources::feature_detect_and_compute_callback &&
+        FeatureSharedResources::feature_detect_and_compute_right_callback;
     const bool is_stereo = !img_right.empty();
 
     if (both_callbacks_set && is_stereo) {
@@ -1533,39 +1677,38 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
                       << std::endl;
         }
 
-        // Release GIL and run parallel detection
+        // Run parallel detection
         FeatureDetectAndComputeOutput result_left, result_right;
 
-        {
-            pybind11::gil_scoped_release release; // Release GIL for parallel execution
+        auto left_future =
+            std::async(std::launch::async, [this, &img]() -> FeatureDetectAndComputeOutput {
+                if (img.empty()) {
+                    return FeatureDetectAndComputeOutput();
+                }
+#ifdef USE_PYTHON
+                pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+#endif
+                return FeatureSharedResources::feature_detect_and_compute_callback(img);
+            });
 
-            auto left_future =
-                std::async(std::launch::async, [this, &img]() -> FeatureDetectAndComputeOutput {
-                    if (img.empty()) {
-                        return FeatureDetectAndComputeOutput();
-                    }
-                    pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
-                    return FeatureSharedInfo::feature_detect_and_compute_callback(img);
-                });
+        auto right_future =
+            std::async(std::launch::async, [this, &img_right]() -> FeatureDetectAndComputeOutput {
+                if (img_right.empty()) {
+                    return FeatureDetectAndComputeOutput();
+                }
+#ifdef USE_PYTHON
+                pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+#endif
+                return FeatureSharedResources::feature_detect_and_compute_right_callback(img_right);
+            });
 
-            auto right_future = std::async(
-                std::launch::async, [this, &img_right]() -> FeatureDetectAndComputeOutput {
-                    if (img_right.empty()) {
-                        return FeatureDetectAndComputeOutput();
-                    }
-                    pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
-                    return FeatureSharedInfo::feature_detect_and_compute_right_callback(img_right);
-                });
-
-            // Wait for both to complete (GIL is still released here)
-            result_left = left_future.get();
-            result_right = right_future.get();
-        }
-        // GIL is automatically reacquired when leaving the scope
+        // Wait for both to complete (GIL is still released here)
+        result_left = left_future.get();
+        result_right = right_future.get();
 
         return {result_left, result_right};
 
-    } else if (FeatureSharedInfo::feature_detect_and_compute_callback) {
+    } else if (FeatureSharedResources::feature_detect_and_compute_callback) {
         // ----------------------------------------
         // Single left image callback - no need for GIL management
         // ----------------------------------------
@@ -1576,7 +1719,7 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
         if (img.empty()) {
             return {FeatureDetectAndComputeOutput(), FeatureDetectAndComputeOutput()};
         } else {
-            return {FeatureSharedInfo::feature_detect_and_compute_callback(img),
+            return {FeatureSharedResources::feature_detect_and_compute_callback(img),
                     FeatureDetectAndComputeOutput()};
         }
     } else {
@@ -1597,25 +1740,27 @@ template std::pair<MatNxM<double>, VecN<double>>
 pyslam::FrameBase::project_points<double>(const MatNx3Ref<double> points,
                                           bool do_stereo_project) const;
 
-template std::pair<Vec2<float>, float>
-pyslam::FrameBase::project_point<float>(Vec3Ref<float> pw) const;
-template std::pair<Vec2<double>, double>
-pyslam::FrameBase::project_point<double>(Vec3Ref<double> pw) const;
+template std::pair<VecN<float>, float>
+pyslam::FrameBase::project_point<float>(Vec3Ref<float> pw, bool do_stereo_project) const;
+template std::pair<VecN<double>, double>
+pyslam::FrameBase::project_point<double>(Vec3Ref<double> pw, bool do_stereo_project) const;
 
-template std::pair<Vec2<float>, float>
-pyslam::FrameBase::project_map_point<float>(const MapPointPtr &map_point) const;
-template std::pair<Vec2<double>, double>
-pyslam::FrameBase::project_map_point<double>(const MapPointPtr &map_point) const;
+template std::pair<VecN<float>, float>
+pyslam::FrameBase::project_map_point<float>(const MapPointPtr &map_point,
+                                            bool do_stereo_project) const;
+template std::pair<VecN<double>, double>
+pyslam::FrameBase::project_map_point<double>(const MapPointPtr &map_point,
+                                             bool do_stereo_project) const;
 
 template std::tuple<bool, Vec2<float>, float>
 pyslam::FrameBase::is_visible<float>(const MapPointPtr &map_point) const;
 template std::tuple<bool, Vec2<double>, double>
 pyslam::FrameBase::is_visible<double>(const MapPointPtr &map_point) const;
 
-template std::tuple<std::vector<bool>, MatNx2<float>, VecN<float>, VecN<float>>
+template std::tuple<std::vector<bool>, MatNxM<float>, VecN<float>, VecN<float>>
 pyslam::FrameBase::are_visible<float>(const std::vector<MapPointPtr> &map_points,
                                       bool do_stereo_project) const;
-template std::tuple<std::vector<bool>, MatNx2<double>, VecN<double>, VecN<double>>
+template std::tuple<std::vector<bool>, MatNxM<double>, VecN<double>, VecN<double>>
 pyslam::FrameBase::are_visible<double>(const std::vector<MapPointPtr> &map_points,
                                        bool do_stereo_project) const;
 

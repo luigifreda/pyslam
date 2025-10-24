@@ -25,12 +25,11 @@ import torch.multiprocessing as mp
 import cv2
 import numpy as np
 
-from pyslam.slam.camera import Camera
-from pyslam.slam.map import Map
+from pyslam.slam import Camera, Map, KeyFrame, Frame, USE_CPP
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 from pyslam.utilities.timer import TimerFps
 
@@ -40,8 +39,6 @@ import traceback
 
 from collections import deque
 
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
 
 from enum import Enum
 
@@ -135,16 +132,41 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                     if self.last_input_task.task_type == VolumetricIntegrationTaskType.INTEGRATE:
                         keyframe_data = self.last_input_task.keyframe_data
 
+                        VolumetricIntegratorBase.print(
+                            f"VolumetricIntegratorTsdf: processing keyframe_data: {keyframe_data}"
+                        )
+
                         color_undistorted, depth_undistorted, pts3d, semantic_undistorted = (
                             self.estimate_depth_if_needed_and_rectify(keyframe_data)
                         )
 
-                        pose = keyframe_data.pose()  # Tcw
+                        pose = keyframe_data.pose  # Tcw
                         # inv_pose = inv_T(pose)   # Twc
 
-                        VolumetricIntegratorBase.print(
-                            f"VolumetricIntegratorTsdf: keyframe id: {keyframe_data.id}, depth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
-                        )
+                        # print(f"VolumetricIntegratorTsdf: color_undistorted: shape: {color_undistorted.shape}, type: {color_undistorted.dtype}")
+
+                        if kVerbose:
+                            if depth_undistorted is not None:
+                                VolumetricIntegratorBase.print(
+                                    f"\t\tdepth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
+                                )
+                                min_depth = np.min(depth_undistorted)
+                                max_depth = np.max(depth_undistorted)
+                                VolumetricIntegratorBase.print(
+                                    f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
+                                )
+
+                            if pts3d is not None:
+                                VolumetricIntegratorBase.print(
+                                    f"\t\tpts3d: shape: {pts3d.shape}, type: {pts3d.dtype}"
+                                )
+                            if (
+                                semantic_undistorted is not None
+                                and semantic_undistorted.shape[0] > 0
+                            ):
+                                VolumetricIntegratorBase.print(
+                                    f"\t\tsemantic_undistorted: shape: {semantic_undistorted.shape}, type: {semantic_undistorted.dtype}"
+                                )
 
                         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
                             o3d.geometry.Image(color_undistorted),

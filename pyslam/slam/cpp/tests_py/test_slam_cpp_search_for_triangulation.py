@@ -7,31 +7,51 @@ from matplotlib import pyplot as plt
 
 
 from pyslam.config import Config
+from pyslam.config_parameters import Parameters
 
+USE_CPP = True
+Parameters.USE_CPP_CORE = USE_CPP
 
-os.environ["PYSLAM_USE_CPP"] = "true"  # set environment variable to use C++ module
+from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 
-from pyslam.slam import (
-    Frame,
-    Camera,
-    PinholeCamera,
-    MapPoint,
-    KeyFrame,
-    Sim3Pose,
-    Map,
-    optimizer_g2o,
-)
+if not CPP_AVAILABLE:
+    print("❌ cpp_module imported successfully but C++ core is not available")
+    sys.exit(1)
+else:
+    print("✅ cpp_module imported successfully")
+
+if USE_CPP:
+    Frame = cpp_module.Frame
+    KeyFrame = cpp_module.KeyFrame
+    Map = cpp_module.Map
+    MapPoint = cpp_module.MapPoint
+    Sim3Pose = cpp_module.Sim3Pose
+    Camera = cpp_module.Camera
+    PinholeCamera = cpp_module.PinholeCamera
+    optimizer_g2o = cpp_module.optimizer_g2o
+    print("Using C++ module")
+else:
+    Frame = python_module.Frame
+    KeyFrame = python_module.KeyFrame
+    Map = python_module.Map
+    MapPoint = python_module.MapPoint
+    Sim3Pose = python_module.Sim3Pose
+    Camera = python_module.Camera
+    PinholeCamera = python_module.PinholeCamera
+    optimizer_g2o = python_module.optimizer_g2o
+    print("Using Python module")
+
 
 from pyslam.viz.mplot_figure import MPlotFigure
 
-from pyslam.utilities.utils_geom import add_ones, poseRt, skew
-from pyslam.utilities.utils_draw import draw_points2, draw_feature_matches
-from pyslam.slam.search_points_test import search_frame_for_triangulation_test
+from pyslam.utilities.geometry import add_ones, poseRt, skew
+from pyslam.utilities.drawing import draw_points2, draw_feature_matches
+from pyslam.slam.geometry_matchers_test import EpipolarMatcherTest
 from pyslam.slam.slam import Slam
 from pyslam.slam.initializer import Initializer
 from pyslam.utilities.timer import TimerFps
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 from pyslam.local_features.feature_tracker import FeatureTrackerTypes
 
@@ -115,10 +135,10 @@ if __name__ == "__main__":
 
     img_cur_epi = None
 
-    idxs_ref, idxs_cur, num_found_matches, img_cur_epi = search_frame_for_triangulation_test(
-        f_ref, f_cur, img_cur, img1=img_ref
+    idxs_ref, idxs_cur, num_found_matches, img_cur_epi = (
+        EpipolarMatcherTest.search_frame_for_triangulation(f_ref, f_cur, img_cur, img1=img_ref)
     )  # test
-    # idxs_ref, idxs_cur, num_found_matches = search_frame_for_triangulation(f_ref, f_cur)
+    # idxs_ref, idxs_cur, num_found_matches = EpipolarMatcher.search_frame_for_triangulation(f_ref, f_cur)
 
     elapsed = timer.elapsed()
     print("time:", elapsed)

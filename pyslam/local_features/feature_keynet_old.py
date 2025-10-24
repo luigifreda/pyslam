@@ -43,8 +43,8 @@ import torch
 
 from threading import RLock
 
-from pyslam.utilities.utils_tf import set_tf_logging
-from pyslam.utilities.utils_sys import Printer, print_options
+from pyslam.utilities.tensorflow import set_tf_logging
+from pyslam.utilities.system import Printer, print_options
 from .feature_base import BaseFeature2D
 
 import tf_slim as slim

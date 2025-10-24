@@ -24,10 +24,10 @@ import cv2
 import platform
 import torch
 
-from pyslam.utilities.utils_sys import Printer, import_from
-from pyslam.utilities.utils_data import AtomicCounter
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
-from pyslam.utilities.utils_dust3r import Dust3rImagePreprocessor
+from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.data_management import AtomicCounter
+from pyslam.utilities.serialization import SerializableEnum, register_class
+from pyslam.utilities.dust3r import Dust3rImagePreprocessor
 from pyslam.config_parameters import Parameters
 
 from collections import defaultdict

@@ -26,9 +26,9 @@ import traceback
 
 from enum import Enum
 
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_geom import rotmat2qvec, xyzq2Tmat
-from pyslam.utilities.utils_serialization import (
+from pyslam.utilities.system import Printer
+from pyslam.utilities.geometry import rotmat2qvec, xyzq2Tmat
+from pyslam.utilities.serialization import (
     SerializableEnum,
     register_class,
     NumpyJson,

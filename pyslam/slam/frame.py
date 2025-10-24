@@ -34,26 +34,28 @@ from pyslam.utilities.timer import Timer
 from pyslam.io.dataset_types import SensorType
 from pyslam.config_parameters import Parameters
 
-from pyslam.slam.camera import Camera, PinholeCamera
-from pyslam.slam.camera_pose import CameraPose
-from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
+from .camera import Camera, PinholeCamera
+from .camera_pose import CameraPose
+from .feature_tracker_shared import FeatureTrackerShared
 
-from pyslam.utilities.utils_geom import add_ones, poseRt
-from pyslam.utilities.utils_geom_triangulation import triangulate_normalized_points
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_colors import Colors
+from pyslam.utilities.geometry import add_ones, poseRt
+from pyslam.utilities.geom_triangulation import triangulate_normalized_points
+from pyslam.utilities.system import Printer
+from pyslam.utilities.colors import Colors
 
-from pyslam.utilities.utils_draw import draw_feature_matches
-from pyslam.utilities.utils_features import (
+from pyslam.utilities.drawing import draw_feature_matches
+from pyslam.utilities.features import (
     compute_NSAD_between_matched_keypoints,
     descriptor_sigma_mad,
     descriptor_sigma_mad_v2,
     stereo_match_subpixel_correlation,
 )
-from pyslam.utilities.utils_serialization import NumpyJson, NumpyB64Json
-from pyslam.viz.rerun_interface import Rerun
-
-import rerun as rr  # pip install rerun-sdk
+from pyslam.utilities.serialization import (
+    NumpyJson,
+    NumpyB64Json,
+    vector3_serialize,
+    vector3_deserialize,
+)
 
 import atexit
 import traceback
@@ -69,7 +71,7 @@ if TYPE_CHECKING:
     from pyslam.slam.map_point import MapPoint
 
 
-kMinDepth = 1e-2
+kMinDepth = Parameters.kMinDepth
 kDrawFeatureRadius = [r * 5 for r in range(1, 100)]
 kDrawOctaveColor = np.linspace(0, 255, 12)
 
@@ -252,19 +254,22 @@ class FrameBase(object):
     # out: [Nx2] image projections (u,v) or [Nx3] array of stereo projections (u,v,ur) in case do_stereo_projet=True,
     #      [Nx1] array of map point depths
     def project_map_points(self, map_points, do_stereo_project=False):
-        points = np.ascontiguousarray([p.pt for p in map_points])
+        points = np.ascontiguousarray([p.pt() for p in map_points])
         return self.project_points(points, do_stereo_project)
 
     # project a 3d point vector pw on this frame
     # out: image point, depth
-    def project_point(self, pw):
+    def project_point(self, pw: np.ndarray, do_stereo_project: bool = False):
         pc = self.transform_point(pw)  # p w.r.t. camera
-        return self.camera.project(pc)
+        if do_stereo_project:
+            return self.camera.project_stereo(pc)
+        else:
+            return self.camera.project(pc)
 
     # project a MapPoint object on this frame
     # out: image point, depth
-    def project_map_point(self, map_point):
-        return self.project_point(map_point.pt)
+    def project_map_point(self, map_point: "MapPoint", do_stereo_project: bool = False):
+        return self.project_point(map_point.pt(), do_stereo_project)
 
     def is_in_image(self, uv, z):
         return self.camera.is_in_image(uv, z)
@@ -279,14 +284,14 @@ class FrameBase(object):
     def is_visible(self, map_point):
         # with self._lock_pose:    (no need, project_map_point already locks the pose)
         uv, z = self.project_map_point(map_point)
-        PO = map_point.pt - self.Ow()
+        PO = map_point.pt() - self.Ow()
 
         if not self.is_in_image(uv, z):
             return False, uv, z
 
         dist3D = np.linalg.norm(PO)
         # point depth must be inside the scale pyramid of the image
-        if dist3D < map_point.min_distance or dist3D > map_point.max_distance:
+        if dist3D < map_point.min_distance() or dist3D > map_point.max_distance():
             return False, uv, z
         # viewing angle must be less than 60 deg
         if np.dot(PO, map_point.get_normal()) < Parameters.kViewingCosLimitForPoint * dist3D:
@@ -309,8 +314,8 @@ class FrameBase(object):
         #     pt, normal, min_dist, max_dist = p.get_all_pos_info() # just one lock here
         #     points[i] = pt
         #     point_normals[i] = normal # corresponding to p.get_normal()
-        #     min_dists[i] = min_dist   # corresponding to p.min_distance
-        #     max_dists[i] = max_dist   # corresponding to p.max_distance
+        #     min_dists[i] = min_dist   # corresponding to p.min_distance()
+        #     max_dists[i] = max_dist   # corresponding to p.min_distance()
         points, normals, min_dists, max_dists = zip(*(p.get_all_pos_info() for p in map_points))
         points = np.ascontiguousarray(np.vstack(points))  # shape (N, 3)
         normals = np.ascontiguousarray(np.vstack(normals))  # shape (N, 3)
@@ -600,16 +605,8 @@ class Frame(FrameBase):
             "camera": self.camera.to_json(),
             "is_keyframe": bool(self.is_keyframe),
             "median_depth": float(self.median_depth),
-            "fov_center_c": (
-                json.dumps(NumpyJson.numpy_to_json(self.fov_center_c))
-                if self.fov_center_c is not None
-                else None
-            ),
-            "fov_center_w": (
-                json.dumps(NumpyJson.numpy_to_json(self.fov_center_w))
-                if self.fov_center_w is not None
-                else None
-            ),
+            "fov_center_c": vector3_serialize(self.fov_center_c),
+            "fov_center_w": vector3_serialize(self.fov_center_w),
             "is_blurry": bool(self.is_blurry),
             "laplacian_var": float(self.laplacian_var) if self.laplacian_var is not None else None,
             "kps": json.dumps(self.kps.astype(float).tolist()) if self.kps is not None else None,
@@ -640,10 +637,14 @@ class Frame(FrameBase):
                 else None
             ),
             "depths": (
-                json.dumps(self.depths.astype(float).tolist()) if self.depths is not None else None
+                json.dumps(self.depths.astype(float).tolist())
+                if self.depths is not None and len(self.depths) > 0
+                else None
             ),
             "kps_ur": (
-                json.dumps(self.kps_ur.astype(float).tolist()) if self.kps_ur is not None else None
+                json.dumps(self.kps_ur.astype(float).tolist())
+                if self.kps_ur is not None and len(self.kps_ur) > 0
+                else None
             ),
             "points": (
                 json.dumps([p.id if p is not None else None for p in self.points])
@@ -689,18 +690,9 @@ class Frame(FrameBase):
         frame_data_dict = {}
         frame_data_dict["is_keyframe"] = json_str["is_keyframe"]
         frame_data_dict["median_depth"] = json_str["median_depth"]
-        try:
-            frame_data_dict["fov_center_c"] = NumpyJson.json_to_numpy(
-                json.loads(json_str["fov_center_c"])
-            )
-        except:
-            frame_data_dict["fov_center_c"] = None
-        try:
-            frame_data_dict["fov_center_w"] = NumpyJson.json_to_numpy(
-                json.loads(json_str["fov_center_w"])
-            )
-        except:
-            frame_data_dict["fov_center_w"] = None
+        # fov centers: accept array (preferred) or legacy JSON-encoded string
+        frame_data_dict["fov_center_c"] = vector3_deserialize(json_str.get("fov_center_c", None))
+        frame_data_dict["fov_center_w"] = vector3_deserialize(json_str.get("fov_center_w", None))
 
         try:
             frame_data_dict["is_blurry"] = json_str["is_blurry"]
@@ -759,9 +751,13 @@ class Frame(FrameBase):
             np.array(json.loads(json_str["kps_ur"])) if json_str["kps_ur"] is not None else None
         )
 
-        frame_data_dict["points"] = (
-            np.array(json.loads(json_str["points"])) if json_str["points"] is not None else None
-        )
+        pts_val = json_str["points"]
+        if pts_val is None:
+            frame_data_dict["points"] = None
+        else:
+            if isinstance(pts_val, str):
+                pts_val = json.loads(pts_val)
+            frame_data_dict["points"] = np.array(pts_val)
 
         frame_data_dict["outliers"] = (
             np.array(json.loads(json_str["outliers"])) if json_str["outliers"] is not None else None
@@ -854,11 +850,23 @@ class Frame(FrameBase):
 
     def remove_point(self, p: "MapPoint"):
         with self._lock_features:
-            try:
-                p_idxs = np.where(self.points == p)[0]  # remove all instances
-                self.points[p_idxs] = None
-            except:
-                pass
+            if self.points is not None:
+                # # For small arrays, simple loop is faster
+                # if len(self.points) <= 1000:
+                #     for i in range(len(self.points)):
+                #         if self.points[i] == p:
+                #             self.points[i] = None
+                # else:
+                #     # For larger arrays, use vectorized approach
+                #     mask = self.points == p
+                #     if np.any(mask):
+                #         self.points[mask] = None
+                idx_o = p.get_observation_idx(self)
+                if idx_o >= 0:
+                    self.points[idx_o] = None
+                idx_f = p.get_frame_view_idx(self)
+                if idx_f >= 0:
+                    self.points[idx_f] = None
 
     def remove_frame_views(self, idxs):
         if len(idxs) == 0:
@@ -905,7 +913,7 @@ class Frame(FrameBase):
     def get_matched_good_points(self):
         with self._lock_features:
             good_points = (
-                [p for p in self.points if p is not None and not p.is_bad]
+                [p for p in self.points if p is not None and not p.is_bad()]
                 if self.points is not None
                 else []
             )
@@ -914,7 +922,7 @@ class Frame(FrameBase):
     def get_matched_good_points_with_idxs(self):
         with self._lock_features:
             good_idxs, good_points = zip(
-                *[(i, p) for i, p in enumerate(self.points) if p is not None and not p.is_bad]
+                *[(i, p) for i, p in enumerate(self.points) if p is not None and not p.is_bad()]
             )
             return good_idxs, good_points
 
@@ -922,8 +930,8 @@ class Frame(FrameBase):
         with self._lock_features:
             # num_points = 0
             # for i,p in enumerate(self.points):
-            #     if p is not None and not p.is_bad:
-            #         if p.num_observations >= minObs:
+            #     if p is not None and not p.is_bad():
+            #         if p.num_observations() >= minObs:
             #             num_points += 1
             # return num_points
             return sum(1 for p in self.points if p is not None and p.is_good_with_min_obs(minObs))
@@ -933,13 +941,13 @@ class Frame(FrameBase):
             # num_matched_points = 0
             # for i,p in enumerate(self.points):
             #     if p is not None and not self.outliers[i]:
-            #         if p.num_observations > 0:
+            #         if p.num_observations() > 0:
             #             num_matched_points += 1
             # return num_matched_points
             return sum(
                 1
                 for i, p in enumerate(self.points)
-                if p is not None and not self.outliers[i] and p.num_observations > 0
+                if p is not None and not self.outliers[i] and p.num_observations() > 0
             )
 
     # update found count for map points
@@ -950,7 +958,7 @@ class Frame(FrameBase):
                 if p is not None:
                     if not self.outliers[i]:
                         p.increase_found()  # update point statistics
-                        if p.num_observations > 0:
+                        if p.num_observations() > 0:
                             num_matched_inlier_points += 1
                     elif sensor_type == SensorType.STEREO:
                         self.points[i] = None
@@ -969,11 +977,11 @@ class Frame(FrameBase):
                 if p is not None:
                     if self.outliers[i]:
                         frame_views_to_remove.append((p, i))  # Collect pairs (point,idx)
+                        p.last_frame_id_seen = self.id
                         self.points[i] = None
                         self.outliers[i] = False
-                        p.last_frame_id_seen = self.id
                     else:
-                        if p.num_observations > 0:
+                        if p.num_observations() > 0:
                             num_matched_points += 1
 
         # Do the external calls outside the lock
@@ -991,7 +999,7 @@ class Frame(FrameBase):
             for i, p in enumerate(self.points):
                 if p is None:
                     continue
-                if p.is_bad:
+                if p.is_bad():
                     frame_views_to_remove.append((p, i))  # Collect pairs (point,idx)
                     self.points[i] = None
                     self.outliers[i] = False
@@ -1006,13 +1014,13 @@ class Frame(FrameBase):
     # clean VO matches
     def clean_vo_matches(self):
         with self._lock_features:
-            num_cleaned_points = 0
+            # num_cleaned_points = 0
             for i, p in enumerate(self.points):
-                if p and p.num_observations < 1:
+                if p and p.num_observations() < 1:
                     self.points[i] = None
                     self.outliers[i] = False
-                    num_cleaned_points += 1
-            print("#cleaned vo points: ", num_cleaned_points)
+                    # num_cleaned_points += 1
+            # print("#cleaned vo points: ", num_cleaned_points)
 
     # check for point replacements
     def check_replaced_map_points(self):
@@ -1127,7 +1135,7 @@ class Frame(FrameBase):
                     if img_right_ is None
                     else img_right_
                 )
-            disparities, us_right, valid_idxs = stereo_match_subpixel_correlation(
+            refined_disparities, refined_us_right, valid_idxs = stereo_match_subpixel_correlation(
                 self.kps[good_matched_idxs1],
                 self.kps_r[good_matched_idxs2],
                 min_disparity=min_disparity,
@@ -1135,10 +1143,10 @@ class Frame(FrameBase):
                 image_left=img_bw_,
                 image_right=img_right_,
             )
-            good_disparities = disparities[valid_idxs]
-            self.kps_ur[valid_idxs] = us_right[valid_idxs]
+            good_disparities = refined_disparities[valid_idxs]
             good_matched_idxs1 = good_matched_idxs1[valid_idxs]
             good_matched_idxs2 = good_matched_idxs2[valid_idxs]
+            self.kps_ur[good_matched_idxs1] = refined_us_right[valid_idxs]
 
         # check normalized sum of absolute differences at matched points (at level 0)
         do_check_sads = False
@@ -1266,11 +1274,13 @@ class Frame(FrameBase):
             good_matched_idxs1 = good_matched_idxs1[good_des_dists_mask]
             good_matched_idxs2 = good_matched_idxs2[good_des_dists_mask]
 
+        # update depths and kps_ur
         self.depths[good_matched_idxs1] = self.camera.bf * np.reciprocal(
             good_disparities.astype(float)
         )
-        self.kps_ur[good_matched_idxs1] = self.kps_r[good_matched_idxs2][:, 0]
-        print(f"[compute_stereo_matches] found final {len(good_matched_idxs1)} stereo matches")
+        if not do_subpixel_stereo_matching:
+            self.kps_ur[good_matched_idxs1] = self.kps_r[good_matched_idxs2][:, 0]
+            print(f"[compute_stereo_matches] found final {len(good_matched_idxs1)} stereo matches")
 
         if Frame.is_compute_median_depth:
             valid_dephts_mask = self.depths > kMinDepth
@@ -1295,6 +1305,9 @@ class Frame(FrameBase):
             cv2.waitKey(1)
 
         if False:
+            from pyslam.viz.rerun_interface import Rerun
+            import rerun as rr  # pip install rerun-sdk
+
             if not Rerun.is_initialized:
                 Rerun.init()
             points, _ = self.unproject_points_3d(good_matched_idxs1, transform_in_world=False)
@@ -1323,7 +1336,7 @@ class Frame(FrameBase):
             tcw2 = self._pose.tcw[2]  # just 2-nd row
         if points3d is None:
             with self._lock_features:
-                points3d = np.array([p.pt for p in self.points if p is not None])
+                points3d = np.array([p.pt() for p in self.points if p is not None])
         if len(points3d) > 0:
             z = np.dot(Rcw2, points3d[:, :3].T) + tcw2
             z = np.sort(z)
@@ -1350,7 +1363,7 @@ class Frame(FrameBase):
 
                 # color = Colors.myjet[self.octaves[i1]]*255
                 point = self.points[kp_idx]  # MapPoint
-                if point is not None and not point.is_bad:
+                if point is not None and not point.is_bad():
                     p_frame_views = point.frame_views()  # list of (Frame, idx)
                     if p_frame_views:
                         # there's a corresponding 3D map point
@@ -1367,7 +1380,7 @@ class Frame(FrameBase):
                             if lfid is not None and lfid - 1 != f.id:
                                 # stop when there is a jump in the ids of frame observations
                                 break
-                            pts.append(tuple(map(int, np.floor(f.kps[idx]))))
+                            pts.append(tuple(f.kps[idx].astype(int)))
                             lfid = f.id
                         if len(pts) > 1:
                             color = Colors.myjet[len(pts)] * 255
@@ -1391,7 +1404,7 @@ class Frame(FrameBase):
 
 
 ####################################################################################
-#  Frame utils
+#  Frame helper functions
 ####################################################################################
 
 
@@ -1527,7 +1540,7 @@ def compute_frame_matches_threading(
         match_idxs[(kf1, kf2)] = (np.array(idxs1), np.array(idxs2))
 
     kf_pairs = [
-        (target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad
+        (target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad()
     ]
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(
@@ -1553,7 +1566,7 @@ def compute_frame_matches(
     if not do_parallel:
         # Do serial computation
         for kf in other_frames:
-            if kf is target_frame or kf.is_bad:
+            if kf is target_frame or kf.is_bad():
                 continue
             matching_result = FeatureTrackerShared.feature_matcher.match(
                 target_frame.img,
@@ -1596,13 +1609,13 @@ def prepare_input_data_for_sim3solver(f1: Frame, f2: Frame, idxs1, idxs2):
     # get matches for current keyframe and candidate keyframes
     for i1, i2 in zip(idxs1, idxs2):
         p1 = f1.get_point_match(i1)
-        if p1 is None or p1.is_bad:
+        if p1 is None or p1.is_bad():
             continue
         p2 = f2.get_point_match(i2)
-        if p2 is None or p2.is_bad:
+        if p2 is None or p2.is_bad():
             continue
-        points_3d_1.append(p1.pt)
-        points_3d_2.append(p2.pt)
+        points_3d_1.append(p1.pt())
+        points_3d_2.append(p2.pt())
         sigmas2_1.append(level_sigmas2[f1.octaves[i1]])
         sigmas2_2.append(level_sigmas2[f2.octaves[i2]])
         idxs1_out.append(i1)
@@ -1637,9 +1650,9 @@ def prepare_input_data_for_pnpsolver(f1: Frame, f2: Frame, idxs1, idxs2, print=p
     # get matches for current keyframe and candidate keyframes
     for i1, i2 in zip(idxs1, idxs2):
         p2 = f2.get_point_match(i2)
-        if p2 is None or p2.is_bad:
+        if p2 is None or p2.is_bad():
             continue
-        points_3d.append(p2.pt)
+        points_3d.append(p2.pt())
         points_2d.append(f1.kps[i1])
         sigmas2.append(level_sigmas2[f1.octaves[i1]])
         idxs1_out.append(i1)
