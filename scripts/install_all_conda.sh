@@ -69,10 +69,10 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "./"
 
-# 9. Outliers under conda
+# 9. outliers under conda
 pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
 pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
-# NOTE: There can be a possible issues with delf and protobuf. To solve them, run the following command:
+# NOTE: There can be possible issues with delf and protobuf too. To solve them, run the following command:
 # cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
 # protoc -I=. --python_out=. delf/protos/*.proto
 

@@ -28,6 +28,20 @@
 #include <chrono>
 #include <iostream>
 
+#if __has_include(<filesystem>)
+  #include <filesystem>
+  namespace fs_compat = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+  #include <experimental/filesystem>
+  namespace fs_compat = std::experimental::filesystem;
+#elif __has_include(<rcpputils/filesystem_helper.hpp>)
+  // Fallback for very old ROS 2 where std::filesystem wasn't viable
+  #include <rcpputils/filesystem_helper.hpp>
+  namespace fs_compat = rcpputils::fs;
+#else
+  #error "No filesystem implementation found."
+#endif
+
 #if WITH_OPENCV_SHOW
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -90,13 +104,13 @@ void Ros2BagSyncReaderATS::load_bag() {
 #ifdef WITH_JAZZY
   rosbag2_storage::StorageOptions storage_options;
 #else
-  rosbag2_cpp::StorageOptions storage_options;
+  rb2_storage_ns::StorageOptions storage_options;
 #endif
   storage_options.uri = bag_path_;
 
   // Use provided storage_id or auto-detect
   if (storage_id_ == "auto") {
-    std::string extension = rcpputils::fs::path(bag_path_).extension().string();
+    std::string extension = fs_compat::path(bag_path_).extension().string();
     if (extension == ".mcap") {
       storage_options.storage_id = "mcap";
     } else {
@@ -126,13 +140,13 @@ void Ros2BagSyncReaderATS::get_topic_timestamps_and_counts() {
 #ifdef WITH_JAZZY
   rosbag2_storage::StorageOptions storage_options;
 #else
-  rosbag2_cpp::StorageOptions storage_options;
+  rb2_storage_ns::StorageOptions storage_options;
 #endif
   storage_options.uri = bag_path_;
 
   // Use provided storage_id or auto-detect
   if (storage_id_ == "auto") {
-    std::string extension = rcpputils::fs::path(bag_path_).extension().string();
+    std::string extension = fs_compat::path(bag_path_).extension().string();
     if (extension == ".mcap") {
       storage_options.storage_id = "mcap";
     } else {
@@ -279,7 +293,7 @@ Ros2BagSyncReaderATS::read_step() {
       result[topics_[2]] = msg3;
       if (stamp == 0.0) stamp = rclcpp::Time(msg3->header.stamp).seconds();
 #if WITH_OPENCV_SHOW
-      if (msg3->encoding == "32FC1")  visualize_depth_image(topics_[2], msg3, "Depth2");
+      if (msg3->encoding == "32FC1")  visualize_depth_image(topics_[2], msg3, "Depth3");
 #endif       
     }
   
@@ -316,13 +330,13 @@ Ros2BagSyncReaderATS::read_all_messages_of_topic(const std::string& topic, bool 
 #ifdef WITH_JAZZY
   rosbag2_storage::StorageOptions storage_options;
 #else
-  rosbag2_cpp::StorageOptions storage_options;
+  rb2_storage_ns::StorageOptions storage_options;
 #endif
   storage_options.uri = bag_path_;
 
   // Use provided storage_id or auto-detect
   if (storage_id_ == "auto") {
-    std::string extension = rcpputils::fs::path(bag_path_).extension().string();
+    std::string extension = fs_compat::path(bag_path_).extension().string();
     if (extension == ".mcap") {
       storage_options.storage_id = "mcap";
     } else {

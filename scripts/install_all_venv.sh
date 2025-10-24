@@ -69,6 +69,11 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     pip uninstall tensorflow
     pip install "tensorflow==2.15.*"
 fi 
-
+# same outliers as under conda
+pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
+pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
+# NOTE: There can be possible issues with delf and protobuf too. To solve them, run the following command:
+# cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
+# protoc -I=. --python_out=. delf/protos/*.proto
 
 cd "$STARTING_DIR"

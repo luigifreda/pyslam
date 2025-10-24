@@ -8,12 +8,17 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(SET_RPATH               ON  CACHE BOOL   "Set RPATH instead of the default RUNPATH")
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter")
 set(WITH_OPENCV_SHOW OFF CACHE BOOL "Debug with opencv")
 set(WITH_JAZZY OFF CACHE BOOL "Build with ROS2 Jazzy")
+set(WITH_ROLLING OFF CACHE BOOL "Build with ROS2 Rolling")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -DNDEBUG")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG")
+if(SET_RPATH)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,--disable-new-dtags")
+endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
@@ -46,6 +51,11 @@ if(WITH_JAZZY)
   add_definitions(-DWITH_JAZZY)
 endif()
 
+if(WITH_ROLLING)
+  message(STATUS "WITH_ROLLING: ${WITH_ROLLING}")
+  add_definitions(-DWITH_ROLLING)
+endif()
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 # Python module
@@ -69,7 +79,7 @@ target_include_directories(ros2_pybindings
 target_link_libraries(ros2_pybindings
   PRIVATE
     rclcpp::rclcpp
-    sensor_msgs::sensor_msgs__rosidl_typesupport_cpp
+    sensor_msgs::sensor_msgs__rosidl_typesupport_cpp 
     rosbag2_cpp::rosbag2_cpp
     message_filters::message_filters
     rosbag2_storage::rosbag2_storage

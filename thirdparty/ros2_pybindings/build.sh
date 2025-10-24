@@ -35,6 +35,11 @@ if [[ "$ROS2_INSTALL_PATH" == *"jazzy"* ]]; then
     export ROS2_OPTIONS="-DWITH_JAZZY=ON"
     echo "ROS2_OPTIONS: $ROS2_OPTIONS"
 fi
+if [[ "$ROS2_INSTALL_PATH" == *"rolling"* ]]; then
+    echo "Building with ROS2 Rolling"
+    export ROS2_OPTIONS="-DWITH_ROLLING=ON"
+    echo "ROS2_OPTIONS: $ROS2_OPTIONS"
+fi
 
 if [ -n "$ROS2_INSTALL_PATH" ]; then
 

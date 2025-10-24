@@ -30,14 +30,33 @@
 #ifdef WITH_JAZZY
   #include <rosbag2_storage/storage_options.hpp>
 #else
-  #include <rosbag2_cpp/storage_options.hpp>
+  // storage_options.hpp moved from rosbag2_cpp -> rosbag2_storage
+  #if __has_include(<rosbag2_cpp/storage_options.hpp>)
+    #include <rosbag2_cpp/storage_options.hpp>
+    namespace rb2_storage_ns = rosbag2_cpp;
+  #else
+    #include <rosbag2_storage/storage_options.hpp>
+    namespace rb2_storage_ns = rosbag2_storage;
+  #endif
 #endif
 #include <rosbag2_cpp/typesupport_helpers.hpp>
 
 #include <sensor_msgs/msg/image.hpp>
-#include <message_filters/sync_policies/approximate_time.h>
+#if __has_include(<message_filters/sync_policies/approximate_time.h>)
+  #include <message_filters/sync_policies/approximate_time.h>
+#else
+  #include <message_filters/sync_policies/approximate_time.hpp>
+#endif
+#if __has_include(<message_filters/synchronizer.h>)
 #include <message_filters/synchronizer.h>
-#include <message_filters/simple_filter.h>
+#else
+  #include <message_filters/synchronizer.hpp>
+#endif
+#if __has_include(<message_filters/simple_filter.h>)
+  #include <message_filters/simple_filter.h>
+#else
+  #include <message_filters/simple_filter.hpp>
+#endif
 
 class Ros2BagSyncReaderATS {
 
