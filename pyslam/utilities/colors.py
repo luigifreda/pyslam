@@ -20,6 +20,8 @@
 import random
 import numpy as np
 
+from typing import NamedTuple, Tuple
+
 
 class Colors:
     # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
@@ -37,6 +39,124 @@ class Colors:
             [0.5, 0.0, 0.0],
         ]
     )
+
+
+class RGB(NamedTuple):
+    """RGB color tuple with 8-bit components."""
+
+    r: int
+    g: int
+    b: int
+
+
+class ColorTableGenerator:
+    """Efficient color table generator for mapping integers to distinct colors."""
+
+    # Customize table size if you like (keep 64..4096 reasonable)
+    TABLE_SIZE = 256  # must be a power of 2
+    TABLE_MASK = TABLE_SIZE - 1  # For bitwise AND instead of modulo
+    USE_HASH_DISTRIBUTION = True  # set False to use raw id % TABLE_SIZE
+
+    # Golden ratio conjugate for low-discrepancy hue distribution
+    PHI = 0.61803398875
+
+    def __init__(self):
+        """Initialize the color table."""
+        self._table = self._generate_table()
+
+    @classmethod
+    def instance(cls):
+        """Singleton accessor."""
+        if not hasattr(cls, "_instance"):
+            cls._instance = cls()
+        return cls._instance
+
+    def color_from_int(self, id_val: int) -> RGB:
+        """Convert integer to color (fast: O(1))."""
+        key = self._splitmix64(id_val) if self.USE_HASH_DISTRIBUTION else id_val
+        idx = key & self.TABLE_MASK
+        return self._table[idx]
+
+    def color_from_int_without_hash(self, id_val: int) -> RGB:
+        """Convert integer to color (fast: O(1))."""
+        idx = id_val & self.TABLE_MASK
+        return self._table[idx]
+
+    def to_hex(self, color: RGB) -> str:
+        """Return hex string like '#RRGGBB'."""
+        return f"#{color.r:02X}{color.g:02X}{color.b:02X}"
+
+    @staticmethod
+    def pack_rgb(color: RGB) -> int:
+        """Pack RGB to 0xRRGGBB format."""
+        return (color.r << 16) | (color.g << 8) | color.b
+
+    def _generate_table(self) -> Tuple[RGB, ...]:
+        """Generate table with well-separated hues via golden-ratio stepping."""
+        table = []
+        h = 0.0
+
+        for i in range(self.TABLE_SIZE):
+            h = (h + self.PHI) % 1.0  # low-discrepancy hues
+            r, g, b = self._hsv_to_rgb(h, 0.70, 0.90)  # vivid, readable colors
+            table.append(RGB(r, g, b))
+
+        return tuple(table)
+
+    @staticmethod
+    def _splitmix64(x: int) -> int:
+        """Mix IDs so nearby integers spread across the table."""
+        # Excellent 64-bit mixer; cheap and reversible enough for our use
+        x += 0x9E3779B97F4A7C15
+        x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9
+        x = (x ^ (x >> 27)) * 0x94D049BB133111EB
+        return x ^ (x >> 31)
+
+    @staticmethod
+    def _hsv_to_rgb(h: float, s: float, v: float) -> Tuple[int, int, int]:
+        """Convert HSV to RGB (returns 8-bit components)."""
+        c = v * s
+        hp = h * 6.0
+        x = c * (1.0 - abs(hp % 2.0 - 1.0))
+        m = v - c
+
+        r = g = b = 0.0
+        i = int(hp)
+
+        if i % 6 == 0:
+            r, g, b = c, x, 0
+        elif i % 6 == 1:
+            r, g, b = x, c, 0
+        elif i % 6 == 2:
+            r, g, b = 0, c, x
+        elif i % 6 == 3:
+            r, g, b = 0, x, c
+        elif i % 6 == 4:
+            r, g, b = x, 0, c
+        elif i % 6 == 5:
+            r, g, b = c, 0, x
+
+        # Convert to 8-bit integers
+        to_8bit = lambda u: int(round((u + m) * 255))
+        return to_8bit(r), to_8bit(g), to_8bit(b)
+
+
+# Convenience functions for easy access
+def get_color_table_generator() -> ColorTableGenerator:
+    """Get the singleton ColorTableGenerator instance."""
+    return ColorTableGenerator.instance()
+
+
+def int_to_color(id_val: int) -> RGB:
+    """Convert integer to RGB color."""
+    return get_color_table_generator().color_from_int(id_val)
+
+
+def int_to_hex_color(id_val: int) -> str:
+    """Convert integer to hex color string."""
+    generator = get_color_table_generator()
+    color = generator.color_from_int(id_val)
+    return generator.to_hex(color)
 
 
 class GlColors:

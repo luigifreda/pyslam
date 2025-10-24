@@ -19,7 +19,7 @@ BUILD_DIR="${SCRIPT_DIR}/../build"
 TESTS_DIR="${BUILD_DIR}/tests_cpp"
 
 # Test lists
-NUMPY_TESTS=("test_numpy_cv_mat" "test_numpy_map_point" "test_numpy_frame" "test_numpy_keyframe" "test_numpy_camera")
+NUMPY_TESTS=("test_numpy_cv_mat" "test_numpy_map_point" "test_numpy_frame" "test_numpy_keyframe" "test_numpy_camera" "test_numpy_map_state")
 JSON_TESTS=("test_json_map_point" "test_json_eigen" "test_json_serialization" "test_json_frame" "test_json_keyframe" "test_json_map" "test_json_camera")
 KDTREE_TESTS=("test_kdtree_basic" "test_kdtree_validation")
 GENERIC_TESTS=("test_image_management")

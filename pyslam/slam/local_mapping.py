@@ -35,7 +35,17 @@ from pyslam.config_parameters import Parameters
 
 from .frame import compute_frame_matches
 
-from pyslam.slam import ProjectionMatcher, EpipolarMatcher
+from pyslam.slam import EpipolarMatcher  # , LocalMappingCore
+
+kUseCppLocalMappingCore = True
+if kUseCppLocalMappingCore:
+    # use the C++ local mapping core
+    from pyslam.slam import LocalMappingCore
+else:
+    # just for debugging this force the usage of the python local mapping core
+    from .local_mapping_core import LocalMappingCore
+
+
 from pyslam.io.dataset_types import SensorType
 from pyslam.utilities.timer import TimerFps
 
@@ -46,7 +56,6 @@ from pyslam.utilities.data_management import empty_queue
 
 import multiprocessing as mp
 import traceback
-from scipy.spatial import cKDTree
 
 from typing import TYPE_CHECKING
 
@@ -54,7 +63,8 @@ if TYPE_CHECKING:
     # Only imported when type checking, not at runtime
     from .slam import Slam  #
     from .keyframe import KeyFrame
-    from .slam import EpipolarMatcher, ProjectionMatcher
+    from .slam import EpipolarMatcher
+    from .local_mapping_core import LocalMappingCore
 
 
 kVerbose = True
@@ -64,7 +74,7 @@ kLocalMappingDebugAndPrintToFile = Parameters.kLocalMappingDebugAndPrintToFile
 
 kUseLargeWindowBA = Parameters.kUseLargeWindowBA
 
-kNumMinObsForKeyFrameDefault = 3
+kNumMinObsForKeyFrameTrackedPoints = 3
 
 kLocalMappingSleepTime = 5e-3  # [s]
 
@@ -90,13 +100,7 @@ class LocalMapping:
 
     def __init__(self, slam: "Slam"):
         self.slam = slam
-        self.recently_added_points = set()
-
-        self.mean_ba_chi2_error = None
-        self.time_local_mapping = None
-
-        self.kf_cur: KeyFrame | None = None  # current processed keyframe
-        self.kid_last_BA = -1  # last keyframe id when performed BA
+        self.local_mapping_core = LocalMappingCore(slam.map, slam.sensor_type)
 
         self.timer_verbose = kTimerVerbose  # set this to True if you want to print timings
         self.timer_triangulation = TimerFps("Triangulation", is_verbose=self.timer_verbose)
@@ -107,21 +111,13 @@ class LocalMapping:
         self.time_local_opt = TimerFps("Local optimization", is_verbose=self.timer_verbose)
         self.time_large_opt = TimerFps("Large window optimization", is_verbose=self.timer_verbose)
 
-        self.far_points_threshold = None  # read and set by Slam
-        self.use_fov_centers_based_kf_generation = False
-        self.max_fov_centers_distance = -1
-
         self.queue = Queue()
         self.queue_condition = Condition()
         self.work_thread = None  # Thread(target=self.run)
         self.is_running = False
 
         self._is_idle = True
-        self.idle_codition = Condition()
-
-        # use self.set_opt_abort_flag() to manage the following two guys
-        self.opt_abort_flag = g2o.Flag(False)  # for multi-threading
-        self.mp_opt_abort_flag = mp.Value("i", False)  # for multi-processing (when used)
+        self.idle_condition = Condition()
 
         self.stop_requested = False
         self.do_not_stop = False
@@ -134,7 +130,19 @@ class LocalMapping:
         self.log_file = None
         self.thread_large_BA = None
 
+        self.depth_cur = None
+        self.img_cur_right = None
+        self.img_cur = None
+
+        self.mean_ba_chi2_error = None
+        self.time_local_mapping = None
+
+        self.far_points_threshold = None  # read and set by Slam
+        self.use_fov_centers_based_kf_generation = False  # read and set by Slam
+        self.max_fov_centers_distance = -1  # read and set by Slam
+
         self.last_processed_kf_img_id = None
+
         self.last_num_triangulated_points = None
         self.total_num_triangulated_points = 0
         self.last_num_fused_points = None
@@ -170,6 +178,8 @@ class LocalMapping:
                 LocalMapping.print = staticmethod(file_print)
             else:
                 LocalMapping.print = staticmethod(print)
+            if hasattr(LocalMappingCore, "print"):
+                LocalMappingCore.print = LocalMapping.print
 
     @property
     def map(self):
@@ -178,6 +188,22 @@ class LocalMapping:
     @property
     def sensor_type(self):
         return self.slam.sensor_type
+
+    @property
+    def kf_cur(self):
+        return self.local_mapping_core.kf_cur
+
+    @kf_cur.setter
+    def kf_cur(self, value):
+        self.local_mapping_core.kf_cur = value
+
+    @property
+    def kid_last_BA(self):
+        return self.local_mapping_core.kid_last_BA
+
+    @kid_last_BA.setter
+    def kid_last_BA(self, value):
+        self.local_mapping_core.kid_last_BA = value
 
     @property
     def descriptor_distance_sigma(self):
@@ -206,12 +232,13 @@ class LocalMapping:
             if self.reset_requested:
                 LocalMapping.print("LocalMapping: reset_if_requested() starting...")
                 empty_queue(self.queue)
-                self.recently_added_points.clear()
                 self.reset_requested = False
                 self.total_num_triangulated_points = 0
                 self.total_num_fused_points = 0
                 self.total_num_culled_points = 0
                 self.total_num_culled_keyframes = 0
+                self.last_num_triangulated_points = None
+                self.local_mapping_core.reset()
                 LocalMapping.print("LocalMapping: reset_if_requested() ...done")
 
     def start(self):
@@ -223,14 +250,12 @@ class LocalMapping:
         LocalMapping.print("LocalMapping: quitting...")
         if self.is_running and self.work_thread is not None:
             self.is_running = False
-            self.set_opt_abort_flag(True)
+            self.local_mapping_core.set_opt_abort_flag(True)
             self.work_thread.join(timeout=5)
         LocalMapping.print("LocalMapping: done")
 
     def set_opt_abort_flag(self, value):
-        if self.opt_abort_flag.value != value:
-            self.opt_abort_flag.value = value  # for multi-threading
-            self.mp_opt_abort_flag.value = value  # for multi-processing  (when used)
+        self.local_mapping_core.set_opt_abort_flag(value)
 
     # push the new keyframe and its image into the queue
     def push_keyframe(self, keyframe, img=None, img_right=None, depth=None):
@@ -260,21 +285,21 @@ class LocalMapping:
         return self.queue.qsize()
 
     def is_idle(self):
-        with self.idle_codition:
+        with self.idle_condition:
             return self._is_idle
 
     def set_idle(self, flag):
-        with self.idle_codition:
+        with self.idle_condition:
             self._is_idle = flag
-            self.idle_codition.notify_all()
+            self.idle_condition.notify_all()
 
     def wait_idle(self, print=print, timeout=None):
         if self.is_running == False:
             return
-        with self.idle_codition:
+        with self.idle_condition:
             while not self._is_idle and self.is_running:
                 LocalMapping.print("LocalMapping: waiting for idle...")
-                ok = self.idle_codition.wait(timeout=timeout)
+                ok = self.idle_condition.wait(timeout=timeout)
                 if not ok:
                     Printer.yellow(
                         f"LocalMapping: timeout {timeout}s reached, quit waiting for idle"
@@ -337,7 +362,6 @@ class LocalMapping:
         LocalMapping.print("LocalMapping: loop exit...")
 
     def step(self):
-        # if not self.map.local_map.is_empty():
         if self.map.num_keyframes() > 0:
             if not self.stop_requested:
                 ret = self.pop_keyframe()  # blocking call
@@ -490,167 +514,42 @@ class LocalMapping:
     def local_BA(self):
         if self.slam.loop_closing is not None and self.slam.loop_closing.is_correcting():
             return
-
         # local optimization
         self.time_local_opt.start()
         LocalMapping.print(">>>> local optimization (LBA) ...")
-        err = self.map.locally_optimize(
-            kf_ref=self.kf_cur, abort_flag=self.opt_abort_flag, mp_abort_flag=self.mp_opt_abort_flag
-        )
+        err, num_kf_ref_tracked_points = self.local_mapping_core.local_BA()
         self.mean_ba_chi2_error = err
         self.time_local_opt.refresh()
         LocalMapping.print(
             f"local optimization (LBA) error^2: {err}, timing: {self.time_local_opt.last_elapsed}"
         )
-        num_kf_ref_tracked_points = self.kf_cur.num_tracked_points(
-            kNumMinObsForKeyFrameDefault
-        )  # number of tracked points in k_ref
         Printer.green("KF(%d) #points: %d " % (self.kf_cur.id, num_kf_ref_tracked_points))
 
     def large_window_BA(self):
         Printer.blue("@large BA")
         # large window optimization of the map
-        self.kid_last_BA = self.kf_cur.kid
         self.time_large_opt.start()
-        err, _ = self.map.optimize(
-            local_window_size=Parameters.kLargeBAWindowSize, abort_flag=self.opt_abort_flag
-        )  # verbose=True)
+        err = self.local_mapping_core.large_window_BA()
         self.time_large_opt.refresh()
         Printer.blue("large window optimization error^2: %f, KF id: %d" % (err, self.kf_cur.kid))
 
     def process_new_keyframe(self):
         # associate map points to keyframe observations (only good points)
         # and update normal and descriptor
-        kf_cur_points = self.kf_cur.get_points()
-        LocalMapping.print(f">>>> updating map points ({len(kf_cur_points)})...")
-        valid_points = [
-            (idx, p) for idx, p in enumerate(kf_cur_points) if p is not None and not p.is_bad()
-        ]
-        for idx, p in valid_points:
-            # Try to add observation
-            added = p.add_observation(self.kf_cur, idx)
-            if added:
-                p.update_info()
-            else:
-                # this happens for new stereo points inserted by Tracking
-                self.recently_added_points.add(p)
-
-        LocalMapping.print(">>>> updating connections ...")
-        self.kf_cur.update_connections()
-        # self.map.add_keyframe(self.kf_cur)   # add kf_cur to map   (moved to tracking.py into create_new_keyframe())
+        LocalMapping.print(f">>>> processing new keyframe ...")
+        self.local_mapping_core.process_new_keyframe()
 
     def cull_map_points(self):
         LocalMapping.print(">>>> culling map points...")
-        th_num_observations = 2
-        if self.sensor_type != SensorType.MONOCULAR:
-            th_num_observations = 3
-        min_found_ratio = 0.25
-        current_kid = self.kf_cur.kid
-        remove_set = set()
-        for p in self.recently_added_points:
-            if p.is_bad():
-                remove_set.add(p)
-            elif p.get_found_ratio() < min_found_ratio:
-                p.set_bad()
-                self.map.remove_point(p)
-                remove_set.add(p)
-            elif (current_kid - p.first_kid) >= 2 and p.num_observations() <= th_num_observations:
-                p.set_bad()
-                self.map.remove_point(p)
-                remove_set.add(p)
-            elif (
-                current_kid - p.first_kid
-            ) >= 3:  # after three keyframes we do not consider the point a recent one
-                remove_set.add(p)
-        self.recently_added_points = self.recently_added_points - remove_set
-        num_culled_points = len(remove_set)
-        return num_culled_points
-
-    # check if once we remove kf_to_remove from covisible_kfs we still have that the max distance among fov centers is less than D
-    @staticmethod
-    def check_remaining_fov_centers_max_distance(
-        covisible_kfs: list["KeyFrame"], kf_to_remove: "KeyFrame", dist: float
-    ):
-        # fov centers that remain if we remove kf_to_remove
-        remaining_fov_centers = [kf.fov_center_w for kf in covisible_kfs if kf != kf_to_remove]
-        if len(remaining_fov_centers) == 0:
-            return False
-        remaining_fov_centers = np.hstack(remaining_fov_centers).T
-        tree = cKDTree(remaining_fov_centers)
-        # Check the distance to the nearest neighbor for each remaining point
-        distances, _ = tree.query(
-            remaining_fov_centers, k=2
-        )  # k=2 because the closest point is itself
-        # Check the second nearest neighbor distance (ignoring the self-match at k=1)
-        return np.all(distances[:, 1] < dist)
+        return self.local_mapping_core.cull_map_points()
 
     def cull_keyframes(self):
         LocalMapping.print(">>>> culling keyframes...")
-        num_culled_keyframes = 0
         # check redundant keyframes in local keyframes: a keyframe is considered redundant if the 90% of the MapPoints it sees,
         # are seen in at least other 3 keyframes (in the same or finer scale)
-        th_num_observations = 3
-        covisible_kfs = self.kf_cur.get_covisible_keyframes()
-        for kf in covisible_kfs:
-            if kf.kid == 0:
-                continue
-            kf_num_points = 0  # num good points for kf
-            kf_num_redundant_observations = 0  # num redundant observations for kf
-            idxs_and_kf_points = [
-                (i, p) for i, p in enumerate(kf.get_points()) if p is not None and not p.is_bad()
-            ]
-            # for i,p in enumerate(kf.get_points()):
-            #     if p is not None and not p.is_bad():
-            for i, p in idxs_and_kf_points:
-                if kf.depths is not None and (
-                    kf.depths[i] > kf.camera.depth_threshold or kf.depths[i] < 0.0
-                ):
-                    continue
-                kf_num_points += 1
-                if p.num_observations() > th_num_observations:
-                    scale_level = kf.octaves[i]  # scale level of observation in kf
-                    p_num_observations = 0
-                    for kf_j, idx in p.observations():
-                        if kf_j is kf:
-                            continue
-                        assert not kf_j.is_bad()
-                        scale_level_i = kf_j.octaves[idx]  # scale level of observation in kfi
-                        if (
-                            scale_level_i <= scale_level + 1
-                        ):  # N.B.1 <- more aggressive culling  (expecially when scale_factor=2)
-                            # if scale_level_i <= scale_level:     # N.B.2 <- only same scale or finer
-                            p_num_observations += 1
-                            if p_num_observations >= th_num_observations:
-                                break
-                    if p_num_observations >= th_num_observations:
-                        kf_num_redundant_observations += 1
-            remove_kf = (
-                (
-                    kf_num_redundant_observations
-                    > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points
-                )
-                and (kf_num_points > Parameters.kKeyframeCullingMinNumPoints)
-                and (
-                    abs(kf.timestamp - kf.parent.timestamp)
-                    < Parameters.kKeyframeMaxTimeDistanceInSecForCulling
-                )
-            )
-            if remove_kf and self.use_fov_centers_based_kf_generation:
-                if not LocalMapping.check_remaining_fov_centers_max_distance(
-                    covisible_kfs, kf, self.max_fov_centers_distance
-                ):
-                    remove_kf = False
-            if remove_kf:
-                kf.set_bad()
-                num_culled_keyframes += 1
-                LocalMapping.print(
-                    "culling keyframe ",
-                    kf.id,
-                    " (set it bad) - redundant observations: ",
-                    kf_num_redundant_observations / max(kf_num_points, 1),
-                    "%",
-                )
-        return num_culled_keyframes
+        return self.local_mapping_core.cull_keyframes(
+            self.use_fov_centers_based_kf_generation, self.max_fov_centers_distance
+        )
 
     # triangulate matched keypoints (without a corresponding map point) amongst recent keyframes
     def create_new_map_points(self):
@@ -738,7 +637,7 @@ class LocalMapping:
                     f"\t #added map points: {new_pts_count} for KFs ({self.kf_cur.id}), ({kf.id})"
                 )
                 total_new_pts += new_pts_count
-                self.recently_added_points.update(list_added_points)
+                self.local_mapping_core.add_points(list_added_points)
         return total_new_pts
 
     def create_new_map_points_parallel(self):
@@ -837,73 +736,10 @@ class LocalMapping:
                     f"\t #added map points: {new_pts_count} for KFs ({self.kf_cur.id}), ({kf.id})"
                 )
                 total_new_pts += new_pts_count
-                self.recently_added_points.update(list_added_points)
+                self.local_mapping_core.add_points(list_added_points)
         return total_new_pts
 
     # fuse close map points of local keyframes
     def fuse_map_points(self):
         LocalMapping.print(">>>> fusing map points")
-        total_fused_pts = 0
-
-        num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesStereo
-        if self.sensor_type == SensorType.MONOCULAR:
-            num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesMonocular
-
-        # 1. Get direct neighbors
-        local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur, N=num_neighbors)
-        target_kfs = set()
-        for kf in local_keyframes:
-            if kf is self.kf_cur or kf.is_bad():
-                continue
-            target_kfs.add(kf)
-            # 2. Add second neighbors
-            for kf2 in self.map.local_map.get_best_neighbors(kf, N=5):
-                if kf2 is self.kf_cur or kf2.is_bad():
-                    continue
-                target_kfs.add(kf2)
-
-        LocalMapping.print(
-            "local map keyframes: ", [kf.id for kf in target_kfs], " + ", self.kf_cur.id, "..."
-        )
-
-        # 3. Fuse current keyframe's points into all target keyframes
-        for kf in target_kfs:
-            num_fused_pts = ProjectionMatcher.search_and_fuse(
-                self.kf_cur.get_points(),
-                kf,
-                max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
-                max_descriptor_distance=0.5 * self.descriptor_distance_sigma,
-            )
-            LocalMapping.print(
-                f"\t #fused map points: {num_fused_pts} for KFs ({self.kf_cur.id}, {kf.id})"
-            )
-            total_fused_pts += num_fused_pts
-
-        # 4. Fuse all target keyframes' points into current keyframe
-        fuse_candidates = {
-            p for kf in target_kfs for p in kf.get_points() if p is not None and not p.is_bad()
-        }
-        fuse_candidates = np.array(list(fuse_candidates))  # Remove duplicates
-
-        num_fused_pts = ProjectionMatcher.search_and_fuse(
-            fuse_candidates,
-            self.kf_cur,
-            max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
-            max_descriptor_distance=0.5 * self.descriptor_distance_sigma,
-        )
-        LocalMapping.print(
-            f"\t #fused map points: {num_fused_pts} for local map into KF {self.kf_cur.id}"
-        )
-        total_fused_pts += num_fused_pts
-
-        # 5. Update all map points in current keyframe
-        points_to_update = [p for p in self.kf_cur.get_points() if p and not p.is_bad()]
-        with ThreadPoolExecutor(
-            max_workers=Parameters.kLocalMappingParallelFusePointsNumWorkers
-        ) as executor:
-            executor.map(lambda p: p.update_info(), points_to_update)
-
-        # 6. Update connections in covisibility graph
-        self.kf_cur.update_connections()
-
-        return total_fused_pts
+        return self.local_mapping_core.fuse_map_points(self.descriptor_distance_sigma)

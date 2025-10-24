@@ -78,13 +78,15 @@ core_classes = [
     "FrameBase",
     "KeyFrame",
     "Map",
+    "MapStateData",
     "CameraPose",
     "Camera",
     "PinholeCamera",
     "CameraUtils",
     "Sim3Pose",
     "optimizer_g2o",
-    "TrackingUtils",
+    "TrackingCore",
+    "LocalMappingCore",
     "CameraType",
     "SensorType",
     "ReloadedSessionMapInfo",
@@ -102,6 +104,7 @@ core_classes = [
     "Parameters",
     "ProjectionMatcher",
     "EpipolarMatcher",
+    "SemanticMappingSharedResources",
 ]
 
 
@@ -116,13 +119,15 @@ def _import_cpp_core():
             "FrameBase": cpp_core.FrameBase,
             "KeyFrame": cpp_core.KeyFrame,
             "Map": cpp_core.Map,
+            "MapStateData": cpp_core.MapStateData,
             "CameraPose": cpp_core.CameraPose,
             "Camera": cpp_core.Camera,
             "PinholeCamera": cpp_core.PinholeCamera,
             "CameraUtils": cpp_core.CameraUtils,
             "Sim3Pose": cpp_core.Sim3Pose,
             "optimizer_g2o": cpp_core.OptimizerG2o,
-            "TrackingUtils": cpp_core.TrackingUtils,
+            "TrackingCore": cpp_core.TrackingCore,
+            "LocalMappingCore": cpp_core.LocalMappingCore,
             "CameraType": cpp_core.CameraType,
             "SensorType": cpp_core.SensorType,
             "ReloadedSessionMapInfo": cpp_core.ReloadedSessionMapInfo,
@@ -140,6 +145,7 @@ def _import_cpp_core():
             "Parameters": cpp_core.Parameters,
             "ProjectionMatcher": cpp_core.ProjectionMatcher,
             "EpipolarMatcher": cpp_core.EpipolarMatcher,
+            "SemanticMappingSharedResources": cpp_core.SemanticMappingSharedResources,
         }
 
         out_classes = {}
@@ -160,13 +166,14 @@ def _import_python_core():
         from pyslam.slam.map_point import MapPoint
         from pyslam.slam.frame import Frame, FrameBase
         from pyslam.slam.keyframe import KeyFrame
-        from pyslam.slam.map import Map
+        from pyslam.slam.map import Map, MapStateData
         from pyslam.slam.camera_pose import CameraPose
         from pyslam.slam.camera import Camera, PinholeCamera, CameraType, CameraUtils
         from pyslam.slam.sim3_pose import Sim3Pose
         from pyslam.io.dataset_types import SensorType
         import pyslam.slam.optimizer_g2o as optimizer_g2o
-        from pyslam.slam.tracking_utils import TrackingUtils
+        from pyslam.slam.tracking_core import TrackingCore
+        from pyslam.slam.local_mapping_core import LocalMappingCore
         from pyslam.slam.map import ReloadedSessionMapInfo, LocalCovisibilityMap
         from pyslam.slam.ckdtree import CKDTree2d, CKDTree3d, CKDTreeDyn
         from pyslam.slam.rotation_histogram import RotationHistogram
@@ -178,6 +185,7 @@ def _import_python_core():
             "FrameBase": FrameBase,
             "KeyFrame": KeyFrame,
             "Map": Map,
+            "MapStateData": MapStateData,
             "CameraPose": CameraPose,
             "Camera": Camera,
             "PinholeCamera": PinholeCamera,
@@ -186,7 +194,8 @@ def _import_python_core():
             "SensorType": SensorType,
             "Sim3Pose": Sim3Pose,
             "optimizer_g2o": optimizer_g2o,
-            "TrackingUtils": TrackingUtils,
+            "TrackingCore": TrackingCore,
+            "LocalMappingCore": LocalMappingCore,
             "ReloadedSessionMapInfo": ReloadedSessionMapInfo,
             "LocalCovisibilityMap": LocalCovisibilityMap,
             "CKDTree2d": CKDTree2d,
@@ -202,6 +211,7 @@ def _import_python_core():
             "Parameters": None,
             "ProjectionMatcher": ProjectionMatcher,
             "EpipolarMatcher": EpipolarMatcher,
+            "SemanticMappingSharedResources": None,
         }
         out_classes = {}
         # we check the coverage here to ensure we have all the classes

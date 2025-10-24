@@ -60,9 +60,10 @@ inline std::pair<ReturnScalar, ReturnScalar> get_xy(const Elem &p) {
     }
 }
 
+// generic extractor for 2D point types at an index
 template <typename Container, typename ReturnScalar>
 inline std::pair<ReturnScalar, ReturnScalar> get_xy_at(const Container &container, size_t index) {
-    // First, try to handle Eigen matrices generically
+    // First, let's try to handle Eigen matrices generically
     if constexpr (std::is_base_of_v<Eigen::MatrixBase<Container>, Container>) {
         if (index >= static_cast<size_t>(container.rows())) {
             return {static_cast<ReturnScalar>(0), static_cast<ReturnScalar>(0)};

@@ -145,9 +145,20 @@ PinholeCamera PinholeCamera::from_json(const std::string &json_str) {
     cam_settings["Camera.bf"] = safe_json_get(json_data, "bf", 0.0);
     cam_settings["Camera.fps"] = safe_json_get(json_data, "fps", 30);
 
-    // Handle distortion coefficients array
+    // Handle distortion coefficients array by unpacking into individual parameters
+    // This matches how the Camera constructor reads them (k1, k2, p1, p2, k3)
     if (json_data.contains("D") && !json_data["D"].is_null()) {
-        cam_settings["Camera.DistCoef"] = json_data["D"].get<std::vector<double>>();
+        std::vector<double> D = json_data["D"].get<std::vector<double>>();
+        if (D.size() >= 1)
+            cam_settings["Camera.k1"] = D[0];
+        if (D.size() >= 2)
+            cam_settings["Camera.k2"] = D[1];
+        if (D.size() >= 3)
+            cam_settings["Camera.p1"] = D[2];
+        if (D.size() >= 4)
+            cam_settings["Camera.p2"] = D[3];
+        if (D.size() >= 5)
+            cam_settings["Camera.k3"] = D[4];
     }
 
     config["cam_settings"] = cam_settings;

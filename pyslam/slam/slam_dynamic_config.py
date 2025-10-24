@@ -70,6 +70,7 @@ class SLAMDynamicConfig:
                     self.descriptor_distance_alpha * self.descriptor_distance_sigma
                     + (1.0 - self.descriptor_distance_alpha) * delta
                 )
+                # clamp the descriptor distance sigma between the min and max values
                 self.descriptor_distance_sigma = max(
                     min(self.descriptor_distance_sigma, self.descriptor_distance_max),
                     self.descriptor_distance_min,

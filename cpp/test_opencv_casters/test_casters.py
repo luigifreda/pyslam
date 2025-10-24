@@ -51,6 +51,16 @@ def test_mat_non_contiguous_copy_in():
     np.testing.assert_array_equal(out, a)
 
 
+def test_mat_int64_converts_to_float64():
+    # Small values to avoid precision issues in float64
+    a = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int64)
+    out = C.identity_mat(a)
+    assert isinstance(out, np.ndarray)
+    assert out.dtype == np.float64
+    assert out.shape == a.shape
+    np.testing.assert_array_equal(out, a.astype(np.float64))
+
+
 @pytest.mark.parametrize("channels", [1, 3, 4])
 def test_add_scalar(channels):
     H, W = 4, 5

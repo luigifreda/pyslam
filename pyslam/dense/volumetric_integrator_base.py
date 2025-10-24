@@ -511,9 +511,13 @@ class VolumetricIntegratorBase:
         # Prepare maps to undistort color and depth images
         h, w = camera.height, camera.width
         D = camera.D
-        K = camera.K
+        if D is None:
+            D = np.zeros((5,), dtype=float)
+        else:
+            D = np.asarray(D).astype(float)
+        K = np.asarray(camera.K).astype(float)
         # Printer.green(f'VolumetricIntegratorBase: init: h={h}, w={w}, D={D}, K={K}')
-        if np.linalg.norm(np.array(D, dtype=float)) <= 1e-10:
+        if np.linalg.norm(D) <= 1e-10:
             self.new_K = K
             self.calib_map1 = None
             self.calib_map2 = None
@@ -686,21 +690,31 @@ class VolumetricIntegratorBase:
     # called by add_keyframe() and periodically by the keyframe_queue_timer
     def flush_keyframe_queue(self):
         # iterate over the keyframe queue and flush the keyframes into the task queue
-        # with self.keyframe_queue_lock:
-        i = 0
-        while i < len(self.keyframe_queue):
-            kf_to_process = self.keyframe_queue[i]
+        # Lock-free pattern using only atomic deque ops (popleft/rotate)
+        max_checks = len(self.keyframe_queue)
+        for _ in range(max_checks):
+            try:
+                kf_to_process = self.keyframe_queue[0]
+            except IndexError:
+                break
             # We integrate only the keyframes that have been processed by LBA at least once.
             if kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes:
+                # Remove from queue and schedule task
+                try:
+                    self.keyframe_queue.popleft()
+                except IndexError:
+                    break
                 VolumetricIntegratorBase.print(
                     f"VolumetricIntegratorBase: Adding integration task with keyframe id: {kf_to_process.id} (kid: {kf_to_process.kid})"
                 )
                 task_type = VolumetricIntegrationTaskType.INTEGRATE
                 task = VolumetricIntegrationTask(kf_to_process, task_type=task_type)
                 self.add_task(task)
-                del self.keyframe_queue[i]  # Safely remove the item
             else:
-                i += 1  # Only move forward if no removal to avoid skipping
+                # Move the current head to the tail to examine others next
+                if len(self.keyframe_queue) == 0:
+                    break
+                self.keyframe_queue.rotate(-1)
 
     def add_keyframe(self, keyframe: KeyFrame, img, img_right, depth, print=print):
         VolumetricIntegratorBase.print(

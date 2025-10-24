@@ -1,3 +1,22 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import sys
 import os
 import numpy as np
@@ -11,6 +30,7 @@ import time
 import pyslam.config as config
 from pyslam.config_parameters import Parameters
 
+USE_VIEWER = False
 USE_CPP = True
 Parameters.USE_CPP_CORE = USE_CPP
 
@@ -379,22 +399,24 @@ def main():
     for kf in all_keyframes:
         est_poses.append(kf.Twc())
 
-    viewer3d = Viewer3D()
-    if True:
-        # viewer3d.draw_cameras([data_generator.gt_poses], [[1,0,0]], show_trajectory_line=True)
-        viewer3d.draw_cameras(
-            [data_generator.gt_poses, est_poses, est_poses_before],
-            [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
-            show_trajectory_line=True,
-        )
-    else:
-        viewer3d.draw_cameras([est_poses], [[0, 1, 0]], show_trajectory_line=True)
+    viewer3d = Viewer3D() if USE_VIEWER else None
+    if viewer3d is not None:
+        if True:
+            # viewer3d.draw_cameras([data_generator.gt_poses], [[1,0,0]], show_trajectory_line=True)
+            viewer3d.draw_cameras(
+                [data_generator.gt_poses, est_poses, est_poses_before],
+                [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                show_trajectory_line=True,
+            )
+        else:
+            viewer3d.draw_cameras([est_poses], [[0, 1, 0]], show_trajectory_line=True)
 
     ATE_after = data_generator.compute_ATE()
     print(f"ATE after: {ATE_after}")
 
-    while not viewer3d.is_closed():
-        time.sleep(0.1)
+    if viewer3d is not None:
+        while not viewer3d.is_closed():
+            time.sleep(0.1)
 
 
 if __name__ == "__main__":

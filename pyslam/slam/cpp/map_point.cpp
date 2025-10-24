@@ -30,7 +30,6 @@
 #include "utils/messages.h"
 
 #include "config_parameters.h"
-#include "utils/serialization_json.h"
 
 namespace pyslam {
 
@@ -535,7 +534,12 @@ void MapPoint::update_normal_and_depth(const bool force) {
                 MSG_ERROR("MapPoint: update_normal_and_depth - kf_ref_local is nullptr");
                 return;
             }
-            idx_ref = _observations[kf_ref];
+            auto it = _observations.find(kf_ref);
+            if (it == _observations.end()) {
+                MSG_ERROR("MapPoint: update_normal_and_depth - kf_ref not found in observations");
+                return;
+            }
+            idx_ref = it->second;
             position = _pt;
         } else {
             skip = true;
@@ -550,14 +554,14 @@ void MapPoint::update_normal_and_depth(const bool force) {
     std::vector<Eigen::Vector3d> normals;
     for (const auto &obs : observations) {
         const auto kf = obs.first;
-        Eigen::Vector3d Ow = kf->Ow();
-        Eigen::Vector3d direction = position - Ow;
+        const Eigen::Vector3d Ow = kf->Ow();
+        const Eigen::Vector3d direction = position - Ow;
         Eigen::Vector3d normalized_direction;
         normalize_vector(direction, normalized_direction);
         normals.push_back(normalized_direction);
     }
 
-    // Compute mean normal
+    // Compute mean normal (Assuming the normals are close enough to be averaged)
     Eigen::Vector3d mean_normal = Eigen::Vector3d::Zero();
     for (const auto &n : normals) {
         mean_normal += n;
@@ -566,9 +570,9 @@ void MapPoint::update_normal_and_depth(const bool force) {
     normalize_vector(mean_normal, mean_normal);
 
     // Compute distance range
-    int level = kf_ref_local->octaves[idx_ref];
-    float scale_factor = FeatureSharedResources::scale_factors[level];
-    float dist = (position - kf_ref_local->Ow()).norm();
+    const int level = kf_ref_local->octaves[idx_ref];
+    const float scale_factor = FeatureSharedResources::scale_factors[level];
+    const float dist = (position - kf_ref_local->Ow()).norm();
 
     {
         std::lock_guard<std::mutex> lock_pos(_lock_pos);
@@ -726,7 +730,7 @@ void MapPoint::update_normal_and_depth_from_frame(const FramePtr &kf, int idx) {
     Eigen::Vector3d direction = _pt - Ow;
     double norm = direction.norm();
 
-    if (norm > 1e-6) {
+    if (norm > kMin3dVectorNorm) {
         normal = direction / norm;
     } else {
         MSG_WARN("MapPoint: update_normal_and_depth_from_frame - norm is too small");
@@ -749,7 +753,7 @@ void MapPoint::compute_distance_range(int octave_level, float distance) {
 
 void MapPoint::normalize_vector(const Eigen::Vector3d &v, Eigen::Vector3d &result) const {
     double norm = v.norm();
-    if (norm > 1e-6) {
+    if (norm > kMin3dVectorNorm) {
         result = v / norm;
     } else {
         MSG_WARN("MapPoint: normalize_vector - norm is too small");

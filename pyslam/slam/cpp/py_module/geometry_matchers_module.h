@@ -54,6 +54,7 @@ void bind_geometry_matchers(py::module &m) {
                         ? std::vector<int>()
                         : already_matched_ref_idxs_obj.cast<std::vector<int>>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_frame_by_projection(
                     f_ref, f_cur, max_reproj_distance, max_descriptor_distance, ratio_test,
                     is_monocular, already_matched_ref_idxs);
@@ -79,6 +80,7 @@ void bind_geometry_matchers(py::module &m) {
                         ? std::vector<int>()
                         : already_matched_ref_idxs_obj.cast<std::vector<int>>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_keyframe_by_projection(
                     kf_ref, f_cur, max_reproj_distance, max_descriptor_distance, ratio_test,
                     already_matched_ref_idxs);
@@ -104,6 +106,7 @@ void bind_geometry_matchers(py::module &m) {
                                                  ? std::numeric_limits<float>::infinity()
                                                  : far_points_threshold_obj.cast<float>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_map_by_projection(
                     points, f_cur, max_reproj_distance, max_descriptor_distance, ratio_test,
                     far_points_threshold);
@@ -124,6 +127,7 @@ void bind_geometry_matchers(py::module &m) {
                                                     ? -1.0f
                                                     : max_descriptor_distance_obj.cast<float>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_local_frames_by_projection(
                     map, f_cur, local_window_size, max_descriptor_distance);
             },
@@ -137,6 +141,7 @@ void bind_geometry_matchers(py::module &m) {
                                                     ? -1.0f
                                                     : max_descriptor_distance_obj.cast<float>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_all_map_by_projection(
                     map, f_cur, max_descriptor_distance);
             },
@@ -158,6 +163,7 @@ void bind_geometry_matchers(py::module &m) {
                                                     ? -1.0f
                                                     : max_descriptor_distance_obj.cast<float>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_more_map_points_by_projection(
                     points, f_cur, Scw, f_cur_matched_points, f_cur_matched_points_idxs,
                     max_reproj_distance, max_descriptor_distance);
@@ -180,6 +186,7 @@ void bind_geometry_matchers(py::module &m) {
                 float ratio_test = ratio_test_obj.is_none() ? pyslam::Parameters::kMatchRatioTestMap
                                                             : ratio_test_obj.cast<float>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_and_fuse(
                     points, keyframe, max_reproj_distance, max_descriptor_distance, ratio_test);
             },
@@ -201,6 +208,7 @@ void bind_geometry_matchers(py::module &m) {
                                                     ? -1.0f
                                                     : max_descriptor_distance_obj.cast<float>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_and_fuse_for_loop_correction(
                     keyframe, Scw, points, replace_points, max_reproj_distance,
                     max_descriptor_distance);
@@ -223,6 +231,7 @@ void bind_geometry_matchers(py::module &m) {
                                                     ? -1.0f
                                                     : max_descriptor_distance_obj.cast<float>();
 
+                py::gil_scoped_release release;
                 return pyslam::ProjectionMatcher::search_by_sim3(kf1, kf2, idxs1, idxs2, s12, R12,
                                                                  t12, max_reproj_distance,
                                                                  max_descriptor_distance);
@@ -249,6 +258,7 @@ void bind_geometry_matchers(py::module &m) {
                 bool is_monocular =
                     is_monocular_obj.is_none() ? true : is_monocular_obj.cast<bool>();
 
+                py::gil_scoped_release release;
                 return pyslam::EpipolarMatcher::search_frame_for_triangulation(
                     kf1, kf2, idxs1, idxs2, max_descriptor_distance, is_monocular);
             },

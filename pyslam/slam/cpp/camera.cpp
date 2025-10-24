@@ -19,7 +19,9 @@
 
 #include "camera.h"
 
+#include "utils/messages.h"
 #include "utils/serialization_json.h"
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -62,8 +64,6 @@ double focal2fov(double focal, int pixels) {
 // ================================================================
 // CameraUtils Implementation
 // ================================================================
-
-constexpr double kMinZ = 1e-10;
 
 template <typename Scalar>
 std::pair<MatNx2<Scalar>, VecN<Scalar>> CameraUtils::project_points(MatNx3Ref<Scalar> xcs,
@@ -214,7 +214,18 @@ Camera::Camera(const ConfigDict &config)
     fy = cam_settings.get("Camera.fy", 0.0);
     cx = cam_settings.get("Camera.cx", 0.0);
     cy = cam_settings.get("Camera.cy", 0.0);
-    D = cam_settings.get("Camera.DistCoef", std::vector<double>{});
+
+    // Read distortion coefficients (k1, k2, p1, p2, k3) individually from config
+    // Consistent with the Python implementation in config.py which ALWAYS uses 5 elements
+    D.clear();
+    double k1 = cam_settings.get("Camera.k1", 0.0);
+    double k2 = cam_settings.get("Camera.k2", 0.0);
+    double p1 = cam_settings.get("Camera.p1", 0.0);
+    double p2 = cam_settings.get("Camera.p2", 0.0);
+    double k3 = cam_settings.get("Camera.k3", 0.0); // Default to 0 if not present like Python
+    // Always use 5 coefficients to match Python's np.array([k1, k2, p1, p2, k3])
+    D = {k1, k2, p1, p2, k3};
+
     fps = cam_settings.get("Camera.fps", 30);
 
     if (width == 0 || height == 0) {
@@ -222,10 +233,23 @@ Camera::Camera(const ConfigDict &config)
                                  "Camera.height in the camera config file");
     }
 
-    compute_intrinsic_matrices();
+    set_intrinsic_matrices();
+    update_cv_matrices(CV_64F);
 
     fovx = focal2fov(fx, width);
     fovy = focal2fov(fy, height);
+
+    // Sensor type
+    std::string sensor_str = dataset_settings.get<std::string>("sensor_type", "mono");
+    sensor_type = get_sensor_type(sensor_str);
+
+    // For stereo cameras, distortion coefficients are set to zeros
+    // (images are rectified, so no distortion)
+    if (sensor_type == SensorType::STEREO) {
+        D = {0.0, 0.0, 0.0, 0.0, 0.0};
+        MSG_RED_WARN("Using stereo camera, images are automatically rectified, "
+                     "and DistCoef is set to [0,0,0,0,0]");
+    }
 
     // Check if distorted
     double norm = 0.0;
@@ -233,10 +257,6 @@ Camera::Camera(const ConfigDict &config)
         norm += d * d;
     }
     is_distorted = std::sqrt(norm) > 1e-10;
-
-    // Sensor type
-    std::string sensor_str = dataset_settings.get<std::string>("sensor_type", "mono");
-    sensor_type = get_sensor_type(sensor_str);
 
     // Stereo parameters
     if (cam_settings.has("Camera.bf") && sensor_type != SensorType::MONOCULAR) {
@@ -316,12 +336,56 @@ Camera &Camera::operator=(Camera &&other) noexcept {
     return *this;
 }
 
-void Camera::compute_intrinsic_matrices() {
+void Camera::set_intrinsic_matrices() {
     // Compute intrinsic matrix K
     K << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0;
 
     // Compute inverse intrinsic matrix explicitly
     Kinv << 1.0 / fx, 0.0, -cx / fx, 0.0, 1.0 / fy, -cy / fy, 0.0, 0.0, 1.0;
+}
+
+void Camera::update_cv_matrices(int cv_depth_) {
+    if (cv_depth_ == cv_depth) {
+        return;
+    }
+    cv_depth = cv_depth_;
+    if (cv_depth == CV_64F) {
+        set_cv_matrices<double>();
+    } else if (cv_depth == CV_32F) {
+        set_cv_matrices<float>();
+    } else {
+        MSG_ERROR("Camera: Unsupported cv_depth: " + std::to_string(cv_depth));
+        throw std::runtime_error("Camera: Unsupported cv_depth: " + std::to_string(cv_depth));
+    }
+}
+
+template <typename Scalar> void Camera::set_cv_matrices() {
+    int depth;
+    if constexpr (std::is_same_v<Scalar, double>) {
+        depth = CV_64F;
+    } else if constexpr (std::is_same_v<Scalar, float>) {
+        depth = CV_32F;
+    } else {
+        MSG_ERROR("Camera: Unsupported scalar type: " + std::to_string(sizeof(Scalar)));
+        throw std::runtime_error("Camera: Unsupported scalar type: " +
+                                 std::to_string(sizeof(Scalar)));
+    }
+
+    // clang-format off
+    K_cv = (cv::Mat_<Scalar>(3, 3) << 
+    static_cast<Scalar>(fx), 0.0, static_cast<Scalar>(cx), 
+    0.0, static_cast<Scalar>(fy), static_cast<Scalar>(cy), 
+    0.0, 0.0, 1.0);
+    if (D.size() == 5) {
+        D_cv = (cv::Mat_<Scalar>(5, 1) << static_cast<Scalar>(D[0]), static_cast<Scalar>(D[1]),
+                static_cast<Scalar>(D[2]), static_cast<Scalar>(D[3]), static_cast<Scalar>(D[4]));
+    } else if (D.size() >= 4) {
+        D_cv = (cv::Mat_<Scalar>(4, 1) << static_cast<Scalar>(D[0]), static_cast<Scalar>(D[1]),
+                static_cast<Scalar>(D[2]), static_cast<Scalar>(D[3]));
+    } else {
+        D_cv = cv::Mat::zeros(4, 1, depth);
+    }
+    // clang-format on
 }
 
 bool Camera::is_stereo() const { return bf > 0 && sensor_type != SensorType::MONOCULAR; }
@@ -427,36 +491,35 @@ void PinholeCamera::init() {
 }
 
 template <typename Scalar>
-MatNx2<Scalar> PinholeCamera::undistort_points_template(MatNx2Ref<Scalar> uvs) const {
+MatNx2<Scalar> PinholeCamera::undistort_points_template(MatNx2Ref<Scalar> uvs) {
     if (!is_distorted) {
         return uvs;
     }
 
-    // Convert to OpenCV format
-    cv::Mat uvs_mat(static_cast<int>(uvs.rows()), static_cast<int>(uvs.cols()), CV_64F,
-                    const_cast<Scalar *>(uvs.data()));
-
-    // Create intrinsic matrix for OpenCV
-    cv::Mat K_cv = (cv::Mat_<Scalar>(3, 3) << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0);
-
-    // Create distortion coefficients
-    cv::Mat D_cv;
-    if (D.size() >= 4) {
-        D_cv = (cv::Mat_<Scalar>(1, 4) << D[0], D[1], D[2], D[3]);
-    } else {
-        D_cv = cv::Mat::zeros(1, 4, CV_64F);
+    int depth = CV_32F;
+    if constexpr (std::is_same_v<Scalar, double>) {
+        depth = CV_64F;
     }
+    update_cv_matrices(depth);
 
-    // Undistort points
-    cv::Mat undistorted_uvs;
-    cv::undistortPoints(uvs_mat, undistorted_uvs, K_cv, D_cv, cv::Mat(), K_cv);
+    const int num_points = static_cast<int>(uvs.rows());
+
+    cv::Mat uvs_mat(num_points, 2, depth);
+    for (int i = 0; i < num_points; ++i) {
+        uvs_mat.at<Scalar>(i, 0) = uvs(i, 0);
+        uvs_mat.at<Scalar>(i, 1) = uvs(i, 1);
+    }
+    uvs_mat.reshape(2);
+    cv::undistortPoints(uvs_mat, uvs_mat, K_cv, D_cv, cv::Mat(), K_cv);
+    uvs_mat.reshape(1);
 
     // Convert back to NumPy array
     MatNx2<Scalar> result(uvs.rows(), 2);
-    for (int i = 0; i < undistorted_uvs.rows; ++i) {
-        result(i, 0) = undistorted_uvs.at<Scalar>(i, 0);
-        result(i, 1) = undistorted_uvs.at<Scalar>(i, 1);
+    for (int i = 0; i < num_points; ++i) {
+        result(i, 0) = uvs_mat.at<Scalar>(i, 0);
+        result(i, 1) = uvs_mat.at<Scalar>(i, 1);
     }
+
     return result;
 }
 

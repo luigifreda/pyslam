@@ -79,7 +79,7 @@ pyslam::MapPointPtr cast_to_mappoint(py::handle item) {
 // Wrapper function for Frame::get_points() which can contain null/invalid MapPoint objects
 // This preserves the original structure but safely handles invalid MapPoint objects
 py::list get_points_wrapper(const pyslam::Frame &self) {
-    auto points = self.get_points();
+    const auto points = self.get_points();
     py::list result;
     for (const auto &point : points) {
         if (is_valid_mappoint(point)) {
@@ -121,15 +121,20 @@ std::vector<pyslam::MapPointPtr> points_vector_wrapper(py::object points_obj) {
 py::tuple are_visible_wrapper(pyslam::Frame &self, py::object points_obj, bool do_stereo_project) {
     std::vector<pyslam::MapPointPtr> points_vector = points_vector_wrapper(points_obj);
 
-    // Call the C++ method with valid points only
-    auto [visibility_flags, projections, depths, dists] =
-        self.are_visible<double>(points_vector, do_stereo_project);
+    std::tuple<std::vector<bool>, pyslam::MatNxM<double>, pyslam::VecN<double>,
+               pyslam::VecN<double>>
+        result;
+    {
+        py::gil_scoped_release release;
+        // Call the C++ method with valid points only
+        result = self.are_visible<double>(points_vector, do_stereo_project);
+    }
 
     // Return the result directly - let Python handle the size mismatch
-    return py::make_tuple(py::cast(visibility_flags), // visibility flags
-                          py::cast(projections),      // projections
-                          py::cast(depths),           // depths
-                          py::cast(dists)             // distances
+    return py::make_tuple(py::cast(std::get<0>(result)), // visibility flags
+                          py::cast(std::get<1>(result)), // projections
+                          py::cast(std::get<2>(result)), // depths
+                          py::cast(std::get<3>(result))  // distances
     );
 }
 
@@ -247,6 +252,7 @@ void bind_frame(py::module &m) {
                  cv::Mat semantic_img =
                      semantic_img_obj.is_none() ? cv::Mat() : py::cast<cv::Mat>(semantic_img_obj);
 
+                 py::gil_scoped_release release;
                  return std::make_shared<pyslam::Frame>(camera_shared_ptr, img, img_right, depth,
                                                         pose, id, timestamp, img_id, semantic_img,
                                                         frame_data_dict);
@@ -340,8 +346,13 @@ void bind_frame(py::module &m) {
         .def_readwrite("fov_center_c", &pyslam::Frame::fov_center_c)
         .def_readwrite("fov_center_w", &pyslam::Frame::fov_center_w)
 
-        .def("unproject_points_3d", &pyslam::Frame::unproject_points_3d<double>, py::arg("idxs"),
-             py::arg("transform_in_world") = false)
+        .def(
+            "unproject_points_3d",
+            [](pyslam::Frame &self, const std::vector<int> &idxs, const bool transform_in_world) {
+                py::gil_scoped_release release;
+                return self.unproject_points_3d<double>(idxs, transform_in_world);
+            },
+            py::arg("idxs"), py::arg("transform_in_world") = false)
         .def_property_readonly("kd", &pyslam::Frame::kd)
         .def("get_point_match", &pyslam::Frame::get_point_match)
         .def("get_matched_inlier_points", &pyslam::Frame::get_matched_inlier_points)
@@ -353,8 +364,25 @@ void bind_frame(py::module &m) {
         .def("get_points", &get_points_wrapper)
         .def("get_matched_points", &pyslam::Frame::get_matched_points)
         .def("get_matched_good_points", &pyslam::Frame::get_matched_good_points)
-        .def("num_tracked_points", &pyslam::Frame::num_tracked_points)
-        .def("num_matched_inlier_map_points", &pyslam::Frame::num_matched_inlier_map_points)
+        .def("get_matched_good_points_idxs", &pyslam::Frame::get_matched_good_points_idxs)
+        .def("get_matched_good_points_and_idxs", &pyslam::Frame::get_matched_good_points_and_idxs)
+        .def(
+            "num_tracked_points",
+            [](pyslam::Frame &self, int minObs = 1) {
+                py::gil_scoped_release release;
+                return self.num_tracked_points(minObs);
+            },
+            py::arg("minObs") = 1)
+        .def("num_matched_inlier_map_points",
+             [](pyslam::Frame &self) {
+                 py::gil_scoped_release release;
+                 return self.num_matched_inlier_map_points();
+             })
+        .def("get_tracked_mask",
+             [](pyslam::Frame &self) {
+                 py::gil_scoped_release release;
+                 return self.get_tracked_mask();
+             })
         .def(
             "update_map_points_statistics",
             [](pyslam::Frame &self, py::object sensor_type_obj) {
@@ -364,26 +392,76 @@ void bind_frame(py::module &m) {
                     sensor_type_value = sensor_type_obj.attr("value").cast<int>();
                 } catch (const py::cast_error &) {
                     // Fallback: try direct cast to int
+                    MSG_ERROR("Frame::update_map_points_statistics: sensor_type is not a "
+                              "SensorType object");
                     sensor_type_value = sensor_type_obj.cast<int>();
                 }
                 pyslam::SensorType cpp_sensor_type =
                     static_cast<pyslam::SensorType>(sensor_type_value);
+                py::gil_scoped_release release;
                 return self.update_map_points_statistics(cpp_sensor_type);
             },
             py::arg("sensor_type"))
-        .def("clean_outlier_map_points", &pyslam::Frame::clean_outlier_map_points)
-        .def("clean_bad_map_points", &pyslam::Frame::clean_bad_map_points)
-        .def("clean_vo_matches", &pyslam::Frame::clean_vo_matches)
-        .def("check_replaced_map_points", &pyslam::Frame::check_replaced_map_points)
-        .def("compute_stereo_from_rgbd", &pyslam::Frame::compute_stereo_from_rgbd)
-        .def("compute_stereo_matches", &pyslam::Frame::compute_stereo_matches)
-        .def("compute_points_median_depth", &pyslam::Frame::compute_points_median_depth<double>,
-             py::arg("points3d") = pyslam::MatNx3d(), py::arg("percentile") = 0.5)
-        .def("draw_feature_trails", &pyslam::Frame::draw_feature_trails, py::arg("img"),
-             py::arg("kps_idxs"), py::arg("trail_max_length") = 9)
-        .def("draw_all_feature_trails", &pyslam::Frame::draw_all_feature_trails)
+        .def("clean_outlier_map_points",
+             [](pyslam::Frame &self) {
+                 py::gil_scoped_release release;
+                 return self.clean_outlier_map_points();
+             })
+        .def("clean_bad_map_points",
+             [](pyslam::Frame &self) {
+                 py::gil_scoped_release release;
+                 self.clean_bad_map_points();
+             })
+        .def("clean_vo_matches",
+             [](pyslam::Frame &self) {
+                 py::gil_scoped_release release;
+                 self.clean_vo_matches();
+             })
+        .def("check_replaced_map_points",
+             [](pyslam::Frame &self) {
+                 py::gil_scoped_release release;
+                 self.check_replaced_map_points();
+             })
+        .def(
+            "compute_stereo_from_rgbd",
+            [](pyslam::Frame &self, const cv::Mat &depth_img) {
+                py::gil_scoped_release release;
+                self.compute_stereo_from_rgbd(depth_img);
+            },
+            py::arg("depth_img"))
+        .def(
+            "compute_stereo_matches",
+            [](pyslam::Frame &self, const cv::Mat &img, const cv::Mat &img_right) {
+                py::gil_scoped_release release;
+                self.compute_stereo_matches(img, img_right);
+            },
+            py::arg("img"), py::arg("img_right"))
+        .def(
+            "compute_points_median_depth",
+            [](pyslam::Frame &self, pyslam::MatNx3Ref<double> &points3d, const double percentile) {
+                py::gil_scoped_release release;
+                return self.compute_points_median_depth<double>(points3d, percentile);
+            },
+            py::arg("points3d") = pyslam::MatNx3d(), py::arg("percentile") = 0.5)
+        .def(
+            "draw_feature_trails",
+            [](pyslam::Frame &self, const cv::Mat &img, const std::vector<int> &kps_idxs,
+               const bool with_level_radius, int trail_max_length = 9) {
+                py::gil_scoped_release release;
+                return self.draw_feature_trails(img, kps_idxs, with_level_radius, trail_max_length);
+            },
+            py::arg("img"), py::arg("kps_idxs"), py::arg("with_level_radius") = false,
+            py::arg("trail_max_length") = 9)
+        .def(
+            "draw_all_feature_trails",
+            [](pyslam::Frame &self, const cv::Mat &img, const bool with_level_radius) {
+                py::gil_scoped_release release;
+                return self.draw_all_feature_trails(img, with_level_radius);
+            },
+            py::arg("img"), py::arg("with_level_radius") = false)
         .def("set_img_right", &pyslam::Frame::set_img_right)
         .def("set_depth_img", &pyslam::Frame::set_depth_img)
+        .def("set_semantics", &pyslam::Frame::set_semantics)
         .def("ensure_contiguous_arrays", &pyslam::Frame::ensure_contiguous_arrays)
         .def("__eq__", &pyslam::Frame::operator==)
         .def("__lt__", &pyslam::Frame::operator<)

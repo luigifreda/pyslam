@@ -14,6 +14,7 @@ namespace py = pybind11;
 
 namespace pyslam {
 
+// Convert a vector to a numpy array (zero-copy)
 template <typename T>
 inline py::array_t<T> vector_to_numpy_zero_copy(std::vector<T> &vec,
                                                 py::object owner = py::none()) {
@@ -29,6 +30,17 @@ inline py::array_t<T> vector_to_numpy_zero_copy(std::vector<T> &vec,
     }
 }
 
+// Create zero-copy numpy array from a shared_ptr<vector>
+// The vector stays alive as long as Python holds a reference to the array
+template <typename T>
+py::array_t<T> vector_to_numpy_zero_copy(std::shared_ptr<std::vector<T>> vec_ptr) {
+    return py::array_t<T>({static_cast<py::ssize_t>(vec_ptr->size())},
+                          {static_cast<py::ssize_t>(sizeof(T))}, vec_ptr->data(),
+                          vec_ptr // Owner: keeps vec_ptr alive
+    );
+}
+
+// Convert a numpy array to a vector (copy)
 template <typename T>
 inline void numpy_to_vector_copy(py::object obj, std::vector<T> &vec, const std::string &name) {
     if (py::isinstance<py::array>(obj)) {
@@ -42,6 +54,7 @@ inline void numpy_to_vector_copy(py::object obj, std::vector<T> &vec, const std:
     }
 }
 
+// Convert an Eigen matrix to a numpy array (zero-copy)
 template <typename EigenType>
 inline py::array_t<typename EigenType::Scalar>
 eigen_to_numpy_zero_copy(EigenType &matrix, py::object owner = py::none()) {
@@ -60,6 +73,7 @@ eigen_to_numpy_zero_copy(EigenType &matrix, py::object owner = py::none()) {
     return py::array_t<Scalar>({rows, cols}, {row_stride, col_stride}, matrix.data(), owner);
 }
 
+// Convert a numpy array to an Eigen matrix (copy)
 template <typename EigenType>
 inline void numpy_to_eigen_copy(py::object obj, EigenType &matrix, const std::string &name) {
     if (py::isinstance<py::array>(obj)) {

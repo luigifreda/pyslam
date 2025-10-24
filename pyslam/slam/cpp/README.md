@@ -1,15 +1,22 @@
-# PYSLAM C++ Core Module [WIP]
+# PYSLAM C++ Core Module
 
-This directory contains the C++ implementations of core SLAM classes with Python bindings via pybind11.
+This directory contains the **C++ implementations** of the core SLAM classes, exposed to Python via **pybind11** bindings.  
+The module is currently **under active development**.
 
-## Architecture and requirements
+## Architecture and Design Goals
 
-- The C++ classes have the same exact interface and data field names of the corresponding python classes
-- There are no C++ setters and getters unless there are the corresponding python methods
-- Enable **zero-copy** exchange of descriptors and **safe ownership** across Python/C++ (where possible)
+The following design requirements guide the development of the C++ core  
+(*note: the module is still being refined and optimized*):  
 
-The C++ core module follows a simplified approach where:
-- **All core data lives in C++** - no Python wrappers holding data
-- **Direct pybind11 exposure** - Python objects are thin interfaces to C++ objects
-- **Automatic zero-copy** - pybind11 handles numpy array sharing automatically (where possible)
-- **RAII ownership** - C++ smart pointers handle lifetime automatically (where possible)
+- C++ classes **mirror** their Python counterparts, maintaining identical interfaces and data field names.  
+- **Setters and getters** are implemented in C++ **only if** they exist in the corresponding Python classes.  
+- Support for **zero-copy data exchange** (e.g., descriptors) and **safe memory ownership** across the Python/C++ boundary, wherever feasible.  
+
+## Core Principles
+
+The C++ core adopts a streamlined design philosophy:  
+
+- **All core data resides in C++** — Python serves purely as an interface layer.  
+- **Direct pybind11 exposure** — Python objects are lightweight views of underlying C++ objects.  
+- **Automatic zero-copy** — pybind11 automatically shares NumPy array memory with C++ when possible.  
+- **RAII-based ownership** — C++ smart pointers manage object lifetimes safely and efficiently.

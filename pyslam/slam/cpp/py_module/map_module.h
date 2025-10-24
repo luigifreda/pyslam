@@ -48,7 +48,7 @@ inline std::pair<double, py::dict> map_optimize_wrapper(MapPtr map, int local_wi
     double mean_squared_error = 0.0;
     {
 
-        py::gil_scoped_release release;
+        py::gil_scoped_release gil_release;
 
         mean_squared_error = map->optimize(local_window_size, verbose, rounds, use_robust_kernel,
                                            do_cull_points, abort_flag_value_ptr);
@@ -70,7 +70,7 @@ inline double map_locally_optimize_wrapper(MapPtr map, KeyFramePtr kf_ref, bool 
 
     double mean_squared_error = 0.0;
     {
-        py::gil_scoped_release release;
+        py::gil_scoped_release gil_release;
 
         mean_squared_error = map->locally_optimize(kf_ref, verbose, rounds, abort_flag_value_ptr);
 
@@ -114,6 +114,32 @@ void bind_map(pybind11::module &m) {
         .def_readwrite("max_point_id", &pyslam::ReloadedSessionMapInfo::max_point_id)
         .def_readwrite("max_frame_id", &pyslam::ReloadedSessionMapInfo::max_frame_id)
         .def_readwrite("max_keyframe_id", &pyslam::ReloadedSessionMapInfo::max_keyframe_id);
+
+    // ------------------------------------------------------------
+    // MapStateData class - complete interface matching Python MapStateData
+    py::class_<pyslam::MapStateData, std::shared_ptr<pyslam::MapStateData>>(m, "MapStateData")
+        .def(py::init<>())
+        .def_readwrite("poses", &pyslam::MapStateData::poses)
+        .def_readwrite("pose_timestamps", &pyslam::MapStateData::pose_timestamps)
+        .def_readwrite("fov_centers", &pyslam::MapStateData::fov_centers)
+        .def_readwrite("fov_centers_colors", &pyslam::MapStateData::fov_centers_colors)
+        .def_readwrite("points", &pyslam::MapStateData::points)
+        .def_readwrite("colors", &pyslam::MapStateData::colors)
+        .def_readwrite("semantic_colors", &pyslam::MapStateData::semantic_colors)
+        .def_readwrite("covisibility_graph", &pyslam::MapStateData::covisibility_graph)
+        .def_readwrite("spanning_tree", &pyslam::MapStateData::spanning_tree)
+        .def_readwrite("loops", &pyslam::MapStateData::loops)
+        .def(py::pickle([](const pyslam::MapStateData &self) { return self.state_tuple(); },
+                        [](py::tuple t) {
+                            auto map_state =
+                                std::make_shared<pyslam::MapStateData>(); // Remove nullptr
+                            map_state->restore_from_state(t);
+                            return map_state;
+                        }))
+        //.def("__setstate__", [](pyslam::MapStateData &self, py::tuple t) {
+        // self.restore_from_state(t);
+        //})
+        .def("__getstate__", &pyslam::MapStateData::state_tuple);
 
     // ------------------------------------------------------------
     // Map class - complete interface matching Python Map
@@ -189,7 +215,24 @@ void bind_map(pybind11::module &m) {
         .def("remove_keyframe", &pyslam::Map::remove_keyframe)
 
         // Visualization
-        .def("draw_feature_trails", &pyslam::Map::draw_feature_trails)
+        .def(
+            "draw_feature_trails",
+            [](pyslam::Map &self, cv::Mat &img, const bool with_level_radius) {
+                py::gil_scoped_release gil_release;
+                return self.draw_feature_trails(img, with_level_radius);
+            },
+            py::arg("img"), py::arg("with_level_radius") = false)
+        .def(
+            "get_data_arrays_for_drawing",
+            [](pyslam::Map &self, std::size_t max_points_to_visualize,
+               std::size_t min_weight_for_drawing_covisibility_edge) {
+                py::gil_scoped_release gil_release;
+                return self.get_data_arrays_for_drawing(max_points_to_visualize,
+                                                        min_weight_for_drawing_covisibility_edge);
+            },
+            py::arg("max_points_to_visualize") = pyslam::Parameters::kMaxSparseMapPointsToVisualize,
+            py::arg("min_weight_for_drawing_covisibility_edge") =
+                pyslam::Parameters::kMinWeightForDrawingCovisibilityEdge)
 
         // Point management
         .def("add_points", &pyslam::Map::add_points, py::arg("points3d"),

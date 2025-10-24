@@ -38,7 +38,14 @@ from pyslam.io.ground_truth import groundtruth_factory
 
 from pyslam.viz.slam_plot_drawer import LocalizationPlotDrawer
 
-from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage, Viewer3DMapInput
+from pyslam.viz.viewer3D import (
+    Viewer3D,
+    VizPointCloud,
+    VizMesh,
+    VizCameraImage,
+    Viewer3DMapInput,
+    MapStateData,
+)
 
 import time
 
@@ -248,8 +255,12 @@ def update_and_draw_map(
     viz_mast3r_map_state.cur_pose_timestamp = timestamp
     viz_mast3r_map_state.cur_frame_id = cur_frame_id
 
-    if len(viz_mast3r_map_state.spanning_tree) == 0:
-        viz_mast3r_map_state.spanning_tree.append(
+    if (
+        viz_mast3r_map_state.map_data is None
+        or len(viz_mast3r_map_state.map_data.spanning_tree) == 0
+    ):
+        viz_mast3r_map_state.map_data = MapStateData()
+        viz_mast3r_map_state.map_data.spanning_tree.append(
             [*mast3r_output.cams2world[0][:3, 3], *mast3r_output.cams2world[1][:3, 3]]
         )
     else:
@@ -258,8 +269,8 @@ def update_and_draw_map(
         cur_Ow = odometry_state.cur_pose[:3, 3]
         viz_mast3r_map_state.spanning_tree.append([*cur_Ow, *last_Ow])
 
-    viz_mast3r_map_state.poses.append(odometry_state.cur_pose)
-    viz_mast3r_map_state.pose_timestamps.append(cur_timestamp)
+    viz_mast3r_map_state.map_data.poses.append(odometry_state.cur_pose)
+    viz_mast3r_map_state.map_data.pose_timestamps.append(cur_timestamp)
 
     viewer3D.draw_map(viz_mast3r_map_state)
 

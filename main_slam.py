@@ -334,7 +334,10 @@ if __name__ == "__main__":
                         viewer3D.draw_slam_map(slam)
 
                     if not args.headless:
-                        img_draw = slam.map.draw_feature_trails(img)
+                        is_draw_features_with_radius = viewer3D.is_draw_features_with_radius()
+                        img_draw = slam.map.draw_feature_trails(
+                            img, with_level_radius=is_draw_features_with_radius
+                        )
                         img_writer.write(img_draw, f"id: {img_id}", (30, 30))
                         # 2D display (image display)
                         cv2.imshow("Camera", img_draw)

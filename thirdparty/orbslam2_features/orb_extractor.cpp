@@ -50,7 +50,10 @@ using ORBextractorDeterministic = ORBextractor<true>;     // deterministic versi
                  cv::Mat mask = cv::Mat();                                                         \
                  std::vector<cv::KeyPoint> keypoints;                                              \
                  cv::Mat descriptors;                                                              \
-                 o.detectAndCompute(image, mask, keypoints, descriptors);                          \
+                 {                                                                                 \
+                     py::gil_scoped_release release;                                               \
+                     o.detectAndCompute(image, mask, keypoints, descriptors);                      \
+                 }                                                                                 \
                  return std::make_tuple(keypoints, descriptors);                                   \
              })                                                                                    \
         .def(                                                                                      \
@@ -58,7 +61,10 @@ using ORBextractorDeterministic = ORBextractor<true>;     // deterministic versi
             [](CLASS &o, cv::Mat &image, bool bComputeOrientation = true) {                        \
                 cv::Mat mask = cv::Mat();                                                          \
                 std::vector<cv::KeyPoint> keypoints;                                               \
-                o.detect(image, mask, keypoints, bComputeOrientation);                             \
+                {                                                                                  \
+                    py::gil_scoped_release release;                                                \
+                    o.detect(image, mask, keypoints, bComputeOrientation);                         \
+                }                                                                                  \
                 return keypoints;                                                                  \
             },                                                                                     \
             "image"_a, "bComputeOrientation"_a = true)                                             \
@@ -78,38 +84,3 @@ PYBIND11_MODULE(orbslam2_features, m) {
     BIND_ORBEXTRACTOR(ORBextractorNonDeterministic, "ORBextractor");
     BIND_ORBEXTRACTOR(ORBextractorDeterministic, "ORBextractorDeterministic");
 }
-
-//     py::class_<ORBextractorNonDet>(m, "ORBextractor")
-//         .def(py::init<int, float, int, int, int>(), "nfeatures"_a, "scaleFactor"_a,
-//         "nlevels"_a,
-//              "iniThFAST"_a = 20, "minThFAST"_a = 7)
-//         .def("GetNumFeatures", &ORBextractorNonDet::GetNumFeatures)
-//         .def("GetLevels", &ORBextractorNonDet::GetLevels)
-//         .def("GetScaleFactor", &ORBextractorNonDet::GetScaleFactor)
-//         .def("SetNumFeatures", &ORBextractorNonDet::SetNumFeatures)
-//         //.def("detectAndCompute", &ORBextractorNonDet::detectAndCompute)
-//         .def("detectAndCompute",
-//              [](ORBextractorNonDet &o, cv::Mat &image) {
-//                  cv::Mat mask = cv::Mat(); // input mask is not actually used by the
-//                  implementation std::vector<cv::KeyPoint> keypoints; cv::Mat descriptors;
-//                  o.detectAndCompute(image, mask, keypoints, descriptors);
-//                  return std::make_tuple(keypoints, descriptors);
-//              })
-//         .def(
-//             "detect",
-//             [](ORBextractorNonDet &o, cv::Mat &image, bool bComputeOrientation = true) {
-//                 cv::Mat mask = cv::Mat(); // input mask is not actually used by the
-//                 implementation std::vector<cv::KeyPoint> keypoints; o.detect(image, mask,
-//                 keypoints, bComputeOrientation); return keypoints;
-//             },
-//             "image"_a, "bComputeOrientation"_a = true)
-//         .def_static("DistributeOctTree", &ORBextractorNonDet::DistributeOctTree,
-//                     "vToDistributeKeys"_a, "minX"_a, "maxX"_a, "minY"_a, "maxY"_a,
-//                     "nFeatures"_a, "level"_a = 0)
-//         .def("__repr__", [](const ORBextractor &o) {
-//             std::stringstream ss;
-//             ss << "<orb_features.ORBextractor - #features: " << o.GetNumFeatures()
-//                << ", #levels: " << o.GetLevels() << ", factor: " << o.GetScaleFactor() <<
-//                ">";
-//             return ss.str();
-//         });

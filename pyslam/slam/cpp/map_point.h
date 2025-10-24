@@ -50,6 +50,8 @@ class Map;
 
 using FrameViews = std::map<FramePtr, int, FrameIdCompare>;
 
+constexpr double kMin3dVectorNorm = 1e-10;
+
 // MapPointBase class - matches Python MapPointBase exactly
 class MapPointBase {
   protected:

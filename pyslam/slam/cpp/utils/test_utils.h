@@ -309,5 +309,67 @@ inline void expect_true(bool cond, const std::string &msg) {
     }
 }
 
+// ===============================
+
+// Helper function to check if two Mat4d vectors are equal
+bool vectors_equal(const std::vector<Eigen::Matrix4d> &a, const std::vector<Eigen::Matrix4d> &b,
+                   double tolerance = 1e-12) {
+    if (a.size() != b.size())
+        return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if ((a[i] - b[i]).lpNorm<Eigen::Infinity>() > tolerance)
+            return false;
+    }
+    return true;
+}
+
+// Helper function to check if two Vec3d vectors are equal
+bool vectors_equal(const std::vector<Eigen::Vector3d> &a, const std::vector<Eigen::Vector3d> &b,
+                   double tolerance = 1e-12) {
+    if (a.size() != b.size())
+        return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if ((a[i] - b[i]).lpNorm<Eigen::Infinity>() > tolerance)
+            return false;
+    }
+    return true;
+}
+
+// Helper function to check if two Vec3f vectors are equal
+bool vectors_equal(const std::vector<Eigen::Vector3f> &a, const std::vector<Eigen::Vector3f> &b,
+                   float tolerance = 1e-6f) {
+    if (a.size() != b.size())
+        return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if ((a[i] - b[i]).lpNorm<Eigen::Infinity>() > tolerance)
+            return false;
+    }
+    return true;
+}
+
+// Helper function to check if two Vec6d vectors are equal
+bool vectors_equal(const std::vector<Eigen::Matrix<double, 6, 1>> &a,
+                   const std::vector<Eigen::Matrix<double, 6, 1>> &b, double tolerance = 1e-12) {
+    if (a.size() != b.size())
+        return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if ((a[i] - b[i]).lpNorm<Eigen::Infinity>() > tolerance)
+            return false;
+    }
+    return true;
+}
+
+// Helper function to check if two double vectors are equal
+bool vectors_equal(const std::vector<double> &a, const std::vector<double> &b,
+                   double tolerance = 1e-12) {
+    if (a.size() != b.size())
+        return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::abs(a[i] - b[i]) > tolerance)
+            return false;
+    }
+    return true;
+}
+
 } // namespace test_utils
 } // namespace pyslam

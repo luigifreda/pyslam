@@ -9,6 +9,7 @@ set(TESTS
     test_numpy_frame
     test_numpy_keyframe
     test_numpy_camera
+    test_numpy_map_state
     test_json_map_point
     test_json_eigen
     test_json_serialization

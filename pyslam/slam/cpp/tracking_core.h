@@ -37,7 +37,8 @@
 namespace pyslam {
 
 // Utility functions for tracking operations
-class TrackingUtils {
+class TrackingCore {
+
   public:
     static std::tuple<int, std::vector<int>, std::vector<int>>
     propagate_map_point_matches(const FramePtr &f_ref, FramePtr &f_cur,
@@ -50,21 +51,29 @@ class TrackingUtils {
 
     static int create_and_add_stereo_map_points_on_new_kf(FramePtr &frame, KeyFramePtr &kf,
                                                           MapPtr &map, const cv::Mat &img);
-    //===============================================
-    // WIP
-    //===============================================
-    // Essential matrix pose estimation
-    static std::pair<Eigen::Matrix4d, cv::Mat> estimate_pose_ess_mat(const MatNx2f &kps_ref,
-                                                                     const MatNx2f &kps_cur,
-                                                                     int method = cv::USAC_MAGSAC,
-                                                                     double prob = 0.999,
-                                                                     double threshold = 0.0004);
 
-    // Homography estimation with RANSAC
-    static std::pair<cv::Mat, cv::Mat> find_homography_with_ransac(const MatNx2f &kps_cur,
-                                                                   const MatNx2f &kps_ref,
-                                                                   int method = cv::USAC_MAGSAC,
-                                                                   double reproj_threshold = 5.0);
+    static std::tuple<int, int, std::vector<bool>>
+    count_tracked_and_non_tracked_close_points(const FramePtr &f_cur, const SensorType sensor_type);
+
+    // Estimate a pose from a fitted essential mat;
+    // since we do not have an interframe translation scale, this fitting can be used to detect
+    // outliers, estimate interframe orientation and translation direction
+    // N.B. read the NBs of the method estimate_pose_ess_mat(), where the limitations of this method
+    // are explained
+    static std::tuple<std::vector<int>, std::vector<int>, int>
+    estimate_pose_by_fitting_ess_mat(const FramePtr &f_ref, FramePtr &f_cur,
+                                     const std::vector<int> &idxs_ref,
+                                     const std::vector<int> &idxs_cur);
+
+    // Use a general homography RANSAC matcher with a large threshold of 5 pixels to model the
+    // inter-frame transformation for a generic motion
+    // NOTE: this method is used to find inliers and estimate the inter-frame transformation
+    // (assuming frames are very close in space)
+    static std::tuple<bool, std::vector<int>, std::vector<int>, int, int>
+    find_homography_with_ransac(const FramePtr &f_cur, const FramePtr &f_ref,
+                                const std::vector<int> &idxs_cur, const std::vector<int> &idxs_ref,
+                                const double reproj_threshold = Parameters::kRansacReprojThreshold,
+                                const int min_num_inliers = Parameters::kRansacMinNumInliers);
 };
 
 } // namespace pyslam

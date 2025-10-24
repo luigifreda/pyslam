@@ -345,7 +345,7 @@ class KeyFrame(Frame, KeyFrameGraph):
         )  # map points => self.points[idx] is the map point matched with self.kps[idx] (if is not None)
         self.outliers = (
             np.full(self.kpsu.shape[0], False, dtype=bool) if self.kpsu is not None else None
-        )  # used just in TrackingUtils.propagate_map_point_matches()
+        )  # used just in TrackingCore.propagate_map_point_matches()
 
     def to_json(self):
         frame_json = Frame.to_json(self)

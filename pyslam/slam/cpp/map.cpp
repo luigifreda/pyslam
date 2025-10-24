@@ -18,10 +18,12 @@
  */
 
 #include "map.h"
+#include "semantic_mapping_shared_resources.h"
 #include "utils/messages.h"
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #include "optimizer_g2o.h"
 
@@ -156,7 +158,6 @@ void Map::remove_point(MapPointPtr point) {
 
     std::lock_guard<MapMutex> lock(_lock);
     points.erase(point);
-    // point->map = nullptr;
     point->delete_point();
 }
 
@@ -165,7 +166,6 @@ void Map::remove_point_no_lock(MapPointPtr point) {
         return;
     }
     points.erase(point);
-    // point->map = nullptr;
     point->delete_point();
 }
 // Frame operations
@@ -308,15 +308,187 @@ void Map::remove_keyframe(KeyFramePtr keyframe) {
     std::lock_guard<MapMutex> lock(_lock);
     keyframes.erase(keyframe);
     keyframes_map.erase(keyframe->id);
-    keyframe_origins.erase(keyframe);
 }
 
 // Visualization
-cv::Mat Map::draw_feature_trails(cv::Mat &img) {
+cv::Mat Map::draw_feature_trails(cv::Mat &img, const bool with_level_radius) {
     if (frames.empty()) {
         return img;
     }
-    return frames.back()->draw_all_feature_trails(img);
+    return frames.back()->draw_all_feature_trails(img, with_level_radius);
+}
+
+std::shared_ptr<MapStateData>
+Map::get_data_arrays_for_drawing(const std::size_t max_points_to_visualize,
+                                 const std::size_t min_weight_for_drawing_covisibility_edge) const {
+
+    auto map_state = std::make_shared<MapStateData>();
+
+    // Get keyframes
+    const auto keyframes = get_keyframes_vector();
+    const std::size_t num_map_keyframes = keyframes.size();
+
+    if (num_map_keyframes > 0) {
+        // Twc() and timestamp collection
+        auto &poses = map_state->poses;
+        poses.reserve(num_map_keyframes);
+
+        auto &pose_timestamps = map_state->pose_timestamps;
+        pose_timestamps.reserve(num_map_keyframes);
+
+        for (const auto &kf : keyframes) {
+            poses.push_back(kf->Twc());
+            pose_timestamps.push_back(kf->timestamp);
+        }
+
+        // Only gather fov centers that exist
+        auto &fov_centers = map_state->fov_centers;
+        fov_centers.reserve(num_map_keyframes);
+        auto &fov_centers_colors = map_state->fov_centers_colors;
+        fov_centers_colors.reserve(num_map_keyframes);
+        const Vec3d red_color(1.0, 0.0, 0.0);
+        for (const auto &kf : keyframes) {
+            if (kf->fov_center_w != Vec3d::Zero()) {
+                fov_centers.push_back(kf->fov_center_w);
+                fov_centers_colors.push_back(red_color);
+            }
+        }
+    }
+
+    // Map points
+    auto map_points = get_points_vector();
+    std::size_t num_map_points = map_points.size();
+
+    std::vector<MapPointPtr> sel_downsampled_points;
+    bool is_downsampled = false;
+    if (num_map_points > 0) {
+        // Downsampling for very large clouds to reduce queue bandwidth and GL load
+        if (num_map_points > max_points_to_visualize) {
+            MSG_WARN("Viewer3D: draw_slam_map - downsampling map points from " +
+                     std::to_string(num_map_points) + " to " +
+                     std::to_string(max_points_to_visualize));
+
+            // Random sampling without replacement - using std::sample for efficiency
+            // O(k) instead of O(n), where k is sample size and n is total points
+            static thread_local std::mt19937 gen(std::random_device{}());
+            sel_downsampled_points.resize(max_points_to_visualize);
+            std::sample(map_points.begin(), map_points.end(), sel_downsampled_points.begin(),
+                        max_points_to_visualize, gen);
+
+            is_downsampled = true;
+        }
+
+        const auto &sel_points = is_downsampled ? sel_downsampled_points : map_points;
+
+        std::size_t N = sel_points.size();
+        auto &points = map_state->points;
+        auto &colors = map_state->colors;
+        auto &semantic_colors = map_state->semantic_colors;
+
+        points.reserve(N);
+        colors.reserve(N);
+
+        // Check if semantic mapping is active
+        bool is_semantic_mapping_active =
+            SemanticMappingSharedResources::semantic_color_map != nullptr;
+
+        try {
+            if (is_semantic_mapping_active) {
+                semantic_colors.reserve(N);
+                for (std::size_t i = 0; i < N; ++i) {
+                    const auto &p = sel_points[i];
+                    points.push_back(p->pt());
+
+                    // Convert BGR to RGB and normalize
+                    Eigen::Vector3f color_rgb;
+                    color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
+                        static_cast<float>(p->color[1]) / 255.0f,          // G
+                        static_cast<float>(p->color[0]) / 255.0f;          // B
+                    colors.push_back(color_rgb);
+
+                    // Handle semantic colors
+                    Eigen::Vector3f sem_color = Eigen::Vector3f::Zero();
+                    if (!p->semantic_des.empty()) {
+                        // Convert semantic descriptor to RGB using the color map (feature-type
+                        // aware)
+                        cv::Vec3b sem_rgb =
+                            SemanticMappingSharedResources::semantic_color_map->semantic_to_color(
+                                p->semantic_des,
+                                SemanticMappingSharedResources::semantic_feature_type, false);
+                        sem_color << static_cast<float>(sem_rgb[0]) / 255.0f,
+                            static_cast<float>(sem_rgb[1]) / 255.0f,
+                            static_cast<float>(sem_rgb[2]) / 255.0f;
+                    }
+                    semantic_colors.push_back(sem_color);
+                }
+            } else {
+                for (std::size_t i = 0; i < N; ++i) {
+                    const auto &p = sel_points[i];
+                    points.push_back(p->pt());
+
+                    // Convert BGR to RGB and normalize
+                    Eigen::Vector3f color_rgb;
+                    color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
+                        static_cast<float>(p->color[1]) / 255.0f,          // G
+                        static_cast<float>(p->color[0]) / 255.0f;          // B
+                    colors.push_back(color_rgb);
+
+                    // No semantic colors
+                    semantic_colors.push_back(Eigen::Vector3f::Zero());
+                }
+            }
+        } catch (const std::exception &e) {
+            MSG_ERROR("Viewer3D: draw_slam_map - error: " + std::string(e.what()));
+        }
+    }
+
+    // Graphs
+    if (!keyframes.empty()) {
+        auto &covisibility_graph = map_state->covisibility_graph;
+        auto &spanning_tree = map_state->spanning_tree;
+        auto &loops = map_state->loops;
+
+        covisibility_graph.reserve(keyframes.size());
+        spanning_tree.reserve(keyframes.size());
+        loops.reserve(keyframes.size());
+
+        for (const auto &kf : keyframes) {
+            const Eigen::Vector3d Ow = kf->Ow();
+
+            // Covisibility graph
+            const auto covisible_kfs = kf->get_covisible_by_weight(
+                static_cast<int>(min_weight_for_drawing_covisibility_edge));
+            for (const auto &kf_cov : covisible_kfs) {
+                if (kf_cov->kid > kf->kid) {
+                    const auto Ow_cov = kf_cov->Ow();
+                    Vec6d line;
+                    line << Ow, Ow_cov;
+                    covisibility_graph.push_back(line);
+                }
+            }
+
+            // Spanning tree
+            if (kf->parent != nullptr) {
+                const auto Ow_parent = kf->parent->Ow();
+                Vec6d line;
+                line << Ow, Ow_parent;
+                spanning_tree.push_back(line);
+            }
+
+            // Loop edges
+            const auto loop_edges = kf->get_loop_edges();
+            for (const auto &kf_loop : loop_edges) {
+                if (kf_loop->kid > kf->kid) {
+                    const auto Ow_loop = kf_loop->Ow();
+                    Vec6d line;
+                    line << Ow, Ow_loop;
+                    loops.push_back(line);
+                }
+            }
+        }
+    }
+
+    return map_state;
 }
 
 // Optimization
@@ -335,10 +507,10 @@ double Map::optimize(int local_window_size, bool verbose, int rounds, bool use_r
 
 double Map::locally_optimize(KeyFramePtr &kf_ref, bool verbose, int rounds, bool *abort_flag) {
     // TODO: implement support for gtsam
-    auto [keyframes, points, ref_keyframes] = local_map->update(kf_ref);
-    auto keyframes_vector = std::vector<KeyFramePtr>(keyframes.begin(), keyframes.end());
-    auto points_vector = std::vector<MapPointPtr>(points.begin(), points.end());
-    auto ref_keyframes_vector =
+    const auto [keyframes, points, ref_keyframes] = local_map->update(kf_ref);
+    const auto keyframes_vector = std::vector<KeyFramePtr>(keyframes.begin(), keyframes.end());
+    const auto points_vector = std::vector<MapPointPtr>(points.begin(), points.end());
+    const auto ref_keyframes_vector =
         std::vector<KeyFramePtr>(ref_keyframes.begin(), ref_keyframes.end());
     const auto [mean_squared_error, outlier_ratio] =
         OptimizerG2o::local_bundle_adjustment<MapMutex>(keyframes_vector, points_vector,
@@ -462,19 +634,22 @@ LocalMapBase::update_from_keyframes(const Container &local_keyframes) {
     return std::make_tuple(good_keyframes, good_points, ref_keyframes);
 }
 
+// from a given input frame compute:
+// - the reference keyframe (the keyframe that sees most map points of the frame)
+// - the local keyframes
+// - the local points
 std::tuple<KeyFramePtr, std::vector<KeyFramePtr>, std::vector<MapPointPtr>>
 LocalMapBase::get_frame_covisibles(const FramePtr &frame) {
-    std::vector<MapPointPtr> frame_points = frame->get_matched_good_points();
-
-    if (frame_points.empty()) {
-        return std::make_tuple(nullptr, std::vector<KeyFramePtr>(), std::vector<MapPointPtr>());
-    }
+    const auto frame_points = frame->get_points();
 
     // Count keyframes viewing the points
     std::unordered_map<KeyFramePtr, int> viewing_keyframes;
     for (const auto &p : frame_points) {
-        std::vector<KeyFramePtr> point_keyframes = p->keyframes();
-        for (const auto &kf : point_keyframes) {
+        if (!p || p->is_bad()) {
+            continue;
+        }
+        const auto point_viewing_keyframes = p->keyframes();
+        for (const auto &kf : point_viewing_keyframes) {
             if (!kf->is_bad()) {
                 viewing_keyframes[kf]++;
             }
@@ -485,31 +660,71 @@ LocalMapBase::get_frame_covisibles(const FramePtr &frame) {
         return std::make_tuple(nullptr, std::vector<KeyFramePtr>(), std::vector<MapPointPtr>());
     }
 
-    // Get local keyframes
-    std::vector<std::pair<KeyFramePtr, int>> sorted_keyframes;
-    for (const auto &pair : viewing_keyframes) {
-        sorted_keyframes.push_back(pair);
-    }
-    std::sort(sorted_keyframes.begin(), sorted_keyframes.end(),
-              [](const auto &a, const auto &b) { return a.second > b.second; });
-
     // Reference keyframe is the most common
-    KeyFramePtr kf_ref = sorted_keyframes.front().first;
-
+    KeyFramePtr kf_ref;
     std::vector<KeyFramePtr> local_keyframes;
+    local_keyframes.reserve(3 * viewing_keyframes.size());
+
+    // Get local keyframes and get max count keyframe
+    int max_count = 0;
+    for (const auto &[kf, count] : viewing_keyframes) {
+        local_keyframes.push_back(kf);
+        if (count > max_count) {
+            max_count = count; // Reference keyframe is the most common
+            kf_ref = kf;
+        }
+    }
+
+    // include also some not-already-included keyframes that are neighbors to already-included
+    // keyfram
+    for (auto it = local_keyframes.begin(), end = local_keyframes.end(); it != end; ++it) {
+        if (local_keyframes.size() >= Parameters::kMaxNumOfKeyframesInLocalMap) {
+            break;
+        }
+        const KeyFramePtr &kf = *it;
+
+        const auto second_neighbors =
+            kf->get_best_covisible_keyframes(Parameters::kNumBestCovisibilityKeyFrames);
+        for (const auto &kf_neighbor : second_neighbors) {
+            if (!kf_neighbor->is_bad()) {
+                if (viewing_keyframes.find(kf_neighbor) == viewing_keyframes.end()) {
+                    local_keyframes.push_back(kf_neighbor);
+                    viewing_keyframes[kf_neighbor]++;
+                    break; // only one second neighbor per kf is needed
+                }
+            }
+        }
+
+        const auto children = kf->get_children();
+        for (const auto &kf_child : children) {
+            if (!kf_child->is_bad()) {
+                if (viewing_keyframes.find(kf_child) == viewing_keyframes.end()) {
+                    local_keyframes.push_back(kf_child);
+                    viewing_keyframes[kf_child]++;
+                    break; // only one child is needed per kf is needed
+                }
+            }
+        }
+        const auto parent = kf->get_parent();
+        if (parent) {
+            if (viewing_keyframes.find(parent) == viewing_keyframes.end()) {
+                local_keyframes.push_back(parent);
+                viewing_keyframes[parent]++;
+                break;
+            }
+        }
+    }
+
     std::unordered_set<MapPointPtr> local_points;
 
     int count = 0;
-    for (const auto &pair : sorted_keyframes) {
-        if (count >= Parameters::kMaxNumOfKeyframesInLocalMap)
-            break;
+    for (const auto &kf : local_keyframes) {
 
-        KeyFramePtr kf = pair.first;
-        local_keyframes.push_back(kf);
-
-        std::vector<MapPointPtr> kf_points = kf->get_matched_points();
+        const auto kf_points = kf->get_points();
         for (const auto &p : kf_points) {
-            local_points.insert(p);
+            if (p && !p->is_bad()) {
+                local_points.insert(p);
+            }
         }
         count++;
     }

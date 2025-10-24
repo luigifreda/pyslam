@@ -102,6 +102,13 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
         const auto &camera2 = kf2->camera;
         MSG_FORCED_ASSERT(camera2, "Map::add_points: camera2 is nullptr");
 
+        const auto kf1_pose = kf1->Twc();
+        const auto kf1_Rwc = kf1_pose.block<3, 3>(0, 0);
+        const auto kf1_Ow = kf1_pose.block<3, 1>(0, 3);
+        const auto kf2_pose = kf2->Twc();
+        const auto kf2_Rwc = kf2_pose.block<3, 3>(0, 0);
+        const auto kf2_Ow = kf2_pose.block<3, 1>(0, 3);
+
         for (size_t i = 0; i < num_points; ++i) {
             const int idx1 = idxs1[i];
             const int idx2 = idxs2[i];
@@ -134,18 +141,21 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
             double cos_parallax_stereo1 = 2.0;
             double cos_parallax_stereo2 = 2.0;
 
+            double stereo_depth1 = 0.0;
+            double stereo_depth2 = 0.0;
+
             if (is_stereo1) {
-                const double depth = static_cast<double>(kf1->depths[idx1]);
-                if (std::isfinite(depth) && depth > 0.0) {
-                    const double angle = 2.0 * std::atan2(camera1->b / 2.0, depth);
+                stereo_depth1 = static_cast<double>(kf1->depths[idx1]);
+                if (std::isfinite(stereo_depth1) && stereo_depth1 > 0.0) {
+                    const double angle = 2.0 * std::atan2(camera1->b / 2.0, stereo_depth1);
                     cos_parallax_stereo1 = std::cos(angle);
                 }
             }
 
             if (is_stereo2) {
-                const double depth = static_cast<double>(kf2->depths[idx2]);
-                if (std::isfinite(depth) && depth > 0.0) {
-                    const double angle = 2.0 * std::atan2(camera2->b / 2.0, depth);
+                stereo_depth2 = static_cast<double>(kf2->depths[idx2]);
+                if (std::isfinite(stereo_depth2) && stereo_depth2 > 0.0) {
+                    const double angle = 2.0 * std::atan2(camera2->b / 2.0, stereo_depth2);
                     cos_parallax_stereo2 = std::cos(angle);
                 }
             }
@@ -160,16 +170,24 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
             bool is_recovered3d_from_stereo = false;
             if (try_recover3d_from_stereo && is_stereo1 &&
                 cos_parallax_stereo1 < cos_parallax_stereo2) {
-                const auto [pt_world, ok] = kf1->unproject_point_3d<double>(idx1, true);
-                if (ok) {
-                    points_world[i] = pt_world;
+                const bool ok1 =
+                    stereo_depth1 > Parameters::kMinDepth; // && stereo_depth1 < far_threshold;
+                if (ok1) {
+                    const Vec3<double> pt_c(stereo_depth1 * kf1->kpsn(idx1, 0),
+                                            stereo_depth1 * kf1->kpsn(idx1, 1), stereo_depth1);
+                    const Vec3<double> pt_w = kf1_Rwc * pt_c + kf1_Ow;
+                    points_world[i] = pt_w;
                     is_recovered3d_from_stereo = true;
                 }
             } else if (try_recover3d_from_stereo && is_stereo2 &&
                        cos_parallax_stereo2 < cos_parallax_stereo1) {
-                const auto [pt_world, ok] = kf2->unproject_point_3d<double>(idx2, true);
-                if (ok) {
-                    points_world[i] = pt_world;
+                const bool ok2 =
+                    stereo_depth2 > Parameters::kMinDepth; // && stereo_depth2 < far_threshold;
+                if (ok2) {
+                    const Vec3<double> pt_c(stereo_depth2 * kf2->kpsn(idx2, 0),
+                                            stereo_depth2 * kf2->kpsn(idx2, 1), stereo_depth2);
+                    const Vec3<double> pt_w = kf2_Rwc * pt_c + kf2_Ow;
+                    points_world[i] = pt_w;
                     is_recovered3d_from_stereo = true;
                 }
             }
@@ -188,8 +206,8 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
 
             bool is_bad_chis2_1 = false;
             if (is_stereo1) {
-                const double depth = static_cast<double>(kf1->depths[idx1]);
-                const double inv_depth = std::isfinite(depth) && depth > 0.0 ? 1.0 / depth : 0.0;
+                const double inv_depth =
+                    std::isfinite(stereo_depth1) && stereo_depth1 > 0.0 ? 1.0 / stereo_depth1 : 0.0;
                 const double u_r_pred = uv1.x() - camera1->bf * inv_depth;
                 const double err_r = u_r_pred - static_cast<double>(kf1->kps_ur[idx1]);
                 const double chi2_stereo = (diff1.squaredNorm() + err_r * err_r) * inv_sigma2_1;
@@ -209,8 +227,8 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
 
             bool is_bad_chis2_2 = false;
             if (is_stereo2) {
-                const double depth = static_cast<double>(kf2->depths[idx2]);
-                const double inv_depth = std::isfinite(depth) && depth > 0.0 ? 1.0 / depth : 0.0;
+                const double inv_depth =
+                    std::isfinite(stereo_depth2) && stereo_depth2 > 0.0 ? 1.0 / stereo_depth2 : 0.0;
                 const double u_r_pred = uv2.x() - camera2->bf * inv_depth;
                 const double err_r = u_r_pred - static_cast<double>(kf2->kps_ur[idx2]);
                 const double chi2_stereo = (diff2.squaredNorm() + err_r * err_r) * inv_sigma2_2;
@@ -322,14 +340,16 @@ int Map::add_stereo_points(const std::vector<Eigen::Vector3d> &points3d,
 void Map::remove_points_with_big_reproj_err(const std::vector<MapPointPtr> &points_to_check) {
     const auto &inv_level_sigmas2 = FeatureSharedResources::inv_level_sigmas2;
 
-    std::scoped_lock lock(_update_lock);
-
     std::vector<MapPointPtr> candidates;
     if (points_to_check.empty()) {
+        std::lock_guard<MapMutex> lock_map(_lock);
         candidates.assign(points.begin(), points.end());
     } else {
         candidates = points_to_check;
     }
+
+    // std::lock_guard<MapMutex> lock_map(_lock);
+    std::scoped_lock lock(_update_lock);
 
     for (auto &p : candidates) {
         if (!p || p->is_bad()) {

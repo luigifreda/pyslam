@@ -28,6 +28,8 @@
 
 #include "feature_shared_resources.h"
 #include "utils/descriptor_helpers.h"
+#include "utils/messages.h"
+#include "utils/pybinding_helpers.h"
 
 namespace py = pybind11;
 
@@ -65,15 +67,17 @@ void bind_feature_shared_resources(py::module &m) {
                 pyslam::FeatureSharedResources::norm_type =
                     pyslam::convert_cv2_norm_type_to_norm_type(cv2_norm_type);
             })
-        .def_property_static(
-            "semantic_feature_type",
-            [](py::object) -> int {
-                return static_cast<int>(pyslam::FeatureSharedResources::semantic_feature_type);
-            },
-            [](py::object, int semantic_feature_type) {
-                pyslam::FeatureSharedResources::semantic_feature_type =
-                    static_cast<pyslam::SemanticFeatureType>(semantic_feature_type);
-            })
+        // .def_property_static(
+        //     "semantic_feature_type",
+        //     [](py::object) -> int {
+        //         return static_cast<int>(pyslam::FeatureSharedResources::semantic_feature_type);
+        //     },
+        //     [](py::object, int semantic_feature_type) {
+        //         pyslam::FeatureSharedResources::semantic_feature_type =
+        //             static_cast<pyslam::SemanticFeatureType>(semantic_feature_type);
+        //     })
+        DEF_STATIC_PROPERTY_WITH_ENUM_TO_INT_EXTRACTION(
+            pyslam::FeatureSharedResources, semantic_feature_type, pyslam::SemanticFeatureType)
         .def_static(
             "set_feature_detect_and_compute_callback",
             [](py::object cb) {

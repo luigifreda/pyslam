@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -154,6 +155,49 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
         else:
             print("SemanticSegmentationSegformer: Using CPU")
         return device
+
+    def num_classes(self):
+        # If we’re remapping (ADE20K -> NYU40), the output space is defined by the mapping.
+        try:
+            if self.label_mapping is not None:
+                # mapping holds target indices; e.g., 0..39 for NYU40
+                return int(self.label_mapping.max() + 1)
+        except Exception:
+            pass
+
+        # Prefer config metadata from Hugging Face
+        try:
+            cfg = getattr(self.model, "config", None)
+            if cfg is not None:
+                id2label = getattr(cfg, "id2label", None)
+                if id2label:  # e.g., {0: 'background', 1: 'wall', ...}
+                    return len(id2label)
+                num_labels = getattr(cfg, "num_labels", None)
+                if num_labels is not None:
+                    return int(num_labels)
+        except Exception:
+            pass
+
+        # Last resort: probe the head once
+        try:
+            with torch.no_grad():
+                # Use the processor to build a valid dummy batch of the right size
+                H, W = 512, 512
+                try:
+                    # If your processor encodes a specific expected size, honor it
+                    size = getattr(self.transform, "size", None)
+                    if isinstance(size, dict) and "height" in size and "width" in size:
+                        H, W = size["height"], size["width"]
+                    elif isinstance(size, (tuple, list)) and len(size) == 2:
+                        H, W = size
+                except Exception:
+                    pass
+
+                dummy = torch.zeros(1, 3, H, W, device=self.device)
+                out = self.model(pixel_values=dummy).logits
+                return int(out.shape[1])
+        except Exception:
+            raise Exception("SemanticSegmentationSegformer: Failed to get number of classes")
 
     @torch.no_grad()
     def infer(self, image):

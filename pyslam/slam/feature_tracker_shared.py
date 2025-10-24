@@ -177,7 +177,14 @@ class FeatureTrackerShared:
             # Ensure the descriptor array is properly formatted for pybind11
             if des is not None and len(des) > 0:
                 # Make sure it's contiguous, uint8, and has the right shape
-                des = np.ascontiguousarray(des, dtype=np.uint8)
+                if des.dtype == np.float32:
+                    des = np.ascontiguousarray(
+                        des, dtype=np.float32
+                    )  # Preserve float32 for ROOT_SIFT
+                else:
+                    des = np.ascontiguousarray(
+                        des, dtype=np.uint8
+                    )  # Keep uint8 for binary descriptors
                 # Ensure it's 2D (N x descriptor_size)
                 if des.ndim == 1:
                     des = des.reshape(1, -1)
@@ -189,8 +196,14 @@ class FeatureTrackerShared:
             kps, des = FeatureTrackerShared.feature_tracker_right.detectAndCompute(image)
             # Ensure the descriptor array is properly formatted for pybind11
             if des is not None and len(des) > 0:
-                # Make sure it's contiguous, uint8, and has the right shape
-                des = np.ascontiguousarray(des, dtype=np.uint8)
+                if des.dtype == np.float32:
+                    des = np.ascontiguousarray(
+                        des, dtype=np.float32
+                    )  # Preserve float32 for ROOT_SIFT
+                else:
+                    des = np.ascontiguousarray(
+                        des, dtype=np.uint8
+                    )  # Keep uint8 for binary descriptors
                 # Ensure it's 2D (N x descriptor_size)
                 if des.ndim == 1:
                     des = des.reshape(1, -1)

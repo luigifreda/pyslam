@@ -34,7 +34,12 @@ class Parameters {
     static constexpr double kThHuberStereo = 2.796; // sqrt(kChi2Stereo)
 
     static constexpr int kSparseImageColorPatchDelta = 1; // centre +- delta
-    static constexpr double kMinDepth = 1e-2;
+    static constexpr std::size_t kMinWeightForDrawingCovisibilityEdge = 100;
+    static constexpr std::size_t kMaxSparseMapPointsToVisualize =
+        1000000; // Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth
+                 // and GL load
+
+    static constexpr double kMinDepth = 1e-2; // [meters] Minimum depth for a map point
 
     // Threshold constant (equivalent to Parameters.kMinNumOfCovisiblePointsForCreatingConnection =
     // 15)
@@ -42,7 +47,8 @@ class Parameters {
 
     static constexpr int kLargeBAWindowSize = 20;
     static constexpr std::size_t kMaxLenFrameDeque = 20;
-    static constexpr int kMaxNumOfKeyframesInLocalMap = 20;
+    static constexpr int kMaxNumOfKeyframesInLocalMap = 80;
+    static constexpr int kNumBestCovisibilityKeyFrames = 10;
 
     static constexpr double kMaxOutliersRatioInPoseOptimization = 0.9;
 
@@ -55,13 +61,18 @@ class Parameters {
     static constexpr double kMinDistanceToleranceFactor = 0.8;
 
     // Tracking: Constants
-    static constexpr double kRansacThresholdNormalized = 0.0004;
+    static constexpr double kRansacThresholdNormalized =
+        0.0004; // 0.0003 // metric threshold used for normalized image coordinates
     static constexpr double kRansacProb = 0.999;
     static constexpr int kNumMinInliersEssentialMat = 8;
-    static constexpr int kNumMinInliersPoseOptimizationTrackFrame = 10;
-    static constexpr int kNumMinInliersPoseOptimizationTrackLocalMap = 20;
-    static constexpr int kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 50;
-    static constexpr int kNumMinObsForKeyFrameDefault = 3;
+    // static constexpr int kNumMinInliersPoseOptimizationTrackFrame = 10;
+    // static constexpr int kNumMinInliersPoseOptimizationTrackLocalMap = 20;
+    // static constexpr int kNumMinInliersTrackLocalMapForNotWaitingLocalMappingIdle = 50;
+    // static constexpr int kNumMinObsForKeyFrameDefault = 3;
+    static constexpr int kNumMinObsForKeyFrameTrackedPoints = 3;
+
+    static constexpr double kRansacReprojThreshold = 5;
+    static constexpr int kRansacMinNumInliers = 15;
 
     // Stereo Matching: Show matched points
     static constexpr bool kStereoMatchingShowMatchedPoints = false;
@@ -103,6 +114,19 @@ class Parameters {
 
     // Loop closing
     static constexpr float kLoopClosingMaxReprojectionDistanceFuse = 4.0f; // [pixels]    o:4
+
+    // Local mapping
+    static constexpr float kKeyframeCullingRedundantObsRatio = 0.9f;
+    static constexpr float kKeyframeMaxTimeDistanceInSecForCulling = 0.5f;
+    static constexpr int kKeyframeCullingMinNumPoints = 0;
+
+    static constexpr int kLocalMappingParallelFusePointsNumWorkers = 2;
+
+    static constexpr int kLocalMappingNumNeighborKeyFramesStereo =
+        10; //  [# frames]   for generating new points and fusing them under stereo or RGBD
+
+    static constexpr int kLocalMappingNumNeighborKeyFramesMonocular =
+        20; //  [# frames]   for generating new points and fusing them under monocular
 };
 
 } // namespace pyslam

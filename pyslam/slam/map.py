@@ -46,6 +46,13 @@ from . import optimizer_gtsam
 
 import pyslam_utils
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from pyslam.viz.viewer3D import Viewer3DMapInput
+
+
 kVerbose = True
 kMaxLenFrameDeque = 20
 
@@ -63,6 +70,25 @@ class ReloadedSessionMapInfo:
         self.max_point_id = max_point_id
         self.max_frame_id = max_frame_id
         self.max_keyframe_id = max_keyframe_id
+
+
+class MapStateData:
+    """
+    Data class for the map state data.
+    It is used to store the map state in the form of a set of data arrays for the viewer.
+    """
+
+    def __init__(self):
+        self.poses = []
+        self.pose_timestamps = []
+        self.fov_centers = []
+        self.fov_centers_colors = []
+        self.points = []
+        self.colors = []
+        self.semantic_colors = []
+        self.covisibility_graph = []
+        self.spanning_tree = []
+        self.loops = []
 
 
 class Map(object):
@@ -299,11 +325,115 @@ class Map(object):
             except:
                 pass
 
-    def draw_feature_trails(self, img):
+    def draw_feature_trails(self, img: np.ndarray, with_level_radius: bool = False):
         if len(self.frames) > 0:
-            img_draw = self.frames[-1].draw_all_feature_trails(img)
+            img_draw = self.frames[-1].draw_all_feature_trails(img, with_level_radius)
             return img_draw
         return img
+
+    def get_data_arrays_for_drawing(
+        self,
+        max_points_to_visualize=Parameters.kMaxSparseMapPointsToVisualize,
+        min_weight_for_drawing_covisibility_edge=Parameters.kMinWeightForDrawingCovisibilityEdge,
+    ):
+        """
+        Returns:
+            - map_state: filled map state with arrays of
+                * poses, poses timestamps,
+                * fov centers, fov centers colors,
+                * points, colors,
+                * semantic colors
+                * covisibility graph, spanning tree, loops
+        """
+        from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
+
+        map_state = MapStateData()
+
+        keyframes = self.get_keyframes()
+        num_map_keyframes = len(keyframes)
+        if num_map_keyframes > 0:
+            # Twc() and timestamp collection
+            map_state.poses = np.array([kf.Twc() for kf in keyframes], dtype=float)
+            map_state.pose_timestamps = np.array(
+                [kf.timestamp for kf in keyframes], dtype=np.float64
+            )
+
+            # Only gather fov centers that exist
+            fov_centers = [kf.fov_center_w.T for kf in keyframes if kf.fov_center_w is not None]
+            if fov_centers:
+                map_state.fov_centers = np.asarray(fov_centers, dtype=float).reshape(-1, 3)
+                map_state.fov_centers_colors = np.tile(
+                    np.array([1.0, 0.0, 0.0], dtype=float), (len(fov_centers), 1)
+                )
+
+        # map points
+        map_points = list(self.get_points())
+        num_map_points = len(map_points)
+        if num_map_points > 0:
+            # Downsampling for very large clouds to reduce queue bandwidth and GL load
+            if num_map_points > max_points_to_visualize:
+                Printer.orange(
+                    f"Viewer3D: draw_slam_map - downsampling map points from {num_map_points} to {max_points_to_visualize}"
+                )
+                idx = np.random.choice(num_map_points, max_points_to_visualize, replace=False)
+                sel_points = [map_points[i] for i in idx]
+            else:
+                sel_points = map_points
+
+            N = len(sel_points)
+            pts = np.empty((N, 3), dtype=np.float32)
+            cols_rgb = np.empty((N, 3), dtype=np.float32)
+            sem_colors = np.zeros((N, 3), dtype=np.float32)
+
+            is_semantic_mapping_active = SemanticMappingShared.sem_des_to_rgb is not None
+            try:
+                if is_semantic_mapping_active:
+                    for i, p in enumerate(sel_points):
+                        pts[i] = p.pt()
+                        cols_rgb[i] = p.color
+                        if p.semantic_des is not None:
+                            sem_colors[i] = SemanticMappingShared.sem_des_to_rgb(
+                                p.semantic_des, bgr=False
+                            )
+                else:
+                    for i, p in enumerate(sel_points):
+                        pts[i] = p.pt()
+                        cols_rgb[i] = p.color
+            except Exception as e:
+                Printer.red(f"Viewer3D: draw_slam_map - error: {e}")
+
+            map_state.points = pts
+            map_state.colors = cols_rgb[:, ::-1] / 255.0  # BGR -> RGB and normalize
+            map_state.semantic_colors = (
+                sem_colors / 255.0 if is_semantic_mapping_active else sem_colors
+            )
+
+        # graphs
+        if keyframes:
+            cov_lines = []
+            span_lines = []
+            loop_lines = []
+            for kf in keyframes:
+                Ow = kf.Ow()
+                for kf_cov in kf.get_covisible_by_weight(min_weight_for_drawing_covisibility_edge):
+                    if kf_cov.kid > kf.kid:
+                        cov_lines.append([*Ow, *kf_cov.Ow()])
+                if kf.parent is not None:
+                    span_lines.append([*Ow, *kf.parent.Ow()])
+                for kf_loop in kf.get_loop_edges():
+                    if kf_loop.kid > kf.kid:
+                        loop_lines.append([*Ow, *kf_loop.Ow()])
+            map_state.covisibility_graph = (
+                np.asarray(cov_lines, dtype=float) if cov_lines else np.empty((0, 6), dtype=float)
+            )
+            map_state.spanning_tree = (
+                np.asarray(span_lines, dtype=float) if span_lines else np.empty((0, 6), dtype=float)
+            )
+            map_state.loops = (
+                np.asarray(loop_lines, dtype=float) if loop_lines else np.empty((0, 6), dtype=float)
+            )
+
+        return map_state
 
     # add new points to the map from 3D point estimations, frames and pairwise matches
     # points3d is [Nx3]
@@ -647,7 +777,10 @@ class Map(object):
     # remove points which have a big reprojection error
     def remove_points_with_big_reproj_err(self, points):
         inv_level_sigmas2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2
-        # with self._lock:
+
+        if points is None:
+            with self._lock:
+                points = list(self.get_points())
         with self.update_lock:
             # print('map points: ', sorted([p.id for p in self.points]))
             # print('points: ', sorted([p.id for p in points]))
@@ -992,6 +1125,9 @@ class LocalMapBase(object):
             viewing_keyframes.update(second_neighbors)
             children = kf.get_children()
             viewing_keyframes.update(children)
+            parent = kf.get_parent()
+            if parent:
+                viewing_keyframes.update([parent])
             if len(viewing_keyframes) >= Parameters.kMaxNumOfKeyframesInLocalMap:
                 break
 

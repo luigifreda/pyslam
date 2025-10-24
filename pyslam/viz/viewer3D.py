@@ -34,7 +34,7 @@ import numpy as np
 
 # import open3d as o3d # apparently, this generates issues under mac
 
-from pyslam.slam import Map
+from pyslam.slam import Map, MapStateData
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 from pyslam.utilities.geometry import poseRt, inv_poseRt, inv_T
@@ -47,9 +47,9 @@ from pyslam.utilities.colors import GlColors
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pyslam.slam.slam import (
-        Slam,
-    )  # Only imported when type checking, not at runtime
+    # Only imported when type checking, not at runtime
+    from pyslam.slam.slam import Slam
+    from pyslam.slam.map import Map, MapStateData
 
 
 kUiWidth = 190
@@ -62,7 +62,9 @@ kViewportHeight = 550
 
 kDrawReferenceCamera = True
 
-kMinWeightForDrawingCovisibilityEdge = 100
+kMinWeightForDrawingCovisibilityEdge = Parameters.kMinWeightForDrawingCovisibilityEdge
+kMaxSparseMapPointsToVisualize = Parameters.kMaxSparseMapPointsToVisualize
+
 
 kAlignGroundTruthNumMinKeyframes = 10  # minimum number of keyframes to start aligning
 kAlignGroundTruthMaxEveryNKeyframes = 10  # maximum number of keyframes between alignments
@@ -71,8 +73,6 @@ kAlignGroundTruthMaxEveryNFrames = 20  # maximum number of frames between alignm
 kAlignGroundTruthMaxEveryTimeInterval = 3  # [s] maximum time interval between alignments
 
 kRefreshDurationTime = 0.03  # [s]
-
-kMaxMapPointsToVisualize = 1e6  # Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth and GL load
 
 
 class VizPointCloud:
@@ -140,19 +140,19 @@ class Viewer3DMapInput:
         self.cur_pose_timestamp = None
         self.predicted_pose = None
         self.reference_pose = None
-        self.poses = []
-        self.pose_timestamps = []
-        self.points = []
-        self.colors = []
-        self.semantic_colors = []
-        self.fov_centers = []
-        self.fov_centers_colors = []
-        self.covisibility_graph = []
-        self.spanning_tree = []
-        self.loops = []
+        self.map_data: "MapStateData" | None = (
+            None  # map state data in the form of a set of data arrays for the viewer
+        )
         self.gt_trajectory = None
         self.gt_timestamps = None
         self.align_gt_with_scale = False
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
 
 class Viewer3DDenseInput:
@@ -228,6 +228,7 @@ class Viewer3D(object):
         self._is_bundle_adjust = mp.Value("i", 0)
         self._do_step = mp.Value("i", 0)
         self._do_reset = mp.Value("i", 0)
+        self._is_draw_features_with_radius = mp.Value("i", 0)
 
         self._is_gt_set = mp.Value("i", 0)
         self.alignment_gt_data_queue = self.mp_manager.Queue()
@@ -250,6 +251,7 @@ class Viewer3D(object):
                 self._is_bundle_adjust,
                 self._do_step,
                 self._do_reset,
+                self._is_draw_features_with_radius,
                 self._is_gt_set,
                 self.alignment_gt_data_queue,
                 self.aligner_input_queue,
@@ -329,6 +331,9 @@ class Viewer3D(object):
             self._do_reset.value = 0
         return do_reset
 
+    def is_draw_features_with_radius(self):
+        return self._is_draw_features_with_radius.value == 1
+
     def viewer_run(
         self,
         qmap,
@@ -342,6 +347,7 @@ class Viewer3D(object):
         is_bundle_adjust,
         do_step,
         do_reset,
+        is_draw_features_with_radius,
         is_gt_set,
         alignment_gt_data_queue,
         aligner_input_queue,
@@ -375,6 +381,7 @@ class Viewer3D(object):
                 is_bundle_adjust,
                 do_step,
                 do_reset,
+                is_draw_features_with_radius,
                 is_gt_set,
                 aligner_input_queue,
                 aligner_output_queue,
@@ -421,15 +428,16 @@ class Viewer3D(object):
         self.panel.SetBounds(0.0, 1.0, 0.0, kUiWidth / w)
 
         self.do_follow = True
+        self.is_grid = True
         self.is_following = True
 
-        self.draw_cameras = True
-        self.draw_covisibility = True
-        self.draw_spanning_tree = True
-        self.draw_loops = True
-        self.draw_dense = True
-        self.draw_sparse = True
-        self.color_semantics = False
+        self.is_draw_cameras = True
+        self.is_draw_covisibility = True
+        self.is_draw_spanning_tree = True
+        self.is_draw_loops = True
+        self.is_draw_dense = True
+        self.is_draw_sparse = True
+        self.is_draw_color_semantics = False
 
         self.draw_wireframe = False
 
@@ -456,7 +464,11 @@ class Viewer3D(object):
             "ui.Color Semantics", value=False, toggle=True
         )
         self.checkboxGrid = pangolin.VarBool("ui.Grid", value=True, toggle=True)
+        self.checkboxDrawFeaturesWithRadius = pangolin.VarBool(
+            "ui.Features Radius", value=False, toggle=True
+        )
         self.checkboxPause = pangolin.VarBool("ui.Pause", value=False, toggle=True)
+
         self.buttonSave = pangolin.VarBool("ui.Save", value=False, toggle=False)
         self.buttonStep = pangolin.VarBool("ui.Step", value=False, toggle=False)
         self.buttonReset = pangolin.VarBool("ui.Reset", value=False, toggle=False)
@@ -494,6 +506,7 @@ class Viewer3D(object):
         is_bundle_adjust,
         do_step,
         do_reset,
+        is_draw_features_with_radius,
         is_gt_set,
         aligner_input_queue,
         aligner_output_queue,
@@ -534,18 +547,21 @@ class Viewer3D(object):
 
         self.do_follow = self.checkboxFollow.Get()
         self.is_grid = self.checkboxGrid.Get()
-        self.draw_cameras = self.checkboxCams.Get()
-        self.draw_covisibility = self.checkboxCovisibility.Get()
-        self.draw_spanning_tree = self.checkboxSpanningTree.Get()
-        self.draw_loops = self.checkboxLoops.Get()
+
+        is_draw_features_with_radius.value = self.checkboxDrawFeaturesWithRadius.Get()
+
+        self.is_draw_cameras = self.checkboxCams.Get()
+        self.is_draw_covisibility = self.checkboxCovisibility.Get()
+        self.is_draw_spanning_tree = self.checkboxSpanningTree.Get()
+        self.is_draw_loops = self.checkboxLoops.Get()
         self.draw_gt = self.checkboxGT.Get()
         self.draw_gt_associations = self.checkboxGTassociations.Get()
         self.draw_predicted = self.checkboxPredicted.Get()
         self.draw_fov_centers = self.checkboxFovCenters.Get()
         self.draw_wireframe = self.checkboxWireframe.Get()
-        self.draw_dense = self.checkboxDrawDenseCloud.Get()
-        self.draw_sparse = self.checkboxDrawSparseCloud.Get()
-        self.color_semantics = self.checkboxColorSemantics.Get()
+        self.is_draw_dense = self.checkboxDrawDenseCloud.Get()
+        self.is_draw_sparse = self.checkboxDrawSparseCloud.Get()
+        self.is_draw_color_semantics = self.checkboxColorSemantics.Get()
 
         # if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
@@ -602,6 +618,7 @@ class Viewer3D(object):
         # ==============================
         # draw map
         if self.map_state is not None:
+            map_data = self.map_state.map_data
 
             if not is_gt_set.value and self.map_state.gt_trajectory is not None:
                 self.thread_gt_trajectory = np.array(self.map_state.gt_trajectory)
@@ -623,22 +640,22 @@ class Viewer3D(object):
                 gl.glColor3f(1.0, 0.0, 0.0)
                 glutils.DrawCamera(self.map_state.predicted_pose, self.scale)
 
-            if self.draw_fov_centers and len(self.map_state.fov_centers) > 0:
+            if self.draw_fov_centers and len(map_data.fov_centers) > 0:
                 # draw keypoints with their color
                 gl.glPointSize(5)
                 # gl.glColor3f(1.0, 0.0, 0.0)
-                glutils.DrawPoints(self.map_state.fov_centers, self.map_state.fov_centers_colors)
+                glutils.DrawPoints(map_data.fov_centers, map_data.fov_centers_colors)
 
             if self.thread_gt_timestamps is not None:
                 if self.draw_gt:
                     # align the gt to the estimated trajectory every 'kAlignGroundTruthMaxEveryNKeyframes' frames;
                     # the more estimated frames we have the better the alignment!
-                    num_kfs = len(self.map_state.poses)
+                    num_kfs = len(map_data.poses)
                     condition1 = (
                         time.time() - self.thread_last_time_gt_was_aligned
                     ) > kAlignGroundTruthMaxEveryTimeInterval
                     condition2 = (
-                        len(self.map_state.poses)
+                        len(map_data.poses)
                         > kAlignGroundTruthMaxEveryNKeyframes
                         + self.thread_last_num_poses_gt_was_aligned
                     )
@@ -665,11 +682,11 @@ class Viewer3D(object):
                             )
 
                             self.thread_last_time_gt_was_aligned = time.time()
-                            self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)
+                            self.thread_last_num_poses_gt_was_aligned = len(map_data.poses)
                             self.thread_last_frame_id_gt_was_aligned = self.map_state.cur_frame_id
 
                             estimated_trajectory = np.array(
-                                [pose[0:3, 3] for i, pose in enumerate(self.map_state.poses)],
+                                [pose[0:3, 3] for i, pose in enumerate(map_data.poses)],
                                 dtype=float,
                             )
 
@@ -679,7 +696,7 @@ class Viewer3D(object):
                             #                                                           compute_align_error=True, find_scale=self.thread_align_gt_with_scale)
 
                             self.aligner_input_queue.put(
-                                (self.map_state.pose_timestamps, estimated_trajectory)
+                                (map_data.pose_timestamps, estimated_trajectory)
                             )
 
                             if not self.aligner_output_queue.empty():
@@ -737,21 +754,21 @@ class Viewer3D(object):
                                 )
                                 gl.glLineWidth(1)
 
-            if len(self.map_state.poses) > 1:
+            if len(map_data.poses) > 1:
                 # draw keyframe poses in green
-                if self.draw_cameras:
+                if self.is_draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
-                    glutils.DrawCameras(self.map_state.poses, self.scale)
+                    glutils.DrawCameras(map_data.poses, self.scale)
 
-            if self.draw_sparse and len(self.map_state.points) > 0:
+            if self.is_draw_sparse and len(map_data.points) > 0:
                 # draw keypoints with their color
                 gl.glPointSize(self.sparsePointSize)
                 # gl.glColor3f(1.0, 0.0, 0.0)
-                if self.color_semantics:
-                    colors = self.map_state.semantic_colors
+                if self.is_draw_color_semantics:
+                    colors = map_data.semantic_colors
                 else:
-                    colors = self.map_state.colors
-                glutils.DrawPoints(self.map_state.points, colors)
+                    colors = map_data.colors
+                glutils.DrawPoints(map_data.points, colors)
 
             if self.map_state.reference_pose is not None and kDrawReferenceCamera:
                 # draw predicted pose in purple
@@ -760,29 +777,29 @@ class Viewer3D(object):
                 glutils.DrawCamera(self.map_state.reference_pose, self.scale)
                 gl.glLineWidth(1)
 
-            if len(self.map_state.covisibility_graph) > 0:
-                if self.draw_covisibility:
+            if len(map_data.covisibility_graph) > 0:
+                if self.is_draw_covisibility:
                     gl.glLineWidth(1)
                     gl.glColor3f(0.0, 1.0, 0.0)
-                    glutils.DrawLines(self.map_state.covisibility_graph, 3)
+                    glutils.DrawLines(map_data.covisibility_graph, 3)
 
-            if len(self.map_state.spanning_tree) > 0:
-                if self.draw_spanning_tree:
+            if len(map_data.spanning_tree) > 0:
+                if self.is_draw_spanning_tree:
                     gl.glLineWidth(1)
                     gl.glColor3f(0.0, 0.0, 1.0)
-                    glutils.DrawLines(self.map_state.spanning_tree, 3)
+                    glutils.DrawLines(map_data.spanning_tree, 3)
 
-            if len(self.map_state.loops) > 0:
-                if self.draw_loops:
+            if len(map_data.loops) > 0:
+                if self.is_draw_loops:
                     gl.glLineWidth(2)
                     gl.glColor3f(0.5, 0.0, 0.5)
-                    glutils.DrawLines(self.map_state.loops, 3)
+                    glutils.DrawLines(map_data.loops, 3)
                     gl.glLineWidth(1)
 
         # ==============================
         # draw dense stuff
         if self.dense_state is not None:
-            if self.draw_dense:
+            if self.is_draw_dense:
                 if self.dense_state.mesh is not None:
                     vertices = self.dense_state.mesh[0]
                     triangles = self.dense_state.mesh[1]
@@ -802,7 +819,7 @@ class Viewer3D(object):
         if self.vo_state is not None:
             if self.vo_state.poses.shape[0] >= 2:
                 # draw poses in green
-                if self.draw_cameras:
+                if self.is_draw_cameras:
                     gl.glColor3f(0.0, 1.0, 0.0)
                     glutils.DrawCameras(self.vo_state.poses, self.scale)
 
@@ -860,116 +877,41 @@ class Viewer3D(object):
 
     # draw sparse map
     def draw_slam_map(self, slam: "Slam"):
+
         if self.qmap is None:
             return
-        map = slam.map  # type: Map
-        map_state = Viewer3DMapInput()
+        map: Map = slam.map
+        viewer_map_state = Viewer3DMapInput()
 
-        map_state.cur_frame_id = slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
+        viewer_map_state.cur_frame_id = (
+            slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
+        )
 
         if map.num_frames() > 0:
             last_f = map.get_frame(-1)
-            map_state.cur_pose = last_f.Twc().copy()
-            map_state.cur_pose_timestamp = last_f.timestamp
+            viewer_map_state.cur_pose = last_f.Twc().copy()
+            viewer_map_state.cur_pose_timestamp = last_f.timestamp
 
         if slam.tracking.predicted_pose is not None:
-            map_state.predicted_pose = slam.tracking.predicted_pose.inverse().matrix().copy()
+            viewer_map_state.predicted_pose = slam.tracking.predicted_pose.inverse().matrix().copy()
 
         if False:
             if slam.tracking.kf_ref is not None:
-                map_state.reference_pose = slam.tracking.kf_ref.Twc()
+                viewer_map_state.reference_pose = slam.tracking.kf_ref.Twc()
 
-        keyframes = map.get_keyframes()
-        num_map_keyframes = len(keyframes)
-        if num_map_keyframes > 0:
-            # Twc() and timestamp collection
-            map_state.poses = np.array([kf.Twc() for kf in keyframes], dtype=float)
-            map_state.pose_timestamps = np.array(
-                [kf.timestamp for kf in keyframes], dtype=np.float64
-            )
-
-            # Only gather fov centers that exist
-            fov_centers = [kf.fov_center_w.T for kf in keyframes if kf.fov_center_w is not None]
-            if fov_centers:
-                map_state.fov_centers = np.asarray(fov_centers, dtype=float).reshape(-1, 3)
-                map_state.fov_centers_colors = np.tile(
-                    np.array([1.0, 0.0, 0.0], dtype=float), (len(fov_centers), 1)
-                )
-
-        # map points
-        map_points = map.get_points()
-        num_map_points = len(map_points)
-        if num_map_points > 0:
-            # Downsampling for very large clouds to reduce queue bandwidth and GL load
-            if num_map_points > kMaxMapPointsToVisualize:
-                Printer.orange(
-                    f"Viewer3D: draw_slam_map - downsampling map points from {num_map_points} to {kMaxMapPointsToVisualize}"
-                )
-                idx = np.random.choice(num_map_points, kMaxMapPointsToVisualize, replace=False)
-                sel_points = [map_points[i] for i in idx]
-            else:
-                sel_points = map_points
-
-            N = len(sel_points)
-            pts = np.empty((N, 3), dtype=np.float32)
-            cols_rgb = np.empty((N, 3), dtype=np.float32)
-            sem_colors = np.zeros((N, 3), dtype=np.float32)
-
-            is_semantic_mapping_active = SemanticMappingShared.sem_des_to_rgb is not None
-            try:
-                if is_semantic_mapping_active:
-                    for i, p in enumerate(sel_points):
-                        pts[i] = p.pt()
-                        cols_rgb[i] = p.color
-                        if p.semantic_des is not None:
-                            sem_colors[i] = SemanticMappingShared.sem_des_to_rgb(
-                                p.semantic_des, bgr=False
-                            )
-                else:
-                    for i, p in enumerate(sel_points):
-                        pts[i] = p.pt()
-                        cols_rgb[i] = p.color
-            except Exception as e:
-                Printer.red(f"Viewer3D: draw_slam_map - error: {e}")
-
-            map_state.points = pts
-            map_state.colors = cols_rgb[:, ::-1] / 255.0  # BGR -> RGB and normalize
-            map_state.semantic_colors = (
-                sem_colors / 255.0 if is_semantic_mapping_active else sem_colors
-            )
-
-        # graphs
-        if keyframes:
-            cov_lines = []
-            span_lines = []
-            loop_lines = []
-            for kf in keyframes:
-                Ow = kf.Ow()
-                for kf_cov in kf.get_covisible_by_weight(kMinWeightForDrawingCovisibilityEdge):
-                    if kf_cov.kid > kf.kid:
-                        cov_lines.append([*Ow, *kf_cov.Ow()])
-                if kf.parent is not None:
-                    span_lines.append([*Ow, *kf.parent.Ow()])
-                for kf_loop in kf.get_loop_edges():
-                    if kf_loop.kid > kf.kid:
-                        loop_lines.append([*Ow, *kf_loop.Ow()])
-            map_state.covisibility_graph = (
-                np.asarray(cov_lines, dtype=float) if cov_lines else np.empty((0, 6), dtype=float)
-            )
-            map_state.spanning_tree = (
-                np.asarray(span_lines, dtype=float) if span_lines else np.empty((0, 6), dtype=float)
-            )
-            map_state.loops = (
-                np.asarray(loop_lines, dtype=float) if loop_lines else np.empty((0, 6), dtype=float)
-            )
+        # get the map state data in the form of a set of data arrays for the viewer
+        viewer_map_state.map_data = slam.map.get_data_arrays_for_drawing(
+            max_points_to_visualize=int(kMaxSparseMapPointsToVisualize),
+            min_weight_for_drawing_covisibility_edge=int(kMinWeightForDrawingCovisibilityEdge),
+        )
 
         # Ground truth one-shot set
         if self.gt_trajectory is not None and not self._is_gt_set.value:
-            map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
-            map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
-            map_state.align_gt_with_scale = self.align_gt_with_scale
+            viewer_map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
+            viewer_map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
+            viewer_map_state.align_gt_with_scale = self.align_gt_with_scale
 
-        self.qmap.put(map_state)
+        self.qmap.put(viewer_map_state)
 
     def draw_dense_map(self, slam: "Slam"):
         if self.qdense is None:

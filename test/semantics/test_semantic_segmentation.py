@@ -71,6 +71,9 @@ if __name__ == "__main__":
         device=device,
     )
     Printer.green(f"semantic_segmentation_type: {semantic_segmentation_type.name}")
+    Printer.green(f"semantic_feature_type: {semantic_feature_type.name}")
+    Printer.green(f"semantic_dataset_type: {semantic_dataset_type.name}")
+    Printer.green(f"num classes: {semantic_segmentation.get_num_classes()}")
 
     semantics_color_map = None
     if semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY:

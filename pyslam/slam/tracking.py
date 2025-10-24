@@ -37,12 +37,13 @@ from .frame import match_frames
 from .feature_tracker_shared import FeatureTrackerShared
 
 from pyslam.slam import (
+    USE_CPP,
     Frame,
     MapPoint,
     KeyFrame,
     Map,
     optimizer_g2o,
-    TrackingUtils,
+    TrackingCore,
     RotationHistogram,
     ProjectionMatcher,
 )
@@ -58,7 +59,7 @@ from pyslam.io.dataset_types import SensorType
 from pyslam.utilities.system import Printer, Logging
 from pyslam.utilities.drawing import draw_feature_matches
 from pyslam.utilities.geometry import poseRt, inv_T
-from pyslam.utilities.geom_2views import estimate_pose_ess_mat
+
 from pyslam.utilities.features import ImageGrid
 from pyslam.utilities.timer import TimerFps
 from pyslam.utilities.img_processing import detect_blur_laplacian
@@ -75,9 +76,9 @@ if TYPE_CHECKING:
     from .map import Map
     from .optimizer_g2o import optimizer_g2o
     from .optimizer_gtsam import optimizer_gtsam
-    from .tracking_utils import TrackingUtils
+    from .tracking_core import TrackingCore
     from .rotation_histogram import RotationHistogram
-    from .slam import ProjectionMatcher
+    from .geometry_matchers import ProjectionMatcher, EpipolarMatcher
 
 
 kVerbose = True
@@ -93,12 +94,6 @@ kShowFeatureMatchesLocalMap = True
 kLogKFinfoToFile = True
 
 kUseDynamicDesDistanceTh = Parameters.kUseDynamicDesDistanceTh
-
-kRansacThresholdNormalized = (
-    0.0004  # 0.0003 # metric threshold used for normalized image coordinates
-)
-kRansacProb = 0.999
-kNumMinInliersEssentialMat = 8
 
 kUseGroundTruthScale = False
 
@@ -199,8 +194,6 @@ class Tracking:
 
         self.last_reloc_frame_id = -float("inf")
 
-        self.mask_match = None
-
         self.pose_is_ok = False
         self.mean_pose_opt_chi2_error = None
         self.predicted_pose = None
@@ -295,8 +288,6 @@ class Tracking:
         self.last_num_static_stereo_map_points = None
         self.total_num_static_stereo_map_points = 0
 
-        self.mask_match = None
-
         self.pose_is_ok = False
         self.mean_pose_opt_chi2_error = None
         self.predicted_pose = None
@@ -328,106 +319,6 @@ class Tracking:
         self.cur_R = None  # current rotation w.r.t. world frame
         self.cur_t = None  # current translation w.r.t. world frame
         self.gt_x, self.gt_y, self.gt_z = None, None, None
-
-    # estimate a pose from a fitted essential mat;
-    # since we do not have an interframe translation scale, this fitting can be used to detect outliers, estimate interframe orientation and translation direction
-    # N.B. read the NBs of the method estimate_pose_ess_mat(), where the limitations of this method are explained
-    def estimate_pose_by_fitting_ess_mat(self, f_ref, f_cur, idxs_ref, idxs_cur):
-        if len(idxs_ref) == 0 or len(idxs_cur) == 0:
-            Printer.red("idxs_ref or idxs_cur is empty")
-            self.mask_match = np.zeros(len(idxs_ref), dtype=bool)
-            self.num_inliers = 0
-            return idxs_ref, idxs_cur
-
-        # N.B.: in order to understand the limitations of fitting an essential mat, read the comments of the method self.estimate_pose_ess_mat()
-        self.timer_pose_est.start()
-        ransac_method = None
-        try:
-            ransac_method = cv2.USAC_MAGSAC
-        except:
-            ransac_method = cv2.RANSAC
-        try:
-            # estimate inter frame camera motion by using found keypoint matches
-            # output of the following function is:  Trc = [Rrc, trc] with ||trc||=1  where c=cur, r=ref  and  pr = Trc * pc
-            Mrc, self.mask_match = estimate_pose_ess_mat(
-                f_ref.kpsn[idxs_ref],
-                f_cur.kpsn[idxs_cur],
-                method=ransac_method,
-                prob=kRansacProb,
-                threshold=kRansacThresholdNormalized,
-            )
-        except Exception as e:
-            Printer.red(f"Error in estimate_pose_ess_mat: {e}")
-            return idxs_ref, idxs_cur
-
-        # Mcr = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))
-        Mcr = inv_T(Mrc)
-        estimated_Tcw = np.dot(Mcr, f_ref.pose())
-        self.timer_pose_est.refresh()
-
-        # remove outliers from keypoint matches by using the mask computed with inter frame pose estimation
-        mask_idxs = self.mask_match.ravel() == 1
-        self.num_inliers = sum(mask_idxs)
-        print("# inliers: ", self.num_inliers)
-        idxs_ref = idxs_ref[mask_idxs]
-        idxs_cur = idxs_cur[mask_idxs]
-
-        # if there are not enough inliers do not use the estimated pose
-        if self.num_inliers < kNumMinInliersEssentialMat:
-            # f_cur.update_pose(f_ref.pose) # reset estimated pose to previous frame
-            Printer.red("Essential mat: not enough inliers!")
-        else:
-            # use the estimated pose as an initial guess for the subsequent pose optimization
-            # set only the estimated rotation (essential mat computation does not provide a scale for the translation, see above)
-            # f_cur.pose[:3,:3] = estimated_Tcw[:3,:3] # copy only the rotation
-            # f_cur.pose[:,3] = f_ref.pose[:,3].copy() # override translation with ref frame translation
-            Rcw = estimated_Tcw[:3, :3]  # copy only the rotation
-            tcw = f_ref.pose()[:3, 3]  # override translation with ref frame translation
-            f_cur.update_rotation_and_translation(Rcw, tcw)
-        return idxs_ref, idxs_cur
-
-    # Use a general homography RANSAC matcher with a large threshold of 5 pixels to model the inter-frame transformation for a generic motion
-    # NOTE: this method is used to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
-    def find_homography_with_ransac(
-        self, f_cur, f_ref, idxs_cur, idxs_ref, reproj_threshold=5, min_num_inliers=15
-    ):
-        if len(idxs_cur) == 0 or len(idxs_cur) != len(idxs_ref):
-            Printer.red(
-                f"find_homography_with_ransac: idxs_cur is empty or len(idxs_cur) != len(idxs_ref)"
-            )
-            return False, np.array([], dtype=int), np.array([], dtype=int), 0, 0
-
-        ransac_method = None
-        try:
-            ransac_method = cv2.USAC_MAGSAC
-        except:
-            ransac_method = cv2.RANSAC
-        kps_cur = f_cur.kps[idxs_cur]
-        kps_ref = f_ref.kps[idxs_ref]
-        H, mask = cv2.findHomography(
-            kps_cur, kps_ref, ransac_method, ransacReprojThreshold=reproj_threshold
-        )
-
-        # Check if homography was found (mask is not None)
-        if mask is None:
-            return False, np.array([], dtype=int), np.array([], dtype=int), 0, 0
-
-        # Ensure mask is a numpy array and convert to boolean
-        mask = np.asarray(mask, dtype=bool).ravel()
-
-        num_inliers = np.count_nonzero(mask)
-        num_outliers = len(idxs_cur) - num_inliers
-        if num_inliers < min_num_inliers:
-            return False, np.array([], dtype=int), np.array([], dtype=int), 0, 0
-        else:
-            # Ensure idxs_cur and idxs_ref are numpy arrays for proper indexing
-            idxs_cur = np.asarray(idxs_cur)
-            idxs_ref = np.asarray(idxs_ref)
-
-            idxs_cur = idxs_cur[mask]
-            idxs_ref = idxs_ref[mask]
-            num_matched_kps = len(idxs_cur)
-            return True, idxs_cur, idxs_ref, num_matched_kps, num_outliers
 
     def pose_optimization(self, f_cur, name=""):
         print("pose opt %s " % (name))
@@ -511,7 +402,7 @@ class Tracking:
             ):
                 # use homography RANSAC to find inliers and estimate the inter-frame transformation (assuming frames are very close in space)
                 matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps, num_outliers = (
-                    self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
+                    TrackingCore.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
                 )
                 if matching_is_ok:
                     Printer.orange(
@@ -540,11 +431,11 @@ class Tracking:
                     "Not enough matches in search frame by projection: ", self.num_matched_kps
                 )
             else:
-                # search frame by projection was successful
-                if kUseDynamicDesDistanceTh:
-                    self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(
-                        f_ref, f_cur, idxs_ref, idxs_cur
-                    )
+                # # search frame by projection was successful => update descriptor distance sigma
+                # if kUseDynamicDesDistanceTh:
+                #     self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(
+                #         f_ref, f_cur, idxs_ref, idxs_cur
+                #     )
 
                 # store tracking info (for possible reuse)
                 self.idxs_ref = idxs_ref
@@ -571,6 +462,12 @@ class Tracking:
                     self.pose_is_ok = False
                     f_cur.update_pose(pose_before_pos_opt)
                     is_search_frame_by_projection_failure = True
+                else:
+                    # tracking was successful with enough inliers => update descriptor distance sigma
+                    if kUseDynamicDesDistanceTh:
+                        self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(
+                            f_ref, f_cur, idxs_ref, idxs_cur
+                        )
 
         if not use_search_frame_by_projection or is_search_frame_by_projection_failure:
             Printer.orange("using frame-frame matching")
@@ -593,9 +490,9 @@ class Tracking:
         # matching_result = match_frames(f_cur, f_ref) # original code that used all the reference keypoints
 
         # match only the reference keypoints in f_ref that correspond to map points and are not bad
-        idxs_ref_map_points = np.array(
-            [i for i, p in enumerate(f_ref.points) if p is not None and not p.is_bad()], dtype=int
-        )
+        idxs_ref_map_points = np.asarray(
+            f_ref.get_matched_good_points_idxs(), dtype=int
+        )  # numpy array conversion for c++
         des_ref = f_ref.des[idxs_ref_map_points]
         kps_ref = f_ref.kps[idxs_ref_map_points]
         des_cur = f_cur.des
@@ -657,7 +554,7 @@ class Tracking:
             < Parameters.kMotionBlurDetectionMaxNumMatchedKpsToEnablRansacHomography
         ):
             matching_is_ok, idxs_cur, idxs_ref, self.num_matched_kps, num_outliers = (
-                self.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
+                TrackingCore.find_homography_with_ransac(f_cur, f_ref, idxs_cur, idxs_ref)
             )
             if matching_is_ok:
                 Printer.orange(
@@ -674,10 +571,12 @@ class Tracking:
             return
 
         if Parameters.kUseEssentialMatrixFitting:
+            self.timer_pose_est.start()
             # estimate camera orientation and inlier matches by fitting and essential matrix (see the limitations above)
-            idxs_ref, idxs_cur = self.estimate_pose_by_fitting_ess_mat(
+            idxs_ref, idxs_cur, self.num_inliers = TrackingCore.estimate_pose_by_fitting_ess_mat(
                 f_ref, f_cur, idxs_ref, idxs_cur
             )
+            self.timer_pose_est.refresh()
             self.num_matched_kps = len(idxs_cur)
 
         if kUseDynamicDesDistanceTh:
@@ -692,7 +591,7 @@ class Tracking:
             else 0.5 * self.descriptor_distance_sigma
         )
         num_found_map_pts_inter_frame, idx_ref_prop, idx_cur_prop = (
-            TrackingUtils.propagate_map_point_matches(
+            TrackingCore.propagate_map_point_matches(
                 f_ref, f_cur, idxs_ref, idxs_cur, max_descriptor_distance=max_descriptor_distance
             )
         )
@@ -741,7 +640,7 @@ class Tracking:
 
     # track camera motion of f_cur w.r.t. given keyframe
     # estimate motion by matching keypoint descriptors
-    def track_keyframe(self, keyframe, f_cur, name="match-frame-keyframe"):
+    def track_keyframe(self, keyframe: Frame, f_cur: Frame, name="match-frame-keyframe"):
         f_cur.update_pose(self.f_ref.pose())  # start pose optimization from last frame pose
         self.track_reference_frame(keyframe, f_cur, name)
 
@@ -903,29 +802,25 @@ class Tracking:
         # Check how many "close" points are being tracked and how many could be potentially created.
         num_non_tracked_close = 0
         num_tracked_close = 0
-        # Create a mask for tracked points (not None and not an outlier)
-        points_mask = np.array([p is not None for p in f_cur.points])
-        outliers_mask = ~np.array(f_cur.outliers)
-        tracked_mask = points_mask & outliers_mask
+        tracked_mask = (
+            None  # if needed, create a mask for tracked points (not None and not an outlier)
+        )
+        is_need_to_insert_close = False
         if self.sensor_type != SensorType.MONOCULAR:
-            # Create a mask to identify valid depth values within the threshold
-            depth_mask = (f_cur.depths > kMinDepth) & (f_cur.depths < f_cur.camera.depth_threshold)
-            # Create a mask for tracked points (not None and not an outlier)
-            # tracked_mask = (f_cur.points != None) & (~f_cur.outliers)
-            # Count points that are close and tracked
-            num_tracked_close = np.sum(depth_mask & tracked_mask)
-            # Count points that are close but not tracked
-            num_non_tracked_close = np.sum(depth_mask & ~tracked_mask)
+            num_tracked_close, num_non_tracked_close, tracked_mask = (
+                TrackingCore.count_tracked_and_non_tracked_close_points(f_cur, self.sensor_type)
+            )
 
-        is_need_to_insert_close = (
-            num_tracked_close < Parameters.kNumMinTrackedClosePointsForNewKfNonMonocular
-        ) and (num_non_tracked_close > Parameters.kNumMaxNonTrackedClosePointsForNewKfNonMonocular)
+            is_need_to_insert_close = (
+                num_tracked_close < Parameters.kNumMinTrackedClosePointsForNewKfNonMonocular
+            ) and (
+                num_non_tracked_close > Parameters.kNumMaxNonTrackedClosePointsForNewKfNonMonocular
+            )
 
         #  Thresholds
         thRefRatio = Parameters.kThNewKfRefRatioStereo
         if num_keyframes < 2:
             thRefRatio = 0.4
-
         if self.sensor_type == SensorType.MONOCULAR:
             thRefRatio = Parameters.kThNewKfRefRatioMonocular
 
@@ -942,7 +837,7 @@ class Tracking:
             f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)
         ) and is_local_mapping_idle
 
-        # condition 1c: tracking is weak 1
+        # condition 1c: tracking is weak 1 with non-monocular sensors
         cond1c = (self.sensor_type != SensorType.MONOCULAR) and (
             num_f_cur_tracked_points
             < num_kf_ref_tracked_points * Parameters.kThNewKfRefRatioNonMonocular
@@ -954,6 +849,8 @@ class Tracking:
         cond1d = False
         if Parameters.kUseFeatureCoverageControlForNewKf:
             image_grid = ImageGrid(self.camera.width, self.camera.height, num_div_x=3, num_div_y=2)
+            if tracked_mask is None:
+                tracked_mask = f_cur.get_tracked_mask()
             image_grid.add_points(f_cur.kps[tracked_mask])
             num_uncovered_cells = image_grid.num_cells_uncovered(num_min_points=1)
             cond1d = num_uncovered_cells > 1
@@ -998,7 +895,7 @@ class Tracking:
             if is_local_mapping_idle:
                 return True
             else:
-                if Parameters.kUseInterruptLocalMapping:
+                if Parameters.kUseInterruptLocalMapping or USE_CPP:
                     self.local_mapping.interrupt_optimization()
                 if self.sensor_type == SensorType.MONOCULAR:
                     if local_mapping_queue_size <= 3:
@@ -1061,7 +958,7 @@ class Tracking:
         print("Creating VO points...")
 
         # Create VO points using the new frame method
-        created_points = TrackingUtils.create_vo_points(
+        created_points = TrackingCore.create_vo_points(
             self.f_ref, max_num_points=Parameters.kMaxNumVisualOdometryPoints
         )
 
@@ -1076,7 +973,7 @@ class Tracking:
     # kf is a newly created keyframe starting from frame f
     def create_and_add_stereo_map_points_on_new_kf(self, f: Frame, kf: KeyFrame, img):
         if self.sensor_type != SensorType.MONOCULAR and kf.depths is not None:
-            num_added_points = TrackingUtils.create_and_add_stereo_map_points_on_new_kf(
+            num_added_points = TrackingCore.create_and_add_stereo_map_points_on_new_kf(
                 f, kf, self.map, img
             )
             self.last_num_static_stereo_map_points = num_added_points

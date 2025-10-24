@@ -32,6 +32,10 @@ namespace py = pybind11;
 
 namespace pyslam {
 
+//=======================================
+//         cv::Mat to numpy
+//=======================================
+
 static inline py::array cvmat_to_numpy(const cv::Mat &m) {
     if (m.empty())
         return py::array();
@@ -208,6 +212,207 @@ static inline int numpy_dtype_to_cv_depth(const py::array &a) {
 static inline cv::Mat numpy_to_cvmat_auto(const py::array &a) {
     int depth_hint = numpy_dtype_to_cv_depth(a);
     return numpy_to_cvmat(a, depth_hint);
+}
+
+//=======================================
+//         vector to numpy
+//=======================================
+
+// Convert std::vector<T> to numpy array
+template <typename T> inline py::array vector_to_numpy(const std::vector<T> &vec) {
+    if (vec.empty()) {
+        return py::array();
+    }
+
+    // Get the size of each element
+    size_t element_size = sizeof(T);
+    size_t total_size = vec.size() * element_size;
+
+    // Create numpy array with proper shape and strides
+    std::vector<ssize_t> shape = {static_cast<ssize_t>(vec.size())};
+    std::vector<ssize_t> strides = {static_cast<ssize_t>(element_size)};
+
+    // Determine the format descriptor based on type
+    std::string format;
+    if constexpr (std::is_same_v<T, double>) {
+        format = py::format_descriptor<double>::format();
+    } else if constexpr (std::is_same_v<T, float>) {
+        format = py::format_descriptor<float>::format();
+    } else if constexpr (std::is_same_v<T, int>) {
+        format = py::format_descriptor<int>::format();
+    } else {
+        // For Eigen types, we need to handle them specially
+        static_assert(std::is_same_v<T, double> || std::is_same_v<T, float> ||
+                          std::is_same_v<T, int>,
+                      "Unsupported type for vector_to_numpy");
+    }
+
+    return py::array(py::buffer_info(const_cast<void *>(static_cast<const void *>(vec.data())),
+                                     element_size, format,
+                                     1, // ndim
+                                     shape, strides));
+}
+
+// Specialized versions for Eigen types
+template <> inline py::array vector_to_numpy(const std::vector<Eigen::Vector3d> &vec) {
+    if (vec.empty()) {
+        return py::array();
+    }
+
+    std::vector<ssize_t> shape = {static_cast<ssize_t>(vec.size()), 3};
+    std::vector<ssize_t> strides = {3 * sizeof(double), sizeof(double)};
+
+    return py::array(py::buffer_info(const_cast<void *>(static_cast<const void *>(vec.data())),
+                                     sizeof(double), py::format_descriptor<double>::format(),
+                                     2, // ndim
+                                     shape, strides));
+}
+
+template <> inline py::array vector_to_numpy(const std::vector<Eigen::Vector3f> &vec) {
+    if (vec.empty()) {
+        return py::array();
+    }
+
+    std::vector<ssize_t> shape = {static_cast<ssize_t>(vec.size()), 3};
+    std::vector<ssize_t> strides = {3 * sizeof(float), sizeof(float)};
+
+    return py::array(py::buffer_info(const_cast<void *>(static_cast<const void *>(vec.data())),
+                                     sizeof(float), py::format_descriptor<float>::format(),
+                                     2, // ndim
+                                     shape, strides));
+}
+
+template <> inline py::array vector_to_numpy(const std::vector<Eigen::Matrix<double, 6, 1>> &vec) {
+    if (vec.empty()) {
+        return py::array();
+    }
+
+    std::vector<ssize_t> shape = {static_cast<ssize_t>(vec.size()), 6};
+    std::vector<ssize_t> strides = {6 * sizeof(double), sizeof(double)};
+
+    return py::array(py::buffer_info(const_cast<void *>(static_cast<const void *>(vec.data())),
+                                     sizeof(double), py::format_descriptor<double>::format(),
+                                     2, // ndim
+                                     shape, strides));
+}
+
+template <> inline py::array vector_to_numpy(const std::vector<Eigen::Matrix<double, 4, 4>> &vec) {
+    if (vec.empty()) {
+        return py::array();
+    }
+
+    std::vector<ssize_t> shape = {static_cast<ssize_t>(vec.size()), 4, 4};
+    std::vector<ssize_t> strides = {16 * sizeof(double), 4 * sizeof(double), sizeof(double)};
+
+    return py::array(py::buffer_info(const_cast<void *>(static_cast<const void *>(vec.data())),
+                                     sizeof(double), py::format_descriptor<double>::format(),
+                                     3, // ndim
+                                     shape, strides));
+}
+
+// Convert numpy array to std::vector<T>
+template <typename T> static inline std::vector<T> numpy_to_vector(const py::array &arr) {
+    if (!arr || arr.ndim() == 0) {
+        return {};
+    }
+
+    auto info = arr.request();
+    if (info.size == 0) {
+        return {};
+    }
+
+    std::vector<T> result(info.size);
+    std::memcpy(result.data(), info.ptr, info.size * sizeof(T));
+    return result;
+}
+
+// Specialized versions for Eigen types
+template <> inline std::vector<Eigen::Vector3d> numpy_to_vector(const py::array &arr) {
+    if (!arr || arr.ndim() == 0) {
+        return {};
+    }
+
+    auto info = arr.request();
+    if (info.size == 0) {
+        return {};
+    }
+
+    if (info.ndim == 2 && info.shape[1] == 3) {
+        std::vector<Eigen::Vector3d> result(info.shape[0]);
+        double *data = static_cast<double *>(info.ptr);
+        for (ssize_t i = 0; i < info.shape[0]; ++i) {
+            result[i] = Eigen::Vector3d(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
+        }
+        return result;
+    } else {
+        throw std::runtime_error("Invalid numpy array shape for Vec3d vector");
+    }
+}
+
+template <> inline std::vector<Eigen::Vector3f> numpy_to_vector(const py::array &arr) {
+    if (!arr || arr.ndim() == 0) {
+        return {};
+    }
+
+    auto info = arr.request();
+    if (info.size == 0) {
+        return {};
+    }
+
+    if (info.ndim == 2 && info.shape[1] == 3) {
+        std::vector<Eigen::Vector3f> result(info.shape[0]);
+        float *data = static_cast<float *>(info.ptr);
+        for (ssize_t i = 0; i < info.shape[0]; ++i) {
+            result[i] = Eigen::Vector3f(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
+        }
+        return result;
+    } else {
+        throw std::runtime_error("Invalid numpy array shape for Vec3f vector");
+    }
+}
+
+template <> inline std::vector<Eigen::Matrix<double, 6, 1>> numpy_to_vector(const py::array &arr) {
+    if (!arr || arr.ndim() == 0) {
+        return {};
+    }
+
+    auto info = arr.request();
+    if (info.size == 0) {
+        return {};
+    }
+
+    if (info.ndim == 2 && info.shape[1] == 6) {
+        std::vector<Eigen::Matrix<double, 6, 1>> result(info.shape[0]);
+        double *data = static_cast<double *>(info.ptr);
+        for (ssize_t i = 0; i < info.shape[0]; ++i) {
+            result[i] = Eigen::Matrix<double, 6, 1>(data + i * 6);
+        }
+        return result;
+    } else {
+        throw std::runtime_error("Invalid numpy array shape for Vec6d vector");
+    }
+}
+
+template <> inline std::vector<Eigen::Matrix<double, 4, 4>> numpy_to_vector(const py::array &arr) {
+    if (!arr || arr.ndim() == 0) {
+        return {};
+    }
+
+    auto info = arr.request();
+    if (info.size == 0) {
+        return {};
+    }
+
+    if (info.ndim == 3 && info.shape[1] == 4 && info.shape[2] == 4) {
+        std::vector<Eigen::Matrix<double, 4, 4>> result(info.shape[0]);
+        double *data = static_cast<double *>(info.ptr);
+        for (ssize_t i = 0; i < info.shape[0]; ++i) {
+            result[i] = Eigen::Map<Eigen::Matrix<double, 4, 4>>(data + i * 16);
+        }
+        return result;
+    } else {
+        throw std::runtime_error("Invalid numpy array shape for Mat4d vector");
+    }
 }
 
 } // namespace pyslam

@@ -1,11 +1,11 @@
 <p align="center"><img src="./images/pyslam-logo.png" style="height: 160px; width: auto"></p>
 
-# pySLAM v2.9.0
+# pySLAM v2.10.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
  
-**pySLAM** is a python implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
+**pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
 - Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
@@ -13,6 +13,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping)** of the scene, such as DeepLabv3, Segformer, and dense CLIP.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
+- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
 
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performance.   
 
@@ -26,81 +27,81 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 
 <!-- TOC -->
 
-- [pySLAM v2.9.0](#pyslam-v290)
-    - [1. Table of contents](#1-table-of-contents)
-    - [2. Overview](#2-overview)
-        - [2.1. Main Scripts](#21-main-scripts)
-        - [2.2. System overview](#22-system-overview)
-    - [3. Install](#3-install)
-        - [3.1. Main requirements](#31-main-requirements)
-        - [3.2. Ubuntu](#32-ubuntu)
-        - [3.3. MacOS](#33-macos)
-        - [3.4. Docker](#34-docker)
-        - [3.5. How to install non-free OpenCV modules](#35-how-to-install-non-free-opencv-modules)
-        - [3.6. Troubleshooting and performance issues](#36-troubleshooting-and-performance-issues)
-    - [4. Usage](#4-usage)
-        - [4.1. Visual odometry](#41-visual-odometry)
-        - [4.2. Full SLAM](#42-full-slam)
-        - [4.3. Selecting a dataset and different configuration parameters](#43-selecting-a-dataset-and-different-configuration-parameters)
-        - [4.4. Feature tracking](#44-feature-tracking)
-        - [4.5. Loop closing and relocalization](#45-loop-closing-and-relocalization)
-            - [4.5.1. Vocabulary management](#451-vocabulary-management)
-            - [4.5.2. Vocabulary-free loop closing](#452-vocabulary-free-loop-closing)
-            - [4.5.3. Verify your loop detection configuration and verify vocabulary compability](#453-verify-your-loop-detection-configuration-and-verify-vocabulary-compability)
-                - [4.5.3.1. Loop detection method based on a pre-trained vocabulary](#4531-loop-detection-method-based-on-a-pre-trained-vocabulary)
-                - [4.5.3.2. Missing vocabulary for the selected front-end descriptor type](#4532-missing-vocabulary-for-the-selected-front-end-descriptor-type)
-        - [4.6. Volumetric reconstruction](#46-volumetric-reconstruction)
-            - [4.6.1. Dense reconstruction while running SLAM](#461-dense-reconstruction-while-running-slam)
-            - [4.6.2. Reload a saved sparse map and perform dense reconstruction](#462-reload-a-saved-sparse-map-and-perform-dense-reconstruction)
-            - [4.6.3. Reload and check your dense reconstruction](#463-reload-and-check-your-dense-reconstruction)
-            - [4.6.4. Controlling the spatial distribution of keyframe FOV centers](#464-controlling-the-spatial-distribution-of-keyframe-fov-centers)
-        - [4.7. Depth prediction](#47-depth-prediction)
-        - [4.8. Semantic mapping](#48-semantic-mapping)
-        - [4.9. Saving and reloading](#49-saving-and-reloading)
-            - [4.9.1. Save the a map](#491-save-the-a-map)
-            - [4.9.2. Reload a saved map and relocalize in it](#492-reload-a-saved-map-and-relocalize-in-it)
-            - [4.9.3. Trajectory saving](#493-trajectory-saving)
-        - [4.10. Graph optimization engines](#410-graph-optimization-engines)
-        - [4.11. SLAM GUI](#411-slam-gui)
-        - [4.12. Monitor the logs of tracking, local mapping, loop closing and volumetric mapping simultaneously](#412-monitor-the-logs-of-tracking-local-mapping-loop-closing-and-volumetric-mapping-simultaneously)
-        - [4.13. Evaluating SLAM](#413-evaluating-slam)
-            - [4.13.1. Run a SLAM evaluation](#4131-run-a-slam-evaluation)
-            - [4.13.2. pySLAM performances and comparative evaluations](#4132-pyslam-performances-and-comparative-evaluations)
-    - [5. Supported components and models](#5-supported-components-and-models)
-        - [5.1. Supported local features](#51-supported-local-features)
-        - [5.2. Supported matchers](#52-supported-matchers)
-        - [5.3. Supported global descriptors and local descriptor aggregation methods](#53-supported-global-descriptors-and-local-descriptor-aggregation-methods)
-                - [5.3.1. Local descriptor aggregation methods](#531-local-descriptor-aggregation-methods)
-                - [5.3.2. Global descriptors](#532-global-descriptors)
-        - [5.4. Supported depth prediction models](#54-supported-depth-prediction-models)
-        - [5.5. Supported volumetric mapping methods](#55-supported-volumetric-mapping-methods)
-        - [5.6. Supported semantic segmentation methods](#56-supported-semantic-segmentation-methods)
-    - [6. Configuration](#6-configuration)
-        - [6.1. Main configuration file](#61-main-configuration-file)
-        - [6.2. Datasets](#62-datasets)
-            - [6.2.1. KITTI Datasets](#621-kitti-datasets)
-            - [6.2.2. TUM Datasets](#622-tum-datasets)
-            - [6.2.3. ICL-NUIM Datasets](#623-icl-nuim-datasets)
-            - [6.2.4. EuRoC Datasets](#624-euroc-datasets)
-            - [6.2.5. Replica Datasets](#625-replica-datasets)
-            - [6.2.6. Tartanair Datasets](#626-tartanair-datasets)
-            - [6.2.7. ScanNet Datasets](#627-scannet-datasets)
-            - [6.2.8. ROS1 bags](#628-ros1-bags)
-            - [6.2.9. ROS2 bags](#629-ros2-bags)
-            - [6.2.10. Video and Folder Datasets](#6210-video-and-folder-datasets)
-        - [6.3. Camera Settings](#63-camera-settings)
-    - [7. References](#7-references)
-    - [8. Credits](#8-credits)
-    - [9. License](#9-license)
-    - [10. Contributing to pySLAM](#10-contributing-to-pyslam)
-    - [11. Roadmap](#11-roadmap)
+- [pySLAM v2.10.0](#pyslam-v2100)
+  - [Table of contents](#table-of-contents)
+  - [Overview](#overview)
+    - [Main Scripts](#main-scripts)
+    - [System overview](#system-overview)
+  - [Install](#install)
+    - [Main requirements](#main-requirements)
+    - [Ubuntu](#ubuntu)
+    - [MacOS](#macos)
+    - [Docker](#docker)
+    - [How to install non-free OpenCV modules](#how-to-install-non-free-opencv-modules)
+    - [Troubleshooting and performance issues](#troubleshooting-and-performance-issues)
+  - [Usage](#usage)
+    - [Visual odometry](#visual-odometry)
+    - [Full SLAM](#full-slam)
+    - [Selecting a dataset and different configuration parameters](#selecting-a-dataset-and-different-configuration-parameters)
+    - [Feature tracking](#feature-tracking)
+    - [Loop closing and relocalization](#loop-closing-and-relocalization)
+      - [Vocabulary management](#vocabulary-management)
+      - [Vocabulary-free loop closing](#vocabulary-free-loop-closing)
+      - [Verify your loop detection configuration and verify vocabulary compability](#verify-your-loop-detection-configuration-and-verify-vocabulary-compability)
+        - [Loop detection method based on a pre-trained vocabulary](#loop-detection-method-based-on-a-pre-trained-vocabulary)
+        - [Missing vocabulary for the selected front-end descriptor type](#missing-vocabulary-for-the-selected-front-end-descriptor-type)
+    - [Volumetric reconstruction](#volumetric-reconstruction)
+      - [Dense reconstruction while running SLAM](#dense-reconstruction-while-running-slam)
+      - [Reload a saved sparse map and perform dense reconstruction](#reload-a-saved-sparse-map-and-perform-dense-reconstruction)
+      - [Reload and check your dense reconstruction](#reload-and-check-your-dense-reconstruction)
+      - [Controlling the spatial distribution of keyframe FOV centers](#controlling-the-spatial-distribution-of-keyframe-fov-centers)
+    - [Depth prediction](#depth-prediction)
+    - [Semantic mapping](#semantic-mapping)
+    - [Saving and reloading](#saving-and-reloading)
+      - [Save the a map](#save-the-a-map)
+      - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
+      - [Trajectory saving](#trajectory-saving)
+    - [Graph optimization engines](#graph-optimization-engines)
+    - [SLAM GUI](#slam-gui)
+    - [Monitor the logs of tracking, local mapping, loop closing and volumetric mapping simultaneously](#monitor-the-logs-of-tracking-local-mapping-loop-closing-and-volumetric-mapping-simultaneously)
+    - [Evaluating SLAM](#evaluating-slam)
+      - [Run a SLAM evaluation](#run-a-slam-evaluation)
+      - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
+  - [Supported components and models](#supported-components-and-models)
+    - [Supported local features](#supported-local-features)
+    - [Supported matchers](#supported-matchers)
+    - [Supported global descriptors and local descriptor aggregation methods](#supported-global-descriptors-and-local-descriptor-aggregation-methods)
+        - [Local descriptor aggregation methods](#local-descriptor-aggregation-methods)
+        - [Global descriptors](#global-descriptors)
+    - [Supported depth prediction models](#supported-depth-prediction-models)
+    - [Supported volumetric mapping methods](#supported-volumetric-mapping-methods)
+    - [Supported semantic segmentation methods](#supported-semantic-segmentation-methods)
+  - [Configuration](#configuration)
+    - [Main configuration file](#main-configuration-file)
+    - [Datasets](#datasets)
+      - [KITTI Datasets](#kitti-datasets)
+      - [TUM Datasets](#tum-datasets)
+      - [ICL-NUIM Datasets](#icl-nuim-datasets)
+      - [EuRoC Datasets](#euroc-datasets)
+      - [Replica Datasets](#replica-datasets)
+      - [Tartanair Datasets](#tartanair-datasets)
+      - [ScanNet Datasets](#scannet-datasets)
+      - [ROS1 bags](#ros1-bags)
+      - [ROS2 bags](#ros2-bags)
+      - [Video and Folder Datasets](#video-and-folder-datasets)
+    - [Camera Settings](#camera-settings)
+  - [References](#references)
+  - [Credits](#credits)
+  - [License](#license)
+  - [Contributing to pySLAM](#contributing-to-pyslam)
+  - [Roadmap](#roadmap)
 
 <!-- /TOC -->
 
 ## Overview
 
 ```bash
-├── cpp         # Pybind11 C++ bindings
+├── cpp         # Pybind11 C++ bindings to slam utilities 
 ├── data        # Sample input/output data
 ├── docs        # Documentation files
 ├── pyslam      # Core Python package
@@ -111,7 +112,9 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 │   ├── local_features
 │   ├── loop_closing
 │   ├── semantics
+│       ├── cpp  # C++ core for semantics  
 │   ├── slam
+│       ├── cpp  # C++ core for sparse slam  
 │   ├── utilities
 │   ├── viz
 ├── scripts     # Shell utility scripts
@@ -161,9 +164,15 @@ Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
 #pixi shell      # If you want to use pixi, this is the first step that prepares the installation. 
 ./install_all.sh   # Unified install procedure 
-``` 
+```
 
-This install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. An internet connection is required.
+After the install process, you can build the **C++ core**:
+```
+. pyenv-activate.sh
+./build_cpp.sh 
+```
+
+The install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. An internet connection is required.
 
 Refer to these links for further details about the specific install procedures that are supported.
 - **Ubuntu**  [=>](#ubuntu)
@@ -236,7 +245,9 @@ Open a new terminal and start experimenting with the scripts. In each new termin
 . pyenv-activate.sh   # Activate `pyslam` python environment. Only needed once in a new terminal. Not needed with pixi.
 ```
 If you are using `pixi` then just run `pixi shell` to activate the `pyslam` environment.
-The file [config.yaml](./config.yaml) serves as a single entry point to configure the system and its global configuration parameters contained in [pyslam/config_parameters.py](./pyslam/config_parameters.py). Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
+The file [config.yaml](./config.yaml) serves as a single entry point to configure the system and its global configuration parameters contained in [pyslam/config_parameters.py](./pyslam/config_parameters.py). 
+- To **enable the C++ sparse-SLAM core**, set `USE_CPP_CORE = True` in the file `config_parameters.py`.
+- Further information on how to configure pySLAM are provided [here](#selecting-a-dataset-and-different-configuration-parameters).
 
  
 
@@ -506,9 +517,9 @@ Some quick information about the non-trivial GUI buttons of `main_slam.py`:
 The logs generated by the modules `local_mapping.py`, `loop_closing.py`, `loop_detecting_process.py`, `global_bundle_adjustments.py`, and `volumetric integrator_<X>.py` are collected in the files `local_mapping.log`, `loop_closing.log`, `loop_detecting.log`, `gba.log`, and `volumetric_integrator.log`, respectively. These logs files are all stored in the folder `logs`. At runtime, for debugging purposes, you can individually monitor any of the log files by running the following command:    
 `tail -f logs/<log file name>`     
 Otherwise, to check all logs at the same time, run this `tmux`-based script:          
-`./scripts/launch_tmux_logs.sh`           
+`./scripts/tmux_logs.sh`           
 To launch slam and check all logs, run:     
-`./scripts/launch_tmux_slam.sh`      
+`./scripts/tmux_slam.sh`      
 Press `CTRL+A` and then `CTRL+Q` to exit from `tmux` environment.
 
 --- 

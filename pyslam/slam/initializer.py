@@ -280,7 +280,18 @@ class Initializer(object):
         # print('initializing frames ', f_cur.id, ', ', f_ref.id)
         print("Initializer: # keypoint matches: ", len(idxs_cur))
 
-        Trc = self.estimatePose(f_ref.kpsn[idxs_ref], f_cur.kpsn[idxs_cur])
+        kpsn_ref = f_ref.kpsn[idxs_ref].reshape(-1, 2)
+        kpsn_cur = f_cur.kpsn[idxs_cur].reshape(-1, 2)
+
+        # Check if we have enough points for essential matrix estimation
+        if len(kpsn_ref) < 5:
+            Printer.yellow(
+                f"Initializer: not enough points for essential matrix estimation: {len(kpsn_ref)} < 5"
+            )
+            self.num_failures += 1
+            return out, is_ok
+
+        Trc = self.estimatePose(kpsn_ref, kpsn_cur)
         Tcr = inv_T(Trc)  # Tcr w.r.t. ref frame
         f_ref.update_pose(np.eye(4))
         f_cur.update_pose(Tcr)

@@ -26,8 +26,12 @@
 #include <vector>
 
 #include "ckdtree_eigen.h"
+#include "utils/messages.h"
+#include "utils/numpy_helpers.h"
 
 namespace py = pybind11;
+
+#define USE_ZERO_COPY_KDTREE 1
 
 // Helpers: check array shape/dtype/contiguity
 inline void ensure_2d(const pybind11::array &arr, const char *name) {
@@ -58,6 +62,28 @@ template <typename Scalar, int D, typename IndexT = size_t>
 void bind_fixed_tree(py::module_ &m, const char *pyname) {
     using Tree = pyslam::CKDTreeEigen<Scalar, D, IndexT>;
     py::class_<Tree, std::shared_ptr<Tree>>(m, pyname)
+#if USE_ZERO_COPY_KDTREE
+        // Zero-copy constructor: pass data pointer directly
+        .def(py::init([](py::array_t<Scalar, py::array::c_style | py::array::forcecast> points) {
+                 ensure_2d(points, "points");
+                 if (points.shape(1) != D) {
+                     MSG_RED_WARN("points.shape[1] must be D=" + std::to_string(D));
+                     throw std::invalid_argument("points.shape[1] must be D=" + std::to_string(D));
+                 }
+                 // Validate row-major layout
+                 if (!points.writeable()) {
+                     MSG_RED_WARN("points array must be C-contiguous and writeable");
+                     throw std::invalid_argument("points array must be C-contiguous and writeable");
+                 }
+
+                 // Use zero-copy constructor with data pointer
+                 // NOTE: points must stay alive for the lifetime of the tree
+                 return std::make_shared<Tree>(points.data(), points.shape(0));
+             }),
+             py::arg("points"),
+             py::keep_alive<0, 1>(), // Keep the input array alive as long as the tree exists
+             "Build KD-tree from points (N,D) [zero-copy].")
+#else
         // Constructor from numpy array (N,D), copies internally
         .def(py::init([](py::array_t<Scalar, py::array::c_style | py::array::forcecast> points) {
                  ensure_2d(points, "points");
@@ -70,10 +96,49 @@ void bind_fixed_tree(py::module_ &m, const char *pyname) {
                  return std::make_unique<Tree>(M); // copies inside the KD class as well (own_)
              }),
              py::arg("points"), "Build KD-tree from points (N,D) [copied].")
-
+#endif
         .def_property_readonly("n", &Tree::n)
         .def_property_readonly_static("d", [](py::object) { return D; })
 
+#if USE_ZERO_COPY_KDTREE
+        // query(x, k, return_distance=True) -> (dists, idxs)
+        .def(
+            "query",
+            [](const Tree &self, py::array_t<Scalar, py::array::c_style | py::array::forcecast> x,
+               size_t k, bool return_distance) {
+                auto q = to_fixed_query<Scalar, D>(x);
+                std::vector<Scalar> d;
+                std::vector<typename Tree::index_t> idx;
+                {
+                    py::gil_scoped_release release;
+                    auto res = self.query(q.data(), k, return_distance);
+                    d = std::move(res.first);
+                    idx = std::move(res.second);
+                }
+
+                py::array_t<Scalar> dists;
+                if (return_distance) {
+                    // Allocate on heap and manage lifetime with capsule
+                    auto *vec = new std::vector<Scalar>(std::move(d));
+
+                    dists = py::array_t<Scalar>({static_cast<py::ssize_t>(vec->size())},
+                                                {static_cast<py::ssize_t>(sizeof(Scalar))},
+                                                vec->data(), py::capsule(vec, [](void *p) {
+                                                    delete static_cast<std::vector<Scalar> *>(p);
+                                                }));
+                } else {
+                    dists = py::array_t<Scalar>();
+                }
+
+                // Indices need type conversion, so still need copy
+                py::array_t<long long> indices(idx.size());
+                auto *ip = indices.mutable_data();
+                for (size_t i = 0; i < idx.size(); ++i)
+                    ip[i] = static_cast<long long>(idx[i]);
+                return py::make_tuple(dists, indices);
+            },
+            py::arg("x"), py::arg("k"), py::arg("return_distance") = true, "k-NN query")
+#else
         // query(x, k, return_distance=True) -> (dists, idxs)
         .def(
             "query",
@@ -102,7 +167,7 @@ void bind_fixed_tree(py::module_ &m, const char *pyname) {
                 return py::make_tuple(dists, indices);
             },
             py::arg("x"), py::arg("k"), py::arg("return_distance") = true, "k-NN query")
-
+#endif
         // query_ball_point overloaded: single query or batch queries
         .def(
             "query_ball_point",
@@ -198,6 +263,25 @@ template <typename Scalar, typename IndexT = size_t>
 void bind_dynamic_tree(py::module_ &m, const char *pyname) {
     using Tree = pyslam::CKDTreeEigenDyn<Scalar, IndexT>;
     py::class_<Tree, std::shared_ptr<Tree>>(m, pyname)
+#if USE_ZERO_COPY_KDTREE
+        // Zero-copy constructor: pass data pointer directly
+        .def(py::init([](py::array_t<Scalar, py::array::c_style | py::array::forcecast> points) {
+                 ensure_2d(points, "points");
+                 const ssize_t N = points.shape(0);
+                 const ssize_t D = points.shape(1);
+
+                 // Validate row-major layout
+                 if (!points.writeable()) {
+                     throw std::invalid_argument("points array must be C-contiguous and writeable");
+                 }
+
+                 // Use zero-copy constructor with data pointer
+                 // NOTE: points must stay alive for the lifetime of the tree
+                 return std::make_shared<Tree>(points.data(), N, D);
+             }),
+             py::arg("points"), py::keep_alive<0, 1>(), // Keep input array alive
+             "Build KD-tree from points (N,D) [zero-copy].")
+#else
         // Constructor from numpy array (N,D), copies internally
         .def(py::init([](py::array_t<Scalar, py::array::c_style | py::array::forcecast> points) {
                  ensure_2d(points, "points");
@@ -209,10 +293,54 @@ void bind_dynamic_tree(py::module_ &m, const char *pyname) {
                  return std::make_unique<Tree>(Eigen::Ref<const decltype(M)>(M));
              }),
              py::arg("points"), "Build KD-tree from points (N,D) [copied].")
-
+#endif
         .def_property_readonly("n", &Tree::n)
         .def_property_readonly("d", &Tree::d)
 
+#if USE_ZERO_COPY_KDTREE
+        // query(x, k, return_distance=True) -> (dists, idxs)
+        .def(
+            "query",
+            [](const Tree &self, py::array_t<Scalar, py::array::c_style | py::array::forcecast> x,
+               size_t k, bool return_distance) {
+                if (x.ndim() != 1)
+                    throw std::invalid_argument("x must be 1D");
+                if (x.shape(0) != self.d())
+                    throw std::invalid_argument("len(x) must equal tree.d()");
+                std::vector<Scalar> q(self.d());
+                std::memcpy(q.data(), x.data(), sizeof(Scalar) * q.size());
+                std::vector<Scalar> d;
+                std::vector<typename Tree::index_t> idx;
+                {
+                    py::gil_scoped_release release;
+                    auto res = self.query(q.data(), k, return_distance);
+                    d = std::move(res.first);
+                    idx = std::move(res.second);
+                }
+
+                py::array_t<Scalar> dists;
+                if (return_distance) {
+                    // Allocate on heap and manage lifetime with capsule
+                    auto *vec = new std::vector<Scalar>(std::move(d));
+
+                    dists = py::array_t<Scalar>({static_cast<py::ssize_t>(vec->size())},
+                                                {static_cast<py::ssize_t>(sizeof(Scalar))},
+                                                vec->data(), py::capsule(vec, [](void *p) {
+                                                    delete static_cast<std::vector<Scalar> *>(p);
+                                                }));
+                } else {
+                    dists = py::array_t<Scalar>();
+                }
+
+                // Indices need type conversion, so still need copy
+                py::array_t<long long> indices(idx.size());
+                auto *ip = indices.mutable_data();
+                for (size_t i = 0; i < idx.size(); ++i)
+                    ip[i] = static_cast<long long>(idx[i]);
+                return py::make_tuple(dists, indices);
+            },
+            py::arg("x"), py::arg("k"), py::arg("return_distance") = true, "k-NN query")
+#else
         .def(
             "query",
             [](const Tree &self, py::array_t<Scalar, py::array::c_style | py::array::forcecast> x,
@@ -245,7 +373,7 @@ void bind_dynamic_tree(py::module_ &m, const char *pyname) {
                 return py::make_tuple(dists, indices);
             },
             py::arg("x"), py::arg("k"), py::arg("return_distance") = true)
-
+#endif
         // query_ball_point overloaded: single query or batch queries
         .def(
             "query_ball_point",
