@@ -30,6 +30,9 @@
 #include <vector>
 
 #include "smart_pointers.h"
+#ifndef NDEBUG
+#include "utils/messages.h"
+#endif
 
 #ifdef USE_PYTHON
 #include <pybind11/numpy.h>
@@ -54,6 +57,8 @@ SensorType get_sensor_type(const std::string &sensor_type);
 // Utility functions
 double fov2focal(double fov, int pixels);
 double focal2fov(double focal, int pixels);
+
+constexpr double kMinZ = 1e-10;
 
 // CameraUtils class
 class CameraUtils {
@@ -171,6 +176,10 @@ class Camera : public CameraBase {
     Eigen::Matrix3d K = Eigen::Matrix3d::Zero();    // intrinsic matrix
     Eigen::Matrix3d Kinv = Eigen::Matrix3d::Zero(); // inverse intrinsic matrix
 
+    cv::Mat K_cv;
+    cv::Mat D_cv;
+    int cv_depth = std::numeric_limits<int>::max();
+
     // Constructor
     Camera();
     Camera(const ConfigDict &config);
@@ -243,6 +252,13 @@ class Camera : public CameraBase {
     inline std::pair<Vec3<Scalar>, Scalar>
     project_point_stereo_template(Vec3Ref<Scalar> xcs) const {
         const Scalar z = xcs.z();
+#ifndef NDEBUG
+        if (z <= kMinZ) {
+            MSG_RED_WARN("project_point_stereo_template: Depth is less than minimum depth in "
+                         "project_point_stereo");
+            return std::make_pair(Vec3<Scalar>(-1.0, -1.0, -1.0), static_cast<Scalar>(-1.0));
+        }
+#endif
         const Scalar inv_z = 1.0 / z;
         const Scalar u = fx * xcs.x() * inv_z + cx;
         const Scalar v = fy * xcs.y() * inv_z + cy;
@@ -269,7 +285,9 @@ class Camera : public CameraBase {
     }
 
     // ------------------------------------------------------------------------
-    void compute_intrinsic_matrices();
+    void set_intrinsic_matrices();
+    void update_cv_matrices(int cv_depth = CV_64F);
+    template <typename Scalar> void set_cv_matrices();
 
     // ------------------------------------------------------------------------
     // Methods
@@ -297,17 +315,19 @@ class Camera : public CameraBase {
     // - undistort a 2D image point or an array of 2D image points
     //   out: 2D image points
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
-    virtual MatNx2d undistort_points(MatNx2dRef uvs) const { return MatNx2d(); }
-    virtual MatNx2f undistort_points(MatNx2fRef uvs) const { return MatNx2f(); }
+    virtual MatNx2d undistort_points(MatNx2dRef uvs) { return MatNx2d(); }
+    virtual MatNx2f undistort_points(MatNx2fRef uvs) { return MatNx2f(); }
 
     // ------------------------------------------------------------------------
-    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1 plane
+    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1
+    // plane
     //   out: 3D points
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
     virtual MatNx2d unproject_points(MatNx2dRef uvs) const { return MatNx2d(); }
     virtual MatNx2f unproject_points(MatNx2fRef uvs) const { return MatNx2f(); }
 
-    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1 plane
+    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1
+    // plane
     //   out: 3D points
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
     virtual MatNx3d unproject_points_3d(MatNx2dRef uvs, VecNdRef depths) const { return MatNx3d(); }
@@ -380,7 +400,8 @@ class PinholeCamera : public Camera {
     }
 
     // ------------------------------------------------------------------------
-    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1 plane
+    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1
+    // plane
     //   out: 3D points
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
     MatNx2d unproject_points(MatNx2dRef uvs) const override {
@@ -391,7 +412,8 @@ class PinholeCamera : public Camera {
     }
 
     // ------------------------------------------------------------------------
-    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1 plane
+    // - unproject a 2D image point or an array of 2D image points into a 3D point on the z=1
+    // plane
     //   out: 3D points
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
     MatNx3d unproject_points_3d(MatNx2dRef uvs, VecNdRef depths) const override {
@@ -405,13 +427,12 @@ class PinholeCamera : public Camera {
     // - undistort a 2D image point or an array of 2D image points
     //   out: 2D image points
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
-    template <typename Scalar>
-    MatNx2<Scalar> undistort_points_template(MatNx2Ref<Scalar> uvs) const;
+    template <typename Scalar> MatNx2<Scalar> undistort_points_template(MatNx2Ref<Scalar> uvs);
 
-    MatNx2d undistort_points(MatNx2dRef uvs) const override {
+    MatNx2d undistort_points(MatNx2dRef uvs) override {
         return undistort_points_template<double>(uvs);
     }
-    MatNx2f undistort_points(MatNx2fRef uvs) const override {
+    MatNx2f undistort_points(MatNx2fRef uvs) override {
         return undistort_points_template<float>(uvs);
     }
 

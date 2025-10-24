@@ -37,13 +37,16 @@
 #include "py_module/frame_module.h"
 #include "py_module/geometry_matchers_module.h"
 #include "py_module/keyframe_module.h"
+#include "py_module/local_mapping_core_module.h"
 #include "py_module/map_module.h"
 #include "py_module/map_point_module.h"
 #include "py_module/mutex_wrapper_module.h"
 #include "py_module/optimizer_g2o_module.h"
 #include "py_module/rotation_histogram_module.h"
 #include "py_module/sim3_pose_module.h"
-#include "py_module/tracking_utils_module.h"
+#include "py_module/tracking_core_module.h"
+
+#include "py_module/semantic_mapping_shared_resources_module.h"
 
 namespace py = pybind11;
 
@@ -120,9 +123,14 @@ PYBIND11_MODULE(cpp_core, m) {
     bind_optimizer_g2o(m);
 
     // ------------------------------------------------------------
-    // TrackingUtils class
+    // TrackingCore class
 
-    bind_tracking_utils(m);
+    bind_tracking_core(m);
+
+    // ------------------------------------------------------------
+    // LocalMappingCore class
+
+    bind_local_mapping_core(m);
 
     // ------------------------------------------------------------
     // Rotation histogram
@@ -138,5 +146,10 @@ PYBIND11_MODULE(cpp_core, m) {
     // GeometryMatchers class
 
     bind_geometry_matchers(m);
+
+    // ------------------------------------------------------------
+    // SemanticMappingSharedResources class
+
+    bind_semantic_mapping_shared_resources(m);
 
 } // PYBIND11_MODULE

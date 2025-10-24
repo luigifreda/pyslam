@@ -20,6 +20,7 @@
 
 // NOTE: The actual path of this file is cpp/casters/opencv_type_casters.h
 //       We actually created a symlink to this file in other places of the project
+// TESTED with cpp/test_opencv_casters/run_tests.sh
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -28,8 +29,6 @@
 #include <cstring>
 #include <exception>
 #include <opencv2/core.hpp>
-#include <stdexcept>
-#include <type_traits>
 
 #define PYSLAM_CV_MAT_IMPORT_ALWAYS_COPY 0 // 1: always copy, 0: zero-copy view
 
@@ -100,6 +99,24 @@ template <> struct type_caster<cv::Mat> {
         py::array arr = py::array::ensure(src, py::array::c_style | py::array::forcecast);
         if (!arr)
             return false;
+
+        // OpenCV cv::Mat does not support 64-bit integer depths (no CV_64S/CV_64U).
+        // If the input is int64/uint64, convert to float64 to preserve range.
+        // This ensures correctness especially in zero-copy configurations.
+        try {
+            const py::dtype dt = arr.dtype();
+            if (dt.is(py::dtype::of<std::int64_t>()) || dt.is(py::dtype::of<std::uint64_t>())) {
+                py::dtype target = py::dtype::of<double>();
+                py::object converted_obj = arr.attr("astype")(target);
+                py::array converted = py::array::ensure(converted_obj);
+                if (!converted)
+                    throw py::value_error(
+                        "Failed to convert int64/uint64 array to float64 for cv::Mat");
+                arr = std::move(converted);
+            }
+        } catch (const std::exception &e) {
+            throw;
+        }
 
         py::buffer_info info = arr.request();
         if (info.ndim < 1 || info.ndim > 3)

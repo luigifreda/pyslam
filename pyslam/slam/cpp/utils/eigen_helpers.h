@@ -43,6 +43,39 @@ template <> inline Mat4<float> poseRt(const Mat3f &R, const Vec3f &t) {
     return T;
 }
 
+//===============================================
+
+// Inverse of a 4x4 transformation matrix in SE(3)
+template <typename Scalar> inline Mat4<Scalar> inv_T(const Mat4<Scalar> &T) {
+    Mat3<Scalar> R = T.template block<3, 3>(0, 0);
+    Vec3<Scalar> t = T.template block<3, 1>(0, 3);
+
+    Mat4<Scalar> T_inv = Mat4<Scalar>::Identity();
+    T_inv.template block<3, 3>(0, 0) = R.transpose();
+    T_inv.template block<3, 1>(0, 3) = -R.transpose() * t;
+    return T_inv;
+}
+
+template <> inline Mat4d inv_T(const Mat4d &T) {
+    const Mat3d R = T.block<3, 3>(0, 0);
+    const Vec3d t = T.block<3, 1>(0, 3);
+    Mat4d T_inv = Mat4d::Identity();
+    T_inv.block<3, 3>(0, 0) = R.transpose();
+    T_inv.block<3, 1>(0, 3) = -R.transpose() * t;
+    return T_inv;
+}
+
+template <> inline Mat4f inv_T(const Mat4f &T) {
+    const Mat3f R = T.block<3, 3>(0, 0);
+    const Vec3f t = T.block<3, 1>(0, 3);
+    Mat4f T_inv = Mat4f::Identity();
+    T_inv.block<3, 3>(0, 0) = R.transpose();
+    T_inv.block<3, 1>(0, 3) = -R.transpose() * t;
+    return T_inv;
+}
+
+//===============================================
+
 // Extract a 3x3 rotation matrix and a 3x1 translation vector from a 4x4 matrix
 template <typename Scalar>
 inline std::pair<Mat3<Scalar>, Vec3<Scalar>> extractRt(const Mat4<Scalar> &T) {
@@ -56,6 +89,7 @@ template <> inline std::pair<Mat3<float>, Vec3<float>> extractRt(const Mat4f &T)
     return {T.template block<3, 3>(0, 0), T.template block<3, 1>(0, 3)};
 }
 
+//===============================================
 /**
  * Compute skew-symmetric matrix from 3D vector
  * w in IR^3 -> [0,-wz,wy],

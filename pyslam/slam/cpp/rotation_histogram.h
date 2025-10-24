@@ -19,14 +19,10 @@
 
 #pragma once
 
-#include <sstream>
-#pragma once
-
-#include <algorithm>
 #include <cmath>
-#include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 #include <vector>
 
 namespace pyslam {
@@ -36,7 +32,8 @@ class RotationHistogram {
     // NOTE: with 12 bins => new factor = 12/360 equals to old factor = 1/30
     explicit RotationHistogram(int histogram_length = 12)
         : histogram_length_(histogram_length),
-          factor_(static_cast<double>(histogram_length) / 360.0), histo_(histogram_length) {
+          factor_(static_cast<double>(histogram_length) / 360.0), histo_(histogram_length),
+          counts_(histogram_length, 0) {
         if (histogram_length_ <= 0) {
             throw std::invalid_argument("RotationHistogram: histogram_length must be > 0");
         }
@@ -45,6 +42,7 @@ class RotationHistogram {
     void push(const double &rot_deg, const int &idx) {
         int bin = angleToBin(rot_deg);
         histo_[bin].push_back(idx);
+        ++counts_[bin];
     }
 
     void push_entries(const std::vector<double> &rots_deg, const std::vector<int> &idxs) {
@@ -55,6 +53,7 @@ class RotationHistogram {
         for (size_t i = 0; i < n; ++i) {
             int bin = angleToBin(rots_deg[i]);
             histo_[bin].push_back(idxs[i]);
+            ++counts_[bin];
         }
     }
 
@@ -95,26 +94,39 @@ class RotationHistogram {
 
     // Find top-3 bins, with 10% thresholds for 2nd and 3rd
     std::tuple<int, int, int> compute_3_max() const {
-        std::vector<int> counts(histogram_length_);
-        for (int i = 0; i < histogram_length_; ++i) {
-            counts[i] = static_cast<int>(histo_[i].size());
+        const auto better = [&](int candidate, int current) {
+            if (candidate == -1)
+                return false;
+            if (current == -1)
+                return true;
+            const int cc = counts_[candidate];
+            const int cr = counts_[current];
+            if (cc > cr)
+                return true;
+            if (cc == cr && candidate > current)
+                return true;
+            return false;
+        };
+
+        int max1 = -1, max2 = -1, max3 = -1;
+        for (int bin = 0; bin < histogram_length_; ++bin) {
+            if (better(bin, max1)) {
+                max3 = max2;
+                max2 = max1;
+                max1 = bin;
+            } else if (better(bin, max2)) {
+                max3 = max2;
+                max2 = bin;
+            } else if (better(bin, max3)) {
+                max3 = bin;
+            }
         }
 
-        // Find indices of top3 counts efficiently
-        std::vector<int> idx(histogram_length_);
-        std::iota(idx.begin(), idx.end(), 0);
-        std::partial_sort(idx.begin(), idx.begin() + std::min(3, histogram_length_), idx.end(),
-                          [&](int a, int b) { return counts[a] > counts[b]; });
-
-        int max1 = histogram_length_ > 0 ? idx[0] : -1;
-        int max2 = histogram_length_ > 1 ? idx[1] : -1;
-        int max3 = histogram_length_ > 2 ? idx[2] : -1;
-
         if (max1 != -1) {
-            const double c1 = static_cast<double>(counts[max1]);
-            if (max2 != -1 && counts[max2] < 0.1 * c1)
+            const double c1 = static_cast<double>(counts_[max1]);
+            if (max2 != -1 && counts_[max2] < 0.1 * c1)
                 max2 = -1;
-            if (max3 != -1 && counts[max3] < 0.1 * c1)
+            if (max3 != -1 && counts_[max3] < 0.1 * c1)
                 max3 = -1;
         }
 
@@ -155,6 +167,7 @@ class RotationHistogram {
     int histogram_length_;
     double factor_;
     std::vector<std::vector<int>> histo_;
+    std::vector<int> counts_;
 
     static double wrap_deg_0_360(const double &deg) {
         double m = std::fmod(deg, 360.0);

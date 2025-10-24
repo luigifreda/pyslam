@@ -1,3 +1,22 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import sys
 import os
 
@@ -5,8 +24,11 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
-
 import pyslam.config as config
+from pyslam.config_parameters import Parameters
+
+USE_CPP = True
+Parameters.USE_CPP_CORE = USE_CPP
 
 from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 
@@ -16,7 +38,6 @@ if not CPP_AVAILABLE:
 else:
     print("✅ cpp_module imported successfully")
 
-USE_CPP = False
 if USE_CPP:
     Frame = cpp_module.Frame
     KeyFrame = cpp_module.KeyFrame
@@ -76,7 +97,7 @@ class TestPoseOptimizerConvergence(TestCase):
         camera.bf = self.bf
         camera.b = self.b
         camera.fps = 30
-        camera.compute_intrinsic_matrices()
+        camera.set_intrinsic_matrices()
         camera.K = self.K
         camera.Kinv = self.Kinv
 

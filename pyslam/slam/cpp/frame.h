@@ -47,13 +47,13 @@ class Camera;
 class CameraPose;
 class MapPoint;
 class KeyFrame;
-class TrackingUtils;
+class TrackingCore;
 
 // Base object class for frame info management - matches Python FrameBase
 // exactly
 class FrameBase {
 
-    friend class TrackingUtils;
+    friend class TrackingCore;
 
   protected:
     static std::atomic<int> _id; // shared frame counter
@@ -163,6 +163,14 @@ class FrameBase {
     template <typename Scalar>
     std::tuple<bool, Vec2<Scalar>, Scalar> is_visible(const MapPointPtr &map_point) const;
 
+    // clang-format off
+    // input: a list of map points
+    // output: [Nx1] array of visibility flags,
+    //         [Nx2] array of projections (u,v) or [Nx3] array of stereo image points (u,v,ur) in case do_stereo_projet=True,
+    //         [Nx1] array of depths,
+    //         [Nx1] array of distances PO
+    // check a) points are in image b) good view angle c) good distance range
+    // clang-format on
     template <typename Scalar>
     std::tuple<std::vector<bool>, MatNxM<Scalar>, VecN<Scalar>, VecN<Scalar>>
     are_visible(const std::vector<MapPointPtr> &map_points, bool do_stereo_project = false) const;
@@ -184,7 +192,7 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     mutable std::mutex _lock_kd;
 
   protected:
-    friend class TrackingUtils;
+    friend class TrackingCore;
     friend void bind_frame(pybind11::module &m);
 
   public:
@@ -285,10 +293,12 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     std::vector<int> get_unmatched_points_idxs() const;
     std::pair<std::vector<MapPointPtr>, std::vector<int>> get_matched_inlier_points() const;
     std::vector<MapPointPtr> get_matched_good_points() const;
-    std::pair<std::vector<int>, std::vector<MapPointPtr>> get_matched_good_points_with_idxs() const;
+    std::vector<int> get_matched_good_points_idxs() const;
+    std::vector<std::pair<MapPointPtr, int>> get_matched_good_points_and_idxs() const;
 
     int num_tracked_points(int minObs = 1) const;
     int num_matched_inlier_map_points() const;
+    std::vector<bool> get_tracked_mask() const;
     int update_map_points_statistics(const SensorType &sensor_type = SensorType::MONOCULAR);
     int clean_outlier_map_points();
     void clean_bad_map_points();
@@ -326,9 +336,12 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
 
   public:
     // Drawing methods
+    template <bool with_level_radius>
+    cv::Mat draw_feature_trails_(const cv::Mat &img, const std::vector<int> &kps_idxs,
+                                 int trail_max_length) const;
     cv::Mat draw_feature_trails(const cv::Mat &img, const std::vector<int> &kps_idxs,
-                                int trail_max_length = 9) const;
-    cv::Mat draw_all_feature_trails(const cv::Mat &img) const;
+                                const bool with_level_radius, int trail_max_length = 9) const;
+    cv::Mat draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius) const;
 
   public:
     // Serialization

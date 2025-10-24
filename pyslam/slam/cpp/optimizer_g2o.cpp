@@ -793,7 +793,8 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
     if (map_lock) {
         lock = std::make_unique<pyslam::PyLockGuard<LockType>>(map_lock);
     }
-    const bool map_no_lock = true;
+    // Only bypass the map's internal locking when we already hold the map lock.
+    const bool map_no_lock = (map_lock != nullptr);
 
     // Remove outlier observations
     for (const auto &outlier_data : outliers_edge_data) {

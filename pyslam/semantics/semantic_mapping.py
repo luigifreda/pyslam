@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -31,7 +32,7 @@ from pyslam.config_parameters import Parameters
 
 from .semantic_segmentation_factory import SemanticSegmentationType, semantic_segmentation_factory
 from .semantic_fusion_methods import average_fusion, bayesian_fusion, count_labels
-from .semantic_types import SemanticFeatureType
+from .semantic_types import SemanticFeatureType, SemanticEntityType
 
 from pyslam.semantics.semantic_utils import (
     SemanticDatasetType,
@@ -95,9 +96,23 @@ def semantic_mapping_factory(slam: "Slam", headless=False, image_size=(512, 512)
 class SemanticMappingBase:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
 
-    def __init__(self, slam: "Slam", semantic_mapping_type):
+    def __init__(
+        self,
+        slam: "Slam",
+        semantic_mapping_type,
+        semantic_segmentation_type,
+        semantic_dataset_type,
+        semantic_feature_type,
+    ):
         self.slam = slam
         self.semantic_mapping_type = semantic_mapping_type
+        self.semantic_entity_type = None
+        if semantic_mapping_type == SemanticMappingType.DENSE:
+            self.semantic_entity_type = SemanticEntityType.POINT
+
+        self.semantic_segmentation_type = semantic_segmentation_type
+        self.semantic_dataset_type = semantic_dataset_type
+        self.semantic_feature_type = semantic_feature_type
 
         self.queue = Queue()
         self.queue_condition = Condition()
@@ -105,7 +120,7 @@ class SemanticMappingBase:
         self.is_running = False
 
         self._is_idle = True
-        self.idle_codition = Condition()
+        self.idle_condition = Condition()
 
         self.stop_requested = False
         self.do_not_stop = False
@@ -219,21 +234,21 @@ class SemanticMappingBase:
         return self.queue.qsize()
 
     def is_idle(self):
-        with self.idle_codition:
+        with self.idle_condition:
             return self._is_idle
 
     def set_idle(self, flag):
-        with self.idle_codition:
+        with self.idle_condition:
             self._is_idle = flag
-            self.idle_codition.notify_all()
+            self.idle_condition.notify_all()
 
     def wait_idle(self, print=print, timeout=None):
         if self.is_running == False:
             return
-        with self.idle_codition:
+        with self.idle_condition:
             while not self._is_idle and self.is_running:
                 SemanticMappingBase.print("SemanticMapping: waiting for idle...")
-                ok = self.idle_codition.wait(timeout=timeout)
+                ok = self.idle_condition.wait(timeout=timeout)
                 if not ok:
                     Printer.yellow(
                         f"SemanticMapping: timeout {timeout}s reached, quit waiting for idle"
@@ -384,6 +399,13 @@ class SemanticMappingDense(SemanticMappingBase):
         image_size=(512, 512),
         headless=False,
     ):
+        super().__init__(
+            slam,
+            SemanticMappingType.DENSE,
+            semantic_segmentation_type,
+            semantic_dataset_type,
+            semantic_feature_type,
+        )
 
         if semantic_feature_type not in self.feature_type_configs:
             raise ValueError(f"Invalid semantic feature type: {semantic_feature_type}")
@@ -414,8 +436,28 @@ class SemanticMappingDense(SemanticMappingBase):
 
         self.headless = headless
         self.draw_semantic_mapping_init = False
+        # Cache whether casting predictions from int64 to int32 is value-safe
+        self._sem_pred_cast_to_int32_safe = None
 
-        super().__init__(slam, SemanticMappingType.DENSE)
+    def _ensure_int32_prediction(self, prediction):
+        """Cast int64 predictions to int32 when value-safe, using a cached decision.
+        - First time we see int64: compute min/max once and cache whether it's safe.
+        - Subsequent frames reuse the cached decision to avoid repeated scans.
+        """
+        if self._sem_pred_cast_to_int32_safe is True:
+            return prediction.astype(np.int32, copy=False)
+        if self._sem_pred_cast_to_int32_safe is None:
+            info_i32 = np.iinfo(np.int32)
+            vmin = prediction.min(initial=0)
+            vmax = prediction.max(initial=0)
+            self._sem_pred_cast_to_int32_safe = vmin >= info_i32.min and vmax <= info_i32.max
+            if self._sem_pred_cast_to_int32_safe:
+                return prediction.astype(np.int32, copy=False)
+            else:
+                Printer.yellow(
+                    f"semantic prediction values out of int32 range [{vmin}, {vmax}], keeping dtype {prediction.dtype}"
+                )
+        return prediction
 
     def semantic_mapping_impl(self):
 
@@ -423,6 +465,17 @@ class SemanticMappingDense(SemanticMappingBase):
         self.timer_inference.start()
         self.curr_semantic_prediction = self.semantic_segmentation.infer(self.img_cur)
         self.timer_inference.refresh()
+
+        # Ensure semantics use int32 if the prediction is int64 (for downstream compatibility)
+        if Parameters.USE_CPP_CORE:
+            if (
+                isinstance(self.curr_semantic_prediction, np.ndarray)
+                and self.curr_semantic_prediction.dtype == np.int64
+            ):
+                self.curr_semantic_prediction = self._ensure_int32_prediction(
+                    self.curr_semantic_prediction
+                )
+
         Printer.green(f"#semantic inference, timing: {self.timer_inference.last_elapsed}")
         # TODO(dvdmc): the prints don't work for some reason. They block the Thread
         # SemanticMappingDense.print(f'#semantic inference, timing: {self.timer_pts_culling.last_elapsed}')

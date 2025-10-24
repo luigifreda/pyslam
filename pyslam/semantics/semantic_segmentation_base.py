@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -43,4 +44,7 @@ class SemanticSegmentationBase:
 
     # TODO(dvdmc): test if this works directly for transforming a single label
     def to_rgb(self, semantics, bgr=False):
+        return NotImplementedError
+
+    def num_classes(self):
         return NotImplementedError

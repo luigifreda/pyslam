@@ -20,13 +20,15 @@
 #include "frame.h"
 #include "camera.h"
 #include "camera_pose.h"
+#include "config_parameters.h"
+#include "feature_shared_resources.h"
 #include "map_point.h"
+#include "utils/color_helpers.h"
+#include "utils/drawing.h"
 #include "utils/features.h"
 #include "utils/messages.h"
-#include "utils/serialization_json.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <future>
 
@@ -34,12 +36,9 @@
 #include <pybind11/pybind11.h> // for gil_scoped_acquire and gil_scoped_release
 #endif
 
-#include "config_parameters.h"
-#include "utils/color_helpers.h"
-#include "utils/drawing.h"
-
 namespace pyslam {
 
+// NOTE: This is just a convenience representation of the feature radius for drawing purposes.
 inline constexpr auto kDrawFeatureRadius = []() {
     std::array<int, 100> a{};
     for (std::size_t i = 0; i < a.size(); ++i)
@@ -234,6 +233,11 @@ MatNx3<Scalar> FrameBase::transform_points(MatNx3Ref<Scalar> points) const {
     return result;
 }
 
+// clang-format off
+// project an [Nx3] array of map point vectors on this frame
+// out: [Nx2] image projections (u,v) or [Nx3] array of stereo projections (u,v,ur) in case do_stereo_projet=True,
+//      [Nx1] array of map point depths
+// clang-format on
 template <typename Scalar>
 std::pair<MatNxM<Scalar>, VecN<Scalar>> FrameBase::project_points(MatNx3Ref<Scalar> points,
                                                                   bool do_stereo_project) const {
@@ -311,6 +315,14 @@ std::tuple<bool, Vec2<Scalar>, Scalar> FrameBase::is_visible(const MapPointPtr &
     return std::make_tuple(true, uv.template cast<Scalar>(), z);
 }
 
+// clang-format off
+// input: a list of map points
+// output: [Nx1] array of visibility flags,
+//         [Nx2] array of projections (u,v) or [Nx3] array of stereo image points (u,v,ur) in case do_stereo_projet=True,
+//         [Nx1] array of depths,
+//         [Nx1] array of distances PO
+// check a) points are in image b) good view angle c) good distance range
+// clang-format on
 template <typename Scalar>
 std::tuple<std::vector<bool>, MatNxM<Scalar>, VecN<Scalar>, VecN<Scalar>>
 FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stereo_project) const {
@@ -332,43 +344,44 @@ FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stere
     min_dists_in.resize(num_points);
     max_dists_in.resize(num_points);
 
-    int r = 0;
+    int num_valid_points = 0;
     for (size_t i = 0; i < num_points; ++i) {
         const auto &mp = map_points[i];
         if (mp) {
-            points_in.row(r) = mp->pt();
-            normals_in.row(r) = mp->get_normal();
+            points_in.row(i) = mp->pt();
+            normals_in.row(i) = mp->get_normal();
             const double min_dist = mp->min_distance();
             const double max_dist = mp->max_distance();
-            min_dists_in(r) = min_dist;
-            max_dists_in(r) = max_dist;
-            r++;
+            min_dists_in(i) = min_dist;
+            max_dists_in(i) = max_dist;
+            num_valid_points++;
+        } else {
+
+            points_in.row(i) = Eigen::RowVector3d::Zero();
+            normals_in.row(i) = Eigen::RowVector3d::Zero();
+            min_dists_in(i) = 0.0;
+            max_dists_in(i) = 0.0;
         }
     }
 
-    if (r != num_points) {
-        MSG_ERROR("Number of valid map points mismatch in are_visible");
+    if (num_valid_points != num_points) {
+        MSG_RED_WARN("Number of valid map points mismatch in are_visible");
         return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
                                VecN<Scalar>());
     }
 
     // Handle case where no valid map points were found
-    if (r == 0) {
+    if (num_valid_points == 0) {
         return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
                                VecN<Scalar>());
     }
-
-    points_in.conservativeResize(r, 3);
-    normals_in.conservativeResize(r, 3);
-    min_dists_in.conservativeResize(r);
-    max_dists_in.conservativeResize(r);
 
     auto projection_result = project_points<double>(points_in, do_stereo_project);
     const auto &uvs = projection_result.first;
     const auto &zs = projection_result.second;
 
     // Validate that projection returned expected number of points
-    if (uvs.rows() != r || zs.size() != r) {
+    if (uvs.rows() != num_valid_points || zs.size() != num_valid_points) {
         MSG_ERROR("Projection result size mismatch in are_visible");
         return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
                                VecN<Scalar>());
@@ -386,7 +399,7 @@ FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stere
         dists_in[i] = PO.norm();
 
         // Safety check for division by zero
-        if (dists_in[i] < static_cast<double>(1e-10)) {
+        if (dists_in[i] < static_cast<double>(kMinZ)) {
             // Point is too close to camera center, mark as not visible
             POs.row(i) = Eigen::RowVector3d::Zero();
         } else {
@@ -403,7 +416,8 @@ FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stere
     auto are_in_image_flags = are_in_image<double>(uvs, zs.template cast<double>());
 
     // Validate array sizes are consistent
-    if (are_in_image_flags.size() != r || cos_view.size() != r || dists_in.size() != r) {
+    if (are_in_image_flags.size() != num_valid_points || cos_view.size() != num_valid_points ||
+        dists_in.size() != num_valid_points) {
         MSG_ERROR("Array size mismatch in are_visible");
         return std::make_tuple(std::vector<bool>(), MatNx2<Scalar>(), VecN<Scalar>(),
                                VecN<Scalar>());
@@ -412,7 +426,7 @@ FrameBase::are_visible(const std::vector<MapPointPtr> &map_points, bool do_stere
     std::vector<bool> are_in_good_view_angle;
     are_in_good_view_angle.resize(cos_view.size());
     for (size_t i = 0; i < cos_view.size(); ++i) {
-        are_in_good_view_angle[i] = cos_view[i] > 0.5;
+        are_in_good_view_angle[i] = cos_view[i] > Parameters::kViewingCosLimitForPoint;
     }
 
     std::vector<bool> are_in_good_distance;
@@ -734,18 +748,32 @@ std::vector<MapPointPtr> Frame::get_matched_good_points() const {
     return good_points;
 }
 
-std::pair<std::vector<int>, std::vector<MapPointPtr>>
-Frame::get_matched_good_points_with_idxs() const {
+std::vector<int> Frame::get_matched_good_points_idxs() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     std::vector<int> idxs;
-    std::vector<MapPointPtr> good_points;
-    for (size_t i = 0; i < points.size(); ++i) {
-        if (points[i] && !points[i]->is_bad()) {
+    idxs.reserve(points.size());
+    const size_t num_points = points.size();
+    for (size_t i = 0; i < num_points; ++i) {
+        const auto &p = points[i];
+        if (p && !p->is_bad()) {
             idxs.push_back(i);
-            good_points.push_back(points[i]);
         }
     }
-    return std::make_pair(idxs, good_points);
+    return idxs;
+}
+
+std::vector<std::pair<MapPointPtr, int>> Frame::get_matched_good_points_and_idxs() const {
+    std::lock_guard<std::mutex> lock(_lock_features);
+    const size_t num_points = points.size();
+    std::vector<std::pair<MapPointPtr, int>> good_points_and_idxs;
+    good_points_and_idxs.reserve(num_points);
+    for (size_t i = 0; i < num_points; ++i) {
+        const auto &p = points[i];
+        if (p && !p->is_bad()) {
+            good_points_and_idxs.emplace_back(p, i);
+        }
+    }
+    return good_points_and_idxs;
 }
 
 int Frame::num_tracked_points(int minObs) const {
@@ -769,6 +797,18 @@ int Frame::num_matched_inlier_map_points() const {
         }
     }
     return count;
+}
+
+// without locking since used in the tracking thread
+std::vector<bool> Frame::get_tracked_mask() const {
+    const int num_points = static_cast<int>(points.size());
+    std::vector<bool> tracked_mask(num_points, false);
+    for (int i = 0; i < num_points; ++i) {
+        if (points[i] && !outliers[i]) {
+            tracked_mask[i] = true; // point is tracked
+        }
+    }
+    return std::move(tracked_mask);
 }
 
 int Frame::update_map_points_statistics(const SensorType &sensor_type) {
@@ -1253,9 +1293,10 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
     }
 }
 
+// NOTE: Not-thread safe, not to be used outside of the tracking thread
 template <typename Scalar>
 std::pair<Vec3<Scalar>, bool> Frame::unproject_point_3d(int idx, bool transform_in_world) const {
-    const double &depth = depths[idx];
+    const Scalar depth = depths[idx];
     if (depth > Parameters::kMinDepth) {
         Vec3<Scalar> pt3d(depth * kpsn(idx, 0), depth * kpsn(idx, 1), depth);
         if (transform_in_world) {
@@ -1263,7 +1304,7 @@ std::pair<Vec3<Scalar>, bool> Frame::unproject_point_3d(int idx, bool transform_
         }
         return std::make_pair(pt3d, true);
     } else {
-        return std::make_pair(Vec3<Scalar>(), false);
+        return std::make_pair(Vec3<Scalar>::Zero(), false);
     }
 }
 
@@ -1275,7 +1316,7 @@ Frame::unproject_points_3d(const std::vector<int> &idxs, bool transform_in_world
 
     for (size_t i = 0; i < idxs.size(); ++i) {
         const int idx = idxs[i];
-        const double &depth = depths[idx];
+        const Scalar depth = depths[idx];
         if (depth > Parameters::kMinDepth) {
             Vec3<Scalar> pt3d(depth * kpsn(idx, 0), depth * kpsn(idx, 1), depth);
             if (transform_in_world) {
@@ -1339,7 +1380,7 @@ Scalar Frame::compute_points_median_depth(MatNx3Ref<Scalar> points3d,
     const size_t idx = std::min(static_cast<size_t>(depths.size() * p), depths.size() - 1);
     std::nth_element(depths.begin(), depths.begin() + idx, depths.end());
 #endif
-    return depths[idx];
+    return static_cast<Scalar>(depths[idx]);
 }
 
 void Frame::set_img_right(const cv::Mat &img_right) { this->img_right = img_right.clone(); }
@@ -1401,6 +1442,10 @@ void extract_semantic_at_keypoints(const cv::Mat &semantic_img, MatNx2fRef kps, 
         single ? extract_semantic_at_keypoints_impl<true, uint16_t>(semantic_img, kps, kps_sem)
                : extract_semantic_at_keypoints_impl<false, uint16_t>(semantic_img, kps, kps_sem);
         break;
+    case CV_32S:
+        single ? extract_semantic_at_keypoints_impl<true, int32_t>(semantic_img, kps, kps_sem)
+               : extract_semantic_at_keypoints_impl<false, int32_t>(semantic_img, kps, kps_sem);
+        break;
     case CV_32F:
         single ? extract_semantic_at_keypoints_impl<true, float>(semantic_img, kps, kps_sem)
                : extract_semantic_at_keypoints_impl<false, float>(semantic_img, kps, kps_sem);
@@ -1418,7 +1463,9 @@ void extract_semantic_at_keypoints(const cv::Mat &semantic_img, MatNx2fRef kps, 
         break;
 #endif
     default:
-        MSG_ERROR("Frame::extract_semantic_at_keypoints() - unsupported image depth for semantics");
+        MSG_ERROR_STREAM(
+            "Frame::extract_semantic_at_keypoints() - unsupported image depth for semantics: "
+            << semantic_img.depth());
         CV_Error(cv::Error::StsUnsupportedFormat, "Unsupported image depth for semantics");
     }
 }
@@ -1432,6 +1479,29 @@ void Frame::set_semantics(const cv::Mat &semantic_img) {
 
         // Extract semantic information at keypoint locations
         extract_semantic_at_keypoints(semantic_img, kps, kps_sem);
+
+        // Normalize kps_sem type to avoid mixed-type issues downstream (e.g., push_back)
+        // Policy: LABEL -> CV_32S; PROBABILITY_VECTOR/FEATURE_VECTOR -> CV_32F
+        {
+            int target_depth = CV_32F;
+            switch (FeatureSharedResources::semantic_feature_type) {
+            case SemanticFeatureType::LABEL:
+                target_depth = CV_32S;
+                break;
+            case SemanticFeatureType::PROBABILITY_VECTOR:
+            case SemanticFeatureType::FEATURE_VECTOR:
+            default:
+                target_depth = CV_32F;
+                break;
+            }
+            const int channels = kps_sem.channels();
+            const int target_type = CV_MAKETYPE(target_depth, channels);
+            if (kps_sem.type() != target_type) {
+                cv::Mat converted;
+                kps_sem.convertTo(converted, target_type);
+                kps_sem = std::move(converted);
+            }
+        }
 
         // Ensure contiguous memory layout (equivalent to np.ascontiguousarray)
         if (!kps_sem.isContinuous()) {
@@ -1462,28 +1532,36 @@ void Frame::ensure_contiguous_arrays() {
     }
 }
 
-cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &kps_idxs,
-                                   int trail_max_length) const {
+template <bool with_level_radius>
+cv::Mat Frame::draw_feature_trails_(const cv::Mat &img, const std::vector<int> &kps_idxs,
+                                    int trail_max_length) const {
     cv::Mat img_out = img.clone();
     std::lock_guard<std::mutex> lock(_lock_features);
+
+    // Pre-allocate reusable containers
+    std::vector<cv::Point> pts;
+    pts.reserve(trail_max_length);
+
+    // Pre-compute common colors
+    const cv::Scalar color_green(0, 255, 0);
+    const cv::Scalar color_red(255, 0, 0);
+    const cv::Scalar color_black(0, 0, 0);
 
     // use distorted coordinates when drawing on distorted original image
     for (const int idx : kps_idxs) {
         const auto &kp = kps.row(idx);
         const auto uv = Eigen::Vector2i(std::floor(kp[0]), std::floor(kp[1]));
 
-        const int radius = kDrawFeatureRadius[octaves[idx]];
         const auto &mp = points[idx];
         if (mp && !mp->is_bad()) {
             // there is a corresponding 3D map point
-            const auto &p_frame_views = mp->frame_views(); // list of (Frame, idx)
+
+            const int radius = kDrawFeatureRadius[octaves[idx]]; // fake size for visualization
+            const auto p_frame_views = mp->frame_views();        // list of (Frame, idx)
             if (!p_frame_views.empty()) {
-                const auto &color =
-                    (p_frame_views.size() > 2) ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0);
-                cv::circle(img_out, cv::Point(uv[0], uv[1]), radius, color, 1);
                 // draw the trail (for each keypoint, its trail_max_length corresponding points
                 // in previous frames)
-                std::vector<cv::Point> pts;
+                pts.clear();
                 int count = 0;
                 int last_frame_id = -1;
 
@@ -1503,24 +1581,54 @@ cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &k
                         break;
                     }
                 }
+
+                cv::Scalar cv_point_color;
+                if constexpr (with_level_radius) {
+                    cv_point_color = (p_frame_views.size() > 2) ? color_green : color_red;
+                } else {
+                    const auto color =
+                        pyslam::ColorTableGenerator::instance().color_from_int(mp->id);
+                    cv_point_color = cv::Scalar(color.r, color.g, color.b);
+                }
+
+                // Draw the trail
                 if (pts.size() > 1) {
-                    const auto &color = pyslam::Colors::myjet_color(pts.size());
-                    const auto &cv_color = cv::Scalar(color[0], color[1], color[2]) * 255;
-                    cv::polylines(img_out, pts, false, cv_color, 1, cv::LINE_AA);
+                    if constexpr (with_level_radius) {
+                        const auto trail_color = pyslam::Colors::myjet_color(pts.size());
+                        const auto cv_trail_color =
+                            cv::Scalar(trail_color[0], trail_color[1], trail_color[2]) * 255;
+                        cv::polylines(img_out, pts, false, cv_trail_color, 1, cv::LINE_AA);
+                    } else {
+                        cv::polylines(img_out, pts, false, cv_point_color, 1, cv::LINE_AA);
+                    }
+                }
+                if constexpr (with_level_radius) {
+                    cv::circle(img_out, cv::Point(uv[0], uv[1]), radius, cv_point_color, 1);
+                } else {
+                    cv::circle(img_out, cv::Point(uv[0], uv[1]), 4, cv_point_color, -1);
                 }
             }
         } else {
             // no corresponding 3D map point
-            cv::circle(img_out, cv::Point(uv[0], uv[1]), 2, cv::Scalar(0, 0, 0));
+            cv::circle(img_out, cv::Point(uv[0], uv[1]), 2, color_black);
         }
     }
     return img_out;
 }
 
-cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img) const {
+cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &kps_idxs,
+                                   const bool with_level_radius, int trail_max_length) const {
+    if (with_level_radius) {
+        return draw_feature_trails_<true>(img, kps_idxs, trail_max_length);
+    } else {
+        return draw_feature_trails_<false>(img, kps_idxs, trail_max_length);
+    }
+}
+
+cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius) const {
     std::vector<int> all_idxs(kps.rows());
     std::iota(all_idxs.begin(), all_idxs.end(), 0);
-    return draw_feature_trails(img, all_idxs);
+    return draw_feature_trails(img, all_idxs, with_level_radius);
 }
 
 void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
@@ -1679,32 +1787,42 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
 
         // Run parallel detection
         FeatureDetectAndComputeOutput result_left, result_right;
-
-        auto left_future =
-            std::async(std::launch::async, [this, &img]() -> FeatureDetectAndComputeOutput {
-                if (img.empty()) {
-                    return FeatureDetectAndComputeOutput();
-                }
+        {
 #ifdef USE_PYTHON
-                pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+            // Release the GIL in the calling thread so worker threads can acquire it.
+            std::unique_ptr<pybind11::gil_scoped_release> release_guard;
+            if (Py_IsInitialized() && PyGILState_Check()) {
+                release_guard = std::make_unique<pybind11::gil_scoped_release>();
+            }
 #endif
-                return FeatureSharedResources::feature_detect_and_compute_callback(img);
-            });
 
-        auto right_future =
-            std::async(std::launch::async, [this, &img_right]() -> FeatureDetectAndComputeOutput {
-                if (img_right.empty()) {
-                    return FeatureDetectAndComputeOutput();
-                }
+            auto left_future =
+                std::async(std::launch::async, [this, &img]() -> FeatureDetectAndComputeOutput {
+                    if (img.empty()) {
+                        return FeatureDetectAndComputeOutput();
+                    }
 #ifdef USE_PYTHON
-                pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+                    pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
 #endif
-                return FeatureSharedResources::feature_detect_and_compute_right_callback(img_right);
-            });
+                    return FeatureSharedResources::feature_detect_and_compute_callback(img);
+                });
 
-        // Wait for both to complete (GIL is still released here)
-        result_left = left_future.get();
-        result_right = right_future.get();
+            auto right_future = std::async(
+                std::launch::async, [this, &img_right]() -> FeatureDetectAndComputeOutput {
+                    if (img_right.empty()) {
+                        return FeatureDetectAndComputeOutput();
+                    }
+#ifdef USE_PYTHON
+                    pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+#endif
+                    return FeatureSharedResources::feature_detect_and_compute_right_callback(
+                        img_right);
+                });
+
+            // Wait for both to complete (GIL is still released here)
+            result_left = left_future.get();
+            result_right = right_future.get();
+        }
 
         return {result_left, result_right};
 
@@ -1719,6 +1837,9 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
         if (img.empty()) {
             return {FeatureDetectAndComputeOutput(), FeatureDetectAndComputeOutput()};
         } else {
+#ifdef USE_PYTHON
+            pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+#endif
             return {FeatureSharedResources::feature_detect_and_compute_callback(img),
                     FeatureDetectAndComputeOutput()};
         }

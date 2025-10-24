@@ -156,8 +156,14 @@ void bind_map_point(py::module &m) {
              py::arg("force") = false)
         .def("update_best_descriptor", &pyslam::MapPoint::update_best_descriptor,
              py::arg("force") = false)
-        .def("update_semantics", &pyslam::MapPoint::update_semantics,
-             py::arg("semantic_fusion_method") = nullptr, py::arg("force") = false)
+        .def(
+            "update_semantics",
+            [](pyslam::MapPoint &self, py::object semantic_fusion_method, bool force) {
+                // NOTE: we are not using the semantic_fusion_method from Python here,
+                // C++ reimplements the semantic fusion method
+                self.update_semantics(nullptr, force);
+            },
+            py::arg("semantic_fusion_method") = py::none(), py::arg("force") = false)
         .def("update_info", &pyslam::MapPoint::update_info)
         .def("predict_detection_level", &pyslam::MapPoint::predict_detection_level)
         .def("to_json", &pyslam::MapPoint::to_json)

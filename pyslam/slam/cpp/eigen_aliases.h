@@ -32,11 +32,15 @@ using Vec3i = Eigen::Matrix<int, 3, 1>;           // 3-channel int vector
 using Vec3f = Eigen::Vector3f;
 using Vec3d = Eigen::Vector3d;
 
+using Vec6f = Eigen::Matrix<float, 6, 1>;
+using Vec6d = Eigen::Matrix<double, 6, 1>;
+
 using VecNf = Eigen::VectorXf;
 using VecNd = Eigen::VectorXd;
 
 template <typename Scalar> using Vec2 = Eigen::Matrix<Scalar, 2, 1>;
 template <typename Scalar> using Vec3 = Eigen::Matrix<Scalar, 3, 1>;
+template <typename Scalar> using Vec6 = Eigen::Matrix<Scalar, 6, 1>;
 template <typename Scalar> using VecN = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
 
 // -- 2D and 3D matrices
@@ -85,6 +89,9 @@ using Vec3iRef = Eigen::Ref<const Vec3i>;
 using Vec3fRef = Eigen::Ref<const Vec3f>;
 using Vec3dRef = Eigen::Ref<const Vec3d>;
 
+using Vec6fRef = Eigen::Ref<const Vec6f>;
+using Vec6dRef = Eigen::Ref<const Vec6d>;
+
 using VecNfRef = Eigen::Ref<const VecNf>;
 using VecNdRef = Eigen::Ref<const VecNd>;
 
@@ -107,6 +114,7 @@ using MatNxMdRef = Eigen::Ref<const MatNxMd>;
 
 template <typename Scalar> using Vec2Ref = Eigen::Ref<const Vec2<Scalar>>;
 template <typename Scalar> using Vec3Ref = Eigen::Ref<const Vec3<Scalar>>;
+template <typename Scalar> using Vec6Ref = Eigen::Ref<const Vec6<Scalar>>;
 template <typename Scalar> using VecNRef = Eigen::Ref<const VecN<Scalar>>;
 
 template <typename Scalar> using Mat2Ref = Eigen::Ref<const Mat2<Scalar>>;
