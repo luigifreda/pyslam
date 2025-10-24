@@ -78,6 +78,7 @@ core_classes = [
     "FrameBase",
     "KeyFrame",
     "Map",
+    "MapState",
     "CameraPose",
     "Camera",
     "PinholeCamera",
@@ -116,6 +117,7 @@ def _import_cpp_core():
             "FrameBase": cpp_core.FrameBase,
             "KeyFrame": cpp_core.KeyFrame,
             "Map": cpp_core.Map,
+            "MapState": cpp_core.MapState,
             "CameraPose": cpp_core.CameraPose,
             "Camera": cpp_core.Camera,
             "PinholeCamera": cpp_core.PinholeCamera,
@@ -160,7 +162,7 @@ def _import_python_core():
         from pyslam.slam.map_point import MapPoint
         from pyslam.slam.frame import Frame, FrameBase
         from pyslam.slam.keyframe import KeyFrame
-        from pyslam.slam.map import Map
+        from pyslam.slam.map import Map, MapState
         from pyslam.slam.camera_pose import CameraPose
         from pyslam.slam.camera import Camera, PinholeCamera, CameraType, CameraUtils
         from pyslam.slam.sim3_pose import Sim3Pose
@@ -178,6 +180,7 @@ def _import_python_core():
             "FrameBase": FrameBase,
             "KeyFrame": KeyFrame,
             "Map": Map,
+            "MapState": MapState,
             "CameraPose": CameraPose,
             "Camera": Camera,
             "PinholeCamera": PinholeCamera,

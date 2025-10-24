@@ -6,9 +6,10 @@ from matplotlib import pyplot as plt
 
 
 from pyslam.config import Config
+from pyslam.config_parameters import Parameters
 
-
-os.environ["PYSLAM_USE_CPP"] = "true"  # set environment variable to use C++ module
+USE_CPP = True
+Parameters.USE_CPP_CORE = USE_CPP
 
 from pyslam.slam import (
     Frame,
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     # ============================================
 
     # select your tracker configuration (see the file feature_tracker_configs.py)
-    tracker_config = FeatureTrackerConfigs.ORB2
+    tracker_config = FeatureTrackerConfigs.ROOT_SIFT
     tracker_config["num_features"] = 1000
     tracker_config["deterministic"] = True
     feature_tracker = feature_tracker_factory(**tracker_config)
@@ -98,7 +99,8 @@ if __name__ == "__main__":
 
     timer.start()
 
-    matching_result = match_frames(f_ref, f_cur, ratio_test=0.8)
+    print(f"f_ref: {f_ref}, f_cur: {f_cur}")
+    matching_result = match_frames(f_ref, f_cur)
     idxs_ref, idxs_cur, num_found_matches = (
         matching_result.idxs1,
         matching_result.idxs2,

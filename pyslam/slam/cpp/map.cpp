@@ -18,10 +18,12 @@
  */
 
 #include "map.h"
+#include "semantic_mapping_shared_resources.h"
 #include "utils/messages.h"
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #include "optimizer_g2o.h"
 
@@ -312,11 +314,191 @@ void Map::remove_keyframe(KeyFramePtr keyframe) {
 }
 
 // Visualization
-cv::Mat Map::draw_feature_trails(cv::Mat &img) {
+cv::Mat Map::draw_feature_trails(cv::Mat &img, const bool with_level_radius) {
     if (frames.empty()) {
         return img;
     }
-    return frames.back()->draw_all_feature_trails(img);
+    return frames.back()->draw_all_feature_trails(img, with_level_radius);
+}
+
+std::shared_ptr<MapState>
+Map::get_data_arrays_for_drawing(std::size_t max_points_to_visualize,
+                                 std::size_t min_weight_for_drawing_covisibility_edge) const {
+
+    auto map_state = std::make_shared<MapState>();
+
+    // Get keyframes
+    const auto keyframes = get_keyframes();
+    const std::size_t num_map_keyframes = keyframes.size();
+
+    if (num_map_keyframes > 0) {
+        // Twc() and timestamp collection
+        auto &poses = map_state->poses;
+        poses.reserve(num_map_keyframes);
+
+        auto &pose_timestamps = map_state->pose_timestamps;
+        pose_timestamps.reserve(num_map_keyframes);
+
+        for (const auto &kf : keyframes) {
+            poses.push_back(kf->Twc());
+            pose_timestamps.push_back(kf->timestamp);
+        }
+
+        // Only gather fov centers that exist
+        auto &fov_centers = map_state->fov_centers;
+        fov_centers.reserve(num_map_keyframes);
+
+        for (const auto &kf : keyframes) {
+            if (kf->fov_center_w != Vec3d::Zero()) {
+                fov_centers.push_back(kf->fov_center_w);
+            }
+        }
+
+        if (!fov_centers.empty()) {
+            auto &fov_centers_colors = map_state->fov_centers_colors;
+            fov_centers_colors.reserve(fov_centers.size());
+
+            // Fill with red color (1.0, 0.0, 0.0)
+            for (std::size_t i = 0; i < fov_centers.size(); ++i) {
+                fov_centers_colors.push_back(Vec3d(1.0, 0.0, 0.0));
+            }
+        }
+    }
+
+    // Map points
+    const auto map_points = get_points();
+    const std::size_t num_map_points = map_points.size();
+
+    if (num_map_points > 0) {
+        // Downsampling for very large clouds to reduce queue bandwidth and GL load
+        std::vector<MapPointPtr> sel_points;
+        if (num_map_points > max_points_to_visualize) {
+            MSG_WARN("Viewer3D: draw_slam_map - downsampling map points from " +
+                     std::to_string(num_map_points) + " to " +
+                     std::to_string(max_points_to_visualize));
+
+            // Convert set to vector for random sampling
+            std::vector<MapPointPtr> points_vector(map_points.begin(), map_points.end());
+
+            // Random sampling without replacement
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::shuffle(points_vector.begin(), points_vector.end(), gen);
+
+            sel_points.assign(points_vector.begin(),
+                              points_vector.begin() + max_points_to_visualize);
+        } else {
+            sel_points.assign(map_points.begin(), map_points.end());
+        }
+
+        std::size_t N = sel_points.size();
+        auto &points = map_state->points;
+        auto &colors = map_state->colors;
+        auto &semantic_colors = map_state->semantic_colors;
+
+        points.reserve(N);
+        colors.reserve(N);
+        semantic_colors.reserve(N);
+
+        // Check if semantic mapping is active
+        bool is_semantic_mapping_active =
+            SemanticMappingSharedResources::semantic_color_map != nullptr;
+
+        try {
+            if (is_semantic_mapping_active) {
+                for (std::size_t i = 0; i < N; ++i) {
+                    const auto &p = sel_points[i];
+                    points.push_back(p->pt());
+
+                    // Convert BGR to RGB and normalize
+                    Eigen::Vector3f color_rgb;
+                    color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
+                        static_cast<float>(p->color[1]) / 255.0f,          // G
+                        static_cast<float>(p->color[0]) / 255.0f;          // B
+                    colors.push_back(color_rgb);
+
+                    // Handle semantic colors
+                    Eigen::Vector3f sem_color = Eigen::Vector3f::Zero();
+                    if (!p->semantic_des.empty()) {
+                        // Convert semantic descriptor to RGB using the color map
+                        cv::Vec3b sem_rgb =
+                            SemanticMappingSharedResources::semantic_color_map
+                                ->single_label_to_color(
+                                    static_cast<int>(p->semantic_des.at<float>(0)), false);
+                        sem_color << static_cast<float>(sem_rgb[0]) / 255.0f,
+                            static_cast<float>(sem_rgb[1]) / 255.0f,
+                            static_cast<float>(sem_rgb[2]) / 255.0f;
+                    }
+                    semantic_colors.push_back(sem_color);
+                }
+            } else {
+                for (std::size_t i = 0; i < N; ++i) {
+                    const auto &p = sel_points[i];
+                    points.push_back(p->pt());
+
+                    // Convert BGR to RGB and normalize
+                    Eigen::Vector3f color_rgb;
+                    color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
+                        static_cast<float>(p->color[1]) / 255.0f,          // G
+                        static_cast<float>(p->color[0]) / 255.0f;          // B
+                    colors.push_back(color_rgb);
+
+                    // No semantic colors
+                    semantic_colors.push_back(Eigen::Vector3f::Zero());
+                }
+            }
+        } catch (const std::exception &e) {
+            MSG_ERROR("Viewer3D: draw_slam_map - error: " + std::string(e.what()));
+        }
+    }
+
+    // Graphs
+    if (!keyframes.empty()) {
+        auto &covisibility_graph = map_state->covisibility_graph;
+        auto &spanning_tree = map_state->spanning_tree;
+        auto &loops = map_state->loops;
+
+        covisibility_graph.reserve(keyframes.size());
+        spanning_tree.reserve(keyframes.size());
+        loops.reserve(keyframes.size());
+
+        for (const auto &kf : keyframes) {
+            Eigen::Vector3d Ow = kf->Ow();
+
+            // Covisibility graph
+            auto covisible_kfs = kf->get_covisible_by_weight(
+                static_cast<int>(min_weight_for_drawing_covisibility_edge));
+            for (const auto &kf_cov : covisible_kfs) {
+                if (kf_cov->kid > kf->kid) {
+                    const auto Ow_cov = kf_cov->Ow();
+                    Vec6d line;
+                    line << Ow, Ow_cov;
+                    covisibility_graph.push_back(line);
+                }
+            }
+
+            // Spanning tree
+            if (kf->parent != nullptr) {
+                const auto Ow_parent = kf->parent->Ow();
+                Vec6d line;
+                line << Ow, Ow_parent;
+                spanning_tree.push_back(line);
+            }
+
+            // Loop edges
+            auto loop_edges = kf->get_loop_edges();
+            for (const auto &kf_loop : loop_edges) {
+                if (kf_loop->kid > kf->kid) {
+                    const auto Ow_loop = kf_loop->Ow();
+                    Vec6d line;
+                    line << Ow, Ow_loop;
+                    loops.push_back(line);
+                }
+            }
+        }
+    }
+
+    return map_state;
 }
 
 // Optimization

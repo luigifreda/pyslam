@@ -166,12 +166,20 @@ endif()
 set(SEMANTICS_CPP_CORE_SOURCES
     ${PYSLAM_SEMANTICS_SRC}/semantic_fusion_methods.cpp
     ${PYSLAM_SEMANTICS_SRC}/semantic_serialization.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_utils.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_colormap.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_labels.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_mapping_shared_resources.cpp
 )
 
 set(SEMANTICS_CPP_CORE_HEADERS
     ${PYSLAM_SEMANTICS_SRC}/semantic_fusion_methods.h
     ${PYSLAM_SEMANTICS_SRC}/semantic_serialization.h
     ${PYSLAM_SEMANTICS_SRC}/semantic_types.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_utils.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_colormap.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_labels.h
+    ${PYSLAM_SEMANTICS_SRC}/semantic_mapping_shared_resources.h
 )
 
 
@@ -197,6 +205,8 @@ set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/py_module/tracking_utils_module.h
     ${PYSLAM_SLAM_SRC}/py_module/rotation_histogram_module.h
     ${PYSLAM_SLAM_SRC}/py_module/geometry_matchers_module.h
+    # semantics
+    ${PYSLAM_SEMANTICS_SRC}/py_module/semantic_mapping_shared_resources_module.h
 )
 
 # all source and header files

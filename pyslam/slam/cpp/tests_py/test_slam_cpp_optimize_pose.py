@@ -5,8 +5,11 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
-
 import pyslam.config as config
+from pyslam.config_parameters import Parameters
+
+USE_CPP = True
+Parameters.USE_CPP_CORE = USE_CPP
 
 from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 
@@ -16,7 +19,6 @@ if not CPP_AVAILABLE:
 else:
     print("✅ cpp_module imported successfully")
 
-USE_CPP = False
 if USE_CPP:
     Frame = cpp_module.Frame
     KeyFrame = cpp_module.KeyFrame

@@ -42,6 +42,47 @@ namespace pyslam {
 //         Numpy serialization
 //=======================================
 
+py::tuple MapState::state_tuple() const {
+    int version = 1;
+
+    // Convert vectors to numpy arrays
+    auto poses_array = vector_to_numpy(poses);
+    auto pose_timestamps_array = vector_to_numpy(pose_timestamps);
+    auto fov_centers_array = vector_to_numpy(fov_centers);
+    auto fov_centers_colors_array = vector_to_numpy(fov_centers_colors);
+    auto points_array = vector_to_numpy(points);
+    auto colors_array = vector_to_numpy(colors);
+    auto semantic_colors_array = vector_to_numpy(semantic_colors);
+    auto covisibility_graph_array = vector_to_numpy(covisibility_graph);
+    auto spanning_tree_array = vector_to_numpy(spanning_tree);
+    auto loops_array = vector_to_numpy(loops);
+
+    return py::make_tuple(version, poses_array, pose_timestamps_array, fov_centers_array,
+                          fov_centers_colors_array, points_array, colors_array,
+                          semantic_colors_array, covisibility_graph_array, spanning_tree_array,
+                          loops_array);
+}
+
+void MapState::restore_from_state(const py::tuple &t) {
+    int idx = 0;
+    int version = t[idx++].cast<int>();
+    if (version != 1)
+        throw std::runtime_error("Unsupported MapState pickle version");
+
+    poses = numpy_to_vector<Mat4d>(t[idx++].cast<py::array>());
+    pose_timestamps = numpy_to_vector<double>(t[idx++].cast<py::array>());
+    fov_centers = numpy_to_vector<Vec3d>(t[idx++].cast<py::array>());
+    fov_centers_colors = numpy_to_vector<Vec3d>(t[idx++].cast<py::array>());
+    points = numpy_to_vector<Vec3d>(t[idx++].cast<py::array>());
+    colors = numpy_to_vector<Vec3f>(t[idx++].cast<py::array>());
+    semantic_colors = numpy_to_vector<Vec3f>(t[idx++].cast<py::array>());
+    covisibility_graph = numpy_to_vector<Vec6d>(t[idx++].cast<py::array>());
+    spanning_tree = numpy_to_vector<Vec6d>(t[idx++].cast<py::array>());
+    loops = numpy_to_vector<Vec6d>(t[idx++].cast<py::array>());
+}
+
+//=======================================
+
 py::tuple MapPoint::state_tuple(bool need_lock) const {
     CONDITIONAL_LOCK(_lock_pos, need_lock);
     CONDITIONAL_LOCK(_lock_features, need_lock);

@@ -34,6 +34,11 @@ class Parameters {
     static constexpr double kThHuberStereo = 2.796; // sqrt(kChi2Stereo)
 
     static constexpr int kSparseImageColorPatchDelta = 1; // centre +- delta
+    static constexpr std::size_t kMinWeightForDrawingCovisibilityEdge = 100;
+    static constexpr std::size_t kMaxSparseMapPointsToVisualize =
+        1000000; // Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth
+                 // and GL load
+
     static constexpr double kMinDepth = 1e-2;
 
     // Threshold constant (equivalent to Parameters.kMinNumOfCovisiblePointsForCreatingConnection =

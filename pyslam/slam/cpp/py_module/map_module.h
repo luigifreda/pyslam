@@ -116,6 +116,30 @@ void bind_map(pybind11::module &m) {
         .def_readwrite("max_keyframe_id", &pyslam::ReloadedSessionMapInfo::max_keyframe_id);
 
     // ------------------------------------------------------------
+    // MapState class - complete interface matching Python MapState
+    py::class_<pyslam::MapState, std::shared_ptr<pyslam::MapState>>(m, "MapState")
+        .def(py::init<>())
+        .def_readwrite("poses", &pyslam::MapState::poses)
+        .def_readwrite("pose_timestamps", &pyslam::MapState::pose_timestamps)
+        .def_readwrite("fov_centers", &pyslam::MapState::fov_centers)
+        .def_readwrite("fov_centers_colors", &pyslam::MapState::fov_centers_colors)
+        .def_readwrite("points", &pyslam::MapState::points)
+        .def_readwrite("colors", &pyslam::MapState::colors)
+        .def_readwrite("semantic_colors", &pyslam::MapState::semantic_colors)
+        .def_readwrite("covisibility_graph", &pyslam::MapState::covisibility_graph)
+        .def_readwrite("spanning_tree", &pyslam::MapState::spanning_tree)
+        .def_readwrite("loops", &pyslam::MapState::loops)
+        .def(py::pickle([](const pyslam::MapState &self) { return self.state_tuple(); },
+                        [](py::tuple t) {
+                            auto map_state = std::make_shared<pyslam::MapState>(); // Remove nullptr
+                            map_state->restore_from_state(t);
+                            return map_state;
+                        }))
+        //.def("__setstate__", [](pyslam::MapState &self, py::tuple t) { self.restore_from_state(t);
+        //})
+        .def("__getstate__", &pyslam::MapState::state_tuple);
+
+    // ------------------------------------------------------------
     // Map class - complete interface matching Python Map
     py::class_<pyslam::Map, std::shared_ptr<pyslam::Map>>(m, "Map")
         .def(py::init<>())
@@ -189,7 +213,13 @@ void bind_map(pybind11::module &m) {
         .def("remove_keyframe", &pyslam::Map::remove_keyframe)
 
         // Visualization
-        .def("draw_feature_trails", &pyslam::Map::draw_feature_trails)
+        .def("draw_feature_trails", &pyslam::Map::draw_feature_trails, py::arg("img"),
+             py::arg("with_level_radius") = false)
+        .def("get_data_arrays_for_drawing", &pyslam::Map::get_data_arrays_for_drawing,
+             py::arg("max_points_to_visualize") =
+                 pyslam::Parameters::kMaxSparseMapPointsToVisualize,
+             py::arg("min_weight_for_drawing_covisibility_edge") =
+                 pyslam::Parameters::kMinWeightForDrawingCovisibilityEdge)
 
         // Point management
         .def("add_points", &pyslam::Map::add_points, py::arg("points3d"),

@@ -20,7 +20,10 @@
 #include "frame.h"
 #include "camera.h"
 #include "camera_pose.h"
+#include "config_parameters.h"
 #include "map_point.h"
+#include "utils/color_helpers.h"
+#include "utils/drawing.h"
 #include "utils/features.h"
 #include "utils/messages.h"
 #include "utils/serialization_json.h"
@@ -34,12 +37,9 @@
 #include <pybind11/pybind11.h> // for gil_scoped_acquire and gil_scoped_release
 #endif
 
-#include "config_parameters.h"
-#include "utils/color_helpers.h"
-#include "utils/drawing.h"
-
 namespace pyslam {
 
+// NOTE: This is just a convenience representation of the feature radius for drawing purposes.
 inline constexpr auto kDrawFeatureRadius = []() {
     std::array<int, 100> a{};
     for (std::size_t i = 0; i < a.size(); ++i)
@@ -1462,28 +1462,36 @@ void Frame::ensure_contiguous_arrays() {
     }
 }
 
-cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &kps_idxs,
-                                   int trail_max_length) const {
+template <bool with_level_radius>
+cv::Mat Frame::draw_feature_trails_(const cv::Mat &img, const std::vector<int> &kps_idxs,
+                                    int trail_max_length) const {
     cv::Mat img_out = img.clone();
     std::lock_guard<std::mutex> lock(_lock_features);
+
+    // Pre-allocate reusable containers
+    std::vector<cv::Point> pts;
+    pts.reserve(trail_max_length);
+
+    // Pre-compute common colors
+    const cv::Scalar color_green(0, 255, 0);
+    const cv::Scalar color_red(255, 0, 0);
+    const cv::Scalar color_black(0, 0, 0);
 
     // use distorted coordinates when drawing on distorted original image
     for (const int idx : kps_idxs) {
         const auto &kp = kps.row(idx);
         const auto uv = Eigen::Vector2i(std::floor(kp[0]), std::floor(kp[1]));
 
-        const int radius = kDrawFeatureRadius[octaves[idx]];
         const auto &mp = points[idx];
         if (mp && !mp->is_bad()) {
             // there is a corresponding 3D map point
-            const auto &p_frame_views = mp->frame_views(); // list of (Frame, idx)
+
+            const int radius = kDrawFeatureRadius[octaves[idx]]; // fake size for visualization
+            const auto p_frame_views = mp->frame_views();        // list of (Frame, idx)
             if (!p_frame_views.empty()) {
-                const auto &color =
-                    (p_frame_views.size() > 2) ? cv::Scalar(0, 255, 0) : cv::Scalar(255, 0, 0);
-                cv::circle(img_out, cv::Point(uv[0], uv[1]), radius, color, 1);
                 // draw the trail (for each keypoint, its trail_max_length corresponding points
                 // in previous frames)
-                std::vector<cv::Point> pts;
+                pts.clear();
                 int count = 0;
                 int last_frame_id = -1;
 
@@ -1503,24 +1511,54 @@ cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &k
                         break;
                     }
                 }
+
+                cv::Scalar cv_point_color;
+                if constexpr (with_level_radius) {
+                    cv_point_color = (p_frame_views.size() > 2) ? color_green : color_red;
+                } else {
+                    const auto color =
+                        pyslam::ColorTableGenerator::instance().color_from_int(mp->id);
+                    cv_point_color = cv::Scalar(color.r, color.g, color.b);
+                }
+
+                // Draw the trail
                 if (pts.size() > 1) {
-                    const auto &color = pyslam::Colors::myjet_color(pts.size());
-                    const auto &cv_color = cv::Scalar(color[0], color[1], color[2]) * 255;
-                    cv::polylines(img_out, pts, false, cv_color, 1, cv::LINE_AA);
+                    if constexpr (with_level_radius) {
+                        const auto trail_color = pyslam::Colors::myjet_color(pts.size());
+                        const auto cv_trail_color =
+                            cv::Scalar(trail_color[0], trail_color[1], trail_color[2]) * 255;
+                        cv::polylines(img_out, pts, false, cv_trail_color, 1, cv::LINE_AA);
+                    } else {
+                        cv::polylines(img_out, pts, false, cv_point_color, 1, cv::LINE_AA);
+                    }
+                }
+                if constexpr (with_level_radius) {
+                    cv::circle(img_out, cv::Point(uv[0], uv[1]), radius, cv_point_color, 1);
+                } else {
+                    cv::circle(img_out, cv::Point(uv[0], uv[1]), 4, cv_point_color, -1);
                 }
             }
         } else {
             // no corresponding 3D map point
-            cv::circle(img_out, cv::Point(uv[0], uv[1]), 2, cv::Scalar(0, 0, 0));
+            cv::circle(img_out, cv::Point(uv[0], uv[1]), 2, color_black);
         }
     }
     return img_out;
 }
 
-cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img) const {
+cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &kps_idxs,
+                                   const bool with_level_radius, int trail_max_length) const {
+    if (with_level_radius) {
+        return draw_feature_trails_<true>(img, kps_idxs, trail_max_length);
+    } else {
+        return draw_feature_trails_<false>(img, kps_idxs, trail_max_length);
+    }
+}
+
+cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius) const {
     std::vector<int> all_idxs(kps.rows());
     std::iota(all_idxs.begin(), all_idxs.end(), 0);
-    return draw_feature_trails(img, all_idxs);
+    return draw_feature_trails(img, all_idxs, with_level_radius);
 }
 
 void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {
@@ -1679,32 +1717,42 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
 
         // Run parallel detection
         FeatureDetectAndComputeOutput result_left, result_right;
-
-        auto left_future =
-            std::async(std::launch::async, [this, &img]() -> FeatureDetectAndComputeOutput {
-                if (img.empty()) {
-                    return FeatureDetectAndComputeOutput();
-                }
+        {
 #ifdef USE_PYTHON
-                pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+            // Release the GIL in the calling thread so worker threads can acquire it.
+            std::unique_ptr<pybind11::gil_scoped_release> release_guard;
+            if (Py_IsInitialized() && PyGILState_Check()) {
+                release_guard = std::make_unique<pybind11::gil_scoped_release>();
+            }
 #endif
-                return FeatureSharedResources::feature_detect_and_compute_callback(img);
-            });
 
-        auto right_future =
-            std::async(std::launch::async, [this, &img_right]() -> FeatureDetectAndComputeOutput {
-                if (img_right.empty()) {
-                    return FeatureDetectAndComputeOutput();
-                }
+            auto left_future =
+                std::async(std::launch::async, [this, &img]() -> FeatureDetectAndComputeOutput {
+                    if (img.empty()) {
+                        return FeatureDetectAndComputeOutput();
+                    }
 #ifdef USE_PYTHON
-                pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+                    pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
 #endif
-                return FeatureSharedResources::feature_detect_and_compute_right_callback(img_right);
-            });
+                    return FeatureSharedResources::feature_detect_and_compute_callback(img);
+                });
 
-        // Wait for both to complete (GIL is still released here)
-        result_left = left_future.get();
-        result_right = right_future.get();
+            auto right_future = std::async(
+                std::launch::async, [this, &img_right]() -> FeatureDetectAndComputeOutput {
+                    if (img_right.empty()) {
+                        return FeatureDetectAndComputeOutput();
+                    }
+#ifdef USE_PYTHON
+                    pybind11::gil_scoped_acquire acquire; // Acquire GIL just for this callback
+#endif
+                    return FeatureSharedResources::feature_detect_and_compute_right_callback(
+                        img_right);
+                });
+
+            // Wait for both to complete (GIL is still released here)
+            result_left = left_future.get();
+            result_right = right_future.get();
+        }
 
         return {result_left, result_right};
 

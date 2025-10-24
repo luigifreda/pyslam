@@ -41,7 +41,7 @@ from .feature_tracker_shared import FeatureTrackerShared
 from pyslam.utilities.geometry import add_ones, poseRt
 from pyslam.utilities.geom_triangulation import triangulate_normalized_points
 from pyslam.utilities.system import Printer
-from pyslam.utilities.colors import Colors
+from pyslam.utilities.colors import Colors, ColorTableGenerator
 
 from pyslam.utilities.drawing import draw_feature_matches
 from pyslam.utilities.features import (
@@ -72,7 +72,9 @@ if TYPE_CHECKING:
 
 
 kMinDepth = Parameters.kMinDepth
-kDrawFeatureRadius = [r * 5 for r in range(1, 100)]
+kDrawFeatureRadius = [
+    r * 5 for r in range(1, 100)
+]  # NOTE: This is just a convenience representation of the feature radius for drawing purposes.
 kDrawOctaveColor = np.linspace(0, 255, 12)
 
 
@@ -1347,7 +1349,70 @@ class Frame(FrameBase):
             return -1
 
     # draw tracked features on the image for selected keypoint indexes
-    def draw_feature_trails(self, img, kps_idxs, trail_max_length=9):
+    def draw_feature_trails_without_radius_(
+        self,
+        img: np.ndarray,
+        kps_idxs: list[int],
+        with_level_radius: bool = False,
+        trail_max_length: int = 9,
+    ):
+        img = img.copy()
+
+        color_table_generator = ColorTableGenerator.instance()
+        with self._lock_features:
+            uvs = np.rint(self.kps[kps_idxs]).astype(
+                np.intp
+            )  # image keypoints coordinates  # use distorted coordinates when drawing on distorted original image
+            # for each keypoint idx
+            for i, kp_idx in enumerate(kps_idxs):
+                # u1, v1 = int(round(self.kps[kp_idx][0])), int(round(self.kps[kp_idx][1]))  # use distorted coordinates when drawing on distorted original image
+                uv = tuple(uvs[i])
+
+                # color = Colors.myjet[self.octaves[i1]]*255
+                point = self.points[kp_idx]  # MapPoint
+                if point is not None and not point.is_bad():
+                    # radius = self.sizes[kp_idx] # actual size
+                    # radius = kDrawFeatureRadius[self.octaves[kp_idx]]  # fake size for visualization
+                    p_frame_views = point.frame_views()  # list of (Frame, idx)
+                    if p_frame_views:
+                        # there's a corresponding 3D map point
+                        color = color_table_generator.color_from_int_without_hash(point.id)
+                        cv2.circle(
+                            img, uv, color=color, radius=4, thickness=-1
+                        )  # draw keypoint size as a circle
+                        # draw the trail (for each keypoint, its trail_max_length corresponding points in previous frames)
+                        pts = []
+                        lfid = None  # last frame id
+                        for f, idx in reversed(p_frame_views[-trail_max_length:]):
+                            if f is None:
+                                continue
+                            if lfid is not None and lfid - 1 != f.id:
+                                # stop when there is a jump in the ids of frame observations
+                                break
+                            pts.append(tuple(f.kps[idx].astype(int)))
+                            lfid = f.id
+                        if len(pts) > 1:
+                            cv2.polylines(
+                                img,
+                                np.array([pts], dtype=np.int32),
+                                False,
+                                color,
+                                thickness=1,
+                                lineType=16,
+                            )
+                else:
+                    # no corresponding 3D point
+                    cv2.circle(img, uv, color=(0, 0, 0), radius=2)  # radius=radius)
+            return img
+
+    # draw tracked features on the image for selected keypoint indexes
+    def draw_feature_trails_with_radius_(
+        self,
+        img: np.ndarray,
+        kps_idxs: list[int],
+        with_level_radius: bool = False,
+        trail_max_length: int = 9,
+    ):
         img = img.copy()
         with self._lock_features:
             uvs = np.rint(self.kps[kps_idxs]).astype(
@@ -1358,12 +1423,11 @@ class Frame(FrameBase):
                 # u1, v1 = int(round(self.kps[kp_idx][0])), int(round(self.kps[kp_idx][1]))  # use distorted coordinates when drawing on distorted original image
                 uv = tuple(uvs[i])
 
-                # radius = self.sizes[kp_idx] # actual size
-                radius = kDrawFeatureRadius[self.octaves[kp_idx]]  # fake size for visualization
-
                 # color = Colors.myjet[self.octaves[i1]]*255
                 point = self.points[kp_idx]  # MapPoint
                 if point is not None and not point.is_bad():
+                    # radius = self.sizes[kp_idx] # actual size
+                    radius = kDrawFeatureRadius[self.octaves[kp_idx]]  # fake size for visualization
                     p_frame_views = point.frame_views()  # list of (Frame, idx)
                     if p_frame_views:
                         # there's a corresponding 3D map point
@@ -1398,9 +1462,12 @@ class Frame(FrameBase):
             return img
 
     # draw tracked features on the image
-    def draw_all_feature_trails(self, img):
+    def draw_all_feature_trails(self, img: np.ndarray, with_level_radius: bool = False):
         kps_idxs = range(len(self.kps))
-        return self.draw_feature_trails(img, kps_idxs)
+        if with_level_radius:
+            return self.draw_feature_trails_with_radius_(img, kps_idxs)
+        else:
+            return self.draw_feature_trails_without_radius_(img, kps_idxs)
 
 
 ####################################################################################

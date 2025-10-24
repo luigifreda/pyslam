@@ -27,7 +27,7 @@ from pyslam.utilities.serialization import SerializableEnum, register_class
 
 # TODO(dvdmc): Below is not yet used!
 @register_class
-class SemanticFusionMehtods(SerializableEnum):
+class SemanticFusionMethod(SerializableEnum):
     COUNT_LABELS = 0  # The label with the highest count
     BAYESIAN_FUSION = 1  # Integrate measurements iteratively in a bayesian manner TODO(dvdmc): Check if not normalizing in between results in the same.
     AVERAGE_FUSION = 2  # Average all measurements

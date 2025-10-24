@@ -35,7 +35,13 @@
 #include <unordered_set>
 #include <vector>
 
+#include "config_parameters.h"
 #include "smart_pointers.h"
+
+#ifdef USE_PYTHON
+#include <pybind11/eigen.h>
+#include <pybind11/stl.h>
+#endif
 
 namespace pyslam {
 
@@ -60,6 +66,29 @@ class ReloadedSessionMapInfo {
 };
 
 using KeyFrameIdSet = std::set<KeyFramePtr, KeyFrameIdCompare>;
+
+class MapState {
+  public:
+    std::vector<Mat4d> poses;
+    std::vector<double> pose_timestamps;
+    std::vector<Vec3d> fov_centers;
+    std::vector<Vec3d> fov_centers_colors;
+    std::vector<Vec3d> points;
+
+    std::vector<Vec3f> colors;
+    std::vector<Vec3f> semantic_colors;
+
+    std::vector<Vec6d> covisibility_graph;
+    std::vector<Vec6d> spanning_tree;
+    std::vector<Vec6d> loops;
+
+  public:
+#ifdef USE_PYTHON
+    // Numpy serialization
+    pybind11::tuple state_tuple() const;              // builds the versioned tuple
+    void restore_from_state(const pybind11::tuple &); // fills this object from the tuple
+#endif
+};
 
 class Map : public std::enable_shared_from_this<Map> {
 
@@ -133,7 +162,11 @@ class Map : public std::enable_shared_from_this<Map> {
     void remove_keyframe(KeyFramePtr keyframe); // no reference passing here!
 
     // Visualization
-    cv::Mat draw_feature_trails(cv::Mat &img);
+    cv::Mat draw_feature_trails(cv::Mat &img, const bool with_level_radius = false);
+    std::shared_ptr<MapState> get_data_arrays_for_drawing(
+        std::size_t max_points_to_visualize = Parameters::kMaxSparseMapPointsToVisualize,
+        std::size_t min_weight_for_drawing_covisibility_edge =
+            Parameters::kMinWeightForDrawingCovisibilityEdge) const;
 
     // Point management
     std::tuple<int, std::vector<bool>, std::vector<MapPointPtr>>

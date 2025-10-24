@@ -380,8 +380,10 @@ void bind_frame(py::module &m) {
         .def("compute_points_median_depth", &pyslam::Frame::compute_points_median_depth<double>,
              py::arg("points3d") = pyslam::MatNx3d(), py::arg("percentile") = 0.5)
         .def("draw_feature_trails", &pyslam::Frame::draw_feature_trails, py::arg("img"),
-             py::arg("kps_idxs"), py::arg("trail_max_length") = 9)
-        .def("draw_all_feature_trails", &pyslam::Frame::draw_all_feature_trails)
+             py::arg("kps_idxs"), py::arg("with_level_radius") = false,
+             py::arg("trail_max_length") = 9)
+        .def("draw_all_feature_trails", &pyslam::Frame::draw_all_feature_trails, py::arg("img"),
+             py::arg("with_level_radius") = false)
         .def("set_img_right", &pyslam::Frame::set_img_right)
         .def("set_depth_img", &pyslam::Frame::set_depth_img)
         .def("ensure_contiguous_arrays", &pyslam::Frame::ensure_contiguous_arrays)

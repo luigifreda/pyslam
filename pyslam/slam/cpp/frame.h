@@ -326,9 +326,12 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
 
   public:
     // Drawing methods
+    template <bool with_level_radius>
+    cv::Mat draw_feature_trails_(const cv::Mat &img, const std::vector<int> &kps_idxs,
+                                 int trail_max_length) const;
     cv::Mat draw_feature_trails(const cv::Mat &img, const std::vector<int> &kps_idxs,
-                                int trail_max_length = 9) const;
-    cv::Mat draw_all_feature_trails(const cv::Mat &img) const;
+                                const bool with_level_radius, int trail_max_length = 9) const;
+    cv::Mat draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius) const;
 
   public:
     // Serialization
