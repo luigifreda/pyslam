@@ -462,6 +462,13 @@ void bind_frame(py::module &m) {
         .def("set_img_right", &pyslam::Frame::set_img_right)
         .def("set_depth_img", &pyslam::Frame::set_depth_img)
         .def("set_semantics", &pyslam::Frame::set_semantics)
+        .def(
+            "update_points_semantics",
+            [](pyslam::Frame &self, py::object semantic_fusion_method_obj) {
+                py::gil_scoped_release release;
+                self.update_points_semantics(nullptr);
+            },
+            py::arg("semantic_fusion_method") = py::none())
         .def("ensure_contiguous_arrays", &pyslam::Frame::ensure_contiguous_arrays)
         .def("__eq__", &pyslam::Frame::operator==)
         .def("__lt__", &pyslam::Frame::operator<)

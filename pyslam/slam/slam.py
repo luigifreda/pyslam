@@ -52,7 +52,7 @@ from pyslam.local_features.feature_tracker import (
     FeatureTrackerTypes,
 )
 
-from pyslam.semantics.semantic_mapping import semantic_mapping_factory
+from pyslam.semantics.semantic_mapping_factory import semantic_mapping_factory
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 from pyslam.utilities.serialization import SerializableEnum, SerializationJSON, register_class
 from pyslam.utilities.system import Printer, getchar, Logging

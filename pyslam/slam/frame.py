@@ -577,6 +577,12 @@ class Frame(FrameBase):
                     np.ascontiguousarray(self.kps_sem) if self.kps_sem is not None else None
                 )
 
+    def update_points_semantics(self, semantic_fusion_method):
+        cur_points = self.get_points()
+        for p in cur_points:
+            if p is not None and not p.is_bad():
+                p.update_semantics(semantic_fusion_method)
+
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()

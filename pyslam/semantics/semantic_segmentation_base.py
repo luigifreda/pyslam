@@ -21,23 +21,39 @@
 import numpy as np
 import os
 import sys
+from enum import Enum
 
 from . import semantic_types
+from pyslam.config_parameters import Parameters
+from pyslam.utilities.system import Logging
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + "/../.."
 
 
+kVerbose = True
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.frame import Frame
+
+
 # Base class for semantic estimators via inference
 class SemanticSegmentationBase:
+    print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
+
     def __init__(self, model, transform, device, semantic_feature_type):
         self.model = model
         self.transform = transform
         self.device = device
         self.semantic_feature_type = semantic_feature_type
-
         self.semantics = None
+        self.init_print()
 
     def infer(self, image):
         raise NotImplementedError
@@ -48,3 +64,39 @@ class SemanticSegmentationBase:
 
     def num_classes(self):
         return NotImplementedError
+
+    def features_to_sims(self, semantics):
+        return NotImplementedError
+
+    def features_to_labels(self, semantics):
+        return NotImplementedError
+
+    def init_print(self):
+        if kVerbose:
+            if Parameters.kSemanticMappingDebugAndPrintToFile:
+                # redirect the prints of semantic segmentation to the file logs/semantic_segmentation.log (by default)
+                # you can watch the output in separate shell by running:
+                # $ tail -f logs/semantic_segmentation.log
+
+                logging_file = Parameters.kLogsFolder + "/semantic_segmentation.log"
+                SemanticSegmentationBase.local_logger = Logging.setup_file_logger(
+                    "semantic_segmentation_logger",
+                    logging_file,
+                    formatter=Logging.simple_log_formatter,
+                )
+
+                def print_file(*args, **kwargs):
+                    message = " ".join(
+                        str(arg) for arg in args
+                    )  # Convert all arguments to strings and join with spaces
+                    return SemanticSegmentationBase.local_logger.info(message, **kwargs)
+
+            else:
+
+                def print_file(*args, **kwargs):
+                    message = " ".join(
+                        str(arg) for arg in args
+                    )  # Convert all arguments to strings and join with spaces
+                    return print(message, **kwargs)
+
+            SemanticSegmentationBase.print = staticmethod(print_file)

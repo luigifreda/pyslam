@@ -1,8 +1,28 @@
-from .semantic_mapping import SemanticMappingType
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
+from .semantic_mapping_base import SemanticMappingType
 from .semantic_types import SemanticFeatureType
 from .semantic_mapping_configs import SemanticMappingConfigs
 from .semantic_mapping_shared import SemanticMappingShared
-from .semantic_utils import SemanticDatasetType
+from .semantic_types import SemanticDatasetType
 
 import os
 import matplotlib.pyplot as plt

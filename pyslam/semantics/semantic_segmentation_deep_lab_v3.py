@@ -35,8 +35,8 @@ from torchvision.models.segmentation import (
 from torchvision import transforms
 
 from .semantic_segmentation_base import SemanticSegmentationBase
-from .semantic_types import SemanticFeatureType
-from .semantic_utils import SemanticDatasetType, labels_color_map_factory, labels_to_image
+from .semantic_types import SemanticFeatureType, SemanticDatasetType
+from .semantic_utils import labels_color_map_factory, labels_to_image
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -115,6 +115,10 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if device.type != "cuda":
                 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+        elif isinstance(device, str):
+            # Convert string to torch.device object
+            device = torch.device(device)
+        # At this point, device should be a torch.device object
         if device.type == "cuda":
             print("SemanticSegmentationDeepLabV3: Using CUDA")
         elif device.type == "mps":

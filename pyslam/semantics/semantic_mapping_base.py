@@ -31,16 +31,9 @@ from queue import Queue
 from pyslam.config_parameters import Parameters
 
 from .semantic_segmentation_factory import SemanticSegmentationType, semantic_segmentation_factory
-from .semantic_fusion_methods import average_fusion, bayesian_fusion, count_labels
+from .semantic_fusion_methods import SemanticFusionMethods
 from .semantic_types import SemanticFeatureType, SemanticEntityType
 
-from pyslam.semantics.semantic_utils import (
-    SemanticDatasetType,
-    information_weights_factory,
-    labels_color_map_factory,
-    single_label_to_color,
-    similarity_heatmap_point,
-)
 from pyslam.utilities.timer import TimerFps
 from pyslam.utilities.serialization import SerializableEnum, register_class
 from pyslam.utilities.system import Printer, Logging
@@ -69,26 +62,6 @@ kSemanticMappingDebugAndPrintToFile = Parameters.kSemanticMappingDebugAndPrintTo
 @register_class
 class SemanticMappingType(SerializableEnum):
     DENSE = 0  # Pixel-wise segmentation to points maps
-
-
-def semantic_mapping_factory(slam: "Slam", headless=False, image_size=(512, 512), **kwargs):
-
-    semantic_mapping_type = kwargs.get("semantic_mapping_type")
-    if semantic_mapping_type is None:
-        raise ValueError("semantic_mapping_type is not specified in semantic_mapping_config")
-
-    if semantic_mapping_type == SemanticMappingType.DENSE:
-        # TODO(dvdmc): fix this with a better approach that checks for existence of configs
-        return SemanticMappingDense(
-            slam=slam,
-            headless=headless,
-            image_size=image_size,
-            semantic_segmentation_type=kwargs.get("semantic_segmentation_type"),
-            semantic_dataset_type=kwargs.get("semantic_dataset_type"),
-            semantic_feature_type=kwargs.get("semantic_feature_type"),
-        )
-    else:
-        raise ValueError(f"Invalid semantic mapping type: {semantic_mapping_type}")
 
 
 # TODO(dvdmc): some missing features are:
@@ -175,7 +148,7 @@ class SemanticMappingBase:
             self.reset_requested = True
         while True:
             with self.queue_condition:
-                self.queue_condition.notifyAll()  # to unblock self.pop_keyframe()
+                self.queue_condition.notify_all()  # to unblock self.pop_keyframe()
             with self.reset_mutex:
                 if not self.reset_requested:
                     break
@@ -204,10 +177,6 @@ class SemanticMappingBase:
         SemanticMappingBase.print("SemanticMapping: done")
 
     # push the new keyframe and its image into the queue
-    # TODO(dvdmc): currently, we execute semantic mapping in a Thread.
-    # VolumetricIntegrator and LoopDetection uses MultiProcessing (mp) and
-    # sends tasks. In the future, we should move this to mp.
-    # Check volumetric_integrator.py "add_keyframe" and "flush_keyframe_queue"
     def push_keyframe(self, keyframe, img=None, img_right=None, depth=None):
         with self.queue_condition:
             self.queue.put((keyframe, img, img_right, depth))
@@ -377,192 +346,26 @@ class SemanticMappingBase:
     def get_semantic_weight(self, semantic_des):
         return NotImplementedError
 
-    # TODO(dvdmc): Missing save and load functions
-
-
-class SemanticMappingDense(SemanticMappingBase):
-    print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
-
-    # TODO(dvdmc): move to types since this is static. Discuss if we want to support different fusion methods for the same semantic feature type
-    feature_type_configs = {
-        SemanticFeatureType.LABEL: count_labels,
-        SemanticFeatureType.PROBABILITY_VECTOR: bayesian_fusion,
-        SemanticFeatureType.FEATURE_VECTOR: average_fusion,
-    }
-
-    def __init__(
-        self,
-        slam: "Slam",
-        semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
-        semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
-        semantic_feature_type=SemanticFeatureType.LABEL,
-        image_size=(512, 512),
-        headless=False,
-    ):
-        super().__init__(
-            slam,
-            SemanticMappingType.DENSE,
-            semantic_segmentation_type,
-            semantic_dataset_type,
-            semantic_feature_type,
-        )
-
-        if semantic_feature_type not in self.feature_type_configs:
-            raise ValueError(f"Invalid semantic feature type: {semantic_feature_type}")
-        self.semantic_feature_type = semantic_feature_type
-        self.semantic_fusion_method = self.feature_type_configs[semantic_feature_type]
-
-        self.semantic_segmentation_type = semantic_segmentation_type
-        self.semantic_segmentation = semantic_segmentation_factory(
-            semantic_segmentation_type=semantic_segmentation_type,
-            semantic_feature_type=self.semantic_feature_type,
-            semantic_dataset_type=semantic_dataset_type,
-            image_size=image_size,
-        )
-        Printer.green(f"semantic_segmentation_type: {semantic_segmentation_type.name}")
-
-        self.semantic_dataset_type = semantic_dataset_type
-        if semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY:
-            self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
-            self.semantic_sigma2_factor = information_weights_factory(semantic_dataset_type)
-        else:
-            self.semantics_color_map = None
-            self.semantic_sigma2_factor = [1.0]
-
-        self.timer_verbose = kTimerVerbose
-        self.timer_inference = TimerFps("Inference", is_verbose=self.timer_verbose)
-        self.timer_update_keyframe = TimerFps("Update KeyFrame", is_verbose=self.timer_verbose)
-        self.timer_update_mappoints = TimerFps("Update MapPoints", is_verbose=self.timer_verbose)
-
-        self.headless = headless
-        self.draw_semantic_mapping_init = False
-        # Cache whether casting predictions from int64 to int32 is value-safe
-        self._sem_pred_cast_to_int32_safe = None
-
-    def _ensure_int32_prediction(self, prediction):
+    @staticmethod
+    def ensure_int32_prediction(prediction: np.ndarray, is_cast_to_int32_safe: bool):
         """Cast int64 predictions to int32 when value-safe, using a cached decision.
         - First time we see int64: compute min/max once and cache whether it's safe.
         - Subsequent frames reuse the cached decision to avoid repeated scans.
+        Used only for C++ core compatibility.
         """
-        if self._sem_pred_cast_to_int32_safe is True:
-            return prediction.astype(np.int32, copy=False)
-        if self._sem_pred_cast_to_int32_safe is None:
+        if is_cast_to_int32_safe:
+            return prediction.astype(np.int32, copy=False), is_cast_to_int32_safe
+        if is_cast_to_int32_safe is None:
             info_i32 = np.iinfo(np.int32)
             vmin = prediction.min(initial=0)
             vmax = prediction.max(initial=0)
-            self._sem_pred_cast_to_int32_safe = vmin >= info_i32.min and vmax <= info_i32.max
-            if self._sem_pred_cast_to_int32_safe:
-                return prediction.astype(np.int32, copy=False)
+            is_cast_to_int32_safe = vmin >= info_i32.min and vmax <= info_i32.max
+            if is_cast_to_int32_safe:
+                return prediction.astype(np.int32, copy=False), is_cast_to_int32_safe
             else:
                 Printer.yellow(
                     f"semantic prediction values out of int32 range [{vmin}, {vmax}], keeping dtype {prediction.dtype}"
                 )
-        return prediction
+        return prediction, is_cast_to_int32_safe
 
-    def semantic_mapping_impl(self):
-
-        # do dense semantic segmentation inference
-        self.timer_inference.start()
-        self.curr_semantic_prediction = self.semantic_segmentation.infer(self.img_cur)
-        self.timer_inference.refresh()
-
-        # Ensure semantics use int32 if the prediction is int64 (for downstream compatibility)
-        if Parameters.USE_CPP_CORE:
-            if (
-                isinstance(self.curr_semantic_prediction, np.ndarray)
-                and self.curr_semantic_prediction.dtype == np.int64
-            ):
-                self.curr_semantic_prediction = self._ensure_int32_prediction(
-                    self.curr_semantic_prediction
-                )
-
-        Printer.green(f"#semantic inference, timing: {self.timer_inference.last_elapsed}")
-        # TODO(dvdmc): the prints don't work for some reason. They block the Thread
-        # SemanticMappingDense.print(f'#semantic inference, timing: {self.timer_pts_culling.last_elapsed}')
-
-        # update keypoints of current keyframe
-        self.timer_update_keyframe.start()
-        self.kf_cur.set_semantics(self.curr_semantic_prediction)
-        self.timer_update_keyframe.refresh()
-        Printer.green(f"#set KF semantics, timing: {self.timer_update_keyframe.last_elapsed}")
-        # SemanticMappingDense.print(f'#keypoints: {self.kf_cur.num_keypoints()}, timing: {self.timer_update_keyframe.last_elapsed}')
-
-        # update map points of current keyframe
-        self.timer_update_mappoints.start()
-        self.update_map_points()
-        self.timer_update_mappoints.refresh()
-        Printer.green(f"#set MPs semantics, timing: {self.timer_update_mappoints.last_elapsed}")
-        # SemanticMappingDense.print(f'#map points: {self.kf_cur.num_points()}, timing: {self.timer_update_mappoints.last_elapsed}')
-
-        self.draw_semantic_prediction()
-
-    def draw_semantic_prediction(self):
-        if self.headless:
-            return
-        draw = False
-        use_cv2_for_drawing = (
-            platform.system() != "Darwin"
-        )  # under mac we can't use cv2 imshow here
-
-        if self.curr_semantic_prediction is not None:
-            if not self.draw_semantic_mapping_init:
-                if use_cv2_for_drawing:
-                    cv2.namedWindow("semantic prediction")  # to get a resizable window
-                self.draw_semantic_mapping_init = True
-            draw = True
-            semantic_color_img = self.semantic_segmentation.to_rgb(
-                self.curr_semantic_prediction, bgr=True
-            )
-            if use_cv2_for_drawing:
-                cv2.imshow("semantic prediction", semantic_color_img)
-            else:
-                QimageViewer.get_instance().draw(semantic_color_img, "semantic prediction")
-
-        if draw:
-            if use_cv2_for_drawing:
-                cv2.waitKey(1)
-
-    def update_map_points(self):
-        kf_cur_points = self.kf_cur.get_points()
-        for idx, p in enumerate(kf_cur_points):
-            if p is not None:
-                p.update_semantics(self.semantic_fusion_method)
-
-    def sem_des_to_rgb(self, semantic_des, bgr=False):
-        if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            return single_label_to_color(semantic_des, self.semantics_color_map, bgr=bgr)
-        elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
-            return single_label_to_color(
-                np.argmax(semantic_des, axis=-1), self.semantics_color_map, bgr=bgr
-            )
-        elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
-            if self.semantic_dataset_type == SemanticDatasetType.FEATURE_SIMILARITY:
-                sims = self.semantic_segmentation.features_to_sims(semantic_des)
-                return similarity_heatmap_point(
-                    sims,
-                    colormap=cv2.COLORMAP_JET,
-                    sim_scale=self.semantic_segmentation.sim_scale,
-                    bgr=bgr,
-                )
-            else:
-                label = self.semantic_segmentation.features_to_labels(semantic_des)
-                return single_label_to_color(label, self.semantics_color_map, bgr=bgr)
-
-    def sem_img_to_rgb(self, semantic_img, bgr=False):
-        return self.semantic_segmentation.to_rgb(semantic_img, bgr=bgr)
-
-    def get_semantic_weight(self, semantic_des):
-        if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            return self.semantic_sigma2_factor[semantic_des]
-        elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
-            return self.semantic_sigma2_factor[np.argmax(semantic_des, axis=-1)]
-        elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
-            return self.semantic_sigma2_factor[
-                self.semantic_segmentation.features_to_labels(semantic_des)
-            ]
-
-    def set_query_word(self, query_word):
-        if self.semantic_dataset_type == SemanticDatasetType.FEATURE_SIMILARITY:
-            self.semantic_segmentation.set_query_word(query_word)
-        else:
-            raise NotImplementedError
+    # TODO(dvdmc): Missing save and load functions
