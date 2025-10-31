@@ -29,7 +29,7 @@ from pyslam.utilities.features import transform_float_to_binary_descriptor
 
 from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_types import FeatureInfo
-
+from pyslam.slam.feature_tracker_shared import SlamFeatureManagerInfo
 from pyslam.utilities.timer import TimerFps
 
 from .loop_detector_base import (
@@ -44,13 +44,6 @@ import pyslam.config as config
 
 config.cfg.set_lib("pyibow")
 import pyibow as ibow
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pyslam.loop_closing.loop_detector_configs import (
-        SlamFeatureManagerInfo,
-    )  # Only imported when type checking, not at runtime
 
 
 kVerbose = True
@@ -68,7 +61,7 @@ kDataFolder = kRootFolder + "/data"
 
 # NOTE: It does not need any prebuilt vocubulary. It works with non-binary descriptors by internally converting them to binary ones.
 class LoopDetectorIBow(LoopDetectorBase):
-    def __init__(self, local_feature_manager=None, slam_info: "SlamFeatureManagerInfo" = None):
+    def __init__(self, local_feature_manager=None, slam_info: SlamFeatureManagerInfo | None = None):
         super().__init__()
         self.local_feature_manager = local_feature_manager
         self.slam_info = slam_info

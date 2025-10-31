@@ -32,9 +32,8 @@ kRootFolder = kScriptFolder + "/../.."
 from typing import TYPE_CHECKING, Callable, Union
 
 if TYPE_CHECKING:
-    from pyslam.semantics.semantic_mapping import SemanticMappingType, SemanticMappingBase
-    from pyslam.semantics.semantic_types import SemanticFeatureType
-    from pyslam.semantics.semantic_utils import SemanticDatasetType
+    from pyslam.semantics.semantic_mapping_base import SemanticMappingType, SemanticMappingBase
+    from pyslam.semantics.semantic_types import SemanticFeatureType, SemanticDatasetType
 
 
 # Base class for semantic estimators via inference

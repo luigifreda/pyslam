@@ -280,8 +280,9 @@ class Parameters:
     # Semantic mapping
     # ================================================================
     # NOTE: By activating the semantic mapping, semantics will be used for the whole SLAM pipeline
-    kDoSemanticMapping = False  # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
+    kDoSemanticMapping = True  # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     kSemanticMappingOnSeparateThread = True
+    kSemanticMappingMoveSemanticSegmentationToSeparateProcess = False
     kSemanticMappingDebugAndPrintToFile = True
     kUseSemanticsInOptimization = False
     kSemanticMappingTimeoutPopKeyframe = 0.5  # [s]

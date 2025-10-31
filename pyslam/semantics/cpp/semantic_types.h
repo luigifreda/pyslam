@@ -40,12 +40,23 @@ enum class SemanticFeatureType : int {
     LABEL = 0,              // [1] One value with the categorical label of the class
     PROBABILITY_VECTOR = 1, // [N] A vector of distribution parameters (categorical or Dirichlet)
                             // over N categorical classes
-    FEATURE_VECTOR =
-        2 // [D] A feature vector from an encoder (e.g., CLIP or DiNO) with D dimensions
+    FEATURE_VECTOR = 2      // [D] A feature vector from an encoder (e.g., CLIP or DiNO)
+                            // with D dimensions
 };
 
 /**
- * Enumeration of semantic entity types for associating semantics with different geometric entities
+ * Get the CV_DEPTH for a semantic feature type
+ * This is used to normalize kps_sem type to avoid mixed-type issues downstream
+ * Policy: LABEL -> CV_32S;
+ * PROBABILITY_VECTOR/FEATURE_VECTOR -> CV_32F
+ * @param type The semantic feature type
+ * @return The CV_DEPTH for the semantic feature type
+ */
+int get_cv_depth_for_semantic_feature_type(const SemanticFeatureType &type);
+
+/**
+ * Enumeration of semantic entity types for associating semantics with different geometric
+ * entities
  */
 enum class SemanticEntityType : int {
     POINT = 0, // The semantics are associated to each point

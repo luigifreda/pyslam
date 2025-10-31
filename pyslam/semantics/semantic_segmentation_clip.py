@@ -34,9 +34,8 @@ from f3rm.features.clip import tokenize
 
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
-from .semantic_types import SemanticFeatureType
+from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_utils import (
-    SemanticDatasetType,
     similarity_heatmap_image,
     labels_color_map_factory,
     labels_name_factory,
@@ -178,6 +177,10 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if device.type != "cuda":
                 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+        elif isinstance(device, str):
+            # Convert string to torch.device object
+            device = torch.device(device)
+        # At this point, device should be a torch.device object
         if device.type == "cuda":
             print("SemanticSegmentationCLIP: Using CUDA")
         elif device.type == "mps":

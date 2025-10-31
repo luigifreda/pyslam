@@ -68,8 +68,6 @@ class MultiprocessingManager:
         return mp.Value(typecode_or_type=typecode_or_type, *args, lock=lock)
 
     def Dict(self):
-        import torch.multiprocessing as mp
-
         if self.manager is not None:
             return self.manager.dict()
         else:

@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -25,8 +26,7 @@ import pyslam.config as config
 import torch
 import platform
 
-from .semantic_types import SemanticFeatureType
-from .semantic_utils import SemanticDatasetType
+from .semantic_types import SemanticFeatureType, SemanticDatasetType
 
 from pyslam.utilities.system import Printer, import_from
 from pyslam.utilities.serialization import SerializableEnum, register_class
@@ -49,6 +49,14 @@ except ModuleNotFoundError:
     SemanticSegmentationCLIP = import_from(
         "pyslam.semantics.semantic_segmentation_clip", "SemanticSegmentationCLIP"
     )
+
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyslam.semantics.semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
+    from pyslam.semantics.semantic_segmentation_segformer import SemanticSegmentationSegformer
+    from pyslam.semantics.semantic_segmentation_clip import SemanticSegmentationCLIP
 
 
 kScriptPath = os.path.realpath(__file__)
@@ -77,6 +85,7 @@ def semantic_segmentation_factory(
     semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
     image_size=(512, 512),
     device=None,
+    **kwargs,
 ):
     Printer.green(
         f"Initializing semantic segmentation: {semantic_segmentation_type}, {semantic_feature_type}, {semantic_dataset_type}, {image_size}"

@@ -1,5 +1,5 @@
 import argparse
-import pyslam.config as configparser
+import configparser
 import os
 
 import os
@@ -104,7 +104,7 @@ class GlobalFeatureDatabase:
 
             global_feature_extractor = EigenPlacesFeatureExtractor()
         elif global_descriptor_type == "Megaloc":
-            from global_feature_megaloc import GlobalFeatureMegaloc
+            from pyslam.loop_closing.global_feature_megaloc import GlobalFeatureMegaloc
 
             global_feature_extractor = GlobalFeatureMegaloc()
         else:
@@ -148,12 +148,12 @@ if __name__ == "__main__":
     dataset = dataset_factory(config)
 
     # global_descriptor_type = 'HDC-DELF'    # very slow
-    # global_descriptor_type = 'SAD'          # fast
+    global_descriptor_type = "SAD"  # fast
     # global_descriptor_type = 'AlexNet'     # very slow
     # global_descriptor_type = 'NetVLAD'     # decently fast
     # global_descriptor_type = 'CosPlace'    # decently fast
     # global_descriptor_type = 'EigenPlaces' # decently fast
-    global_descriptor_type = "Megaloc"
+    # global_descriptor_type = "Megaloc"
 
     global_feature_extractor = None
 
@@ -211,3 +211,6 @@ if __name__ == "__main__":
 
         img_id += 1
         entry_id += 1
+
+    print("Done. Press any key to exit...")
+    getchar()

@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,6 +20,8 @@
 
 import numpy as np
 import cv2
+
+from .semantic_types import SemanticDatasetType
 
 from .semantic_labels import (
     get_ade20k_color_map,
@@ -131,16 +134,6 @@ def single_label_to_color(label, semantics_color_map, bgr=False):
     if bgr:
         color = color[::-1]
     return color
-
-
-@register_class
-class SemanticDatasetType(SerializableEnum):
-    CITYSCAPES = 0
-    ADE20K = 1
-    VOC = 2
-    NYU40 = 3
-    FEATURE_SIMILARITY = 4
-    CUSTOM_SET = 5
 
 
 # We map from SLAM datasets to semantic datasets

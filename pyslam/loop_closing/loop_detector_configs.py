@@ -31,6 +31,7 @@ from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_manager import feature_manager_factory
 from pyslam.local_features.feature_manager_configs import FeatureManagerConfigs
 from pyslam.local_features.feature_types import FeatureDescriptorTypes
+from pyslam.slam.feature_tracker_shared import SlamFeatureManagerInfo
 
 from .loop_detector_base import LoopDetectorBase
 from .loop_detector_dbow3 import LoopDetectorDBoW3
@@ -272,20 +273,6 @@ class LoopDetectorConfigs:
         local_descriptor_aggregation_type=LocalDescriptorAggregationType.NONE,
         vocabulary_data=None,
     )  # It does not need a vocabulary
-
-
-class SlamFeatureManagerInfo:
-    def __init__(self, slam: "Slam" = None, feature_manager: "FeatureManager" = None):
-        self.feature_descriptor_type = None
-        self.feature_descriptor_norm_type = None
-        if slam is not None:
-            assert slam.feature_tracker is not None
-            assert slam.feature_tracker.feature_manager is not None
-            self.feature_descriptor_type = slam.feature_tracker.feature_manager.descriptor_type
-            self.feature_descriptor_norm_type = slam.feature_tracker.feature_manager.norm_type
-        elif feature_manager is not None:
-            self.feature_descriptor_type = feature_manager.descriptor_type
-            self.feature_descriptor_norm_type = feature_manager.norm_type
 
 
 def loop_detector_factory(

@@ -21,6 +21,7 @@ LOG_FILES=(
     gba.log
     volumetric_integrator.log
     semantic_mapping.log
+    semantic_segmentation.log
 )
 
 # Create missing log files
@@ -38,7 +39,7 @@ COMMAND_STRING=$(cat <<EOF
   "tail -f $LOGS_DIR/local_mapping.log",
   "tail -f $LOGS_DIR/loop_closing.log $LOGS_DIR/loop_detecting.log",
   "tail -f $LOGS_DIR/gba.log",
-  "tail -f $LOGS_DIR/semantic_mapping.log",
+  "tail -f $LOGS_DIR/semantic_mapping.log $LOGS_DIR/semantic_segmentation.log",
   "tail -f $LOGS_DIR/volumetric_integrator.log"
 ]
 EOF

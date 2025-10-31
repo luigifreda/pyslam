@@ -20,12 +20,11 @@
 
 import numpy as np
 
+from pyslam.utilities.system import Printer
 from pyslam.utilities.serialization import SerializableEnum, register_class
+from pyslam.semantics.semantic_types import SemanticFeatureType
 
-# TODO(dvdmc): Fusion methods only make sense for certain semantic types
 
-
-# # TODO(dvdmc): Below is not yet used!
 # @register_class
 # class SemanticFusionMethod(SerializableEnum):
 #     COUNT_LABELS = 0  # The label with the highest count
@@ -33,41 +32,66 @@ from pyslam.utilities.serialization import SerializableEnum, register_class
 #     AVERAGE_FUSION = 2  # Average all measurements
 
 
-def count_labels(labels):
-    """
-    Count the labels and return the label with the highest count.
-    """
-    unique_labels = np.unique(labels)
-    label_count = np.zeros(len(unique_labels))
-    for i, unique_label in enumerate(unique_labels):
-        label_count[i] = np.sum(labels == unique_label)
-    return unique_labels[label_count.argmax()]
+class SemanticFusionMethods:
 
+    # ================================
+    # Availalbe fusion methods
+    # ================================
 
-def bayesian_fusion(probs):
-    """
-    Bayesian fusion of probability vectors.
-    https://en.wikipedia.org/wiki/Bayesian_inference#Bayesian_inference_for_parameter_estimation
-    Uses the following formula:
-    P(θ|D) = P(D|θ) * P(θ) / P(D)
-    where:
-    - P(θ|D) is the posterior probability of the parameter θ given the data D
-    - P(D|θ) is the likelihood of the data D given the parameter θ
-    - P(θ) is the prior probability of the parameter θ
-    - P(D) is the marginal likelihood of the data D
-    """
-    num_classes = probs[0].shape[-1]
-    prior = np.ones(num_classes) / num_classes
-    posterior = prior
-    for obs in probs:
-        posterior *= obs
-        # normalize
-        posterior /= np.sum(posterior)
-    return posterior
+    @staticmethod
+    def count_labels(labels):
+        """
+        Count the labels and return the label with the highest count.
+        """
+        unique_labels = np.unique(labels)
+        label_count = np.zeros(len(unique_labels))
+        for i, unique_label in enumerate(unique_labels):
+            label_count[i] = np.sum(labels == unique_label)
+        return unique_labels[label_count.argmax()]
 
+    @staticmethod
+    def bayesian_fusion(probs):
+        """
+        Bayesian fusion of probability vectors.
+        https://en.wikipedia.org/wiki/Bayesian_inference#Bayesian_inference_for_parameter_estimation
+        Uses the following formula:
+        P(θ|D) = P(D|θ) * P(θ) / P(D)
+        where:
+        - P(θ|D) is the posterior probability of the parameter θ given the data D
+        - P(D|θ) is the likelihood of the data D given the parameter θ
+        - P(θ) is the prior probability of the parameter θ
+        - P(D) is the marginal likelihood of the data D
+        """
+        num_classes = probs[0].shape[-1]
+        prior = np.ones(num_classes) / num_classes
+        posterior = prior
+        for obs in probs:
+            posterior *= obs
+            # normalize
+            posterior /= np.sum(posterior)
+        return posterior
 
-def average_fusion(features):
-    """
-    Average fusion of features.
-    """
-    return np.mean(features, axis=0)
+    @staticmethod
+    def average_fusion(features):
+        """
+        Average fusion of features.
+        """
+        return np.mean(features, axis=0)
+
+    # ================================
+    # Get the semantic fusion method for a given semantic feature type
+    # ================================
+    @staticmethod
+    def get_semantic_fusion_method(semantic_feature_type):
+        """
+        Get the semantic fusion method for a given semantic feature type.
+        """
+        if semantic_feature_type == SemanticFeatureType.LABEL:
+            return SemanticFusionMethods.count_labels
+        elif semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
+            return SemanticFusionMethods.bayesian_fusion
+        elif semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
+            return SemanticFusionMethods.average_fusion
+        else:
+            Printer.red(f"Invalid semantic feature type: {semantic_feature_type}")
+            raise ValueError(f"Invalid semantic feature type: {semantic_feature_type}")

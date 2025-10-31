@@ -230,7 +230,7 @@ class LoopDetectorVprBase(LoopDetectorBase):
                 PatchNetVLADFeatureExtractor,
             )
             from patchnetvlad.tools import PATCHNETVLAD_ROOT_DIR
-            import pyslam.config as configparser
+            import configparser
 
             LoopDetectorBase.print(f"PatchNetVLADFeatureExtractor: {PATCHNETVLAD_ROOT_DIR}")
             configfile = os.path.join(PATCHNETVLAD_ROOT_DIR, "configs/netvlad_extract.ini")

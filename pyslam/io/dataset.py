@@ -29,7 +29,7 @@ import re
 import ujson as json
 
 from multiprocessing import Process, Queue, Value
-from pyslam.semantics.semantic_utils import SemanticDatasetType
+from pyslam.semantics.semantic_types import SemanticDatasetType
 from pyslam.utilities.system import Printer
 from pyslam.utilities.serialization import SerializableEnum, register_class, SerializationJSON
 from pyslam.utilities.strings import levenshtein_distance
@@ -627,6 +627,10 @@ class TumDataset(Dataset):
         img = None
         if frame_id < self.max_frame_id:
             file = self.base_path + self.associations_data[frame_id].strip().split()[3]
+            # Note: cv2.IMREAD_UNCHANGED preserves the original bit depth (e.g., 16-bit PNG for TUM datasets)
+            # The depth values are in the raw pixel format (e.g., millimeters stored as uint16).
+            # Conversion to meters happens in Frame constructor via camera.depth_factor (1.0/DepthMapFactor).
+            # For TUM datasets, DepthMapFactor=5000.0, so depth_in_meters = depth_pixels / 5000.0
             img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
             self.is_ok = img is not None
             self._timestamp = float(self.associations_data[frame_id].strip().split()[0])

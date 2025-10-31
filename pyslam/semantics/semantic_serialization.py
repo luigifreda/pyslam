@@ -20,8 +20,7 @@
 import numpy as np
 from .semantic_types import (
     SemanticFeatureType,
-    SemanticEntityType,
-)  # Only imported when type checking, not at runtime
+)
 
 
 def serialize_semantic_des(semantic_des, semantic_type: SemanticFeatureType):

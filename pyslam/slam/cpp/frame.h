@@ -324,6 +324,7 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     void set_img_right(const cv::Mat &img_right);
     void set_depth_img(const cv::Mat &depth_img);
     void set_semantics(const cv::Mat &semantic_img);
+    void update_points_semantics(void *semantic_fusion_method = nullptr);
 
     void ensure_contiguous_arrays();
 
