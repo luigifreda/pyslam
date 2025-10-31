@@ -23,7 +23,7 @@ from pyslam.io.dataset_factory import dataset_factory
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
-
+from pyslam.slam.feature_tracker_shared import SlamFeatureManagerInfo
 from pyslam.config_parameters import Parameters
 
 Parameters.kLoopClosingDebugAndPrintToFile = False
@@ -34,7 +34,6 @@ from pyslam.loop_closing.loop_detector_dbow2 import LoopDetectorDBoW2
 from pyslam.loop_closing.loop_detector_configs import (
     LoopDetectorConfigs,
     loop_detector_factory,
-    SlamFeatureManagerInfo,
 )
 from pyslam.loop_closing.loop_detector_base import (
     LoopDetectorTask,

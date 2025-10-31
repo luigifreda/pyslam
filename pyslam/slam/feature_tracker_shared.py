@@ -38,6 +38,26 @@ if TYPE_CHECKING:
     from pyslam.local_features.feature_tracker import FeatureTracker
     from pyslam.local_features.feature_matcher import FeatureMatcher
     from pyslam.local_features.feature_manager import FeatureManager
+    from pyslam.slam.slam import Slam
+
+
+class SlamFeatureManagerInfo:
+    """
+    Minimal information about the feature manager used by the SLAM.
+    Used by parallel processes to avoid pickling problems.
+    """
+
+    def __init__(self, slam: "Slam" = None, feature_manager: "FeatureManager" = None):
+        self.feature_descriptor_type = None
+        self.feature_descriptor_norm_type = None
+        if slam is not None:
+            assert slam.feature_tracker is not None
+            assert slam.feature_tracker.feature_manager is not None
+            self.feature_descriptor_type = slam.feature_tracker.feature_manager.descriptor_type
+            self.feature_descriptor_norm_type = slam.feature_tracker.feature_manager.norm_type
+        elif feature_manager is not None:
+            self.feature_descriptor_type = feature_manager.descriptor_type
+            self.feature_descriptor_norm_type = feature_manager.norm_type
 
 
 # Shared frame stuff. Normally, this information is exclusively used by SLAM.

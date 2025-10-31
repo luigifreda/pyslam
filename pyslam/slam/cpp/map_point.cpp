@@ -644,6 +644,9 @@ void MapPoint::update_best_descriptor(const bool force) {
     }
 }
 
+// NOTE: the input function pointer is not used in the C++ code,
+// but it is used in the Python code to pass the semantic fusion method.
+// Here, we directly use the semantic feature type to determine the semantic fusion method.
 void MapPoint::update_semantics(void *semantic_fusion_method, const bool force) {
     bool skip = false;
     std::vector<std::pair<KeyFramePtr, int>> observations;

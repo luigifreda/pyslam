@@ -29,7 +29,7 @@ from pyslam.utilities.features import transform_float_to_binary_descriptor
 
 from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_types import FeatureInfo
-
+from pyslam.slam.feature_tracker_shared import SlamFeatureManagerInfo
 from pyslam.utilities.timer import TimerFps
 
 from .loop_detector_base import (
@@ -44,13 +44,6 @@ import pyslam.config as config
 
 config.cfg.set_lib("pyobindex2")
 import pyobindex2 as obindex2
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pyslam.loop_closing.loop_detector_configs import (
-        SlamFeatureManagerInfo,
-    )  # Only imported when type checking, not at runtime
 
 
 kVerbose = True
@@ -71,7 +64,7 @@ class LoopDetectorOBIndex2(LoopDetectorBase):
     def __init__(
         self,
         local_feature_manager=None,
-        slam_info: "SlamFeatureManagerInfo" = None,
+        slam_info: SlamFeatureManagerInfo = None,
         match_ratio=0.8,
     ):
         super().__init__()

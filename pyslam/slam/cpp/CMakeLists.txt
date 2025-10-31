@@ -171,6 +171,7 @@ endif()
 set(SEMANTICS_CPP_CORE_SOURCES
     ${PYSLAM_SEMANTICS_SRC}/semantic_fusion_methods.cpp
     ${PYSLAM_SEMANTICS_SRC}/semantic_serialization.cpp
+    ${PYSLAM_SEMANTICS_SRC}/semantic_types.cpp
     ${PYSLAM_SEMANTICS_SRC}/semantic_utils.cpp
     ${PYSLAM_SEMANTICS_SRC}/semantic_colormap.cpp
     ${PYSLAM_SEMANTICS_SRC}/semantic_labels.cpp

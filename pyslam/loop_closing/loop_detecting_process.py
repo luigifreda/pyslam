@@ -38,13 +38,12 @@ from pyslam.local_features.feature_types import FeatureInfo
 from pyslam.utilities.timer import TimerFps
 
 from pyslam.slam import KeyFrame, Frame
-
+from pyslam.slam.feature_tracker_shared import SlamFeatureManagerInfo
 from pyslam.loop_closing.loop_detector_configs import (
     LoopDetectorConfigs,
     loop_detector_factory,
     loop_detector_config_check,
     GlobalDescriptorType,
-    SlamFeatureManagerInfo,
 )
 from pyslam.loop_closing.loop_detector_base import (
     LoopDetectorTask,

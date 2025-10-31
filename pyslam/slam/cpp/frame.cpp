@@ -1482,30 +1482,28 @@ void Frame::set_semantics(const cv::Mat &semantic_img) {
 
         // Normalize kps_sem type to avoid mixed-type issues downstream (e.g., push_back)
         // Policy: LABEL -> CV_32S; PROBABILITY_VECTOR/FEATURE_VECTOR -> CV_32F
-        {
-            int target_depth = CV_32F;
-            switch (FeatureSharedResources::semantic_feature_type) {
-            case SemanticFeatureType::LABEL:
-                target_depth = CV_32S;
-                break;
-            case SemanticFeatureType::PROBABILITY_VECTOR:
-            case SemanticFeatureType::FEATURE_VECTOR:
-            default:
-                target_depth = CV_32F;
-                break;
-            }
-            const int channels = kps_sem.channels();
-            const int target_type = CV_MAKETYPE(target_depth, channels);
-            if (kps_sem.type() != target_type) {
-                cv::Mat converted;
-                kps_sem.convertTo(converted, target_type);
-                kps_sem = std::move(converted);
-            }
+        const auto &semantic_feature_type = FeatureSharedResources::semantic_feature_type;
+        const int target_depth = get_cv_depth_for_semantic_feature_type(semantic_feature_type);
+        const int channels = kps_sem.channels();
+        const int target_type = CV_MAKETYPE(target_depth, channels);
+        if (kps_sem.type() != target_type) {
+            cv::Mat converted;
+            kps_sem.convertTo(converted, target_type);
+            kps_sem = std::move(converted);
         }
 
         // Ensure contiguous memory layout (equivalent to np.ascontiguousarray)
         if (!kps_sem.isContinuous()) {
             kps_sem = kps_sem.clone();
+        }
+    }
+}
+
+void Frame::update_points_semantics(void *semantic_fusion_method) {
+    std::lock_guard<std::mutex> lock(_lock_features);
+    for (const auto &mp : points) {
+        if (mp) {
+            mp->update_semantics(semantic_fusion_method);
         }
     }
 }
