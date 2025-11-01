@@ -14,7 +14,7 @@ ROOT_DIR="$SCRIPT_DIR"/../..
 # pip install . --verbose
 
 sudo apt update
-sudo apt install ninja-build
+sudo apt install -y ninja-build
 
 # Create build folder and run cmake
 if [ ! -d build ]; then

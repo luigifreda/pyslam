@@ -36,7 +36,7 @@ namespace pyslam {
 // Static member definitions
 std::atomic<int> MapPointBase::_id{0};
 std::mutex MapPointBase::_id_lock;
-std::mutex MapPoint::global_lock_;
+std::mutex MapPoint::global_lock;
 
 // =====================================================
 // MapPointBase methods
@@ -368,7 +368,7 @@ Eigen::Vector4d MapPoint::homogeneous() const {
 }
 
 void MapPoint::update_position(const Eigen::Vector3d &position) {
-    std::lock_guard<std::mutex> lock(global_lock_);
+    std::lock_guard<std::mutex> lock(global_lock);
     std::lock_guard<std::mutex> lock_pos(_lock_pos);
     _pt = position;
 }

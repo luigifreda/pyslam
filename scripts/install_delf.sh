@@ -31,20 +31,23 @@ cd protoc
 
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    if [ ! -f protoc-3.3.0-linux-x86_64.zip ]; then 
+    PROTOC_VERSION=3.20.0  # before it was 3.3.0
+    PROTOC_ZIP=protoc-${PROTOC_VERSION}-linux-x86_64.zip
+    if [ ! -f "${PROTOC_ZIP}" ]; then 
         echo 'installing protoc'
-        wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
-        unzip protoc-3.3.0-linux-x86_64.zip
+        wget https://github.com/google/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}
+        unzip "${PROTOC_ZIP}"
     fi
     PATH_TO_PROTOC=`pwd`/bin/protoc  
 fi 
 if [[ "$OSTYPE" == darwin* ]]; then
-    PROTOC_ZIP=protoc-3.7.1-osx-x86_64.zip
-    if [ ! -f $PROTOC_ZIP ]; then 
+    PROTOC_VERSION=3.20.0  # before it was 3.7.1
+    PROTOC_ZIP=protoc-${PROTOC_VERSION}-osx-x86_64.zip
+    if [ ! -f "${PROTOC_ZIP}" ]; then 
         echo 'installing protoc'
-        curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/$PROTOC_ZIP
-        sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
-        sudo unzip -o $PROTOC_ZIP -d /usr/local 'include/*'
+        curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}
+        sudo unzip -o ${PROTOC_ZIP} -d /usr/local bin/protoc
+        sudo unzip -o ${PROTOC_ZIP} -d /usr/local 'include/*'
     fi 
     PATH_TO_PROTOC=/usr/local/bin/protoc 
 fi 

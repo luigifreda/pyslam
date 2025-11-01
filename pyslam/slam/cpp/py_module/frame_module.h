@@ -91,6 +91,83 @@ py::list get_points_wrapper(const pyslam::Frame &self) {
     return result;
 }
 
+// Proxy class to support element assignment for frame.points
+// This allows to assign: frame.points[idx] = mp or frame.points[idx] = None
+class PointsProxy {
+    constexpr static bool use_lock = false;
+
+  public:
+    PointsProxy(pyslam::Frame &frame) : frame_(frame) {}
+
+    py::object getitem(int idx) {
+        if constexpr (use_lock) {
+            auto p = frame_.get_point_match(idx);
+            if (p && is_valid_mappoint(p)) {
+                return py::cast(p);
+            }
+        } else {
+            auto p = frame_.points[idx];
+            if (p && is_valid_mappoint(p)) {
+                return py::cast(p);
+            }
+        }
+        return py::none();
+    }
+
+    void setitem(int idx, py::object value) {
+        if (value.is_none()) {
+            if constexpr (use_lock) {
+                frame_.set_point_match(nullptr, idx);
+            } else {
+                frame_.points[idx] = nullptr;
+            }
+        } else {
+            auto mp = cast_to_mappoint(value);
+            if constexpr (use_lock) {
+                frame_.set_point_match(mp, idx);
+            } else {
+                frame_.points[idx] = mp;
+            }
+        }
+    }
+
+    size_t size() const {
+        if constexpr (use_lock) {
+            return frame_.get_points().size();
+        } else {
+            return frame_.points.size();
+        }
+    }
+
+    py::list to_list() {
+        py::list result;
+        if constexpr (use_lock) {
+            auto points = frame_.get_points();
+            for (size_t i = 0; i < points.size(); ++i) {
+                auto &p = points[i];
+                if (p && is_valid_mappoint(p)) {
+                    result.append(py::cast(p));
+                } else {
+                    result.append(py::none());
+                }
+            }
+        } else {
+            for (size_t i = 0; i < frame_.points.size(); ++i) {
+                auto &p = frame_.points[i];
+                if (p && is_valid_mappoint(p)) {
+                    result.append(py::cast(p));
+                } else {
+                    result.append(py::none());
+                }
+            }
+        }
+        return result;
+    }
+
+  private:
+    pyslam::Frame &frame_;
+};
+
 std::vector<pyslam::MapPointPtr> points_vector_wrapper(py::object points_obj) {
     std::vector<pyslam::MapPointPtr> points_vector;
     if (py::isinstance<py::list>(points_obj) || py::isinstance<py::tuple>(points_obj)) {
@@ -139,6 +216,14 @@ py::tuple are_visible_wrapper(pyslam::Frame &self, py::object points_obj, bool d
 }
 
 void bind_frame(py::module &m) {
+    // Expose PointsProxy class to support element assignment
+    py::class_<PointsProxy>(m, "PointsProxy")
+        .def("__getitem__", &PointsProxy::getitem)
+        .def("__setitem__", &PointsProxy::setitem)
+        .def("__len__", &PointsProxy::size)
+        .def(
+            "__iter__", [](PointsProxy &self) { return py::iter(self.to_list()); },
+            py::keep_alive<0, 1>());
 
     // ------------------------------------------------------------
     // FrameBase
@@ -316,21 +401,38 @@ void bind_frame(py::module &m) {
         .def_property(
             "points",
             [](pyslam::Frame &self) {
-                // Create object array that can handle shared_ptr objects with validation
-                py::list result;
-                for (size_t i = 0; i < self.points.size(); ++i) {
-                    if (self.points[i] && is_valid_mappoint(self.points[i])) {
-                        result.append(py::cast(self.points[i]));
-                    } else {
-                        result.append(py::none());
-                    }
-                }
-                return py::cast<py::array>(result);
+                // Return a proxy object that supports element assignment
+                return py::cast(PointsProxy(self));
             },
             [](pyslam::Frame &self, py::object points_obj) {
-                self.points = points_obj.is_none()
-                                  ? std::vector<pyslam::MapPointPtr>()
-                                  : py::cast<std::vector<pyslam::MapPointPtr>>(points_obj);
+                // Support full assignment (replacing entire vector)
+                if (points_obj.is_none()) {
+                    self.reset_points();
+                } else if (py::isinstance<PointsProxy>(points_obj)) {
+                    // If assigning from another PointsProxy, get the list and assign
+                    auto &proxy = points_obj.cast<PointsProxy &>();
+                    auto points_list = proxy.to_list();
+                    auto current_points = self.get_points();
+                    size_t new_size = py::len(points_list);
+                    for (size_t i = 0; i < new_size && i < current_points.size(); ++i) {
+                        auto item = points_list[i];
+                        if (item.is_none()) {
+                            self.set_point_match(nullptr, static_cast<int>(i));
+                        } else {
+                            auto mp = cast_to_mappoint(item);
+                            self.set_point_match(mp, static_cast<int>(i));
+                        }
+                    }
+                } else {
+                    // Convert from list/array to vector
+                    auto points_vector = points_vector_wrapper(points_obj);
+                    // Resize if needed and copy
+                    auto current_points = self.get_points();
+                    size_t new_size = points_vector.size();
+                    for (size_t i = 0; i < new_size && i < current_points.size(); ++i) {
+                        self.set_point_match(points_vector[i], static_cast<int>(i));
+                    }
+                }
             },
             py::keep_alive<0, 1>())
         //.def_readwrite("outliers", &pyslam::Frame::outliers)

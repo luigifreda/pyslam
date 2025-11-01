@@ -7,7 +7,13 @@ project(cpp_core)
 set(PYSLAM_CPP_CORE_VERSION_INFO 0.1.0)
 
 
-OPTION(USE_PYTHON "Use Python" ON)
+set(WITH_MARCH_NATIVE ON  CACHE BOOL   "Build with \"-march native\"")
+set(USE_PYTHON        ON CACHE BOOL    "Use Python")
+
+
+#=======================================
+# Build options and variables
+#=======================================
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -24,27 +30,44 @@ ENDIF()
 message(STATUS "C++ core build type: " ${CMAKE_BUILD_TYPE})
 
 if (CMAKE_BUILD_TYPE MATCHES Release)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -march=native -fPIC -DNDEBUG")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fPIC -DNDEBUG")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -fPIC -DNDEBUG")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG")
 elseif (CMAKE_BUILD_TYPE MATCHES Debug)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O1 -march=native -fPIC -pg")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -march=native -fPIC -pg")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O1 -fPIC -pg")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fPIC -pg")
+endif()
+
+if (WITH_MARCH_NATIVE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 endif()
 
 if (USE_PYTHON)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_PYTHON=1")
 endif()
 
+#=======================================
+# Set project source directory
+#=======================================
 
-# Find required packages
-find_package(OpenCV REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(TBB REQUIRED)
-
-set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/../../../)
+set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/../../..)
 set(PYSLAM_SRC ${PYSLAM_ROOT}/pyslam)
 set(PYSLAM_SLAM_SRC ${PYSLAM_SRC}/slam/cpp)
 set(PYSLAM_SEMANTICS_SRC ${PYSLAM_SRC}/semantics/cpp)
+
+
+#=======================================
+# Find required packages
+#=======================================
+
+find_package(OpenCV REQUIRED)
+message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
+
+find_package(Eigen3 REQUIRED)
+find_package(TBB REQUIRED)
+
+# boost 
+find_package(Boost REQUIRED COMPONENTS thread system filesystem)
 
 
 include_directories(${PYSLAM_SLAM_SRC})
@@ -58,8 +81,8 @@ message(STATUS "set custom json folder: ${JSON_DIR}")
 find_package(nlohmann_json REQUIRED)
 
 # Add pybind11 from thirdparty
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/pybind11" pybind11)
-set(pybind11_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/pybind11/include")
+add_subdirectory("${PYSLAM_ROOT}/thirdparty/pybind11" pybind11)
+set(pybind11_INCLUDE_DIRS "${PYSLAM_ROOT}/thirdparty/pybind11/include")
 include_directories(${pybind11_INCLUDE_DIRS})
 
 # Add Python development
@@ -71,7 +94,7 @@ if (USE_PYTHON)
 endif()
 
 # Add g2o from thirdparty
-set(G2O_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/g2opy")
+set(G2O_ROOT "${PYSLAM_ROOT}/thirdparty/g2opy")
 set(G2O_INCLUDE_DIRS "${G2O_ROOT};${G2O_ROOT}/build/")  # the second for g2o/config.h
 
 # find all the libs in the g2o lib directory
@@ -85,13 +108,44 @@ message(STATUS "G2O_ROOT: ${G2O_ROOT}")
 message(STATUS "G2O_INCLUDE_DIRS: ${G2O_INCLUDE_DIRS}")
 message(STATUS "G2O_LIBRARIES: ${G2O_LIBRARIES}")
 
-message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
+
+# gtsam 
+set(GTSAM_ROOT "${PYSLAM_ROOT}/thirdparty/gtsam_local")
+set(CMAKE_PREFIX_PATH ${GTSAM_ROOT}/install/lib/cmake/GTSAM/)
+set(GTSAM_DIR ${GTSAM_ROOT}/install/)
+message(STATUS "set custom gtsam folder: ${GTSAM_DIR}")
+find_package(GTSAM REQUIRED)
+message(STATUS "gtsam include: ${GTSAM_INCLUDE_DIR}")
+
+#gtsam factors
+set(GTSAM_FACTORS_ROOT "${PYSLAM_ROOT}/thirdparty/gtsam_factors")
+set(GTSAM_FACTORS_INCLUDE_DIRS "${GTSAM_FACTORS_ROOT}/include")
+message(STATUS "set custom gtsam factors folder: ${GTSAM_FACTORS_ROOT}")
+message(STATUS "gtsam factors include: ${GTSAM_FACTORS_INCLUDE_DIRS}")
+
 
 # Include directories
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${G2O_INCLUDE_DIRS})
 include_directories(${TBB_INCLUDE_DIRS})
+include_directories(${GTSAM_INCLUDE_DIR})
+include_directories(${GTSAM_FACTORS_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
+
+set(CPP_CORE_LINK_LIBRARIES
+    ${OpenCV_LIBS}
+    ${EIGEN3_LIBRARIES}
+    ${G2O_LIBRARIES}
+    ${TBB_LIBRARIES}
+    gtsam  
+    ${Boost_LIBRARIES}
+    nlohmann_json::nlohmann_json
+)
+
+#=======================================
+# Add C++ core sources and headers
+#=======================================
 
 # cpp core
 
@@ -112,6 +166,7 @@ set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/utils/features.cpp    
     ${PYSLAM_SLAM_SRC}/utils/geom_2views.cpp
     ${PYSLAM_SLAM_SRC}/optimizer_g2o.cpp
+    ${PYSLAM_SLAM_SRC}/optimizer_gtsam.cpp
     ${PYSLAM_SLAM_SRC}/tracking_core.cpp
     ${PYSLAM_SLAM_SRC}/config_parameters.cpp
     ${PYSLAM_SLAM_SRC}/geometry_matchers.cpp
@@ -140,6 +195,8 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/feature_shared_resources.h
     ${PYSLAM_SLAM_SRC}/dictionary.h
     ${PYSLAM_SLAM_SRC}/optimizer_g2o.h
+    ${PYSLAM_SLAM_SRC}/optimizer_gtsam.h
+    ${PYSLAM_SLAM_SRC}/optimizer_common.h
     ${PYSLAM_SLAM_SRC}/utils/descriptor_helpers.h
     ${PYSLAM_SLAM_SRC}/utils/eigen_helpers.h
     ${PYSLAM_SLAM_SRC}/utils/features.h
@@ -228,13 +285,6 @@ set(CPP_CORE_HEADERS
     ${SEMANTICS_CPP_CORE_HEADERS}
 )
 
-set(CPP_CORE_LINK_LIBRARIES
-    ${OpenCV_LIBS}
-    ${EIGEN3_LIBRARIES}
-    ${G2O_LIBRARIES}
-    ${TBB_LIBRARIES}
-    nlohmann_json::nlohmann_json
-)
 
 # Ensure lib directory exists
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
@@ -323,10 +373,15 @@ install(TARGETS cpp_core_lib
 
 # Print configuration info
 message(STATUS "Building PYSLAM C++ Core Module")
-message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+message(STATUS "\t CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+message(STATUS "\t WITH_MARCH_NATIVE: ${WITH_MARCH_NATIVE}")
+message(STATUS "\t USE_PYTHON: ${USE_PYTHON}")
+message(STATUS "\t CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
+message(STATUS "\t CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message(STATUS "\t OpenCV version: ${OpenCV_VERSION}")
 if(NOT EIGEN3_VERSION AND EIGEN3_VERSION_STRING)
     set(EIGEN3_VERSION ${EIGEN3_VERSION_STRING})
 endif()
-message(STATUS "Eigen3 version: ${EIGEN3_VERSION}")
-message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "Output directory: ${CMAKE_CURRENT_SOURCE_DIR}/lib")
+message(STATUS "\t Eigen3 version: ${EIGEN3_VERSION}")
+message(STATUS "\t C++ standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "\t Output directory: ${CMAKE_CURRENT_SOURCE_DIR}/lib")

@@ -97,6 +97,7 @@ else
 
     # system packages 
     install_packages build-essential cmake
+    install_package ninja-build
     install_package python3-sdl2 
     install_package python3-tk
     install_package python3-dev

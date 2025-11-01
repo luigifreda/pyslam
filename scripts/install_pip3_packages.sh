@@ -85,9 +85,11 @@ if [ "$CUDA_VERSION" != "0" ]; then
     $SCRIPTS_DIR/install_faiss.sh # for loop closure database on GPU
 
     # MonoGS required packages
-    ./thirdparty/lietorch/build.sh                                             # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
-    pip install ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
-    pip install ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
+    ./thirdparty/lietorch/build.sh   # building with cmake to enable parallel threads (for some reasons, enabling parallel threads in pip install fails)
+   
+   # NOTE: --no-build-isolation is used to avoid the build isolation issue: Pip’s build isolation prevents access to the already-installed torch
+    pip install --no-build-isolation ./thirdparty/monogs/submodules/simple-knn                     # to clean: $ rm -rf thirdparty/monogs/submodules/simple-knn/build thirdparty/monogs/submodules/simple-knn/*.egg-info
+    pip install --no-build-isolation ./thirdparty/monogs/submodules/diff-gaussian-rasterization    # to clean: $ rm -rf thirdparty/monogs/submodules/diff-gaussian-rasterization/build thirdparty/monogs/submodules/diff-gaussian-rasterization/*.egg-info
 else
     print_yellow "Skipping MonoGS since CUDA_VERSION is 0"
 fi 

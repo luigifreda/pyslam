@@ -48,6 +48,8 @@ from pyslam.slam import (
     ProjectionMatcher,
 )
 
+from . import optimizer_gtsam
+
 from .slam_commons import SlamState
 
 from .initializer import Initializer
@@ -74,8 +76,8 @@ if TYPE_CHECKING:
     from .keyframe import KeyFrame
     from .map_point import MapPoint
     from .map import Map
-    from .optimizer_g2o import optimizer_g2o
-    from .optimizer_gtsam import optimizer_gtsam
+    from . import optimizer_g2o
+    from . import optimizer_gtsam
     from .tracking_core import TrackingCore
     from .rotation_histogram import RotationHistogram
     from .geometry_matchers import ProjectionMatcher, EpipolarMatcher

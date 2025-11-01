@@ -141,8 +141,35 @@ def MakeExtractor(sess, config, import_scope=None):
     attention_with_extra_dim = sess.graph.get_tensor_by_name("%sscores:0" % import_scope_prefix)
     attention = tf.reshape(attention_with_extra_dim, [tf.shape(attention_with_extra_dim)[0]])
 
+    # Prepare PCA parameters if needed
+    pca_parameters = None
+    use_pca = config.delf_local_config.use_pca
+    if use_pca:
+        pca_parameters = {}
+        pca_parameters["mean"] = tf.constant(
+            datum_io.ReadFromFile(config.delf_local_config.pca_parameters.mean_path),
+            dtype=tf.float32,
+        )
+        pca_parameters["matrix"] = tf.constant(
+            datum_io.ReadFromFile(config.delf_local_config.pca_parameters.projection_matrix_path),
+            dtype=tf.float32,
+        )
+        pca_parameters["dim"] = config.delf_local_config.pca_parameters.pca_dim
+        pca_parameters["use_whitening"] = config.delf_local_config.pca_parameters.use_whitening
+        if config.delf_local_config.pca_parameters.use_whitening:
+            pca_parameters["variances"] = tf.squeeze(
+                tf.constant(
+                    datum_io.ReadFromFile(
+                        config.delf_local_config.pca_parameters.pca_variances_path
+                    ),
+                    dtype=tf.float32,
+                )
+            )
+        else:
+            pca_parameters["variances"] = None
+
     locations, descriptors = feature_extractor.DelfFeaturePostProcessing(
-        boxes, raw_descriptors, config
+        boxes, raw_descriptors, use_pca, pca_parameters
     )
 
     def ExtractorFn(image):
@@ -217,7 +244,7 @@ def main(unused_argv):
             # Start input enqueue threads.
             # coord = tf.train.Coordinator()
             # threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-            start = time.clock()
+            start = time.perf_counter()
 
             with (
                 h5py.File(os.path.join(cmd_args.output_dir, "keypoints.h5"), "w") as h5_kp,
@@ -234,12 +261,12 @@ def main(unused_argv):
                     #     tf.logging.info(
                     #         'Starting to extract DELF features from images...')
                     # elif i % _STATUS_CHECK_ITERATIONS == 0:
-                    #     elapsed = (time.clock() - start)
+                    #     elapsed = (time.perf_counter() - start)
                     #     tf.logging.info(
                     #         'Processing image %d out of %d, last %d '
                     #         'images took %f seconds', i, num_images,
                     #         _STATUS_CHECK_ITERATIONS, elapsed)
-                    #     start = time.clock()
+                    #     start = time.perf_counter()
 
                     # # Get next image.
                     image_tf = tf.convert_to_tensor(img, np.float32)

@@ -43,6 +43,8 @@
 using namespace gtsam;
 using boost::adaptors::map_values;
 
+namespace gtsam_factors {
+
 // A custom LM optimizer that mimics the G2o implementation.
 class LevenbergMarquardtOptimizerG2o : public NonlinearOptimizer {
   protected:
@@ -245,3 +247,5 @@ class LevenbergMarquardtOptimizerG2o : public NonlinearOptimizer {
   protected:
     const NonlinearOptimizerParams &_params() const override { return params_; }
 };
+
+} // namespace gtsam_factors

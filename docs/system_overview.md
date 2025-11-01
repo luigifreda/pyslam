@@ -11,6 +11,7 @@
     - [Depth Estimator](#depth-estimator)
     - [Volumetric Integrator](#volumetric-integrator)
     - [Semantic Mapping](#semantic-mapping)
+  - [C++ Core](#c-core)
 
 <!-- /TOC -->
 
@@ -156,6 +157,8 @@ The section [Supported semantic segmentation methods](../README.md#supported-sem
 This paper provides a more in-depth presentation of the semantic mapping module.
 *["Semantic pySLAM: Unifying semantic mapping approaches under the same framework"](./pyslam-semantic.pdf)*, David Morilla-Cabello, Eduardo Montijano  
 
+## C++ Core
 
+A brief overview of the C++ core is provided in this [document](../pyslam/slam/cpp/README.md).
 
 

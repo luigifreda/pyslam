@@ -397,7 +397,7 @@ class MapPoint(MapPointBase):
             "num_times_visible": self.num_times_visible,
             "num_times_found": self.num_times_found,
             "last_frame_id_seen": self.last_frame_id_seen,
-            "pt": self.pt.tolist(),
+            "pt": self._pt.tolist(),
             "color": (
                 self.color.tolist()
                 if self.color is not None and isinstance(self.color, np.ndarray)
@@ -470,7 +470,7 @@ class MapPoint(MapPointBase):
     def update_position(self, position):
         with self.global_lock:
             with self._lock_pos:
-                self._pt = position
+                self._pt = np.array(position)
 
     def min_distance(self):
         with self._lock_pos:
