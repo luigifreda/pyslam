@@ -356,8 +356,10 @@ class Camera(CameraBase):
         self.cy = float(json_str["cy"])
         self.D = np.array(json.loads(json_str["D"])) if json_str["D"] is not None else None
         self.fps = int(json_str["fps"])
-        self.bf = float(json_str["bf"])
-        self.b = float(json_str["b"])
+        bf_str = json_str["bf"]
+        b_str = json_str["b"]
+        self.bf = float(bf_str) if bf_str is not None else None
+        self.b = float(b_str) if b_str is not None else None
         self.depth_factor = float(json_str["depth_factor"])
         self.depth_threshold = float(json_str["depth_threshold"])
         self.is_distorted = bool(json_str["is_distorted"])

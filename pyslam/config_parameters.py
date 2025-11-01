@@ -183,10 +183,17 @@ class Parameters:
     # ================================================================
     # Optimization engine
     # ================================================================
-    kOptimizationFrontEndUseGtsam = False  # Use GTSAM in pose optimization in the frontend
-    kOptimizationBundleAdjustUseGtsam = False  # Use GTSAM for LBA and GBA
+    kOptimizationAllUseGtsam = False  # Use GTSAM for all optimization tasks
+    kOptimizationFrontEndUseGtsam = (
+        False or kOptimizationAllUseGtsam
+    )  # Use GTSAM in pose optimization in the frontend
+    kOptimizationBundleAdjustUseGtsam = (
+        False or kOptimizationAllUseGtsam
+    )  # Use GTSAM for LBA and GBA
     kOptimizationLoopClosingUseGtsam = (
-        False  # [Experimental,WIP] Use GTSAM for loop closing (relocalization and PGO)
+        False
+        or kOptimizationAllUseGtsam
+        # [Experimental,WIP] Use GTSAM for loop closing (relocalization and PGO)
     )
 
     # ================================================================
@@ -280,7 +287,7 @@ class Parameters:
     # Semantic mapping
     # ================================================================
     # NOTE: By activating the semantic mapping, semantics will be used for the whole SLAM pipeline
-    kDoSemanticMapping = True  # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
+    kDoSemanticMapping = False  # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingMoveSemanticSegmentationToSeparateProcess = False
     kSemanticMappingDebugAndPrintToFile = True

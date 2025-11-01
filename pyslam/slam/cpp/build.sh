@@ -24,6 +24,11 @@ BUILD_TYPE="Release"
 
 echo "BUILD_TYPE: $BUILD_TYPE"
 
+# check if WITH_MARCH_NATIVE is not set
+if [[ -z "$WITH_MARCH_NATIVE" ]]; then
+    WITH_MARCH_NATIVE=ON
+fi
+
 # Configure with CMake
 echo "Configuring with CMake..."
 cmake .. \
@@ -31,7 +36,8 @@ cmake .. \
     -DCMAKE_CXX_STANDARD=17 \
     -DCMAKE_CXX_STANDARD_REQUIRED=ON \
     -Dpybind11_DIR="$PROJECT_ROOT/thirdparty/pybind11/share/cmake/pybind11" \
-    -DOpenCV_DIR="$PROJECT_ROOT/thirdparty/opencv/install/lib/cmake/opencv4" 
+    -DOpenCV_DIR="$PROJECT_ROOT/thirdparty/opencv/install/lib/cmake/opencv4"  \
+    -DWITH_MARCH_NATIVE="$WITH_MARCH_NATIVE"
 
 # Build the module
 echo "Building the module..."

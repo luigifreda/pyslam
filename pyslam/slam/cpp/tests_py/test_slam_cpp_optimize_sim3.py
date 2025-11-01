@@ -46,6 +46,7 @@ if USE_CPP:
     Camera = cpp_module.Camera
     PinholeCamera = cpp_module.PinholeCamera
     optimizer_g2o = cpp_module.optimizer_g2o
+    optimizer_gtsam = cpp_module.optimizer_gtsam
     print("Using C++ module")
 else:
     Frame = python_module.Frame
@@ -56,6 +57,7 @@ else:
     Camera = python_module.Camera
     PinholeCamera = python_module.PinholeCamera
     optimizer_g2o = python_module.optimizer_g2o
+    optimizer_gtsam = python_module.optimizer_gtsam
     print("Using Python module")
 
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
@@ -474,8 +476,11 @@ class TestOptimizeSim3(TestCase):
 
         print(f"starting optimize_sim3... ")
 
-        optimize_sim3 = optimizer_g2o.optimize_sim3
-        # optimize_sim3 = optimizer_gtsam.optimize_sim3
+        use_optimizer_gtsam = True
+        if use_optimizer_gtsam:
+            optimize_sim3 = optimizer_gtsam.optimize_sim3
+        else:
+            optimize_sim3 = optimizer_g2o.optimize_sim3
 
         print(f"Rc1c2_initial: {self.Rc1c2_initial.ravel()}")
         print(f"tc1c2_initial: {self.tc1c2_initial.ravel()}")

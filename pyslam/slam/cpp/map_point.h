@@ -150,9 +150,9 @@ class MapPointBase {
 // MapPoint class - matches Python MapPoint exactly
 class MapPoint : public MapPointBase, public std::enable_shared_from_this<MapPoint> {
 
-  private:
+  public:
     // Global lock for position updates
-    static std::mutex global_lock_;
+    static std::mutex global_lock;
 
   public:
     // Core geometric data  (private)

@@ -5,12 +5,12 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SET_RPATH               ON  CACHE BOOL   "Set RPATH instead of the default RUNPATH") # for solving the linking issue with g2o binaries (see the related node in the compiler options section)
-set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
-
+set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL  "Checking python interpreter") # to be activated when called within virtual python environment 
+set(WITH_MARCH_NATIVE OFF  CACHE BOOL  "Build with \"-march native\"")
 
 # In order to set RPATH (instead of RUNPATH) for g2o and other libraries linking issue.
 if(LINUX)
@@ -27,6 +27,11 @@ endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -fPIC -DNDEBUG ${MY_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG ${MY_FLAGS}")
+
+if (WITH_MARCH_NATIVE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
@@ -95,14 +100,34 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 add_subdirectory(pybind11)
 
-pybind11_add_module(gtsam_factors 
-  gtsam_factors.cpp 
+pybind11_add_module(
+  gtsam_factors 
+  gtsam_factors_module.cpp 
+  similarity.h
+  switchable_robust_noise_model.h
   optimizers.h 
   numerical_derivative.h 
+  numerical_derivative_py.h
   resectioning.h
-  weighted_projection_factors.h)
+  weighted_projection_factors.h
+)
 target_link_libraries(gtsam_factors PRIVATE
   gtsam
   ${Boost_LIBRARIES}
   ${TBB_LIBRARIES}
 )
+
+# # Install header files
+# install(FILES
+#   similarity.h
+#   switchable_robust_noise_model.h
+#   optimizers.h
+#   numerical_derivative.h
+#   numerical_derivative_py.h
+#   resectioning.h
+#   weighted_projection_factors.h
+#   DESTINATION include/gtsam_factors
+# )
+
+
+

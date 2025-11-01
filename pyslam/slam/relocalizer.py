@@ -207,6 +207,7 @@ class Relocalizer:
             discarded = [False] * len(considered_candidates)
             success_relocalization_kf = None
             num_candidates = len(considered_candidates)
+            num_matched_map_points = 0
 
             # check if candidates get a valid solution
             while num_candidates > 0 and success_relocalization_kf is None:
@@ -337,7 +338,9 @@ class Relocalizer:
 
             res = False
             if success_relocalization_kf is None:
-                Relocalizer.print("Relocalizer: failed")
+                Relocalizer.print(
+                    f"Relocalizer: failed, num_matched_map_points: {num_matched_map_points}"
+                )
                 res = False
             else:
                 frame.kf_ref = success_relocalization_kf

@@ -47,6 +47,7 @@ if USE_CPP:
     Camera = cpp_module.Camera
     PinholeCamera = cpp_module.PinholeCamera
     optimizer_g2o = cpp_module.optimizer_g2o
+    optimizer_gtsam = cpp_module.optimizer_gtsam
     print("Using C++ module")
 else:
     Frame = python_module.Frame
@@ -57,6 +58,7 @@ else:
     Camera = python_module.Camera
     PinholeCamera = python_module.PinholeCamera
     optimizer_g2o = python_module.optimizer_g2o
+    optimizer_gtsam = python_module.optimizer_gtsam
     print("Using Python module")
 
 from pyslam.utilities.geometry import (
@@ -222,9 +224,15 @@ class TestPoseOptimizerConvergence(TestCase):
         # frame.ensure_contiguous_arrays()
         # return
 
+        use_optimizer_gtsam = True
+        if use_optimizer_gtsam:
+            pose_optimization = optimizer_gtsam.pose_optimization
+        else:
+            pose_optimization = optimizer_g2o.pose_optimization
+
         if True:
             # mean_squared_error, success, num_valid_points = optimizer_gtsam.pose_optimization(frame, verbose=True, rounds=10)
-            mean_squared_error, success, num_valid_points = optimizer_g2o.pose_optimization(
+            mean_squared_error, success, num_valid_points = pose_optimization(
                 frame, verbose=True, rounds=10
             )
 

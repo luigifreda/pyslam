@@ -32,7 +32,7 @@ import g2o
 
 from pyslam.config_parameters import Parameters
 
-from pyslam.slam import Map, optimizer_g2o
+from pyslam.slam import Map, optimizer_g2o, optimizer_gtsam
 
 from pyslam.utilities.system import Printer, Logging
 from pyslam.utilities.multi_processing import MultiprocessingManager

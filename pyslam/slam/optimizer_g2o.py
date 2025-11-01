@@ -1456,7 +1456,8 @@ def optimize_essential_graph(
             Siw = Sim3Pose(kf_Tcw[:3, :3], kf_Tcw[:3, 3], 1.0)
         vec_Scw[keyframe_id] = Siw
 
-        vertex_sim3.set_estimate(g2o.Sim3(Siw.R, Siw.t.ravel(), Siw.s))
+        Siw_g2o = g2o.Sim3(Siw.R, Siw.t.ravel(), Siw.s)
+        vertex_sim3.set_estimate(Siw_g2o)
 
         if keyframe == loop_keyframe:
             vertex_sim3.set_fixed(True)
@@ -1495,10 +1496,12 @@ def optimize_essential_graph(
             Sjw = vec_Scw[connected_id]
             Sji = Sjw @ Swi
 
+            Sji_g2o = g2o.Sim3(Sji.R, Sji.t.ravel(), Sji.s)
+
             edge = g2o.EdgeSim3()
             edge.set_vertex(1, optimizer.vertex(connected_id))
             edge.set_vertex(0, optimizer.vertex(keyframe_id))
-            edge.set_measurement(g2o.Sim3(Sji.R, Sji.t.ravel(), Sji.s))
+            edge.set_measurement(Sji_g2o)
             edge.set_information(mat_lambda.copy())
 
             optimizer.add_edge(edge)
@@ -1512,14 +1515,14 @@ def optimize_essential_graph(
         keyframe_id = keyframe.kid
         parent_keyframe = keyframe.get_parent()
 
+        try:
+            Swi = non_corrected_sim3_map[keyframe].inverse()
+        except:
+            Swi = vec_Scw[keyframe_id].inverse()
+
         # Spanning tree edge
         if parent_keyframe:
             parent_id = parent_keyframe.kid
-
-            try:
-                Swi = non_corrected_sim3_map[keyframe].inverse()
-            except:
-                Swi = vec_Scw[keyframe_id].inverse()
 
             try:
                 Sjw = non_corrected_sim3_map[parent_keyframe].copy()
@@ -1528,10 +1531,12 @@ def optimize_essential_graph(
 
             Sji = Sjw @ Swi
 
+            Sji_g2o = g2o.Sim3(Sji.R, Sji.t.ravel(), Sji.s)
+
             edge = g2o.EdgeSim3()
             edge.set_vertex(1, optimizer.vertex(parent_id))
             edge.set_vertex(0, optimizer.vertex(keyframe_id))
-            edge.set_measurement(g2o.Sim3(Sji.R, Sji.t.ravel(), Sji.s))
+            edge.set_measurement(Sji_g2o)
             edge.set_information(mat_lambda.copy())
             optimizer.add_edge(edge)
             num_graph_edges += 1
@@ -1545,10 +1550,13 @@ def optimize_essential_graph(
                     Slw = vec_Scw[loop_edge.kid]  # already copy
 
                 Sli = Slw @ Swi
+
+                Sli_g2o = g2o.Sim3(Sli.R, Sli.t.ravel(), Sli.s)
+
                 edge = g2o.EdgeSim3()
                 edge.set_vertex(1, optimizer.vertex(loop_edge.kid))
                 edge.set_vertex(0, optimizer.vertex(keyframe_id))
-                edge.set_measurement(g2o.Sim3(Sli.R, Sli.t.ravel(), Sli.s))
+                edge.set_measurement(Sli_g2o)
                 edge.set_information(mat_lambda.copy())
                 optimizer.add_edge(edge)
                 num_graph_edges += 1
@@ -1573,10 +1581,13 @@ def optimize_essential_graph(
                     Snw = vec_Scw[connected_keyframe.kid]  # already copy
 
                 Sni = Snw @ Swi
+
+                Sni_g2o = g2o.Sim3(Sni.R, Sni.t.ravel(), Sni.s)
+
                 edge = g2o.EdgeSim3()
                 edge.set_vertex(1, optimizer.vertex(connected_keyframe.kid))
                 edge.set_vertex(0, optimizer.vertex(keyframe_id))
-                edge.set_measurement(g2o.Sim3(Sni.R, Sni.t.ravel(), Sni.s))
+                edge.set_measurement(Sni_g2o)
                 edge.set_information(mat_lambda.copy())
                 optimizer.add_edge(edge)
                 num_graph_edges += 1
@@ -1598,7 +1609,10 @@ def optimize_essential_graph(
         R = corrected_Siw.rotation().matrix()
         t = corrected_Siw.translation()
         s = corrected_Siw.scale()
-        vec_corrected_Swc[keyframe_id] = Sim3Pose(R, t, s).inverse()  # corrected_Siw.inverse()
+        Siw = Sim3Pose(R, t, s)
+        Swi = Siw.inverse()
+
+        vec_corrected_Swc[keyframe_id] = Swi
 
         Tiw = poseRt(R, t / s)  # [R t/s; 0 1]
         keyframe.update_pose(Tiw)

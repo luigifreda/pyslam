@@ -28,7 +28,7 @@ from pyslam.utilities.geometry import poseRt, inv_poseRt
 
 from pyslam.io.ground_truth import GroundTruth
 from .visual_odometry_base import VoState, VisualOdometryBase
-
+from pyslam.slam import Camera
 
 # Type hints for IDE navigation
 from typing import TYPE_CHECKING
@@ -52,7 +52,17 @@ class VisualOdometryRgbdBase:
         D = cam.D
         K = cam.K
         # Printer.green(f'VisualOdometryRgbdBase: init: h={h}, w={w}, D={D}, K={K}')
-        if np.linalg.norm(np.array(D, dtype=float)) <= 1e-10:
+
+        # Ensure D is a numpy array with proper shape for OpenCV
+        if D is not None:
+            D = np.array(D, dtype=np.float64).flatten()
+        else:
+            D = np.array([0, 0, 0, 0, 0], dtype=np.float64)
+
+        # Ensure K is a numpy array
+        K = np.array(K, dtype=np.float64)
+
+        if np.linalg.norm(D) <= 1e-10:
             self.new_K = K
             self.calib_map1 = None
             self.calib_map2 = None

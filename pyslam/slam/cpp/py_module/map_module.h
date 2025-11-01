@@ -206,6 +206,7 @@ void bind_map(pybind11::module &m) {
         // KeyFrame operations
         .def("get_keyframes",
              &pyslam::Map::get_keyframes_vector) // NOTE: returns a vector of KeyFramePtrs
+        .def("get_first_keyframe", &pyslam::Map::get_first_keyframe)
         .def("get_last_keyframe", &pyslam::Map::get_last_keyframe)
         .def("get_last_keyframes", &pyslam::Map::get_last_keyframes,
              py::arg("local_window_size") = 5)

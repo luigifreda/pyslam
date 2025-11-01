@@ -18,7 +18,7 @@
  */
 #pragma once
 
-#include "optimizer_g2o.h"
+#include "optimizer_gtsam.h"
 #include "sim3_pose.h"
 #include "utils/messages.h"
 
@@ -43,7 +43,7 @@ namespace pyslam {
 // ------------------------------------------------------------
 
 // Wrapper for bundle_adjustment to return tuple (mean_squared_error, result_dict)
-inline std::pair<double, py::dict> bundle_adjustment_wrapper_g2o(
+inline std::pair<double, py::dict> bundle_adjustment_wrapper_gtsam(
     const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
     std::optional<int> local_window_size = std::nullopt, bool fixed_points = false, int rounds = 10,
     int loop_kf_id = 0, bool use_robust_kernel = false, py::object abort_flag = py::none(),
@@ -59,9 +59,9 @@ inline std::pair<double, py::dict> bundle_adjustment_wrapper_g2o(
     BundleAdjustmentResult result;
     {
         py::gil_scoped_release release;
-        result = OptimizerG2o::bundle_adjustment(keyframes, points, local_window_size, fixed_points,
-                                                 rounds, loop_kf_id, use_robust_kernel,
-                                                 abort_flag_value_ptr, fill_result_dict, verbose);
+        result = OptimizerGTSAM::bundle_adjustment(
+            keyframes, points, local_window_size, fixed_points, rounds, loop_kf_id,
+            use_robust_kernel, abort_flag_value_ptr, fill_result_dict, verbose);
         abort_flag_wrapper.stop_monitoring();
     }
 
@@ -75,7 +75,7 @@ inline std::pair<double, py::dict> bundle_adjustment_wrapper_g2o(
 }
 
 // Wrapper for global_bundle_adjustment to return tuple (mean_squared_error, result_dict)
-inline std::pair<double, py::dict> global_bundle_adjustment_wrapper_g2o(
+inline std::pair<double, py::dict> global_bundle_adjustment_wrapper_gtsam(
     const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
     int rounds = 10, int loop_kf_id = 0, bool use_robust_kernel = false,
     py::object abort_flag = py::none(), py::object mp_abort_flag = py::none(),
@@ -90,9 +90,9 @@ inline std::pair<double, py::dict> global_bundle_adjustment_wrapper_g2o(
     BundleAdjustmentResult result;
     {
         py::gil_scoped_release release;
-        result = OptimizerG2o::global_bundle_adjustment(keyframes, points, rounds, loop_kf_id,
-                                                        use_robust_kernel, abort_flag_value_ptr,
-                                                        fill_result_dict, verbose);
+        result = OptimizerGTSAM::global_bundle_adjustment(keyframes, points, rounds, loop_kf_id,
+                                                          use_robust_kernel, abort_flag_value_ptr,
+                                                          fill_result_dict, verbose);
         abort_flag_wrapper.stop_monitoring();
     }
 
@@ -106,7 +106,7 @@ inline std::pair<double, py::dict> global_bundle_adjustment_wrapper_g2o(
 }
 
 // Wrapper for global_bundle_adjustment_map to return tuple (mean_squared_error, result_dict)
-inline std::pair<double, py::dict> global_bundle_adjustment_map_wrapper_g2o(
+inline std::pair<double, py::dict> global_bundle_adjustment_map_wrapper_gtsam(
     MapPtr map, int rounds = 10, int loop_kf_id = 0, bool use_robust_kernel = false,
     py::object abort_flag = py::none(), py::object mp_abort_flag = py::none(),
     py::dict result_dict = py::none(), bool verbose = false, py::object print_func = py::none()) {
@@ -120,9 +120,9 @@ inline std::pair<double, py::dict> global_bundle_adjustment_map_wrapper_g2o(
     BundleAdjustmentResult result;
     {
         py::gil_scoped_release release;
-        result = OptimizerG2o::global_bundle_adjustment_map(map, rounds, loop_kf_id,
-                                                            use_robust_kernel, abort_flag_value_ptr,
-                                                            fill_result_dict, verbose);
+        result = OptimizerGTSAM::global_bundle_adjustment_map(
+            map, rounds, loop_kf_id, use_robust_kernel, abort_flag_value_ptr, fill_result_dict,
+            verbose);
         abort_flag_wrapper.stop_monitoring();
     }
 
@@ -137,16 +137,16 @@ inline std::pair<double, py::dict> global_bundle_adjustment_map_wrapper_g2o(
 
 // Wrapper for pose_optimization to return tuple (mean_squared_error, is_ok, num_valid_points)
 inline std::tuple<double, bool, int>
-pose_optimization_wrapper_g2o(FramePtr frame, bool verbose = false, int rounds = 10) {
+pose_optimization_wrapper_gtsam(FramePtr frame, bool verbose = false, int rounds = 10) {
 
     py::gil_scoped_release release;
-    const auto result = OptimizerG2o::pose_optimization(frame, verbose, rounds);
+    const auto result = OptimizerGTSAM::pose_optimization(frame, verbose, rounds);
 
     return std::make_tuple(result.mean_squared_error, result.is_ok, result.num_valid_points);
 }
 
 // Wrapper for local_bundle_adjustment to return tuple (mean_squared_error, ratio_bad_observations)
-inline std::pair<double, double> local_bundle_adjustment_wrapper_g2o(
+inline std::pair<double, double> local_bundle_adjustment_wrapper_gtsam(
     const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
     const std::vector<KeyFramePtr> &keyframes_ref = {}, bool fixed_points = false,
     bool verbose = false, int rounds = 10, py::object abort_flag = py::none(),
@@ -164,9 +164,9 @@ inline std::pair<double, double> local_bundle_adjustment_wrapper_g2o(
         PyLock *lock_ptr = lock ? lock.get() : nullptr;
 
         py::gil_scoped_release release;
-        result = OptimizerG2o::local_bundle_adjustment<PyLock>(keyframes, points, keyframes_ref,
-                                                               fixed_points, verbose, rounds,
-                                                               abort_flag_value_ptr, lock_ptr);
+        result = OptimizerGTSAM::local_bundle_adjustment<PyLock>(keyframes, points, keyframes_ref,
+                                                                 fixed_points, verbose, rounds,
+                                                                 abort_flag_value_ptr, lock_ptr);
         abort_flag_wrapper.stop_monitoring();
     }
 
@@ -174,21 +174,23 @@ inline std::pair<double, double> local_bundle_adjustment_wrapper_g2o(
 }
 
 // Wrapper for optimize_sim3 to return tuple (num_inliers, R, t, scale, delta_error)
-inline std::tuple<int, Eigen::Matrix3d, Eigen::Vector3d, double, double> optimize_sim3_wrapper_g2o(
-    KeyFramePtr kf1, KeyFramePtr kf2, const std::vector<MapPointPtr> &map_points1,
-    const std::vector<MapPointPtr> &map_point_matches12, const Eigen::Matrix3d &R12,
-    const Eigen::Vector3d &t12, double s12, double th2, bool fix_scale, bool verbose = false) {
+inline std::tuple<int, Eigen::Matrix3d, Eigen::Vector3d, double, double>
+optimize_sim3_wrapper_gtsam(KeyFramePtr kf1, KeyFramePtr kf2,
+                            const std::vector<MapPointPtr> &map_points1,
+                            const std::vector<MapPointPtr> &map_point_matches12,
+                            const Eigen::Matrix3d &R12, const Eigen::Vector3d &t12, double s12,
+                            double th2, bool fix_scale, bool verbose = false) {
 
     py::gil_scoped_release release;
-    const auto result = OptimizerG2o::optimize_sim3(kf1, kf2, map_points1, map_point_matches12, R12,
-                                                    t12, s12, th2, fix_scale, verbose);
+    const auto result = OptimizerGTSAM::optimize_sim3(kf1, kf2, map_points1, map_point_matches12,
+                                                      R12, t12, s12, th2, fix_scale, verbose);
 
     return std::make_tuple(result.num_inliers, result.R, result.t, result.scale,
                            result.delta_error);
 }
 
 // Wrapper for optimize_essential_graph to return double (mean_squared_error)
-inline double optimize_essential_graph_wrapper_g2o(
+inline double optimize_essential_graph_wrapper_gtsam(
     MapPtr map_object, KeyFramePtr loop_keyframe, KeyFramePtr current_keyframe,
     const std::unordered_map<KeyFramePtr, Sim3Pose> &non_corrected_sim3_map,
     const std::unordered_map<KeyFramePtr, Sim3Pose> &corrected_sim3_map,
@@ -196,9 +198,9 @@ inline double optimize_essential_graph_wrapper_g2o(
     bool fix_scale, py::object print_fun = py::none(), bool verbose = false) {
 
     py::gil_scoped_release release;
-    return OptimizerG2o::optimize_essential_graph(map_object, loop_keyframe, current_keyframe,
-                                                  non_corrected_sim3_map, corrected_sim3_map,
-                                                  loop_connections, fix_scale, verbose);
+    return OptimizerGTSAM::optimize_essential_graph(map_object, loop_keyframe, current_keyframe,
+                                                    non_corrected_sim3_map, corrected_sim3_map,
+                                                    loop_connections, fix_scale, verbose);
 }
 
 } // namespace pyslam

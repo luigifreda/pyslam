@@ -27,6 +27,7 @@
 
 #include "casters/dictionary_casters.h" // for Dict, List
 #include "casters/opencv_type_casters.h"
+#include "casters/slam_opaque_types.h" // for SLAM container opaque types
 
 #include "dictionary.h"
 #include "py_module/camera_module.h"
@@ -41,7 +42,9 @@
 #include "py_module/map_module.h"
 #include "py_module/map_point_module.h"
 #include "py_module/mutex_wrapper_module.h"
+#include "py_module/optimizer_common_module.h"
 #include "py_module/optimizer_g2o_module.h"
+#include "py_module/optimizer_gtsam_module.h"
 #include "py_module/rotation_histogram_module.h"
 #include "py_module/sim3_pose_module.h"
 #include "py_module/tracking_core_module.h"
@@ -54,9 +57,29 @@ PYBIND11_MODULE(cpp_core, m) {
     m.doc() = "PYSLAM C++ Core Module - High-performance SLAM classes";
 
     // ------------------------------------------------------------
+    // SLAM-specific opaque containers
+    //
+    // These containers can be optionally declared opaque in casters/slam_opaque_types.h
+    // to avoid copying when passing between C++ and Python, and to enable
+    // mutations in Python to be reflected in C++. However, it seems enabling opaque breaks smooth
+    // interoperation between C++ and Python. At present, we leave it disabled.
+    //
+    // KeyFramePtr and MapPointPtr vectors are heavily used in:
+    // - Bundle adjustment and optimization functions
+    // - Loop closure operations
+    // - Map point projection and matching
+    // - Return values from covisibility queries
+
+    py::bind_vector<std::vector<pyslam::KeyFramePtr>>(m, "KeyFramePtrVector");
+    py::bind_vector<std::vector<pyslam::MapPointPtr>>(m, "MapPointPtrVector");
+    py::bind_vector<std::vector<pyslam::FramePtr>>(m, "FramePtrVector");
+    py::bind_vector<std::vector<int>>(m, "IntVector");
+    py::bind_vector<std::vector<bool>>(m, "BoolVector");
+
+    // ------------------------------------------------------------
     // Dictionary
 
-    // Expose the containers
+    // Expose the containers (already declared opaque in dictionary_casters.h)
     py::bind_vector<pyslam::List>(m, "List");
     py::bind_map<pyslam::Dict>(m, "Dict");
 
@@ -118,9 +141,19 @@ PYBIND11_MODULE(cpp_core, m) {
     bind_mutex_wrapper(m);
 
     // ------------------------------------------------------------
+    // OptimizerCommon class
+
+    bind_optimizer_common(m);
+
+    // ------------------------------------------------------------
     // OptimizerG2o class
 
     bind_optimizer_g2o(m);
+
+    // ------------------------------------------------------------
+    // OptimizerGTSAM class
+
+    bind_optimizer_gtsam(m);
 
     // ------------------------------------------------------------
     // TrackingCore class

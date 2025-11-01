@@ -44,16 +44,25 @@ import gc
 import warnings
 import traceback
 
+from pyslam.config_parameters import Parameters
+from pyslam.utilities.system import Printer
+
+USE_PYTHON_FALLBACK = False
+USE_CPP_CORE = Parameters.USE_CPP_CORE
+
 # Add the C++ module lib directory to path
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 CPP_LIB_DIR = os.path.join(THIS_DIR, "lib")
 if os.path.exists(CPP_LIB_DIR):
     sys.path.insert(0, CPP_LIB_DIR)
 else:
-    print(f"❌ CPP_LIB_DIR not found: {CPP_LIB_DIR}")
-
-
-USE_PYTHON_FALLBACK = False
+    if USE_CPP_CORE:
+        Printer.red(
+            f"❌ USE_CPP_CORE: {USE_CPP_CORE}, CPP_LIB_DIR not found: {CPP_LIB_DIR}.\n You need to build the C++ core module or set USE_CPP_CORE to False in config_parameters.py file."
+        )
+        sys.exit(1)
+    else:
+        print(f"CPP_LIB_DIR not found: {CPP_LIB_DIR}")
 
 
 def _cleanup_cpp_resources():
@@ -85,6 +94,7 @@ core_classes = [
     "CameraUtils",
     "Sim3Pose",
     "optimizer_g2o",
+    "optimizer_gtsam",
     "TrackingCore",
     "LocalMappingCore",
     "CameraType",
@@ -126,6 +136,7 @@ def _import_cpp_core():
             "CameraUtils": cpp_core.CameraUtils,
             "Sim3Pose": cpp_core.Sim3Pose,
             "optimizer_g2o": cpp_core.OptimizerG2o,
+            "optimizer_gtsam": cpp_core.OptimizerGTSAM,
             "TrackingCore": cpp_core.TrackingCore,
             "LocalMappingCore": cpp_core.LocalMappingCore,
             "CameraType": cpp_core.CameraType,
@@ -172,6 +183,7 @@ def _import_python_core():
         from pyslam.slam.sim3_pose import Sim3Pose
         from pyslam.io.dataset_types import SensorType
         import pyslam.slam.optimizer_g2o as optimizer_g2o
+        import pyslam.slam.optimizer_gtsam as optimizer_gtsam
         from pyslam.slam.tracking_core import TrackingCore
         from pyslam.slam.local_mapping_core import LocalMappingCore
         from pyslam.slam.map import ReloadedSessionMapInfo, LocalCovisibilityMap
@@ -194,6 +206,7 @@ def _import_python_core():
             "SensorType": SensorType,
             "Sim3Pose": Sim3Pose,
             "optimizer_g2o": optimizer_g2o,
+            "optimizer_gtsam": optimizer_gtsam,
             "TrackingCore": TrackingCore,
             "LocalMappingCore": LocalMappingCore,
             "ReloadedSessionMapInfo": ReloadedSessionMapInfo,
@@ -226,7 +239,11 @@ def _import_python_core():
 
 
 # Try to import the C++ core module
-cpp_classes, CPP_AVAILABLE = _import_cpp_core()
+if USE_CPP_CORE:
+    cpp_classes, CPP_AVAILABLE = _import_cpp_core()
+else:
+    cpp_classes, CPP_AVAILABLE = None, False
+
 python_classes, PYTHON_AVAILABLE = _import_python_core()
 
 if CPP_AVAILABLE:
@@ -246,8 +263,13 @@ else:
         for name, cls in python_classes.items():
             globals()[name] = cls
     else:
-        print("❌ C++ core module not available. Falling back to Python implementations.")
-        # sys.exit(1)
+        if USE_CPP_CORE:
+            Printer.red(
+                f"❌ USE_CPP_CORE: {USE_CPP_CORE}, C++ core module not available.\n Something went wrong during the build process. You may need to rebuild the C++ core module or set USE_CPP_CORE to True in config_parameters.py file."
+            )
+            sys.exit(1)
+        else:
+            print("✅ Python core module selected.")
 
 
 # Create a cpp_module object for compatibility with the main SLAM module

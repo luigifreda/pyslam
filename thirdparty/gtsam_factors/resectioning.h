@@ -46,6 +46,8 @@ using symbol_shorthand::X;
 
 #define USE_ANALYTICAL_JACOBIAN_FOR_TCW_RESECTION 1
 
+namespace gtsam_factors {
+
 /**
  * Monocular Resectioning Factor.
  * The pose of the camera is assumed to be Twc.
@@ -474,4 +476,5 @@ class SimResectioningFactor : public gtsam::NoiseModelFactor1<gtsam::Similarity3
             return boost::make_shared<SimInvResectioningFactor>(*this);
         }
     };
-        
+    
+} // namespace gtsam_factors

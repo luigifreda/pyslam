@@ -36,7 +36,6 @@ import g2o
 from pyslam.config_parameters import Parameters
 from pyslam.utilities.system import Printer
 from pyslam.utilities.geometry import poseRt, inv_T
-from pyslam.utilities.multi_processing import MultiprocessingManager
 
 from .sim3_pose import Sim3Pose
 from .feature_tracker_shared import FeatureTrackerShared
@@ -46,7 +45,7 @@ from .keyframe import KeyFrame
 
 kMinDepth = Parameters.kMinDepth
 kSigmaForFixed = 1e-6
-kWeightForDisabledFactor = 1e-3
+kWeightForDisabledFactor = 1e-6
 
 
 # gtsam helper functions
@@ -202,7 +201,6 @@ def bundle_adjustment(
             kf_kps_ur_idx = kf.kps_ur[idx] if kf.kps_ur is not None else -1
 
             is_stereo_obs = kf_kps_ur_idx >= 0
-            # invSigma2 = FeatureTrackerShared.feature_manager.inv_level_sigmas2[kf.octaves[idx]]
             sigma = level_sigmas[kf.octaves[idx]]
 
             noise_model = gtsam_factors.SwitchableRobustNoiseModel(
@@ -210,6 +208,7 @@ def bundle_adjustment(
                 sigma,
                 th_huber_stereo if is_stereo_obs else th_huber_mono,
             )
+            noise_model.set_robust_model_active(use_robust_kernel)
 
             if is_stereo_obs:
                 calib = gtsam.Cal3_S2Stereo(
@@ -286,9 +285,9 @@ def bundle_adjustment(
             if chi2_check_failure:
                 num_bad_edges += 1
                 factor.set_weight(kWeightForDisabledFactor)  # disable the weighted factor
-            else:
-                noise_model.set_robust_model_active(False)
-                # inlier_factors.append(factor) # now we just use iso_factors
+
+            noise_model.set_robust_model_active(False)
+
     else:
         result = initial_estimates
 
@@ -363,7 +362,7 @@ def bundle_adjustment(
                     p.GBA_kf_id = loop_kf_id
 
     num_active_edges = num_edges - num_bad_edges
-    mean_squared_error = graph.error(result) / num_active_edges
+    mean_squared_error = graph.error(result) / max(num_active_edges, 1)
 
     print(
         f"bundle_adjustment: mean_squared_error: {mean_squared_error}, initial_mean_squared_error: {initial_mean_squared_error}, num_edges: {num_edges},  num_bad_edges: {num_bad_edges} (perc: {num_bad_edges/num_edges*100:.2f}%)"
@@ -655,9 +654,17 @@ class PoseOptimizerGTSAM:
         self.K_mono = gtsam.Cal3_S2(
             frame.camera.fx, frame.camera.fy, 0, frame.camera.cx, frame.camera.cy
         )
-        self.K_stereo = gtsam.Cal3_S2Stereo(
-            frame.camera.fx, frame.camera.fy, 0, frame.camera.cx, frame.camera.cy, frame.camera.b
-        )
+        if frame.camera.b is not None:
+            self.K_stereo = gtsam.Cal3_S2Stereo(
+                frame.camera.fx,
+                frame.camera.fy,
+                0,
+                frame.camera.cx,
+                frame.camera.cy,
+                frame.camera.b,
+            )
+        else:
+            self.K_stereo = None
 
         self.thHuberMono = math.sqrt(5.991)  # chi-square 2 DOFS
         self.thHuberStereo = math.sqrt(7.815)  # chi-square 3 DOFS
@@ -876,9 +883,17 @@ class PoseOptimizerGTSAM_Tcw:
         self.K_mono = gtsam.Cal3_S2(
             frame.camera.fx, frame.camera.fy, 0, frame.camera.cx, frame.camera.cy
         )
-        self.K_stereo = gtsam.Cal3_S2Stereo(
-            frame.camera.fx, frame.camera.fy, 0, frame.camera.cx, frame.camera.cy, frame.camera.b
-        )
+        if frame.camera.b is not None:
+            self.K_stereo = gtsam.Cal3_S2Stereo(
+                frame.camera.fx,
+                frame.camera.fy,
+                0,
+                frame.camera.cx,
+                frame.camera.cy,
+                frame.camera.b,
+            )
+        else:
+            self.K_stereo = None
 
         self.thHuberMono = math.sqrt(5.991)  # chi-square 2 DOFS
         self.thHuberStereo = math.sqrt(7.815)  # chi-square 3 DOFS
@@ -1651,11 +1666,11 @@ def optimize_sim3(
     if verbose:
         print(f"optimize_sim3: num_correspondences = {num_correspondences}")
 
-    if num_correspondences < 10:
-        print(f"optimize_sim3: Too few inliers, num_correspondences = {num_correspondences}")
-        return 0, None, None, None, 0
+    # if num_correspondences < 10:
+    #     print(f"optimize_sim3: Too few inliers, num_correspondences = {num_correspondences}")
+    #     return 0, None, None, None, 0
 
-    intial_error = graph.error(initial_estimate)
+    initial_error = graph.error(initial_estimate)
 
     # Optimizer
     params = gtsam.LevenbergMarquardtParams().CeresDefaults()
@@ -1739,7 +1754,7 @@ def optimize_sim3(
     optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_estimate, params)
     result = optimizer.optimize()
 
-    delta_err = graph.error(result) - intial_error
+    delta_err = graph.error(result) - initial_error
 
     sim3_optimized = gtsam_factors.get_similarity3(result, X(0))
     R12_opt = sim3_optimized.rotation().matrix()
@@ -1788,7 +1803,7 @@ def optimize_sim3(
     scale_out = sim3_optimized.scale() if not fix_scale else s12
 
     return (
-        num_correspondences,
+        num_inliers,
         sim3_optimized.rotation().matrix(),
         sim3_optimized.translation(),
         scale_out,
@@ -1810,14 +1825,12 @@ def optimize_essential_graph(
     print_fun=print,
     verbose=False,
 ):
+    """Variant of essential graph optimization using direct S_ji measurements."""
 
     sigma_for_fixed = kSigmaForFixed  # sigma used for fixed entities
-    sigma_for_visual = 1  # sigma used for visual factors
+    sigma_for_visual = 1.0  # sigma used for visual factors
 
-    # Setup optimizer
     graph = gtsam.NonlinearFactorGraph()
-
-    # Initial values and optimized poses
     initial_values = gtsam.Values()
 
     all_keyframes = map_object.get_keyframes()
@@ -1826,47 +1839,42 @@ def optimize_essential_graph(
 
     vec_Scw = [None] * (max_keyframe_id + 1)  # use keyframe kid as index here
     vec_corrected_Swc = [None] * (max_keyframe_id + 1)  # use keyframe kid as index here
-    # vertices = [None] * (max_keyframe_id + 1)          # use keyframe kid as index here
 
     min_number_features = 100
 
-    # Set KeyFrame intial values
+    # Set KeyFrame vertices
     for keyframe in all_keyframes:
         if keyframe.is_bad():
             continue
 
         keyframe_id = keyframe.kid
 
-        try:  # if keyframe in corrected_sim3_map:
+        try:
             corrected_sim3 = corrected_sim3_map[keyframe]
             Siw = Sim3Pose(R=corrected_sim3.R.copy(), t=corrected_sim3.t.copy(), s=corrected_sim3.s)
-        except:
+        except Exception:
             kf_Tcw = keyframe.Tcw()
             Siw = Sim3Pose(kf_Tcw[:3, :3], kf_Tcw[:3, 3], 1.0)
         vec_Scw[keyframe_id] = Siw
 
-        Swi = Siw.inverse()
-        Swi_gtsam = gtsam.Similarity3(gtsam.Rot3(Swi.R), gtsam.Point3(Swi.t.ravel()), Swi.s)
-        # initial_values.insert(X(keyframe_id), Siw_gtsam)
-        gtsam_factors.insert_similarity3(initial_values, X(keyframe_id), Swi_gtsam)
+        Siw_gtsam = gtsam.Similarity3(gtsam.Rot3(Siw.R), gtsam.Point3(Siw.t.ravel()), Siw.s)
+        gtsam_factors.insert_similarity3(initial_values, X(keyframe_id), Siw_gtsam)
 
         if keyframe == loop_keyframe:
-            # Create a PriorFactor to fix the Sim3 transformation
             fixed_sim3_prior = gtsam_factors.PriorFactorSimilarity3(
-                X(keyframe_id), Swi_gtsam, gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_fixed)
+                X(keyframe_id), Siw_gtsam, gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_fixed)
             )
             graph.add(fixed_sim3_prior)
 
         if fix_scale:
-            # Create a PriorFactor to fix the scale of the Sim3 transformation
             fixed_scale_prior = gtsam_factors.PriorFactorSimilarity3ScaleOnly(
-                X(keyframe_id), Swi.s, sigma_for_fixed
+                X(keyframe_id), Siw.s, sigma_for_fixed
             )
             graph.add(fixed_scale_prior)
 
     num_graph_edges = 0
 
-    inserted_loop_edges = set()  # set of pairs (keyframe_id, connected_keyframe_id)
+    inserted_loop_edges = set()
 
     # Loop edges
     for keyframe, connections in loop_connections.items():
@@ -1889,13 +1897,12 @@ def optimize_essential_graph(
             Sjw = vec_Scw[connected_id]
             Sji = Sjw @ Swi
 
-            Sij = Sji.inverse()  # the measure is Swci.inverse() * Swcj = Scicj = Sij
-            Sij_gtsam = gtsam.Similarity3(gtsam.Rot3(Sij.R), gtsam.Point3(Sij.t.ravel()), Sij.s)
+            Sji_gtsam = gtsam.Similarity3(gtsam.Rot3(Sji.R), gtsam.Point3(Sji.t.ravel()), Sji.s)
 
-            edge = gtsam_factors.BetweenFactorSimilarity3(
-                X(keyframe_id),
+            edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
                 X(connected_id),
-                Sij_gtsam,
+                X(keyframe_id),
+                Sji_gtsam,
                 gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
             )
             graph.add(edge)
@@ -1904,34 +1911,32 @@ def optimize_essential_graph(
                 (min(keyframe_id, connected_id), max(keyframe_id, connected_id))
             )
 
-    # Normal edges
+    # Normal edges (spanning tree, loop edges, covisibility)
     for keyframe in all_keyframes:
         keyframe_id = keyframe.kid
         parent_keyframe = keyframe.get_parent()
 
-        # Spanning tree edge
+        try:
+            Swi = non_corrected_sim3_map[keyframe].inverse()
+        except Exception:
+            Swi = vec_Scw[keyframe_id].inverse()
+
         if parent_keyframe:
             parent_id = parent_keyframe.kid
 
             try:
-                Swi = non_corrected_sim3_map[keyframe].inverse()
-            except:
-                Swi = vec_Scw[keyframe_id].inverse()
-
-            try:
                 Sjw = non_corrected_sim3_map[parent_keyframe].copy()
-            except:
+            except Exception:
                 Sjw = vec_Scw[parent_id]
 
             Sji = Sjw @ Swi
 
-            Sij = Sji.inverse()  # the measure is Swci.inverse() * Swcj = Scicj = Sij
-            Sij_gtsam = gtsam.Similarity3(gtsam.Rot3(Sij.R), gtsam.Point3(Sij.t.ravel()), Sij.s)
+            Sji_gtsam = gtsam.Similarity3(gtsam.Rot3(Sji.R), gtsam.Point3(Sji.t.ravel()), Sji.s)
 
-            edge = gtsam_factors.BetweenFactorSimilarity3(
-                X(keyframe_id),
+            edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
                 X(parent_id),
-                Sij_gtsam,
+                X(keyframe_id),
+                Sji_gtsam,
                 gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
             )
             graph.add(edge)
@@ -1942,18 +1947,17 @@ def optimize_essential_graph(
             if loop_edge.kid < keyframe_id:
                 try:
                     Slw = non_corrected_sim3_map[loop_edge].copy()
-                except:
-                    Slw = vec_Scw[loop_edge.kid]  # already copy
+                except Exception:
+                    Slw = vec_Scw[loop_edge.kid]
 
                 Sli = Slw @ Swi
 
-                Sil = Sli.inverse()  # the measure is Swci.inverse() * Swcl = Scicl = Sil
-                Sil_gtsam = gtsam.Similarity3(gtsam.Rot3(Sil.R), gtsam.Point3(Sil.t.ravel()), Sil.s)
+                Sli_gtsam = gtsam.Similarity3(gtsam.Rot3(Sli.R), gtsam.Point3(Sli.t.ravel()), Sli.s)
 
-                edge = gtsam.BetweenFactorSimilarity3(
-                    X(keyframe_id),
+                edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
                     X(loop_edge.kid),
-                    Sil_gtsam,
+                    X(keyframe_id),
+                    Sli_gtsam,
                     gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
                 )
                 graph.add(edge)
@@ -1980,13 +1984,12 @@ def optimize_essential_graph(
 
                 Sni = Snw @ Swi
 
-                Sin = Sni.inverse()  # the measure is Swci.inverse() * Swcn = Scicn = Sin
-                Sin_gtsam = gtsam.Similarity3(gtsam.Rot3(Sin.R), gtsam.Point3(Sin.t.ravel()), Sin.s)
+                Sni_gtsam = gtsam.Similarity3(gtsam.Rot3(Sni.R), gtsam.Point3(Sni.t.ravel()), Sni.s)
 
-                edge = gtsam_factors.BetweenFactorSimilarity3(
-                    X(keyframe_id),
+                edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
                     X(connected_keyframe.kid),
-                    Sin_gtsam,
+                    X(keyframe_id),
+                    Sni_gtsam,
                     gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
                 )
                 graph.add(edge)
@@ -1995,40 +1998,44 @@ def optimize_essential_graph(
     if verbose:
         print_fun(f"[optimize_essential_graph]: Total number of graph edges: {num_graph_edges}")
 
-    # Optimize
     params = gtsam.LevenbergMarquardtParams().CeresDefaults()
-    params.setlambdaInitial(1e-16)  # As in optimzer_g2o version of optimize_essential_graph()
-    params.setlambdaLowerBound(1e-8)  # Prevent over-reduction
-    params.setlambdaUpperBound(1e3)  # Prevent excessive increase
-    params.setlambdaFactor(2.0)  # Mimics g2o’s adaptive _ni
-    params.setDiagonalDamping(True)  # Mimics g2o’s Hessian updates
-    params.setUseFixedLambdaFactor(False)  # Mimics g2o’s ni
+    params.setlambdaInitial(1e-16)
+    params.setlambdaLowerBound(1e-8)
+    params.setlambdaUpperBound(1e3)
+    params.setlambdaFactor(2.0)
+    params.setDiagonalDamping(True)
+    params.setUseFixedLambdaFactor(False)
 
     params.setMaxIterations(20)
+
     if verbose:
         params.setVerbosityLM("SUMMARY")
+
     optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
-    # optimizer = gtsam_factors.LevenbergMarquardtOptimizerG2o(graph, initial_values, params)
     result = optimizer.optimize()
 
     # SE3 Pose Recovering.  Sim3:[sR t;0 1] -> SE3:[R t/s;0 1]
     for keyframe in all_keyframes:
         keyframe_id = keyframe.kid
 
-        # corrected_Swi = optimizer.values().atPose3(keyframe_id)
-        corrected_Swi = gtsam_factors.get_similarity3(result, X(keyframe_id))
+        corrected_Siw = gtsam_factors.get_similarity3(result, X(keyframe_id))
 
-        R = corrected_Swi.rotation().matrix()
-        t = corrected_Swi.translation()
-        s = corrected_Swi.scale()
-        Swi = Sim3Pose(R, t, s)
-        Siw = Swi.inverse()
+        R = corrected_Siw.rotation().matrix()
+        t = corrected_Siw.translation()
+        s = corrected_Siw.scale()
+        Siw = Sim3Pose(R, t, s)
+        Swi = Siw.inverse()
+
         vec_corrected_Swc[keyframe_id] = Swi
 
-        Tiw = poseRt(Siw.R, Siw.t.ravel() / Siw.s)  # [R t/s; 0 1]
+        Tiw = poseRt(R, t / s)  # [R t/s; 0 1]
         keyframe.update_pose(Tiw)
 
-    # Correct points: Transform to "non-optimized" reference keyframe pose and transform back with optimized pose
+    # print(f"before optimization: loop kf sim3 {loop_keyframe.kid} is {vec_Scw[loop_keyframe.kid]}")
+    # print(
+    #     f"after optimization: loop kf sim3 {loop_keyframe.kid} is {vec_corrected_Swc[loop_keyframe.kid].inverse()}"
+    # )
+
     for map_point in all_map_points:
         if map_point.is_bad():
             continue
@@ -2041,6 +2048,363 @@ def optimize_essential_graph(
 
         Srw = vec_Scw[reference_id]
         corrected_Swr = vec_corrected_Swc[reference_id]
+        # if Srw is None or corrected_Swr is None:
+        #     continue
+
+        P3Dw = map_point.pt()
+        corrected_P3Dw = corrected_Swr.map(Srw.map(P3Dw)).ravel()
+        map_point.update_position(corrected_P3Dw)
+
+        map_point.update_normal_and_depth()
+
+    mean_squared_error = graph.error(result) / max(num_graph_edges, 1)
+    return mean_squared_error
+
+
+# ------------------------------------------------------------
+
+
+# Helper function to get the edge factor for the essential graph.
+# In order to keep the loop keyframe outside the optimization process, we use custom factors for loop edges:
+# - BetweenFactorSimilarity3Inverse: both S1 and S2 are optimized
+# - BetweenFactorSimilarity3InverseOnlyS1: only S1 is optimized, S2 is fixed
+# - BetweenFactorSimilarity3InverseOnlyS2: only S2 is optimized, S1 is fixed
+def get_edge_factor(kf1_id, kf2_id, loop_kf_id, S12, S1w, S2w, sigma_for_visual, verbose=False):
+    if not isinstance(S12, gtsam.Similarity3):
+        S12 = gtsam.Similarity3(gtsam.Rot3(S12.R), gtsam.Point3(S12.t.ravel()), S12.s)
+    if kf1_id != loop_kf_id and kf2_id != loop_kf_id:
+        edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
+            X(kf1_id),
+            X(kf2_id),
+            S12,
+            gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+        )
+    elif kf1_id != loop_kf_id:
+        if verbose:
+            print(
+                f"adding loop edge factor [only S1]: kf1_id: {kf1_id}, kf2_id: {kf2_id}, loop_kf_id: {loop_kf_id}"
+            )
+        if not isinstance(S2w, gtsam.Similarity3):
+            S2w = gtsam.Similarity3(gtsam.Rot3(S2w.R), gtsam.Point3(S2w.t.ravel()), S2w.s)
+        edge = gtsam_factors.BetweenFactorSimilarity3InverseOnlyS1(
+            X(kf1_id),
+            S2w,
+            S12,
+            gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+        )
+    elif kf2_id != loop_kf_id:
+        if verbose:
+            print(
+                f"adding loop edge factor [only S2]: kf1_id: {kf1_id}, kf2_id: {kf2_id}, loop_kf_id: {loop_kf_id}"
+            )
+        if not isinstance(S1w, gtsam.Similarity3):
+            S1w = gtsam.Similarity3(gtsam.Rot3(S1w.R), gtsam.Point3(S1w.t.ravel()), S1w.s)
+        edge = gtsam_factors.BetweenFactorSimilarity3InverseOnlyS2(
+            X(kf2_id),
+            S1w,
+            S12,
+            gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+        )
+    else:
+        raise ValueError(
+            f"Invalid edge case: kf1_id: {kf1_id}, kf2_id: {kf2_id}, loop_kf_id: {loop_kf_id}"
+        )
+    return edge
+
+
+# Experimental version of optimize_essential_graph(). It seems to return very similar results to optimize_essential_graph().
+# Here, we keep the loop keyframe outside the optimization process and use custom factors for loop edges:
+# - BetweenFactorSimilarity3InverseOnlyS1: only S1 is optimized, S2 is fixed
+# - BetweenFactorSimilarity3InverseOnlyS2: only S2 is optimized, S1 is fixed
+def optimize_essential_graph2(
+    map_object,
+    loop_keyframe: KeyFrame,
+    current_keyframe: KeyFrame,
+    non_corrected_sim3_map,
+    corrected_sim3_map,
+    loop_connections,
+    fix_scale: bool,
+    print_fun=print,
+    verbose=False,
+):
+    """Variant of essential graph optimization using direct S_ji measurements."""
+
+    sigma_for_fixed = kSigmaForFixed  # sigma used for fixed entities
+    sigma_for_visual = 1.0  # sigma used for visual factors
+
+    graph = gtsam.NonlinearFactorGraph()
+    initial_values = gtsam.Values()
+
+    all_keyframes = map_object.get_keyframes()
+    all_map_points = map_object.get_points()
+    max_keyframe_id = map_object.max_keyframe_id
+
+    vec_Scw = [None] * (max_keyframe_id + 1)  # use keyframe kid as index here
+    vec_corrected_Swc = [None] * (max_keyframe_id + 1)  # use keyframe kid as index here
+
+    min_number_features = 100
+
+    # Set KeyFrame vertices
+    for keyframe in all_keyframes:
+        if keyframe.is_bad():
+            continue
+
+        keyframe_id = keyframe.kid
+
+        try:
+            corrected_sim3 = corrected_sim3_map[keyframe]
+            Siw = Sim3Pose(R=corrected_sim3.R.copy(), t=corrected_sim3.t.copy(), s=corrected_sim3.s)
+        except Exception:
+            kf_Tcw = keyframe.Tcw()
+            Siw = Sim3Pose(kf_Tcw[:3, :3], kf_Tcw[:3, 3], 1.0)
+        vec_Scw[keyframe_id] = Siw
+
+        Siw_gtsam = gtsam.Similarity3(gtsam.Rot3(Siw.R), gtsam.Point3(Siw.t.ravel()), Siw.s)
+
+        # NOTE: here, we keep the loop keyframe outside the optimization process
+
+        # if keyframe == loop_keyframe:
+        #     fixed_sim3_prior = gtsam_factors.PriorFactorSimilarity3(
+        #         X(keyframe_id), Siw_gtsam, gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_fixed)
+        #     )
+        #     graph.add(fixed_sim3_prior)
+
+        if keyframe != loop_keyframe:
+            gtsam_factors.insert_similarity3(initial_values, X(keyframe_id), Siw_gtsam)
+
+        if fix_scale and keyframe != loop_keyframe:
+            # Only add scale prior for keyframes that are in the optimization
+            # (loop_keyframe is excluded from optimization)
+            fixed_scale_prior = gtsam_factors.PriorFactorSimilarity3ScaleOnly(
+                X(keyframe_id), Siw.s, sigma_for_fixed
+            )
+            graph.add(fixed_scale_prior)
+
+    num_graph_edges = 0
+
+    inserted_loop_edges = set()
+
+    # Loop edges
+    for keyframe, connections in loop_connections.items():
+        keyframe_id = keyframe.kid
+        Siw = vec_Scw[keyframe_id]
+        Siw_gtsam = gtsam.Similarity3(gtsam.Rot3(Siw.R), gtsam.Point3(Siw.t.ravel()), Siw.s)
+        if Siw is None:
+            Printer.orange(f"[optimize_essential_graph] SiW for keyframe {keyframe_id} is None")
+            continue
+        Swi = Siw.inverse()
+
+        for connected_keyframe in connections:
+            connected_id = connected_keyframe.kid
+            # accept (current_keyframe,loop_keyframe)
+            # and all the other loop edges with weight >= min_number_features
+            if (
+                keyframe_id != current_keyframe.kid or connected_id != loop_keyframe.kid
+            ) and keyframe.get_weight(connected_keyframe) < min_number_features:
+                continue
+
+            Sjw = vec_Scw[connected_id]
+            if Sjw is None:
+                Printer.orange(
+                    f"[optimize_essential_graph] SjW for keyframe {connected_id} is None"
+                )
+                continue
+            Sji = Sjw @ Swi
+
+            Sji_gtsam = gtsam.Similarity3(gtsam.Rot3(Sji.R), gtsam.Point3(Sji.t.ravel()), Sji.s)
+
+            #     edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
+            #         X(connected_id),
+            #         X(keyframe_id),
+            #         Sji_gtsam,
+            #         gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+            #     )
+            # get_edge_factor(kf1_id, kf2_id, loop_kf_id, S12, S1w, S2w, sigma_for_visual)
+            edge = get_edge_factor(
+                connected_id,  # j
+                keyframe_id,  # i
+                loop_keyframe.kid,
+                Sji_gtsam,
+                Sjw,
+                Siw_gtsam,
+                sigma_for_visual,
+            )
+
+            graph.add(edge)
+            num_graph_edges += 1
+            inserted_loop_edges.add(
+                (min(keyframe_id, connected_id), max(keyframe_id, connected_id))
+            )
+
+    # Normal edges (spanning tree, loop edges, covisibility)
+    for keyframe in all_keyframes:
+        keyframe_id = keyframe.kid
+        parent_keyframe = keyframe.get_parent()
+
+        try:
+            Swi = non_corrected_sim3_map[keyframe].inverse()
+        except Exception:
+            Swi = vec_Scw[keyframe_id].inverse()
+        Siw = Swi.inverse()
+
+        if parent_keyframe:
+            parent_id = parent_keyframe.kid
+
+            try:
+                Sjw = non_corrected_sim3_map[parent_keyframe].copy()
+            except Exception:
+                Sjw = vec_Scw[parent_id]
+
+            Sji = Sjw @ Swi
+
+            Sji_gtsam = gtsam.Similarity3(gtsam.Rot3(Sji.R), gtsam.Point3(Sji.t.ravel()), Sji.s)
+
+            # edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
+            #     X(parent_id),
+            #     X(keyframe_id),
+            #     Sji_gtsam,
+            #     gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+            # )
+            # get_edge_factor(kf1_id, kf2_id, loop_kf_id, S12, S1w, S2w, sigma_for_visual)
+            edge = get_edge_factor(
+                parent_id,  # j
+                keyframe_id,  # i
+                loop_keyframe.kid,
+                Sji_gtsam,
+                Sjw,
+                Siw,
+                sigma_for_visual,
+            )
+
+            graph.add(edge)
+            num_graph_edges += 1
+
+        # Loop edges
+        for loop_edge in keyframe.get_loop_edges():
+            if loop_edge.kid < keyframe_id:
+                try:
+                    Slw = non_corrected_sim3_map[loop_edge].copy()
+                except Exception:
+                    Slw = vec_Scw[loop_edge.kid]
+
+                Sli = Slw @ Swi
+
+                Sli_gtsam = gtsam.Similarity3(gtsam.Rot3(Sli.R), gtsam.Point3(Sli.t.ravel()), Sli.s)
+
+                # edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
+                #     X(loop_edge.kid),
+                #     X(keyframe_id),
+                #     Sli_gtsam,
+                #     gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+                # )
+                edge = get_edge_factor(
+                    loop_edge.kid,  # l
+                    keyframe_id,  # i
+                    loop_keyframe.kid,
+                    Sli_gtsam,
+                    Slw,
+                    Siw,
+                    sigma_for_visual,
+                )
+
+                graph.add(edge)
+                num_graph_edges += 1
+
+        # Covisibility graph edges
+        for connected_keyframe in keyframe.get_covisible_by_weight(min_number_features):
+            if (
+                connected_keyframe != parent_keyframe
+                and not keyframe.has_child(connected_keyframe)
+                and connected_keyframe.kid < keyframe_id
+                and not connected_keyframe.is_bad()
+                and (
+                    min(keyframe_id, connected_keyframe.kid),
+                    max(keyframe_id, connected_keyframe.kid),
+                )
+                not in inserted_loop_edges
+            ):
+
+                try:
+                    Snw = non_corrected_sim3_map[connected_keyframe].copy()
+                except:
+                    Snw = vec_Scw[connected_keyframe.kid]  # already copy
+
+                Sni = Snw @ Swi
+
+                Sni_gtsam = gtsam.Similarity3(gtsam.Rot3(Sni.R), gtsam.Point3(Sni.t.ravel()), Sni.s)
+
+                # edge = gtsam_factors.BetweenFactorSimilarity3Inverse(
+                #     X(connected_keyframe.kid),
+                #     X(keyframe_id),
+                #     Sni_gtsam,
+                #     gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+                # )
+                edge = get_edge_factor(
+                    connected_keyframe.kid,  # n
+                    keyframe_id,  # i
+                    loop_keyframe.kid,
+                    Sni_gtsam,
+                    Snw,
+                    Siw,
+                    sigma_for_visual,
+                )
+                graph.add(edge)
+                num_graph_edges += 1
+
+    if verbose:
+        print_fun(f"[optimize_essential_graph]: Total number of graph edges: {num_graph_edges}")
+
+    params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+    params.setlambdaInitial(1e-16)
+    params.setlambdaLowerBound(1e-8)
+    params.setlambdaUpperBound(1e3)
+    params.setlambdaFactor(2.0)
+    params.setDiagonalDamping(True)
+    params.setUseFixedLambdaFactor(False)
+
+    params.setMaxIterations(20)
+
+    if verbose:
+        params.setVerbosityLM("SUMMARY")
+
+    optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
+    result = optimizer.optimize()
+
+    # SE3 Pose Recovering.  Sim3:[sR t;0 1] -> SE3:[R t/s;0 1]
+    for keyframe in all_keyframes:
+        keyframe_id = keyframe.kid
+
+        if keyframe == loop_keyframe:
+            continue
+
+        corrected_Siw = gtsam_factors.get_similarity3(result, X(keyframe_id))
+
+        R = corrected_Siw.rotation().matrix()
+        t = corrected_Siw.translation()
+        s = corrected_Siw.scale()
+        Siw = Sim3Pose(R, t, s)
+        Swi = Siw.inverse()
+
+        vec_corrected_Swc[keyframe_id] = Swi
+
+        Tiw = poseRt(R, t / s)  # [R t/s; 0 1]
+        keyframe.update_pose(Tiw)
+
+    for map_point in all_map_points:
+        if map_point.is_bad():
+            continue
+
+        if map_point.corrected_by_kf == current_keyframe.kid:
+            reference_id = map_point.corrected_reference
+        else:
+            reference_keyframe = map_point.get_reference_keyframe()
+            reference_id = reference_keyframe.kid
+
+        Srw = vec_Scw[reference_id]
+        corrected_Swr = vec_corrected_Swc[reference_id]
+
+        # Skip map points whose reference keyframe is the loop_keyframe
+        # (loop_keyframe is not optimized, so corrected_Swr would be None)
         if Srw is None or corrected_Swr is None:
             continue
 
@@ -2052,3 +2416,262 @@ def optimize_essential_graph(
 
     mean_squared_error = graph.error(result) / max(num_graph_edges, 1)
     return mean_squared_error
+
+
+# # ------------------------------------------------------------------------------------------
+
+# This is an experimental version of optimize_essential_graph(). It optimizes the Swi sim3 transformations instead of the Siw sim3 transformations.
+# def optimize_essential_graph_inv(
+#     map_object,
+#     loop_keyframe: KeyFrame,
+#     current_keyframe: KeyFrame,
+#     non_corrected_sim3_map,
+#     corrected_sim3_map,
+#     loop_connections,
+#     fix_scale: bool,
+#     print_fun=print,
+#     verbose=False,
+# ):
+
+#     sigma_for_fixed = kSigmaForFixed  # sigma used for fixed entities
+#     sigma_for_visual = 1.0  # sigma used for visual factors
+
+#     # Setup optimizer
+#     graph = gtsam.NonlinearFactorGraph()
+
+#     # Initial values and optimized poses
+#     initial_values = gtsam.Values()
+
+#     all_keyframes = map_object.get_keyframes()
+#     all_map_points = map_object.get_points()
+#     max_keyframe_id = map_object.max_keyframe_id
+
+#     vec_Scw = [None] * (max_keyframe_id + 1)  # use keyframe kid as index here
+#     vec_corrected_Swc = [None] * (max_keyframe_id + 1)  # use keyframe kid as index here
+#     # vertices = [None] * (max_keyframe_id + 1)          # use keyframe kid as index here
+
+#     min_number_features = 100
+
+#     # Set KeyFrame intial values
+#     for keyframe in all_keyframes:
+#         if keyframe.is_bad():
+#             continue
+
+#         keyframe_id = keyframe.kid
+
+#         try:  # if keyframe in corrected_sim3_map:
+#             corrected_sim3 = corrected_sim3_map[keyframe]
+#             Siw = Sim3Pose(R=corrected_sim3.R.copy(), t=corrected_sim3.t.copy(), s=corrected_sim3.s)
+#         except:
+#             kf_Tcw = keyframe.Tcw()
+#             Siw = Sim3Pose(kf_Tcw[:3, :3], kf_Tcw[:3, 3], 1.0)
+#         vec_Scw[keyframe_id] = Siw
+#         Swi = Siw.inverse()
+
+#         Swi_gtsam = gtsam.Similarity3(gtsam.Rot3(Swi.R), gtsam.Point3(Swi.t.ravel()), Swi.s)
+#         # initial_values.insert(X(keyframe_id), Siw_gtsam)
+#         gtsam_factors.insert_similarity3(initial_values, X(keyframe_id), Swi_gtsam)
+
+#         if keyframe == loop_keyframe:
+#             # Create a PriorFactor to fix the Sim3 transformation
+#             fixed_sim3_prior = gtsam_factors.PriorFactorSimilarity3(
+#                 X(keyframe_id), Swi_gtsam, gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_fixed)
+#             )
+#             graph.add(fixed_sim3_prior)
+
+#         if fix_scale:
+#             # Create a PriorFactor to fix the scale of the Sim3 transformation
+#             fixed_scale_prior = gtsam_factors.PriorFactorSimilarity3ScaleOnly(
+#                 X(keyframe_id), Swi.s, sigma_for_fixed
+#             )
+#             graph.add(fixed_scale_prior)
+
+#     num_graph_edges = 0
+
+#     inserted_loop_edges = set()  # set of pairs (keyframe_id, connected_keyframe_id)
+
+#     # Loop edges
+#     for keyframe, connections in loop_connections.items():
+#         keyframe_id = keyframe.kid
+#         Siw = vec_Scw[keyframe_id]
+#         if Siw is None:
+#             Printer.orange(f"[optimize_essential_graph] SiW for keyframe {keyframe_id} is None")
+#             continue
+#         Swi = Siw.inverse()
+
+#         for connected_keyframe in connections:
+#             connected_id = connected_keyframe.kid
+#             # accept (current_keyframe,loop_keyframe)
+#             # and all the other loop edges with weight >= min_number_features
+#             if (
+#                 keyframe_id != current_keyframe.kid or connected_id != loop_keyframe.kid
+#             ) and keyframe.get_weight(connected_keyframe) < min_number_features:
+#                 continue
+
+#             Sjw = vec_Scw[connected_id]
+#             Sji = Sjw @ Swi
+#             Sij = Sji.inverse()  # the measure is Swci.inverse() * Swcj = Scicj = Sij
+
+#             Sij_gtsam = gtsam.Similarity3(gtsam.Rot3(Sij.R), gtsam.Point3(Sij.t.ravel()), Sij.s)
+
+#             edge = gtsam_factors.BetweenFactorSimilarity3(
+#                 X(keyframe_id),
+#                 X(connected_id),
+#                 Sij_gtsam,
+#                 gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+#             )
+#             graph.add(edge)
+#             num_graph_edges += 1
+#             inserted_loop_edges.add(
+#                 (min(keyframe_id, connected_id), max(keyframe_id, connected_id))
+#             )
+
+#     # Normal edges
+#     for keyframe in all_keyframes:
+#         keyframe_id = keyframe.kid
+#         parent_keyframe = keyframe.get_parent()
+
+#         try:
+#             Swi = non_corrected_sim3_map[keyframe].inverse()
+#         except:
+#             Swi = vec_Scw[keyframe_id].inverse()
+
+#         # Spanning tree edge
+#         if parent_keyframe:
+#             parent_id = parent_keyframe.kid
+
+#             try:
+#                 Sjw = non_corrected_sim3_map[parent_keyframe].copy()
+#             except:
+#                 Sjw = vec_Scw[parent_id]
+
+#             Sji = Sjw @ Swi
+#             Sij = Sji.inverse()  # the measure is Swci.inverse() * Swcj = Scicj = Sij
+
+#             Sij_gtsam = gtsam.Similarity3(gtsam.Rot3(Sij.R), gtsam.Point3(Sij.t.ravel()), Sij.s)
+
+#             edge = gtsam_factors.BetweenFactorSimilarity3(
+#                 X(keyframe_id),
+#                 X(parent_id),
+#                 Sij_gtsam,
+#                 gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+#             )
+#             graph.add(edge)
+#             num_graph_edges += 1
+
+#         # Loop edges
+#         for loop_edge in keyframe.get_loop_edges():
+#             if loop_edge.kid < keyframe_id:
+#                 try:
+#                     Slw = non_corrected_sim3_map[loop_edge].copy()
+#                 except:
+#                     Slw = vec_Scw[loop_edge.kid]  # already copy
+
+#                 Sli = Slw @ Swi
+#                 Sil = Sli.inverse()  # the measure is Swci.inverse() * Swcl = Scicl = Sil
+
+#                 Sil_gtsam = gtsam.Similarity3(gtsam.Rot3(Sil.R), gtsam.Point3(Sil.t.ravel()), Sil.s)
+
+#                 edge = gtsam_factors.BetweenFactorSimilarity3(
+#                     X(keyframe_id),
+#                     X(loop_edge.kid),
+#                     Sil_gtsam,
+#                     gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+#                 )
+#                 graph.add(edge)
+#                 num_graph_edges += 1
+
+#         # Covisibility graph edges
+#         for connected_keyframe in keyframe.get_covisible_by_weight(min_number_features):
+#             if (
+#                 connected_keyframe != parent_keyframe
+#                 and not keyframe.has_child(connected_keyframe)
+#                 and connected_keyframe.kid < keyframe_id
+#                 and not connected_keyframe.is_bad()
+#                 and (
+#                     min(keyframe_id, connected_keyframe.kid),
+#                     max(keyframe_id, connected_keyframe.kid),
+#                 )
+#                 not in inserted_loop_edges
+#             ):
+
+#                 try:
+#                     Snw = non_corrected_sim3_map[connected_keyframe].copy()
+#                 except:
+#                     Snw = vec_Scw[connected_keyframe.kid]  # already copy
+
+#                 Sni = Snw @ Swi
+#                 Sin = Sni.inverse()  # the measure is Swci.inverse() * Swcn = Scicn = Sin
+
+#                 Sin_gtsam = gtsam.Similarity3(gtsam.Rot3(Sin.R), gtsam.Point3(Sin.t.ravel()), Sin.s)
+
+#                 edge = gtsam_factors.BetweenFactorSimilarity3(
+#                     X(keyframe_id),
+#                     X(connected_keyframe.kid),
+#                     Sin_gtsam,
+#                     gtsam.noiseModel.Isotropic.Sigma(7, sigma_for_visual),
+#                 )
+#                 graph.add(edge)
+#                 num_graph_edges += 1
+
+#     if verbose:
+#         print_fun(f"[optimize_essential_graph]: Total number of graph edges: {num_graph_edges}")
+
+#     # Optimize
+#     params = gtsam.LevenbergMarquardtParams().CeresDefaults()
+#     params.setlambdaInitial(1e-16)  # As in optimzer_g2o version of optimize_essential_graph()
+#     params.setlambdaLowerBound(1e-8)  # Prevent over-reduction
+#     params.setlambdaUpperBound(1e3)  # Prevent excessive increase
+#     params.setlambdaFactor(2.0)  # Mimics g2o’s adaptive _ni
+#     params.setDiagonalDamping(True)  # Mimics g2o’s Hessian updates
+#     params.setUseFixedLambdaFactor(False)  # Mimics g2o’s ni
+
+#     params.setMaxIterations(20)
+#     if verbose:
+#         params.setVerbosityLM("SUMMARY")
+#     optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
+#     # optimizer = gtsam_factors.LevenbergMarquardtOptimizerG2o(graph, initial_values, params)
+#     result = optimizer.optimize()
+
+#     # SE3 Pose Recovering.  Sim3:[sR t;0 1] -> SE3:[R t/s;0 1]
+#     for keyframe in all_keyframes:
+#         keyframe_id = keyframe.kid
+
+#         # corrected_Swi = optimizer.values().atPose3(keyframe_id)
+#         corrected_Swi = gtsam_factors.get_similarity3(result, X(keyframe_id))
+
+#         R = corrected_Swi.rotation().matrix()
+#         t = corrected_Swi.translation()
+#         s = corrected_Swi.scale()
+#         Swi = Sim3Pose(R, t, s)
+#         Siw = Swi.inverse()
+
+#         vec_corrected_Swc[keyframe_id] = Swi
+
+#         Tiw = poseRt(Siw.R, Siw.t.ravel() / Siw.s)  # [R t/s; 0 1]
+#         keyframe.update_pose(Tiw)
+
+#     # Correct points: Transform to "non-optimized" reference keyframe pose and transform back with optimized pose
+#     for map_point in all_map_points:
+#         if map_point.is_bad():
+#             continue
+
+#         if map_point.corrected_by_kf == current_keyframe.kid:
+#             reference_id = map_point.corrected_reference
+#         else:
+#             reference_keyframe = map_point.get_reference_keyframe()
+#             reference_id = reference_keyframe.kid
+
+#         Srw = vec_Scw[reference_id]
+#         corrected_Swr = vec_corrected_Swc[reference_id]
+#         if Srw is None or corrected_Swr is None:
+#             continue
+
+#         P3Dw = map_point.pt()
+#         corrected_P3Dw = corrected_Swr.map(Srw.map(P3Dw)).ravel()
+#         map_point.update_position(corrected_P3Dw)
+
+#         map_point.update_normal_and_depth()
+
+#     mean_squared_error = graph.error(result) / max(num_graph_edges, 1)
+#     return mean_squared_error

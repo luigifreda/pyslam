@@ -30,7 +30,7 @@ import time
 import pyslam.config as config
 from pyslam.config_parameters import Parameters
 
-USE_VIEWER = False
+USE_VIEWER = True
 USE_CPP = True
 Parameters.USE_CPP_CORE = USE_CPP
 
@@ -49,6 +49,7 @@ if USE_CPP:
     Camera = cpp_module.Camera
     PinholeCamera = cpp_module.PinholeCamera
     optimizer_g2o = cpp_module.optimizer_g2o
+    optimizer_gtsam = cpp_module.optimizer_gtsam
     print("Using C++ module")
 else:
     Frame = python_module.Frame
@@ -59,6 +60,7 @@ else:
     Camera = python_module.Camera
     PinholeCamera = python_module.PinholeCamera
     optimizer_g2o = python_module.optimizer_g2o
+    optimizer_gtsam = python_module.optimizer_gtsam
     print("Using Python module")
 
 
@@ -193,7 +195,7 @@ class DataGenerator:
         # retrieve keyframes connected to the current keyframe and compute corrected Sim3 pose by propagation
         current_keyframe.update_connections()
 
-        current_connected_keyframes = current_keyframe.get_connected_keyframes()
+        current_connected_keyframes = list(current_keyframe.get_connected_keyframes())
         # print(f'current keyframe: {current_keyframe.id}, connected keyframes: {[k.id for k in current_connected_keyframes]}')
         current_connected_keyframes.append(current_keyframe)
 
@@ -229,7 +231,7 @@ class DataGenerator:
 
         # add connections among last_keyframe and [first_keyframe + its connected keyframes]
         if True:
-            first_connected_keyframes = first_kf.get_connected_keyframes()
+            first_connected_keyframes = list(first_kf.get_connected_keyframes())
             print(
                 f"first keyframe: {first_kf.id}, connected keyframes: {[k.id for k in first_connected_keyframes]}"
             )
@@ -281,9 +283,9 @@ class DataGenerator:
         loop_connections = defaultdict(set)
 
         loop_connections[first_kf] = set(
-            [current_keyframe] + current_keyframe.get_connected_keyframes()
+            [current_keyframe] + list(current_keyframe.get_connected_keyframes())
         )
-        loop_connections[last_kf] = set([first_kf] + first_kf.get_connected_keyframes())
+        loop_connections[last_kf] = set([first_kf] + list(first_kf.get_connected_keyframes()))
         # for kfi in current_connected_keyframes:
         #     # Get previous neighbors (covisible keyframes)
         #     previous_neighbors = kfi.get_covisible_keyframes()
@@ -322,8 +324,11 @@ class DataGenerator:
 
 
 def main():
-    # optimize_essential_graph = optimizer_gtsam.optimize_essential_graph
-    optimize_essential_graph = optimizer_g2o.optimize_essential_graph
+    use_optimizer_gtsam = True
+    if use_optimizer_gtsam:
+        optimize_essential_graph = optimizer_gtsam.optimize_essential_graph
+    else:
+        optimize_essential_graph = optimizer_g2o.optimize_essential_graph
 
     data_generator = DataGenerator(
         n=50, radius=5.0, sigma_noise_xyz=0.02, sigma_noise_theta_deg=0.1

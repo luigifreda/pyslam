@@ -312,6 +312,7 @@ class Slam(object):
         # TODO(dvdmc): needs testing
         semantic_mapping_config_json = SerializationJSON.serialize(self.semantic_mapping_config)
 
+        map_out_json["USE_CPP_CORE"] = Parameters.USE_CPP_CORE
         map_out_json["sensor_type"] = SerializationJSON.serialize(self.sensor_type)
         map_out_json["environment_type"] = SerializationJSON.serialize(self.environment_type)
 
@@ -320,6 +321,7 @@ class Slam(object):
         map_out_json["loop_detector_config"] = loop_detector_config_json
         map_out_json["semantic_mapping_config"] = semantic_mapping_config_json
 
+        config_out_json["USE_CPP_CORE"] = Parameters.USE_CPP_CORE
         config_out_json["feature_tracker_config"] = feature_tracker_config_json
         config_out_json["loop_detector_config"] = loop_detector_config_json
         config_out_json["semantic_mapping_config"] = semantic_mapping_config_json
@@ -363,6 +365,17 @@ class Slam(object):
         with open(map_file_path, "rb") as f:
             loaded_json = json.loads(f.read())
             print()
+            loaded_use_cpp_core = loaded_json.get("USE_CPP_CORE", None)
+            if loaded_use_cpp_core is not None and loaded_use_cpp_core != Parameters.USE_CPP_CORE:
+                Printer.red(
+                    f"SLAM: USE_CPP_CORE mismatch on load_system_state(): {loaded_use_cpp_core} != Parameters.USE_CPP_CORE: {Parameters.USE_CPP_CORE}"
+                )
+                Printer.orange(
+                    f"SLAM: At present time, you cannot mix C++ and Python core when reloading a system state."
+                )
+                Printer.orange(f"SLAM: Exiting...")
+                sys.exit(0)
+
             loaded_sensor_type = SerializationJSON.deserialize(loaded_json["sensor_type"])
             if loaded_sensor_type != self.sensor_type and self.slam_mode == SlamMode.SLAM:
                 Printer.yellow(
@@ -419,7 +432,8 @@ class Slam(object):
 
         # check if current set camera is the same as the one stored in the map
         if self.map is not None and len(self.map.keyframes) > 0:
-            camera0 = self.map.keyframes[0].camera
+            first_keyframe = self.map.get_first_keyframe()
+            camera0 = first_keyframe.camera
             if camera0.width != self.camera.width or camera0.height != self.camera.height:
                 if self.camera.width is not None and self.camera.height is not None:
                     Printer.yellow(
@@ -497,13 +511,14 @@ class Slam(object):
         timestamps = []
         ids = []
 
-        keyframes = self.map.get_keyframes()
+        # keyframes = self.map.get_keyframes()
         # keyframes.sort(key=lambda kf: kf.id)
         # print(f'keyframes: {[kf.id for kf in keyframes]}')
+        first_keyframe = self.map.get_first_keyframe()
 
         # Transform all keyframes so that the first keyframe is at the origin.
         # After a loop closure the first keyframe might not be at the origin.
-        Two = keyframes[0].Twc()
+        Two = first_keyframe.Twc()
 
         # Frame pose is stored relative to its reference keyframe (which is optimized by BA and pose graph).
         # We need to get first the keyframe pose and then concatenate the relative transformation.

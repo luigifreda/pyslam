@@ -24,7 +24,6 @@ from pyslam.config_parameters import Parameters
 from pyslam.utilities.system import Printer
 
 from .cpp import (
-    cpp_module,
     python_module,
     CPP_AVAILABLE,
     core_classes,
@@ -49,6 +48,8 @@ classes_dict = {}
 
 if USE_CPP:
     if CPP_AVAILABLE:
+        from .cpp import cpp_module
+
         print("✅ cpp_module imported successfully, C++ core is available")
         # Assign all classes from C++ module to global namespace
         for name, cls in cpp_module.classes.items():
