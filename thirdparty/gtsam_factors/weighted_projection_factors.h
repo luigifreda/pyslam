@@ -40,6 +40,7 @@
 using namespace gtsam;
 using symbol_shorthand::X;
 
+namespace gtsam_factors {
 
 /**
  * Non-linear factor for a constraint derived from a 2D measurement.
@@ -460,3 +461,5 @@ private:
 };
 
 using WeightedGenericStereoProjectionFactor3D = WeightedGenericStereoProjectionFactor<gtsam::Pose3, gtsam::Point3, gtsam::Cal3_S2Stereo>;
+
+} // namespace gtsam_factors

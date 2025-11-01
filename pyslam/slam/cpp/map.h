@@ -154,6 +154,7 @@ class Map : public std::enable_shared_from_this<Map> {
     // KeyFrame operations
     KeyFrameIdSet get_keyframes() const;
     std::vector<KeyFramePtr> get_keyframes_vector() const;
+    KeyFramePtr get_first_keyframe() const;
     KeyFramePtr get_last_keyframe() const;
     std::vector<KeyFramePtr> get_last_keyframes(int local_window_size = 5) const;
     int num_keyframes() const;

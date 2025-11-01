@@ -82,6 +82,12 @@ print_blue '================================================'
 
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
 
+
+WITH_MARCH_NATIVE=ON
+if [[ "$OSTYPE" == darwin* ]]; then
+    WITH_MARCH_NATIVE=OFF
+fi
+
 cd thirdparty
 if [ ! -d gtsam_local ]; then
 	git clone https://github.com/borglab/gtsam.git gtsam_local
@@ -102,7 +108,7 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
     # NOTE: gtsam has some issues when compiling with march=native option!
     # https://groups.google.com/g/gtsam-users/c/jdySXchYVQg
     # https://bitbucket.org/gtborg/gtsam/issues/414/compiling-with-march-native-results-in 
-    GTSAM_OPTIONS="-DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_PYTHON=ON -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES=OFF" 
+    GTSAM_OPTIONS="-DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=$WITH_MARCH_NATIVE -DGTSAM_BUILD_PYTHON=ON -DGTSAM_BUILD_TESTS=OFF -DGTSAM_BUILD_EXAMPLES=OFF" 
     if [[ "$version" == *"24.04"* ]] ; then
         # Ubuntu 24.04 requires CMake 3.22 or higher
         GTSAM_OPTIONS+=" -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
@@ -130,7 +136,7 @@ print_blue '================================================'
 
 cd thirdparty
 cd gtsam_factors
-./build.sh $EXTERNAL_OPTIONS
+./build.sh $EXTERNAL_OPTIONS -DWITH_MARCH_NATIVE=$WITH_MARCH_NATIVE
 
 cd "$ROOT_DIR"
 

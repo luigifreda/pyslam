@@ -22,54 +22,54 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "optimizer_g2o_bind_helpers.h"
+#include "optimizer_gtsam_bind_helpers.h"
 
 namespace py = pybind11;
 
-void bind_optimizer_g2o(py::module &m) {
+void bind_optimizer_gtsam(py::module &m) {
 
     // Bind main optimizer class with wrapper functions that match Python signatures
-    py::class_<pyslam::OptimizerG2o>(m, "OptimizerG2o")
-        .def_static("bundle_adjustment", &pyslam::bundle_adjustment_wrapper_g2o,
+    py::class_<pyslam::OptimizerGTSAM>(m, "OptimizerGTSAM")
+        .def_static("bundle_adjustment", &pyslam::bundle_adjustment_wrapper_gtsam,
                     py::arg("keyframes"), py::arg("points"),
                     py::arg("local_window_size") = std::nullopt, py::arg("fixed_points") = false,
                     py::arg("rounds") = 10, py::arg("loop_kf_id") = 0,
                     py::arg("use_robust_kernel") = false, py::arg("abort_flag") = py::none(),
                     py::arg("mp_abort_flag") = py::none(), py::arg("result_dict") = py::none(),
                     py::arg("verbose") = false,
-                    py::arg("print") = py::none()) // print inot used here
+                    py::arg("print") = py::none()) // print not used here
 
-        .def_static("global_bundle_adjustment", &pyslam::global_bundle_adjustment_wrapper_g2o,
+        .def_static("global_bundle_adjustment", &pyslam::global_bundle_adjustment_wrapper_gtsam,
                     py::arg("keyframes"), py::arg("points"), py::arg("rounds") = 10,
                     py::arg("loop_kf_id") = 0, py::arg("use_robust_kernel") = false,
                     py::arg("abort_flag") = py::none(), py::arg("mp_abort_flag") = py::none(),
                     py::arg("result_dict") = py::none(), py::arg("verbose") = false,
-                    py::arg("print") = py::none()) // print inot used here
+                    py::arg("print") = py::none()) // print not used here
 
         .def_static("global_bundle_adjustment_map",
-                    &pyslam::global_bundle_adjustment_map_wrapper_g2o, py::arg("map"),
+                    &pyslam::global_bundle_adjustment_map_wrapper_gtsam, py::arg("map"),
                     py::arg("rounds") = 10, py::arg("loop_kf_id") = 0,
                     py::arg("use_robust_kernel") = false, py::arg("abort_flag") = py::none(),
                     py::arg("mp_abort_flag") = py::none(), py::arg("result_dict") = py::none(),
                     py::arg("verbose") = false,
-                    py::arg("print") = py::none()) // print inot used here
+                    py::arg("print") = py::none()) // print not used here
 
-        .def_static("pose_optimization", &pyslam::pose_optimization_wrapper_g2o, py::arg("frame"),
+        .def_static("pose_optimization", &pyslam::pose_optimization_wrapper_gtsam, py::arg("frame"),
                     py::arg("verbose") = false, py::arg("rounds") = 10)
 
-        .def_static("local_bundle_adjustment", &pyslam::local_bundle_adjustment_wrapper_g2o,
+        .def_static("local_bundle_adjustment", &pyslam::local_bundle_adjustment_wrapper_gtsam,
                     py::arg("keyframes"), py::arg("points"),
                     py::arg("keyframes_ref") = std::vector<pyslam::KeyFrame *>{},
                     py::arg("fixed_points") = false, py::arg("verbose") = false,
                     py::arg("rounds") = 10, py::arg("abort_flag") = py::none(),
                     py::arg("map_lock") = py::none())
 
-        .def_static("optimize_sim3", &pyslam::optimize_sim3_wrapper_g2o, py::arg("kf1"),
+        .def_static("optimize_sim3", &pyslam::optimize_sim3_wrapper_gtsam, py::arg("kf1"),
                     py::arg("kf2"), py::arg("map_points1"), py::arg("map_point_matches12"),
                     py::arg("R12"), py::arg("t12"), py::arg("s12"), py::arg("th2"),
                     py::arg("fix_scale"), py::arg("verbose") = false)
 
-        .def_static("optimize_essential_graph", &pyslam::optimize_essential_graph_wrapper_g2o,
+        .def_static("optimize_essential_graph", &pyslam::optimize_essential_graph_wrapper_gtsam,
                     py::arg("map_object"), py::arg("loop_keyframe"), py::arg("current_keyframe"),
                     py::arg("non_corrected_sim3_map"), py::arg("corrected_sim3_map"),
                     py::arg("loop_connections"), py::arg("fix_scale"),

@@ -502,6 +502,9 @@ void Frame::copy_from(const Frame &other) {
     kf_ref = other.kf_ref;
 
     _kd = other._kd;
+
+    _points_id_data = other._points_id_data;
+    _kf_ref_id = other._kf_ref_id;
 }
 
 void Frame::reset() {

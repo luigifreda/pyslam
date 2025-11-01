@@ -60,9 +60,14 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 # ====================================================
 
+
+BUILD_TYPE="Release"
+#BUILD_TYPE="Debug"
+
+
 make_dir build
 cd build
-cmake .. $EXTERNAL_OPTIONS $CONDA_OPTIONS $MAC_OPTIONS
+cmake .. -DCMAKE_BUILD_TYPE="$BUILD_TYPE" $EXTERNAL_OPTIONS $CONDA_OPTIONS $MAC_OPTIONS
 make -j 4
 
 cd ..

@@ -31,29 +31,20 @@
 #include <unordered_map>
 #include <vector>
 
-// Forward declarations for g2o
-namespace g2o {
-class SparseOptimizer;
-class VertexSE3Expmap;
-class VertexSBAPointXYZ;
-class VertexSim3Expmap;
-class EdgeSE3ProjectXYZ;
-class EdgeStereoSE3ProjectXYZ;
-class EdgeSE3ProjectXYZOnlyPose;
-class EdgeStereoSE3ProjectXYZOnlyPose;
-class EdgeSim3ProjectXYZ;
-class EdgeInverseSim3ProjectXYZ;
-class EdgeSim3;
-class RobustKernelHuber;
-class SE3Quat;
-class Sim3;
-} // namespace g2o
+// Forward declarations for GTSAM
+namespace gtsam {
+class Pose3;
+} // namespace gtsam
 
 namespace pyslam {
 
 // Main optimizer class
-class OptimizerG2o {
+class OptimizerGTSAM {
   public:
+    // Constants
+    static constexpr double kSigmaForFixed = 1e-6;
+    static constexpr double kWeightForDisabledFactor = 1e-6;
+
     // ------------------------------------------------------------
     // Bundle adjustment functions
 
@@ -75,6 +66,7 @@ class OptimizerG2o {
 
     // ------------------------------------------------------------
     // Pose optimization
+
     static PoseOptimizationResult pose_optimization(FramePtr &frame, bool verbose = false,
                                                     int rounds = 10);
 
@@ -108,6 +100,13 @@ class OptimizerG2o {
         const std::unordered_map<KeyFramePtr, Sim3Pose> &corrected_sim3_map,
         const std::unordered_map<KeyFramePtr, std::vector<KeyFramePtr>> &loop_connections,
         bool fix_scale, bool verbose = false);
+
+  public:
+    // Helper function to convert Pose3 to Eigen::Matrix4d
+    static Eigen::Matrix4d pose3_to_matrix(const gtsam::Pose3 &pose);
+
+    // Helper function to convert Eigen::Matrix4d to Pose3
+    static gtsam::Pose3 matrix_to_pose3(const Eigen::Matrix4d &T);
 };
 
 } // namespace pyslam

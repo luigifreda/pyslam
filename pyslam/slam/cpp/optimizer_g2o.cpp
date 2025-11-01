@@ -20,8 +20,15 @@
  */
 
 #include "optimizer_g2o.h"
+
+#include "camera.h"
+#include "camera_pose.h"
 #include "config_parameters.h"
 #include "feature_shared_resources.h"
+#include "frame.h"
+#include "keyframe.h"
+#include "map.h"
+#include "map_point.h"
 #include "utils/eigen_helpers.h"
 #include "utils/messages.h"
 
@@ -397,61 +404,65 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
     const auto &kps_ur = frame->kps_ur;
     const auto &octaves = frame->octaves;
 
-    for (size_t idx = 0; idx < frame_points.size(); ++idx) {
-        const auto &p = frame_points[idx];
-        if (!p) {
-            continue;
+    {
+        std::lock_guard<std::mutex> lock(MapPoint::global_lock);
+
+        for (size_t idx = 0; idx < frame_points.size(); ++idx) {
+            const auto &p = frame_points[idx];
+            if (!p) {
+                continue;
+            }
+
+            const Eigen::Vector2d kpu = Eigen::Vector2d(frame->kpsu(idx, 0), frame->kpsu(idx, 1));
+            const bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
+
+            // Reset outlier flag
+            frame->outliers[idx] = false;
+
+            // Get inverse sigma squared
+            const double invSigma2 = inv_level_sigmas2[octaves[idx]];
+
+            if (is_stereo_obs) {
+                auto *edge = new g2o::EdgeStereoSE3ProjectXYZOnlyPose();
+                Eigen::Vector3d obs_vec(kpu.x(), kpu.y(), kps_ur[idx]);
+                edge->setVertex(0, vertex_se3);
+                edge->setMeasurement(obs_vec);
+                edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
+
+                auto *robust_kernel = new g2o::RobustKernelHuber();
+                robust_kernel->setDelta(Parameters::kThHuberStereo);
+                edge->setRobustKernel(robust_kernel);
+
+                edge->fx = camera->fx;
+                edge->fy = camera->fy;
+                edge->cx = camera->cx;
+                edge->cy = camera->cy;
+                edge->bf = camera->bf;
+                edge->Xw = p->pt();
+
+                optimizer.addEdge(edge);
+                point_edge_pairs_stereo.push_back({edge, static_cast<int>(idx)});
+            } else {
+                auto *edge = new g2o::EdgeSE3ProjectXYZOnlyPose();
+                edge->setVertex(0, vertex_se3);
+                edge->setMeasurement(kpu);
+                edge->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
+
+                auto *robust_kernel = new g2o::RobustKernelHuber();
+                robust_kernel->setDelta(Parameters::kThHuberMono);
+                edge->setRobustKernel(robust_kernel);
+
+                edge->fx = camera->fx;
+                edge->fy = camera->fy;
+                edge->cx = camera->cx;
+                edge->cy = camera->cy;
+                edge->Xw = p->pt();
+
+                optimizer.addEdge(edge);
+                point_edge_pairs_mono.push_back({edge, static_cast<int>(idx)});
+            }
+            num_point_edges++;
         }
-
-        const Eigen::Vector2d kpu = Eigen::Vector2d(frame->kpsu(idx, 0), frame->kpsu(idx, 1));
-        const bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
-
-        // Reset outlier flag
-        frame->outliers[idx] = false;
-
-        // Get inverse sigma squared
-        const double invSigma2 = inv_level_sigmas2[octaves[idx]];
-
-        if (is_stereo_obs) {
-            auto *edge = new g2o::EdgeStereoSE3ProjectXYZOnlyPose();
-            Eigen::Vector3d obs_vec(kpu.x(), kpu.y(), kps_ur[idx]);
-            edge->setVertex(0, vertex_se3);
-            edge->setMeasurement(obs_vec);
-            edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
-
-            auto *robust_kernel = new g2o::RobustKernelHuber();
-            robust_kernel->setDelta(Parameters::kThHuberStereo);
-            edge->setRobustKernel(robust_kernel);
-
-            edge->fx = camera->fx;
-            edge->fy = camera->fy;
-            edge->cx = camera->cx;
-            edge->cy = camera->cy;
-            edge->bf = camera->bf;
-            edge->Xw = p->pt();
-
-            optimizer.addEdge(edge);
-            point_edge_pairs_stereo.push_back({edge, static_cast<int>(idx)});
-        } else {
-            auto *edge = new g2o::EdgeSE3ProjectXYZOnlyPose();
-            edge->setVertex(0, vertex_se3);
-            edge->setMeasurement(kpu);
-            edge->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
-
-            auto *robust_kernel = new g2o::RobustKernelHuber();
-            robust_kernel->setDelta(Parameters::kThHuberMono);
-            edge->setRobustKernel(robust_kernel);
-
-            edge->fx = camera->fx;
-            edge->fy = camera->fy;
-            edge->cx = camera->cx;
-            edge->cy = camera->cy;
-            edge->Xw = p->pt();
-
-            optimizer.addEdge(edge);
-            point_edge_pairs_mono.push_back({edge, static_cast<int>(idx)});
-        }
-        num_point_edges++;
     }
 
     if (num_point_edges < 3) {
@@ -1076,6 +1087,7 @@ double OptimizerG2o::optimize_essential_graph(
 
     const int max_keyframe_id = map_object->max_keyframe_id;
 
+    std::vector<bool> vec_Scw_is_valid(max_keyframe_id + 1, false);
     std::vector<g2o::Sim3> vec_Scw(max_keyframe_id + 1);
     std::vector<g2o::Sim3> vec_corrected_Swc(max_keyframe_id + 1);
 
@@ -1099,6 +1111,7 @@ double OptimizerG2o::optimize_essential_graph(
             Siw = g2o::Sim3(keyframe->Rcw(), keyframe->tcw(), 1.0);
         }
         vec_Scw[keyframe_id] = Siw;
+        vec_Scw_is_valid[keyframe_id] = true;
 
         vertex_sim3->setEstimate(
             g2o::Sim3(Siw.rotation().matrix(), Siw.translation(), Siw.scale()));
@@ -1125,10 +1138,15 @@ double OptimizerG2o::optimize_essential_graph(
             continue;
         }
         const auto &Siw = vec_Scw[keyframe_id];
+        if (!vec_Scw_is_valid[keyframe_id]) {
+            MSG_RED_WARN_STREAM("optimize_essential_graph: SiW for keyframe " << keyframe_id
+                                                                              << " is not valid");
+            continue;
+        }
         const auto Swi = Siw.inverse();
 
         for (const auto &connected_keyframe : connections) {
-            int connected_id = connected_keyframe->kid;
+            const int connected_id = connected_keyframe->kid;
 
             // Accept (current_keyframe, loop_keyframe) and other loop edges with sufficient weight
             if ((keyframe_id != current_keyframe->kid || connected_id != loop_keyframe->kid) &&
@@ -1159,17 +1177,17 @@ double OptimizerG2o::optimize_essential_graph(
         const auto &parent_keyframe = keyframe->get_parent();
 
         g2o::Sim3 Swi;
+        const auto non_corrected_it = non_corrected_sim3_map.find(keyframe);
+        if (non_corrected_it != non_corrected_sim3_map.end()) {
+            const auto &Swi_ = non_corrected_it->second.inverse();
+            Swi = g2o::Sim3(Swi_.R(), Swi_.t(), Swi_.s());
+        } else {
+            Swi = vec_Scw[keyframe_id].inverse();
+        }
+
         // Spanning tree edge
         if (parent_keyframe) {
             const int parent_id = parent_keyframe->kid;
-
-            const auto non_corrected_it = non_corrected_sim3_map.find(keyframe);
-            if (non_corrected_it != non_corrected_sim3_map.end()) {
-                const auto &Swi_ = non_corrected_it->second.inverse();
-                Swi = g2o::Sim3(Swi_.R(), Swi_.t(), Swi_.s());
-            } else {
-                Swi = vec_Scw[keyframe_id].inverse();
-            }
 
             g2o::Sim3 Sjw;
             const auto parent_non_corrected_it = non_corrected_sim3_map.find(parent_keyframe);

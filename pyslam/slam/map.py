@@ -231,6 +231,10 @@ class Map(object):
         with self._lock:
             return self.keyframes.copy()
 
+    def get_first_keyframe(self):
+        with self._lock:
+            return self.keyframes[0]
+
     def get_last_keyframe(self):
         with self._lock:
             return self.keyframes[-1]

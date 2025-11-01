@@ -251,6 +251,14 @@ std::vector<KeyFramePtr> Map::get_keyframes_vector() const {
     return std::vector<KeyFramePtr>(keyframes.begin(), keyframes.end());
 }
 
+KeyFramePtr Map::get_first_keyframe() const {
+    std::lock_guard<MapMutex> lock(_lock);
+    if (keyframes.empty()) {
+        return nullptr;
+    }
+    return *keyframes.begin(); // First element in set
+}
+
 KeyFramePtr Map::get_last_keyframe() const {
     std::lock_guard<MapMutex> lock(_lock);
     if (keyframes.empty()) {

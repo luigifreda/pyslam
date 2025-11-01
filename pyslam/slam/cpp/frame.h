@@ -48,6 +48,7 @@ class CameraPose;
 class MapPoint;
 class KeyFrame;
 class TrackingCore;
+class PointsProxy;
 
 // Base object class for frame info management - matches Python FrameBase
 // exactly
@@ -193,6 +194,7 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
 
   protected:
     friend class TrackingCore;
+    friend class PointsProxy;
     friend void bind_frame(pybind11::module &m);
 
   public:
