@@ -13,8 +13,8 @@ ROOT_DIR="$SCRIPT_DIR"/../..
 # Instead of building with setup.py use cmake and ninja
 # pip install . --verbose
 
-sudo apt update
-sudo apt install ninja-build
+# sudo apt update
+# sudo apt install ninja-build
 
 # Create build folder and run cmake
 if [ ! -d build ]; then

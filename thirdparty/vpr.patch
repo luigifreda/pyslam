@@ -59,7 +59,7 @@ index f958f96..5c810e4 100644
              np.ndarray: A two-dimensional array with the shape (len(self.Ds), self.nDims),
                  containing the holistic HDC descriptors for each entry in self.Ds.
          """
-+        if Ds is not None: 
++        if Ds is not None:
 +            self.Ds = Ds
          Y = np.zeros((len(self.Ds), self.nDims), 'float32')
  

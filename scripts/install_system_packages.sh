@@ -82,6 +82,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
     #brew install numpy
     #brew install open3d     # we are going to build open3d from source for different issues 
     brew install x265 libjpeg libde265 libheif   # for pillow-heif
+    brew install tbb
 
 else 
     ## Linux 
@@ -96,6 +97,7 @@ else
 
     # system packages 
     install_packages build-essential cmake
+    install_package ninja-build
     install_package python3-sdl2 
     install_package python3-tk
     install_package python3-dev
@@ -131,7 +133,8 @@ else
     fi 
 
     install_package libomp-dev
-
+    install_package libtbb-dev
+    
     # detect CUDA VERSION
     . "$ROOT_DIR"/cuda_config.sh
     if [ "$CUDA_VERSION" != "0" ]; then

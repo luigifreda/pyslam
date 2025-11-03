@@ -166,9 +166,9 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
         sudo apt-get install -y build-essential cmake 
         if [[ "$CUDA_ON" == "ON" ]]; then 
             if [[ $version == *"24.04"* ]] ; then
-                install_packages libcudnn-dev
+                sudo apt-get install -y libcudnn-dev
             else 
-                install_packages libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
+                sudo apt-get install -y libcudnn8 libcudnn8-dev  # check and install otherwise this is going to update to the latest version (and that's not we necessary want to do)
             fi
         fi 
 
@@ -222,7 +222,7 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
                 boost openblas
 
             if [[ "$CUDA_ON" == "ON" ]]; then 
-                conda install -y -c conda-forge libcudnn-dev
+                conda install -y -c conda-forge cudnn libcudnn libcudnn-dev
                 # check if last command failed 
                 if [[ $? -ne 0 ]]; then
                     print_yellow "Warning: failed to install libcudnn-dev. Setting WITH_DNN=OFF."
