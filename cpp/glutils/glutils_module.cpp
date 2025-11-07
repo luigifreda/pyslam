@@ -17,6 +17,7 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -52,7 +53,7 @@ inline void DrawPointCloud(const double *points, std::size_t point_count) {
 }
 
 inline void DrawColoredPointCloud(const double *points, const double *colors,
-                                   std::size_t point_count) {
+                                  std::size_t point_count) {
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
     glVertexPointer(3, GL_DOUBLE, 0, points);
@@ -205,8 +206,8 @@ inline void DrawLinesBetweenSets(const double *points1, const double *points2,
     glEnd();
 }
 
-inline void DrawPairMarkers(const double *points1, const double *points2,
-                            std::size_t point_count, float point_size) {
+inline void DrawPairMarkers(const double *points1, const double *points2, std::size_t point_count,
+                            float point_size) {
     if (point_size <= 0.0f) {
         return;
     }
@@ -356,15 +357,16 @@ void DrawMesh(DoubleArray vertices, IntArray triangles, DoubleArray colors, cons
     const auto *color_data = static_cast<const double *>(colors_info.ptr);
     const auto *index_data = reinterpret_cast<const unsigned int *>(triangles_info.ptr);
     const std::size_t vertex_count = static_cast<std::size_t>(vertices_info.shape[0]);
-    const std::size_t index_count = static_cast<std::size_t>(triangles_info.shape[0] * triangles_info.shape[1]);
+    const std::size_t index_count =
+        static_cast<std::size_t>(triangles_info.shape[0] * triangles_info.shape[1]);
 
     py::gil_scoped_release release;
     glutils_detail::DrawMesh(vertex_data, color_data, vertex_count, index_data, index_count,
                              wireframe);
 }
 
-void DrawMonochromeMesh(DoubleArray vertices, IntArray triangles,
-                        const std::array<float, 3> &color, const bool wireframe) {
+void DrawMonochromeMesh(DoubleArray vertices, IntArray triangles, const std::array<float, 3> &color,
+                        const bool wireframe) {
     auto vertices_info = vertices.request();
     if (vertices_info.ndim != 2 || vertices_info.shape[1] != 3) {
         throw std::runtime_error("vertices must be an Nx3 array");
@@ -378,7 +380,8 @@ void DrawMonochromeMesh(DoubleArray vertices, IntArray triangles,
     const auto *vertex_data = static_cast<const double *>(vertices_info.ptr);
     const auto *index_data = reinterpret_cast<const unsigned int *>(triangles_info.ptr);
     const std::size_t vertex_count = static_cast<std::size_t>(vertices_info.shape[0]);
-    const std::size_t index_count = static_cast<std::size_t>(triangles_info.shape[0] * triangles_info.shape[1]);
+    const std::size_t index_count =
+        static_cast<std::size_t>(triangles_info.shape[0] * triangles_info.shape[1]);
 
     py::gil_scoped_release release;
     glutils_detail::DrawMonochromeMesh(vertex_data, vertex_count, index_data, index_count, color,
@@ -453,8 +456,7 @@ void DrawLines2(DoubleArray points, DoubleArray points2, const float point_size 
 
     const auto *points1_data = static_cast<const double *>(info1.ptr);
     const auto *points2_data = static_cast<const double *>(info2.ptr);
-    const std::size_t count = static_cast<std::size_t>(
-        std::min(info1.shape[0], info2.shape[0]));
+    const std::size_t count = static_cast<std::size_t>(std::min(info1.shape[0], info2.shape[0]));
 
     py::gil_scoped_release release;
     glutils_detail::DrawLinesBetweenSets(points1_data, points2_data, count);
@@ -635,7 +637,7 @@ class CameraImage {
     bool isTransparent = false;
     std::array<float, 3> color = {0.0f, 1.0f, 0.0f};
     std::array<GLdouble, kMatrixElementCount> matrix_{1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                                                     0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
+                                                      0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
 
   public:
     size_t id = 0;
@@ -741,8 +743,8 @@ PYBIND11_MODULE(glutils, m) {
     m.doc() = "pybind11 plugin for glutils module";
 
     m.def("DrawPoints", static_cast<void (*)(DoubleArray)>(&DrawPoints), "points"_a);
-    m.def("DrawPoints", static_cast<void (*)(DoubleArray, DoubleArray)>(&DrawPoints),
-          "points"_a, "colors"_a);
+    m.def("DrawPoints", static_cast<void (*)(DoubleArray, DoubleArray)>(&DrawPoints), "points"_a,
+          "colors"_a);
 
     m.def("DrawMesh",
           static_cast<void (*)(DoubleArray, IntArray, DoubleArray, const bool)>(&DrawMesh),
@@ -757,33 +759,30 @@ PYBIND11_MODULE(glutils, m) {
           "point_size"_a = 0.0f);
     m.def("DrawLines", static_cast<void (*)(DoubleArray, const float)>(&DrawLines), "points"_a,
           "point_size"_a = 0.0f);
-    m.def("DrawLines2",
-          static_cast<void (*)(DoubleArray, DoubleArray, const float)>(&DrawLines2),
+    m.def("DrawLines2", static_cast<void (*)(DoubleArray, DoubleArray, const float)>(&DrawLines2),
           "points"_a, "points2"_a, "point_size"_a = 0.0f);
 
     m.def("DrawTrajectory", static_cast<void (*)(DoubleArray, const float)>(&DrawTrajectory),
           "points"_a, "point_size"_a = 0.0f);
 
-    m.def("DrawCameras",
-          static_cast<void (*)(DoubleArray, float, float, float)>(&DrawCameras), "poses"_a,
-          "w"_a = 1.0f, "h_ratio"_a = 0.75f, "z_ratio"_a = 0.6f);
-    m.def("DrawCamera",
-          static_cast<void (*)(DoubleArray, float, float, float)>(&DrawCamera), "poses"_a,
-          "w"_a = 1.0f, "h_ratio"_a = 0.75f, "z_ratio"_a = 0.6f);
+    m.def("DrawCameras", static_cast<void (*)(DoubleArray, float, float, float)>(&DrawCameras),
+          "poses"_a, "w"_a = 1.0f, "h_ratio"_a = 0.75f, "z_ratio"_a = 0.6f);
+    m.def("DrawCamera", static_cast<void (*)(DoubleArray, float, float, float)>(&DrawCamera),
+          "poses"_a, "w"_a = 1.0f, "h_ratio"_a = 0.75f, "z_ratio"_a = 0.6f);
 
     m.def("DrawBoxes", static_cast<void (*)(DoubleArray, DoubleArray)>(&DrawBoxes), "poses"_a,
           "sizes"_a);
 
     py::class_<CameraImage>(m, "CameraImage")
-        .def(py::init([](const UByteArray &image, const DoubleArray &pose,
-                         const size_t id, const float scale, const float h_ratio,
-                         const float z_ratio, const std::array<float, 3> &color) {
+        .def(py::init([](const UByteArray &image, const DoubleArray &pose, const size_t id,
+                         const float scale, const float h_ratio, const float z_ratio,
+                         const std::array<float, 3> &color) {
                  return new CameraImage(image, pose, id, scale, h_ratio, z_ratio, color);
              }),
              "image"_a, "pose"_a, "id"_a, "scale"_a = 1.0, "h_ratio"_a = 0.75, "z_ratio"_a = 0.6,
              "color"_a = std::array<float, 3>{0.0, 1.0, 0.0})
-        .def(py::init([](const UByteArray &image, const py::array_t<float, py::array::c_style |
-                                                       py::array::forcecast> &pose,
+        .def(py::init([](const UByteArray &image,
+                         const py::array_t<float, py::array::c_style | py::array::forcecast> &pose,
                          const size_t id, const float scale, const float h_ratio,
                          const float z_ratio, const std::array<float, 3> &color) {
                  return new CameraImage(image, pose, id, scale, h_ratio, z_ratio, color);
@@ -820,9 +819,9 @@ PYBIND11_MODULE(glutils, m) {
             "color"_a = std::array<float, 3>{0.0, 1.0, 0.0})
         .def(
             "add",
-            [](CameraImages &self, const UByteArray &image,
-               const DoubleArray &pose, const size_t id, const float scale,
-               const float h_ratio, const float z_ratio, const std::array<float, 3> &color) {
+            [](CameraImages &self, const UByteArray &image, const DoubleArray &pose,
+               const size_t id, const float scale, const float h_ratio, const float z_ratio,
+               const std::array<float, 3> &color) {
                 self.add(image, pose, id, scale, h_ratio, z_ratio, color);
             },
             "image"_a, "pose"_a, "id"_a, "scale"_a = 1.0, "h_ratio"_a = 0.75, "z_ratio"_a = 0.6,

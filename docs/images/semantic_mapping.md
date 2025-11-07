@@ -1,6 +1,6 @@
 graph LR;
     %% Set default styles for all edges
-    linkStyle default stroke:#021526,stroke-width:1px,font-size:10px;
+    linkStyle default stroke:#021526,stroke-width:1px,font-size:14px;
 
     classDef factory fill:#D1F0FF,stroke:#0077B6,stroke-width:1.5px;
     classDef segmentation fill:#FFE3F1,stroke:#C71585,stroke-width:1.5px;
@@ -23,10 +23,14 @@ graph LR;
 
     %% Semantic mapping creation
     semantic_mapping_factory -->|*SemanticMappingType.DENSE*| SemanticMappingDense;
-    SemanticMappingDense -->|*_is-a_*| SemanticMappingBase;
+    semantic_mapping_factory -->|*SemanticMappingType.DENSE<br>Parameters.kMoveSemanticSegmentationToProcess=True*| SemanticMappingDenseProcess;
+    SemanticMappingDense -->|*_is-a_*| SemanticMappingDenseBase;
+    SemanticMappingDenseProcess -->|*_is-a_*| SemanticMappingDenseBase;
+    SemanticMappingDenseBase -->|*_is-a_*| SemanticMappingBase;
 
     %% SemanticMappingDense uses semantic_segmentation_factory
     SemanticMappingDense -->|*uses*| semantic_segmentation_factory;
+    SemanticMappingDenseProcess -->|*uses*| semantic_segmentation_factory;
 
     %% Factory
     class semantic_segmentation_factory factory;
@@ -44,4 +48,6 @@ graph LR;
 
     %% Mapping classes
     class SemanticMappingBase mapping;
+    class SemanticMappingDenseBase mapping;
     class SemanticMappingDense mapping;
+    class SemanticMappingDenseProcess mapping;

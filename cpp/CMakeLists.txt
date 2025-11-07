@@ -5,7 +5,7 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
@@ -46,11 +46,46 @@ endif()
 
 message(STATUS "Found Eigen3 at: ${EIGEN3_INCLUDE_DIR}")
 
+find_package(TBB QUIET)
+if(TBB_FOUND)
+    message(STATUS "TBB found: ${TBB_VERSION}")
+    message(STATUS "TBB include: ${TBB_INCLUDE_DIRS}")
+    message(STATUS "TBB libs: ${TBB_LIBRARIES}")
+    # Try to use modern TBB targets if available
+    if(TARGET TBB::tbb)
+        message(STATUS "Using TBB::tbb target")
+        set(TBB_LINK_LIBS TBB::tbb)
+    elseif(TBB_LIBRARIES)
+        message(STATUS "Using TBB_LIBRARIES: ${TBB_LIBRARIES}")
+        set(TBB_LINK_LIBS ${TBB_LIBRARIES})
+    else()
+        # Fallback: try to find TBB libraries manually
+        find_library(TBB_LIB tbb PATHS ${TBB_ROOT}/lib ${TBB_ROOT}/lib64 /usr/lib /usr/local/lib)
+        if(TBB_LIB)
+            message(STATUS "Found TBB library: ${TBB_LIB}")
+            set(TBB_LINK_LIBS ${TBB_LIB})
+        else()
+            message(WARNING "TBB found but libraries not located. Trying pkg-config...")
+            find_package(PkgConfig QUIET)
+            if(PKG_CONFIG_FOUND)
+                pkg_check_modules(TBB_PKG QUIET tbb)
+                if(TBB_PKG_FOUND)
+                    set(TBB_LINK_LIBS ${TBB_PKG_LIBRARIES})
+                    message(STATUS "Found TBB via pkg-config: ${TBB_LINK_LIBS}")
+                endif()
+            endif()
+        endif()
+    endif()
+else()
+    message(WARNING "TBB not found. Parallelization will be disabled.")
+    set(TBB_LINK_LIBS "")
+endif()
+
 find_package(OpenCV ${OPENCV_VERSION} QUIET)
 message(STATUS "found OpenCV version: ${OpenCV_VERSION}")
-message(STATUS "opencv include: ${OpenCV_INCLUDE_DIRS}")
-message(STATUS "opencv lib dirs: ${OpenCV_INSTALL_PATH}")
-message(STATUS "opencv libs: ${OpenCV_LIBS}")
+message(STATUS "OpenCV include: ${OpenCV_INCLUDE_DIRS}")
+message(STATUS "OpenCV lib dirs: ${OpenCV_INSTALL_PATH}")
+message(STATUS "OpenCV libs: ${OpenCV_LIBS}")
 
 if(_LINUX_)
     set(OpenGL_GL_PREFERENCE "GLVND")
@@ -80,6 +115,7 @@ include_directories(
     ${EIGEN3_INCLUDE_DIR}
     ${OpenCV_INCLUDE_DIRS}
     ${OPENGL_INCLUDE_DIR}
+    ${TBB_INCLUDE_DIRS}
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -123,6 +159,16 @@ target_link_libraries(glutils PRIVATE
 pybind11_add_module(trajectory_tools 
 trajectory/trajectory_tools_module.cpp)
 target_link_libraries(trajectory_tools PRIVATE
+)
+
+pybind11_add_module(volumetric_grid 
+volumetric/volumetric_grid_module.cpp)
+if(TBB_FOUND)
+    target_compile_definitions(volumetric_grid PRIVATE TBB_FOUND)
+endif()
+target_link_libraries(volumetric_grid PRIVATE
+    ${Open3D_LIBRARIES}
+    ${TBB_LINK_LIBS}
 )
 
 # pybind11_add_module(cv2_pyslam cv2_pyslam_module.cpp)

@@ -43,11 +43,14 @@ class SemanticFusionMethods:
         """
         Count the labels and return the label with the highest count.
         """
-        unique_labels = np.unique(labels)
-        label_count = np.zeros(len(unique_labels))
-        for i, unique_label in enumerate(unique_labels):
-            label_count[i] = np.sum(labels == unique_label)
-        return unique_labels[label_count.argmax()]
+        # unique_labels = np.unique(labels)
+        # label_count = np.zeros(len(unique_labels))
+        # for i, unique_label in enumerate(unique_labels):
+        #     label_count[i] = np.sum(labels == unique_label)
+        # return unique_labels[label_count.argmax()]
+        # faster implementation:
+        unique_labels, counts = np.unique(labels, return_counts=True)
+        return unique_labels[counts.argmax()]
 
     @staticmethod
     def bayesian_fusion(probs):
@@ -60,15 +63,22 @@ class SemanticFusionMethods:
         - P(θ|D) is the posterior probability of the parameter θ given the data D
         - P(D|θ) is the likelihood of the data D given the parameter θ
         - P(θ) is the prior probability of the parameter θ
-        - P(D) is the marginal likelihood of the data D
+        - P(D) is the marginal likelihood of the data D (normalization constant)
         """
         num_classes = probs[0].shape[-1]
         prior = np.ones(num_classes) / num_classes
-        posterior = prior
-        for obs in probs:
-            posterior *= obs
-            # normalize
-            posterior /= np.sum(posterior)
+        # posterior = prior
+        # for obs in probs:
+        #     posterior *= obs
+        #     # normalize
+        #     posterior /= np.sum(posterior)
+        # faster implementation:
+        # Convert list to array if needed, then multiply all observations together
+        probs_array = np.array(probs) if not isinstance(probs, np.ndarray) else probs
+        # Multiply all observations together (including prior), then normalize once
+        posterior = prior * np.prod(probs_array, axis=0)
+        # Normalize once at the end
+        posterior /= np.sum(posterior)
         return posterior
 
     @staticmethod

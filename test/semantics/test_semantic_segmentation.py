@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     semantic_segmentation_type = SemanticSegmentationType.SEGFORMER
     semantic_feature_type = SemanticFeatureType.LABEL
-    semantic_dataset_type = SemanticDatasetType.CITYSCAPES
+    semantic_dataset_type = SemanticDatasetType.ADE20K
     image_size = (512, 512)
     device = None  # autodetect
     semantic_segmentation = semantic_segmentation_factory(
@@ -95,7 +95,7 @@ if __name__ == "__main__":
 
         if img is not None:
             print("----------------------------------------")
-            print(f"processing img {img_id}")
+            print(f"processing img {img_id}, img.shape: {img.shape}")
 
             curr_semantic_prediction = semantic_segmentation.infer(img)
             semantic_color_img = semantic_segmentation.to_rgb(curr_semantic_prediction, bgr=True)

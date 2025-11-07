@@ -646,6 +646,19 @@ class TumDataset(Dataset):
         return np.ascontiguousarray(img) if img is not None else None
 
 
+class IclNuimDataset(TumDataset):
+    def __init__(
+        self,
+        path,
+        name,
+        sensor_type=SensorType.RGBD,
+        associations=None,
+        start_frame_id=0,
+        type=DatasetType.ICL_NUIM,
+    ):
+        super().__init__(path, name, sensor_type, associations, start_frame_id, type)
+
+
 class ScannetDataset(Dataset):
     fps = 30  # TODO(dvdmc): I couldn't find this anywhere (paper, code, etc.)
     Ts = 1.0 / fps

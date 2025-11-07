@@ -17,7 +17,11 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <pybind11/eigen.h>
+#include <pybind11/numpy.h>
+#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include <sstream>
 
@@ -27,7 +31,6 @@
 #include "MLPnPsolver.h"
 #include "PnPsolver.h"
 #include "opencv_type_casters.h"
-#include "pybind11/eigen.h"
 
 namespace py = pybind11;
 using namespace pybind11::literals;

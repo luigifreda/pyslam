@@ -19,6 +19,7 @@
 
 import torch.multiprocessing as mp
 import threading as th
+import queue as queue_module
 
 import traceback
 import platform
@@ -31,6 +32,7 @@ kPrintTrackebackDetails = True
 
 
 def clone_obj(obj):
+    """Clone an object recursively."""
     clone_obj = copy.deepcopy(obj)
     for attr in clone_obj.__dict__.keys():
         # check if its a property
@@ -41,49 +43,6 @@ def clone_obj(obj):
         if isinstance(getattr(clone_obj, attr), torch.Tensor):
             setattr(clone_obj, attr, getattr(clone_obj, attr).detach().clone())
     return clone_obj
-
-
-def static_fields_to_dict(cls):
-    return {
-        key: value
-        for key, value in vars(cls).items()
-        if not key.startswith("__") and not callable(value)
-    }
-
-
-def push_to_front(queue, item):
-    temp_list = [item]
-    while not queue.empty():
-        temp_list.append(queue.get())
-    # Put all items back in the queue, starting with the new item at the front
-    for i in temp_list:
-        queue.put(i)
-
-
-# empty a queue before exiting from the consumer thread/process for safety
-def empty_queue(queue, verbose=True):
-    # if platform.system() == 'Darwin':
-    try:
-        while not queue.empty():
-            queue.get_nowait()
-    except Exception as e:
-        if verbose:
-            Printer.red(f"EXCEPTION in empty_queue: {e}")
-            if kPrintTrackebackDetails:
-                traceback_details = traceback.format_exc()
-                print(f"\t traceback details: {traceback_details}")
-
-
-# else:
-#     try:
-#         while queue.qsize()>0:
-#             queue.get_nowait()
-#     except Exception as e:
-#         if verbose:
-#             Printer.red(f'EXCEPTION in empty_queue: {e}')
-#             if kPrintTrackebackDetails:
-#                 traceback_details = traceback.format_exc()
-#                 print(f'\t traceback details: {traceback_details}')
 
 
 class Value:
@@ -124,6 +83,59 @@ class AtomicCounter:
         with self._lock:
             self._value += 1
             return self._value
+
+
+# ================================
+# Queue helper functions
+# ================================
+
+
+def push_to_front(queue, item):
+    temp_list = [item]
+    # Use get(block=False) to avoid blocking
+    while True:
+        try:
+            temp_list.append(queue.get(block=False))
+        except:
+            break
+    # Put all items back in the queue, starting with the new item at the front
+    for i in temp_list:
+        try:
+            # Try non-blocking put first
+            queue.put(i, block=False)
+        except:
+            # If queue is full, fall back to blocking put with timeout
+            try:
+                queue.put(i, timeout=1.0)
+            except:
+                # If timeout fails, log and continue (item will be lost)
+                if kPrintTrackebackDetails:
+                    Printer.orange(f"push_to_front: failed to put item in queue, item may be lost")
+
+
+# empty a queue before exiting from the consumer thread/process for safety
+def empty_queue(queue, verbose=True):
+    # if platform.system() == 'Darwin':
+    try:
+        while not queue.empty():
+            queue.get_nowait()
+    except Exception as e:
+        if verbose:
+            Printer.red(f"EXCEPTION in empty_queue: {e}")
+            if kPrintTrackebackDetails:
+                traceback_details = traceback.format_exc()
+                print(f"\t traceback details: {traceback_details}")
+
+
+def get_last_item_from_queue(queue):
+    """Get the last item from a queue without blocking."""
+    last_item = None
+    while True:
+        try:
+            last_item = queue.get_nowait()
+        except Exception as e:
+            break
+    return last_item
 
 
 class FixedSizeQueue:
@@ -222,13 +234,26 @@ class FakeQueue:
         del arg
 
     def get_nowait(self):
-        raise mp.queues.Empty
+        return None
 
     def qsize(self):
         return 0
 
     def empty(self):
         return True
+
+
+# ================================
+# Dictionary helper functions
+# ================================
+
+
+def static_fields_to_dict(cls):
+    return {
+        key: value
+        for key, value in vars(cls).items()
+        if not key.startswith("__") and not callable(value)
+    }
 
 
 # Recursively merge two dictionaries without data sharing between them.

@@ -163,7 +163,8 @@ class Map : public std::enable_shared_from_this<Map> {
     void remove_keyframe(KeyFramePtr keyframe); // no reference passing here!
 
     // Visualization
-    cv::Mat draw_feature_trails(cv::Mat &img, const bool with_level_radius = false);
+    cv::Mat draw_feature_trails(cv::Mat &img, const bool with_level_radius = false,
+                                int trail_max_length = 16);
     std::shared_ptr<MapStateData> get_data_arrays_for_drawing(
         const std::size_t max_points_to_visualize = Parameters::kMaxSparseMapPointsToVisualize,
         const std::size_t min_weight_for_drawing_covisibility_edge =

@@ -364,6 +364,7 @@ class Frame(FrameBase):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)
 
         self._lock_features = Lock()
+        self._lock_semantics = Lock()
         self.is_keyframe = False
 
         self._kd = None  # kdtree for fast-search of keypoints
@@ -560,7 +561,7 @@ class Frame(FrameBase):
             raise Exception(message)
 
     def set_semantics(self, semantic_img):
-        if Frame.is_store_imgs:
+        with self._lock_semantics:
             self.semantic_img = np.ascontiguousarray(semantic_img.copy())
         if self.kps is not None:
             with self._lock_features:
@@ -576,6 +577,10 @@ class Frame(FrameBase):
                 self.kps_sem = (
                     np.ascontiguousarray(self.kps_sem) if self.kps_sem is not None else None
                 )
+
+    def is_semantics_available(self):
+        with self._lock_semantics:
+            return self.semantic_img is not None
 
     def update_points_semantics(self, semantic_fusion_method):
         cur_points = self.get_points()
@@ -1366,7 +1371,7 @@ class Frame(FrameBase):
         img: np.ndarray,
         kps_idxs: list[int],
         with_level_radius: bool = False,
-        trail_max_length: int = 9,
+        trail_max_length: int = 16,
     ):
         img = img.copy()
 
@@ -1380,7 +1385,6 @@ class Frame(FrameBase):
                 # u1, v1 = int(round(self.kps[kp_idx][0])), int(round(self.kps[kp_idx][1]))  # use distorted coordinates when drawing on distorted original image
                 uv = tuple(uvs[i])
 
-                # color = Colors.myjet[self.octaves[i1]]*255
                 point = self.points[kp_idx]  # MapPoint
                 if point is not None and not point.is_bad():
                     # radius = self.sizes[kp_idx] # actual size
@@ -1423,7 +1427,7 @@ class Frame(FrameBase):
         img: np.ndarray,
         kps_idxs: list[int],
         with_level_radius: bool = False,
-        trail_max_length: int = 9,
+        trail_max_length: int = 16,
     ):
         img = img.copy()
         with self._lock_features:
@@ -1435,7 +1439,7 @@ class Frame(FrameBase):
                 # u1, v1 = int(round(self.kps[kp_idx][0])), int(round(self.kps[kp_idx][1]))  # use distorted coordinates when drawing on distorted original image
                 uv = tuple(uvs[i])
 
-                # color = Colors.myjet[self.octaves[i1]]*255
+                # color = Colors.myjet_color_x_255(self.octaves[i1])
                 point = self.points[kp_idx]  # MapPoint
                 if point is not None and not point.is_bad():
                     # radius = self.sizes[kp_idx] # actual size
@@ -1458,8 +1462,9 @@ class Frame(FrameBase):
                                 break
                             pts.append(tuple(f.kps[idx].astype(int)))
                             lfid = f.id
-                        if len(pts) > 1:
-                            color = Colors.myjet[len(pts)] * 255
+                        num_pts = len(pts)
+                        if num_pts > 1:
+                            color = Colors.myjet_color_x_255(num_pts)
                             cv2.polylines(
                                 img,
                                 np.array([pts], dtype=np.int32),
@@ -1474,12 +1479,18 @@ class Frame(FrameBase):
             return img
 
     # draw tracked features on the image
-    def draw_all_feature_trails(self, img: np.ndarray, with_level_radius: bool = False):
+    def draw_all_feature_trails(
+        self, img: np.ndarray, with_level_radius: bool = False, trail_max_length: int = 16
+    ):
         kps_idxs = range(len(self.kps))
         if with_level_radius:
-            return self.draw_feature_trails_with_radius_(img, kps_idxs)
+            return self.draw_feature_trails_with_radius_(
+                img, kps_idxs, trail_max_length=trail_max_length
+            )
         else:
-            return self.draw_feature_trails_without_radius_(img, kps_idxs)
+            return self.draw_feature_trails_without_radius_(
+                img, kps_idxs, trail_max_length=trail_max_length
+            )
 
 
 ####################################################################################

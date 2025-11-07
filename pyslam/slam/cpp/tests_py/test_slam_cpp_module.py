@@ -33,6 +33,9 @@ from abc import ABC, abstractmethod
 import cv2
 
 import pyslam.config as config
+from pyslam.config_parameters import Parameters
+
+Parameters.USE_CPP_CORE = True
 
 from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 

@@ -58,12 +58,11 @@ from pyslam.utilities.serialization import SerializableEnum, SerializationJSON, 
 from pyslam.utilities.system import Printer, getchar, Logging
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.geometry import inv_T
+from pyslam.utilities.waiting import wait_for_ready
 
 from pyslam.dense.volumetric_integrator_base import VolumetricIntegrationOutput
-from pyslam.dense.volumetric_integrator_factory import (
-    volumetric_integrator_factory,
-    VolumetricIntegratorType,
-)
+from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
+from pyslam.dense.volumetric_integrator_factory import volumetric_integrator_factory
 
 from typing import TYPE_CHECKING
 
@@ -243,16 +242,23 @@ class Slam(object):
             )
 
     def init_semantic_mapping(self, semantic_mapping_config, headless=False):
-        if Parameters.kDoSemanticMapping:
+        if (
+            Parameters.kDoSparseSemanticMappingAndSegmentation
+            and semantic_mapping_config is not None
+        ):
+            if self.semantic_mapping is not None:
+                self.semantic_mapping.quit()
             self.semantic_mapping = semantic_mapping_factory(
                 slam=self,
                 headless=headless,
                 image_size=(self.camera.width, self.camera.height),
                 **semantic_mapping_config,
             )
-            SemanticMappingShared.set_semantic_mapping(self.semantic_mapping)
+            SemanticMappingShared.set_semantic_mapping(self.semantic_mapping, force=True)
             if Parameters.kSemanticMappingOnSeparateThread:
                 self.semantic_mapping.start()
+            wait_for_ready(self.semantic_mapping.is_ready, "SemanticMapping")
+            Printer.green(f"SLAM: Semantic mapping initialized and ready")
 
     def init_loop_closing(self, loop_detector_config, headless=False):
         if Parameters.kUseLoopClosing and loop_detector_config is not None:
@@ -261,13 +267,11 @@ class Slam(object):
             self.loop_closing = LoopClosing(self, loop_detector_config, headless=headless)
             self.GBA = self.loop_closing.GBA
             self.loop_closing.start()
-            while not self.loop_closing.is_ready():
-                time.sleep(0.1)
-            Printer.green(f"SLAM: loop closing initialized and ready")
-            time.sleep(1)
+            wait_for_ready(self.loop_closing.is_ready, "LoopClosing")
+            Printer.green(f"SLAM: Loop closing initialized and ready")
 
     def init_volumetric_integrator(self):
-        if Parameters.kUseVolumetricIntegration:
+        if Parameters.kDoVolumetricIntegration:
             # TODO(dvdmc): Implement semantics in vol. integrator.
             self.volumetric_integrator_type = VolumetricIntegratorType.from_string(
                 Parameters.kVolumetricIntegrationType
@@ -278,10 +282,8 @@ class Slam(object):
                 self.environment_type,
                 self.sensor_type,
             )
-            while not self.volumetric_integrator.is_ready():
-                time.sleep(0.1)
-            Printer.green(f"SLAM: volumetric integrator initialized and ready")
-            time.sleep(1)
+            wait_for_ready(self.volumetric_integrator.is_ready, "VolumetricIntegrator")
+            Printer.green(f"SLAM: VolumetricIntegrator initialized and ready.")
 
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None):
@@ -309,7 +311,6 @@ class Slam(object):
         map_json = self.map.to_json()
         feature_tracker_config_json = SerializationJSON.serialize(self.feature_tracker_config)
         loop_detector_config_json = SerializationJSON.serialize(self.loop_detector_config)
-        # TODO(dvdmc): needs testing
         semantic_mapping_config_json = SerializationJSON.serialize(self.semantic_mapping_config)
 
         map_out_json["USE_CPP_CORE"] = Parameters.USE_CPP_CORE
@@ -405,7 +406,6 @@ class Slam(object):
             print(f"SLAM: loaded loop detector config: {loop_detector_config}")
             print()
 
-            # TODO(dvdmc): missing testing load for semantic mapping
             semantic_mapping_config = SerializationJSON.deserialize(
                 loaded_json["semantic_mapping_config"]
             )
@@ -417,6 +417,11 @@ class Slam(object):
             if self.slam_mode == SlamMode.SLAM:
                 print(f"SLAM: initializing loop closing...")
                 self.init_loop_closing(loop_detector_config)
+                self.init_semantic_mapping(semantic_mapping_config)
+            else:
+                SemanticMappingShared.set_semantic_feature_type(
+                    semantic_mapping_config["semantic_feature_type"]
+                )
 
             if self.loop_closing is not None:
                 print(f"SLAM: loading the loop closing state from {path}...")

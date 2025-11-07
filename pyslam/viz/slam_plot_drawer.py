@@ -22,6 +22,7 @@
 from pyslam.utilities.system import getchar, Printer
 
 import platform
+import queue
 import traceback
 import numpy as np
 import matplotlib.colors as mcolors
@@ -35,6 +36,7 @@ from .qplot_thread import Qplot2d
 
 from pyslam.slam import Sim3Pose
 from pyslam.utilities.geom_trajectory import TrajectoryAlignementData
+from pyslam.utilities.data_management import get_last_item_from_queue
 
 
 kUseQtplot2d = False
@@ -375,8 +377,7 @@ class SlamPlotDrawer:
             # NOTE: we must empty the alignment queue in any case
             new_alignment_data = None
             if self.viewer3D is not None:
-                while not self.viewer3D.alignment_gt_data_queue.empty():
-                    new_alignment_data = self.viewer3D.alignment_gt_data_queue.get_nowait()
+                new_alignment_data = get_last_item_from_queue(self.viewer3D.alignment_gt_data_queue)
             if self.traj_error_plt is not None and new_alignment_data is not None:
                 num_samples = len(new_alignment_data.timestamps_associations)
                 new_alignment_timestamp = (
@@ -390,29 +391,15 @@ class SlamPlotDrawer:
                     and self.last_alignment_timestamp != new_alignment_timestamp
                 ):
                     self.last_alignment_timestamp = new_alignment_timestamp
-                    # new_alignment_data.copyTo(self.last_alignment_gt_data)
-                    self.last_alignment_gt_data = new_alignment_data
-                    # if not self.last_alignment_gt_data.is_est_aligned:
-                    #     print(f'SlamPlotDrawer: realigning estimated and gt trajectories')
-                    #     if self.slam.sensor_type != SensorType.MONOCULAR:
-                    #         # align the gt to estimated trajectory (T_gt_est is estimated in SE(3))
-                    #         for i in range(len(self.last_alignment_gt_data.gt_t_wi)):
-                    #             self.last_alignment_gt_data.gt_t_wi[i] = np.dot(self.last_alignment_gt_data.T_gt_est[:3, :3], self.last_alignment_gt_data.gt_t_wi[i]) + self.last_alignment_gt_data.T_gt_est[:3, 3]
-                    #     else:
-                    #         # align the estimated trajectory to the gt (T_gt_est is estimated in Sim(3))
-                    #         #T_est_gt = np.linalg.inv(self.last_alignment_gt_data.T_gt_est)
-                    #         T_est_gt = Sim3Pose().from_matrix(self.last_alignment_gt_data.T_gt_est).inverse_matrix()
-                    #         for i in range(len(self.last_alignment_gt_data.estimated_t_wi)):
-                    #             self.last_alignment_gt_data.estimated_t_wi[i] = np.dot(T_est_gt[:3, :3], self.last_alignment_gt_data.estimated_t_wi[i]) + T_est_gt[:3, 3]
 
+                    self.last_alignment_gt_data = new_alignment_data
                     gt_traj = np.array(self.last_alignment_gt_data.gt_t_wi, dtype=float)
-                    estimated_traj = np.array(
-                        self.last_alignment_gt_data.estimated_t_wi, dtype=float
-                    )
+                    # estimated_traj = np.array(
+                    #     self.last_alignment_gt_data.estimated_t_wi, dtype=float
+                    # )
                     aligned_estimated_traj = (
-                        self.last_alignment_gt_data.T_gt_est[:3, :3] @ estimated_traj.T
-                        + self.last_alignment_gt_data.T_gt_est[:3, 3].reshape(3, 1)
-                    ).T
+                        self.last_alignment_gt_data.estimated_trajectory_aligned
+                    )
                     filter_timestamps = np.array(
                         self.last_alignment_gt_data.timestamps_associations, dtype=float
                     )
@@ -661,8 +648,7 @@ class LocalizationPlotDrawer:
             # NOTE: we must empty the alignment queue in any case
             new_alignment_data = None
             if self.viewer3D:
-                while not self.viewer3D.alignment_gt_data_queue.empty():
-                    new_alignment_data = self.viewer3D.alignment_gt_data_queue.get_nowait()
+                new_alignment_data = get_last_item_from_queue(self.viewer3D.alignment_gt_data_queue)
             if self.traj_error_plt is not None and new_alignment_data is not None:
                 num_samples = len(new_alignment_data.timestamps_associations)
                 new_alignment_timestamp = (
@@ -678,27 +664,13 @@ class LocalizationPlotDrawer:
                     self.last_alignment_timestamp = new_alignment_timestamp
                     # new_alignment_data.copyTo(self.last_alignment_gt_data)
                     self.last_alignment_gt_data = new_alignment_data
-                    # if not self.last_alignment_gt_data.is_est_aligned:
-                    #     print(f'SlamPlotDrawer: realigning estimated and gt trajectories')
-                    #     if self.slam.sensor_type != SensorType.MONOCULAR:
-                    #         # align the gt to estimated trajectory (T_gt_est is estimated in SE(3))
-                    #         for i in range(len(self.last_alignment_gt_data.gt_t_wi)):
-                    #             self.last_alignment_gt_data.gt_t_wi[i] = np.dot(self.last_alignment_gt_data.T_gt_est[:3, :3], self.last_alignment_gt_data.gt_t_wi[i]) + self.last_alignment_gt_data.T_gt_est[:3, 3]
-                    #     else:
-                    #         # align the estimated trajectory to the gt (T_gt_est is estimated in Sim(3))
-                    #         #T_est_gt = np.linalg.inv(self.last_alignment_gt_data.T_gt_est)
-                    #         T_est_gt = Sim3Pose().from_matrix(self.last_alignment_gt_data.T_gt_est).inverse_matrix()
-                    #         for i in range(len(self.last_alignment_gt_data.estimated_t_wi)):
-                    #             self.last_alignment_gt_data.estimated_t_wi[i] = np.dot(T_est_gt[:3, :3], self.last_alignment_gt_data.estimated_t_wi[i]) + T_est_gt[:3, 3]
-
                     gt_traj = np.array(self.last_alignment_gt_data.gt_t_wi, dtype=float)
-                    estimated_traj = np.array(
-                        self.last_alignment_gt_data.estimated_t_wi, dtype=float
-                    )
+                    # estimated_traj = np.array(
+                    #     self.last_alignment_gt_data.estimated_t_wi, dtype=float
+                    # )
                     aligned_estimated_traj = (
-                        self.last_alignment_gt_data.T_gt_est[:3, :3] @ estimated_traj.T
-                        + self.last_alignment_gt_data.T_gt_est[:3, 3].reshape(3, 1)
-                    ).T
+                        self.last_alignment_gt_data.estimated_trajectory_aligned
+                    )
                     filter_timestamps = np.array(
                         self.last_alignment_gt_data.timestamps_associations, dtype=float
                     )

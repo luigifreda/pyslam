@@ -24,7 +24,7 @@ import torch.multiprocessing as mp
 from .geometry import *
 from .system import Printer
 from .multi_processing import MultiprocessingManager
-from .data_management import empty_queue
+from .data_management import empty_queue, get_last_item_from_queue
 
 import sim3solver
 import trajectory_tools
@@ -43,17 +43,12 @@ def set_rotations_from_translations(t_wi):
     return R_wi
 
 
-@njit(cache=True)
 def compute_alignment_errors(T_gt_est, filter_associations, gt_associations):
-    # Ensure arrays are contiguous for optimal performance
-    R = np.ascontiguousarray(T_gt_est[:3, :3])
-    F = np.ascontiguousarray(filter_associations.T)
+    # Vectorized computation - no numba needed as numpy operations are already optimized
+    R = T_gt_est[:3, :3]
+    F = filter_associations.T
     errors = (R @ F).T + T_gt_est[:3, 3] - gt_associations
-    n = errors.shape[0]
-    distances = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        # Euclidean norm of each row
-        distances[i] = np.sqrt(np.sum(errors[i] ** 2))
+    distances = np.linalg.norm(errors, axis=1)
     squared_errors = distances**2
     rms_error = np.sqrt(np.mean(squared_errors))
     max_error = np.sqrt(np.max(squared_errors))
@@ -125,7 +120,7 @@ def align_3d_points_with_svd(gt_points, est_points, find_scale=True):
     return T_gt_est, T_est_gt, is_ok
 
 
-def align_3d_points_with_svd2(gt_points, est_points, find_scale=True):
+def align_3d_points_with_svd_cpp(gt_points, est_points, find_scale=True):
     return trajectory_tools.align_3d_points_with_svd(gt_points, est_points, find_scale)
 
 
@@ -195,7 +190,7 @@ def find_trajectories_associations(
     )
 
 
-def find_trajectories_associations2(
+def find_trajectories_associations_cpp(
     filter_timestamps, filter_t_wi, gt_timestamps, gt_t_wi, max_align_dt=1e-1, verbose=True
 ):
     return trajectory_tools.find_trajectories_associations(
@@ -310,6 +305,10 @@ class TrajectoryAlignementData:
         self.max_error = max_error  # max alignement error
         self.is_est_aligned = is_est_aligned  # is estimated traj aligned?
         self.num_associations = len(timestamps_associations)
+        #
+        self.gt_trajectory_aligned = None
+        self.gt_trajectory_aligned_associated = None
+        self.estimated_trajectory_aligned = None
 
 
 # Align filter trajectory with ground truth trajectory by computing the SE(3)/Sim(3) transformation between the two trajectories.
@@ -342,13 +341,15 @@ def align_trajectories_with_svd(
         # print(f'\tgt_timestamps: {gt_timestamps}')
 
     # First, find associations between timestamps in filter and gt
-    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations2(
-        filter_timestamps,
-        filter_t_wi,
-        gt_timestamps,
-        gt_t_wi,
-        max_align_dt=max_align_dt,
-        verbose=verbose,
+    timestamps_associations, filter_associations, gt_associations = (
+        find_trajectories_associations_cpp(
+            filter_timestamps,
+            filter_t_wi,
+            gt_timestamps,
+            gt_t_wi,
+            max_align_dt=max_align_dt,
+            verbose=verbose,
+        )
     )
 
     num_samples = len(filter_associations)
@@ -356,7 +357,7 @@ def align_trajectories_with_svd(
         print(f"align_trajectories: num associations: {num_samples}")
 
     # Next, align the two trajectories on the basis of their associations
-    T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd2(
+    T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd_cpp(
         gt_associations, filter_associations, find_scale=find_scale
     )
     if not is_ok:
@@ -376,7 +377,7 @@ def align_trajectories_with_svd(
                 print(
                     f"align_trajectories: second pass: #num associations: {np.sum(mask)}, median_error: {median_error}, sigma_mad: {sigma_mad}"
                 )
-            T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd2(
+            T_gt_est, T_est_gt, is_ok = align_3d_points_with_svd_cpp(
                 gt_associations[mask], filter_associations[mask], find_scale=find_scale
             )
             if not is_ok:
@@ -436,13 +437,15 @@ def align_trajectories_with_ransac(
         # print(f'\tgt_timestamps: {gt_timestamps}')
 
     # First, find associations between timestamps in filter and gt
-    timestamps_associations, filter_associations, gt_associations = find_trajectories_associations2(
-        filter_timestamps,
-        filter_t_wi,
-        gt_timestamps,
-        gt_t_wi,
-        max_align_dt=max_align_dt,
-        verbose=verbose,
+    timestamps_associations, filter_associations, gt_associations = (
+        find_trajectories_associations_cpp(
+            filter_timestamps,
+            filter_t_wi,
+            gt_timestamps,
+            gt_t_wi,
+            max_align_dt=max_align_dt,
+            verbose=verbose,
+        )
     )
 
     num_samples = len(filter_associations)
@@ -513,7 +516,7 @@ def align_trajectories_with_ransac(
     return T_gt_est, error, aligned_gt_data
 
 
-class TrajectoryAlignerProcess(mp.Process):
+class TrajectoryAlignerProcessBatch(mp.Process):
     def __init__(
         self,
         input_queue,
@@ -524,6 +527,20 @@ class TrajectoryAlignerProcess(mp.Process):
         find_scale=False,
         compute_align_error=False,
     ):
+        """
+        Batch trajectory alignment process.
+        Aligns a trajectory estimated by the filter with a ground truth trajectory.
+        The alignment is computed from scratch by computing the SE(3)/Sim(3) transformation
+        between the two trajectories.
+        Args:
+            input_queue: Queue for receiving (pose_timestamps, estimated_trajectory) tuples
+            output_queue: Queue for sending (T_gt_est, error, alignment_gt_data) tuples
+            is_running_flag: Shared flag to control process execution
+            gt_trajectory: Ground truth trajectory positions [Nx3]
+            gt_timestamps: Ground truth timestamps [N]
+            find_scale: Whether to estimate scale (Sim(3) vs SE(3))
+            compute_align_error: Whether to compute alignment error
+        """
         super().__init__()
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -545,16 +562,18 @@ class TrajectoryAlignerProcess(mp.Process):
 
         while self.is_running_flag.value == 1:
             try:
-                if not self.input_queue.empty():
-                    pose_timestamps, estimated_trajectory = self.input_queue.get(timeout=0.1)
+                data = get_last_item_from_queue(self.input_queue)
+                if data is not None:
+                    pose_timestamps, estimated_trajectory = data
                     self._process_alignment(pose_timestamps, estimated_trajectory)
                 else:
                     time.sleep(0.1)
-            except Exception:
+            except Exception as e:
+                Printer.red(f"TrajectoryAlignerProcessBatch: Error: {e}")
                 continue  # queue empty or bad data
 
         empty_queue(self.input_queue)
-        print("TrajectoryAlignerProcess: quitting...")
+        print("TrajectoryAlignerProcessBatch: quitting...")
 
     def _process_alignment(self, pose_timestamps, estimated_trajectory):
         align_trajectories_fun = align_trajectories_with_svd
@@ -589,7 +608,195 @@ class TrajectoryAlignerProcess(mp.Process):
                 compute_align_error=self.compute_align_error,
                 find_scale=self.find_scale,
             )
+
+            T_est_gt = alignment_gt_data.T_est_gt
+            # compute all gt data aligned to the estimated trajectory
+            alignment_gt_data.gt_trajectory_aligned = (
+                T_est_gt[:3, :3] @ np.array(self.gt_trajectory).T
+            ).T + T_est_gt[:3, 3]
+            # compute only the associated gt samples aligned to the estimated samples
+            alignment_gt_data.gt_trajectory_aligned_associated = (
+                T_est_gt[:3, :3] @ np.array(alignment_gt_data.gt_t_wi).T
+            ).T + T_est_gt[:3, 3]
+            # compute the estimated trajectory aligned to the gt trajectory
+            alignment_gt_data.estimated_trajectory_aligned = (
+                T_gt_est[:3, :3] @ np.array(alignment_gt_data.estimated_t_wi).T
+            ).T + T_gt_est[:3, 3]
+
             self.output_queue.put((T_gt_est, error, alignment_gt_data))
-            print(f"TrajectoryAlignerProcess: Aligned, RMS error: {error:.4f}")
+            print(f"TrajectoryAlignerProcessBatch: Aligned, RMS error: {error:.4f}")
         except Exception as e:
-            Printer.red(f"TrajectoryAlignerProcess: Alignment failed: {e}")
+            Printer.red(f"TrajectoryAlignerProcessBatch: Alignment failed: {e}")
+
+
+class TrajectoryAlignerProcessIncremental(mp.Process):
+    def __init__(
+        self,
+        input_queue,
+        output_queue,
+        is_running_flag,
+        gt_trajectory,
+        gt_timestamps,
+        find_scale=False,
+        compute_align_error=False,
+        max_align_dt=1e-1,
+    ):
+        """
+        Incremental trajectory alignment process using IncrementalTrajectoryAligner.
+        Aligns a trajectory estimated by the filter with a ground truth trajectory.
+        The alignment is computed incrementally by updating the associations and
+        recomputing the transformation.
+        Args:
+            input_queue: Queue for receiving (pose_timestamps, estimated_trajectory) tuples
+            output_queue: Queue for sending (T_gt_est, error, alignment_gt_data) tuples
+            is_running_flag: Shared flag to control process execution
+            gt_trajectory: Ground truth trajectory positions [Nx3]
+            gt_timestamps: Ground truth timestamps [N]
+            find_scale: Whether to estimate scale (Sim(3) vs SE(3))
+            compute_align_error: Whether to compute alignment error
+            max_align_dt: Maximum time difference for association (seconds)
+        """
+        super().__init__()
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        self.is_running_flag = is_running_flag
+
+        # Copy (contiguous) GT data to avoid issues with process boundaries
+        self.gt_trajectory = np.array(gt_trajectory, copy=True, order="C")
+        self.gt_timestamps = np.array(gt_timestamps, copy=True, order="C")
+        self.find_scale = find_scale
+        self.compute_align_error = compute_align_error
+        self.max_align_dt = max_align_dt
+
+        # Initialize incremental aligner
+        # Convert GT data to lists for C++ module
+        gt_timestamps_list = self.gt_timestamps.tolist()
+        gt_t_wi_list = [self.gt_trajectory[i] for i in range(len(self.gt_trajectory))]
+
+        # Set up alignment options
+        opts = trajectory_tools.AlignmentOptions()
+        opts.max_align_dt = max_align_dt
+        opts.find_scale = find_scale
+        opts.verbose = False
+
+        # Initialize incremental aligner
+        self.incremental_aligner = trajectory_tools.IncrementalTrajectoryAligner(
+            gt_timestamps_list, gt_t_wi_list, opts
+        )
+
+        self.daemon = True
+
+    def run(self):
+        self.is_running_flag.value = 1
+        self._last_alignment_time = time.time()
+        self._last_num_poses = 0
+        self._last_frame_id = 0
+
+        while self.is_running_flag.value == 1:
+            try:
+                data = get_last_item_from_queue(self.input_queue)
+                if data is not None:
+                    pose_timestamps, estimated_trajectory = data
+                    self._process_alignment(pose_timestamps, estimated_trajectory)
+                else:
+                    time.sleep(0.1)
+            except Exception as e:
+                Printer.red(f"TrajectoryAlignerProcessIncremental: Error: {e}")
+                continue  # queue empty or bad data
+
+        empty_queue(self.input_queue)
+        print("TrajectoryAlignerProcessIncremental: quitting...")
+
+    def _process_alignment(self, pose_timestamps, estimated_trajectory):
+        try:
+            pose_timestamps = np.ascontiguousarray(pose_timestamps)
+            estimated_trajectory = np.ascontiguousarray(estimated_trajectory)
+
+            # Convert to lists for C++ module
+            pose_timestamps_list = pose_timestamps.tolist()
+            estimated_trajectory_list = [
+                estimated_trajectory[i] for i in range(len(estimated_trajectory))
+            ]
+
+            # Update trajectory with full current trajectory
+            self.incremental_aligner.update_trajectory(
+                pose_timestamps_list, estimated_trajectory_list
+            )
+
+            # Get result
+            inc_result = self.incremental_aligner.result()
+
+            if not inc_result.valid:
+                raise RuntimeError("Incremental alignment result is not valid")
+
+            T_gt_est = inc_result.T_gt_est
+            n_pairs = inc_result.n_pairs
+
+            # Compute error if requested
+            error = 0.0
+            max_error = 0.0
+            timestamps_associations = []
+            estimated_t_wi = []
+            gt_t_wi = []
+
+            # Get only associated pairs (positions with valid GT associations)
+            # This ensures we only compute errors for positions that were actually used in alignment
+            est_timestamps, est_positions, gt_interp_positions = (
+                self.incremental_aligner.get_associated_pairs()
+            )
+
+            if self.compute_align_error:
+                # Compute RMS error from associated pairs using the same function as batch version
+                if len(est_positions) > 0 and n_pairs > 0:
+                    # Convert to numpy arrays for error computation
+                    est_positions_array = np.array(est_positions, dtype=np.float64)
+                    gt_interp_positions_array = np.array(gt_interp_positions, dtype=np.float64)
+
+                    # Use the same error computation function as batch version
+                    error, max_error, median_error = compute_alignment_errors(
+                        T_gt_est, est_positions_array, gt_interp_positions_array
+                    )
+
+                    # Store associations for alignment data
+                    for i in range(len(est_positions)):
+                        timestamps_associations.append(float(est_timestamps[i]))
+                        estimated_t_wi.append(est_positions[i])
+                        gt_t_wi.append(gt_interp_positions[i])
+            else:
+                # Even if not computing error, we can still get associations
+                for i in range(len(est_positions)):
+                    timestamps_associations.append(float(est_timestamps[i]))
+                    estimated_t_wi.append(np.array(est_positions[i]).tolist())
+                    gt_t_wi.append(np.array(gt_interp_positions[i]).tolist())
+
+            # Create alignment data structure compatible with batch version
+            alignment_gt_data = TrajectoryAlignementData(
+                timestamps_associations=timestamps_associations,
+                estimated_t_wi=estimated_t_wi,
+                gt_t_wi=gt_t_wi,
+                T_gt_est=T_gt_est,
+                T_est_gt=inc_result.T_est_gt,
+                rms_error=error,
+                max_error=max_error,
+            )
+
+            T_est_gt = alignment_gt_data.T_est_gt
+            # compute all gt data aligned to the estimated trajectory
+            alignment_gt_data.gt_trajectory_aligned = (
+                T_est_gt[:3, :3] @ np.array(self.gt_trajectory).T
+            ).T + T_est_gt[:3, 3]
+            # compute only the associated gt samples aligned to the estimated samples
+            alignment_gt_data.gt_trajectory_aligned_associated = (
+                T_est_gt[:3, :3] @ np.array(alignment_gt_data.gt_t_wi).T
+            ).T + T_est_gt[:3, 3]
+            # compute the estimated trajectory aligned to the gt trajectory
+            alignment_gt_data.estimated_trajectory_aligned = (
+                T_gt_est[:3, :3] @ np.array(alignment_gt_data.estimated_t_wi).T
+            ).T + T_gt_est[:3, 3]
+
+            self.output_queue.put((T_gt_est, error, alignment_gt_data))
+            print(
+                f"TrajectoryAlignerProcessIncremental: Aligned, RMS error: {error:.4f}, pairs: {n_pairs}"
+            )
+        except Exception as e:
+            Printer.red(f"TrajectoryAlignerProcessIncremental: Alignment failed: {e}")

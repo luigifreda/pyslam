@@ -41,6 +41,14 @@ from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 from pyslam.config_parameters import Parameters
 
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyslam.slam.map_point import MapPoint
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.slam import Slam
+
+
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 

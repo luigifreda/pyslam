@@ -78,38 +78,47 @@ class SemanticSegmentationType(SerializableEnum):
             raise ValueError(f"Invalid SemanticSegmentationType: {name}")
 
 
-# TODO(dvdmc): Not all properties of the semantic segmentation modules are exposed (e.g. encoder_name, sim_text_query).
 def semantic_segmentation_factory(
     semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
     semantic_feature_type=SemanticFeatureType.LABEL,
     semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
     image_size=(512, 512),
     device=None,
+    encoder_name=None,
     **kwargs,
 ):
     Printer.green(
         f"Initializing semantic segmentation: {semantic_segmentation_type}, {semantic_feature_type}, {semantic_dataset_type}, {image_size}"
     )
     if semantic_segmentation_type == SemanticSegmentationType.DEEPLABV3:
+        # encoder_name defaults to "resnet50" for DeepLabV3
+        encoder_name = encoder_name if encoder_name else "resnet50"
         return SemanticSegmentationDeepLabV3(
             device=device,
             semantic_dataset_type=semantic_dataset_type,
             image_size=image_size,
             semantic_feature_type=semantic_feature_type,
+            encoder_name=encoder_name,
         )
     elif semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
+        # encoder_name defaults to "b0" for Segformer
+        encoder_name = encoder_name if encoder_name else "b0"
         return SemanticSegmentationSegformer(
             device=device,
             semantic_dataset_type=semantic_dataset_type,
             image_size=image_size,
             semantic_feature_type=semantic_feature_type,
+            encoder_name=encoder_name,
         )
     elif semantic_segmentation_type == SemanticSegmentationType.CLIP:
+        # encoder_name defaults to "ViT-L/14@336px" for CLIP
+        encoder_name = encoder_name if encoder_name else "ViT-L/14@336px"
         return SemanticSegmentationCLIP(
             device=device,
             semantic_dataset_type=semantic_dataset_type,
             image_size=image_size,
             semantic_feature_type=semantic_feature_type,
+            encoder_name=encoder_name,
         )
     else:
         raise ValueError(f"Invalid semantic segmentation type: {semantic_segmentation_type}")

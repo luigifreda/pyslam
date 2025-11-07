@@ -63,7 +63,7 @@ static py::object json_to_py(const nlohmann::json &j) {
     case json::value_t::object:
         return json_to_dict(j);
     default:
-        // binary, discarded, etc. — handle if you use them
+        // binary, discarded, etc. — to handle if we use them in the future
         throw std::runtime_error("Unsupported JSON value type");
     }
 }
