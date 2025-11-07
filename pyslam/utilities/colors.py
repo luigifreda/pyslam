@@ -39,6 +39,12 @@ class Colors:
             [0.5, 0.0, 0.0],
         ]
     )
+    my_jet_x_255 = myjet * 255
+    num_myjet_colors = myjet.shape[0]
+
+    @staticmethod
+    def myjet_color_x_255(idx: int) -> np.ndarray:
+        return Colors.my_jet_x_255[idx % Colors.num_myjet_colors]
 
 
 class RGB(NamedTuple):

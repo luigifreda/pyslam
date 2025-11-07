@@ -34,8 +34,11 @@ from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue, push_to_front, static_fields_to_dict
 from pyslam.utilities.depth import filter_shadow_points
 from pyslam.utilities.multi_threading import SimpleTaskTimer
+from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 
 from pyslam.config_parameters import Parameters
+
+from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
 
 import traceback
 
@@ -51,6 +54,8 @@ from pyslam.depth_estimation.depth_estimator_factory import (
 )
 
 import open3d as o3d
+
+import torch.multiprocessing as mp
 
 
 from typing import TYPE_CHECKING
@@ -131,13 +136,48 @@ class VolumetricIntegrationTask:
 
 # pickable point cloud obtained from o3d.geometry.PointCloud
 class VolumetricIntegrationPointCloud:
-    def __init__(self, point_cloud: o3d.geometry.PointCloud = None, points=None, colors=None):
+    def __init__(
+        self,
+        point_cloud: o3d.geometry.PointCloud = None,
+        points=None,
+        colors=None,
+        semantics=None,
+        instance_ids=None,
+        semantic_colors=None,
+    ):
         if point_cloud is not None:
             self.points = np.asarray(point_cloud.points)
             self.colors = np.asarray(point_cloud.colors)
+            if hasattr(point_cloud, "semantics"):
+                self.semantics = (
+                    np.asarray(point_cloud.semantics) if point_cloud.semantics is not None else None
+                )
+            else:
+                self.semantics = None
+            if hasattr(point_cloud, "instance_ids"):
+                self.instance_ids = (
+                    np.asarray(point_cloud.instance_ids)
+                    if point_cloud.instance_ids is not None
+                    else None
+                )
+            else:
+                self.instance_ids = None
+            if hasattr(point_cloud, "semantic_colors"):
+                self.semantic_colors = (
+                    np.asarray(point_cloud.semantic_colors)
+                    if point_cloud.semantic_colors is not None
+                    else None
+                )
+            else:
+                self.semantic_colors = None
         else:
             self.points = np.asarray(points) if points is not None else None
             self.colors = np.asarray(colors) if colors is not None else None
+            self.semantics = np.asarray(semantics) if semantics is not None else None
+            self.instance_ids = np.asarray(instance_ids) if instance_ids is not None else None
+            self.semantic_colors = (
+                np.asarray(semantic_colors) if semantic_colors is not None else None
+            )
 
     def to_o3d(self):
         pc = o3d.geometry.PointCloud()
@@ -182,18 +222,25 @@ class VolumetricIntegratorBase:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
     logging_manager, logger = None, None
 
-    def __init__(self, camera, environment_type, sensor_type):
-        import torch.multiprocessing as mp
+    def __init__(self, camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs):
+        self.volumetric_integrator_type = volumetric_integrator_type
+        self.constructor_kwargs = kwargs
 
-        # NOTE: The following set_start_method() is needed by multiprocessing for using CUDA acceleration (for instance with torch).
-        if mp.get_start_method() != "spawn":
-            mp.set_start_method(
-                "spawn", force=True
-            )  # NOTE: This may generate some pickling problems with multiprocessing
-            #    in combination with torch and we need to check it in other places.
-            #    This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
+        if (
+            volumetric_integrator_type == VolumetricIntegratorType.TSDF
+            or volumetric_integrator_type == VolumetricIntegratorType.GAUSSIAN_SPLATTING
+            or Parameters.kVolumetricIntegrationUseDepthEstimator == True
+        ):
 
-        set_rlimit()
+            # NOTE: The following set_start_method() is needed by multiprocessing for using CUDA acceleration (for instance with torch).
+            if mp.get_start_method() != "spawn":
+                mp.set_start_method(
+                    "spawn", force=True
+                )  # NOTE: This may generate some pickling problems with multiprocessing
+                #    in combination with torch and we need to check it in other places.
+                #    This set start method can be checked with MultiprocessingManager.is_start_method_spawn()
+
+            set_rlimit()
 
         self.camera = camera
         self.environment_type = environment_type
@@ -255,7 +302,7 @@ class VolumetricIntegratorBase:
 
     def init_print(self):
         if kVerbose:
-            if Parameters.kUseVolumetricIntegration:
+            if Parameters.kDoVolumetricIntegration:
                 if Parameters.kVolumetricIntegrationDebugAndPrintToFile:
                     # redirect the prints of volumetric integration to the file (by default) logs/volumetric_integration.log
                     # you can watch the output in separate shell by running:
@@ -329,6 +376,7 @@ class VolumetricIntegratorBase:
                 self.save_request_condition,
                 self.time_volumetric_integration,
                 self.parameters_dict,
+                self.constructor_kwargs,
             ),
             name=kVolumetricIntegratorProcessName,
         )
@@ -460,6 +508,7 @@ class VolumetricIntegratorBase:
         environment_type: DatasetEnvironmentType,
         sensor_type: SensorType,
         parameters_dict,
+        constructor_kwargs,
     ):
 
         self.last_output = None
@@ -547,10 +596,11 @@ class VolumetricIntegratorBase:
         save_request_condition,
         time_volumetric_integration,
         parameters_dict,
+        constructor_kwargs,
     ):
         is_running.value = 1
         VolumetricIntegratorBase.print("VolumetricIntegratorBase: starting...")
-        self.init(camera, environment_type, sensor_type, parameters_dict)
+        self.init(camera, environment_type, sensor_type, parameters_dict, constructor_kwargs)
         is_looping.value = 1
 
         # main loop
@@ -613,7 +663,7 @@ class VolumetricIntegratorBase:
         semantic_undistorted = None
         pts3d = None
 
-        if depth is None:
+        if depth is None or depth.size == 0:
             if self.depth_estimator is None:
                 Printer.yellow(
                     "VolumetricIntegratorBase: depth_estimator is None, depth is None, skipping the keyframe..."
@@ -697,8 +747,25 @@ class VolumetricIntegratorBase:
                 kf_to_process = self.keyframe_queue[0]
             except IndexError:
                 break
+
+            # If semantic mapping is enabled and the keyframe has no semantic image, wait for it so we can process it during volumetric integration
+            wait_for_semantic_mapping = False
+            if SemanticMappingShared.is_semantic_mapping_enabled():
+                if not kf_to_process.is_semantics_available():
+                    wait_for_semantic_mapping = True
+                    VolumetricIntegratorBase.print(
+                        f"VolumetricIntegratorBase: flush_keyframe_queue: waiting for semantic mapping for keyframe {kf_to_process.id} (kid: {kf_to_process.kid})"
+                    )
+                else:
+                    VolumetricIntegratorBase.print(
+                        f"VolumetricIntegratorBase: flush_keyframe_queue: keyframe {kf_to_process.id} (kid: {kf_to_process.kid}) has semantic image {kf_to_process.semantic_img.shape}"
+                    )
+
             # We integrate only the keyframes that have been processed by LBA at least once.
-            if kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes:
+            if (
+                kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes
+                and not wait_for_semantic_mapping
+            ):
                 # Remove from queue and schedule task
                 try:
                     self.keyframe_queue.popleft()
@@ -722,7 +789,7 @@ class VolumetricIntegratorBase:
         )
 
         use_depth_estimator = Parameters.kVolumetricIntegrationUseDepthEstimator
-        if depth is None and not use_depth_estimator:
+        if (depth is None or depth.size == 0) and not use_depth_estimator:
             VolumetricIntegratorBase.print(
                 f"VolumetricIntegratorBase: add_keyframe: depth is None -> skipping frame {keyframe.id}"
             )
@@ -742,11 +809,20 @@ class VolumetricIntegratorBase:
     def add_task(self, task: VolumetricIntegrationTask, front=True):
         if self.is_running.value == 1:
             with self.q_in_condition:
-                if front:
-                    push_to_front(self.q_in, task)
-                else:
-                    self.q_in.put(task)
-                self.q_in_condition.notify_all()
+                try:
+                    if front:
+                        push_to_front(self.q_in, task)
+                    else:
+                        # Use timeout to avoid indefinite blocking
+                        self.q_in.put(task, timeout=1.0)
+                    self.q_in_condition.notify_all()
+                except Exception as e:
+                    VolumetricIntegratorBase.print(
+                        f"VolumetricIntegratorBase: add_task: EXCEPTION: {e} !!!"
+                    )
+                    if kPrintTrackebackDetails:
+                        traceback_details = traceback.format_exc()
+                        VolumetricIntegratorBase.print(f"\t traceback details: {traceback_details}")
 
     def add_update_output_task(self):
         if self.is_running.value == 1:

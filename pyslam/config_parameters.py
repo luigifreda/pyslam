@@ -34,7 +34,7 @@ class Parameters:
     # ================================================================
     # C++ core
     # ================================================================
-    USE_CPP_CORE = False  # True: use the C++ core; False: use the Python core
+    USE_CPP_CORE = True  # True: use the C++ core; False: use the Python core
 
     # ================================================================
     # Logs
@@ -49,8 +49,12 @@ class Parameters:
     # SLAM tracking-mapping threads
     kLocalMappingOnSeparateThread = True  # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread
     kTrackingWaitForLocalMappingToGetIdle = False  # True: wait for local mapping to get idle before starting tracking, False: tracking and then local mapping in a single thread
-    kWaitForLocalMappingTimeout = 0.5  # [s]  # Timeout for waiting local mapping to be idle (if kTrackingWaitForLocalMappingToGetIdle is True)   (was previously 1.5)
-    kParallelLBAWaitIdleTimeout = 0.3  # [s]  # Timeout for parallel LBA process to finish
+    kWaitForLocalMappingTimeout = (
+        0.5 if not USE_CPP_CORE else 0.05
+    )  # [s]  # Timeout for waiting local mapping to be idle (if kTrackingWaitForLocalMappingToGetIdle is True)   (was previously 1.5)
+    kParallelLBAWaitIdleTimeout = (
+        0.3 if not USE_CPP_CORE else 0.03
+    )  # [s]  # Timeout for parallel LBA process to finish
 
     # Number of desired keypoints per frame
     kNumFeatures = 2000  # Default number of keypoints (can be overridden by settings file)
@@ -126,6 +130,8 @@ class Parameters:
     )
     kThNewKfRefRatioNonMonocular = 0.25  # For determining if a new KF must be spawned in case the system is not monocular, condition 2b
     kUseFeatureCoverageControlForNewKf = False  # [Experimental] check if all the matched map points in the current frame well cover the image (by using an image grid check)
+    kUseFovCentersBasedKfGeneration = False  # Use FOV centers based keyframe generation; not considered if KeyFrame.useFovCentersBasedGeneration is set in yaml
+    kMaxFovCentersDistanceForKfGeneration = 0.2  # [m] Maximum distance between FOV centers for keyframe generation; not considered if KeyFrame.maxFovCentersDistance is set in yaml
 
     # Keyframe culling
     kKeyframeCullingRedundantObsRatio = 0.9
@@ -174,6 +180,11 @@ class Parameters:
 
     # Covisibility graph
     kMinNumOfCovisiblePointsForCreatingConnection = 15
+
+    # ===============================================================
+    # Visualization
+    # ===============================================================
+    kMaxFeatureTrailLength = 16  # Maximum length of a feature trail
 
     # Sparse map visualization
     kSparseImageColorPatchDelta = 1  # center +- delta
@@ -256,13 +267,24 @@ class Parameters:
     # ================================================================
     # Volumetric Integration
     # ================================================================
-    kUseVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
-    kVolumetricIntegrationType = (
-        "TSDF"  # "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_factory.py)
-    )
+    kDoVolumetricIntegration = True  # To enable/disable volumetric integration (dense mapping)
+    # kVolumetricIntegrationType: "VOXEL_GRID", "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_GRID_PROBABILISTIC",
+    #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py)
+    kVolumetricIntegrationType = "VOXEL_SEMANTIC_GRID_PROBABILISTIC"
     kVolumetricIntegrationDebugAndPrintToFile = True
     kVolumetricIntegrationExtractMesh = False  # Extract mesh or point cloud as output
     kVolumetricIntegrationVoxelLength = 0.015  # [m]
+    kVolumetricIntegrationUseVoxelBlocks = True  # Use or not more efficient voxel blocks (indirect hashing to blocks instead of direct voxel hashing) for volumetric integration
+    kVolumetricIntegrationBlockSize = 8  # [voxels]
+    kVolumetricIntegrationTBBThreads = (
+        4  # Number of threads for TBB parallel operations (global setting)
+    )
+    kVolumetricIntegratorGridMinCount = (
+        1  # Minimum number of points per voxel for grid semantic integration
+    )
+    kVolumetricIntegratorGridShadowPointsFilter = (
+        True  # Filter shadow points in the grid semantic integration
+    )
     kVolumetricIntegrationSdfTrunc = 0.04  # [m]
     kVolumetricIntegrationDepthTruncIndoor = 4.0  # [m]
     kVolumetricIntegrationDepthTruncOutdoor = 10.0  # [m]
@@ -284,10 +306,10 @@ class Parameters:
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
 
     # ================================================================
-    # Semantic mapping
+    # Sparse semantic mapping
     # ================================================================
-    # NOTE: By activating the semantic mapping, semantics will be used for the whole SLAM pipeline
-    kDoSemanticMapping = False  # To enable/disable semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
+    # NOTE: By activating the sparse semantic mapping, semantics will be used for the whole SLAM pipeline
+    kDoSparseSemanticMappingAndSegmentation = True  # To enable/disable sparse semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingMoveSemanticSegmentationToSeparateProcess = False
     kSemanticMappingDebugAndPrintToFile = True

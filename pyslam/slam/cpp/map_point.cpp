@@ -27,6 +27,7 @@
 
 #include "feature_shared_resources.h"
 #include "semantic_fusion_methods.h"
+#include "semantic_mapping_shared_resources.h"
 #include "utils/messages.h"
 
 #include "config_parameters.h"
@@ -336,8 +337,15 @@ MapPoint::MapPoint(const Eigen::Vector3d &position, const Eigen::Matrix<unsigned
         update_normal_and_depth_from_frame(keyframe, idxf);
         if (idxf >= 0) {
             des = keyframe->des.row(idxf);
-        } else {
-            des = cv::Mat();
+            if (!keyframe->kps_sem.empty()) {
+                semantic_des = keyframe->kps_sem.row(idxf);
+                // Convert semantic descriptor to RGB using the color map (feature-type aware)
+                const cv::Vec3b sem_rgb =
+                    SemanticMappingSharedResources::semantic_color_map->semantic_to_color(
+                        semantic_des, SemanticMappingSharedResources::semantic_feature_type, false);
+                semantic_color << static_cast<unsigned char>(sem_rgb[0]),
+                    static_cast<unsigned char>(sem_rgb[1]), static_cast<unsigned char>(sem_rgb[2]);
+            }
         }
     }
 }
@@ -680,7 +688,7 @@ void MapPoint::update_semantics(void *semantic_fusion_method, const bool force) 
         }
     }
 
-    if (semantics.rows >= 2) {
+    if (semantics.rows >= 2 || semantic_color == Vec3b::Zero()) {
         // Fuse semantic descriptors
         const auto &fused_semantic =
             semantic_fusion(semantics, FeatureSharedResources::semantic_feature_type);
@@ -688,6 +696,12 @@ void MapPoint::update_semantics(void *semantic_fusion_method, const bool force) 
         {
             std::lock_guard<std::mutex> lock(_lock_features);
             semantic_des = fused_semantic;
+            // Convert semantic descriptor to RGB using the color map (feature-type aware)
+            const cv::Vec3b sem_rgb =
+                SemanticMappingSharedResources::semantic_color_map->semantic_to_color(
+                    semantic_des, SemanticMappingSharedResources::semantic_feature_type, false);
+            semantic_color << static_cast<unsigned char>(sem_rgb[0]),
+                static_cast<unsigned char>(sem_rgb[1]), static_cast<unsigned char>(sem_rgb[2]);
         }
     }
 }

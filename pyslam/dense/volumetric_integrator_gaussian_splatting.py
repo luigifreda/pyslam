@@ -32,12 +32,9 @@ import numpy as np
 from pyslam.slam import Camera, Map, KeyFrame, Frame
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
-
 from pyslam.utilities.geometry import inv_T
 from pyslam.utilities.system import Printer
-
 from pyslam.utilities.timer import TimerFps
-
 from pyslam.config_parameters import Parameters
 
 import traceback
@@ -78,8 +75,10 @@ kGaussianSplattingConfigDefaultPath = kRootFolder + "/settings/gaussian_splattin
 
 
 class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
-    def __init__(self, camera, environment_type, sensor_type):
-        super().__init__(camera, environment_type, sensor_type)
+    def __init__(self, camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs):
+        super().__init__(
+            camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs
+        )
         Parameters.kVolumetricIntegrationMinNumLBATimes = 0  # In MonoGS backend with optimize for keyframes poses too. For this reason, we don't need to wait for enough LBA passes over the keyframes.
         Printer.yellow(
             f"VolumetricIntegratorGaussianSplatting: init - setting Parameters.kVolumetricIntegrationMinNumLBATimes to zero"
@@ -91,8 +90,11 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
         environment_type: DatasetEnvironmentType,
         sensor_type: SensorType,
         parameters_dict,
+        constructor_kwargs,
     ):
-        VolumetricIntegratorBase.init(self, camera, environment_type, sensor_type, parameters_dict)
+        VolumetricIntegratorBase.init(
+            self, camera, environment_type, sensor_type, parameters_dict, constructor_kwargs
+        )
         self.init_print()
 
         if not os.path.exists(kGaussianSplattingOutputFolder):

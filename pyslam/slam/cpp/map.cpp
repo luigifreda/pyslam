@@ -319,11 +319,11 @@ void Map::remove_keyframe(KeyFramePtr keyframe) {
 }
 
 // Visualization
-cv::Mat Map::draw_feature_trails(cv::Mat &img, const bool with_level_radius) {
+cv::Mat Map::draw_feature_trails(cv::Mat &img, const bool with_level_radius, int trail_max_length) {
     if (frames.empty()) {
         return img;
     }
-    return frames.back()->draw_all_feature_trails(img, with_level_radius);
+    return frames.back()->draw_all_feature_trails(img, with_level_radius, trail_max_length);
 }
 
 std::shared_ptr<MapStateData>
@@ -398,55 +398,41 @@ Map::get_data_arrays_for_drawing(const std::size_t max_points_to_visualize,
 
         // Check if semantic mapping is active
         bool is_semantic_mapping_active =
-            SemanticMappingSharedResources::semantic_color_map != nullptr;
+            SemanticMappingSharedResources::semantic_feature_type != SemanticFeatureType::NONE;
 
-        try {
-            if (is_semantic_mapping_active) {
-                semantic_colors.reserve(N);
-                for (std::size_t i = 0; i < N; ++i) {
-                    const auto &p = sel_points[i];
-                    points.push_back(p->pt());
+        if (is_semantic_mapping_active) {
+            semantic_colors.reserve(N);
+            for (std::size_t i = 0; i < N; ++i) {
+                const auto &p = sel_points[i];
+                points.push_back(p->pt());
 
-                    // Convert BGR to RGB and normalize
-                    Eigen::Vector3f color_rgb;
-                    color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
-                        static_cast<float>(p->color[1]) / 255.0f,          // G
-                        static_cast<float>(p->color[0]) / 255.0f;          // B
-                    colors.push_back(color_rgb);
+                // Convert BGR to RGB and normalize
+                Eigen::Vector3f color_rgb(static_cast<float>(p->color[2]) / 255.0f,  // R
+                                          static_cast<float>(p->color[1]) / 255.0f,  // G
+                                          static_cast<float>(p->color[0]) / 255.0f); // B
+                colors.push_back(color_rgb);
 
-                    // Handle semantic colors
-                    Eigen::Vector3f sem_color = Eigen::Vector3f::Zero();
-                    if (!p->semantic_des.empty()) {
-                        // Convert semantic descriptor to RGB using the color map (feature-type
-                        // aware)
-                        cv::Vec3b sem_rgb =
-                            SemanticMappingSharedResources::semantic_color_map->semantic_to_color(
-                                p->semantic_des,
-                                SemanticMappingSharedResources::semantic_feature_type, false);
-                        sem_color << static_cast<float>(sem_rgb[0]) / 255.0f,
-                            static_cast<float>(sem_rgb[1]) / 255.0f,
-                            static_cast<float>(sem_rgb[2]) / 255.0f;
-                    }
-                    semantic_colors.push_back(sem_color);
-                }
-            } else {
-                for (std::size_t i = 0; i < N; ++i) {
-                    const auto &p = sel_points[i];
-                    points.push_back(p->pt());
-
-                    // Convert BGR to RGB and normalize
-                    Eigen::Vector3f color_rgb;
-                    color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
-                        static_cast<float>(p->color[1]) / 255.0f,          // G
-                        static_cast<float>(p->color[0]) / 255.0f;          // B
-                    colors.push_back(color_rgb);
-
-                    // No semantic colors
-                    semantic_colors.push_back(Eigen::Vector3f::Zero());
-                }
+                // Handle semantic colors
+                Eigen::Vector3f sem_color(static_cast<float>(p->semantic_color[2]) / 255.0f,
+                                          static_cast<float>(p->semantic_color[1]) / 255.0f,
+                                          static_cast<float>(p->semantic_color[0]) / 255.0f);
+                semantic_colors.push_back(sem_color);
             }
-        } catch (const std::exception &e) {
-            MSG_ERROR("Viewer3D: draw_slam_map - error: " + std::string(e.what()));
+        } else {
+            for (std::size_t i = 0; i < N; ++i) {
+                const auto &p = sel_points[i];
+                points.push_back(p->pt());
+
+                // Convert BGR to RGB and normalize
+                Eigen::Vector3f color_rgb;
+                color_rgb << static_cast<float>(p->color[2]) / 255.0f, // R
+                    static_cast<float>(p->color[1]) / 255.0f,          // G
+                    static_cast<float>(p->color[0]) / 255.0f;          // B
+                colors.push_back(color_rgb);
+
+                // No semantic colors
+                semantic_colors.push_back(Eigen::Vector3f::Zero());
+            }
         }
     }
 

@@ -33,7 +33,7 @@ namespace pyslam {
 
 enum class NormType { None = -1, Hamming = 0, L2 = 1 };
 
-// Return squared L2 if you don't need the sqrt for comparisons.
+// Return squared L2 if we don't need the sqrt for comparisons.
 enum class L2Variant { TrueL2, Squared };
 
 // -------------------------------------------------------------- //
@@ -214,7 +214,7 @@ inline float float_descriptor_distance(const cv::Mat &a, const cv::Mat &b) noexc
     const float *pb = b.ptr<float>();
     const size_t n = a.total();
 
-    // Manual L2 (no sqrt) is often enough; if you need true L2, take sqrtf at the end.
+    // Manual L2 (no sqrt) is often enough; if we need true L2, take sqrtf at the end.
     // Choose one; here we return true L2 to match cv::norm semantics.
     float acc = 0.f;
     size_t i = 0;

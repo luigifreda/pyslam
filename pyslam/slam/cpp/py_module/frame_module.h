@@ -37,10 +37,8 @@
 
 namespace py = pybind11;
 
-int update_map_points_statistics_wrapper(pyslam::Frame &self, int sensor_type_value) {
-    pyslam::SensorType cpp_sensor_type = static_cast<pyslam::SensorType>(sensor_type_value);
-    return self.update_map_points_statistics(cpp_sensor_type);
-}
+// ------------------------------------------------------------
+// MapPoint helper functions
 
 pyslam::MapPointPtr cast_to_mappoint(py::handle item) {
     // Handle None objects gracefully
@@ -91,12 +89,43 @@ py::list get_points_wrapper(const pyslam::Frame &self) {
     return result;
 }
 
+// Forward declaration
+class PointsProxy;
+
+// Iterator class for PointsProxy
+class PointsProxyIterator {
+  public:
+    PointsProxyIterator(pyslam::Frame &frame, size_t index) : frame_(frame), index_(index) {}
+
+    py::object next() {
+        size_t size = frame_.points.size();
+
+        if (index_ >= size) {
+            throw py::stop_iteration();
+        }
+
+        auto p = frame_.points[index_];
+        py::object result;
+        if (p && is_valid_mappoint(p)) {
+            result = py::cast(p);
+        } else {
+            result = py::none();
+        }
+        ++index_;
+        return result;
+    }
+
+  private:
+    pyslam::Frame &frame_;
+    size_t index_;
+};
+
 // Proxy class to support element assignment for frame.points
 // This allows to assign: frame.points[idx] = mp or frame.points[idx] = None
 class PointsProxy {
+  public:
     constexpr static bool use_lock = false;
 
-  public:
     PointsProxy(pyslam::Frame &frame) : frame_(frame) {}
 
     py::object getitem(int idx) {
@@ -139,6 +168,8 @@ class PointsProxy {
         }
     }
 
+    PointsProxyIterator iter() { return PointsProxyIterator(frame_, 0); }
+
     py::list to_list() {
         py::list result;
         if constexpr (use_lock) {
@@ -167,6 +198,9 @@ class PointsProxy {
   private:
     pyslam::Frame &frame_;
 };
+
+// ------------------------------------------------------------
+// Wrapper functions
 
 std::vector<pyslam::MapPointPtr> points_vector_wrapper(py::object points_obj) {
     std::vector<pyslam::MapPointPtr> points_vector;
@@ -216,14 +250,22 @@ py::tuple are_visible_wrapper(pyslam::Frame &self, py::object points_obj, bool d
 }
 
 void bind_frame(py::module &m) {
+
+    // ------------------------------------------------------------
+    // Expose PointsProxyIterator class
+    py::class_<PointsProxyIterator>(m, "PointsProxyIterator")
+        .def("__iter__", [](PointsProxyIterator &self) { return self; })
+        .def("__next__", &PointsProxyIterator::next);
+
     // Expose PointsProxy class to support element assignment
     py::class_<PointsProxy>(m, "PointsProxy")
         .def("__getitem__", &PointsProxy::getitem)
         .def("__setitem__", &PointsProxy::setitem)
         .def("__len__", &PointsProxy::size)
         .def(
-            "__iter__", [](PointsProxy &self) { return py::iter(self.to_list()); },
-            py::keep_alive<0, 1>());
+            "__iter__", [](PointsProxy &self) { return py::cast(self.iter()); },
+            py::keep_alive<0, 1>())
+        .def("to_list", &PointsProxy::to_list);
 
     // ------------------------------------------------------------
     // FrameBase
@@ -412,9 +454,10 @@ void bind_frame(py::module &m) {
                     // If assigning from another PointsProxy, get the list and assign
                     auto &proxy = points_obj.cast<PointsProxy &>();
                     auto points_list = proxy.to_list();
-                    auto current_points = self.get_points();
                     size_t new_size = py::len(points_list);
-                    for (size_t i = 0; i < new_size && i < current_points.size(); ++i) {
+                    // Resize points vector to accommodate new size
+                    self.points.resize(new_size, nullptr);
+                    for (size_t i = 0; i < new_size; ++i) {
                         auto item = points_list[i];
                         if (item.is_none()) {
                             self.set_point_match(nullptr, static_cast<int>(i));
@@ -426,10 +469,10 @@ void bind_frame(py::module &m) {
                 } else {
                     // Convert from list/array to vector
                     auto points_vector = points_vector_wrapper(points_obj);
-                    // Resize if needed and copy
-                    auto current_points = self.get_points();
                     size_t new_size = points_vector.size();
-                    for (size_t i = 0; i < new_size && i < current_points.size(); ++i) {
+                    // Resize points vector to accommodate new size
+                    self.points.resize(new_size, nullptr);
+                    for (size_t i = 0; i < new_size; ++i) {
                         self.set_point_match(points_vector[i], static_cast<int>(i));
                     }
                 }
@@ -553,17 +596,19 @@ void bind_frame(py::module &m) {
                 return self.draw_feature_trails(img, kps_idxs, with_level_radius, trail_max_length);
             },
             py::arg("img"), py::arg("kps_idxs"), py::arg("with_level_radius") = false,
-            py::arg("trail_max_length") = 9)
+            py::arg("trail_max_length") = 16)
         .def(
             "draw_all_feature_trails",
-            [](pyslam::Frame &self, const cv::Mat &img, const bool with_level_radius) {
+            [](pyslam::Frame &self, const cv::Mat &img, const bool with_level_radius,
+               int trail_max_length) {
                 py::gil_scoped_release release;
-                return self.draw_all_feature_trails(img, with_level_radius);
+                return self.draw_all_feature_trails(img, with_level_radius, trail_max_length);
             },
-            py::arg("img"), py::arg("with_level_radius") = false)
+            py::arg("img"), py::arg("with_level_radius") = false, py::arg("trail_max_length") = 16)
         .def("set_img_right", &pyslam::Frame::set_img_right)
         .def("set_depth_img", &pyslam::Frame::set_depth_img)
         .def("set_semantics", &pyslam::Frame::set_semantics)
+        .def("is_semantics_available", &pyslam::Frame::is_semantics_available)
         .def(
             "update_points_semantics",
             [](pyslam::Frame &self, py::object semantic_fusion_method_obj) {

@@ -1,0 +1,13 @@
+    # Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+    cpp/build
+    pyslam/cpp/build
+
+    thirdparty/opencv/build
+    thirdparty/g2opy/build
+    thirdparty/gtsam_local/build
+    thirdparty/gtsam_factors/lib
+    thirdparty/gtsam_factors/build
+    thirdparty/lietorch/build
+    thirdparty/pydbow2/build
+    thirdparty/pydbow3/build
+    thirdparty/protoc/build

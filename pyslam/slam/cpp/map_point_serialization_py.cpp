@@ -70,7 +70,9 @@ py::tuple MapPoint::state_tuple(bool need_lock) const {
     int kf_ref_id = kf_ref ? kf_ref->id : -1;
 
     // Handle empty descriptor matrices
+    auto des_type = des.empty() ? CV_32F : des.type();
     auto des_obj = des.empty() ? py::array() : cvmat_to_numpy(des);
+    auto semantic_des_type = semantic_des.empty() ? CV_32F : semantic_des.type();
     auto semantic_des_obj = semantic_des.empty() ? py::array() : cvmat_to_numpy(semantic_des);
 
     // NOTE: this does not make sense in a new spawned process
@@ -82,8 +84,9 @@ py::tuple MapPoint::state_tuple(bool need_lock) const {
         num_times_found, last_frame_id_seen,
         _pt,    // Eigen::Vector3d
         normal, // Eigen::Vector3d
-        _min_distance, _max_distance, py::array(3, color.data()), des_obj, semantic_des_obj,
-        first_kid, obs_id_data, fviews_id_data, kf_ref_id, num_observations_on_last_update_des,
+        _min_distance, _max_distance, py::array(3, color.data()), des_type, des_obj,
+        semantic_des_type, semantic_des_obj, py::array(3, semantic_color.data()), first_kid,
+        obs_id_data, fviews_id_data, kf_ref_id, num_observations_on_last_update_des,
         num_observations_on_last_update_normals, num_observations_on_last_update_semantics, pt_GBA,
         is_pt_GBA_valid, GBA_kf_id, corrected_by_kf, corrected_reference);
 }
@@ -107,12 +110,17 @@ void MapPoint::restore_from_state(const py::tuple &t, bool need_lock) {
     last_frame_id_seen = t[idx++].cast<int>();
 
     _pt = t[idx++].cast<Eigen::Vector3d>();
+
     normal = t[idx++].cast<Eigen::Vector3d>();
     _min_distance = t[idx++].cast<float>();
     _max_distance = t[idx++].cast<float>();
+
     py::array color_np = t[idx++].cast<py::array>();
-    des = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_8U);
-    semantic_des = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_32F);
+    const int des_type = t[idx++].cast<int>();
+    des = numpy_to_cvmat(t[idx++].cast<py::array>(), des_type);
+    const int semantic_des_type = t[idx++].cast<int>();
+    semantic_des = numpy_to_cvmat(t[idx++].cast<py::array>(), semantic_des_type);
+    py::array semantic_color_np = t[idx++].cast<py::array>();
     first_kid = t[idx++].cast<int>();
 
     std::vector<std::pair<int, int>> obs_id_data =
@@ -140,6 +148,11 @@ void MapPoint::restore_from_state(const py::tuple &t, bool need_lock) {
     auto color_data = color_np.unchecked<uint8_t>();
     for (int i = 0; i < 3; i++)
         color[i] = color_data(i);
+
+    // Semantic color
+    auto semantic_color_data = semantic_color_np.unchecked<uint8_t>();
+    for (int i = 0; i < 3; i++)
+        semantic_color[i] = semantic_color_data(i);
 
     // Reattach observations and frame views (store ID pairs; resolved later)
     _observations_id_data.clear();

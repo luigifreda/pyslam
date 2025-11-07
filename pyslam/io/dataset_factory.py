@@ -48,6 +48,7 @@ from .dataset import (
     KittiDataset,
     ScannetDataset,
     TumDataset,
+    IclNuimDataset,
     EurocDataset,
     ReplicaDataset,
     TartanairDataset,
@@ -117,6 +118,10 @@ def dataset_factory(config: "Config") -> Dataset:
         dataset.set_is_color(is_color)
     if type == "tum":
         dataset = TumDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.TUM)
+    if type == "icl_nuim":
+        dataset = IclNuimDataset(
+            path, name, sensor_type, associations, start_frame_id, DatasetType.ICL_NUIM
+        )
     if type == "euroc":
         dataset = EurocDataset(
             path, name, sensor_type, associations, start_frame_id, DatasetType.EUROC, config
