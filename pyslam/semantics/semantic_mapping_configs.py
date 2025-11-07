@@ -116,7 +116,19 @@ class SemanticMappingConfigs:
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,
                 semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                # semantic_segmentation_type=SemanticSegmentationType.DEEPLABV3,
                 semantic_dataset_type=SemanticDatasetType.NYU40,
+                # semantic_dataset_type=SemanticDatasetType.ADE20K,
+                semantic_feature_type=SemanticFeatureType.LABEL,
+            )
+        elif slam_dataset_name == DatasetType.ICL_NUIM:
+            Printer.red("Semantics in ICL_NUIM dataset will be bad with current model!")
+            return dict(
+                semantic_mapping_type=SemanticMappingType.DENSE,
+                semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                # semantic_segmentation_type=SemanticSegmentationType.DEEPLABV3,
+                semantic_dataset_type=SemanticDatasetType.NYU40,
+                # semantic_dataset_type=SemanticDatasetType.ADE20K,
                 semantic_feature_type=SemanticFeatureType.LABEL,
             )
         elif slam_dataset_name == DatasetType.EUROC:

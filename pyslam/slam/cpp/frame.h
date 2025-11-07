@@ -191,6 +191,7 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
   protected:
     mutable std::mutex _lock_features;
     mutable std::mutex _lock_kd;
+    mutable std::mutex _lock_semantics;
 
   protected:
     friend class TrackingCore;
@@ -326,6 +327,7 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     void set_img_right(const cv::Mat &img_right);
     void set_depth_img(const cv::Mat &depth_img);
     void set_semantics(const cv::Mat &semantic_img);
+    bool is_semantics_available() const;
     void update_points_semantics(void *semantic_fusion_method = nullptr);
 
     void ensure_contiguous_arrays();
@@ -343,8 +345,9 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     cv::Mat draw_feature_trails_(const cv::Mat &img, const std::vector<int> &kps_idxs,
                                  int trail_max_length) const;
     cv::Mat draw_feature_trails(const cv::Mat &img, const std::vector<int> &kps_idxs,
-                                const bool with_level_radius, int trail_max_length = 9) const;
-    cv::Mat draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius) const;
+                                const bool with_level_radius, int trail_max_length = 16) const;
+    cv::Mat draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius,
+                                    int trail_max_length = 16) const;
 
   public:
     // Serialization

@@ -1459,7 +1459,7 @@ void extract_semantic_at_keypoints(const cv::Mat &semantic_img, MatNx2fRef kps, 
         break;
 #ifdef CV_16F
     case CV_16F:
-        // if you actually use float16 semantics:
+        // if we actually use float16 semantics:
         single
             ? extract_semantic_at_keypoints_impl<true, cv::float16_t>(semantic_img, kps, kps_sem)
             : extract_semantic_at_keypoints_impl<false, cv::float16_t>(semantic_img, kps, kps_sem);
@@ -1474,14 +1474,16 @@ void extract_semantic_at_keypoints(const cv::Mat &semantic_img, MatNx2fRef kps, 
 }
 
 void Frame::set_semantics(const cv::Mat &semantic_img) {
-    if (is_store_imgs) {
+    {
+        std::lock_guard<std::mutex> lock(_lock_semantics);
         this->semantic_img = semantic_img.clone();
     }
+
     if (kps.rows() > 0) {
         std::lock_guard<std::mutex> lock(_lock_features);
 
         // Extract semantic information at keypoint locations
-        extract_semantic_at_keypoints(semantic_img, kps, kps_sem);
+        extract_semantic_at_keypoints(this->semantic_img, kps, kps_sem);
 
         // Normalize kps_sem type to avoid mixed-type issues downstream (e.g., push_back)
         // Policy: LABEL -> CV_32S; PROBABILITY_VECTOR/FEATURE_VECTOR -> CV_32F
@@ -1500,6 +1502,11 @@ void Frame::set_semantics(const cv::Mat &semantic_img) {
             kps_sem = kps_sem.clone();
         }
     }
+}
+
+bool Frame::is_semantics_available() const {
+    std::lock_guard<std::mutex> lock(_lock_semantics);
+    return !this->semantic_img.empty();
 }
 
 void Frame::update_points_semantics(void *semantic_fusion_method) {
@@ -1593,11 +1600,12 @@ cv::Mat Frame::draw_feature_trails_(const cv::Mat &img, const std::vector<int> &
                 }
 
                 // Draw the trail
-                if (pts.size() > 1) {
+                const size_t num_pts = pts.size();
+                if (num_pts > 1) {
                     if constexpr (with_level_radius) {
-                        const auto trail_color = pyslam::Colors::myjet_color(pts.size());
+                        const auto trail_color = pyslam::Colors::myjet_color_x_255(num_pts);
                         const auto cv_trail_color =
-                            cv::Scalar(trail_color[0], trail_color[1], trail_color[2]) * 255;
+                            cv::Scalar(trail_color[0], trail_color[1], trail_color[2]);
                         cv::polylines(img_out, pts, false, cv_trail_color, 1, cv::LINE_AA);
                     } else {
                         cv::polylines(img_out, pts, false, cv_point_color, 1, cv::LINE_AA);
@@ -1626,10 +1634,11 @@ cv::Mat Frame::draw_feature_trails(const cv::Mat &img, const std::vector<int> &k
     }
 }
 
-cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius) const {
+cv::Mat Frame::draw_all_feature_trails(const cv::Mat &img, const bool with_level_radius,
+                                       int trail_max_length) const {
     std::vector<int> all_idxs(kps.rows());
     std::iota(all_idxs.begin(), all_idxs.end(), 0);
-    return draw_feature_trails(img, all_idxs, with_level_radius);
+    return draw_feature_trails(img, all_idxs, with_level_radius, trail_max_length);
 }
 
 void Frame::manage_features(const cv::Mat &img, const cv::Mat &img_right) {

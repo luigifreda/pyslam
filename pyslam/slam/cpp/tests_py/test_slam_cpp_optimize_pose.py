@@ -189,13 +189,12 @@ class TestPoseOptimizerConvergence(TestCase):
         return frame
 
     def compute_reprojection_error(self, frame):
-        points_list = frame.points
-        for idx, p in enumerate(points_list):
+        for idx, p in enumerate(frame.points):
             if p is None:
                 print(f"frame.points[{idx}] is None")
             else:
                 _pt = p.pt()
-        points_3d_w = np.array([p.pt() for p in points_list if p is not None]).reshape(-1, 3)
+        points_3d_w = np.array([p.pt() for p in frame.points if p is not None]).reshape(-1, 3)
         # print(f"points_3d_w: {points_3d_w}")
         print(f"points_3d_w shape: {points_3d_w.shape}")
         frame_Tcw = frame.Tcw()

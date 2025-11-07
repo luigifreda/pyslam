@@ -453,9 +453,17 @@ The Section~\ref{supported-volumetric-mapping-methods} reports a list of support
 
 \subsubsection{Semantic Mapping}
 
-The diagram in Fig.~\ref{Fig:SemanticMapping} outlines the architecture of the \textit{Semantic Mapping} module. At its core is the \texttt{semantic\_mapping\_factory}, which creates semantic mapping instances according to the selected \texttt{semantic\_mapping\_type}. Currently, the supported type is \texttt{DENSE}, which instantiates the \texttt{SemanticMappingDense} class. This class extends \texttt{SemanticMappingBase} and runs asynchronously in a dedicated thread to process keyframes as they become available.
+The diagram in Fig.~\ref{Fig:SemanticMapping} outlines the architecture of the \textit{Semantic Mapping} module. At its core is the \texttt{semantic\_mapping\_factory}, which creates semantic mapping instances according to the selected \texttt{semantic\_mapping\_type}. Currently, the supported type is \texttt{DENSE}, which instantiates either the \texttt{SemanticMappingDense} class or the \texttt{SemanticMappingDenseProcess} class if
+\begin{scriptsize}
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{Parameters.kSemanticMappingMoveSemanticSegmentationToSeparateProcess=True}.
+\end{Highlighting}
+\end{Shaded}
+\end{scriptsize}
+Both these classes extend \texttt{SemanticMappingDenseBase} and runs asynchronously in a dedicated thread to process keyframes as they become available. In particular, the \texttt{SemanticMappingDenseProcess} class offloads semantic segmentation inference to a separate process, thereby making better use of CPU core parallelism.
 
-\texttt{SemanticMappingDense} integrates semantic information into the SLAM map by leveraging per-frame predictions from a semantic segmentation model. The segmentation model is instantiated via the \texttt{semantic\_segmentation\_factory}, based on the selected \texttt{semantic\_segmentation\_type}. Supported segmentation backends include \texttt{DEEPLABV3}, \texttt{SEGFORMER}, and \texttt{CLIP}, each of which corresponds to a dedicated class (\texttt{SemanticSegmentationDeepLabV3}, \texttt{SemanticSegmentationSegformer}, \texttt{SemanticSegmentationCLIP}) inheriting from the shared \texttt{SemanticSegmentationBase}.
+Both \texttt{SemanticMappingDense} and \texttt{SemanticMappingDenseProcess} integrate semantic information into the SLAM map by leveraging per-frame predictions from a semantic segmentation model. The segmentation model is instantiated via the \texttt{semantic\_segmentation\_factory}, based on the selected \texttt{semantic\_segmentation\_type}. Supported segmentation backends include \texttt{DEEPLABV3}, \texttt{SEGFORMER}, and \texttt{CLIP}, each of which corresponds to a dedicated class (\texttt{SemanticSegmentationDeepLabV3}, \texttt{SemanticSegmentationSegformer}, \texttt{SemanticSegmentationCLIP}) inheriting from the shared \texttt{SemanticSegmentationBase}.
 
 The system supports multiple semantic feature representations~--~such as categorical labels, probability vectors, and high-dimensional feature embeddings~--~and fuses them into the map using configurable methods like count-based fusion, Bayesian fusion, or feature averaging.
 
@@ -733,7 +741,7 @@ SLAM}\label{dense-reconstruction-while-running-slam}}
 
 The SLAM back-end hosts a volumetric reconstruction pipeline. This is
 disabled by default. You can enable it by setting
-\texttt{kUseVolumetricIntegration=True} and selecting your preferred
+\texttt{kDoVolumetricIntegration=True} and selecting your preferred
 method \texttt{kVolumetricIntegrationType} in
 \texttt{pyslam/config\_parameters.py}. At present, two methods are available:
 \texttt{TSDF} and \texttt{GAUSSIAN\_SPLATTING} (see
@@ -893,7 +901,7 @@ You can test depth prediction/estimation by using the script
 \subsubsection{Semantic mapping}\label{semantic-mapping}}
 
 The semantic mapping pipeline can be enabled by setting the parameter
-\texttt{kDoSemanticMapping=True} in \texttt{config\_parameters.py}. The
+\texttt{kDoSparseSemanticMappingAndSegmentation=True} in \texttt{config\_parameters.py}. The
 best way of configuring the semantic mapping module used is to modify it
 in \texttt{semantic\_mapping\_configs.py}.
 

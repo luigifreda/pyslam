@@ -33,8 +33,6 @@ namespace pyslam {
 class Colors {
   public:
     static constexpr int kMyjetNumColors = 10;
-    // colors from
-    // https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
     static constexpr std::array<std::array<float, 3>, kMyjetNumColors> myjet = {
         {{{0.0, 0.0, 0.5}},
          {{0.0, 0.0, 0.99910873}},
@@ -47,8 +45,23 @@ class Colors {
          {{0.99910873, 0.07334786, 0.0}},
          {{0.5, 0.0, 0.0}}}};
 
+    static constexpr std::array<std::array<float, 3>, kMyjetNumColors> my_jet_x_255 = {
+        {{{0.0f * 255.0f, 0.0f * 255.0f, 0.5f * 255.0f}},
+         {{0.0f * 255.0f, 0.0f * 255.0f, 0.99910873f * 255.0f}},
+         {{0.0f * 255.0f, 0.37843137f * 255.0f, 1.0f * 255.0f}},
+         {{0.0f * 255.0f, 0.83333333f * 255.0f, 1.0f * 255.0f}},
+         {{0.30044276f * 255.0f, 1.0f * 255.0f, 0.66729918f * 255.0f}},
+         {{0.66729918f * 255.0f, 1.0f * 255.0f, 0.30044276f * 255.0f}},
+         {{1.0f * 255.0f, 0.90123457f * 255.0f, 0.0f * 255.0f}},
+         {{1.0f * 255.0f, 0.48002905f * 255.0f, 0.0f * 255.0f}},
+         {{0.99910873f * 255.0f, 0.07334786f * 255.0f, 0.0f * 255.0f}},
+         {{0.5f * 255.0f, 0.0f * 255.0f, 0.0f * 255.0f}}}};
+
     static std::array<float, 3> myjet_color(int idx) { return myjet[idx % kMyjetNumColors]; }
-};
+    static std::array<float, 3> myjet_color_x_255(int idx) {
+        return my_jet_x_255[idx % kMyjetNumColors];
+    }
+}; // namespace pyslam
 
 class ColorTableGenerator {
   public:
@@ -56,7 +69,7 @@ class ColorTableGenerator {
         uint8_t r, g, b;
     };
 
-    // Customize table size if you like (keep 64..4096 reasonable)
+    // Customize table size (keep 64..4096 reasonable)
     static constexpr size_t TABLE_SIZE = 256;            // must be a power of 2
     static constexpr size_t TABLE_MASK = TABLE_SIZE - 1; // For bitwise AND instead of modulo
 

@@ -163,6 +163,7 @@ class MapPoint : public MapPointBase, public std::enable_shared_from_this<MapPoi
 
     // Visual data  (private)
     Vec3b color = Vec3b::Zero();
+    Vec3b semantic_color = Vec3b::Zero();
     cv::Mat semantic_des;
     cv::Mat des; // best descriptor
 

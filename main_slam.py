@@ -156,7 +156,7 @@ if __name__ == "__main__":
     # Select your semantic mapping configuration (see the file semantic_mapping_configs.py). Set it to None to disable semantic mapping.
     semantic_mapping_config = (
         SemanticMappingConfigs.get_config_from_slam_dataset(dataset.type)
-        if Parameters.kDoSemanticMapping
+        if Parameters.kDoSparseSemanticMappingAndSegmentation
         else None
     )
 
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         "loop_detection_config: ",
         json.dumps(loop_detection_config, indent=4, cls=SerializableEnumEncoder),
     )
-    if Parameters.kDoSemanticMapping:
+    if Parameters.kDoSparseSemanticMappingAndSegmentation:
         Printer.green(
             "semantic_mapping_config: ",
             json.dumps(semantic_mapping_config, indent=4, cls=SerializableEnumEncoder),
@@ -263,6 +263,10 @@ if __name__ == "__main__":
         gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
         if viewer3D:
             viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=is_monocular)
+
+    if viewer3D:
+        # wait for the viewer3D to be ready
+        viewer3D.wait_for_ready()
 
     do_step = False  # proceed step by step on GUI
     do_reset = False  # reset on GUI
@@ -336,7 +340,9 @@ if __name__ == "__main__":
                     if not args.headless:
                         is_draw_features_with_radius = viewer3D.is_draw_features_with_radius()
                         img_draw = slam.map.draw_feature_trails(
-                            img, with_level_radius=is_draw_features_with_radius
+                            img,
+                            with_level_radius=is_draw_features_with_radius,
+                            trail_max_length=Parameters.kMaxFeatureTrailLength,
                         )
                         img_writer.write(img_draw, f"id: {img_id}", (30, 30))
                         # 2D display (image display)

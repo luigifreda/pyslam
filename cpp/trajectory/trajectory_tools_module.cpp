@@ -1,12 +1,37 @@
+/**
+ * This file is part of PYSLAM
+ *
+ * Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+ *
+ * PYSLAM is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * PYSLAM is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
+#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include <Eigen/Dense>
 #include <algorithm>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include "trajectory_alignement_incremental.h"
+#include "trajectory_alignment.h"
 
 namespace py = pybind11;
 
@@ -14,150 +39,7 @@ namespace py = pybind11;
 // 0: Use regular management with copy of numpy arrays to Eigen matrices and GIL release
 #define USE_ZERO_MEMORY_COPY 1
 
-#if USE_ZERO_MEMORY_COPY
-
 namespace {
-
-struct AssocResult {
-    Eigen::VectorXd timestamps;                             // size M
-    Eigen::Matrix<double, 3, Eigen::Dynamic> filter_points; // 3xM
-    Eigen::Matrix<double, 3, Eigen::Dynamic> gt_points;     // 3xM
-    double max_dt;
-};
-
-template <typename DerivedFilter, typename DerivedGT>
-inline AssocResult
-find_trajectories_associations_eigen(const Eigen::Ref<const Eigen::VectorXd> &filter_timestamps,
-                                     const Eigen::DenseBase<DerivedFilter> &filter_t_wi,
-                                     const Eigen::Ref<const Eigen::VectorXd> &gt_timestamps,
-                                     const Eigen::DenseBase<DerivedGT> &gt_t_wi,
-                                     double max_align_dt, bool verbose) {
-
-    const size_t num_filter_timestamps = static_cast<size_t>(filter_timestamps.size());
-
-    std::vector<int> kept_indices;
-    kept_indices.reserve(num_filter_timestamps);
-
-    double max_dt = 0.0;
-
-    const double *gt_ts_ptr = gt_timestamps.data();
-    const size_t gt_size = static_cast<size_t>(gt_timestamps.size());
-
-    for (size_t i = 0; i < num_filter_timestamps; ++i) {
-        double timestamp = filter_timestamps(static_cast<Eigen::Index>(i));
-
-        const double *upper = std::upper_bound(gt_ts_ptr, gt_ts_ptr + gt_size, timestamp);
-        int j = static_cast<int>(upper - gt_ts_ptr) - 1;
-
-        if (j < 0 || j >= static_cast<int>(gt_size) - 1)
-            continue;
-
-        double dt = timestamp - gt_ts_ptr[j];
-        double dt_gt = gt_ts_ptr[j + 1] - gt_ts_ptr[j];
-        double abs_dt = std::abs(dt);
-
-        if (dt < 0 || dt_gt <= 0 || abs_dt > max_align_dt)
-            continue;
-
-        max_dt = std::max(max_dt, abs_dt);
-        kept_indices.push_back(static_cast<int>(i));
-    }
-
-    const size_t M = kept_indices.size();
-    AssocResult out{Eigen::VectorXd::Zero(static_cast<Eigen::Index>(M)),
-                    Eigen::Matrix<double, 3, Eigen::Dynamic>(3, static_cast<Eigen::Index>(M)),
-                    Eigen::Matrix<double, 3, Eigen::Dynamic>(3, static_cast<Eigen::Index>(M)),
-                    max_dt};
-
-    size_t k = 0;
-    for (int idx : kept_indices) {
-        double timestamp = filter_timestamps(static_cast<Eigen::Index>(idx));
-        const double *upper = std::upper_bound(gt_ts_ptr, gt_ts_ptr + gt_size, timestamp);
-        int j = static_cast<int>(upper - gt_ts_ptr) - 1;
-
-        double dt = timestamp - gt_ts_ptr[j];
-        double dt_gt = gt_ts_ptr[j + 1] - gt_ts_ptr[j];
-        double ratio = dt / dt_gt;
-
-        out.timestamps(static_cast<Eigen::Index>(k)) = timestamp;
-        out.filter_points.col(static_cast<Eigen::Index>(k)) =
-            filter_t_wi.col(static_cast<Eigen::Index>(idx));
-        out.gt_points.col(static_cast<Eigen::Index>(k)) =
-            (1.0 - ratio) * gt_t_wi.col(j) + ratio * gt_t_wi.col(j + 1);
-        ++k;
-    }
-
-    if (verbose) {
-        std::cout << "find_trajectories_associations: max trajectory align dt: " << max_dt
-                  << std::endl;
-    }
-
-    return out;
-}
-
-template <typename DerivedGT, typename DerivedEST>
-inline std::tuple<Eigen::Matrix4d, Eigen::Matrix4d, bool>
-align_3d_points_with_svd_eigen(const Eigen::DenseBase<DerivedGT> &gt_points,
-                               const Eigen::DenseBase<DerivedEST> &est_points, bool find_scale) {
-
-    if (gt_points.cols() != est_points.cols() || gt_points.cols() < 3)
-        return {Eigen::Matrix4d::Identity(), Eigen::Matrix4d::Identity(), false};
-
-    const Eigen::Index N = gt_points.cols();
-
-    const Eigen::Vector3d mean_gt = gt_points.rowwise().mean();
-    const Eigen::Vector3d mean_est = est_points.rowwise().mean();
-
-    Eigen::Matrix3d cov = Eigen::Matrix3d::Zero();
-    double variance_gt = 0.0;
-    for (Eigen::Index i = 0; i < N; ++i) {
-        const Eigen::Vector3d centered_gt = gt_points.col(i) - mean_gt;
-        const Eigen::Vector3d centered_est = est_points.col(i) - mean_est;
-        cov.noalias() += centered_gt * centered_est.transpose();
-        if (find_scale)
-            variance_gt += centered_gt.squaredNorm();
-    }
-    if (find_scale) {
-        cov /= static_cast<double>(N);
-        variance_gt /= static_cast<double>(N);
-    }
-
-    double scale = 1.0;
-
-    Eigen::JacobiSVD<Eigen::Matrix3d> svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    Eigen::Matrix3d U = svd.matrixU();
-    Eigen::Matrix3d V = svd.matrixV();
-
-    Eigen::Matrix3d S = Eigen::Matrix3d::Identity();
-    if ((U * V.transpose()).determinant() < 0)
-        S(2, 2) = -1;
-
-    Eigen::Matrix3d R = U * S * V.transpose();
-    const double eps = 1e-12;
-    if (find_scale) {
-        const double denom = (svd.singularValues().asDiagonal() * S).trace();
-        if (std::isfinite(variance_gt) && std::isfinite(denom) && denom > eps &&
-            variance_gt > eps) {
-            scale = variance_gt / denom;
-        } else {
-            return {Eigen::Matrix4d::Identity(), Eigen::Matrix4d::Identity(), false};
-        }
-    }
-
-    Eigen::Vector3d t = mean_gt - scale * R * mean_est;
-
-    Eigen::Matrix4d T_gt_est = Eigen::Matrix4d::Identity();
-    T_gt_est.topLeftCorner<3, 3>() = scale * R;
-    T_gt_est.topRightCorner<3, 1>() = t;
-
-    Eigen::Matrix4d T_est_gt = Eigen::Matrix4d::Identity();
-    Eigen::Matrix3d sR_inv = (1.0 / scale) * R.transpose();
-    T_est_gt.topLeftCorner<3, 3>() = sR_inv;
-    T_est_gt.topRightCorner<3, 1>() = -sR_inv * t;
-
-    const bool finite_ok = T_gt_est.allFinite() && T_est_gt.allFinite();
-    return {T_gt_est, T_est_gt, finite_ok};
-}
 
 // Mapping helpers requiring contiguous buffers to ensure zero-copy
 inline Eigen::Map<const Eigen::VectorXd> map_vector_1d(const py::array &arr) {
@@ -167,7 +49,10 @@ inline Eigen::Map<const Eigen::VectorXd> map_vector_1d(const py::array &arr) {
     if (info.ndim != 1)
         throw std::invalid_argument("Expected 1D array");
     if (!(arr.flags() & py::array::c_style))
-        throw std::invalid_argument("Vector must be C-contiguous for zero-copy mapping");
+        throw std::invalid_argument(
+            "Vector must be C-contiguous for zero-copy mapping. "
+            "For sliced numpy views with arbitrary strides, use np.ascontiguousarray() to create "
+            "a contiguous copy first.");
     return Eigen::Map<const Eigen::VectorXd>(static_cast<const double *>(info.ptr),
                                              static_cast<Eigen::Index>(info.shape[0]));
 }
@@ -198,16 +83,26 @@ inline MapConst3xDyn map_points_array(const py::array &arr, const char *name) {
     const bool c_contig = static_cast<bool>(arr.flags() & py::array::c_style);
     const bool f_contig = static_cast<bool>(arr.flags() & py::array::f_style);
     if (!c_contig && !f_contig)
-        throw std::invalid_argument(std::string(name) + " must be contiguous (C or Fortran)");
+        throw std::invalid_argument(
+            std::string(name) +
+            " must be contiguous (C or Fortran). "
+            "For sliced numpy views with arbitrary strides, use np.ascontiguousarray() or "
+            "np.asfortranarray() to create a contiguous copy first.");
 
     const double *ptr = static_cast<const double *>(info.ptr);
     if (first_dim_three) {
+        // Shape is (3, N): numpy row-major layout [x0...x(N-1), y0...y(N-1), z0...z(N-1)]
+        // Eigen 3xN column-major: column j = [xj, yj, zj]
+        // OuterStride (between columns) = strides[1], InnerStride (within column) = strides[0]
         const Eigen::Index cols = static_cast<Eigen::Index>(info.shape[1]);
         const StridesDyn stride(stride_in_scalars(info.strides[1]),
                                 stride_in_scalars(info.strides[0]));
         return MapConst3xDyn(ptr, 3, cols, stride);
     }
 
+    // Shape is (N, 3): numpy strides automatically encode C vs F layout
+    // Eigen 3xN column-major: column j = [xj, yj, zj]
+    // OuterStride (between columns) = strides[0], InnerStride (within column) = strides[1]
     const Eigen::Index cols = static_cast<Eigen::Index>(info.shape[0]);
     const StridesDyn stride(stride_in_scalars(info.strides[0]), stride_in_scalars(info.strides[1]));
     return MapConst3xDyn(ptr, 3, cols, stride);
@@ -216,6 +111,8 @@ inline MapConst3xDyn map_points_array(const py::array &arr, const char *name) {
 } // namespace
 
 PYBIND11_MODULE(trajectory_tools, m) {
+
+#if USE_ZERO_MEMORY_COPY
     m.def(
         "find_trajectories_associations",
         [](const py::array &filter_timestamps, const py::array &filter_t_wi_arr,
@@ -226,11 +123,32 @@ PYBIND11_MODULE(trajectory_tools, m) {
             auto ts_gt = map_vector_1d(gt_timestamps);
             auto filter_points = map_points_array(filter_t_wi_arr, "filter_t_wi");
             auto gt_points = map_points_array(gt_t_wi_arr, "gt_t_wi");
-            AssocResult res;
+
+            // Validate that timestamps and points arrays have matching sizes
+            if (ts_filter.size() != filter_points.cols()) {
+                throw std::invalid_argument(
+                    "filter_timestamps size (" + std::to_string(ts_filter.size()) +
+                    ") must match filter_t_wi size (" + std::to_string(filter_points.cols()) + ")");
+            }
+            if (ts_gt.size() != gt_points.cols()) {
+                throw std::invalid_argument("gt_timestamps size (" + std::to_string(ts_gt.size()) +
+                                            ") must match gt_t_wi size (" +
+                                            std::to_string(gt_points.cols()) + ")");
+            }
+
+            // Validate that GT trajectory has at least 2 samples for interpolation
+            if (ts_gt.size() < 2) {
+                throw std::invalid_argument(
+                    "gt_timestamps must have at least 2 samples for interpolation, got " +
+                    std::to_string(ts_gt.size()) +
+                    ". The function requires at least 2 GT points "
+                    "to interpolate between them.");
+            }
+            trajectory_tools::AssocResult res;
             {
                 py::gil_scoped_release release;
-                res = find_trajectories_associations_eigen(ts_filter, filter_points, ts_gt,
-                                                           gt_points, max_align_dt, verbose);
+                res = trajectory_tools::find_trajectories_associations_eigen(
+                    ts_filter, filter_points, ts_gt, gt_points, max_align_dt, verbose);
             }
 
             return py::make_tuple(res.timestamps, res.filter_points.transpose(),
@@ -243,14 +161,20 @@ PYBIND11_MODULE(trajectory_tools, m) {
 
             Args:
                 filter_timestamps: numpy float64 array shaped (Nf,), C-contiguous
-                filter_t_wi: numpy float64 array shaped (Nf, 3) C-contiguous or (3, Nf) Fortran-contiguous
-                gt_timestamps: numpy float64 array shaped (Ng,), C-contiguous
-                gt_t_wi: numpy float64 array shaped (Ng, 3) C-contiguous or (3, Ng) Fortran-contiguous
+                filter_t_wi: numpy float64 array shaped (Nf, 3) C-contiguous or (3, Nf) Fortran-contiguous.
+                    For sliced views with arbitrary strides, use np.ascontiguousarray() or np.asfortranarray().
+                gt_timestamps: numpy float64 array shaped (Ng,), C-contiguous. Must have Ng >= 2.
+                gt_t_wi: numpy float64 array shaped (Ng, 3) C-contiguous or (3, Ng) Fortran-contiguous.
+                    For sliced views with arbitrary strides, use np.ascontiguousarray() or np.asfortranarray().
                 max_align_dt: Maximum allowed time difference
                 verbose: If true, prints alignment info
 
             Returns:
-                Tuple (timestamps_associations [M], filter_associations [3xM], gt_associations [3xM])
+                Tuple (timestamps_associations [M], filter_associations [Mx3], gt_associations [Mx3])
+                
+            Note:
+                Requires gt_timestamps to have at least 2 samples for interpolation. If Ng < 2,
+                the function will raise an exception.
         )pbdoc");
 
     m.def(
@@ -260,10 +184,17 @@ PYBIND11_MODULE(trajectory_tools, m) {
             bool ok;
             auto gt_points = map_points_array(gt_points_arr, "gt_points");
             auto est_points = map_points_array(est_points_arr, "est_points");
+
+            // Validate that both arrays have the same number of points
+            if (gt_points.cols() != est_points.cols()) {
+                throw std::invalid_argument("gt_points size (" + std::to_string(gt_points.cols()) +
+                                            ") must match est_points size (" +
+                                            std::to_string(est_points.cols()) + ")");
+            }
             {
                 py::gil_scoped_release release;
-                std::tie(T_gt_est, T_est_gt, ok) =
-                    align_3d_points_with_svd_eigen(gt_points, est_points, find_scale);
+                std::tie(T_gt_est, T_est_gt, ok) = trajectory_tools::align_3d_points_with_svd_eigen(
+                    gt_points, est_points, find_scale);
             }
 
             return py::make_tuple(T_gt_est, T_est_gt, ok);
@@ -273,125 +204,19 @@ PYBIND11_MODULE(trajectory_tools, m) {
             Align corresponding 3D points using Kabsch-Umeyama SVD.
 
             Args:
-                gt_points: numpy float64 array shaped (N, 3) C-contiguous or (3, N) Fortran-contiguous
-                est_points: numpy float64 array shaped (N, 3) C-contiguous or (3, N) Fortran-contiguous
+                gt_points: numpy float64 array shaped (N, 3) C-contiguous or (3, N) Fortran-contiguous.
+                    For sliced views with arbitrary strides, use np.ascontiguousarray() or np.asfortranarray().
+                est_points: numpy float64 array shaped (N, 3) C-contiguous or (3, N) Fortran-contiguous.
+                    For sliced views with arbitrary strides, use np.ascontiguousarray() or np.asfortranarray().
                 find_scale: Estimate similarity scale (Sim(3))
 
             Returns:
                 Tuple (T_gt_est [4x4], T_est_gt [4x4], success)
         )pbdoc");
-}
 
 #else
 
-std::tuple<std::vector<double>, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector3d>>
-find_trajectories_associations(const std::vector<double> &filter_timestamps,
-                               const std::vector<Eigen::Vector3d> &filter_t_wi,
-                               const std::vector<double> &gt_timestamps,
-                               const std::vector<Eigen::Vector3d> &gt_t_wi,
-                               double max_align_dt = 1e-1, bool verbose = true) {
-
-    const size_t num_filter_timestamps = filter_timestamps.size();
-
-    std::vector<double> timestamps_associations;
-    std::vector<Eigen::Vector3d> filter_associations;
-    std::vector<Eigen::Vector3d> gt_associations;
-
-    timestamps_associations.reserve(num_filter_timestamps);
-    filter_associations.reserve(num_filter_timestamps);
-    gt_associations.reserve(num_filter_timestamps);
-
-    double max_dt = 0.0;
-
-    for (size_t i = 0; i < filter_timestamps.size(); ++i) {
-        double timestamp = filter_timestamps[i];
-
-        auto upper = std::upper_bound(gt_timestamps.begin(), gt_timestamps.end(), timestamp);
-        int j = std::distance(gt_timestamps.begin(), upper) - 1;
-
-        if (j < 0 || j >= static_cast<int>(gt_timestamps.size()) - 1)
-            continue;
-
-        double dt = timestamp - gt_timestamps[j];
-        double dt_gt = gt_timestamps[j + 1] - gt_timestamps[j];
-        double abs_dt = std::abs(dt);
-
-        if (dt < 0 || dt_gt <= 0 || abs_dt > max_align_dt)
-            continue;
-
-        max_dt = std::max(max_dt, abs_dt);
-        double ratio = dt / dt_gt;
-
-        Eigen::Vector3d interpolated = (1.0 - ratio) * gt_t_wi[j] + ratio * gt_t_wi[j + 1];
-
-        timestamps_associations.push_back(timestamp);
-        filter_associations.push_back(filter_t_wi[i]);
-        gt_associations.push_back(interpolated);
-    }
-
-    if (verbose) {
-        std::cout << "find_trajectories_associations: max trajectory align dt: " << max_dt
-                  << std::endl;
-    }
-
-    return std::make_tuple(timestamps_associations, filter_associations, gt_associations);
-}
-
-std::tuple<Eigen::Matrix4d, Eigen::Matrix4d, bool>
-align_3d_points_with_svd(const std::vector<Eigen::Vector3d> &gt_points,
-                         const std::vector<Eigen::Vector3d> &est_points, bool find_scale = true) {
-    if (gt_points.size() != est_points.size() || gt_points.empty())
-        return {Eigen::Matrix4d::Identity(), Eigen::Matrix4d::Identity(), false};
-
-    size_t N = gt_points.size();
-    Eigen::MatrixXd gt(3, N), est(3, N);
-    for (size_t i = 0; i < N; ++i) {
-        gt.col(i) = gt_points[i];
-        est.col(i) = est_points[i];
-    }
-
-    Eigen::Vector3d mean_gt = gt.rowwise().mean();
-    Eigen::Vector3d mean_est = est.rowwise().mean();
-    gt.colwise() -= mean_gt;
-    est.colwise() -= mean_est;
-
-    Eigen::Matrix3d cov = gt * est.transpose();
-    if (find_scale)
-        cov /= static_cast<double>(N);
-
-    double scale = 1.0;
-    double variance_gt = 0;
-    if (find_scale)
-        variance_gt = gt.squaredNorm() / static_cast<double>(N);
-
-    Eigen::JacobiSVD<Eigen::Matrix3d> svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    Eigen::Matrix3d U = svd.matrixU();
-    Eigen::Matrix3d V = svd.matrixV();
-
-    Eigen::Matrix3d S = Eigen::Matrix3d::Identity();
-    if ((U * V.transpose()).determinant() < 0)
-        S(2, 2) = -1;
-
-    Eigen::Matrix3d R = U * S * V.transpose();
-    if (find_scale)
-        scale = variance_gt / (svd.singularValues().asDiagonal() * S).trace();
-
-    Eigen::Vector3d t = mean_gt - scale * R * mean_est;
-
-    Eigen::Matrix4d T_gt_est = Eigen::Matrix4d::Identity();
-    T_gt_est.topLeftCorner<3, 3>() = scale * R;
-    T_gt_est.topRightCorner<3, 1>() = t;
-
-    Eigen::Matrix4d T_est_gt = Eigen::Matrix4d::Identity();
-    Eigen::Matrix3d sR_inv = (1.0 / scale) * R.transpose();
-    T_est_gt.topLeftCorner<3, 3>() = sR_inv;
-    T_est_gt.topRightCorner<3, 1>() = -sR_inv * t;
-
-    return {T_gt_est, T_est_gt, true};
-}
-
-PYBIND11_MODULE(trajectory_tools, m) {
-    m.def("find_trajectories_associations", &find_trajectories_associations,
+    m.def("find_trajectories_associations", &trajectory_tools::find_trajectories_associations,
           py::arg("filter_timestamps"), py::arg("filter_t_wi"), py::arg("gt_timestamps"),
           py::arg("gt_t_wi"), py::arg("max_align_dt") = 1e-1, py::arg("verbose") = true,
           R"pbdoc(
@@ -409,8 +234,8 @@ PYBIND11_MODULE(trajectory_tools, m) {
                   Tuple of (timestamps_associations, filter_associations, gt_associations)
           )pbdoc");
 
-    m.def("align_3d_points_with_svd", &align_3d_points_with_svd, py::arg("gt_points"),
-          py::arg("est_points"), py::arg("find_scale") = true,
+    m.def("align_3d_points_with_svd", &trajectory_tools::align_3d_points_with_svd,
+          py::arg("gt_points"), py::arg("est_points"), py::arg("find_scale") = true,
           R"pbdoc(
             Align corresponding 3D points using Kabsch–Umeyama SVD.
 
@@ -422,6 +247,69 @@ PYBIND11_MODULE(trajectory_tools, m) {
             Returns:
                 Tuple (T_gt_est [4x4], T_est_gt [4x4], success)
         )pbdoc");
-}
 
 #endif
+
+    py::class_<trajectory_tools::AlignmentOptions,
+               std::shared_ptr<trajectory_tools::AlignmentOptions>>(m, "AlignmentOptions")
+        .def(py::init<>())
+        .def_readwrite("max_align_dt", &trajectory_tools::AlignmentOptions::max_align_dt)
+        .def_readwrite("find_scale", &trajectory_tools::AlignmentOptions::find_scale)
+        .def_readwrite("svd_eps", &trajectory_tools::AlignmentOptions::svd_eps)
+        .def_readwrite("verbose", &trajectory_tools::AlignmentOptions::verbose);
+
+    py::class_<trajectory_tools::AlignmentResult,
+               std::shared_ptr<trajectory_tools::AlignmentResult>>(m, "AlignmentResult")
+        .def_readonly("T_gt_est", &trajectory_tools::AlignmentResult::T_gt_est)
+        .def_readonly("T_est_gt", &trajectory_tools::AlignmentResult::T_est_gt)
+        .def_readonly("valid", &trajectory_tools::AlignmentResult::valid)
+        .def_readonly("n_pairs", &trajectory_tools::AlignmentResult::n_pairs)
+        .def_readonly("sigma2_est", &trajectory_tools::AlignmentResult::sigma2_est)
+        .def_readonly("mu_est", &trajectory_tools::AlignmentResult::mu_est)
+        .def_readonly("mu_gt", &trajectory_tools::AlignmentResult::mu_gt)
+        .def_readonly("singvals", &trajectory_tools::AlignmentResult::singvals);
+
+    py::class_<trajectory_tools::IncrementalTrajectoryAlignerNoLBA,
+               std::shared_ptr<trajectory_tools::IncrementalTrajectoryAlignerNoLBA>>(
+        m, "IncrementalTrajectoryAlignerNoLBA")
+        .def(py::init<const std::vector<double> &, const std::vector<Eigen::Vector3d> &>(),
+             py::arg("gt_timestamps"), py::arg("gt_t_wi"))
+        .def(py::init<const std::vector<double> &, const std::vector<Eigen::Vector3d> &,
+                      const trajectory_tools::AlignmentOptions &>(),
+             py::arg("gt_timestamps"), py::arg("gt_t_wi"), py::arg("opts"))
+        .def("set_options", &trajectory_tools::IncrementalTrajectoryAlignerNoLBA::set_options,
+             py::arg("opts"))
+        .def("set_gt", &trajectory_tools::IncrementalTrajectoryAlignerNoLBA::set_gt,
+             py::arg("gt_timestamps"), py::arg("gt_t_wi"))
+        .def("reset", &trajectory_tools::IncrementalTrajectoryAlignerNoLBA::reset)
+        .def("add_estimate", &trajectory_tools::IncrementalTrajectoryAlignerNoLBA::add_estimate,
+             py::arg("timestamp"), py::arg("est_t_wi"))
+        .def("result", &trajectory_tools::IncrementalTrajectoryAlignerNoLBA::result);
+
+    py::class_<trajectory_tools::IncrementalTrajectoryAligner,
+               std::shared_ptr<trajectory_tools::IncrementalTrajectoryAligner>>(
+        m, "IncrementalTrajectoryAligner")
+        .def(py::init<const std::vector<double> &, const std::vector<Eigen::Vector3d> &>(),
+             py::arg("gt_timestamps"), py::arg("gt_t_wi"))
+        .def(py::init<const std::vector<double> &, const std::vector<Eigen::Vector3d> &,
+                      const trajectory_tools::AlignmentOptions &>(),
+             py::arg("gt_timestamps"), py::arg("gt_t_wi"), py::arg("opts"))
+        .def("set_options", &trajectory_tools::IncrementalTrajectoryAligner::set_options,
+             py::arg("opts"))
+        .def("set_gt", &trajectory_tools::IncrementalTrajectoryAligner::set_gt,
+             py::arg("gt_timestamps"), py::arg("gt_t_wi"))
+        .def("reset", &trajectory_tools::IncrementalTrajectoryAligner::reset)
+        .def("update_trajectory",
+             &trajectory_tools::IncrementalTrajectoryAligner::update_trajectory,
+             py::arg("est_timestamps"), py::arg("est_positions"))
+        .def("num_associations", &trajectory_tools::IncrementalTrajectoryAligner::num_associations)
+        .def("get_estimated_timestamps",
+             &trajectory_tools::IncrementalTrajectoryAligner::get_estimated_timestamps)
+        .def("get_estimated_positions",
+             &trajectory_tools::IncrementalTrajectoryAligner::get_estimated_positions)
+        .def("get_gt_interpolated_positions",
+             &trajectory_tools::IncrementalTrajectoryAligner::get_gt_interpolated_positions)
+        .def("get_associated_pairs",
+             &trajectory_tools::IncrementalTrajectoryAligner::get_associated_pairs)
+        .def("result", &trajectory_tools::IncrementalTrajectoryAligner::result);
+}

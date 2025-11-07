@@ -48,6 +48,10 @@ class SemanticMappingShared:
     get_semantic_weight: Union[Callable[[np.ndarray], float], None] = None
 
     @staticmethod
+    def is_semantic_mapping_enabled():
+        return SemanticMappingShared.semantic_mapping is not None
+
+    @staticmethod
     def set_semantic_mapping(semantic_mapping, force=False):
 
         if not force and SemanticMappingShared.semantic_mapping is not None:
@@ -62,6 +66,11 @@ class SemanticMappingShared:
         SemanticMappingShared.get_semantic_weight = semantic_mapping.get_semantic_weight
         # Initialize the C++ module with the semantic mapping info
         SemanticMappingShared.init_cpp_module(semantic_mapping)
+
+    @staticmethod
+    def set_semantic_feature_type(semantic_feature_type: "SemanticFeatureType"):
+        SemanticMappingShared.semantic_feature_type = semantic_feature_type
+        SemanticMappingShared.set_cpp_semantic_feature_type(semantic_feature_type)
 
     @staticmethod
     def init_cpp_module(semantic_mapping: "SemanticMappingBase"):
@@ -101,4 +110,21 @@ class SemanticMappingShared:
             )
         except Exception as e:
             Printer.orange(f"WARNING: SemanticMappingShared: cannot set cpp_module: {e}")
+            traceback.print_exc()
+
+    @staticmethod
+    def set_cpp_semantic_feature_type(semantic_feature_type):
+        try:
+            from pyslam.slam.cpp import cpp_module
+            from pyslam.slam.cpp import CPP_AVAILABLE
+            from pyslam.slam import USE_CPP
+
+            if not CPP_AVAILABLE:
+                return
+
+            cpp_module.SemanticMappingSharedResources.semantic_feature_type = semantic_feature_type
+        except Exception as e:
+            Printer.orange(
+                f"WARNING: SemanticMappingShared: cannot set cpp_semantic_feature_type: {e}"
+            )
             traceback.print_exc()

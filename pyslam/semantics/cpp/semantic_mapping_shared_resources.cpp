@@ -21,10 +21,13 @@
 
 namespace pyslam {
 
-SemanticFeatureType SemanticMappingSharedResources::semantic_feature_type;
-SemanticDatasetType SemanticMappingSharedResources::semantic_dataset_type;
-SemanticEntityType SemanticMappingSharedResources::semantic_entity_type;
-SemanticSegmentationType SemanticMappingSharedResources::semantic_segmentation_type;
+SemanticFeatureType SemanticMappingSharedResources::semantic_feature_type =
+    SemanticFeatureType::NONE;
+SemanticDatasetType SemanticMappingSharedResources::semantic_dataset_type =
+    SemanticDatasetType::NONE;
+SemanticEntityType SemanticMappingSharedResources::semantic_entity_type = SemanticEntityType::NONE;
+SemanticSegmentationType SemanticMappingSharedResources::semantic_segmentation_type =
+    SemanticSegmentationType::NONE;
 
 std::shared_ptr<SemanticColorMap> SemanticMappingSharedResources::semantic_color_map;
 

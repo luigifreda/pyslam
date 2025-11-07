@@ -26,11 +26,8 @@ import cv2
 import numpy as np
 
 from pyslam.slam import Camera, Map, KeyFrame, Frame, USE_CPP
-
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
-
 from pyslam.utilities.system import Printer
-
 from pyslam.utilities.timer import TimerFps
 
 from pyslam.config_parameters import Parameters
@@ -67,8 +64,10 @@ kDataFolder = kRootFolder + "/data"
 
 
 class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
-    def __init__(self, camera, environment_type, sensor_type):
-        super().__init__(camera, environment_type, sensor_type)
+    def __init__(self, camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs):
+        super().__init__(
+            camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs
+        )
 
     def init(
         self,
@@ -76,8 +75,11 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
         environment_type: DatasetEnvironmentType,
         sensor_type: SensorType,
         parameters_dict,
+        constructor_kwargs,
     ):
-        VolumetricIntegratorBase.init(self, camera, environment_type, sensor_type, parameters_dict)
+        VolumetricIntegratorBase.init(
+            self, camera, environment_type, sensor_type, parameters_dict, constructor_kwargs
+        )
         self.init_print()
 
         self.volumetric_integration_depth_trunc = (
@@ -150,11 +152,16 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                                 VolumetricIntegratorBase.print(
                                     f"\t\tdepth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
                                 )
-                                min_depth = np.min(depth_undistorted)
-                                max_depth = np.max(depth_undistorted)
-                                VolumetricIntegratorBase.print(
-                                    f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
-                                )
+                                if depth_undistorted.size > 0:
+                                    min_depth = np.min(depth_undistorted)
+                                    max_depth = np.max(depth_undistorted)
+                                    VolumetricIntegratorBase.print(
+                                        f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
+                                    )
+                                else:
+                                    VolumetricIntegratorBase.print(
+                                        f"\t\tdepth_undistorted is empty, skipping min/max computation"
+                                    )
 
                             if pts3d is not None:
                                 VolumetricIntegratorBase.print(

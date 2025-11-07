@@ -52,11 +52,8 @@ from pyslam.depth_estimation.depth_estimator_factory import (
     DepthEstimatorType,
 )
 
-from pyslam.dense.volumetric_integrator_base import VolumetricIntegratorBase
-from pyslam.dense.volumetric_integrator_factory import (
-    volumetric_integrator_factory,
-    VolumetricIntegratorType,
-)
+from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
+from pyslam.dense.volumetric_integrator_factory import volumetric_integrator_factory
 
 
 import signal

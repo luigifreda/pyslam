@@ -43,8 +43,10 @@ inline std::ostream &err_stream() { return std::cerr; } // for fatals
 
 inline void log_impl(std::ostream &os, std::string_view color, std::string_view prefix,
                      std::string_view msg) {
-    static std::mutex m; // comment out if you don’t need thread-safety
+#if 0
+    static std::mutex m; // to enable if we need thread-safety
     std::lock_guard<std::mutex> lock(m);
+#endif
     os << color << prefix << msg << IoColor::reset << '\n';
 }
 } // namespace detail

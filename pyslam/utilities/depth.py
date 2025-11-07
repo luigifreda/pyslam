@@ -35,23 +35,45 @@ def img_from_depth(img_flt, img_max=None, img_min=None, eps=1e-9):
 
 
 class PointCloud:
-    def __init__(self, points=None, colors=None):
+    def __init__(self, points=None, colors=None, semantics=None, instance_ids=None):
         self.points = points  # array Nx3
         self.colors = colors  # array Nx3
+        self.semantics = semantics  # array Nx1
+        self.instance_ids = instance_ids  # array Nx1
 
 
-def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
+def depth2pointcloud(
+    depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, semantic_image=None, instance_image=None
+):
+    """
+    Convert depth image and color image to point cloud.
+    If semantic_image is provided, it will be used to extract semantics.
+    If instance_image is provided, it will be used to extract instance_ids.
+    Otherwise, semantics and instance_ids will be set to None.
+    """
     # mask for valid depth values
     valid = (depth > min_depth) & (depth < max_depth)
-    # indices of valid depth values
+    # use boolean indexing directly (faster than np.where)
+    z = depth[valid]
+    # pre-compute inverse focal lengths to avoid repeated divisions
+    inv_fx = 1.0 / fx
+    inv_fy = 1.0 / fy
+    # get row and column indices for valid pixels
     rows, cols = np.where(valid)
-    z = depth[rows, cols]
-    x = (cols - cx) * z / fx
-    y = (rows - cy) * z / fy
-    points = np.stack([x, y, z], axis=-1)
+    x = (cols - cx) * z * inv_fx
+    y = (rows - cy) * z * inv_fy
+    points = np.column_stack([x, y, z])
     # colors corresponding to valid depth values
-    colors = image[rows, cols] / 255.0
-    return PointCloud(points, colors)
+    colors = image[valid] / 255.0
+    if semantic_image is not None:
+        semantics = semantic_image[valid]
+    else:
+        semantics = None
+    if instance_image is not None:
+        instance_ids = instance_image[valid]
+    else:
+        instance_ids = None
+    return PointCloud(points, colors, semantics, instance_ids)
 
 
 def depth2pointcloud_v2(depth, image, fx, fy, cx, cy):

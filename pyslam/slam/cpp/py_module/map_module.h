@@ -218,11 +218,12 @@ void bind_map(pybind11::module &m) {
         // Visualization
         .def(
             "draw_feature_trails",
-            [](pyslam::Map &self, cv::Mat &img, const bool with_level_radius) {
+            [](pyslam::Map &self, cv::Mat &img, const bool with_level_radius,
+               int trail_max_length) {
                 py::gil_scoped_release gil_release;
-                return self.draw_feature_trails(img, with_level_radius);
+                return self.draw_feature_trails(img, with_level_radius, trail_max_length);
             },
-            py::arg("img"), py::arg("with_level_radius") = false)
+            py::arg("img"), py::arg("with_level_radius") = false, py::arg("trail_max_length") = 16)
         .def(
             "get_data_arrays_for_drawing",
             [](pyslam::Map &self, std::size_t max_points_to_visualize,

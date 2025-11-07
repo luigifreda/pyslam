@@ -30,7 +30,7 @@ import time
 import pyslam.config as config
 from pyslam.config_parameters import Parameters
 
-USE_VIEWER = True
+USE_VIEWER = False
 USE_CPP = True
 Parameters.USE_CPP_CORE = USE_CPP
 

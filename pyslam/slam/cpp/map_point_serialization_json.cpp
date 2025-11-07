@@ -47,6 +47,11 @@ std::string MapPoint::to_json() const {
     json_obj["color"] = {static_cast<int>(color[0]), static_cast<int>(color[1]),
                          static_cast<int>(color[2])};
 
+    // Semantic color
+    json_obj["semantic_color"] = {static_cast<int>(semantic_color[0]),
+                                  static_cast<int>(semantic_color[1]),
+                                  static_cast<int>(semantic_color[2])};
+
     // Observations (convert to ID references)
     {
         std::lock_guard<std::mutex> lock(_lock_features);
@@ -92,6 +97,14 @@ std::string MapPoint::to_json() const {
         json_obj["des"] = nullptr;
     }
 
+    // Semantic descriptor
+    if (!semantic_des.empty()) {
+        json_obj["semantic_des"] =
+            serialize_semantic_des(semantic_des, FeatureSharedResources::semantic_feature_type);
+    } else {
+        json_obj["semantic_des"] = nullptr;
+    }
+
     // Distance fields
     {
         std::lock_guard<std::mutex> lock(_lock_pos);
@@ -104,10 +117,6 @@ std::string MapPoint::to_json() const {
     json_obj["first_kid"] = first_kid;
     json_obj["kf_ref"] = kf_ref ? kf_ref->id : -1;
 
-    // Semantic descriptor
-    json_obj["semantic_des"] =
-        serialize_semantic_des(semantic_des, FeatureSharedResources::semantic_feature_type);
-
     return json_obj.dump();
 }
 
@@ -117,13 +126,24 @@ MapPointPtr MapPoint::from_json(const std::string &json_str) {
     // Parse basic fields
     int id = safe_json_get(json_obj, "id", -1);
     Eigen::Vector3d pt = safe_parse_vector3d<double>(json_obj, "pt");
+
     auto color_array = safe_json_get_array<int>(json_obj, "color");
     Eigen::Matrix<unsigned char, 3, 1> color;
     if (color_array.size() >= 3) {
         color << static_cast<unsigned char>(color_array[0]),
             static_cast<unsigned char>(color_array[1]), static_cast<unsigned char>(color_array[2]);
     } else {
-        color << 255, 255, 255; // Default white color
+        color << 0, 0, 0; // Default black color
+    }
+
+    auto semantic_color_array = safe_json_get_array<int>(json_obj, "semantic_color");
+    Eigen::Matrix<unsigned char, 3, 1> semantic_color;
+    if (semantic_color_array.size() >= 3) {
+        semantic_color << static_cast<unsigned char>(semantic_color_array[0]),
+            static_cast<unsigned char>(semantic_color_array[1]),
+            static_cast<unsigned char>(semantic_color_array[2]);
+    } else {
+        semantic_color << 0, 0, 0; // Default black color
     }
 
     // Create MapPoint with basic constructor
@@ -191,6 +211,7 @@ MapPointPtr MapPoint::from_json(const std::string &json_str) {
         p->semantic_des = semantic_result.first;
         // Note: semantic_type is not stored in MapPoint, but could be used for validation
     }
+    p->semantic_color = Vec3b(semantic_color[0], semantic_color[1], semantic_color[2]);
 
     return p;
 }

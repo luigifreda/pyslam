@@ -31,11 +31,7 @@ import ujson as json
 
 from pyslam.utilities.system import Printer, locally_configure_qt_environment
 from pyslam.io.dataset_types import get_sensor_type, SensorType
-
-# from pyslam.utilities.serialization import SerializationJSON
-# import json
-
-# N.B.: this file must stay in the root folder of the repository
+from pyslam.config_parameters import Parameters
 
 
 kScriptPath = os.path.realpath(__file__)
@@ -374,6 +370,10 @@ class Config:
                 self._use_fov_centers_based_kf_generation = bool(
                     self.system_settings["KeyFrame.useFovCentersBasedGeneration"]
                 )
+            else:
+                self._use_fov_centers_based_kf_generation = (
+                    Parameters.kUseFovCentersBasedKfGeneration
+                )
         return self._use_fov_centers_based_kf_generation
 
     @property
@@ -384,6 +384,8 @@ class Config:
                 self._max_fov_centers_distance = self.system_settings[
                     "KeyFrame.maxFovCentersDistance"
                 ]
+            else:
+                self._max_fov_centers_distance = Parameters.kMaxFovCentersDistanceForKfGeneration
         return self._max_fov_centers_distance
 
     # stereo settings

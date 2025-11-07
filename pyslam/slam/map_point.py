@@ -327,8 +327,10 @@ class MapPoint(MapPointBase):
         super().__init__(id)
         self._pt = np.ascontiguousarray(position)  # position in the world frame
 
-        self.color = color
-        self.semantic_des = None
+        self.color = np.ascontiguousarray(color)
+
+        self.semantic_des = None  # semantic descriptor (continuously updated)
+        self.semantic_color = None  # semantic color (continuously updated)
 
         self.des = None  # best descriptor (continuously updated)
         self._min_distance, self._max_distance = 0, float("inf")  # depth infos
@@ -346,8 +348,12 @@ class MapPoint(MapPointBase):
             if idxf is not None:
                 self.des = keyframe.des[idxf]
                 level = keyframe.octaves[idxf]
+                if keyframe.kps_sem is not None:
+                    self.semantic_des = keyframe.kps_sem[idxf]
+                    self.semantic_color = SemanticMappingShared.sem_des_to_rgb(
+                        self.semantic_des, bgr=False
+                    )
             else:
-                self.des = None
                 level = 0
             level_scale_factor = FeatureTrackerShared.feature_manager.scale_factors[level]
             self._max_distance = dist * level_scale_factor
@@ -406,6 +412,11 @@ class MapPoint(MapPointBase):
             "semantic_des": serialize_semantic_des(
                 self.semantic_des, SemanticMappingShared.semantic_feature_type
             ),
+            "semantic_color": (
+                self.semantic_color.tolist()
+                if self.semantic_color is not None and isinstance(self.semantic_color, np.ndarray)
+                else self.semantic_color
+            ),
             "des": self.des.tolist() if self.des is not None else None,
             "_min_distance": self._min_distance,
             "_max_distance": self._max_distance,
@@ -434,6 +445,10 @@ class MapPoint(MapPointBase):
         p.kf_ref = json_str["kf_ref"]
 
         p.semantic_des, semantic_type = deserialize_semantic_des(json_str["semantic_des"])
+        semantic_color = json_str["semantic_color"]
+        p.semantic_color = (
+            np.ascontiguousarray(semantic_color) if semantic_color is not None else semantic_color
+        )
         return p
 
     def replace_ids_with_objects(self, points, frames, keyframes):
@@ -689,10 +704,14 @@ class MapPoint(MapPointBase):
             for kf, idx in observations
             if not kf.is_bad() and kf.kps_sem is not None
         ]
-        if len(semantics) >= 2:
+
+        if len(semantics) >= 2 or self.semantic_des is None:
             fused_semantics = semantic_fusion_method(semantics)
             with self._lock_features:
                 self.semantic_des = fused_semantics
+                self.semantic_color = SemanticMappingShared.sem_des_to_rgb(
+                    fused_semantics, bgr=False
+                )
 
     def update_info(self):
         # if self._is_bad:

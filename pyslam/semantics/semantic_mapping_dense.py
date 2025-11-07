@@ -248,6 +248,11 @@ class SemanticMappingDense(SemanticMappingDenseBase):
             semantic_feature_type=self.semantic_feature_type,
             semantic_dataset_type=semantic_dataset_type,
             image_size=image_size,
+            encoder_name=(
+                self.semantic_mapping_config.encoder_name
+                if self.semantic_mapping_config.encoder_name
+                else None
+            ),
         )
 
     def semantic_mapping_impl(self):

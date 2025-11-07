@@ -56,7 +56,9 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
       - [Reload and check your dense reconstruction](#reload-and-check-your-dense-reconstruction)
       - [Controlling the spatial distribution of keyframe FOV centers](#controlling-the-spatial-distribution-of-keyframe-fov-centers)
     - [Depth prediction](#depth-prediction)
-    - [Semantic mapping](#semantic-mapping)
+    - [Semantic mapping and Image Segmentation](#semantic-mapping-and-image-segmentation)
+      - [Sparse Semantic Mapping](#sparse-semantic-mapping)
+      - [Semantic volumetric mapping](#semantic-volumetric-mapping)
     - [Saving and reloading](#saving-and-reloading)
       - [Save the a map](#save-the-a-map)
       - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
@@ -359,7 +361,7 @@ See the file [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closin
 
 #### Dense reconstruction while running SLAM 
 
-The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled by default. You can enable it by setting `kUseVolumetricIntegration=True` and selecting your preferred method `kVolumetricIntegrationType` in `pyslam/config_parameters.py`. At present, two methods are available: `TSDF` and `GAUSSIAN_SPLATTING` (see [pyslam/dense/volumetric_integrator_factory.py](pyslam/dense/volumetric_integrator_factory.py)). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method.
+The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled by default. You can enable it by setting `kDoVolumetricIntegration=True` and selecting your preferred method `kVolumetricIntegrationType` in `pyslam/config_parameters.py`. At present, two methods are available: `TSDF` and `GAUSSIAN_SPLATTING` (see [pyslam/dense/volumetric_integrator_factory.py](pyslam/dense/volumetric_integrator_factory.py)). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method.
 
 At present, the volumetric reconstruction pipeline works with:
 - RGBD datasets 
@@ -399,6 +401,11 @@ If you are targeting volumetric reconstruction while running SLAM, you can enabl
 KeyFrame.useFovCentersBasedGeneration: 1  # compute 3D fov centers of camera frames by using median depth and use their distances to control keyframe generation
 KeyFrame.maxFovCentersDistance: 0.2       # max distance between fov centers in order to generate a keyframe
 ```
+or by setting the following parameters in `config_parameters.py`: 
+```python
+kUseFovCentersBasedKfGeneration = False  # Use FOV centers based keyframe generation; not considered if KeyFrame.useFovCentersBasedGeneration is set in yaml
+kMaxFovCentersDistanceForKfGeneration = 0.2  # [m] Maximum distance between FOV centers for keyframe generation; not considered if KeyFrame.maxFovCentersDistance is set in yaml
+```
 
 ---
 
@@ -416,16 +423,18 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
 
 ---
 
-### Semantic mapping
+### Semantic mapping and Image Segmentation
 
 
 <p style="text-align: center;">
   <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" style="height: 300px; width: auto;"/>
 </p>
 
-The semantic mapping pipeline can be enabled by setting the parameter `kDoSemanticMapping=True` in `pyslam/config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `pyslam/semantics/semantic_mapping_configs.py`.
+The sparse semantic mapping pipeline can be enabled by setting the parameter `kDoSparseSemanticMappingAndSegmentation=True` in `pyslam/config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `pyslam/semantics/semantic_mapping_configs.py`.
 
-Different semantic mapping methods are available (see [here](./docs/semantics.md) for furthere details). Currently, we support semantic mapping using **dense semantic segmentation**.
+#### Sparse Semantic Mapping
+
+Different semantic mapping methods are available (see [here](./docs/semantics.md) for further details). Currently, we support semantic mapping using **dense semantic segmentation**.
   - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
   - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
   - `CLIP`: from `f3rm` package for open-vocabulary support.
@@ -436,6 +445,16 @@ Different semantic mapping methods are available (see [here](./docs/semantics.md
 - *Feature vectors*: feature vectors obtained from an encoder. This is generally used for open vocabulary mapping.
 
 The simplest way to test the available segmentation models is to run: `test/semantics/test_semantic_segmentation.py`.
+
+
+#### Semantic volumetric mapping
+
+Semantic volumetric mapping can be performed by setting: 
+```python
+kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
+kDoVolumetricIntegration = True # enable volumetric integration
+kVolumetricIntegrationType = "VOXEL_SEMANTIC_GRID_PROBABILISTIC" # use semantic volumetric models like VOXEL_SEMANTIC_GRID_PROBABILISTIC and VOXEL_SEMANTIC_GRID
+```
 
 ---
 
@@ -877,7 +896,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * [MegaLoc](https://github.com/gmberton/MegaLoc)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
-* Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for his great work on integrating [semantic predictions](./docs/semantics.md) into pySLAM.
+* Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for his great work on integrating [semantic sparse mapping](./docs/semantics.md) into pySLAM.
 
 ---
 ## License 

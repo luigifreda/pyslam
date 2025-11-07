@@ -59,11 +59,13 @@ int get_cv_depth_for_semantic_feature_type(const SemanticFeatureType &type);
  * entities
  */
 enum class SemanticEntityType : int {
+    NONE = -1,
     POINT = 0, // The semantics are associated to each point
     OBJECT = 1 // The semantics are associated to each object
 };
 
 enum class SemanticDatasetType : int {
+    NONE = -1,
     CITYSCAPES = 0,
     ADE20K = 1,
     VOC = 2,
@@ -73,6 +75,7 @@ enum class SemanticDatasetType : int {
 };
 
 enum class SemanticSegmentationType : int {
+    NONE = -1,
     DEEPLABV3 = 0, // Semantics from torchvision DeepLab's v3
     SEGFORMER = 1, // Semantics from transformer's Segformer
     CLIP = 2,      // Semantics from CLIP's segmentation head

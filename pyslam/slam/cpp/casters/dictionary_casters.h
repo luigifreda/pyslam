@@ -55,7 +55,7 @@ template <> struct type_caster<pyslam::Value> {
         }
 
         if (py::isinstance<py::int_>(src)) {
-            // Will throw if out of int64 range; adjust if you need big ints
+            // Will throw if out of int64 range; to adjust if we need big ints in the future
             value = pyslam::Value(py::cast<int64_t>(src));
             return true;
         }

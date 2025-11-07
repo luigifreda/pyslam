@@ -206,6 +206,9 @@ class SemanticMappingBase:
         with self.idle_condition:
             return self._is_idle
 
+    def is_ready(self):
+        return self.is_running
+
     def set_idle(self, flag):
         with self.idle_condition:
             self._is_idle = flag
@@ -280,7 +283,7 @@ class SemanticMappingBase:
             if not self.stop_requested:
                 ret = self.pop_keyframe()  # blocking call
                 if ret is not None:
-                    self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur = ret
+                    (self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur) = ret
                     if self.kf_cur is not None:
                         self.last_processed_kf_img_id = self.kf_cur.img_id
 

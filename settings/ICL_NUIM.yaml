@@ -25,7 +25,7 @@ Viewer.ViewpointYtop: -4.0
 
 # Camera calibration and distortion parameters (OpenCV) 
 Camera.fx: 481.20
-Camera.fy: -480.00
+Camera.fy: 480.00   # inverted w.r.t. nominal provided value
 Camera.cx: 319.50
 Camera.cy: 239.50
 

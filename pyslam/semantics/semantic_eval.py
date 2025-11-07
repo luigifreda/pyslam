@@ -34,7 +34,7 @@ from pyslam.utilities.system import Printer
 
 def evaluate_semantic_mapping(slam, dataset, metrics_save_dir):
     if (
-        Parameters.kDoSemanticMapping
+        Parameters.kDoSparseSemanticMappingAndSegmentation
         and slam.semantic_mapping.semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY
         and dataset.has_gt_semantics
         and slam.semantic_mapping.semantic_mapping_type == SemanticMappingType.DENSE

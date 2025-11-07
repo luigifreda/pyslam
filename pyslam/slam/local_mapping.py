@@ -366,7 +366,7 @@ class LocalMapping:
             if not self.stop_requested:
                 ret = self.pop_keyframe()  # blocking call
                 if ret is not None:
-                    self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur = ret
+                    (self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur) = ret
                     if self.kf_cur is not None:
                         self.last_processed_kf_img_id = self.kf_cur.img_id
 

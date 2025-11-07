@@ -178,7 +178,7 @@ class Tracking:
 
         # params read and set by Slam
         self.far_points_threshold = None
-        self.use_fov_centers_based_kf_generation = False
+        self.use_fov_centers_based_kf_generation = False  # set by Slam.set_config_params
         self.max_fov_centers_distance = -1
 
         self.state = SlamState.NO_IMAGES_YET

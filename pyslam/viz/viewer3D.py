@@ -23,13 +23,13 @@ import pyslam.config as config
 
 import time
 import random
-
 import torch.multiprocessing as mp
 
 from pyslam.config_parameters import Parameters
-import pypangolin as pangolin
-import glutils
-import OpenGL.GL as gl
+
+# NOTE: Heavy graphics imports (pypangolin, glutils, OpenGL) are moved to viewer_run()
+# to avoid slow startup when using multiprocessing with 'spawn' method.
+# These are only needed in the child process, not in the main process.
 import numpy as np
 
 # import open3d as o3d # apparently, this generates issues under mac
@@ -38,11 +38,15 @@ from pyslam.slam import Map, MapStateData
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 from pyslam.utilities.geometry import poseRt, inv_poseRt, inv_T
-from pyslam.utilities.geom_trajectory import TrajectoryAlignerProcess
+from pyslam.utilities.geom_trajectory import (
+    TrajectoryAlignerProcessBatch,
+    TrajectoryAlignerProcessIncremental,
+)
 from pyslam.utilities.system import Printer
 from pyslam.utilities.multi_processing import MultiprocessingManager
-from pyslam.utilities.data_management import empty_queue
+from pyslam.utilities.data_management import empty_queue, get_last_item_from_queue
 from pyslam.utilities.colors import GlColors
+from pyslam.utilities.waiting import wait_for_ready
 
 from typing import TYPE_CHECKING
 
@@ -221,6 +225,7 @@ class Viewer3D(object):
         self.qcams = self.mp_manager.Queue()
 
         self._is_running = mp.Value("i", 0)
+        self._is_looping = mp.Value("i", 0)
         self._is_paused = mp.Value("i", 0)
         self._is_closed = mp.Value("i", 0)
 
@@ -231,9 +236,13 @@ class Viewer3D(object):
         self._is_draw_features_with_radius = mp.Value("i", 0)
 
         self._is_gt_set = mp.Value("i", 0)
-        self.alignment_gt_data_queue = self.mp_manager.Queue()
-        self.aligner_input_queue = self.mp_manager.Queue()
-        self.aligner_output_queue = self.mp_manager.Queue()
+        self.alignment_gt_data_queue = (
+            self.mp_manager.Queue()
+        )  # used by slam_plot_drawer.py to draw GT alignment data
+        self.aligner_input_queue = (
+            self.mp_manager.Queue()
+        )  # used to pass data to the trajectory aligner
+        self.aligner_output_queue = self.mp_manager.Queue()  # used to get aligner output
         self.is_aligner_running = mp.Value("i", 0)
         self.trajectory_aligner = None
 
@@ -245,6 +254,7 @@ class Viewer3D(object):
                 self.qdense,
                 self.qcams,
                 self._is_running,
+                self._is_looping,
                 self._is_paused,
                 self._is_closed,
                 self._is_map_save,
@@ -273,7 +283,9 @@ class Viewer3D(object):
             self._is_gt_set.value = 0
             print(f"Viewer3D: Groundtruth shape: {gt_trajectory.shape}")
 
-            self.trajectory_aligner = TrajectoryAlignerProcess(
+            trajectory_aligner_class = TrajectoryAlignerProcessBatch
+            # trajectory_aligner_class = TrajectoryAlignerProcessIncremental  # experimental
+            self.trajectory_aligner = trajectory_aligner_class(
                 input_queue=self.aligner_input_queue,
                 output_queue=self.aligner_output_queue,
                 is_running_flag=self.is_aligner_running,
@@ -289,6 +301,8 @@ class Viewer3D(object):
         print("Viewer3D: quitting...")
         if self._is_running.value == 1:
             self._is_running.value = 0
+        if self._is_looping.value == 1:
+            self._is_looping.value = 0
         if self.vp.is_alive():
             self.vp.join()
         if self.is_aligner_running.value == 1:
@@ -297,6 +311,13 @@ class Viewer3D(object):
             self.trajectory_aligner.join()
         # pangolin.Quit()
         print("Viewer3D: done")
+
+    def wait_for_ready(self, timeout=None):
+        wait_for_ready(self.is_ready, "Viewer3D", timeout)
+        Printer.green("Viewer3D: ready")
+
+    def is_ready(self):
+        return self._is_running.value == 1 and self._is_looping.value == 1
 
     def is_running(self):
         return self._is_running.value == 1
@@ -341,6 +362,7 @@ class Viewer3D(object):
         qdense,
         qcams,
         is_running,
+        is_looping,
         is_paused,
         is_closed,
         is_map_save,
@@ -354,6 +376,21 @@ class Viewer3D(object):
         aligner_output_queue,
         is_aligner_running,
     ):
+        # Import heavy graphics libraries here (in the child process) to avoid slow startup
+        # when using multiprocessing with 'spawn' method. This way they're only loaded
+        # when the viewer process actually starts, not when the module is imported.
+        # These imports are made available to other methods (viewer_init, viewer_refresh)
+        # by setting them in the module's global namespace.
+        import pypangolin as pangolin
+        import glutils
+        import OpenGL.GL as gl
+
+        # Make imports available to other methods in this class by setting in module globals
+        # This allows viewer_init() and viewer_refresh() to access these modules when called
+        globals()["pangolin"] = pangolin
+        globals()["glutils"] = glutils
+        globals()["gl"] = gl
+
         self.viewer_init(kViewportWidth, kViewportHeight)
         is_running.value = 1
         # init local vars for the the process
@@ -368,7 +405,9 @@ class Viewer3D(object):
         self.thread_last_num_poses_gt_was_aligned = 0
         self.thread_last_frame_id_gt_was_aligned = 0
         self.thread_last_time_gt_was_aligned = time.time()
-        self.thread_alignment_gt_data_queue = alignment_gt_data_queue
+        self.thread_alignment_gt_data_queue = alignment_gt_data_queue  # used by slam_plot_drawer.py
+
+        is_looping.value = 1
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
             self.viewer_refresh(
@@ -515,14 +554,19 @@ class Viewer3D(object):
 
         # NOTE: take the last elements in the queues
 
-        while not qmap.empty():
-            self.map_state = qmap.get()
+        last_map_state = get_last_item_from_queue(qmap)
+        if last_map_state is not None:
+            self.map_state = last_map_state
 
-        while not qvo.empty():
-            self.vo_state = qvo.get()
+        last_vo_state = get_last_item_from_queue(qvo)
+        if last_vo_state is not None:
+            self.vo_state = last_vo_state
 
-        while not qdense.empty():
-            self.dense_state = qdense.get()
+        last_dense_state = get_last_item_from_queue(qdense)
+        if last_dense_state is not None:
+            self.dense_state = last_dense_state
+
+        if self.dense_state is not None:
             # update the camera images buffer
             self.camera_images.clear()
             for cam in self.dense_state.camera_images:
@@ -542,8 +586,9 @@ class Viewer3D(object):
                     color=cam.color,
                 )
 
-        while not qcams.empty():
-            self.camera_trajectories_state = qcams.get()
+        last_camera_trajectories_state = get_last_item_from_queue(qcams)
+        if last_camera_trajectories_state is not None:
+            self.camera_trajectories_state = last_camera_trajectories_state
 
         self.do_follow = self.checkboxFollow.Get()
         self.is_grid = self.checkboxGrid.Get()
@@ -668,6 +713,8 @@ class Viewer3D(object):
                         self.map_state.cur_frame_id - self.thread_last_frame_id_gt_was_aligned
                         > kAlignGroundTruthMinNumFramesPassed
                     )
+
+                    # Here we design if we should align the gt trajectory with the estimated trajectory
                     if (
                         self._is_running
                         and self.is_aligner_running.value == 1
@@ -690,17 +737,13 @@ class Viewer3D(object):
                                 dtype=float,
                             )
 
-                            # align_trajectories_fun = align_trajectories_with_svd
-                            # #align_trajectories_fun = align_trajectories_with_ransac   # WIP (just a test)
-                            # T_gt_est, error, alignment_gt_data = align_trajectories_fun(self.map_state.pose_timestamps, estimated_trajectory, self.thread_gt_timestamps, self.thread_gt_trajectory, \
-                            #                                                           compute_align_error=True, find_scale=self.thread_align_gt_with_scale)
-
                             self.aligner_input_queue.put(
                                 (map_data.pose_timestamps, estimated_trajectory)
                             )
 
-                            if not self.aligner_output_queue.empty():
-                                T_gt_est, error, alignment_gt_data = self.aligner_output_queue.get()
+                            aligner_output = get_last_item_from_queue(self.aligner_output_queue)
+                            if aligner_output is not None:
+                                T_gt_est, error, alignment_gt_data = aligner_output
                                 self.thread_alignment_gt_data_queue.put(alignment_gt_data)
 
                                 print(
@@ -710,21 +753,14 @@ class Viewer3D(object):
 
                                 self.thread_gt_associated_traj = alignment_gt_data.gt_t_wi
                                 self.thread_est_associated_traj = alignment_gt_data.estimated_t_wi
-
-                                T_est_gt = alignment_gt_data.T_est_gt
+                                # all gt data aligned to the estimated
                                 self.thread_gt_trajectory_aligned = (
-                                    T_est_gt[:3, :3] @ np.array(self.thread_gt_trajectory).T
-                                ).T + T_est_gt[
-                                    :3, 3
-                                ]  # all gt data aligned to the estimated
-                                if self.draw_gt_associations:
-                                    self.thread_gt_trajectory_aligned_associated = (
-                                        T_est_gt[:3, :3]
-                                        @ np.array(self.thread_gt_associated_traj).T
-                                    ).T + T_est_gt[
-                                        :3, 3
-                                    ]  # only the associated gt samples aligned to the estimated samples
-
+                                    alignment_gt_data.gt_trajectory_aligned
+                                )
+                                # only the associated gt samples aligned to the estimated samples
+                                self.thread_gt_trajectory_aligned_associated = (
+                                    alignment_gt_data.gt_trajectory_aligned_associated
+                                )
                         except Exception as e:
                             print(f"Viewer3D: viewer_refresh - align_gt_with_svd failed: {e}")
 
@@ -808,8 +844,12 @@ class Viewer3D(object):
                 elif self.dense_state.point_cloud is not None:
                     pc_points = self.dense_state.point_cloud[0]
                     pc_colors = self.dense_state.point_cloud[1]
+                    pc_semantic_colors = self.dense_state.point_cloud[2]
                     gl.glPointSize(self.densePointSize)
-                    glutils.DrawPoints(pc_points, pc_colors)
+                    if self.is_draw_color_semantics and pc_semantic_colors is not None:
+                        glutils.DrawPoints(pc_points, pc_semantic_colors)
+                    else:
+                        glutils.DrawPoints(pc_points, pc_colors)
 
         if self.camera_images.size() > 0:
             self.camera_images.draw()
@@ -938,6 +978,11 @@ class Viewer3D(object):
             if point_cloud is not None:
                 points = np.array(point_cloud.points)
                 colors = np.array(point_cloud.colors)
+                semantic_colors = (
+                    np.array(point_cloud.semantic_colors)
+                    if point_cloud.semantic_colors is not None
+                    else None
+                )
                 print(
                     f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
                 )
@@ -946,7 +991,11 @@ class Viewer3D(object):
                 print(
                     f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
                 )
-                dense_state.point_cloud = (points, colors)
+                if semantic_colors is not None and semantic_colors.shape[0] > 0:
+                    print(
+                        f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
+                    )
+                dense_state.point_cloud = (points, colors, semantic_colors)
             else:
                 Printer.orange("WARNING: both point_cloud and mesh are None")
 

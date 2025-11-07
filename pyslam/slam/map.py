@@ -329,9 +329,13 @@ class Map(object):
             except:
                 pass
 
-    def draw_feature_trails(self, img: np.ndarray, with_level_radius: bool = False):
+    def draw_feature_trails(
+        self, img: np.ndarray, with_level_radius: bool = False, trail_max_length: int = 16
+    ):
         if len(self.frames) > 0:
-            img_draw = self.frames[-1].draw_all_feature_trails(img, with_level_radius)
+            img_draw = self.frames[-1].draw_all_feature_trails(
+                img, with_level_radius, trail_max_length
+            )
             return img_draw
         return img
 
@@ -389,16 +393,15 @@ class Map(object):
             cols_rgb = np.empty((N, 3), dtype=np.float32)
             sem_colors = np.zeros((N, 3), dtype=np.float32)
 
-            is_semantic_mapping_active = SemanticMappingShared.sem_des_to_rgb is not None
+            is_semantic_mapping_active = (
+                SemanticMappingShared.semantic_feature_type is not None
+            )  # SemanticMappingShared.sem_des_to_rgb is not None
             try:
                 if is_semantic_mapping_active:
                     for i, p in enumerate(sel_points):
                         pts[i] = p.pt()
                         cols_rgb[i] = p.color
-                        if p.semantic_des is not None:
-                            sem_colors[i] = SemanticMappingShared.sem_des_to_rgb(
-                                p.semantic_des, bgr=False
-                            )
+                        sem_colors[i] = p.semantic_color
                 else:
                     for i, p in enumerate(sel_points):
                         pts[i] = p.pt()
@@ -454,6 +457,20 @@ class Map(object):
         cos_max_parallax=Parameters.kCosMaxParallax,
         far_points_threshold=None,
     ):
+        """
+        Add new points to the map from 3D point estimations, frames and pairwise matches.
+        Args:
+            points3d: [Nx3] 3D points
+            mask_pts3d: [N] mask of points to add
+            kf1: KeyFrame
+            kf2: KeyFrame
+            idxs1: [N] indices of points in kf1
+            idxs2: [N] indices of points in kf2
+            img1: Image
+            do_check: bool, if True, check if points are valid
+            cos_max_parallax: float, max parallax angle
+            far_points_threshold: float, threshold for far points
+        """
         # with self._lock:
         assert kf1.is_keyframe and kf2.is_keyframe  # kf1 and kf2 must be keyframes
         assert points3d.shape[0] == len(idxs1)

@@ -1,32 +1,36 @@
-# Semantic pySLAM
+# Semantic Mapping and Segmentation 
 
 <!-- TOC -->
 
-- [Semantic pySLAM](#semantic-pyslam)
+- [Semantic Mapping and Segmentation](#semantic-mapping-and-segmentation)
   - [Quick test](#quick-test)
+  - [Sparse Semantic Mapping and Segmentation](#sparse-semantic-mapping-and-segmentation)
   - [Implemented features](#implemented-features)
     - [Semantic features types](#semantic-features-types)
     - [Dense vs Object-Based](#dense-vs-object-based)
-    - [Model Support](#model-support)
+    - [Supported Models](#supported-models)
     - [Dataset Type Support](#dataset-type-support)
     - [Feature Fusion](#feature-fusion)
     - [Visualizations](#visualizations)
     - [Dataset Support](#dataset-support)
-  - [Main code changes](#main-code-changes)
-    - [Data structures](#data-structures)
+  - [Semantic volumetric mapping](#semantic-volumetric-mapping)
   - [TODOs](#todos)
-  - [References](#references)
 
 <!-- /TOC -->
 
-The `semantics` module in pySLAM enables **semantic mapping** capabilities. It is designed to support rapid prototyping, benchmarking, and evaluation of semantic mapping methods within the SLAM pipeline.
+
+The `semantics` module in pySLAM enables **semantic mapping** and **image segmentation** capabilities. It is designed to support rapid prototyping, benchmarking, and evaluation of semantic mapping methods within the SLAM pipeline.
 
 ## Quick test
 
-Run the `main_slam.py` example to run Segformer (trained on Cityscapes) on the default KITTI video.
+- Enable sparse semantic mapping and segmentation by setting: ``
+- Run the `main_slam.py` example to run Segformer (trained on Cityscapes) on the default KITTI video.
 
 For testing the **open-vocabulary feature**: change the semantic mapping config in the `semantic_mapping_configs.py` file to:  
 Then change your query word in `semantic_segmentation_clip.py` to your desire.
+
+
+## Sparse Semantic Mapping and Segmentation
 
 ## Implemented features
 
@@ -52,7 +56,7 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
   - Features are assigned at object-level: multiple KPs or MPs share descriptors.
   - Approaches: project 2D masks or use DBSCAN for 3D clustering.
 
-### Model Support
+### Supported Models
 
 - Segmentation models have a base class with an `infer` interface returning semantic images.
 - A `to_rgb` method converts semantic outputs into color maps.
@@ -84,45 +88,20 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 - **Scannet** is supported with GT pose and GT semantics.
 - Evaluation done with Segformer on ADE20k + class mapping.
 
-## Main code changes
 
-- Added `semantics` and `Scannet` to README.
-- Added `SCANNET_DATSET` to `config.yaml`.
-- Added semantic parameters to `config_parameters.yaml`.
-- Semantic module connected to volumetric integrator (**not used** currently).
-- Added configs (feature tracker, loop detection, semantic mapping) to `Config` class for future `dump_config`.
-- Integrated Scannet in:
-  - `dataset.py`
-  - `dataset_factory.py`
-  - `dataset_types.py`
-  - `ground_truth.py`
-- Added `scannetv2-labels.combined.tsv` for label mapping to NYU40.
-- Updated `main_slam.py`:
-  - Instantiate `SemanticMappingConfig` based on SLAM dataset
-  - Add semantic evaluation
-- Created `semantics/` folder
+## Semantic volumetric mapping
 
-### Data structures
+Semantic volumetric mapping can be performed by setting: 
+```python
+kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
+kDoVolumetricIntegration = True # enable volumetric integration
+kVolumetricIntegrationType = "VOXEL_SEMANTIC_GRID_PROBABILISTIC" # use semantic volumetric models like VOXEL_SEMANTIC_GRID_PROBABILISTIC and VOXEL_SEMANTIC_GRID
+```
 
-- `frame.py`: Added `kps_sem`, `semantic_img`, `set_semantics()`
-- `keyframe.py`: Added `kps_sem`
-- `local_mapping.py`: Linked local mapping with semantic mapping
-- `map_point.py`: Added `semantic_des`, `update_semantics()`
-- `slam.py`: Instantiate `semantic_mapping`, manage lifecycle (`stop`, `reset`, etc.)
-- `viewer3D.py`: Add semantic visualizations
 
 ## TODOs
 
-- Add documentation (depends on integration strategy)
-- Extensive tests with full pySLAM functionality (e.g. save/load maps)
-- Investigate variation in KF count for LABEL vs PROBABILITY_VECTOR
-- Handle unlabeled MPs (possibly added post-semantic mapping)
+- Investigate variants in KF count for LABEL vs PROBABILITY_VECTOR
 - Implement object-based semantic mapping
-- Integrate semantics in volumetric mapping (Open3D-based — postponed)
 - Add interaction in 3D viewer to change query word (open-vocab)
 - Refactor `sem_des_to_rgb` vs `sem_img_to_rgb` (may be redundant)
-
-
-## References 
-
-Original [David](https://github.com/dvdmc)'s notes are available [here](https://docs.google.com/document/d/1MpLvLVx35Sr9fh6W-YcUlRjWY3dvww4ROGqWeOI_J_8/edit?tab=t.0#heading=h.65ibkflchz2i).
