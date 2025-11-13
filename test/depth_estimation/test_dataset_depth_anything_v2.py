@@ -45,7 +45,6 @@ model_configs = {
     "vitl": {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]},
 }
 
-# online loop closure detection by using DBoW3
 if __name__ == "__main__":
 
     dataset = dataset_factory(config)

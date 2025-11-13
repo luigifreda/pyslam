@@ -55,6 +55,7 @@ from .dataset import (
     VideoDataset,
     LiveDataset,
 )
+from .mcap_dataset import McapDataset
 
 
 from typing import TYPE_CHECKING
@@ -180,7 +181,7 @@ def dataset_factory(config: "Config") -> Dataset:
             config,
         )
     if type == "ros2bag":
-        from ros2bag_dataset import Ros2bagDataset
+        from pyslam.io.ros2bag_dataset import Ros2bagDataset
 
         fps = 10  # fps default value
         rate = 1.0  # rate multiplier default value
@@ -199,6 +200,20 @@ def dataset_factory(config: "Config") -> Dataset:
             environment_type,
             fps,
             config,
+        )
+    if type == "mcap":
+        if "fps" in dataset_settings:
+            fps = int(dataset_settings["fps"])
+        dataset = McapDataset(
+            path,
+            name,
+            sensor_type,
+            associations,
+            start_frame_id,
+            DatasetType.MCAP,
+            environment_type,
+            fps=fps,
+            config=config,
         )
     if type == "scannet":
         dataset = ScannetDataset(

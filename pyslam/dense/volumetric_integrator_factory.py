@@ -73,7 +73,7 @@ def volumetric_integrator_factory(
             volumetric_integrator_type=volumetric_integrator_type,
             use_voxel_blocks=Parameters.kVolumetricIntegrationUseVoxelBlocks,  # use voxel blocks by default since it is more efficient
         )
-    elif volumetric_integrator_type == VolumetricIntegratorType.VOXEL_SEMANTIC_GRID_PROBABILISTIC:
+    elif volumetric_integrator_type == VolumetricIntegratorType.VOXEL_SEMANTIC_PROBABILISTIC_GRID:
         return VolumetricIntegratorVoxelSemanticGrid(
             camera=camera,
             environment_type=environment_type,

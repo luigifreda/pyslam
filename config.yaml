@@ -9,7 +9,8 @@ DATASET:
   type: VIDEO_DATASET
   #type: SCANNET_DATASET
   #type: ROS1BAG_DATASET
-  #type: ROS2BAG_DATASET  
+  #type: ROS2BAG_DATASET
+  #type: MCAP_DATASET
   #type: FOLDER_DATASET
   #type: LIVE_DATASET  # Not recommended for current development stage
 
@@ -37,8 +38,8 @@ TUM_DATASET:
   #name: rgbd_dataset_freiburg3_long_office_household
   #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
-  name: rgbd_dataset_freiburg1_xyz 
-  settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
+  #name: rgbd_dataset_freiburg1_xyz 
+  #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
   #name: rgbd_dataset_freiburg2_desk
   #settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
@@ -46,15 +47,15 @@ TUM_DATASET:
   #name: rgbd_dataset_freiburg1_desk
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file  
   #
-  #name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
-  #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
+  name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
+  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto
 
 
 ICL_NUIM_DATASET:
-  type: tum         # Same format as TUM
+  type: icl_nuim         
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/icl_nuim
   #
@@ -159,7 +160,8 @@ ROS1BAG_DATASET:
   ros_settings:
     sync_queue_size: 100                                # for syncing the messages with the ApproximateTimeSynchronizer
     sync_slop: 0.05                                     # in seconds: delay with which messages can be synchronized
-    depth_factor: 5000.0                                # (optional) scale factor for depth images if available
+    depth_factor: 1.0                                # (optional) scale factor for depth images if available, normally managed by camera settings
+    convert_color_rgb2bgr: False                        # (optional) convert RGB to BGR for color images
     topics: 
       color_image: '/camera/rgb/image_color'       # left color image
       #right_color_image: '/camera/rgb/image_left' # used for stereo datasets
@@ -197,12 +199,13 @@ ROS2BAG_DATASET:
   #
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg1_room/    # path of the folder containing the bag
-  name: rgbd_dataset_freiburg1_room.ros2.bag                                             # final folder name of the bag
+  name: rgbd_dataset_freiburg1_room.ros2.bag                                             # file name of the bag
   settings: settings/TUM1.yaml                  # do not forget to correctly set the corresponding camera settings file
   ros_settings:
     sync_queue_size: 100                                # for syncing the messages with the ApproximateTimeSynchronizer
     sync_slop: 0.05                                     # in seconds: delay with which messages can be synchronized
-    depth_factor: 5000.0                                # (optional) scale factor for depth images if available
+    depth_factor: 1.0                                   # (optional) scale factor for depth images if available, normally managed by camera settings
+    convert_color_rgb2bgr: False                        # (optional) convert RGB to BGR for color images
     topics: 
       color_image: '/camera/rgb/image_color'       # left color image
       #right_color_image: '/camera/rgb/image_left' # used for stereo datasets
@@ -211,6 +214,30 @@ ROS2BAG_DATASET:
   groundtruth_file: /home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg1_room/simple_groundtruth.txt
   environment_type: indoor  # Here, 'environment_type' can be 'indoor' or 'outdoor'  
   fps: 30                                        # desired rate of the dataset
+
+
+
+MCAP_DATASET:
+  type: mcap 
+  #
+  #
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono', 'stereo', or 'rgbd' depending on the ros1bag content  
+  base_path: /home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg1_room/    # path of the folder containing the bag
+  name: rgbd_dataset_freiburg1_room.ros2.mcap                                             # file name of the mcap file
+  settings: settings/TUM1.yaml                  # do not forget to correctly set the corresponding camera settings file
+  ros_settings:
+    sync_queue_size: 100                               # for syncing the messages with the ApproximateTimeSynchronizer
+    sync_slop: 0.05                                    # in seconds: delay with which messages can be synchronized
+    depth_factor: 1.0                                  # (optional) scale factor for depth images if available, normally managed by camera settings
+    convert_color_rgb2bgr: False                       # (optional) convert RGB to BGR for color images
+    topics: 
+      color_image: '/camera/rgb/image_color'       # left color image
+      #right_color_image: '/camera/rgb/image_left' # used for stereo datasets
+      depth_image: '/camera/depth/image'           # used for rgbd datasets
+      #camera_info: '/camera/rgb/camera_info'      # TODO: override camera settings if available
+  groundtruth_file: /home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg1_room/simple_groundtruth.txt
+  environment_type: indoor  # Here, 'environment_type' can be 'indoor' or 'outdoor'  
+  fps: 30                                        # desired rate of the dataset  
 
 # DO NOT USE [LIVE_DATASET]! This section is here for future developments. 
 # At the present time (see the README file):
@@ -241,7 +268,7 @@ SAVE_TRAJECTORY:
 # This section allows to change and override the default values of the global parameters contained in pyslam/config_parameters.py
 # In this way, this yaml configuration serves as a single entry point to configure and launch experiments. 
 GLOBAL_PARAMETERS: 
-  #kUseVolumetricIntegration: True
+  #kDoVolumetricIntegration: True
   #kVolumetricIntegrationUseDepthEstimator: True
   #kLogsFolder: /tmp/pyslam_logs       # to redirect the prints of SLAM to the set folder
   

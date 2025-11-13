@@ -434,9 +434,9 @@ The Section~\ref{supported-depth-prediction-models} reports a list of supported 
 
 \subsubsection{Volumetric Integrator}
 
-The diagram in Fig.~\ref{Fig:VolumetricIntegrator} illustrates the structure of the \textit{Volumetric Integrator} module. At its core, the \texttt{volumetric\_integrator\_factory} generates specific volumetric integrator instances based on the selected \texttt{volumetric\_integrator\_type}, such as \texttt{TSDF} and \texttt{GAUSSIAN\_SPLATTING}.
+The diagram in Fig.~\ref{Fig:VolumetricIntegrator} illustrates the structure of the \textit{Volumetric Integrator} module. At its core, the \texttt{volumetric\_integrator\_factory} generates specific volumetric integrator instances based on the selected \texttt{volumetric\_integrator\_type}, such as \texttt{VOXEL\_GRID}, \texttt{VOXEL\_SEMANTIC\_GRID}, \texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID}, \texttt{TSDF}, and \texttt{GAUSSIAN\_SPLATTING}.
 
-Each type instantiates a dedicated implementation (e.g., \texttt{VolumetricIntegratorTSDF}, \texttt{VolumetricIntegrator\-Gaussian\-Splatting}), which inherits from a common \texttt{VolumetricIntegratorBase}. This base class encapsulates key components including the \texttt{camera}, a \texttt{keyframe\_queue}, and the \texttt{volume}, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
+Each type instantiates a dedicated implementation (e.g., \texttt{VolumetricIntegratorVoxelGrid}, \texttt{VolumetricIntegrator\-Voxel\-Semantic\-Grid}, \texttt{VolumetricIntegratorTSDF}, \texttt{VolumetricIntegrator\-Gaussian\-Splatting}), which inherits from a common \texttt{VolumetricIntegratorBase}. This base class encapsulates key components including the \texttt{camera}, a \texttt{keyframe\_queue}, and the \texttt{volume}, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
 
 The Section~\ref{supported-volumetric-mapping-methods} reports a list of supported volume integration methods.
 
@@ -743,12 +743,12 @@ The SLAM back-end hosts a volumetric reconstruction pipeline. This is
 disabled by default. You can enable it by setting
 \texttt{kDoVolumetricIntegration=True} and selecting your preferred
 method \texttt{kVolumetricIntegrationType} in
-\texttt{pyslam/config\_parameters.py}. At present, two methods are available:
-\texttt{TSDF} and \texttt{GAUSSIAN\_SPLATTING} (see
+\texttt{pyslam/config\_parameters.py}. At present, the following methods are available:
+\texttt{VOXEL\_GRID}, \texttt{VOXEL\_SEMANTIC\_GRID}, \texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID}, \texttt{TSDF}, and \texttt{GAUSSIAN\_SPLATTING} (see
 \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/dense/volumetric_integrator_factory.py}{pyslam/dense/volumetric\_integrator\_factory.py}). Note that you need CUDA
 in order to run \texttt{GAUSSIAN\_SPLATTING} method.
 
-At present, the volumetric reconstruction pipeline works with:
+The volumetric reconstruction pipeline works with:
 \begin{itemize}
 \item RGBD datasets 
 \item When a \protect\hyperlink{depth-prediction}{depth estimator}
@@ -1629,6 +1629,7 @@ methods}\label{supported-volumetric-mapping-methods}}
 
 \begin{itemize}
 \tightlist
+\item A C++ template-based voxel grid implementation leverages parallel spatial hashing, supporting both direct voxel hashing and indirect voxel-block hashing strategies. Parallel execution is managed using TBB, and the design accommodates both simple and semantic voxels. Further information about the volumetric grid models is available \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/cpp/volumetric/README.md}{here}.
 \item
   \href{https://arxiv.org/pdf/2110.00511}{TSDF} with voxel block grid
   (parallel spatial hashing)~\cite{dong2022ash}

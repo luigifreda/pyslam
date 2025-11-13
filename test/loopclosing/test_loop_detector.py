@@ -42,7 +42,7 @@ from pyslam.loop_closing.loop_detector_base import (
 )
 
 
-# online loop closure detection by using DBoW3
+# online loop closure detection
 if __name__ == "__main__":
 
     dataset = dataset_factory(config)

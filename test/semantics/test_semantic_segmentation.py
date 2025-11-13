@@ -43,7 +43,6 @@ Parameters.kLoopClosingDebugWithSimmetryMatrix = True
 Parameters.kLoopClosingDebugWithLoopDetectionImages = True
 
 
-# online loop closure detection by using DBoW3
 if __name__ == "__main__":
 
     dataset = dataset_factory(config)

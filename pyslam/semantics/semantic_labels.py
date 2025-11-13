@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -48,6 +49,11 @@ def generate_hsv_color_map(n: int, s=0.65, v=0.95):
     rgb_colors = [colorsys.hsv_to_rgb(*hsv) for hsv in hsv_colors]
     rgb_colors = [(int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors]
     return np.array(rgb_colors, dtype=np.uint8)
+
+
+# ==============================================
+# PASCAL VOC
+# ==============================================
 
 
 def get_voc_color_map():
@@ -109,6 +115,11 @@ def get_voc_labels():
     ]
 
 
+# ==============================================
+# CITYSCAPES
+# ==============================================
+
+
 def get_cityscapes_color_map():
     """Load the mapping that associates cityscapes classes with label colors
     Returns:
@@ -162,6 +173,11 @@ def get_cityscapes_labels():
         "motorcycle",
         "bicycle",
     ]
+
+
+# ==============================================
+# NYU40
+# ==============================================
 
 
 def get_nyu40_color_map():
@@ -234,19 +250,40 @@ def get_nyu40_labels():
         "bookshelf",
         "picture",
         "counter",
+        "blinds",
         "desk",
+        "shelves",
         "curtain",
+        "dresser",
+        "pillow",
+        "mirror",
+        "floormat",
+        "clothes",
+        "ceiling",
+        "books",
         "refrigerator",
+        "television",
+        "paper",
+        "towel",
         "showercurtain",
+        "box",
+        "whiteboard",
+        "person",
+        "nightstand",
         "toilet",
         "sink",
+        "lamp",
         "bathtub",
-        "cloth",
         "bag",
-        "other structure",
-        "other furniture",
-        "other prop",
+        "otherstructure",
+        "otherfurniture",
+        "otherprop",
     ]
+
+
+# ==============================================
+# ADE20K
+# ==============================================
 
 
 def get_ade20k_to_scannet40_map():
