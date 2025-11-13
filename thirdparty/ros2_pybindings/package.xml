@@ -13,7 +13,8 @@
   <depend>rosbag2_cpp</depend>
   <depend>message_filters</depend>
   <depend>rosbag2_storage</depend>
-
+  <depend>cv_bridge</depend>
+  
   <export>
     <build_type>ament_cmake</build_type>
   </export>

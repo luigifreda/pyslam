@@ -99,6 +99,7 @@ def semantic_segmentation_factory(
             image_size=image_size,
             semantic_feature_type=semantic_feature_type,
             encoder_name=encoder_name,
+            **kwargs,
         )
     elif semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
         # encoder_name defaults to "b0" for Segformer
@@ -109,6 +110,7 @@ def semantic_segmentation_factory(
             image_size=image_size,
             semantic_feature_type=semantic_feature_type,
             encoder_name=encoder_name,
+            **kwargs,
         )
     elif semantic_segmentation_type == SemanticSegmentationType.CLIP:
         # encoder_name defaults to "ViT-L/14@336px" for CLIP
@@ -119,6 +121,7 @@ def semantic_segmentation_factory(
             image_size=image_size,
             semantic_feature_type=semantic_feature_type,
             encoder_name=encoder_name,
+            **kwargs,
         )
     else:
         raise ValueError(f"Invalid semantic segmentation type: {semantic_segmentation_type}")

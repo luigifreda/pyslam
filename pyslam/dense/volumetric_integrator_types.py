@@ -10,7 +10,7 @@ class VolumetricIntegratorType(SerializableEnum):
     VOXEL_SEMANTIC_GRID = 1  # VoxelSemanticGrid with confidence-counter semantic fusion
                              # It stores the most observed semantic class for each voxel and its confidence counter
                              # (by default, uses voxel blocks if kVolumetricIntegrationUseVoxelBlocks is True)
-    VOXEL_SEMANTIC_GRID_PROBABILISTIC = 2 # VoxelSemanticGridProbabilistic with probabilistic semantic fusion (slower)
+    VOXEL_SEMANTIC_PROBABILISTIC_GRID = 2 # VoxelSemanticGridProbabilistic with probabilistic semantic fusion (slower)
                                           # It stores and updates the probabilities of each observed semantic class for each voxel
                                           # (by default, uses voxel blocks if kVolumetricIntegrationUseVoxelBlocks is True)
     TSDF = 3  # Truncated Signed Distance Function with voxel block grid (parallel spatial hashing)

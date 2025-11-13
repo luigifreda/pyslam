@@ -138,7 +138,11 @@ class Config:
         self.dataset_settings["base_path"] = os.path.join(self.root_folder, self.dataset_path)
         # print('dataset_settings: ', self.dataset_settings)
         str_dataset_settings_type = self.dataset_settings["type"].lower()
-        if str_dataset_settings_type == "ros1bag" or str_dataset_settings_type == "ros2bag":
+        if (
+            str_dataset_settings_type == "ros1bag"
+            or str_dataset_settings_type == "ros2bag"
+            or str_dataset_settings_type == "mcap"
+        ):
             self.get_ros_bag_settings()
 
     # get general system settings

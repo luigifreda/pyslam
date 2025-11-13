@@ -37,10 +37,11 @@ class DatasetType(SerializableEnum):
     VIDEO = 7
     FOLDER = 8  # generic folder of pics
     ROS1BAG = 9
-    ROS2BAG = 10
+    ROS2BAG = 10  # manage mcap files too (if you have built ros2_pybindings)
     LIVE = 11
     SCANNET = 12
     ICL_NUIM = 13
+    MCAP = 14
 
 
 @register_class

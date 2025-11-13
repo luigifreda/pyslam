@@ -81,6 +81,7 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
         image_size=(512, 1024),
         model_path="",
         semantic_feature_type=SemanticFeatureType.LABEL,
+        **kwargs,
     ):
 
         self.label_mapping = None

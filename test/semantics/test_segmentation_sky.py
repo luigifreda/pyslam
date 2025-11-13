@@ -24,7 +24,6 @@ from pyslam.io.dataset_factory import dataset_factory
 from pyslam.semantics.sky_mask_extractor import SkyMaskExtractor
 
 
-# online loop closure detection by using DBoW3
 if __name__ == "__main__":
 
     dataset = dataset_factory(config)

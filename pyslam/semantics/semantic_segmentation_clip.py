@@ -82,6 +82,7 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
         custom_set_labels=None,
         sim_text_query="clock",
         skip_center_crop=True,
+        **kwargs,
     ):
 
         device = self.init_device(device)

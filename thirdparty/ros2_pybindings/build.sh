@@ -16,10 +16,11 @@ if [[ -n "$EXTERNAL_OPTIONS" ]]; then
     echo "external option: $EXTERNAL_OPTIONS" 
 fi
 
-# OpenCV_DIR="$SCRIPT_DIR/../opencv/install/lib/cmake/opencv4"
-# if [[ -d "$OpenCV_DIR" ]]; then
-#     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
-# fi 
+OpenCV_DIR="$SCRIPT_DIR/../opencv/install/lib/cmake/opencv4"
+# Check if OpenCV_DIR was already set in the external options
+if [[ ! "$EXTERNAL_OPTIONS" == *"OpenCV_DIR"* ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
+fi 
 
 echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 

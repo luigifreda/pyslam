@@ -84,7 +84,7 @@ class GlobalFeatureDatabase:
         self.global_des_database.append(g_des)
 
 
-# online loop closure detection by using DBoW3
+# online loop closure detection
 if __name__ == "__main__":
 
     dataset = dataset_factory(config)

@@ -95,7 +95,7 @@ Semantic volumetric mapping can be performed by setting:
 ```python
 kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
 kDoVolumetricIntegration = True # enable volumetric integration
-kVolumetricIntegrationType = "VOXEL_SEMANTIC_GRID_PROBABILISTIC" # use semantic volumetric models like VOXEL_SEMANTIC_GRID_PROBABILISTIC and VOXEL_SEMANTIC_GRID
+kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
 
 

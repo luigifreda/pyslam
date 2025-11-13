@@ -337,22 +337,49 @@ def closest_rotation_matrix(A):
 @njit(cache=True)
 def qvec2rotmat(qvec):
     qx, qy, qz, qw = qvec
+    # Efficient normalization check and normalization
+    qx2 = qx * qx
+    qy2 = qy * qy
+    qz2 = qz * qz
+    qw2 = qw * qw
+    norm_sq = qx2 + qy2 + qz2 + qw2
+    eps = 1e-10
+    if norm_sq < eps:
+        return np.eye(3)
+    # Normalize if needed (only if norm is significantly different from 1.0)
+    if abs(norm_sq - 1.0) > 1e-6:
+        norm = np.sqrt(norm_sq)
+        qx /= norm
+        qy /= norm
+        qz /= norm
+        qw /= norm
+        # Recompute squares after normalization
+        qx2 = qx * qx
+        qy2 = qy * qy
+        qz2 = qz * qz
+    # Compute products
+    qx_qy = qx * qy
+    qx_qz = qx * qz
+    qw_qx = qw * qx
+    qw_qy = qw * qy
+    qw_qz = qw * qz
+    qy_qz = qy * qz
     return np.array(
         [
             [
-                1.0 - 2.0 * (qy**2 + qz**2),
-                2.0 * (qx * qy - qw * qz),
-                2.0 * (qx * qz + qw * qy),
+                1.0 - 2.0 * (qy2 + qz2),
+                2.0 * (qx_qy - qw_qz),
+                2.0 * (qx_qz + qw_qy),
             ],
             [
-                2.0 * (qx * qy + qw * qz),
-                1.0 - 2.0 * (qx**2 + qz**2),
-                2.0 * (qy * qz - qw * qx),
+                2.0 * (qx_qy + qw_qz),
+                1.0 - 2.0 * (qx2 + qz2),
+                2.0 * (qy_qz - qw_qx),
             ],
             [
-                2.0 * (qx * qz - qw * qy),
-                2.0 * (qy * qz + qw * qx),
-                1.0 - 2.0 * (qx**2 + qy**2),
+                2.0 * (qx_qz - qw_qy),
+                2.0 * (qy_qz + qw_qx),
+                1.0 - 2.0 * (qx2 + qy2),
             ],
         ]
     )

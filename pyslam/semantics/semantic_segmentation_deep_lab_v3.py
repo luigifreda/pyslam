@@ -77,6 +77,7 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
         semantic_dataset_type=SemanticDatasetType.VOC,
         image_size=(512, 512),
         semantic_feature_type=SemanticFeatureType.LABEL,
+        **kwargs,
     ):
 
         device = self.init_device(device)

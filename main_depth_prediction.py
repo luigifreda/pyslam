@@ -55,7 +55,6 @@ import time
 from pyslam.viz.viewer3D import Viewer3D
 
 
-# online loop closure detection by using DBoW3
 if __name__ == "__main__":
 
     config = Config()

@@ -36,6 +36,7 @@ try:
     from message_filters import ApproximateTimeSynchronizer, SimpleFilter
 except:
     Printer.red("ROS1 not installed or setup.bash not sourced!")
+    Printer.red("Please, double check you have source your ROS1 environment")
     print(traceback.format_exc())
     sys.exit(1)
 
@@ -156,6 +157,7 @@ class Ros1bagDataset(Dataset):
             raise ValueError(f"[Ros1bagDataset] Bag path {self.bag_path} does not exist")
         self.topics_dict = ros_settings["topics"]
         self.topics_list = list(self.topics_dict.values())
+        self.convert_color_rgb2bgr = ros_settings.get("convert_color_rgb2bgr", False)
 
         print(f"[Ros1bagDataset]: Bag: {self.bag_path}, Topics: {self.topics_dict}")
 
@@ -254,6 +256,8 @@ class Ros1bagDataset(Dataset):
             if self.color_image_topic:
                 color_img_msg = synced[self.color_image_topic]
                 self.color_img = self.bridge.imgmsg_to_cv2(color_img_msg, desired_encoding="bgr8")
+                if self.convert_color_rgb2bgr:
+                    self.color_img = cv2.cvtColor(self.color_img, cv2.COLOR_RGB2BGR)
                 print(f"[read] color image shape: {self.color_img.shape}")
             if self.depth_image_topic:
                 # depth_msg = synced[self.depth_image_topic]
@@ -281,6 +285,8 @@ class Ros1bagDataset(Dataset):
                 self.right_color_img = self.bridge.imgmsg_to_cv2(
                     left_color_img_msg, desired_encoding="bgr8"
                 )
+                if self.convert_color_rgb2bgr:
+                    self.right_color_img = cv2.cvtColor(self.right_color_img, cv2.COLOR_RGB2BGR)
                 print(f"[read] left color image shape: {self.right_color_img.shape}")
             self.count += 1
             self.is_ok = True
@@ -309,10 +315,22 @@ class Ros1bagDataset(Dataset):
                     cv2.imshow("left raw and rectified images", imgs)
                     cv2.waitKey(1)
             self.is_ok = img is not None
-            if frame_id + 1 < self.max_frame_id:
+            color_timestamps_len = len(self.topic_timestamps[self.color_image_topic])
+            if frame_id + 1 < color_timestamps_len:
                 self._next_timestamp = self.topic_timestamps[self.color_image_topic][frame_id + 1]
-            else:
+            elif frame_id < color_timestamps_len:
+                # Use current frame timestamp + Ts as fallback
+                current_ts = self.topic_timestamps[self.color_image_topic][frame_id]
+                self._next_timestamp = current_ts + self.Ts
+            elif self._timestamp is not None:
                 self._next_timestamp = self._timestamp + self.Ts
+            else:
+                # Last resort: use last timestamp if available
+                self._next_timestamp = (
+                    self.topic_timestamps[self.color_image_topic][-1] + self.Ts
+                    if color_timestamps_len > 0
+                    else None
+                )
         else:
             self.is_ok = False
             self._timestamp = None
@@ -338,12 +356,24 @@ class Ros1bagDataset(Dataset):
                     cv2.imshow("right raw and rectified images", imgs)
                     cv2.waitKey(1)
             self.is_ok = img is not None
-            if frame_id + 1 < self.max_frame_id:
+            right_timestamps_len = len(self.topic_timestamps[self.right_color_image_topic])
+            if frame_id + 1 < right_timestamps_len:
                 self._next_timestamp = self.topic_timestamps[self.right_color_image_topic][
                     frame_id + 1
                 ]
-            else:
+            elif frame_id < right_timestamps_len:
+                # Use current frame timestamp + Ts as fallback
+                current_ts = self.topic_timestamps[self.right_color_image_topic][frame_id]
+                self._next_timestamp = current_ts + self.Ts
+            elif self._timestamp is not None:
                 self._next_timestamp = self._timestamp + self.Ts
+            else:
+                # Last resort: use last timestamp if available
+                self._next_timestamp = (
+                    self.topic_timestamps[self.right_color_image_topic][-1] + self.Ts
+                    if right_timestamps_len > 0
+                    else None
+                )
         else:
             self.is_ok = False
             self._timestamp = None
@@ -360,10 +390,22 @@ class Ros1bagDataset(Dataset):
                 self.read()
             img = self.depth_img
             self.is_ok = img is not None
-            if frame_id + 1 < self.max_frame_id:
+            depth_timestamps_len = len(self.topic_timestamps[self.depth_image_topic])
+            if frame_id + 1 < depth_timestamps_len:
                 self._next_timestamp = self.topic_timestamps[self.depth_image_topic][frame_id + 1]
-            else:
+            elif frame_id < depth_timestamps_len:
+                # Use current frame timestamp + Ts as fallback
+                current_ts = self.topic_timestamps[self.depth_image_topic][frame_id]
+                self._next_timestamp = current_ts + self.Ts
+            elif self._timestamp is not None:
                 self._next_timestamp = self._timestamp + self.Ts
+            else:
+                # Last resort: use last timestamp if available
+                self._next_timestamp = (
+                    self.topic_timestamps[self.depth_image_topic][-1] + self.Ts
+                    if depth_timestamps_len > 0
+                    else None
+                )
         else:
             self.is_ok = False
             self._timestamp = None
