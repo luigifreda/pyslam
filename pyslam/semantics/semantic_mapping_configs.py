@@ -181,6 +181,13 @@ class SemanticMappingConfigs:
                 semantic_dataset_type=SemanticDatasetType.NYU40,
                 semantic_feature_type=SemanticFeatureType.LABEL,
             )
+        elif slam_dataset_name == DatasetType.MCAP:
+            return dict(
+                semantic_mapping_type=SemanticMappingType.DENSE,
+                semantic_segmentation_type=SemanticSegmentationType.SEGFORMER,
+                semantic_dataset_type=SemanticDatasetType.NYU40,
+                semantic_feature_type=SemanticFeatureType.LABEL,
+            )
         elif slam_dataset_name == DatasetType.LIVE:
             return dict(
                 semantic_mapping_type=SemanticMappingType.DENSE,

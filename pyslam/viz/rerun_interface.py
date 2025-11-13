@@ -128,6 +128,16 @@ class Rerun:
 
     @staticmethod
     def log_3d_camera_img_seq(frame_id: int, img, depth, camera: Camera, camera_pose) -> None:
+        """
+        Log a camera image and depth map.
+
+        Args:
+            frame_id: The frame ID of the camera image.
+            img: The camera image.
+            depth: The depth map.
+            camera: The camera object.
+            camera_pose: The camera pose.
+        """
 
         R = camera_pose[:3, :3]
         t = camera_pose[:3, 3]
@@ -194,6 +204,13 @@ class Rerun:
 
     @staticmethod
     def log_3d_grid_plane(num_divs=30, div_size=10):
+        """
+        Log a 3D grid plane.
+
+        Args:
+            num_divs: The number of divisions.
+            div_size: The size of each division.
+        """
         rr.set_time_sequence("frame_id", 0)
         # Plane parallel to x-z at origin with normal -y
         minx = -num_divs * div_size
@@ -227,6 +244,21 @@ class Rerun:
         fill_mode=None,
         base_topic="/world/bboxes",
     ) -> None:
+        """
+        Log a 3D box.
+
+        Args:
+            timestamp: The timestamp of the box.
+            color: The color of the box.
+            center: The center of the box.
+            quaternion: The quaternion of the box.
+            half_size: The half size of the box.
+            label: The label of the box.
+            box_name_string: The name of the box.
+            box_id: The ID of the box.
+            fill_mode: The fill mode of the box.
+            base_topic: The base topic of the box.
+        """
         # rr.set_time("frame_id", sequence=frame_id)
         rr.log(
             base_topic + "/" + box_name_string + str(box_id),
@@ -248,6 +280,16 @@ class Rerun:
         color=[255, 0, 0],
         size=0.2,
     ) -> None:
+        """
+        Log a 3D trajectory.
+
+        Args:
+            frame_id: The frame ID of the trajectory.
+            points: The points of the trajectory.
+            trajectory_string: The name of the trajectory.
+            color: The color of the trajectory.
+            size: The size of the trajectory.
+        """
         # rr.set_time_sequence("frame_id", frame_id)
         points = np.array(points).reshape(-1, 3)
         rr.log(
@@ -262,6 +304,16 @@ class Rerun:
 
     @staticmethod
     def log_3d_camera_pose(frame_id: int, camera: Camera, pose, color=[0, 255, 0], size=1.0):
+        """
+        Log a 3D camera pose.
+
+        Args:
+            frame_id: The frame ID of the camera pose.
+            camera: The camera object.
+            pose: The camera pose.
+            color: The color of the camera pose.
+            size: The size of the camera pose.
+        """
         topic_name = "world/camara_poses/camera_" + str(frame_id)
         R = pose[:3, :3]
         t = pose[:3, 3]
@@ -300,6 +352,17 @@ class Rerun:
         colors: np.ndarray = None,  # shape (N, 3)
         point_radius: float = 0.005,  # default radius in world units
     ):
+        """
+        Log a 3D pointcloud.
+
+        Args:
+            timestamp: The timestamp of the pointcloud.
+            points: The points of the pointcloud.
+            pose: The pose of the pointcloud.
+            topic: The topic of the pointcloud.
+            colors: The colors of the pointcloud.
+            point_radius: The radius of the pointcloud.
+        """
         if points.shape[1] != 3:
             raise ValueError("Points should have shape (N, 3)")
 
@@ -329,16 +392,41 @@ class Rerun:
 
     @staticmethod
     def log_2d_seq_scalar(topic: str, frame_id: int, scalar_data) -> None:
+        """
+        Log a 2D scalar at a specific frame ID.
+
+        Args:
+            topic: The topic of the scalar sequence.
+            frame_id: The frame ID of the scalar sequence.
+            scalar_data: The scalar data.
+        """
         rr.set_time_sequence("frame_id", frame_id)
         rr.log(topic, rr.Scalar(scalar_data))
 
     @staticmethod
     def log_2d_time_scalar(topic: str, frame_time_ns, scalar_data) -> None:
+        """
+        Log a 2D scalar sequence at a specific time.
+
+        Args:
+            topic: The topic of the scalar sequence.
+            frame_time_ns: The timestamp of the scalar sequence.
+            scalar_data: The scalar data.
+        """
         rr.set_time_nanos("time", frame_time_ns)
         rr.log(topic, rr.Scalar(scalar_data))
 
     @staticmethod
     def log_img_seq(topic: str, frame_id: int, img, adjust_rgb=True) -> None:
+        """
+        Log a 2D image sequence at a specific frame ID.
+
+        Args:
+            topic: The topic of the image sequence.
+            frame_id: The frame ID of the image sequence.
+            img: The image.
+            adjust_rgb: Whether to adjust the RGB color space.
+        """
         if adjust_rgb:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         rr.set_time_sequence("frame_id", frame_id)
@@ -349,6 +437,15 @@ class Rerun:
 
     @staticmethod
     def log_img_time(topic: str, frame_time_ns, img, adjust_rgb=True) -> None:
+        """
+        Log a 2D image at a specific time.
+
+        Args:
+            topic: The topic of the image.
+            frame_time_ns: The timestamp of the image.
+            img: The image.
+            adjust_rgb: Whether to adjust the RGB color space.
+        """
         if adjust_rgb:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         rr.set_time_nanos("time", frame_time_ns)

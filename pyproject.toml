@@ -85,6 +85,10 @@ dependencies = [
     "configargparse",
     "numba",
     "pytest",
+    "mcap",
+    "mcap-ros2-support",
+    "mcap-ros1-support",
+
 ]
 
 [tool.setuptools]

@@ -10,7 +10,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SET_RPATH               ON  CACHE BOOL   "Set RPATH instead of the default RUNPATH")
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter")
-set(WITH_OPENCV_SHOW OFF CACHE BOOL "Debug with opencv")
 set(WITH_JAZZY OFF CACHE BOOL "Build with ROS2 Jazzy")
 set(WITH_ROLLING OFF CACHE BOOL "Build with ROS2 Rolling")
 
@@ -39,12 +38,12 @@ find_package(sensor_msgs REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(rosbag2_storage REQUIRED)
+find_package(cv_bridge REQUIRED)
 
-if(WITH_OPENCV_SHOW)
-  message(STATUS "WITH_OPENCV_SHOW: ${WITH_OPENCV_SHOW}")
-  add_definitions(-DWITH_OPENCV_SHOW)
-  find_package(OpenCV REQUIRED)
-endif()
+find_package(OpenCV REQUIRED)
+message(STATUS "OpenCV_DIR: ${OpenCV_DIR}")
+message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
+message(STATUS "OpenCV_LIBS: ${OpenCV_LIBS}")
 
 if(WITH_JAZZY)
   message(STATUS "WITH_JAZZY: ${WITH_JAZZY}")
@@ -73,6 +72,7 @@ target_include_directories(ros2_pybindings
     ${rosbag2_cpp_INCLUDE_DIRS}
     ${message_filters_INCLUDE_DIRS}
     ${rosbag2_storage_INCLUDE_DIRS}
+    ${cv_bridge_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
 )
 
@@ -83,6 +83,7 @@ target_link_libraries(ros2_pybindings
     rosbag2_cpp::rosbag2_cpp
     message_filters::message_filters
     rosbag2_storage::rosbag2_storage
+    ${cv_bridge_LIBRARIES}
     ${OpenCV_LIBS}
 )
 

@@ -363,13 +363,20 @@ if __name__ == "__main__":
 
                 if time_start is not None:
                     processing_duration = time.time() - time_start
-                    if frame_duration > processing_duration:
-                        time.sleep(frame_duration - processing_duration)
+                    delta_time_sleep = (
+                        frame_duration - processing_duration - 1e-3
+                    )  # NOTE: 1e-3 is the cv wait time we use below with cv2.waitKey(1)
+                    if delta_time_sleep > 1e-3:
+                        time.sleep(delta_time_sleep)
+                        Printer.yellow(
+                            f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration"
+                        )
 
                 img_id += 1
                 num_frames += 1
             else:
                 time.sleep(0.1)  # img is None
+                Printer.yellow("sleeping for 0.1 seconds - img is None")
                 if args.headless:
                     break  # exit from the loop if headless
 
@@ -380,6 +387,7 @@ if __name__ == "__main__":
 
         else:
             time.sleep(0.1)  # pause or do step on GUI
+            Printer.yellow("sleeping for 0.1 seconds - GUI paused")
 
         if not args.headless:
             # get keys

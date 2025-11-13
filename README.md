@@ -90,6 +90,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
       - [ScanNet Datasets](#scannet-datasets)
       - [ROS1 bags](#ros1-bags)
       - [ROS2 bags](#ros2-bags)
+      - [MCAP files](#mcap-files)
       - [Video and Folder Datasets](#video-and-folder-datasets)
     - [Camera Settings](#camera-settings)
   - [References](#references)
@@ -361,7 +362,12 @@ See the file [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closin
 
 #### Dense reconstruction while running SLAM 
 
-The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled by default. You can enable it by setting `kDoVolumetricIntegration=True` and selecting your preferred method `kVolumetricIntegrationType` in `pyslam/config_parameters.py`. At present, two methods are available: `TSDF` and `GAUSSIAN_SPLATTING` (see [pyslam/dense/volumetric_integrator_factory.py](pyslam/dense/volumetric_integrator_factory.py)). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method.
+The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled by default. You can enable it by setting `kDoVolumetricIntegration=True` and selecting your preferred method `kVolumetricIntegrationType` in `pyslam/config_parameters.py`. At present, the following methods are available:
+- `VOXEL_GRID`, `VOXEL_SEMANTIC_GRID`, `VOXEL_SEMANTIC_PROBABILISTIC_GRID`: Voxel grid implementations that leverage parallel spatial hashing, supporting both direct voxel hashing and indirect voxel-block hashing strategies. Parallel execution is managed using TBB, and the design accommodates both simple and semantic voxels. 
+- `TSDF` (Truncated Signed Distance Function): It is able to return in output either a pointcloud or a mesh. 
+- `GAUSSIAN_SPLATTING` (Incremental Gaussian splatting)
+ 
+See [pyslam/dense/volumetric_integrator_types.py](pyslam/dense/volumetric_integrator_types.py). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method. Further information about the volumetric grid models is available [here](./cpp/volumetric/README.md).
 
 At present, the volumetric reconstruction pipeline works with:
 - RGBD datasets 
@@ -453,7 +459,7 @@ Semantic volumetric mapping can be performed by setting:
 ```python
 kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
 kDoVolumetricIntegration = True # enable volumetric integration
-kVolumetricIntegrationType = "VOXEL_SEMANTIC_GRID_PROBABILISTIC" # use semantic volumetric models like VOXEL_SEMANTIC_GRID_PROBABILISTIC and VOXEL_SEMANTIC_GRID
+kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
 
 ---
@@ -686,8 +692,10 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 
 ### Supported volumetric mapping methods
 
-* [TSDF](https://arxiv.org/pdf/2110.00511) with voxel block grid (parallel spatial hashing)
+* A C++ template-based voxel grid implementation leverages parallel spatial hashing, supporting both direct voxel hashing and indirect voxel-block hashing strategies. Parallel execution is managed using TBB, and the design accommodates both simple and semantic voxels. Further information about the volumetric grid models is available [here](./cpp/volumetric/README.md).
+* [TSDF](https://arxiv.org/pdf/2110.00511) (Truncated Signed Distance Function) with voxel block grid (parallel spatial hashing)
 * Incremental 3D Gaussian Splatting. See [here](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) and [MonoGS](https://arxiv.org/abs/2312.06741) for a description of its backend.
+
 
 
 ### Supported semantic segmentation methods
@@ -719,6 +727,7 @@ Dataset | type in `config.yaml`
 [ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`
 [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
 [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
+[MCAP file](https://foxglove.dev/blog/introducing-the-mcap-file-format)  | `type: MCAP_DATASET` 
 Video file                                                                                                                                   | `type: VIDEO_DATASET` 
 Folder of images                                                                                                                             | `type: FOLDER_DATASET` 
 
@@ -804,6 +813,9 @@ Follow the same instructions provided for the TUM datasets.
 2. Set the paths and `ROS2BAG_DATASET: ros_parameters` in the file `config.yaml`.
 3. Select/prepare the correspoding calibration settings file (section `ROS2BAG_DATASET: settings:` in the file `config.yaml`). See the available yaml files in the folder `Settings` as an example.
 
+#### MCAP files
+
+A concise introduction of the `mcap` format is available [here](https://foxglove.dev/blog/introducing-the-mcap-file-format). These files are also recorded and played by using ros2 tools.  
 
 #### Video and Folder Datasets
 

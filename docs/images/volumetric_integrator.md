@@ -9,14 +9,21 @@ graph LR;
     classDef components fill:#FFFFFF,stroke:#6EACDA,stroke-width:1px;
     classDef dependencies fill:#F1F1F1,stroke:#888888,stroke-width:1px;
 
+    volumetric_integrator_factory -->|*volumetric_integrator_type*| VOXEL_GRID;
+    volumetric_integrator_factory -->|*volumetric_integrator_type*| VOXEL_SEMANTIC_GRID;
+    volumetric_integrator_factory -->|*volumetric_integrator_type*| VOXEL_SEMANTIC_PROBABILISTIC_GRID;
     volumetric_integrator_factory -->|*volumetric_integrator_type*| TSDF;
     volumetric_integrator_factory -->|*volumetric_integrator_type*| GAUSSIAN_SPLATTING; 
 
     %% types
-
+    VOXEL_GRID -->|*_creates_*| VolumetricIntegratorVoxelGrid;
+    VOXEL_SEMANTIC_GRID -->|*_creates_*| VolumetricIntegratorVoxelSemanticGrid;
+    VOXEL_SEMANTIC_PROBABILISTIC_GRID -->|*_creates_*| VolumetricIntegratorVoxelSemanticGrid;
     TSDF -->|*_creates_*| VolumetricIntegratorTSDF;
     GAUSSIAN_SPLATTING -->|*_creates_*| VolumetricIntegratorGaussianSplatting;        
 
+    VolumetricIntegratorVoxelGrid -->|*_is-a_*| VolumetricIntegratorBase;
+    VolumetricIntegratorVoxelSemanticGrid -->|*_is-a_*| VolumetricIntegratorBase;
     VolumetricIntegratorTSDF -->|*_is-a_*| VolumetricIntegratorBase;
     VolumetricIntegratorGaussianSplatting -->|*_is-a_*| VolumetricIntegratorBase;
 
@@ -29,11 +36,16 @@ graph LR;
     camera -->|*_is-a_*| Camera;
 
 
+    class VOXEL_GRID type;
+    class VOXEL_SEMANTIC_GRID type;
+    class VOXEL_SEMANTIC_PROBABILISTIC_GRID type;
     class TSDF type;
     class GAUSSIAN_SPLATTING type;
 
     class volumetric_integrator_factory factory;
 
+    class VolumetricIntegratorVoxelGrid volumetric_integrator;
+    class VolumetricIntegratorVoxelSemanticGrid volumetric_integrator;
     class VolumetricIntegratorTSDF volumetric_integrator;
     class VolumetricIntegratorGaussianSplatting volumetric_integrator;
     class VolumetricIntegratorBase volumetric_integrator;

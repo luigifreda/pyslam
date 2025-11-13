@@ -3,15 +3,15 @@
 <!-- TOC -->
 
 - [System Overview](#system-overview)
-  - [SLAM Workflow and Components](#slam-workflow-and-components)
-  - [Main System Components](#main-system-components)
-    - [Feature Tracker](#feature-tracker)
-    - [Feature Matcher](#feature-matcher)
-    - [Loop Detector](#loop-detector)
-    - [Depth Estimator](#depth-estimator)
-    - [Volumetric Integrator](#volumetric-integrator)
-    - [Semantic Mapping](#semantic-mapping)
-  - [C++ Core](#c-core)
+    - [1. SLAM Workflow and Components](#1-slam-workflow-and-components)
+    - [2. Main System Components](#2-main-system-components)
+        - [2.1. Feature Tracker](#21-feature-tracker)
+        - [2.2. Feature Matcher](#22-feature-matcher)
+        - [2.3. Loop Detector](#23-loop-detector)
+        - [2.4. Depth Estimator](#24-depth-estimator)
+        - [2.5. Volumetric Integrator](#25-volumetric-integrator)
+        - [2.6. Semantic Mapping](#26-semantic-mapping)
+    - [3. C++ Core](#3-c-core)
 
 <!-- /TOC -->
 
@@ -132,9 +132,9 @@ The section [Supported depth prediction models](../README.md#supported-depth-pre
 </p>
 
 
-This diagram illustrates the structure of the *Volumetric Integrator* module. At its core, the `volumetric_integrator_factory` generates specific volumetric integrator instances based on the selected `volumetric_integrator_type`, such as `TSDF` and `GAUSSIAN_SPLATTING`.
+This diagram illustrates the structure of the *Volumetric Integrator* module. At its core, the `volumetric_integrator_factory` generates specific volumetric integrator instances based on the selected `volumetric_integrator_type`, such as `VOXEL_GRID`, `VOXEL_SEMANTIC_GRID`, `VOXEL_SEMANTIC_PROBABILISTIC_GRID`, `TSDF` and `GAUSSIAN_SPLATTING`.
 
-Each type instantiates a dedicated implementation (e.g., `VolumetricIntegratorTSDF`, `VolumetricIntegratorGaussianSplatting`), which inherits from a common `VolumetricIntegratorBase`. This base class encapsulates key components including the `camera`, a `keyframe_queue`, and the `volume`, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
+Each type instantiates a dedicated implementation (e.g., `VolumetricIntegratorVoxelGrid`, `VolumetricIntegratorVoxelSemanticGrid`, `VolumetricIntegratorTSDF`, `VolumetricIntegratorGaussianSplatting`), which inherits from a common `VolumetricIntegratorBase`. This base class encapsulates key components including the `camera`, a `keyframe_queue`, and the `volume`, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
 
 The section [Supported volumetric mapping methods](../README.md#supported-volumetric-mapping-methods) provides a list of supported volume integration methods.
 

@@ -267,10 +267,10 @@ class Parameters:
     # ================================================================
     # Volumetric Integration
     # ================================================================
-    kDoVolumetricIntegration = True  # To enable/disable volumetric integration (dense mapping)
-    # kVolumetricIntegrationType: "VOXEL_GRID", "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_GRID_PROBABILISTIC",
+    kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
+    # kVolumetricIntegrationType: "VOXEL_GRID", "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID",
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py)
-    kVolumetricIntegrationType = "VOXEL_SEMANTIC_GRID_PROBABILISTIC"
+    kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
     kVolumetricIntegrationExtractMesh = False  # Extract mesh or point cloud as output
     kVolumetricIntegrationVoxelLength = 0.015  # [m]
@@ -309,7 +309,7 @@ class Parameters:
     # Sparse semantic mapping
     # ================================================================
     # NOTE: By activating the sparse semantic mapping, semantics will be used for the whole SLAM pipeline
-    kDoSparseSemanticMappingAndSegmentation = True  # To enable/disable sparse semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
+    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable sparse semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     kSemanticMappingOnSeparateThread = True
     kSemanticMappingMoveSemanticSegmentationToSeparateProcess = False
     kSemanticMappingDebugAndPrintToFile = True
