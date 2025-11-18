@@ -1,0 +1,3678 @@
+diff --git a/__init__.py b/__init__.py
+new file mode 100755
+index 0000000..e69de29
+diff --git a/demo/__init__.py b/demo/__init__.py
+new file mode 100755
+index 0000000..e69de29
+diff --git a/demo/demo.py b/demo/demo.py
+index 686980b..5055d50 100644
+--- a/demo/demo.py
++++ b/demo/demo.py
+@@ -91,6 +91,16 @@ def get_parser():
+         help="A file or directory to save output visualizations. "
+         "If not given, will show output in an OpenCV window.",
+     )
++    parser.add_argument(
++        "--save-video",
++        action="store_true",
++        help="Enable saving video output (disabled by default). Requires --output to be specified.",
++    )
++    parser.add_argument(
++        "--no-display",
++        action="store_true",
++        help="Disable displaying frames in a window (useful for headless systems).",
++    )
+ 
+     parser.add_argument(
+         "--confidence-threshold",
+@@ -98,6 +108,22 @@ def get_parser():
+         default=0.5,
+         help="Minimum score for instance predictions to be shown",
+     )
++    parser.add_argument(
++        "--cache-dir",
++        type=str,
++        default="./cache",
++        help="Directory for vocabulary cache (text preprocessing). Vocabulary caching is always enabled. Default: ./cache",
++    )
++    parser.add_argument(
++        "--use-compile",
++        action="store_true",
++        help="Use torch.compile() to optimize model (PyTorch 2.0+, may take time on first run)",
++    )
++    parser.add_argument(
++        "--use-fp16",
++        action="store_true",
++        help="Use mixed precision (FP16) for faster inference (requires GPU with compute capability >= 7.0)",
++    )
+     parser.add_argument(
+         "--opts",
+         help="Modify config options using the command-line 'KEY VALUE' pairs",
+@@ -110,20 +136,67 @@ def get_parser():
+ def test_opencv_video_format(codec, file_ext):
+     with tempfile.TemporaryDirectory(prefix="video_format_test") as dir:
+         filename = os.path.join(dir, "test_file" + file_ext)
+-        writer = cv2.VideoWriter(
+-            filename=filename,
+-            fourcc=cv2.VideoWriter_fourcc(*codec),
+-            fps=float(30),
+-            frameSize=(10, 10),
+-            isColor=True,
+-        )
+-        [writer.write(np.zeros((10, 10, 3), np.uint8)) for _ in range(30)]
+-        writer.release()
+-        if os.path.isfile(filename):
+-            return True
++        try:
++            writer = cv2.VideoWriter(
++                filename=filename,
++                fourcc=cv2.VideoWriter_fourcc(*codec),
++                fps=float(30),
++                frameSize=(10, 10),
++                isColor=True,
++            )
++            if writer is None or not writer.isOpened():
++                return False
++            [writer.write(np.zeros((10, 10, 3), np.uint8)) for _ in range(30)]
++            writer.release()
++            if os.path.isfile(filename):
++                os.remove(filename)  # Clean up test file
++                return True
++        except Exception as e:
++            logger.warning(f"Codec {codec} test failed: {e}")
+         return False
+ 
+ 
++def create_video_writer(output_fname, width, height, fps, logger):
++    """Create a VideoWriter with fallback codecs"""
++    # Try codecs in order of preference
++    codec_options = [
++        ("XVID", ".avi"),
++        ("mp4v", ".mp4"),
++        ("MJPG", ".avi"),
++        ("X264", ".mkv"),
++        ("H264", ".mp4"),
++    ]
++    
++    for codec, ext in codec_options:
++        try:
++            # Update filename extension if needed
++            if not output_fname.endswith(ext):
++                output_fname = os.path.splitext(output_fname)[0] + ext
++            
++            fourcc = cv2.VideoWriter_fourcc(*codec)
++            writer = cv2.VideoWriter(
++                filename=output_fname,
++                fourcc=fourcc,
++                fps=float(fps),
++                frameSize=(width, height),
++                isColor=True,
++            )
++            
++            if writer is not None and writer.isOpened():
++                logger.info(f"Successfully created VideoWriter with codec {codec}, file: {output_fname}")
++                return writer, output_fname
++            else:
++                writer.release() if writer else None
++                logger.warning(f"VideoWriter with codec {codec} failed to open")
++        except Exception as e:
++            logger.warning(f"Failed to create VideoWriter with codec {codec}: {e}")
++            continue
++    
++    # If all codecs fail, return None
++    logger.error("Failed to create VideoWriter with any codec. Video output will be disabled.")
++    return None, output_fname
++
++
+ if __name__ == "__main__":
+     mp.set_start_method("spawn", force=True)
+     args = get_parser().parse_args()
+@@ -133,7 +206,7 @@ if __name__ == "__main__":
+ 
+     cfg = setup_cfg(args)
+ 
+-    demo = VisualizationDemo(cfg)
++    demo = VisualizationDemo(cfg, cache_dir=args.cache_dir, use_compile=args.use_compile, use_fp16=args.use_fp16)
+ 
+     if args.input:
+         img_pths = []
+@@ -189,43 +262,177 @@ if __name__ == "__main__":
+         cv2.destroyAllWindows()
+     elif args.video_input:
+         video = cv2.VideoCapture(args.video_input)
++        if not video.isOpened():
++            logger.error(f"Failed to open video file: {args.video_input}")
++            exit(1)
++        
+         width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+         height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+         frames_per_second = video.get(cv2.CAP_PROP_FPS)
+         num_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+         basename = os.path.basename(args.video_input)
+-        codec, file_ext = (
+-            ("x264", ".mkv") if test_opencv_video_format("x264", ".mkv") else ("mp4v", ".mp4")
+-        )
+-        if codec == ".mp4v":
+-            warnings.warn("x264 codec not available, switching to mp4v")
+-        if args.output:
+-            if os.path.isdir(args.output):
+-                output_fname = os.path.join(args.output, basename)
+-                output_fname = os.path.splitext(output_fname)[0] + file_ext
+-            else:
+-                output_fname = args.output
+-            assert not os.path.isfile(output_fname), output_fname
+-            output_file = cv2.VideoWriter(
+-                filename=output_fname,
+-                # some installation of opencv may not support x264 (due to its license),
+-                # you can try other format (e.g. MPEG)
+-                fourcc=cv2.VideoWriter_fourcc(*codec),
+-                fps=float(frames_per_second),
+-                frameSize=(width, height),
+-                isColor=True,
+-            )
+-        assert os.path.isfile(args.video_input)
+-        for vis_frame in tqdm.tqdm(demo.run_on_video(video), total=num_frames):
+-            if args.output:
+-                output_file.write(vis_frame)
++        
++        logger.info(f"Video properties: {width}x{height}, {frames_per_second} FPS, {num_frames} frames")
++        
++        output_file = None
++        output_fname = None
++        save_frames_as_images = False
++        frames_output_dir = None
++        
++        # Only save video if explicitly requested
++        if args.save_video:
++            if not args.output:
++                logger.warning("--save-video requires --output to be specified. Video saving disabled.")
+             else:
+-                cv2.namedWindow(basename, cv2.WINDOW_NORMAL)
+-                cv2.imshow(basename, vis_frame)
+-                if cv2.waitKey(1) == 27:
+-                    break  # esc to quit
+-        video.release()
+-        if args.output:
+-            output_file.release()
+-        else:
+-            cv2.destroyAllWindows()
++                if os.path.isdir(args.output):
++                    output_fname = os.path.join(args.output, basename)
++                    frames_output_dir = os.path.join(args.output, "frames")
++                else:
++                    output_fname = args.output
++                    frames_output_dir = os.path.splitext(args.output)[0] + "_frames"
++                
++                if os.path.isfile(output_fname):
++                    logger.warning(f"Output file exists: {output_fname}. It will be overwritten.")
++                    os.remove(output_fname)
++                
++                output_file, output_fname = create_video_writer(
++                    output_fname, width, height, frames_per_second, logger
++                )
++                if output_file is None:
++                    logger.warning("VideoWriter creation failed.")
++                    # Offer to save frames as images instead
++                    if frames_output_dir:
++                        if not os.path.exists(frames_output_dir):
++                            os.makedirs(frames_output_dir, exist_ok=True)
++                        save_frames_as_images = True
++                        logger.info(f"Will save frames as images to: {frames_output_dir}")
++                    else:
++                        logger.warning("Continuing without video output.")
++        elif args.output:
++            logger.info("Video saving is disabled by default. Use --save-video to enable video output.")
++        
++        assert os.path.isfile(args.video_input), f"Video file not found: {args.video_input}"
++        
++        # Setup display window
++        display_enabled = not args.no_display
++        window_name = f"EOV-Seg: {basename}"
++        if display_enabled:
++            try:
++                cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
++                cv2.resizeWindow(window_name, width, height)
++                logger.info(f"Display window created: {window_name}")
++                
++                # Show initial placeholder message
++                placeholder = np.zeros((height, width, 3), dtype=np.uint8)
++                cv2.putText(placeholder, "Processing first frame...", (width//4, height//2 - 30),
++                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
++                cv2.putText(placeholder, "Please wait...", (width//4, height//2 + 30),
++                           cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
++                cv2.imshow(window_name, placeholder)
++                cv2.waitKey(1)  # Update window
++            except Exception as e:
++                logger.warning(f"Failed to create display window: {e}. Continuing without display.")
++                display_enabled = False
++        
++        # Calculate delay between frames for smooth playback
++        frame_delay_ms = int(1000 / frames_per_second) if frames_per_second > 0 else 33  # Default to ~30 FPS
++        
++        try:
++            frame_count = 0
++            start_time = time.time()
++            last_display_time = start_time
++            
++            for vis_frame in tqdm.tqdm(demo.run_on_video(video), total=num_frames):
++                frame_count += 1
++                
++                # Validate frame
++                if vis_frame is None:
++                    logger.warning(f"Received None frame at count {frame_count}")
++                    continue
++                
++                if vis_frame.size == 0:
++                    logger.warning(f"Received empty frame at count {frame_count}")
++                    continue
++                
++                # Log frame info for debugging
++                if frame_count == 1:
++                    logger.info(f"First frame received: shape={vis_frame.shape}, dtype={vis_frame.dtype}, "
++                               f"min={vis_frame.min()}, max={vis_frame.max()}")
++                
++                # Save frame if video saving is enabled
++                if args.save_video:
++                    if output_file is not None:
++                        if not output_file.write(vis_frame):
++                            logger.warning(f"Failed to write frame {frame_count} to video")
++                    elif save_frames_as_images:
++                        # Save frame as image
++                        frame_filename = os.path.join(
++                            frames_output_dir, 
++                            f"frame_{frame_count:06d}.jpg"
++                        )
++                        cv2.imwrite(frame_filename, vis_frame)
++                        if frame_count % 100 == 0:
++                            logger.info(f"Saved {frame_count} frames as images...")
++                
++                # Display frame in window
++                if display_enabled:
++                    try:
++                        # Ensure frame is in correct format (BGR, uint8)
++                        if vis_frame.dtype != np.uint8:
++                            logger.warning(f"Frame dtype is {vis_frame.dtype}, converting to uint8")
++                            vis_frame = (vis_frame * 255).astype(np.uint8) if vis_frame.max() <= 1.0 else vis_frame.astype(np.uint8)
++                        
++                        # Add frame counter and FPS info to the frame
++                        display_frame = vis_frame.copy()
++                        fps_text = f"Frame: {frame_count}/{num_frames}"
++                        elapsed_time = time.time() - start_time
++                        if elapsed_time > 0:
++                            current_fps = frame_count / elapsed_time
++                            fps_text += f" | FPS: {current_fps:.1f}"
++                        
++                        # Draw text on frame with background for visibility
++                        text_size = cv2.getTextSize(fps_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
++                        cv2.rectangle(display_frame, (5, 5), (text_size[0] + 15, text_size[1] + 15), (0, 0, 0), -1)
++                        cv2.putText(display_frame, fps_text, (10, 30), 
++                                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
++                        
++                        cv2.imshow(window_name, display_frame)
++                        last_display_time = time.time()
++                        
++                        # Wait for key press or frame delay
++                        key = cv2.waitKey(frame_delay_ms) & 0xFF
++                        if key == 27:  # ESC key
++                            logger.info("User interrupted (ESC pressed)")
++                            break
++                        elif key == ord(' '):  # Spacebar to pause
++                            logger.info("Paused. Press any key to continue...")
++                            cv2.waitKey(0)
++                        elif key == ord('q'):  # 'q' to quit
++                            logger.info("User quit (Q pressed)")
++                            break
++                    except Exception as e:
++                        logger.error(f"Error displaying frame {frame_count}: {e}", exc_info=True)
++                        display_enabled = False
++            
++            elapsed_time = time.time() - start_time
++            avg_fps = frame_count / elapsed_time if elapsed_time > 0 else 0
++            logger.info(f"Processed {frame_count}/{num_frames} frames in {elapsed_time:.1f}s (avg FPS: {avg_fps:.2f})")
++            if save_frames_as_images:
++                logger.info(f"Saved {frame_count} frames as images to: {frames_output_dir}")
++        except KeyboardInterrupt:
++            logger.info("Interrupted by user")
++        except Exception as e:
++            logger.error(f"Error during video processing: {e}", exc_info=True)
++        finally:
++            video.release()
++            if output_file is not None:
++                output_file.release()
++                if output_fname and os.path.isfile(output_fname):
++                    file_size = os.path.getsize(output_fname) / (1024 * 1024)  # MB
++                    logger.info(f"Video saved: {output_fname} ({file_size:.2f} MB)")
++            
++            # Clean up display window
++            if display_enabled:
++                logger.info("Press any key to close the display window...")
++                cv2.waitKey(1000)  # Wait 1 second for user to see final frame
++                cv2.destroyAllWindows()
+diff --git a/demo/predictor.py b/demo/predictor.py
+index 2cce5a5..52c862c 100644
+--- a/demo/predictor.py
++++ b/demo/predictor.py
+@@ -1,6 +1,6 @@
+ """
+ This file may have been modified by Bytedance Ltd. and/or its affiliates (“Bytedance's Modifications”).
+-All Bytedance's Modifications are Copyright (year) Bytedance Ltd. and/or its affiliates. 
++All Bytedance's Modifications are Copyright (year) Bytedance Ltd. and/or its affiliates.
+ 
+ Reference: https://github.com/facebookresearch/Mask2Former/blob/main/demo/predictor.py
+ """
+@@ -9,27 +9,658 @@ import atexit
+ import bisect
+ import multiprocessing as mp
+ from collections import deque
++import time
++import os
++import hashlib
++import pickle
++import numpy as np
++
++# Fix numpy compatibility: np.bool was deprecated and removed in newer numpy versions
++# This ensures compatibility with detectron2 which uses the old aliases
++if not hasattr(np, "bool"):
++    np.bool = np.bool_
++if not hasattr(np, "int"):
++    np.int = np.int_
++if not hasattr(np, "float"):
++    np.float = np.float_
++if not hasattr(np, "complex"):
++    np.complex = np.complex_
+ 
+ import cv2
+ import torch
+ import itertools
+ 
+-
+ from detectron2.data import DatasetCatalog, MetadataCatalog
+ from detectron2.engine.defaults import DefaultPredictor as d2_defaultPredictor
+ from detectron2.utils.video_visualizer import VideoVisualizer
+ from detectron2.utils.visualizer import ColorMode, Visualizer, random_color
++from detectron2.utils.logger import setup_logger
+ import detectron2.utils.visualizer as d2_visualizer
+ 
++logger = setup_logger()
++
++
++kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
++kEovSegCodeFolder = os.path.join(kThisFileFolder, "../eov_seg")
++
++
++class CachedPredictor(d2_defaultPredictor):
++    """
++    Predictor with caching and detailed logging
++    """
++
++    def __init__(self, cfg, cache_dir=None, use_compile=False, use_fp16=False):
++        super().__init__(cfg)
++        # Disable prediction caching - we only cache vocabulary preprocessing
++        self.cache_dir = None  # Prediction caching disabled
++
++        # Import torch here to avoid scope issues
++        import torch as torch_module
+ 
+-class DefaultPredictor(d2_defaultPredictor):
++        self.use_fp16 = use_fp16 and torch_module.cuda.is_available()
++
++        # Set up vocabulary cache directory (always enabled for vocabulary)
++        if cache_dir:
++            self.vocab_cache_dir = os.path.join(cache_dir, "vocab_cache")
++            if not os.path.exists(self.vocab_cache_dir):
++                os.makedirs(self.vocab_cache_dir, exist_ok=True)
++                logger.info(
++                    f"Created vocabulary cache directory: {self.vocab_cache_dir}"
++                )
++        else:
++            # Use default vocab cache location if no cache_dir specified
++            self.vocab_cache_dir = "./vocab_cache"
++            if not os.path.exists(self.vocab_cache_dir):
++                os.makedirs(self.vocab_cache_dir, exist_ok=True)
++                logger.info(
++                    f"Created vocabulary cache directory: {self.vocab_cache_dir}"
++                )
++
++        # Apply optimizations
++        if torch_module.cuda.is_available():
++            # Ensure model is in eval mode for inference (before any optimizations)
++            self.model.eval()
++
++            # Enable cuDNN optimizations
++            torch_module.backends.cudnn.benchmark = True
++            torch_module.backends.cudnn.deterministic = False
++
++            # Note: torch.compile() and FP16 model conversion don't work well together
++            # If both are requested, prioritize compile and use autocast for FP16
++            if use_compile and use_fp16:
++                logger.warning(
++                    "  [Optimization] Both --use-compile and --use-fp16 specified."
++                )
++                logger.warning(
++                    "  [Optimization] Using torch.compile() with autocast for FP16 (safer)"
++                )
++                use_fp16_model_conversion = False
++            else:
++                use_fp16_model_conversion = use_fp16
++
++            # Try to compile model for faster inference (PyTorch 2.0+)
++            # WARNING: torch.compile() can cause OOM errors due to kernel benchmarking
++            # It also has compatibility issues with detectron2's custom ops
++            if use_compile:
++                try:
++                    if hasattr(torch_module, "compile"):
++                        logger.warning(
++                            "  [Optimization] torch.compile() can cause OOM errors and compatibility issues."
++                        )
++                        logger.warning(
++                            "  [Optimization] If you encounter OOM, disable --use-compile"
++                        )
++
++                        # Clear GPU cache before compilation to free up memory
++                        torch_module.cuda.empty_cache()
++
++                        # Suppress graph break warnings for detectron2 custom ops
++                        import torch._dynamo
++
++                        original_warn = torch._dynamo.utils.warn_once
++
++                        def suppress_detectron_warnings(msg):
++                            if (
++                                "detectron2" in msg.lower()
++                                or "PyCapsule" in msg
++                                or "_hashlib" in msg
++                            ):
++                                return  # Suppress detectron2-related warnings
++                            original_warn(msg)
++
++                        torch._dynamo.utils.warn_once = suppress_detectron_warnings
++
++                        # Ensure model is in eval mode before compilation
++                        self.model.eval()
++
++                        # Use 'max-autotune' mode is more memory-intensive, use 'reduce-overhead' or 'default'
++                        # But even 'reduce-overhead' can cause OOM during compilation
++                        try:
++                            self.model = torch_module.compile(
++                                self.model, mode="reduce-overhead", fullgraph=False
++                            )
++                        except RuntimeError as e:
++                            if "out of memory" in str(e).lower() or "OOM" in str(e):
++                                logger.error(
++                                    f"  [Optimization] CUDA OOM during compilation. Disabling torch.compile()"
++                                )
++                                logger.error(
++                                    f"  [Optimization] Recommendation: Run without --use-compile flag"
++                                )
++                                raise
++                            else:
++                                raise
++
++                        # Restore original warning function
++                        torch._dynamo.utils.warn_once = original_warn
++
++                        # Ensure model is still in eval mode after compilation
++                        # For compiled models, also set eval on underlying model if accessible
++                        self.model.eval()
++                        try:
++                            # Try to access underlying model (torch.compile wraps it)
++                            if hasattr(self.model, "_orig_mod"):
++                                self.model._orig_mod.eval()
++                        except:
++                            pass
++                        logger.info("  [Optimization] Model compilation successful")
++                    else:
++                        logger.warning(
++                            "  [Optimization] torch.compile() not available (requires PyTorch 2.0+)"
++                        )
++                except RuntimeError as e:
++                    if "out of memory" in str(e).lower() or "OOM" in str(e):
++                        logger.error(
++                            f"  [Optimization] CUDA OOM during compilation: {e}"
++                        )
++                        logger.error(
++                            f"  [Optimization] Disabling torch.compile(). Run without --use-compile to avoid this."
++                        )
++                    else:
++                        logger.warning(
++                            f"  [Optimization] Model compilation failed: {e}"
++                        )
++                    # Ensure eval mode even if compilation fails
++                    self.model.eval()
++                except Exception as e:
++                    logger.warning(f"  [Optimization] Model compilation failed: {e}")
++                    logger.warning(
++                        f"  [Optimization] Continuing without compilation..."
++                    )
++                    # Ensure eval mode even if compilation fails
++                    self.model.eval()
++
++            # Enable mixed precision if requested
++            if self.use_fp16:
++                if use_fp16_model_conversion:
++                    logger.info(
++                        "  [Optimization] Mixed precision (FP16) enabled - converting model to FP16"
++                    )
++                    # Convert model to half precision
++                    try:
++                        self.model = self.model.half()
++                        self.model._fp16_converted = True
++                        logger.info("  [Optimization] Model converted to FP16")
++                    except Exception as e:
++                        logger.warning(f"  [Optimization] FP16 conversion failed: {e}")
++                        self.use_fp16 = False
++                else:
++                    logger.info(
++                        "  [Optimization] Mixed precision (FP16) enabled - using autocast"
++                    )
++                    # Will use autocast in forward pass instead
++                    self.model._fp16_converted = False
++
++    def _convert_predictions_to_fp32(self, predictions):
++        """Convert prediction tensors from FP16 to FP32 for compatibility"""
++        converted = {}
++        for k, v in predictions.items():
++            if k == "panoptic_seg":
++                seg, info = v
++                converted[k] = (seg.float(), info)
++            elif isinstance(v, torch.Tensor):
++                converted[k] = v.float()
++            else:
++                converted[k] = v
++        return converted
+ 
+     def set_metadata(self, metadata):
+-        self.model.set_metadata(metadata)
++        # Always pass vocab_cache_dir to model (vocabulary caching is always enabled)
++        self.model.set_metadata(metadata, vocab_cache_dir=self.vocab_cache_dir)
++
++    def _get_cache_key(self, image):
++        """Generate cache key from image hash"""
++        # Use image data hash for cache key
++        image_bytes = image.tobytes()
++        return hashlib.md5(image_bytes).hexdigest()
++
++    def _load_from_cache(self, cache_key):
++        """Load prediction from cache"""
++        if not self.cache_dir:
++            return None
++        cache_path = os.path.join(self.cache_dir, f"{cache_key}.pkl")
++        if os.path.exists(cache_path):
++            try:
++                logger.info(f"  [Cache] Loading from cache: {cache_key[:8]}...")
++                with open(cache_path, "rb") as f:
++                    return pickle.load(f)
++            except Exception as e:
++                logger.warning(f"  [Cache] Failed to load cache: {e}")
++        return None
++
++    def _save_to_cache(self, cache_key, predictions):
++        """Save prediction to cache"""
++        if not self.cache_dir:
++            return
++        cache_path = os.path.join(self.cache_dir, f"{cache_key}.pkl")
++        try:
++            # Convert tensors to CPU and numpy for caching
++            cached_pred = {}
++            for k, v in predictions.items():
++                if k == "panoptic_seg":
++                    seg, info = v
++                    cached_pred[k] = (seg.cpu().numpy(), info)
++                elif isinstance(v, torch.Tensor):
++                    cached_pred[k] = v.cpu().numpy()
++                elif hasattr(v, "to"):
++                    cached_pred[k] = v.to("cpu")
++                else:
++                    cached_pred[k] = v
++
++            with open(cache_path, "wb") as f:
++                pickle.dump(cached_pred, f)
++            logger.info(f"  [Cache] Saved to cache: {cache_key[:8]}...")
++        except Exception as e:
++            logger.warning(f"  [Cache] Failed to save cache: {e}")
++
++    def _restore_from_cache(self, cached_pred):
++        """Restore predictions from cache format"""
++        restored = {}
++        for k, v in cached_pred.items():
++            if k == "panoptic_seg":
++                seg_np, info = v
++                restored[k] = (torch.from_numpy(seg_np), info)
++            elif isinstance(v, np.ndarray):
++                restored[k] = torch.from_numpy(v)
++            else:
++                restored[k] = v
++        return restored
++
++    def __call__(self, original_image):
++        """
++        Override to add caching and detailed preprocessing logging
++        """
++        # Track if this is first call (for optimizations)
++        if not hasattr(self, "_first_call"):
++            self._first_call = True
++        else:
++            self._first_call = False
++
++        preprocess_start = time.time()
++
++        # Log original image info
++        logger.info(
++            f"  [Preprocess] Original image: shape={original_image.shape}, dtype={original_image.dtype}, "
++            f"min={original_image.min()}, max={original_image.max()}"
++        )
++
++        # Log preprocessing steps
++        logger.info(f"  [Preprocess] Starting preprocessing pipeline...")
++        height, width = original_image.shape[:2]
++        logger.info(f"  [Preprocess] Image dimensions: {height}x{width}")
++
++        # Check input format
++        if hasattr(self, "input_format"):
++            logger.info(f"  [Preprocess] Input format: {self.input_format}")
++
++        # Log transform info if available
++        if hasattr(self, "aug"):
++            transform_start = time.time()
++            transform = self.aug.get_transform(original_image)
++            logger.info(
++                f"  [Preprocess] Transform created in {time.time() - transform_start:.4f}s"
++            )
++            if hasattr(transform, "target_size"):
++                logger.info(
++                    f"  [Preprocess] Transform target size: {transform.target_size}"
++                )
++
++        # Ensure torch is accessible (fix for scope issues with nested functions)
++        import torch as torch_module
++
++        # Log GPU memory before inference
++        if torch_module.cuda.is_available():
++            gpu_memory_before = torch_module.cuda.memory_allocated() / 1024**3  # GB
++            gpu_memory_reserved_before = (
++                torch_module.cuda.memory_reserved() / 1024**3
++            )  # GB
++            logger.info(
++                f"  [Inference] GPU memory before: allocated={gpu_memory_before:.2f}GB, "
++                f"reserved={gpu_memory_reserved_before:.2f}GB"
++            )
++
++        # Call parent preprocessing and inference
++        logger.info(
++            f"  [Inference] Starting model inference (this may take a while)..."
++        )
++        logger.info(
++            f"  [Inference] Note: First frame typically takes longer due to model warmup"
++        )
++        logger.info(f"  [Inference] Tip: Use --cache-dir to cache vocabulary")
++
++        # Log device info
++        if torch_module.cuda.is_available():
++            device_name = torch_module.cuda.get_device_name(0)
++            logger.info(f"  [Inference] Using GPU: {device_name}")
++            # Check CUDA compute capability
++            compute_capability = torch_module.cuda.get_device_capability(0)
++            logger.info(
++                f"  [Inference] CUDA compute capability: {compute_capability[0]}.{compute_capability[1]}"
++            )
++            # Check if model is in eval mode and fix if needed
++            # Note: Compiled models (OptimizedModule) may show training=True but still run in eval mode
++            if hasattr(self.model, "training"):
++                # Try to set eval mode on both wrapper and underlying model
++                self.model.eval()
++                if hasattr(self.model, "_orig_mod"):
++                    # Access underlying model for compiled models
++                    self.model._orig_mod.eval()
++
++                # Check training mode (may still show True for compiled models, but inference will be correct)
++                training_mode = self.model.training
++                if training_mode:
++                    # For compiled models, this is often a false positive
++                    if hasattr(self.model, "_orig_mod"):
++                        logger.info(
++                            f"  [Inference] Model training mode: {training_mode} (compiled model - will run in eval mode during inference)"
++                        )
++                    else:
++                        logger.warning(
++                            f"  [Inference] Model is in training mode! This may affect inference."
++                        )
++                else:
++                    logger.info(f"  [Inference] Model training mode: {training_mode}")
++
++            # Verify model is on GPU
++            try:
++                model_device = next(self.model.parameters()).device
++                logger.info(f"  [Inference] Model device: {model_device}")
++                if model_device.type != "cuda":
++                    logger.error(
++                        f"  [Inference] WARNING: Model is on {model_device}, not GPU! This will be extremely slow!"
++                    )
++                    logger.error(f"  [Inference] Move model to GPU: model.to('cuda')")
++            except:
++                pass
++        else:
++            logger.warning(f"  [Inference] Using CPU (this will be very slow!)")
++
++        # Log model info if available
++        if hasattr(self.model, "__class__"):
++            model_name = self.model.__class__.__name__
++            logger.info(f"  [Inference] Model type: {model_name}")
++
++        # Count model parameters for reference
++        try:
++            total_params = sum(p.numel() for p in self.model.parameters())
++            trainable_params = sum(
++                p.numel() for p in self.model.parameters() if p.requires_grad
++            )
++            logger.info(
++                f"  [Inference] Model parameters: {total_params/1e6:.1f}M total, {trainable_params/1e6:.1f}M trainable"
++            )
++        except:
++            pass
++
++        inference_start = time.time()
++
++        try:
++            # Enable CUDA optimizations for first frame
++            if self._first_call and torch_module.cuda.is_available():
++                # Warm up CUDA (helps with JIT compilation)
++                torch_module.backends.cudnn.benchmark = True
++                logger.info(
++                    f"  [Inference] Enabled cuDNN benchmark mode for faster inference"
++                )
++
++                # Check if we can use torch.compile (PyTorch 2.0+)
++                try:
++                    import torch._dynamo
++
++                    if not hasattr(self.model, "_compiled"):
++                        logger.info(
++                            f"  [Inference] Note: Consider using torch.compile() for faster inference (PyTorch 2.0+)"
++                        )
++                except:
++                    pass
++
++            # Time the actual inference with detailed profiling
++            model_forward_start = time.time()
++
++            # Add profiling hooks to understand where time is spent
++            if self._first_call:
++                logger.info(f"  [Inference] Starting model forward pass...")
++                # Try to add forward hooks for profiling (if possible)
++                try:
++                    forward_hooks = []
++
++                    def make_hook(name):
++                        def hook(module, input, output):
++                            if hasattr(self, "_hook_times"):
++                                elapsed = time.time() - self._hook_start_time
++                                self._hook_times.append((name, elapsed))
++
++                        return hook
++
++                    # Register hooks on major components if available
++                    if hasattr(self.model, "backbone"):
++                        self._hook_times = []
++                        self._hook_start_time = time.time()
++                        # Note: This is just for debugging, may not work for all models
++                except:
++                    pass
++
++            # Call parent's __call__ which does preprocessing + model forward
++            # Use inference_mode for faster inference (faster than no_grad)
++            with torch_module.inference_mode():
++                # Check if model is in FP16 by checking first parameter dtype
++                model_is_fp16 = False
++                if self.use_fp16:
++                    try:
++                        first_param_dtype = next(self.model.parameters()).dtype
++                        model_is_fp16 = first_param_dtype == torch_module.float16
++                        if not hasattr(self.model, "_fp16_converted"):
++                            self.model._fp16_converted = model_is_fp16
++                    except:
++                        model_is_fp16 = getattr(self.model, "_fp16_converted", False)
++
++                # Use autocast for FP16 - always use it when FP16 is enabled
++                # This ensures inputs are converted to FP16 even if model is already FP16
++                if self.use_fp16:
++                    # Use autocast for mixed precision (newer API)
++                    if hasattr(torch_module.amp, "autocast"):
++                        # PyTorch 2.0+ API
++                        with torch_module.amp.autocast(
++                            "cuda", dtype=torch_module.float16
++                        ):
++                            predictions = super().__call__(original_image)
++                    else:
++                        # Fallback to older API
++                        with torch_module.cuda.amp.autocast(dtype=torch_module.float16):
++                            predictions = super().__call__(original_image)
++                else:
++                    predictions = super().__call__(original_image)
++
++                # Convert outputs back to float32 if using FP16 (for compatibility)
++                if self.use_fp16:
++                    predictions = self._convert_predictions_to_fp32(predictions)
++
++            model_forward_time = time.time() - model_forward_start
++
++            # Log if hooks were used
++            if (
++                self._first_call
++                and hasattr(self, "_hook_times")
++                and len(self._hook_times) > 0
++            ):
++                logger.info(f"  [Inference] Forward pass component times:")
++                for name, elapsed in self._hook_times:
++                    logger.info(f"    - {name}: {elapsed:.2f}s")
++
++            inference_time = time.time() - inference_start
++
++            # Log detailed timing breakdown
++            if inference_time > 5.0:  # Only log breakdown for slow inference
++                logger.info(f"  [Inference] Timing breakdown:")
++                logger.info(
++                    f"    - Model forward pass: {model_forward_time:.2f}s ({model_forward_time/inference_time*100:.1f}%)"
++                )
++                logger.info(f"    - Total inference time: {inference_time:.2f}s")
++                if inference_time - model_forward_time > 0.1:
++                    logger.info(
++                        f"    - Overhead (preprocessing/postprocessing): {inference_time - model_forward_time:.2f}s"
++                    )
++
++            # Log GPU memory after inference
++            if torch_module.cuda.is_available():
++                torch_module.cuda.synchronize()  # Wait for all CUDA operations to complete
++                gpu_memory_after = torch_module.cuda.memory_allocated() / 1024**3  # GB
++                gpu_memory_reserved_after = (
++                    torch_module.cuda.memory_reserved() / 1024**3
++                )  # GB
++                logger.info(
++                    f"  [Inference] GPU memory after: allocated={gpu_memory_after:.2f}GB, "
++                    f"reserved={gpu_memory_reserved_after:.2f}GB, "
++                    f"delta={gpu_memory_after - gpu_memory_before:.2f}GB"
++                )
++
++                # Performance analysis
++                if inference_time > 10.0:
++                    logger.warning(
++                        f"  [Inference] Slow inference detected ({inference_time:.1f}s)."
++                    )
++                    if self._first_call:
++                        logger.warning(f"  [Inference] First frame overhead breakdown:")
++                        logger.warning(
++                            f"    - CUDA kernel JIT compilation: ~10-20s (one-time)"
++                        )
++                        logger.warning(
++                            f"    - Model forward pass: ~{model_forward_time:.1f}s ({model_forward_time/inference_time*100:.1f}% of total)"
++                        )
++                        logger.warning(f"    - Memory allocation: ~2-5s (one-time)")
++
++                        if model_forward_time > 60.0:
++                            logger.error(
++                                f"  [Inference] CRITICAL: Model forward pass is extremely slow ({model_forward_time:.1f}s)!"
++                            )
++                            logger.error(f"  [Inference] This suggests:")
++                            logger.error(
++                                f"    - Model may be running on CPU instead of GPU (check device)"
++                            )
++                            logger.error(
++                                f"    - GPU may be underutilized or thermal throttling"
++                            )
++                            logger.error(
++                                f"    - Model architecture may have inefficiencies"
++                            )
++                            logger.error(
++                                f"    - Check GPU utilization: watch -n 1 nvidia-smi"
++                            )
++                        elif model_forward_time > 30.0:
++                            logger.warning(
++                                f"  [Inference] Model forward pass is slower than expected ({model_forward_time:.1f}s)"
++                            )
++                            logger.warning(f"  [Inference] This may be due to:")
++                            logger.warning(f"    - Very large model (ConvNext-L + ViT)")
++                            logger.warning(f"    - Complex multi-stage decoder")
++                            logger.warning(
++                                f"    - Large number of classes/text embeddings"
++                            )
++
++                        logger.warning(
++                            f"  [Inference] Subsequent frames should be faster (typically 2-5s)"
++                        )
++                        logger.warning(
++                            f"  [Inference] Expected performance after warmup:"
++                        )
++                        logger.warning(
++                            f"    - Model forward: ~{min(model_forward_time*0.3, 10):.1f}-{min(model_forward_time*0.5, 15):.1f}s"
++                        )
++                        logger.warning(f"    - Total per frame: ~2-5s")
++                    else:
++                        img_h, img_w = original_image.shape[:2]
++                        logger.warning(
++                            f"  [Inference] This is slower than expected. Possible causes:"
++                        )
++                        logger.warning(f"    - GPU thermal throttling")
++                        logger.warning(f"    - Other processes using GPU")
++                        logger.warning(f"    - Large image size ({img_h}x{img_w})")
++                        logger.warning(
++                            f"    - Model complexity (ConvNext-L + ViT + multi-stage decoder)"
++                        )
++                        if model_forward_time > 30.0:
++                            logger.error(
++                                f"  [Inference] Model forward pass is still very slow ({model_forward_time:.1f}s)"
++                            )
++                            logger.error(
++                                f"  [Inference] Consider checking GPU utilization and temperature"
++                            )
++                elif inference_time > 5.0:
++                    logger.info(
++                        f"  [Inference] Moderate inference time ({inference_time:.1f}s). "
++                        f"Subsequent frames may be faster."
++                    )
++                else:
++                    logger.info(f"  [Inference] Fast inference ({inference_time:.1f}s)")
++
++            # Log prediction details
++            pred_keys = list(predictions.keys())
++            logger.info(
++                f"  [Inference] Completed in {inference_time:.4f}s, prediction keys: {pred_keys}"
++            )
++
++            if "panoptic_seg" in predictions:
++                panoptic_seg, segments_info = predictions["panoptic_seg"]
++                logger.info(
++                    f"  [Inference] Panoptic segmentation: "
++                    f"seg shape={panoptic_seg.shape}, num_segments={len(segments_info)}"
++                )
++            if "sem_seg" in predictions:
++                sem_seg = predictions["sem_seg"]
++                logger.info(
++                    f"  [Inference] Semantic segmentation: shape={sem_seg.shape}, "
++                    f"num_classes={sem_seg.shape[0]}"
++                )
++            if "instances" in predictions:
++                instances = predictions["instances"]
++                logger.info(
++                    f"  [Inference] Instances: num={len(instances)}, "
++                    f"fields={list(instances.get_fields().keys())}"
++                )
++        except Exception as e:
++            inference_time = time.time() - inference_start
++            logger.error(f"  [Inference] Failed after {inference_time:.4f}s: {e}")
++            raise
++
++        preprocess_time = time.time() - preprocess_start
++        logger.info(
++            f"  [Preprocess] Total preprocessing+inference time: {preprocess_time:.4f}s"
++        )
++
++        return predictions
++
++
++class DefaultPredictor(CachedPredictor):
++    """Backward compatibility - uses CachedPredictor with no cache by default"""
++
++    def __init__(self, cfg, cache_dir=None):
++        super().__init__(cfg, cache_dir=None)  # No cache by default
+ 
+ 
+ class OpenVocabVisualizer(Visualizer):
+-    def draw_panoptic_seg(self, panoptic_seg, segments_info, area_threshold=None, alpha=0.7):
++    def draw_panoptic_seg(
++        self, panoptic_seg, segments_info, area_threshold=None, alpha=0.7
++    ):
+         """
+         Draw panoptic prediction annotations or results.
+ 
+@@ -45,7 +676,9 @@ class OpenVocabVisualizer(Visualizer):
+         Returns:
+             output (VisImage): image object with visualizations.
+         """
+-        pred = d2_visualizer._PanopticPrediction(panoptic_seg, segments_info, self.metadata)
++        pred = d2_visualizer._PanopticPrediction(
++            panoptic_seg, segments_info, self.metadata
++        )
+ 
+         if self._instance_mode == ColorMode.IMAGE_BW:
+             self.output.reset_image(self._create_grayscale_image(pred.non_empty_mask()))
+@@ -57,7 +690,7 @@ class OpenVocabVisualizer(Visualizer):
+             except AttributeError:
+                 mask_color = None
+ 
+-            text = self.metadata.stuff_classes[category_idx].split(',')[0]
++            text = self.metadata.stuff_classes[category_idx].split(",")[0]
+             self.draw_binary_mask(
+                 mask,
+                 color=mask_color,
+@@ -78,67 +711,100 @@ class OpenVocabVisualizer(Visualizer):
+         except KeyError:
+             scores = None
+         stuff_classes = self.metadata.stuff_classes
+-        stuff_classes = [x.split(',')[0] for x in stuff_classes]
++        stuff_classes = [x.split(",")[0] for x in stuff_classes]
+         labels = d2_visualizer._create_text_labels(
+             category_ids, scores, stuff_classes, [x.get("iscrowd", 0) for x in sinfo]
+         )
+ 
+         try:
+             colors = [
+-                self._jitter([x / 255 for x in self.metadata.stuff_colors[c]]) for c in category_ids
++                self._jitter([x / 255 for x in self.metadata.stuff_colors[c]])
++                for c in category_ids
+             ]
+         except AttributeError:
+             colors = None
+-        self.overlay_instances(masks=masks, labels=labels, assigned_colors=colors, alpha=alpha)
++        self.overlay_instances(
++            masks=masks, labels=labels, assigned_colors=colors, alpha=alpha
++        )
+ 
+         return self.output
+ 
+ 
+ class VisualizationDemo(object):
+-    def __init__(self, cfg, instance_mode=ColorMode.IMAGE, parallel=False):
++    def __init__(
++        self,
++        cfg,
++        instance_mode=ColorMode.IMAGE,
++        parallel=False,
++        cache_dir=None,
++        use_compile=False,
++        use_fp16=False,
++    ):
+         """
+         Args:
+             cfg (CfgNode):
+             instance_mode (ColorMode):
+             parallel (bool): whether to run the model in different processes from visualization.
+                 Useful since the visualization logic can be slow.
++            cache_dir (str): Directory to cache predictions. If None, caching is disabled.
++            use_compile (bool): Use torch.compile() to optimize model (PyTorch 2.0+)
++            use_fp16 (bool): Use mixed precision (FP16) for faster inference
+         """
+ 
+-        coco_metadata = MetadataCatalog.get("openvocab_coco_2017_val_panoptic_with_sem_seg")
++        coco_metadata = MetadataCatalog.get(
++            "openvocab_coco_2017_val_panoptic_with_sem_seg"
++        )
+         ade20k_metadata = MetadataCatalog.get("openvocab_ade20k_panoptic_val")
+-        lvis_classes = open("./eov_seg/data/datasets/lvis_1203_with_prompt_eng.txt", 'r').read().splitlines()
+-        lvis_classes = [x[x.find(':')+1:] for x in lvis_classes]
++        lvis_file_path = (
++            f"{kEovSegCodeFolder}/data/datasets/lvis_1203_with_prompt_eng.txt"
++        )
++        lvis_classes = open(lvis_file_path, "r").read().splitlines()
++        lvis_classes = [x[x.find(":") + 1 :] for x in lvis_classes]
+         lvis_colors = list(
+-            itertools.islice(itertools.cycle(coco_metadata.stuff_colors), len(lvis_classes))
++            itertools.islice(
++                itertools.cycle(coco_metadata.stuff_colors), len(lvis_classes)
++            )
+         )
+         # rerrange to thing_classes, stuff_classes
+         coco_thing_classes = coco_metadata.thing_classes
+-        coco_stuff_classes = [x for x in coco_metadata.stuff_classes if x not in coco_thing_classes]
++        coco_stuff_classes = [
++            x for x in coco_metadata.stuff_classes if x not in coco_thing_classes
++        ]
+         coco_thing_colors = coco_metadata.thing_colors
+-        coco_stuff_colors = [x for x in coco_metadata.stuff_colors if x not in coco_thing_colors]
++        coco_stuff_colors = [
++            x for x in coco_metadata.stuff_colors if x not in coco_thing_colors
++        ]
+         ade20k_thing_classes = ade20k_metadata.thing_classes
+-        ade20k_stuff_classes = [x for x in ade20k_metadata.stuff_classes if x not in ade20k_thing_classes]
++        ade20k_stuff_classes = [
++            x for x in ade20k_metadata.stuff_classes if x not in ade20k_thing_classes
++        ]
+         ade20k_thing_colors = ade20k_metadata.thing_colors
+-        ade20k_stuff_colors = [x for x in ade20k_metadata.stuff_colors if x not in ade20k_thing_colors]
++        ade20k_stuff_colors = [
++            x for x in ade20k_metadata.stuff_colors if x not in ade20k_thing_colors
++        ]
+ 
+         user_classes = []
+-        user_colors = [random_color(rgb=True, maximum=1) for _ in range(len(user_classes))]
++        user_colors = [
++            random_color(rgb=True, maximum=1) for _ in range(len(user_classes))
++        ]
+ 
+         stuff_classes = coco_stuff_classes + ade20k_stuff_classes
+         stuff_colors = coco_stuff_colors + ade20k_stuff_colors
+-        thing_classes = user_classes + coco_thing_classes + ade20k_thing_classes + lvis_classes
+-        thing_colors = user_colors + coco_thing_colors + ade20k_thing_colors + lvis_colors
++        thing_classes = (
++            user_classes + coco_thing_classes + ade20k_thing_classes + lvis_classes
++        )
++        thing_colors = (
++            user_colors + coco_thing_colors + ade20k_thing_colors + lvis_colors
++        )
+ 
+         thing_dataset_id_to_contiguous_id = {x: x for x in range(len(thing_classes))}
+-        DatasetCatalog.register(
+-            "openvocab_dataset", lambda x: []
+-        )
++        DatasetCatalog.register("openvocab_dataset", lambda x: [])
+         self.metadata = MetadataCatalog.get("openvocab_dataset").set(
+-            stuff_classes=thing_classes+stuff_classes,
+-            stuff_colors=thing_colors+stuff_colors,
++            stuff_classes=thing_classes + stuff_classes,
++            stuff_colors=thing_colors + stuff_colors,
+             thing_dataset_id_to_contiguous_id=thing_dataset_id_to_contiguous_id,
+         )
+-        #print("self.metadata:", self.metadata)
++        # print("self.metadata:", self.metadata)
+         self.cpu_device = torch.device("cpu")
+         self.instance_mode = instance_mode
+ 
+@@ -147,7 +813,17 @@ class VisualizationDemo(object):
+             num_gpu = torch.cuda.device_count()
+             self.predictor = AsyncPredictor(cfg, num_gpus=num_gpu)
+         else:
+-            self.predictor = DefaultPredictor(cfg)
++            if cache_dir:
++                self.predictor = CachedPredictor(
++                    cfg, cache_dir=cache_dir, use_compile=use_compile, use_fp16=use_fp16
++                )
++                logger.info(f"Using CachedPredictor with cache directory: {cache_dir}")
++                if use_compile:
++                    logger.info("  [Optimization] torch.compile() enabled")
++                if use_fp16:
++                    logger.info("  [Optimization] FP16 enabled")
++            else:
++                self.predictor = DefaultPredictor(cfg)
+         self.predictor.set_metadata(self.metadata)
+ 
+     def run_on_image(self, image):
+@@ -159,33 +835,126 @@ class VisualizationDemo(object):
+             predictions (dict): the output of the model.
+             vis_output (VisImage): the visualized image output.
+         """
+-        vis_output = None
++        start_time = time.time()
++        logger.debug(f"Processing image: shape={image.shape}, dtype={image.dtype}")
++
++        # Model inference
++        inference_start = time.time()
+         predictions = self.predictor(image)
++        inference_time = time.time() - inference_start
++        logger.debug(f"Inference completed in {inference_time:.3f}s")
++
+         # Convert image from OpenCV BGR format to Matplotlib RGB format.
+         image = image[:, :, ::-1]
+-        visualizer = OpenVocabVisualizer(image, self.metadata, instance_mode=self.instance_mode)
++        visualizer = OpenVocabVisualizer(
++            image, self.metadata, instance_mode=self.instance_mode
++        )
++
++        vis_output = None
++        vis_start = time.time()
+         if "panoptic_seg" in predictions:
+             panoptic_seg, segments_info = predictions["panoptic_seg"]
++            logger.debug(
++                f"Drawing panoptic segmentation: {len(segments_info)} segments"
++            )
+             vis_output = visualizer.draw_panoptic_seg(
+                 panoptic_seg.to(self.cpu_device), segments_info
+             )
+         else:
+             if "sem_seg" in predictions:
++                logger.debug("Drawing semantic segmentation")
+                 vis_output = visualizer.draw_sem_seg(
+                     predictions["sem_seg"].argmax(dim=0).to(self.cpu_device)
+                 )
+             if "instances" in predictions:
++                num_instances = len(predictions["instances"])
++                logger.debug(f"Drawing {num_instances} instances")
+                 instances = predictions["instances"].to(self.cpu_device)
+                 vis_output = visualizer.draw_instance_predictions(predictions=instances)
+ 
++        vis_time = time.time() - vis_start
++        total_time = time.time() - start_time
++        logger.debug(
++            f"Visualization completed in {vis_time:.3f}s, total frame time: {total_time:.3f}s"
++        )
++
+         return predictions, vis_output
+ 
++    def run_on_video(self, video):
++        """
++        Args:
++            video (cv2.VideoCapture): a video capture object.
++        Yields:
++            vis_frame (np.ndarray): visualized frames in BGR format.
++        """
++        frame_count = 0
++        # Get frame count before reading any frames
++        current_pos = video.get(cv2.CAP_PROP_POS_FRAMES)
++        total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
++        # Reset to beginning if we're not at the start
++        if current_pos > 0:
++            video.set(cv2.CAP_PROP_POS_FRAMES, 0)
++
++        logger.info(
++            f"Starting video processing: {total_frames} frames total (current position: {current_pos})"
++        )
++
++        for frame in self._frame_from_video(video):
++            frame_count += 1
++            frame_start = time.time()
++
++            logger.info(
++                f"Processing frame {frame_count}/{total_frames} (shape: {frame.shape})"
++            )
++
++            predictions, vis_output = self.run_on_image(frame)
++
++            # Get image from visualizer output
++            vis_image = vis_output.get_image()
++
++            # Convert to numpy array if it's a PIL Image
++            if hasattr(vis_image, "shape"):
++                vis_array = vis_image
++            else:
++                # Convert PIL Image to numpy array
++                vis_array = np.array(vis_image)
++
++            # Ensure values are in 0-255 range (uint8)
++            if vis_array.dtype != np.uint8:
++                if vis_array.max() <= 1.0:
++                    vis_array = (vis_array * 255).astype(np.uint8)
++                else:
++                    vis_array = vis_array.astype(np.uint8)
++
++            # Convert RGB to BGR for OpenCV
++            if vis_array.shape[2] == 3:  # RGB image
++                vis_frame = vis_array[:, :, ::-1]  # RGB to BGR
++            else:
++                vis_frame = vis_array
++
++            # Log first frame details for debugging
++            if frame_count == 1:
++                logger.info(
++                    f"First frame visualization: shape={vis_frame.shape}, dtype={vis_frame.dtype}, "
++                    f"min={vis_frame.min()}, max={vis_frame.max()}"
++                )
++
++            frame_time = time.time() - frame_start
++            logger.info(f"Frame {frame_count} completed in {frame_time:.3f}s")
++
++            yield vis_frame
++
+     def _frame_from_video(self, video):
+         while video.isOpened():
++            read_start = time.time()
+             success, frame = video.read()
++            read_time = time.time() - read_start
++
+             if success:
++                logger.debug(f"Read frame in {read_time:.3f}s")
+                 yield frame
+             else:
++                logger.info("End of video reached or failed to read frame")
+                 break
+ 
+ 
+@@ -277,4 +1046,4 @@ class AsyncPredictor:
+ 
+     @property
+     def default_buffer_size(self):
+-        return len(self.procs) * 5
+\ No newline at end of file
++        return len(self.procs) * 5
+diff --git a/eov_seg/data/datasets/openseg_classes.py b/eov_seg/data/datasets/openseg_classes.py
+index ed8c5d3..2902c11 100644
+--- a/eov_seg/data/datasets/openseg_classes.py
++++ b/eov_seg/data/datasets/openseg_classes.py
+@@ -1,20 +1,26 @@
+ """
+ Copyright (2023) Bytedance Ltd. and/or its affiliates
+ 
+-Licensed under the Apache License, Version 2.0 (the "License"); 
+-you may not use this file except in compliance with the License. 
+-You may obtain a copy of the License at 
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
+ 
+-    http://www.apache.org/licenses/LICENSE-2.0 
++    http://www.apache.org/licenses/LICENSE-2.0
+ 
+-Unless required by applicable law or agreed to in writing, software 
+-distributed under the License is distributed on an "AS IS" BASIS, 
+-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-See the License for the specific language governing permissions and 
+-limitations under the License. 
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
+ """
++
+ import os
+ import copy
++
++kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
++kEovSegRootFolder = os.path.join(kThisFileFolder, "../..")
++
++
+ COCO_CATEGORIES = [
+     {"color": [220, 20, 60], "isthing": 1, "id": 1, "name": "person"},
+     {"color": [119, 11, 32], "isthing": 1, "id": 2, "name": "bicycle"},
+@@ -208,11 +214,21 @@ ADE20K_150_CATEGORIES = [
+     {"color": [140, 140, 140], "id": 48, "isthing": 0, "name": "skyscraper"},
+     {"color": [250, 10, 15], "id": 49, "isthing": 1, "name": "fireplace"},
+     {"color": [20, 255, 0], "id": 50, "isthing": 1, "name": "refrigerator, icebox"},
+-    {"color": [31, 255, 0], "id": 51, "isthing": 0, "name": "grandstand, covered stand"},
++    {
++        "color": [31, 255, 0],
++        "id": 51,
++        "isthing": 0,
++        "name": "grandstand, covered stand",
++    },
+     {"color": [255, 31, 0], "id": 52, "isthing": 0, "name": "path"},
+     {"color": [255, 224, 0], "id": 53, "isthing": 1, "name": "stairs"},
+     {"color": [153, 255, 0], "id": 54, "isthing": 0, "name": "runway"},
+-    {"color": [0, 0, 255], "id": 55, "isthing": 1, "name": "case, display case, showcase, vitrine"},
++    {
++        "color": [0, 0, 255],
++        "id": 55,
++        "isthing": 1,
++        "name": "case, display case, showcase, vitrine",
++    },
+     {
+         "color": [255, 71, 0],
+         "id": 56,
+@@ -246,14 +262,24 @@ ADE20K_150_CATEGORIES = [
+     {"color": [173, 255, 0], "id": 76, "isthing": 1, "name": "boat"},
+     {"color": [0, 255, 153], "id": 77, "isthing": 0, "name": "bar"},
+     {"color": [255, 92, 0], "id": 78, "isthing": 1, "name": "arcade machine"},
+-    {"color": [255, 0, 255], "id": 79, "isthing": 0, "name": "hovel, hut, hutch, shack, shanty"},
++    {
++        "color": [255, 0, 255],
++        "id": 79,
++        "isthing": 0,
++        "name": "hovel, hut, hutch, shack, shanty",
++    },
+     {"color": [255, 0, 245], "id": 80, "isthing": 1, "name": "bus"},
+     {"color": [255, 0, 102], "id": 81, "isthing": 1, "name": "towel"},
+     {"color": [255, 173, 0], "id": 82, "isthing": 1, "name": "light"},
+     {"color": [255, 0, 20], "id": 83, "isthing": 1, "name": "truck"},
+     {"color": [255, 184, 184], "id": 84, "isthing": 0, "name": "tower"},
+     {"color": [0, 31, 255], "id": 85, "isthing": 1, "name": "chandelier"},
+-    {"color": [0, 255, 61], "id": 86, "isthing": 1, "name": "awning, sunshade, sunblind"},
++    {
++        "color": [0, 255, 61],
++        "id": 86,
++        "isthing": 1,
++        "name": "awning, sunshade, sunblind",
++    },
+     {"color": [0, 71, 255], "id": 87, "isthing": 1, "name": "street lamp"},
+     {"color": [255, 0, 204], "id": 88, "isthing": 1, "name": "booth"},
+     {"color": [0, 255, 194], "id": 89, "isthing": 1, "name": "tv"},
+@@ -281,7 +307,12 @@ ADE20K_150_CATEGORIES = [
+         "name": "ottoman, pouf, pouffe, puff, hassock",
+     },
+     {"color": [0, 255, 10], "id": 98, "isthing": 1, "name": "bottle"},
+-    {"color": [255, 112, 0], "id": 99, "isthing": 0, "name": "buffet, counter, sideboard"},
++    {
++        "color": [255, 112, 0],
++        "id": 99,
++        "isthing": 0,
++        "name": "buffet, counter, sideboard",
++    },
+     {
+         "color": [143, 255, 0],
+         "id": 100,
+@@ -356,9 +387,27 @@ CITYSCAPES_CATEGORIES = [
+     {"color": (102, 102, 156), "isthing": 0, "id": 12, "trainId": 3, "name": "wall"},
+     {"color": (190, 153, 153), "isthing": 0, "id": 13, "trainId": 4, "name": "fence"},
+     {"color": (153, 153, 153), "isthing": 0, "id": 17, "trainId": 5, "name": "pole"},
+-    {"color": (250, 170, 30), "isthing": 0, "id": 19, "trainId": 6, "name": "traffic light"},
+-    {"color": (220, 220, 0), "isthing": 0, "id": 20, "trainId": 7, "name": "traffic sign"},
+-    {"color": (107, 142, 35), "isthing": 0, "id": 21, "trainId": 8, "name": "vegetation"},
++    {
++        "color": (250, 170, 30),
++        "isthing": 0,
++        "id": 19,
++        "trainId": 6,
++        "name": "traffic light",
++    },
++    {
++        "color": (220, 220, 0),
++        "isthing": 0,
++        "id": 20,
++        "trainId": 7,
++        "name": "traffic sign",
++    },
++    {
++        "color": (107, 142, 35),
++        "isthing": 0,
++        "id": 21,
++        "trainId": 8,
++        "name": "vegetation",
++    },
+     {"color": (152, 251, 152), "isthing": 0, "id": 22, "trainId": 9, "name": "terrain"},
+     {"color": (70, 130, 180), "isthing": 0, "id": 23, "trainId": 10, "name": "sky"},
+     {"color": (220, 20, 60), "isthing": 1, "id": 24, "trainId": 11, "name": "person"},
+@@ -383,7 +432,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "sidewalk, pavement", "id": 2377, "trainId": 8},
+     {"name": "earth, ground", "id": 838, "trainId": 9},
+     {"name": "cabinet", "id": 350, "trainId": 10},
+-    {"name": "person, individual, someone, somebody, mortal, soul", "id": 1831, "trainId": 11},
++    {
++        "name": "person, individual, someone, somebody, mortal, soul",
++        "id": 1831,
++        "trainId": 11,
++    },
+     {"name": "grass", "id": 1125, "trainId": 12},
+     {"name": "windowpane, window", "id": 3055, "trainId": 13},
+     {"name": "car, auto, automobile, machine, motorcar", "id": 401, "trainId": 14},
+@@ -430,7 +483,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "fireplace, hearth, open fireplace", "id": 943, "trainId": 55},
+     {"name": "pillow", "id": 1869, "trainId": 56},
+     {"name": "screen door, screen", "id": 2251, "trainId": 57},
+-    {"name": "toilet, can, commode, crapper, pot, potty, stool, throne", "id": 2793, "trainId": 58},
++    {
++        "name": "toilet, can, commode, crapper, pot, potty, stool, throne",
++        "id": 2793,
++        "trainId": 58,
++    },
+     {"name": "skyscraper", "id": 2423, "trainId": 59},
+     {"name": "grandstand, covered stand", "id": 1121, "trainId": 60},
+     {"name": "box", "id": 266, "trainId": 61},
+@@ -496,7 +553,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "hovel, hut, hutch, shack, shanty", "id": 1282, "trainId": 101},
+     {"name": "apparel, wearing apparel, dress, clothes", "id": 38, "trainId": 102},
+     {"name": "minibike, motorbike", "id": 1563, "trainId": 103},
+-    {"name": "animal, animate being, beast, brute, creature, fauna", "id": 29, "trainId": 104},
++    {
++        "name": "animal, animate being, beast, brute, creature, fauna",
++        "id": 29,
++        "trainId": 104,
++    },
+     {"name": "chandelier, pendant, pendent", "id": 480, "trainId": 105},
+     {"name": "step, stair", "id": 2569, "trainId": 106},
+     {"name": "booth, cubicle, stall, kiosk", "id": 247, "trainId": 107},
+@@ -505,7 +566,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "sconce", "id": 2243, "trainId": 110},
+     {"name": "pond", "id": 1941, "trainId": 111},
+     {"name": "trade name, brand name, brand, marque", "id": 2833, "trainId": 112},
+-    {"name": "bannister, banister, balustrade, balusters, handrail", "id": 120, "trainId": 113},
++    {
++        "name": "bannister, banister, balustrade, balusters, handrail",
++        "id": 120,
++        "trainId": 113,
++    },
+     {"name": "bag", "id": 95, "trainId": 114},
+     {"name": "traffic light, traffic signal, stoplight", "id": 2836, "trainId": 115},
+     {"name": "gazebo", "id": 1087, "trainId": 116},
+@@ -591,7 +656,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "pot", "id": 1974, "trainId": 188},
+     {"name": "footbridge, overcrossing, pedestrian bridge", "id": 1013, "trainId": 189},
+     {"name": "shower", "id": 2356, "trainId": 190},
+-    {"name": "bag, traveling bag, travelling bag, grip, suitcase", "id": 97, "trainId": 191},
++    {
++        "name": "bag, traveling bag, travelling bag, grip, suitcase",
++        "id": 97,
++        "trainId": 191,
++    },
+     {"name": "bulletin board, notice board", "id": 318, "trainId": 192},
+     {"name": "confessional booth", "id": 592, "trainId": 193},
+     {"name": "trunk, tree trunk, bole", "id": 2885, "trainId": 194},
+@@ -744,7 +813,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "place mat", "id": 1896, "trainId": 321},
+     {"name": "tomb", "id": 2800, "trainId": 322},
+     {"name": "big top", "id": 190, "trainId": 323},
+-    {"name": "gas pump, gasoline pump, petrol pump, island dispenser", "id": 3131, "trainId": 324},
++    {
++        "name": "gas pump, gasoline pump, petrol pump, island dispenser",
++        "id": 3131,
++        "trainId": 324,
++    },
+     {"name": "lockers", "id": 1463, "trainId": 325},
+     {"name": "cage", "id": 357, "trainId": 326},
+     {"name": "finger", "id": 929, "trainId": 327},
+@@ -754,7 +827,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "mat", "id": 1509, "trainId": 331},
+     {"name": "stands", "id": 2539, "trainId": 332},
+     {"name": "aquarium, fish tank, marine museum", "id": 3116, "trainId": 333},
+-    {"name": "streetcar, tram, tramcar, trolley, trolley car", "id": 2615, "trainId": 334},
++    {
++        "name": "streetcar, tram, tramcar, trolley, trolley car",
++        "id": 2615,
++        "trainId": 334,
++    },
+     {"name": "napkin, table napkin, serviette", "id": 1644, "trainId": 335},
+     {"name": "dummy", "id": 818, "trainId": 336},
+     {"name": "booklet, brochure, folder, leaflet, pamphlet", "id": 242, "trainId": 337},
+@@ -785,7 +862,11 @@ ADE20K_847_CATEGORIES = [
+     {"name": "mug", "id": 1619, "trainId": 362},
+     {"name": "barbecue", "id": 125, "trainId": 363},
+     {"name": "trailer", "id": 2838, "trainId": 364},
+-    {"name": "toilet tissue, toilet paper, bathroom tissue", "id": 2792, "trainId": 365},
++    {
++        "name": "toilet tissue, toilet paper, bathroom tissue",
++        "id": 2792,
++        "trainId": 365,
++    },
+     {"name": "organ", "id": 1695, "trainId": 366},
+     {"name": "dishrag, dishcloth", "id": 746, "trainId": 367},
+     {"name": "island", "id": 1343, "trainId": 368},
+@@ -1838,331 +1919,461 @@ PASCAL_CTX_59_CATEGORIES = [
+ ]
+ 
+ MAPILLARY_VISTAS_SEM_SEG_CATEGORIES = [
+-    {'color': [165, 42, 42],
+-    'id': 1,
+-    'isthing': 1,
+-    'name': 'Bird',
+-    'supercategory': 'animal--bird'},
+-    {'color': [0, 192, 0],
+-    'id': 2,
+-    'isthing': 1,
+-    'name': 'Ground Animal',
+-    'supercategory': 'animal--ground-animal'},
+-    {'color': [196, 196, 196],
+-    'id': 3,
+-    'isthing': 0,
+-    'name': 'Curb',
+-    'supercategory': 'construction--barrier--curb'},
+-    {'color': [190, 153, 153],
+-    'id': 4,
+-    'isthing': 0,
+-    'name': 'Fence',
+-    'supercategory': 'construction--barrier--fence'},
+-    {'color': [180, 165, 180],
+-    'id': 5,
+-    'isthing': 0,
+-    'name': 'Guard Rail',
+-    'supercategory': 'construction--barrier--guard-rail'},
+-    {'color': [90, 120, 150],
+-    'id': 6,
+-    'isthing': 0,
+-    'name': 'Barrier',
+-    'supercategory': 'construction--barrier--other-barrier'},
+-    {'color': [102, 102, 156],
+-    'id': 7,
+-    'isthing': 0,
+-    'name': 'Wall',
+-    'supercategory': 'construction--barrier--wall'},
+-    {'color': [128, 64, 255],
+-    'id': 8,
+-    'isthing': 0,
+-    'name': 'Bike Lane',
+-    'supercategory': 'construction--flat--bike-lane'},
+-    {'color': [140, 140, 200],
+-    'id': 9,
+-    'isthing': 1,
+-    'name': 'Crosswalk - Plain',
+-    'supercategory': 'construction--flat--crosswalk-plain'},
+-    {'color': [170, 170, 170],
+-    'id': 10,
+-    'isthing': 0,
+-    'name': 'Curb Cut',
+-    'supercategory': 'construction--flat--curb-cut'},
+-    {'color': [250, 170, 160],
+-    'id': 11,
+-    'isthing': 0,
+-    'name': 'Parking',
+-    'supercategory': 'construction--flat--parking'},
+-    {'color': [96, 96, 96],
+-    'id': 12,
+-    'isthing': 0,
+-    'name': 'Pedestrian Area',
+-    'supercategory': 'construction--flat--pedestrian-area'},
+-    {'color': [230, 150, 140],
+-    'id': 13,
+-    'isthing': 0,
+-    'name': 'Rail Track',
+-    'supercategory': 'construction--flat--rail-track'},
+-    {'color': [128, 64, 128],
+-    'id': 14,
+-    'isthing': 0,
+-    'name': 'Road',
+-    'supercategory': 'construction--flat--road'},
+-    {'color': [110, 110, 110],
+-    'id': 15,
+-    'isthing': 0,
+-    'name': 'Service Lane',
+-    'supercategory': 'construction--flat--service-lane'},
+-    {'color': [244, 35, 232],
+-    'id': 16,
+-    'isthing': 0,
+-    'name': 'Sidewalk',
+-    'supercategory': 'construction--flat--sidewalk'},
+-    {'color': [150, 100, 100],
+-    'id': 17,
+-    'isthing': 0,
+-    'name': 'Bridge',
+-    'supercategory': 'construction--structure--bridge'},
+-    {'color': [70, 70, 70],
+-    'id': 18,
+-    'isthing': 0,
+-    'name': 'Building',
+-    'supercategory': 'construction--structure--building'},
+-    {'color': [150, 120, 90],
+-    'id': 19,
+-    'isthing': 0,
+-    'name': 'Tunnel',
+-    'supercategory': 'construction--structure--tunnel'},
+-    {'color': [220, 20, 60],
+-    'id': 20,
+-    'isthing': 1,
+-    'name': 'Person',
+-    'supercategory': 'human--person'},
+-    {'color': [255, 0, 0],
+-    'id': 21,
+-    'isthing': 1,
+-    'name': 'Bicyclist',
+-    'supercategory': 'human--rider--bicyclist'},
+-    {'color': [255, 0, 100],
+-    'id': 22,
+-    'isthing': 1,
+-    'name': 'Motorcyclist',
+-    'supercategory': 'human--rider--motorcyclist'},
+-    {'color': [255, 0, 200],
+-    'id': 23,
+-    'isthing': 1,
+-    'name': 'Other Rider',
+-    'supercategory': 'human--rider--other-rider'},
+-    {'color': [200, 128, 128],
+-    'id': 24,
+-    'isthing': 1,
+-    'name': 'Lane Marking - Crosswalk',
+-    'supercategory': 'marking--crosswalk-zebra'},
+-    {'color': [255, 255, 255],
+-    'id': 25,
+-    'isthing': 0,
+-    'name': 'Lane Marking - General',
+-    'supercategory': 'marking--general'},
+-    {'color': [64, 170, 64],
+-    'id': 26,
+-    'isthing': 0,
+-    'name': 'Mountain',
+-    'supercategory': 'nature--mountain'},
+-    {'color': [230, 160, 50],
+-    'id': 27,
+-    'isthing': 0,
+-    'name': 'Sand',
+-    'supercategory': 'nature--sand'},
+-    {'color': [70, 130, 180],
+-    'id': 28,
+-    'isthing': 0,
+-    'name': 'Sky',
+-    'supercategory': 'nature--sky'},
+-    {'color': [190, 255, 255],
+-    'id': 29,
+-    'isthing': 0,
+-    'name': 'Snow',
+-    'supercategory': 'nature--snow'},
+-    {'color': [152, 251, 152],
+-    'id': 30,
+-    'isthing': 0,
+-    'name': 'Terrain',
+-    'supercategory': 'nature--terrain'},
+-    {'color': [107, 142, 35],
+-    'id': 31,
+-    'isthing': 0,
+-    'name': 'Vegetation',
+-    'supercategory': 'nature--vegetation'},
+-    {'color': [0, 170, 30],
+-    'id': 32,
+-    'isthing': 0,
+-    'name': 'Water',
+-    'supercategory': 'nature--water'},
+-    {'color': [255, 255, 128],
+-    'id': 33,
+-    'isthing': 1,
+-    'name': 'Banner',
+-    'supercategory': 'object--banner'},
+-    {'color': [250, 0, 30],
+-    'id': 34,
+-    'isthing': 1,
+-    'name': 'Bench',
+-    'supercategory': 'object--bench'},
+-    {'color': [100, 140, 180],
+-    'id': 35,
+-    'isthing': 1,
+-    'name': 'Bike Rack',
+-    'supercategory': 'object--bike-rack'},
+-    {'color': [220, 220, 220],
+-    'id': 36,
+-    'isthing': 1,
+-    'name': 'Billboard',
+-    'supercategory': 'object--billboard'},
+-    {'color': [220, 128, 128],
+-    'id': 37,
+-    'isthing': 1,
+-    'name': 'Catch Basin',
+-    'supercategory': 'object--catch-basin'},
+-    {'color': [222, 40, 40],
+-    'id': 38,
+-    'isthing': 1,
+-    'name': 'CCTV Camera',
+-    'supercategory': 'object--cctv-camera'},
+-    {'color': [100, 170, 30],
+-    'id': 39,
+-    'isthing': 1,
+-    'name': 'Fire Hydrant',
+-    'supercategory': 'object--fire-hydrant'},
+-    {'color': [40, 40, 40],
+-    'id': 40,
+-    'isthing': 1,
+-    'name': 'Junction Box',
+-    'supercategory': 'object--junction-box'},
+-    {'color': [33, 33, 33],
+-    'id': 41,
+-    'isthing': 1,
+-    'name': 'Mailbox',
+-    'supercategory': 'object--mailbox'},
+-    {'color': [100, 128, 160],
+-    'id': 42,
+-    'isthing': 1,
+-    'name': 'Manhole',
+-    'supercategory': 'object--manhole'},
+-    {'color': [142, 0, 0],
+-    'id': 43,
+-    'isthing': 1,
+-    'name': 'Phone Booth',
+-    'supercategory': 'object--phone-booth'},
+-    {'color': [70, 100, 150],
+-    'id': 44,
+-    'isthing': 0,
+-    'name': 'Pothole',
+-    'supercategory': 'object--pothole'},
+-    {'color': [210, 170, 100],
+-    'id': 45,
+-    'isthing': 1,
+-    'name': 'Street Light',
+-    'supercategory': 'object--street-light'},
+-    {'color': [153, 153, 153],
+-    'id': 46,
+-    'isthing': 1,
+-    'name': 'Pole',
+-    'supercategory': 'object--support--pole'},
+-    {'color': [128, 128, 128],
+-    'id': 47,
+-    'isthing': 1,
+-    'name': 'Traffic Sign Frame',
+-    'supercategory': 'object--support--traffic-sign-frame'},
+-    {'color': [0, 0, 80],
+-    'id': 48,
+-    'isthing': 1,
+-    'name': 'Utility Pole',
+-    'supercategory': 'object--support--utility-pole'},
+-    {'color': [250, 170, 30],
+-    'id': 49,
+-    'isthing': 1,
+-    'name': 'Traffic Light',
+-    'supercategory': 'object--traffic-light'},
+-    {'color': [192, 192, 192],
+-    'id': 50,
+-    'isthing': 1,
+-    'name': 'Traffic Sign (Back)',
+-    'supercategory': 'object--traffic-sign--back'},
+-    {'color': [220, 220, 0],
+-    'id': 51,
+-    'isthing': 1,
+-    'name': 'Traffic Sign (Front)',
+-    'supercategory': 'object--traffic-sign--front'},
+-    {'color': [140, 140, 20],
+-    'id': 52,
+-    'isthing': 1,
+-    'name': 'Trash Can',
+-    'supercategory': 'object--trash-can'},
+-    {'color': [119, 11, 32],
+-    'id': 53,
+-    'isthing': 1,
+-    'name': 'Bicycle',
+-    'supercategory': 'object--vehicle--bicycle'},
+-    {'color': [150, 0, 255],
+-    'id': 54,
+-    'isthing': 1,
+-    'name': 'Boat',
+-    'supercategory': 'object--vehicle--boat'},
+-    {'color': [0, 60, 100],
+-    'id': 55,
+-    'isthing': 1,
+-    'name': 'Bus',
+-    'supercategory': 'object--vehicle--bus'},
+-    {'color': [0, 0, 142],
+-    'id': 56,
+-    'isthing': 1,
+-    'name': 'Car',
+-    'supercategory': 'object--vehicle--car'},
+-    {'color': [0, 0, 90],
+-    'id': 57,
+-    'isthing': 1,
+-    'name': 'Caravan',
+-    'supercategory': 'object--vehicle--caravan'},
+-    {'color': [0, 0, 230],
+-    'id': 58,
+-    'isthing': 1,
+-    'name': 'Motorcycle',
+-    'supercategory': 'object--vehicle--motorcycle'},
+-    {'color': [0, 80, 100],
+-    'id': 59,
+-    'isthing': 0,
+-    'name': 'On Rails',
+-    'supercategory': 'object--vehicle--on-rails'},
+-    {'color': [128, 64, 64],
+-    'id': 60,
+-    'isthing': 1,
+-    'name': 'Other Vehicle',
+-    'supercategory': 'object--vehicle--other-vehicle'},
+-    {'color': [0, 0, 110],
+-    'id': 61,
+-    'isthing': 1,
+-    'name': 'Trailer',
+-    'supercategory': 'object--vehicle--trailer'},
+-    {'color': [0, 0, 70],
+-    'id': 62,
+-    'isthing': 1,
+-    'name': 'Truck',
+-    'supercategory': 'object--vehicle--truck'},
+-    {'color': [0, 0, 192],
+-    'id': 63,
+-    'isthing': 1,
+-    'name': 'Wheeled Slow',
+-    'supercategory': 'object--vehicle--wheeled-slow'},
+-    {'color': [32, 32, 32],
+-    'id': 64,
+-    'isthing': 0,
+-    'name': 'Car Mount',
+-    'supercategory': 'void--car-mount'},
+-    {'color': [120, 10, 10],
+-    'id': 65,
+-    'isthing': 0,
+-    'name': 'Ego Vehicle',
+-    'supercategory': 'void--ego-vehicle'}
++    {
++        "color": [165, 42, 42],
++        "id": 1,
++        "isthing": 1,
++        "name": "Bird",
++        "supercategory": "animal--bird",
++    },
++    {
++        "color": [0, 192, 0],
++        "id": 2,
++        "isthing": 1,
++        "name": "Ground Animal",
++        "supercategory": "animal--ground-animal",
++    },
++    {
++        "color": [196, 196, 196],
++        "id": 3,
++        "isthing": 0,
++        "name": "Curb",
++        "supercategory": "construction--barrier--curb",
++    },
++    {
++        "color": [190, 153, 153],
++        "id": 4,
++        "isthing": 0,
++        "name": "Fence",
++        "supercategory": "construction--barrier--fence",
++    },
++    {
++        "color": [180, 165, 180],
++        "id": 5,
++        "isthing": 0,
++        "name": "Guard Rail",
++        "supercategory": "construction--barrier--guard-rail",
++    },
++    {
++        "color": [90, 120, 150],
++        "id": 6,
++        "isthing": 0,
++        "name": "Barrier",
++        "supercategory": "construction--barrier--other-barrier",
++    },
++    {
++        "color": [102, 102, 156],
++        "id": 7,
++        "isthing": 0,
++        "name": "Wall",
++        "supercategory": "construction--barrier--wall",
++    },
++    {
++        "color": [128, 64, 255],
++        "id": 8,
++        "isthing": 0,
++        "name": "Bike Lane",
++        "supercategory": "construction--flat--bike-lane",
++    },
++    {
++        "color": [140, 140, 200],
++        "id": 9,
++        "isthing": 1,
++        "name": "Crosswalk - Plain",
++        "supercategory": "construction--flat--crosswalk-plain",
++    },
++    {
++        "color": [170, 170, 170],
++        "id": 10,
++        "isthing": 0,
++        "name": "Curb Cut",
++        "supercategory": "construction--flat--curb-cut",
++    },
++    {
++        "color": [250, 170, 160],
++        "id": 11,
++        "isthing": 0,
++        "name": "Parking",
++        "supercategory": "construction--flat--parking",
++    },
++    {
++        "color": [96, 96, 96],
++        "id": 12,
++        "isthing": 0,
++        "name": "Pedestrian Area",
++        "supercategory": "construction--flat--pedestrian-area",
++    },
++    {
++        "color": [230, 150, 140],
++        "id": 13,
++        "isthing": 0,
++        "name": "Rail Track",
++        "supercategory": "construction--flat--rail-track",
++    },
++    {
++        "color": [128, 64, 128],
++        "id": 14,
++        "isthing": 0,
++        "name": "Road",
++        "supercategory": "construction--flat--road",
++    },
++    {
++        "color": [110, 110, 110],
++        "id": 15,
++        "isthing": 0,
++        "name": "Service Lane",
++        "supercategory": "construction--flat--service-lane",
++    },
++    {
++        "color": [244, 35, 232],
++        "id": 16,
++        "isthing": 0,
++        "name": "Sidewalk",
++        "supercategory": "construction--flat--sidewalk",
++    },
++    {
++        "color": [150, 100, 100],
++        "id": 17,
++        "isthing": 0,
++        "name": "Bridge",
++        "supercategory": "construction--structure--bridge",
++    },
++    {
++        "color": [70, 70, 70],
++        "id": 18,
++        "isthing": 0,
++        "name": "Building",
++        "supercategory": "construction--structure--building",
++    },
++    {
++        "color": [150, 120, 90],
++        "id": 19,
++        "isthing": 0,
++        "name": "Tunnel",
++        "supercategory": "construction--structure--tunnel",
++    },
++    {
++        "color": [220, 20, 60],
++        "id": 20,
++        "isthing": 1,
++        "name": "Person",
++        "supercategory": "human--person",
++    },
++    {
++        "color": [255, 0, 0],
++        "id": 21,
++        "isthing": 1,
++        "name": "Bicyclist",
++        "supercategory": "human--rider--bicyclist",
++    },
++    {
++        "color": [255, 0, 100],
++        "id": 22,
++        "isthing": 1,
++        "name": "Motorcyclist",
++        "supercategory": "human--rider--motorcyclist",
++    },
++    {
++        "color": [255, 0, 200],
++        "id": 23,
++        "isthing": 1,
++        "name": "Other Rider",
++        "supercategory": "human--rider--other-rider",
++    },
++    {
++        "color": [200, 128, 128],
++        "id": 24,
++        "isthing": 1,
++        "name": "Lane Marking - Crosswalk",
++        "supercategory": "marking--crosswalk-zebra",
++    },
++    {
++        "color": [255, 255, 255],
++        "id": 25,
++        "isthing": 0,
++        "name": "Lane Marking - General",
++        "supercategory": "marking--general",
++    },
++    {
++        "color": [64, 170, 64],
++        "id": 26,
++        "isthing": 0,
++        "name": "Mountain",
++        "supercategory": "nature--mountain",
++    },
++    {
++        "color": [230, 160, 50],
++        "id": 27,
++        "isthing": 0,
++        "name": "Sand",
++        "supercategory": "nature--sand",
++    },
++    {
++        "color": [70, 130, 180],
++        "id": 28,
++        "isthing": 0,
++        "name": "Sky",
++        "supercategory": "nature--sky",
++    },
++    {
++        "color": [190, 255, 255],
++        "id": 29,
++        "isthing": 0,
++        "name": "Snow",
++        "supercategory": "nature--snow",
++    },
++    {
++        "color": [152, 251, 152],
++        "id": 30,
++        "isthing": 0,
++        "name": "Terrain",
++        "supercategory": "nature--terrain",
++    },
++    {
++        "color": [107, 142, 35],
++        "id": 31,
++        "isthing": 0,
++        "name": "Vegetation",
++        "supercategory": "nature--vegetation",
++    },
++    {
++        "color": [0, 170, 30],
++        "id": 32,
++        "isthing": 0,
++        "name": "Water",
++        "supercategory": "nature--water",
++    },
++    {
++        "color": [255, 255, 128],
++        "id": 33,
++        "isthing": 1,
++        "name": "Banner",
++        "supercategory": "object--banner",
++    },
++    {
++        "color": [250, 0, 30],
++        "id": 34,
++        "isthing": 1,
++        "name": "Bench",
++        "supercategory": "object--bench",
++    },
++    {
++        "color": [100, 140, 180],
++        "id": 35,
++        "isthing": 1,
++        "name": "Bike Rack",
++        "supercategory": "object--bike-rack",
++    },
++    {
++        "color": [220, 220, 220],
++        "id": 36,
++        "isthing": 1,
++        "name": "Billboard",
++        "supercategory": "object--billboard",
++    },
++    {
++        "color": [220, 128, 128],
++        "id": 37,
++        "isthing": 1,
++        "name": "Catch Basin",
++        "supercategory": "object--catch-basin",
++    },
++    {
++        "color": [222, 40, 40],
++        "id": 38,
++        "isthing": 1,
++        "name": "CCTV Camera",
++        "supercategory": "object--cctv-camera",
++    },
++    {
++        "color": [100, 170, 30],
++        "id": 39,
++        "isthing": 1,
++        "name": "Fire Hydrant",
++        "supercategory": "object--fire-hydrant",
++    },
++    {
++        "color": [40, 40, 40],
++        "id": 40,
++        "isthing": 1,
++        "name": "Junction Box",
++        "supercategory": "object--junction-box",
++    },
++    {
++        "color": [33, 33, 33],
++        "id": 41,
++        "isthing": 1,
++        "name": "Mailbox",
++        "supercategory": "object--mailbox",
++    },
++    {
++        "color": [100, 128, 160],
++        "id": 42,
++        "isthing": 1,
++        "name": "Manhole",
++        "supercategory": "object--manhole",
++    },
++    {
++        "color": [142, 0, 0],
++        "id": 43,
++        "isthing": 1,
++        "name": "Phone Booth",
++        "supercategory": "object--phone-booth",
++    },
++    {
++        "color": [70, 100, 150],
++        "id": 44,
++        "isthing": 0,
++        "name": "Pothole",
++        "supercategory": "object--pothole",
++    },
++    {
++        "color": [210, 170, 100],
++        "id": 45,
++        "isthing": 1,
++        "name": "Street Light",
++        "supercategory": "object--street-light",
++    },
++    {
++        "color": [153, 153, 153],
++        "id": 46,
++        "isthing": 1,
++        "name": "Pole",
++        "supercategory": "object--support--pole",
++    },
++    {
++        "color": [128, 128, 128],
++        "id": 47,
++        "isthing": 1,
++        "name": "Traffic Sign Frame",
++        "supercategory": "object--support--traffic-sign-frame",
++    },
++    {
++        "color": [0, 0, 80],
++        "id": 48,
++        "isthing": 1,
++        "name": "Utility Pole",
++        "supercategory": "object--support--utility-pole",
++    },
++    {
++        "color": [250, 170, 30],
++        "id": 49,
++        "isthing": 1,
++        "name": "Traffic Light",
++        "supercategory": "object--traffic-light",
++    },
++    {
++        "color": [192, 192, 192],
++        "id": 50,
++        "isthing": 1,
++        "name": "Traffic Sign (Back)",
++        "supercategory": "object--traffic-sign--back",
++    },
++    {
++        "color": [220, 220, 0],
++        "id": 51,
++        "isthing": 1,
++        "name": "Traffic Sign (Front)",
++        "supercategory": "object--traffic-sign--front",
++    },
++    {
++        "color": [140, 140, 20],
++        "id": 52,
++        "isthing": 1,
++        "name": "Trash Can",
++        "supercategory": "object--trash-can",
++    },
++    {
++        "color": [119, 11, 32],
++        "id": 53,
++        "isthing": 1,
++        "name": "Bicycle",
++        "supercategory": "object--vehicle--bicycle",
++    },
++    {
++        "color": [150, 0, 255],
++        "id": 54,
++        "isthing": 1,
++        "name": "Boat",
++        "supercategory": "object--vehicle--boat",
++    },
++    {
++        "color": [0, 60, 100],
++        "id": 55,
++        "isthing": 1,
++        "name": "Bus",
++        "supercategory": "object--vehicle--bus",
++    },
++    {
++        "color": [0, 0, 142],
++        "id": 56,
++        "isthing": 1,
++        "name": "Car",
++        "supercategory": "object--vehicle--car",
++    },
++    {
++        "color": [0, 0, 90],
++        "id": 57,
++        "isthing": 1,
++        "name": "Caravan",
++        "supercategory": "object--vehicle--caravan",
++    },
++    {
++        "color": [0, 0, 230],
++        "id": 58,
++        "isthing": 1,
++        "name": "Motorcycle",
++        "supercategory": "object--vehicle--motorcycle",
++    },
++    {
++        "color": [0, 80, 100],
++        "id": 59,
++        "isthing": 0,
++        "name": "On Rails",
++        "supercategory": "object--vehicle--on-rails",
++    },
++    {
++        "color": [128, 64, 64],
++        "id": 60,
++        "isthing": 1,
++        "name": "Other Vehicle",
++        "supercategory": "object--vehicle--other-vehicle",
++    },
++    {
++        "color": [0, 0, 110],
++        "id": 61,
++        "isthing": 1,
++        "name": "Trailer",
++        "supercategory": "object--vehicle--trailer",
++    },
++    {
++        "color": [0, 0, 70],
++        "id": 62,
++        "isthing": 1,
++        "name": "Truck",
++        "supercategory": "object--vehicle--truck",
++    },
++    {
++        "color": [0, 0, 192],
++        "id": 63,
++        "isthing": 1,
++        "name": "Wheeled Slow",
++        "supercategory": "object--vehicle--wheeled-slow",
++    },
++    {
++        "color": [32, 32, 32],
++        "id": 64,
++        "isthing": 0,
++        "name": "Car Mount",
++        "supercategory": "void--car-mount",
++    },
++    {
++        "color": [120, 10, 10],
++        "id": 65,
++        "isthing": 0,
++        "name": "Ego Vehicle",
++        "supercategory": "void--ego-vehicle",
++    },
+ ]
+ 
+ COCO_STUFF_CATEGORIES = [
+@@ -2342,14 +2553,18 @@ COCO_STUFF_CATEGORIES = [
+ 
+ def get_coco_categories_with_prompt_eng():
+     COCO_CATEGORIES_ = copy.deepcopy(COCO_CATEGORIES)
+-    coco_id_names = open('./eov_seg/data/datasets/coco_panoptic_with_prompt_eng.txt').read().splitlines()
++    coco_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/coco_panoptic_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     coco_idx = 0
+     for line in coco_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if idx == 0 or name == "invalid_class_id":
+             continue
+-        #print(COCO_CATEGORIES_[coco_idx]["name"], '->', name)
++        # print(COCO_CATEGORIES_[coco_idx]["name"], '->', name)
+         assert COCO_CATEGORIES_[coco_idx]["id"] == idx
+         COCO_CATEGORIES_[coco_idx]["name"] = name
+         coco_idx += 1
+@@ -2358,14 +2573,18 @@ def get_coco_categories_with_prompt_eng():
+ 
+ def get_coco_stuff_categories_with_prompt_eng():
+     COCO_STUFF_CATEGORIES_ = copy.deepcopy(COCO_STUFF_CATEGORIES)
+-    coco_id_names = open('./eov_seg/data/datasets/coco_stuff_with_prompt_eng.txt').read().splitlines()
++    coco_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/coco_stuff_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     coco_idx = 0
+     for line in coco_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if idx == 0 or name == "invalid_class_id":
+             continue
+-        #print(COCO_STUFF_CATEGORIES_[coco_idx]["name"], '->', name)
++        # print(COCO_STUFF_CATEGORIES_[coco_idx]["name"], '->', name)
+         assert COCO_STUFF_CATEGORIES_[coco_idx]["id"] == idx
+         COCO_STUFF_CATEGORIES_[coco_idx]["name"] = name
+         coco_idx += 1
+@@ -2374,66 +2593,90 @@ def get_coco_stuff_categories_with_prompt_eng():
+ 
+ def get_ade20k_categories_with_prompt_eng():
+     ADE20K_150_CATEGORIES_ = copy.deepcopy(ADE20K_150_CATEGORIES)
+-    ade20k_id_names = open('./eov_seg/data/datasets/ade20k_150_with_prompt_eng.txt').read().splitlines()
++    ade20k_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/ade20k_150_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     ade_idx = 0
+     for line in ade20k_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if idx == 0 or name == "invalid_class_id":
+             continue
+-        #print(ADE20K_150_CATEGORIES_[ade_idx]["name"], '->', name)
++        # print(ADE20K_150_CATEGORIES_[ade_idx]["name"], '->', name)
+         assert ADE20K_150_CATEGORIES_[ade_idx]["id"] == idx - 1
+         ADE20K_150_CATEGORIES_[ade_idx]["name"] = name
+         ade_idx += 1
+     return ADE20K_150_CATEGORIES_
+ 
++
+ def get_cityscapes_categories_with_prompt_eng():
+     CITYSCAPES_CATEGORIES_ = copy.deepcopy(CITYSCAPES_CATEGORIES)
+-    cityscapes_id_names = open('./eov_seg/data/datasets/cityscapes_with_prompt_eng.txt').read().splitlines()
++    cityscapes_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/cityscapes_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     cityscapes_idx = 0
+     for line in cityscapes_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if name == "invalid_class_id":
+             continue
+-        #print(CITYSCAPES_CATEGORIES_[cityscapes_idx]["name"], '->', name)
++        # print(CITYSCAPES_CATEGORIES_[cityscapes_idx]["name"], '->', name)
+         assert CITYSCAPES_CATEGORIES_[cityscapes_idx]["trainId"] == idx
+         CITYSCAPES_CATEGORIES_[cityscapes_idx]["name"] = name
+         cityscapes_idx += 1
+     return CITYSCAPES_CATEGORIES_
+ 
++
+ def get_ade20k_847_categories_with_prompt_eng():
+     ADE20K_847_CATEGORIES_ = copy.deepcopy(ADE20K_847_CATEGORIES)
+-    ade20k_847_id_names = open('./eov_seg/data/datasets/ade20k_847_with_prompt_eng.txt').read().splitlines()
++    ade20k_847_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/ade20k_847_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     ade_idx = 0
+     for line in ade20k_847_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if idx == 0 or name == "invalid_class_id":
+             continue
+-        #print(ADE20K_847_CATEGORIES_[ade_idx]["name"], '->', name)
++        # print(ADE20K_847_CATEGORIES_[ade_idx]["name"], '->', name)
+         # assert ADE20K_847_CATEGORIES_[ade_idx]["id"] == idx - 1
+         ADE20K_847_CATEGORIES_[ade_idx]["name"] = name
+         ade_idx += 1
+     return ADE20K_847_CATEGORIES_
+ 
++
+ def get_pascal_21_categories_with_prompt_eng():
+     PASCAL_VOC_21_CATEGORIES_ = copy.deepcopy(PASCAL_VOC_21_CATEGORIES)
+-    pascal_21_id_names = open('./eov_seg/data/datasets/pascal_voc_21_with_prompt_eng.txt').read().splitlines()
++    pascal_21_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/pascal_voc_21_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     pas_idx = 0
+     for line in pascal_21_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         PASCAL_VOC_21_CATEGORIES_[pas_idx]["name"] = name
+         pas_idx += 1
+     return PASCAL_VOC_21_CATEGORIES_
+ 
++
+ def get_pascal_ctx_459_categories_with_prompt_eng():
+     PASCAL_CTX_459_CATEGORIES_ = copy.deepcopy(PASCAL_CTX_459_CATEGORIES)
+-    pascal_ctx_459_id_names = open('./eov_seg/data/datasets/pascal_ctx_459_with_prompt_eng.txt').read().splitlines()
++    pascal_ctx_459_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/pascal_ctx_459_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     pas_idx = 0
+     for line in pascal_ctx_459_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if idx == 0 or name == "invalid_class_id":
+             continue
+@@ -2441,12 +2684,17 @@ def get_pascal_ctx_459_categories_with_prompt_eng():
+         pas_idx += 1
+     return PASCAL_CTX_459_CATEGORIES_
+ 
++
+ def get_pascal_ctx_59_categories_with_prompt_eng():
+     PASCAL_CTX_59_CATEGORIES_ = copy.deepcopy(PASCAL_CTX_59_CATEGORIES)
+-    pascal_ctx_59_id_names = open('./eov_seg/data/datasets/pascal_ctx_59_with_prompt_eng.txt').read().splitlines()
++    pascal_ctx_59_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/pascal_ctx_59_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     pas_idx = 0
+     for line in pascal_ctx_59_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if idx == 0 or name == "invalid_class_id":
+             continue
+@@ -2454,12 +2702,19 @@ def get_pascal_ctx_59_categories_with_prompt_eng():
+         pas_idx += 1
+     return PASCAL_CTX_59_CATEGORIES_
+ 
++
+ def get_mapillary_vistas_categories_with_prompt_eng():
+-    MAPILLARY_VISTAS_SEM_SEG_CATEGORIES_ = copy.deepcopy(MAPILLARY_VISTAS_SEM_SEG_CATEGORIES)
+-    mapillary_vistas_id_names = open('./eov_seg/data/datasets/mapillary_vistas_with_prompt_eng.txt').read().splitlines()
++    MAPILLARY_VISTAS_SEM_SEG_CATEGORIES_ = copy.deepcopy(
++        MAPILLARY_VISTAS_SEM_SEG_CATEGORIES
++    )
++    mapillary_vistas_id_names = (
++        open(f"{kEovSegRootFolder}/data/datasets/mapillary_vistas_with_prompt_eng.txt")
++        .read()
++        .splitlines()
++    )
+     mapillary_idx = 0
+     for line in mapillary_vistas_id_names:
+-        idx, name = line.split(':')
++        idx, name = line.split(":")
+         idx = int(idx)
+         if idx == 0 or name == "invalid_class_id":
+             continue
+@@ -2467,6 +2722,7 @@ def get_mapillary_vistas_categories_with_prompt_eng():
+         mapillary_idx += 1
+     return MAPILLARY_VISTAS_SEM_SEG_CATEGORIES_
+ 
++
+ if __name__ == "__main__":
+     get_coco_categories_with_prompt_eng()
+     get_ade20k_categories_with_prompt_eng()
+@@ -2476,4 +2732,4 @@ if __name__ == "__main__":
+     get_pascal_ctx_459_categories_with_prompt_eng()
+     get_pascal_ctx_59_categories_with_prompt_eng()
+     get_mapillary_vistas_categories_with_prompt_eng()
+-    get_coco_stuff_categories_with_prompt_eng()
+\ No newline at end of file
++    get_coco_stuff_categories_with_prompt_eng()
+diff --git a/eov_seg/modeling/backbone/clip.py b/eov_seg/modeling/backbone/clip.py
+index e019e51..519842e 100644
+--- a/eov_seg/modeling/backbone/clip.py
++++ b/eov_seg/modeling/backbone/clip.py
+@@ -1,18 +1,19 @@
+ """
+ Copyright (2023) Bytedance Ltd. and/or its affiliates
+ 
+-Licensed under the Apache License, Version 2.0 (the "License"); 
+-you may not use this file except in compliance with the License. 
+-You may obtain a copy of the License at 
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
+ 
+-    http://www.apache.org/licenses/LICENSE-2.0 
++    http://www.apache.org/licenses/LICENSE-2.0
+ 
+-Unless required by applicable law or agreed to in writing, software 
+-distributed under the License is distributed on an "AS IS" BASIS, 
+-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+-See the License for the specific language governing permissions and 
+-limitations under the License. 
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
+ """
++
+ import time
+ import torch
+ import torch.nn.functional as F
+@@ -44,39 +45,41 @@ class CLIP(Backbone):
+         self.model_name = model_name
+         self.pretrained = pretrained
+ 
+-        self.clip_model, _, _ = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
++        self.clip_model, _, _ = open_clip.create_model_and_transforms(
++            model_name, pretrained=pretrained
++        )
+         self.text_tokenizer = open_clip.get_tokenizer(model_name)
+ 
+         model_name = model_name.lower()
+-        if 'convnext_' in model_name:
+-            self.model_type = 'convnext'
+-            if '_base' in model_name:
++        if "convnext_" in model_name:
++            self.model_type = "convnext"
++            if "_base" in model_name:
+                 self.output_channels = [128, 128, 256, 512, 1024]
+-            elif '_large' in model_name:
++            elif "_large" in model_name:
+                 self.output_channels = [192, 192, 384, 768, 1536]
+-            elif '_xxlarge' in model_name:
++            elif "_xxlarge" in model_name:
+                 self.output_channels = [384, 384, 768, 1536, 3072]
+ 
+-        elif 'rn' in model_name:
+-            self.model_type = 'resnet'
+-            if model_name.replace('-quickgelu', '') in ['rn50', 'rn101']:
++        elif "rn" in model_name:
++            self.model_type = "resnet"
++            if model_name.replace("-quickgelu", "") in ["rn50", "rn101"]:
+                 self.output_channels = [64, 256, 512, 1024, 2048]
+-            elif model_name == 'rn50x4':
++            elif model_name == "rn50x4":
+                 self.output_channels = [80, 320, 640, 1280, 2560]
+-            elif model_name == 'rn50x16':
++            elif model_name == "rn50x16":
+                 self.output_channels = [96, 384, 768, 1536, 3072]
+-            elif model_name == 'rn50x64':
++            elif model_name == "rn50x64":
+                 self.output_channels = [128, 512, 1024, 2048, 4096]
+ 
+-        elif 'vit' in model_name:
+-            self.model_type = 'vit'
+-            if 'b-32' in model_name:
++        elif "vit" in model_name:
++            self.model_type = "vit"
++            if "b-32" in model_name:
+                 self.output_channels = 768
+                 self.output_strides = 32
+-            if 'b-16' in model_name:
++            if "b-16" in model_name:
+                 self.output_channels = 768
+                 self.output_strides = 16
+-            elif 'l-14' in model_name:
++            elif "l-14" in model_name:
+                 self.output_channels = 1024
+                 self.output_strides = 14
+ 
+@@ -87,7 +90,7 @@ class CLIP(Backbone):
+                 "res3": 8,
+                 "res4": 16,
+                 "res5": 32,
+-                "clip_embedding": -1
++                "clip_embedding": -1,
+             }
+             self._out_feature_channels = {
+                 "stem": self.output_channels[0],
+@@ -95,7 +98,7 @@ class CLIP(Backbone):
+                 "res3": self.output_channels[2],
+                 "res4": self.output_channels[3],
+                 "res5": self.output_channels[4],
+-                "clip_embedding": self.dim_latent
++                "clip_embedding": self.dim_latent,
+             }
+         elif backbone_type == "vit":
+             self._out_feature_strides = {
+@@ -115,7 +118,9 @@ class CLIP(Backbone):
+     def encode_text(self, text, normalize: bool = False):
+         cast_dtype = self.clip_model.transformer.get_cast_dtype()
+ 
+-        x = self.clip_model.token_embedding(text).to(cast_dtype)  # [batch_size, n_ctx, d_model]
++        x = self.clip_model.token_embedding(text).to(
++            cast_dtype
++        )  # [batch_size, n_ctx, d_model]
+ 
+         x = x + self.clip_model.positional_embedding.to(cast_dtype)
+         x = x.permute(1, 0, 2)  # NLD -> LND
+@@ -123,7 +128,10 @@ class CLIP(Backbone):
+         x = x.permute(1, 0, 2)  # LND -> NLD
+         x = self.clip_model.ln_final(x)  # [batch_size, n_ctx, transformer.width]
+         # take features from the eot embedding (eot_token is the highest number in each sequence)
+-        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.clip_model.text_projection
++        x = (
++            x[torch.arange(x.shape[0]), text.argmax(dim=-1)]
++            @ self.clip_model.text_projection
++        )
+         return F.normalize(x, dim=-1) if normalize else x
+ 
+     def tokenize_text(self, text):
+@@ -131,60 +139,79 @@ class CLIP(Backbone):
+ 
+     def extract_features(self, x):
+         return {
+-            'convnext': self.extract_features_convnext,
+-            'resnet': self.extract_features_resnet,
+-            'vit': self.extract_features_vit,
++            "convnext": self.extract_features_convnext,
++            "resnet": self.extract_features_resnet,
++            "vit": self.extract_features_vit,
+         }[self.model_type](x)
+ 
+     def visual_prediction_forward(self, x, masks=None):
+         return {
+-            'convnext': self.visual_prediction_forward_convnext,
+-            'resnet': self.visual_prediction_forward_resnet,
++            "convnext": self.visual_prediction_forward_convnext,
++            "resnet": self.visual_prediction_forward_resnet,
+         }[self.model_type](x, masks)
+ 
+     def extract_features_convnext(self, x):
+         out = {}
+         x = self.clip_model.visual.trunk.stem(x)
+-        out['stem'] = x.contiguous() # os4
++        out["stem"] = x.contiguous()  # os4
+         for i in range(4):
+             x = self.clip_model.visual.trunk.stages[i](x)
+-            out[f'res{i+2}'] = x.contiguous() # res 2 (os4), 3 (os8), 4 (os16), 5 (os32)
+-        
++            out[f"res{i+2}"] = (
++                x.contiguous()
++            )  # res 2 (os4), 3 (os8), 4 (os16), 5 (os32)
++
+         x = self.clip_model.visual.trunk.norm_pre(x)
+-        out['clip_vis_dense'] = x.contiguous()
++        out["clip_vis_dense"] = x.contiguous()
+         # out['clip_attnpool'] = self.clip_model.visual.attnpool(x)
+         return out
+ 
+     def global_attenpool(self, x):
+         batch, channel, height, width = x.shape
+ 
+-        positional_embedding = self.clip_model.visual.attnpool.positional_embedding.to(x.dtype)
+-        spatial_pos_embed = positional_embedding[1:, None, :] # HW x 1 x C
+-        global_pos_embed = positional_embedding[:1, None, :] # HW x 1 x C
++        positional_embedding = self.clip_model.visual.attnpool.positional_embedding.to(
++            x.dtype
++        )
++        spatial_pos_embed = positional_embedding[1:, None, :]  # HW x 1 x C
++        global_pos_embed = positional_embedding[:1, None, :]  # HW x 1 x C
+ 
+         orig_size = int(math.sqrt(spatial_pos_embed.shape[0]))
+-        spatial_pos_embed = spatial_pos_embed.permute(1, 2, 0).reshape(1, channel, orig_size, orig_size)
+-        spatial_pos_embed = F.interpolate(spatial_pos_embed, size=(height, width), mode='bilinear', align_corners=False) # 1 x C x H x W
+-        spatial_pos_embed = spatial_pos_embed.permute(2, 3, 0, 1).reshape(height*width, 1, channel)
++        spatial_pos_embed = spatial_pos_embed.permute(1, 2, 0).reshape(
++            1, channel, orig_size, orig_size
++        )
++        spatial_pos_embed = F.interpolate(
++            spatial_pos_embed,
++            size=(height, width),
++            mode="bilinear",
++            align_corners=False,
++        )  # 1 x C x H x W
++        spatial_pos_embed = spatial_pos_embed.permute(2, 3, 0, 1).reshape(
++            height * width, 1, channel
++        )
+         x = x.reshape(batch, channel, height * width).permute(2, 0, 1)  # BCHW -> (HW)BC
+         x = x + spatial_pos_embed  # (HW)NC
+ 
+         x = torch.cat([x.mean(dim=0, keepdim=True) + global_pos_embed, x], dim=0)
+         x, _ = F.multi_head_attention_forward(
+-            query=x, key=x, value=x,
++            query=x,
++            key=x,
++            value=x,
+             embed_dim_to_check=x.shape[-1],
+             num_heads=self.clip_model.visual.attnpool.num_heads,
+             q_proj_weight=self.clip_model.visual.attnpool.q_proj.weight,
+             k_proj_weight=self.clip_model.visual.attnpool.k_proj.weight,
+             v_proj_weight=self.clip_model.visual.attnpool.v_proj.weight,
+             in_proj_weight=None,
+-            in_proj_bias=torch.cat([self.clip_model.visual.attnpool.q_proj.bias,
+-                                    self.clip_model.visual.attnpool.k_proj.bias,
+-                                    self.clip_model.visual.attnpool.v_proj.bias]),
++            in_proj_bias=torch.cat(
++                [
++                    self.clip_model.visual.attnpool.q_proj.bias,
++                    self.clip_model.visual.attnpool.k_proj.bias,
++                    self.clip_model.visual.attnpool.v_proj.bias,
++                ]
++            ),
+             bias_k=None,
+             bias_v=None,
+             add_zero_attn=False,
+-            dropout_p=0.,
++            dropout_p=0.0,
+             out_proj_weight=self.clip_model.visual.attnpool.c_proj.weight,
+             out_proj_bias=self.clip_model.visual.attnpool.c_proj.bias,
+             use_separate_proj_weight=True,
+@@ -196,29 +223,43 @@ class CLIP(Backbone):
+ 
+     def extract_features_resnet(self, x):
+         out = {}
+-        x = self.clip_model.visual.act1(self.clip_model.visual.bn1(self.clip_model.visual.conv1(x)))
+-        x = self.clip_model.visual.act2(self.clip_model.visual.bn2(self.clip_model.visual.conv2(x)))
+-        x = self.clip_model.visual.act3(self.clip_model.visual.bn3(self.clip_model.visual.conv3(x)))
+-        out['stem'] = x.contiguous() # os2
++        x = self.clip_model.visual.act1(
++            self.clip_model.visual.bn1(self.clip_model.visual.conv1(x))
++        )
++        x = self.clip_model.visual.act2(
++            self.clip_model.visual.bn2(self.clip_model.visual.conv2(x))
++        )
++        x = self.clip_model.visual.act3(
++            self.clip_model.visual.bn3(self.clip_model.visual.conv3(x))
++        )
++        out["stem"] = x.contiguous()  # os2
+         x = self.clip_model.visual.avgpool(x)
+         x = self.clip_model.visual.layer1(x)
+-        out['res2'] = x.contiguous() # os4
++        out["res2"] = x.contiguous()  # os4
+         x = self.clip_model.visual.layer2(x)
+-        out['res3'] = x.contiguous() # os8
++        out["res3"] = x.contiguous()  # os8
+         x = self.clip_model.visual.layer3(x)
+-        out['res4'] = x.contiguous() # os16
++        out["res4"] = x.contiguous()  # os16
+         x = self.clip_model.visual.layer4(x)
+-        out['res5'] = x.contiguous() # os32
+-        out['clip_vis_dense'] = x
++        out["res5"] = x.contiguous()  # os32
++        out["clip_vis_dense"] = x
+         # out['clip_attnpool'] = self.global_attenpool(x)  # [B, HW+1, C]
+         return out
+-    
++
+     def extract_features_vit(self, x):
+         x = self.clip_model.visual.conv1(x)  # shape = [*, width, grid, grid]
+         H, W = x.shape[-2:]
+         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+-        x = torch.cat([self._expand_token(self.clip_model.visual.class_embedding, x.shape[0]).to(x.dtype), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
++        x = torch.cat(
++            [
++                self._expand_token(
++                    self.clip_model.visual.class_embedding, x.shape[0]
++                ).to(x.dtype),
++                x,
++            ],
++            dim=1,
++        )  # shape = [*, grid ** 2 + 1, width]
+ 
+         B, N, C = x.shape
+         positional_embedding = self.clip_model.visual.positional_embedding.to(x.dtype)
+@@ -226,10 +267,16 @@ class CLIP(Backbone):
+         class_pos_embed = positional_embedding[:1, None, :]  # 1 x 1 x C
+         orig_size = int(math.sqrt(spatial_pos_embed.shape[0]))
+         # new_size = int(math.sqrt(x[:, 1:, :].shape[1]))
+-        spatial_pos_embed = spatial_pos_embed.permute(1, 2, 0).reshape(1, C, orig_size, orig_size)  # [1, C, H, W]
+-        spatial_pos_embed = F.interpolate(spatial_pos_embed, size=(H, W), mode='bilinear', align_corners=False)  # 1 x C x H x W
++        spatial_pos_embed = spatial_pos_embed.permute(1, 2, 0).reshape(
++            1, C, orig_size, orig_size
++        )  # [1, C, H, W]
++        spatial_pos_embed = F.interpolate(
++            spatial_pos_embed, size=(H, W), mode="bilinear", align_corners=False
++        )  # 1 x C x H x W
+         spatial_pos_embed = spatial_pos_embed.permute(2, 3, 0, 1).reshape(H * W, 1, C)
+-        spatial_pos_embed = torch.cat([class_pos_embed, spatial_pos_embed], dim=0).permute(1, 0, 2)
++        spatial_pos_embed = torch.cat(
++            [class_pos_embed, spatial_pos_embed], dim=0
++        ).permute(1, 0, 2)
+         x = x + spatial_pos_embed  # B(HW)C
+ 
+         x = self.clip_model.visual.ln_pre(x)
+@@ -244,59 +291,85 @@ class CLIP(Backbone):
+ 
+     def visual_prediction_forward_convnext(self, x, masks):
+         batch, num_query, channel = x.shape
+-        x = x.reshape(batch*num_query, channel, 1, 1) # fake 2D input
++        x = x.reshape(batch * num_query, channel, 1, 1)  # fake 2D input
+         x = self.clip_model.visual.trunk.head(x)
+         x = self.clip_model.visual.head(x)
+-        return x.view(batch, num_query, x.shape[-1]) # B x num_queries x 640
++        return x.view(batch, num_query, x.shape[-1])  # B x num_queries x 640
+ 
+     def visual_prediction_forward_resnet(self, x, masks):
+         batch, channel, height, width = x.shape
+         if masks.shape[-2] != height or masks.shape[-1] != width:
+-            masks = F.inteprolate(masks, size=(height, width), mode='bilinear', align_corners=False)
++            masks = F.inteprolate(
++                masks, size=(height, width), mode="bilinear", align_corners=False
++            )
+         num_masks = masks.shape[1]
+ 
+-        positional_embedding = self.clip_model.visual.attnpool.positional_embedding.to(x.dtype)
+-        spatial_pos_embed = positional_embedding[1:, None, :] # HW x 1 x C
++        positional_embedding = self.clip_model.visual.attnpool.positional_embedding.to(
++            x.dtype
++        )
++        spatial_pos_embed = positional_embedding[1:, None, :]  # HW x 1 x C
+         orig_size = int(math.sqrt(spatial_pos_embed.shape[0]))
+-        spatial_pos_embed = spatial_pos_embed.permute(1, 2, 0).reshape(1, channel, orig_size, orig_size)
+-        spatial_pos_embed = F.interpolate(spatial_pos_embed, size=(height, width), mode='bilinear', align_corners=False) # 1 x C x H x W
+-        spatial_pos_embed = spatial_pos_embed.permute(2, 3, 0, 1).reshape(height*width, 1, channel)
++        spatial_pos_embed = spatial_pos_embed.permute(1, 2, 0).reshape(
++            1, channel, orig_size, orig_size
++        )
++        spatial_pos_embed = F.interpolate(
++            spatial_pos_embed,
++            size=(height, width),
++            mode="bilinear",
++            align_corners=False,
++        )  # 1 x C x H x W
++        spatial_pos_embed = spatial_pos_embed.permute(2, 3, 0, 1).reshape(
++            height * width, 1, channel
++        )
+         x = x.reshape(batch, channel, height * width).permute(2, 0, 1)  # BCHW -> (HW)BC
+         key_value = x + spatial_pos_embed
+ 
+         masks = masks.reshape(batch, num_masks, height * width)
+         masks = (masks > 0).to(masks.dtype)
+         query = x.mean(0, keepdim=True) + positional_embedding[:1, None, :]
+-        num_masks = num_masks.to(query.device)
++        # num_masks = num_masks.to(query.device)
+         query = query.repeat_interleave(num_masks, dim=0)
+ 
+         attn_mask = masks < 0.5
+-        attn_mask = attn_mask.unsqueeze(1).expand(-1, self.clip_model.visual.attnpool.num_heads, -1, -1)
+-        attn_mask = attn_mask.reshape(batch * self.clip_model.visual.attnpool.num_heads,
+-                                    query.shape[0], key_value.shape[0])
++        attn_mask = attn_mask.unsqueeze(1).expand(
++            -1, self.clip_model.visual.attnpool.num_heads, -1, -1
++        )
++        attn_mask = attn_mask.reshape(
++            batch * self.clip_model.visual.attnpool.num_heads,
++            query.shape[0],
++            key_value.shape[0],
++        )
+ 
+         x = F.multi_head_attention_forward(
+-            query=query, key=key_value, value=key_value,
++            query=query,
++            key=key_value,
++            value=key_value,
+             embed_dim_to_check=key_value.shape[-1],
+             num_heads=self.clip_model.visual.attnpool.num_heads,
+             q_proj_weight=self.clip_model.visual.attnpool.q_proj.weight,
+             k_proj_weight=self.clip_model.visual.attnpool.k_proj.weight,
+             v_proj_weight=self.clip_model.visual.attnpool.v_proj.weight,
+             in_proj_weight=None,
+-            in_proj_bias=torch.cat([self.clip_model.visual.attnpool.q_proj.bias,
+-                                    self.clip_model.visual.attnpool.k_proj.bias,
+-                                    self.clip_model.visual.attnpool.v_proj.bias]),
++            in_proj_bias=torch.cat(
++                [
++                    self.clip_model.visual.attnpool.q_proj.bias,
++                    self.clip_model.visual.attnpool.k_proj.bias,
++                    self.clip_model.visual.attnpool.v_proj.bias,
++                ]
++            ),
+             bias_k=None,
+             bias_v=None,
+             add_zero_attn=False,
+-            dropout_p=0.,
++            dropout_p=0.0,
+             out_proj_weight=self.clip_model.visual.attnpool.c_proj.weight,
+             out_proj_bias=self.clip_model.visual.attnpool.c_proj.bias,
+             use_separate_proj_weight=True,
+             training=self.clip_model.visual.attnpool.training,
+             need_weights=False,
+-            attn_mask=attn_mask
+-        )[0].permute(1, 0, 2) # B x N x C
++            attn_mask=attn_mask,
++        )[0].permute(
++            1, 0, 2
++        )  # B x N x C
+         return x
+ 
+     def get_text_classifier(self, text_list, device):
+@@ -313,23 +386,25 @@ class CLIP(Backbone):
+         self.eval()
+         with torch.no_grad():
+             return self.extract_features(x)
+-    
++
+     @property
+     def dim_latent(self):
+         return self.clip_model.text_projection.shape[-1]
+-    
++
+     def output_shape(self):
+         if self.backbone_type == "cnn":
+             return {
+                 name: ShapeSpec(
+-                    channels=self._out_feature_channels[name], stride=self._out_feature_strides[name]
++                    channels=self._out_feature_channels[name],
++                    stride=self._out_feature_strides[name],
+                 )
+                 for name in ["stem", "res2", "res3", "res4", "res5", "clip_embedding"]
+             }
+         elif self.backbone_type == "vit":
+             return {
+                 name: ShapeSpec(
+-                    channels=self._out_feature_channels[name], stride=self._out_feature_strides[name]
++                    channels=self._out_feature_channels[name],
++                    stride=self._out_feature_strides[name],
+                 )
+                 for name in ["layer"]
+             }
+@@ -343,7 +418,9 @@ class CLIP(Backbone):
+ 
+     def get_similarity_map(sm, shape):
+         # min-max norm
+-        sm = (sm - sm.min(1, keepdim=True)[0]) / (sm.max(1, keepdim=True)[0] - sm.min(1, keepdim=True)[0])
++        sm = (sm - sm.min(1, keepdim=True)[0]) / (
++            sm.max(1, keepdim=True)[0] - sm.min(1, keepdim=True)[0]
++        )
+ 
+         # reshape
+         if len(sm) == 3:
+@@ -351,7 +428,7 @@ class CLIP(Backbone):
+             sm = sm.reshape(sm.shape[0], side, side, -1).permute(0, 3, 1, 2)
+ 
+         # interpolate
+-        sm = torch.nn.functional.interpolate(sm, shape, mode='bilinear')
++        sm = torch.nn.functional.interpolate(sm, shape, mode="bilinear")
+         sm = sm.permute(0, 2, 3, 1)
+ 
+-        return sm
+\ No newline at end of file
++        return sm
+diff --git a/eov_seg/modeling/meta_arch/segmentator.py b/eov_seg/modeling/meta_arch/segmentator.py
+index 6ea9f08..b8d23c3 100755
+--- a/eov_seg/modeling/meta_arch/segmentator.py
++++ b/eov_seg/modeling/meta_arch/segmentator.py
+@@ -1,15 +1,25 @@
+ import torch
+ from torch import nn
+ import torch.nn.functional as F
++import os
++import hashlib
++import pickle
+ from detectron2.modeling import META_ARCH_REGISTRY
+ from detectron2.structures import Boxes, ImageList, Instances
+ from detectron2.data import MetadataCatalog
+ from detectron2.utils.memory import retry_if_cuda_oom
+ from detectron2.modeling.postprocessing import sem_seg_postprocess
++from detectron2.utils.logger import setup_logger
++
++logger = setup_logger()
+ 
+ from eov_seg.modeling import build_backbone
+ from eov_seg.modeling.neck import LiteAggregator
+-from eov_seg.modeling.head import LightweightDecoder, MaskPooling, get_classification_logits
++from eov_seg.modeling.head import (
++    LightweightDecoder,
++    MaskPooling,
++    get_classification_logits,
++)
+ from eov_seg.modeling.loss import SetCriterion, HungarianMatcher
+ 
+ __all__ = ["EOV_SEG"]
+@@ -48,14 +58,18 @@ class EOV_SEG(nn.Module):
+         self.train_metadata = MetadataCatalog.get(cfg.DATASETS.TRAIN[0])
+         self.test_metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
+         self.test_topk_per_image = cfg.TEST.DETECTIONS_PER_IMAGE
+-        
++
+         self.cnn_backbone = build_backbone(cfg, backbone_type="cnn")
+         self.vit_backbone = build_backbone(cfg, backbone_type="vit")
+         self.size_divisibility = cfg.MODEL.EOV_SEG.SIZE_DIVISIBILITY
+         if self.size_divisibility < 0:
+             self.size_divisibility = self.cnn_backbone.size_divisibility
+ 
+-        self.sem_seg_postprocess_before_inference = (cfg.MODEL.EOV_SEG.TEST.SEM_SEG_POSTPROCESSING_BEFORE_INFERENCE or cfg.MODEL.EOV_SEG.TEST.PANOPTIC_ON or cfg.MODEL.EOV_SEG.TEST.INSTANCE_ON)
++        self.sem_seg_postprocess_before_inference = (
++            cfg.MODEL.EOV_SEG.TEST.SEM_SEG_POSTPROCESSING_BEFORE_INFERENCE
++            or cfg.MODEL.EOV_SEG.TEST.PANOPTIC_ON
++            or cfg.MODEL.EOV_SEG.TEST.INSTANCE_ON
++        )
+         self.semantic_on = cfg.MODEL.EOV_SEG.TEST.SEMANTIC_ON
+         self.instance_on = cfg.MODEL.EOV_SEG.TEST.INSTANCE_ON
+         self.panoptic_on = cfg.MODEL.EOV_SEG.TEST.PANOPTIC_ON
+@@ -70,8 +84,12 @@ class EOV_SEG(nn.Module):
+             cost_dice=dice_weight,
+             num_points=cfg.MODEL.EOV_SEG.TRAIN_NUM_POINTS,
+         )
+-        
+-        weight_dict = {"loss_ce": class_weight, "loss_mask": mask_weight, "loss_dice": dice_weight}
++
++        weight_dict = {
++            "loss_ce": class_weight,
++            "loss_mask": mask_weight,
++            "loss_dice": dice_weight,
++        }
+         loss_list = ["labels", "masks"]
+ 
+         criterion = SetCriterion(
+@@ -84,12 +102,23 @@ class EOV_SEG(nn.Module):
+             oversample_ratio=cfg.MODEL.EOV_SEG.OVERSAMPLE_RATIO,
+             importance_sample_ratio=cfg.MODEL.EOV_SEG.IMPORTANCE_SAMPLE_RATIO,
+         )
+-        
+-        self.lite_aggr = LiteAggregator(cfg=cfg, backbone_shape=self.cnn_backbone.output_shape()) # 
+-        self.light_weight_decoder = LightweightDecoder(cfg=cfg, vit_backbone_shape=self.vit_backbone.output_shape(), num_stages=cfg.MODEL.EOV_SEG.NUM_STAGES, criterion=criterion) # 
+ 
+-        self.register_buffer("pixel_mean", torch.Tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1), False)
+-        self.register_buffer("pixel_std", torch.Tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1), False)
++        self.lite_aggr = LiteAggregator(
++            cfg=cfg, backbone_shape=self.cnn_backbone.output_shape()
++        )  #
++        self.light_weight_decoder = LightweightDecoder(
++            cfg=cfg,
++            vit_backbone_shape=self.vit_backbone.output_shape(),
++            num_stages=cfg.MODEL.EOV_SEG.NUM_STAGES,
++            criterion=criterion,
++        )  #
++
++        self.register_buffer(
++            "pixel_mean", torch.Tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1), False
++        )
++        self.register_buffer(
++            "pixel_std", torch.Tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1), False
++        )
+         self.to(self.device)
+ 
+         # ov head args
+@@ -100,22 +129,37 @@ class EOV_SEG(nn.Module):
+ 
+         self.train_text_classifier = None
+         self.test_text_classifier = None
+-        self.void_embedding = nn.Embedding(1, self.cnn_backbone.dim_latent) # use this for void
++        self.void_embedding = nn.Embedding(
++            1, self.cnn_backbone.dim_latent
++        )  # use this for void
+ 
+-        _, self.train_num_templates, self.train_class_names = self.prepare_class_names_from_metadata(self.train_metadata, self.train_metadata)
+-        self.category_overlapping_mask, self.test_num_templates, self.test_class_names = self.prepare_class_names_from_metadata(self.test_metadata, self.train_metadata)
++        _, self.train_num_templates, self.train_class_names = (
++            self.prepare_class_names_from_metadata(
++                self.train_metadata, self.train_metadata
++            )
++        )
++        (
++            self.category_overlapping_mask,
++            self.test_num_templates,
++            self.test_class_names,
++        ) = self.prepare_class_names_from_metadata(
++            self.test_metadata, self.train_metadata
++        )
+ 
+     def prepare_class_names_from_metadata(self, metadata, train_metadata):
+         def split_labels(x):
+             res = []
+             for x_ in x:
+-                x_ = x_.replace(', ', ',')
+-                x_ = x_.split(',') # there can be multiple synonyms for single class
++                x_ = x_.replace(", ", ",")
++                x_ = x_.split(",")  # there can be multiple synonyms for single class
+                 res.append(x_)
+             return res
++
+         # get text classifier
+         try:
+-            class_names = split_labels(metadata.stuff_classes) # it includes both thing and stuff
++            class_names = split_labels(
++                metadata.stuff_classes
++            )  # it includes both thing and stuff
+             train_class_names = split_labels(train_metadata.stuff_classes)
+         except:
+             # this could be for insseg, where only thing_classes are available
+@@ -124,12 +168,15 @@ class EOV_SEG(nn.Module):
+         train_class_names = {l for label in train_class_names for l in label}
+         category_overlapping_list = []
+         for test_class_names in class_names:
+-            is_overlapping = not set(train_class_names).isdisjoint(set(test_class_names))
++            is_overlapping = not set(train_class_names).isdisjoint(
++                set(test_class_names)
++            )
+             category_overlapping_list.append(is_overlapping)
+         category_overlapping_mask = torch.tensor(
+-            category_overlapping_list, dtype=torch.long)
++            category_overlapping_list, dtype=torch.long
++        )
+ 
+-        def fill_all_templates_ensemble(x_=''):
++        def fill_all_templates_ensemble(x_=""):
+             res = []
+             for x in x_:
+                 for template in VILD_PROMPT:
+@@ -141,47 +188,228 @@ class EOV_SEG(nn.Module):
+         for x in class_names:
+             templated_classes, templated_classes_num = fill_all_templates_ensemble(x)
+             templated_class_names += templated_classes
+-            num_templates.append(templated_classes_num) # how many templates for current classes
++            num_templates.append(
++                templated_classes_num
++            )  # how many templates for current classes
+         class_names = templated_class_names
+-        #print("text for classification:", class_names)
++        # print("text for classification:", class_names)
+         return category_overlapping_mask, num_templates, class_names
+ 
+-    def set_metadata(self, metadata):
++    def set_metadata(self, metadata, vocab_cache_dir=None):
+         self.test_metadata = metadata
+-        self.category_overlapping_mask, self.test_num_templates, self.test_class_names = self.prepare_class_names_from_metadata(metadata, self.train_metadata)
++        (
++            self.category_overlapping_mask,
++            self.test_num_templates,
++            self.test_class_names,
++        ) = self.prepare_class_names_from_metadata(metadata, self.train_metadata)
+         self.test_text_classifier = None
++        self.vocab_cache_dir = vocab_cache_dir
++        if vocab_cache_dir and not os.path.exists(vocab_cache_dir):
++            os.makedirs(vocab_cache_dir, exist_ok=True)
++            logger.info(f"Created vocabulary cache directory: {vocab_cache_dir}")
+         return
+ 
++    def _get_vocab_cache_key(self):
++        """Generate cache key from class names and CLIP model"""
++        # Create a unique key based on class names and CLIP model
++        class_names_str = "|".join(sorted(self.test_class_names))
++        clip_model_name = getattr(self.cnn_backbone, "model_name", "unknown")
++        cache_data = f"{class_names_str}|{clip_model_name}|{len(VILD_PROMPT)}"
++        cache_key = hashlib.md5(cache_data.encode()).hexdigest()
++        return cache_key
++
++    def _load_vocab_cache(self, cache_key):
++        """Load text classifier from cache"""
++        if not self.vocab_cache_dir:
++            return None
++        cache_path = os.path.join(self.vocab_cache_dir, f"vocab_{cache_key}.pkl")
++        if os.path.exists(cache_path):
++            try:
++                logger.info(
++                    f"  [Text Vocab] Loading cached text classifier from: {cache_path}"
++                )
++                with open(cache_path, "rb") as f:
++                    cached_data = pickle.load(f)
++                    text_classifier = cached_data["text_classifier"]
++                    num_templates = cached_data["num_templates"]
++                    logger.info(
++                        f"  [Text Vocab] Loaded cached text classifier: shape={text_classifier.shape}, "
++                        f"num_templates={num_templates}"
++                    )
++                    return text_classifier, num_templates
++            except Exception as e:
++                logger.warning(f"  [Text Vocab] Failed to load cache: {e}")
++        return None
++
++    def _save_vocab_cache(self, cache_key, text_classifier, num_templates):
++        """Save text classifier to cache"""
++        if not self.vocab_cache_dir:
++            return
++        cache_path = os.path.join(self.vocab_cache_dir, f"vocab_{cache_key}.pkl")
++        try:
++            cache_data = {
++                "text_classifier": text_classifier.cpu(),  # Save on CPU to save space
++                "num_templates": num_templates,
++            }
++            with open(cache_path, "wb") as f:
++                pickle.dump(cache_data, f)
++            logger.info(f"  [Text Vocab] Saved text classifier to cache: {cache_path}")
++        except Exception as e:
++            logger.warning(f"  [Text Vocab] Failed to save cache: {e}")
++
+     def get_text_classifier(self):
+         if self.training:
+             if self.train_text_classifier is None:
++                import time
++
++                vocab_start_time = time.time()
++                total_classes = len(self.train_class_names)
++                logger.info(
++                    f"  [Text Vocab] Processing {total_classes} training classes with {len(VILD_PROMPT)} templates each..."
++                )
++
+                 text_classifier = []
+                 # this is needed to avoid oom, which may happen when num of class is large
+                 bs = 128
+-                for idx in range(0, len(self.train_class_names), bs):
+-                    text_classifier.append(self.cnn_backbone.get_text_classifier(self.train_class_names[idx:idx+bs], self.device).detach())
++                total_batches = (total_classes + bs - 1) // bs
++
++                for batch_idx, idx in enumerate(
++                    range(0, len(self.train_class_names), bs)
++                ):
++                    batch_start = time.time()
++                    batch_classes = self.train_class_names[idx : idx + bs]
++                    text_classifier.append(
++                        self.cnn_backbone.get_text_classifier(
++                            batch_classes, self.device
++                        ).detach()
++                    )
++                    batch_time = time.time() - batch_start
++
++                    if (batch_idx + 1) % 10 == 0 or batch_idx == total_batches - 1:
++                        elapsed = time.time() - vocab_start_time
++                        processed = min(idx + bs, total_classes)
++                        progress = processed / total_classes * 100
++                        logger.info(
++                            f"  [Text Vocab] Processed {processed}/{total_classes} classes ({progress:.1f}%) - "
++                            f"batch {batch_idx+1}/{total_batches} in {batch_time:.2f}s, "
++                            f"total elapsed: {elapsed:.1f}s"
++                        )
++
++                logger.info(
++                    f"  [Text Vocab] Concatenating and normalizing text embeddings..."
++                )
++                norm_start = time.time()
+                 text_classifier = torch.cat(text_classifier, dim=0)
+ 
+                 # average across templates and normalization.
+-                text_classifier /= text_classifier.norm(dim=-1, keepdim=True)  # [num_classes * num_templates, D]
+-                text_classifier = text_classifier.reshape(text_classifier.shape[0] // len(VILD_PROMPT), len(VILD_PROMPT), text_classifier.shape[-1]).mean(1)
++                text_classifier /= text_classifier.norm(
++                    dim=-1, keepdim=True
++                )  # [num_classes * num_templates, D]
++                text_classifier = text_classifier.reshape(
++                    text_classifier.shape[0] // len(VILD_PROMPT),
++                    len(VILD_PROMPT),
++                    text_classifier.shape[-1],
++                ).mean(1)
+                 text_classifier /= text_classifier.norm(dim=-1, keepdim=True)
++                norm_time = time.time() - norm_start
++
++                total_time = time.time() - vocab_start_time
++                logger.info(
++                    f"  [Text Vocab] Text classifier preprocessing completed in {total_time:.2f}s "
++                    f"(normalization: {norm_time:.2f}s)"
++                )
++                logger.info(
++                    f"  [Text Vocab] Final text classifier shape: {text_classifier.shape}"
++                )
++
+                 self.train_text_classifier = text_classifier
+             return self.train_text_classifier, self.train_num_templates
+         else:
+             if self.test_text_classifier is None:
++                # Try to load from cache first
++                cache_key = self._get_vocab_cache_key()
++                cached_result = self._load_vocab_cache(cache_key)
++
++                if cached_result is not None:
++                    text_classifier, num_templates = cached_result
++                    # Move to device
++                    self.test_text_classifier = text_classifier.to(self.device)
++                    logger.info(
++                        f"  [Text Vocab] Using cached text classifier (cache key: {cache_key[:8]}...)"
++                    )
++                    return self.test_text_classifier, num_templates
++
++                # Cache miss - process text vocabulary
++                import time
++
++                vocab_start_time = time.time()
++                total_classes = len(self.test_class_names)
++                logger.info(
++                    f"  [Text Vocab] Processing {total_classes} test classes with {len(VILD_PROMPT)} templates each..."
++                )
++                logger.info(
++                    f"  [Text Vocab] Cache key: {cache_key[:8]}... (will cache after processing)"
++                )
++
+                 text_classifier = []
+                 # this is needed to avoid oom, which may happen when num of class is large
+                 bs = 128
+-                for idx in range(0, len(self.test_class_names), bs):
+-                    text_classifier.append(self.cnn_backbone.get_text_classifier(self.test_class_names[idx:idx+bs], self.device).detach())
++                total_batches = (total_classes + bs - 1) // bs
++
++                for batch_idx, idx in enumerate(
++                    range(0, len(self.test_class_names), bs)
++                ):
++                    batch_start = time.time()
++                    batch_classes = self.test_class_names[idx : idx + bs]
++                    text_classifier.append(
++                        self.cnn_backbone.get_text_classifier(
++                            batch_classes, self.device
++                        ).detach()
++                    )
++                    batch_time = time.time() - batch_start
++
++                    if (batch_idx + 1) % 10 == 0 or batch_idx == total_batches - 1:
++                        elapsed = time.time() - vocab_start_time
++                        processed = min(idx + bs, total_classes)
++                        progress = processed / total_classes * 100
++                        logger.info(
++                            f"  [Text Vocab] Processed {processed}/{total_classes} classes ({progress:.1f}%) - "
++                            f"batch {batch_idx+1}/{total_batches} in {batch_time:.2f}s, "
++                            f"total elapsed: {elapsed:.1f}s"
++                        )
++
++                logger.info(
++                    f"  [Text Vocab] Concatenating and normalizing text embeddings..."
++                )
++                norm_start = time.time()
+                 text_classifier = torch.cat(text_classifier, dim=0)
+ 
+                 # average across templates and normalization.
+                 text_classifier /= text_classifier.norm(dim=-1, keepdim=True)
+-                text_classifier = text_classifier.reshape(text_classifier.shape[0] // len(VILD_PROMPT), len(VILD_PROMPT), text_classifier.shape[-1]).mean(1)
++                text_classifier = text_classifier.reshape(
++                    text_classifier.shape[0] // len(VILD_PROMPT),
++                    len(VILD_PROMPT),
++                    text_classifier.shape[-1],
++                ).mean(1)
+                 text_classifier /= text_classifier.norm(dim=-1, keepdim=True)
++                norm_time = time.time() - norm_start
++
++                total_time = time.time() - vocab_start_time
++                logger.info(
++                    f"  [Text Vocab] Text classifier preprocessing completed in {total_time:.2f}s "
++                    f"(normalization: {norm_time:.2f}s)"
++                )
++                logger.info(
++                    f"  [Text Vocab] Final text classifier shape: {text_classifier.shape}"
++                )
++
+                 self.test_text_classifier = text_classifier
++
++                # Save to cache for future use
++                self._save_vocab_cache(
++                    cache_key, text_classifier, self.test_num_templates
++                )
++
+             return self.test_text_classifier, self.test_num_templates
+ 
+     def forward(self, batched_inputs):
+@@ -199,7 +427,9 @@ class EOV_SEG(nn.Module):
+         text_classifier, num_templates = self.get_text_classifier()
+ 
+         # Append void class weight
+-        text_classifier = torch.cat([text_classifier, F.normalize(self.void_embedding.weight, dim=-1)], dim=0)
++        text_classifier = torch.cat(
++            [text_classifier, F.normalize(self.void_embedding.weight, dim=-1)], dim=0
++        )
+         if self.training:
+             # mask classification target
+             if "instances" in batched_inputs[0]:
+@@ -210,28 +440,45 @@ class EOV_SEG(nn.Module):
+ 
+             # # bipartite matching-based loss
+             # losses = self.criterion(outputs, targets)
+-            losses, all_cls_scores, all_mask_preds = self.light_weight_decoder(vit_feats, neck_feats, targets, text_classifier, num_templates)
++            losses, all_cls_scores, all_mask_preds = self.light_weight_decoder(
++                vit_feats, neck_feats, targets, text_classifier, num_templates
++            )
+             return losses
+         else:
+-            losses, all_cls_scores, all_mask_preds = self.light_weight_decoder(vit_feats, neck_feats, None, text_classifier, num_templates)
+-            mask_cls_results = all_cls_scores[-1] #outputs["pred_logits"]
+-            mask_pred_results = all_mask_preds[-1] #outputs["pred_masks"]
++            losses, all_cls_scores, all_mask_preds = self.light_weight_decoder(
++                vit_feats, neck_feats, None, text_classifier, num_templates
++            )
++            mask_cls_results = all_cls_scores[-1]  # outputs["pred_logits"]
++            mask_pred_results = all_mask_preds[-1]  # outputs["pred_masks"]
+ 
+             # We ensemble the pred logits of in-vocab and out-vocab
+             clip_feature = cnn_feats["clip_vis_dense"]
+-            mask_for_pooling = F.interpolate(mask_pred_results, size=clip_feature.shape[-2:],
+-                                                mode='bilinear', align_corners=False)
++            mask_for_pooling = F.interpolate(
++                mask_pred_results,
++                size=clip_feature.shape[-2:],
++                mode="bilinear",
++                align_corners=False,
++            )
+             if "convnext" in self.cnn_backbone.model_name.lower():
+                 pooled_clip_feature = self.mask_pooling(clip_feature, mask_for_pooling)
+-                pooled_clip_feature = self.cnn_backbone.visual_prediction_forward(pooled_clip_feature)
++                pooled_clip_feature = self.cnn_backbone.visual_prediction_forward(
++                    pooled_clip_feature
++                )
+             elif "rn" in self.cnn_backbone.model_name.lower():
+-                pooled_clip_feature = self.cnn_backbone.visual_prediction_forward(clip_feature, mask_for_pooling)
++                pooled_clip_feature = self.cnn_backbone.visual_prediction_forward(
++                    clip_feature, mask_for_pooling
++                )
+             else:
+                 raise NotImplementedError
+ 
+-            out_vocab_cls_results = get_classification_logits(pooled_clip_feature, text_classifier, self.cnn_backbone.clip_model.logit_scale, num_templates)
+-            in_vocab_cls_results = mask_cls_results[..., :-1] # remove void
+-            out_vocab_cls_results = out_vocab_cls_results[..., :-1] # remove void
++            out_vocab_cls_results = get_classification_logits(
++                pooled_clip_feature,
++                text_classifier,
++                self.cnn_backbone.clip_model.logit_scale,
++                num_templates,
++            )
++            in_vocab_cls_results = mask_cls_results[..., :-1]  # remove void
++            out_vocab_cls_results = out_vocab_cls_results[..., :-1]  # remove void
+ 
+             # Reference: https://github.com/NVlabs/ODISE/blob/main/odise/modeling/meta_arch/odise.py#L1506
+             out_vocab_cls_probs = out_vocab_cls_results.softmax(-1)
+@@ -241,10 +488,19 @@ class EOV_SEG(nn.Module):
+             if self.ensemble_on_valid_mask:
+                 # Only include out_vocab cls results on masks with valid pixels
+                 # We empirically find that this is important to obtain reasonable AP/mIOU score with ResNet CLIP models
+-                valid_masking = (mask_for_pooling > 0).to(mask_for_pooling).sum(-1).sum(-1) > 0
+-                valid_masking = valid_masking.to(in_vocab_cls_results.dtype).unsqueeze(-1)
+-                alpha = torch.ones_like(in_vocab_cls_results) * self.geometric_ensemble_alpha
+-                beta = torch.ones_like(in_vocab_cls_results) * self.geometric_ensemble_beta
++                valid_masking = (mask_for_pooling > 0).to(mask_for_pooling).sum(-1).sum(
++                    -1
++                ) > 0
++                valid_masking = valid_masking.to(in_vocab_cls_results.dtype).unsqueeze(
++                    -1
++                )
++                alpha = (
++                    torch.ones_like(in_vocab_cls_results)
++                    * self.geometric_ensemble_alpha
++                )
++                beta = (
++                    torch.ones_like(in_vocab_cls_results) * self.geometric_ensemble_beta
++                )
+                 alpha = alpha * valid_masking
+                 beta = beta * valid_masking
+             else:
+@@ -252,13 +508,11 @@ class EOV_SEG(nn.Module):
+                 beta = self.geometric_ensemble_beta
+ 
+             cls_logits_seen = (
+-                (in_vocab_cls_results ** (1 - alpha) * out_vocab_cls_probs ** alpha).log()
+-                * category_overlapping_mask
+-            )
++                in_vocab_cls_results ** (1 - alpha) * out_vocab_cls_probs**alpha
++            ).log() * category_overlapping_mask
+             cls_logits_unseen = (
+-                (in_vocab_cls_results ** (1 - beta) * out_vocab_cls_probs ** beta).log()
+-                * (1 - category_overlapping_mask)
+-            )
++                in_vocab_cls_results ** (1 - beta) * out_vocab_cls_probs**beta
++            ).log() * (1 - category_overlapping_mask)
+             cls_results = cls_logits_seen + cls_logits_unseen
+ 
+             # arithmetic(ablation)
+@@ -274,9 +528,9 @@ class EOV_SEG(nn.Module):
+ 
+             # This is used to filtering void predictions.
+             is_void_prob = F.softmax(mask_cls_results, dim=-1)[..., -1:]
+-            mask_cls_probs = torch.cat([
+-                cls_results.softmax(-1) * (1.0 - is_void_prob),
+-                is_void_prob], dim=-1)
++            mask_cls_probs = torch.cat(
++                [cls_results.softmax(-1) * (1.0 - is_void_prob), is_void_prob], dim=-1
++            )
+             mask_cls_results = torch.log(mask_cls_probs + 1e-8)
+ 
+             # upsample masks
+@@ -304,21 +558,29 @@ class EOV_SEG(nn.Module):
+ 
+                 # semantic segmentation inference
+                 if self.semantic_on:
+-                    r = retry_if_cuda_oom(self.semantic_inference)(mask_cls_result, mask_pred_result)
++                    r = retry_if_cuda_oom(self.semantic_inference)(
++                        mask_cls_result, mask_pred_result
++                    )
+                     if not self.sem_seg_postprocess_before_inference:
+-                        r = retry_if_cuda_oom(sem_seg_postprocess)(r, image_size, height, width)
++                        r = retry_if_cuda_oom(sem_seg_postprocess)(
++                            r, image_size, height, width
++                        )
+                     processed_results[-1]["sem_seg"] = r
+ 
+                 # panoptic segmentation inference
+                 if self.panoptic_on:
+-                    panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(mask_cls_result, mask_pred_result)
++                    panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(
++                        mask_cls_result, mask_pred_result
++                    )
+                     processed_results[-1]["panoptic_seg"] = panoptic_r
+-                
++
+                 # instance segmentation inference
+                 if self.instance_on:
+-                    instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
++                    instance_r = retry_if_cuda_oom(self.instance_inference)(
++                        mask_cls_result, mask_pred_result
++                    )
+                     processed_results[-1]["instances"] = instance_r
+-           
++
+             return processed_results
+ 
+     def prepare_targets(self, targets, images):
+@@ -327,7 +589,11 @@ class EOV_SEG(nn.Module):
+         for targets_per_image in targets:
+             # pad gt
+             gt_masks = targets_per_image.gt_masks
+-            padded_masks = torch.zeros((gt_masks.shape[0], h_pad, w_pad), dtype=gt_masks.dtype, device=gt_masks.device)
++            padded_masks = torch.zeros(
++                (gt_masks.shape[0], h_pad, w_pad),
++                dtype=gt_masks.dtype,
++                device=gt_masks.device,
++            )
+             padded_masks[:, : gt_masks.shape[1], : gt_masks.shape[2]] = gt_masks
+             new_targets.append(
+                 {
+@@ -371,7 +637,10 @@ class EOV_SEG(nn.Module):
+             stuff_memory_list = {}
+             for k in range(cur_classes.shape[0]):
+                 pred_class = cur_classes[k].item()
+-                isthing = pred_class in self.test_metadata.thing_dataset_id_to_contiguous_id.values()
++                isthing = (
++                    pred_class
++                    in self.test_metadata.thing_dataset_id_to_contiguous_id.values()
++                )
+                 mask_area = (cur_mask_ids == k).sum().item()
+                 original_area = (cur_masks[k] >= 0.5).sum().item()
+                 mask = (cur_mask_ids == k) & (cur_masks[k] >= 0.5)
+@@ -412,12 +681,19 @@ class EOV_SEG(nn.Module):
+             num_classes = len(self.test_metadata.stuff_classes)
+         else:
+             num_classes = len(self.test_metadata.thing_classes)
+-        labels = torch.arange(num_classes, device=self.device).unsqueeze(0).repeat(self.num_proposals, 1).flatten(0, 1)
++        labels = (
++            torch.arange(num_classes, device=self.device)
++            .unsqueeze(0)
++            .repeat(self.num_proposals, 1)
++            .flatten(0, 1)
++        )
+         # scores_per_image, topk_indices = scores.flatten(0, 1).topk(self.num_proposals, sorted=False)
+-        scores_per_image, topk_indices = scores.flatten(0, 1).topk(self.test_topk_per_image, sorted=False)
++        scores_per_image, topk_indices = scores.flatten(0, 1).topk(
++            self.test_topk_per_image, sorted=False
++        )
+         labels_per_image = labels[topk_indices]
+ 
+-        topk_indices = torch.div(topk_indices, num_classes, rounding_mode='floor')
++        topk_indices = torch.div(topk_indices, num_classes, rounding_mode="floor")
+         # mask_pred = mask_pred.unsqueeze(1).repeat(1, self.sem_seg_head.num_classes, 1).flatten(0, 1)
+         mask_pred = mask_pred[topk_indices]
+ 
+@@ -425,7 +701,9 @@ class EOV_SEG(nn.Module):
+         if self.panoptic_on:
+             keep = torch.zeros_like(scores_per_image).bool()
+             for i, lab in enumerate(labels_per_image):
+-                keep[i] = lab in self.test_metadata.thing_dataset_id_to_contiguous_id.values()
++                keep[i] = (
++                    lab in self.test_metadata.thing_dataset_id_to_contiguous_id.values()
++                )
+ 
+             scores_per_image = scores_per_image[keep]
+             labels_per_image = labels_per_image[keep]
+@@ -439,7 +717,9 @@ class EOV_SEG(nn.Module):
+         # result.pred_boxes = BitMasks(mask_pred > 0).get_bounding_boxes()
+ 
+         # calculate average mask prob
+-        mask_scores_per_image = (mask_pred.sigmoid().flatten(1) * result.pred_masks.flatten(1)).sum(1) / (result.pred_masks.flatten(1).sum(1) + 1e-6)
++        mask_scores_per_image = (
++            mask_pred.sigmoid().flatten(1) * result.pred_masks.flatten(1)
++        ).sum(1) / (result.pred_masks.flatten(1).sum(1) + 1e-6)
+         result.scores = scores_per_image * mask_scores_per_image
+         result.pred_classes = labels_per_image
+         return result
+diff --git a/run_demo.sh b/run_demo.sh
+new file mode 100755
+index 0000000..36060ea
+--- /dev/null
++++ b/run_demo.sh
+@@ -0,0 +1,24 @@
++#!/usr/bin/env bash
++# Author: Luigi Freda 
++# Author: Luigi Freda 
++# This file is part of https://github.com/luigifreda/pyslam
++
++#set -e
++
++SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
++SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
++
++ROOT_DIR="$SCRIPT_DIR_/../../"
++
++video_file="$ROOT_DIR/data/videos/kitti06/video_color.mp4"
++
++#NOTE: torch.compile() can cause OOM errors and compatibility issues
++#OPTIONS="--use-compile" # with torch.compile()
++#OPTIONS="--use-compile --use-fp16" # with torch.compile() and mixed precision (FP16)
++OPTIONS="--use-fp16" # with mixed precision (FP16)
++
++python demo/demo.py $OPTIONS --config-file configs/eov_seg/eov_seg_convnext_l.yaml \
++                    --video-input $video_file \
++                    --output results/ \
++                    --opts MODEL.WEIGHTS $SCRIPT_DIR_/checkpoints/convnext-l.pth
++

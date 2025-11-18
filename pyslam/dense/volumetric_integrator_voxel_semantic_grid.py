@@ -215,6 +215,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             self.camera.cy,
                             self.volumetric_integration_depth_trunc,
                             semantic_image=semantic_undistorted,
+                            instance_image=None,  # TODO: at present time, we do not use instance segmentation for volumetric integration
                         )
 
                         # transform point cloud from camera coordinate system to world coordinate system

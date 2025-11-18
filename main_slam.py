@@ -155,7 +155,9 @@ if __name__ == "__main__":
 
     # Select your semantic mapping configuration (see the file semantic_mapping_configs.py). Set it to None to disable semantic mapping.
     semantic_mapping_config = (
-        SemanticMappingConfigs.get_config_from_slam_dataset(dataset.type)
+        SemanticMappingConfigs.get_config_from_slam_dataset(
+            dataset.type, Parameters.kSemanticSegmentationType
+        )
         if Parameters.kDoSparseSemanticMappingAndSegmentation
         else None
     )
@@ -284,6 +286,8 @@ if __name__ == "__main__":
     img_id = 0  # 210, 340, 400, 770   # you can start from a desired frame id if needed
     while not is_viewer_closed:
 
+        time_start = time.time()
+
         img, img_right, depth = None, None, None
 
         if do_step:
@@ -316,9 +320,7 @@ if __name__ == "__main__":
 
                 print(f"image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}")
 
-                time_start = None
                 if img is not None:
-                    time_start = time.time()
 
                     if depth is None and depth_estimator:
                         depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
@@ -361,22 +363,20 @@ if __name__ == "__main__":
                         slam.tracking.cur_R, slam.tracking.cur_t, timestamp
                     )
 
-                if time_start is not None:
+                if img is not None:
                     processing_duration = time.time() - time_start
                     delta_time_sleep = (
                         frame_duration - processing_duration - 1e-3
                     )  # NOTE: 1e-3 is the cv wait time we use below with cv2.waitKey(1)
                     if delta_time_sleep > 1e-3:
                         time.sleep(delta_time_sleep)
-                        Printer.yellow(
-                            f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration"
-                        )
+                        # Printer.yellow(f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration")
 
                 img_id += 1
                 num_frames += 1
             else:
                 time.sleep(0.1)  # img is None
-                Printer.yellow("sleeping for 0.1 seconds - img is None")
+                # Printer.yellow("sleeping for 0.1 seconds - img is None")
                 if args.headless:
                     break  # exit from the loop if headless
 
@@ -387,7 +387,7 @@ if __name__ == "__main__":
 
         else:
             time.sleep(0.1)  # pause or do step on GUI
-            Printer.yellow("sleeping for 0.1 seconds - GUI paused")
+            # Printer.yellow("sleeping for 0.1 seconds - GUI paused")
 
         if not args.headless:
             # get keys

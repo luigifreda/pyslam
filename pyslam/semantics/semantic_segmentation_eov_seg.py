@@ -1,0 +1,563 @@
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
+
+import numpy as np
+import os
+import sys
+import platform
+
+import torch
+from PIL import Image
+from torchvision import transforms
+
+from .semantic_labels import get_ade20k_to_scannet40_map
+from .semantic_segmentation_base import SemanticSegmentationBase
+from .semantic_types import SemanticFeatureType, SemanticDatasetType
+from .semantic_utils import (
+    labels_color_map_factory,
+    labels_to_image,
+)
+from .semantic_mapping_color_map import Detectron2ColorMapManager
+
+from pyslam.utilities.system import Printer
+
+kScriptPath = os.path.realpath(__file__)
+kScriptFolder = os.path.dirname(kScriptPath)
+kRootFolder = kScriptFolder + "/../.."
+
+kEovSegPath = os.path.join(kRootFolder, "thirdparty", "eov_segmentation")
+kCacheDir = os.path.join(kRootFolder, "results", "cache")
+
+
+class SemanticSegmentationEovSeg(SemanticSegmentationBase):
+    """
+    Semantic segmentation using EOV-Seg (Open Vocabulary Segmentation).
+
+    EOV-Seg is an open-vocabulary segmentation model that can segment
+    objects and stuff classes based on text prompts. This wrapper provides
+    a similar interface to SemanticSegmentationSegformer.
+    """
+
+    supported_feature_types = [SemanticFeatureType.LABEL, SemanticFeatureType.PROBABILITY_VECTOR]
+
+    def __init__(
+        self,
+        device=None,
+        config_file=None,
+        model_weights="",
+        semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+        image_size=(512, 512),
+        semantic_feature_type=SemanticFeatureType.LABEL,
+        cache_dir=None,
+        use_compile=False,
+        use_fp16=False,
+        **kwargs,
+    ):
+        """
+        Initialize EOV-Seg semantic segmentation model.
+
+        Args:
+            device: torch device (cuda/cpu/mps) or None for auto-detection
+            config_file: Path to EOV-Seg config file (YAML). If None, uses default (eov_seg_R50.yaml).
+                        Available configs: eov_seg_R50.yaml, eov_seg_r50x4.yaml, eov_seg_convnext_l.yaml
+                        Note: convnext_l requires convnext_large_d_320 model which may not be available in all open_clip versions.
+            model_weights: Path to model weights file (.pth). If empty, uses default from config.
+            semantic_dataset_type: Target dataset type for label mapping
+            image_size: (height, width) - currently not used (model handles resizing)
+            semantic_feature_type: LABEL or PROBABILITY_VECTOR
+            cache_dir: Directory for vocabulary cache
+            use_compile: Use torch.compile() for optimization (PyTorch 2.0+)
+            use_fp16: Use mixed precision (FP16) for faster inference
+        """
+
+        self.label_mapping = None
+
+        device = self.init_device(device)
+
+        if cache_dir is None:
+            cache_dir = kCacheDir
+
+        # Initialize EOV-Seg model
+        demo, transform = self.init_model(
+            device, config_file, model_weights, cache_dir, use_compile, use_fp16
+        )
+
+        # Store demo as model (it contains the predictor)
+        super().__init__(demo, transform, device, semantic_feature_type)
+
+        # Extract color map from EOV-Seg's detectron2 metadata (actual dataset colors)
+        # This uses the same colors as detectron2's visualizer, extracted directly from metadata
+        # Now self.model is available after super().__init__
+        from .semantic_segmentation_factory import SemanticSegmentationType
+
+        # Initialize color map manager
+        self.color_map_manager = Detectron2ColorMapManager(
+            metadata=getattr(self.model, "metadata", None),
+            semantic_feature_type=semantic_feature_type,
+            semantic_dataset_type=semantic_dataset_type,
+            semantic_segmentation_type=SemanticSegmentationType.EOV_SEG,
+        )
+
+        try:
+            if hasattr(self.model, "metadata") and hasattr(self.model.metadata, "stuff_colors"):
+                # Extract actual colors from detectron2 metadata
+                num_classes = self.num_classes() if hasattr(self, "num_classes") else None
+                self.semantics_color_map = self.color_map_manager.extract_from_metadata(
+                    color_attr="stuff_colors",
+                    num_classes=num_classes,
+                    min_size=150,  # EOV-Seg typically uses ADE20K (150 classes)
+                    use_detectron2_padding=True,
+                    verbose=True,
+                )
+                Printer.green(
+                    f"EOV-Seg: Extracted color map from metadata with {len(self.semantics_color_map)} classes"
+                )
+            else:
+                # Fallback to generic color map if metadata not available
+                self.semantics_color_map = self.color_map_manager.create_fallback()
+                Printer.yellow("EOV-Seg: Using fallback color map (metadata not available)")
+        except Exception as e:
+            # Fallback to generic color map on error
+            self.semantics_color_map = self.color_map_manager.create_fallback()
+            Printer.yellow(f"EOV-Seg: Using fallback color map due to error: {e}")
+
+        self.semantic_dataset_type = semantic_dataset_type
+
+        if semantic_feature_type not in self.supported_feature_types:
+            raise ValueError(
+                f"Semantic feature type {semantic_feature_type} is not supported for {self.__class__.__name__}"
+            )
+
+    def init_model(self, device, config_file, model_weights, cache_dir, use_compile, use_fp16):
+        """
+        Initialize EOV-Seg model using VisualizationDemo.
+
+        Returns:
+            demo: VisualizationDemo instance
+            transform: None (transform is handled internally by detectron2)
+        """
+        import pyslam.config as config
+
+        config.cfg.set_lib("eov_segmentation", prepend=True)
+
+        from detectron2.config import get_cfg
+        from detectron2.projects.deeplab import add_deeplab_config
+
+        from eov_seg import add_eov_config
+        from eov_segmentation.demo.predictor import VisualizationDemo
+
+        # Setup config
+        cfg = get_cfg()
+        add_deeplab_config(cfg)
+        add_eov_config(cfg)
+
+        # Use default config if not provided
+        # Default to convnext_l config to match the demo (run_demo.sh)
+        if config_file is None:
+            config_file = os.path.join(kEovSegPath, "configs", "eov_seg", "eov_seg_convnext_l.yaml")
+
+        if not os.path.exists(config_file):
+            raise FileNotFoundError(
+                f"Config file not found: {config_file}\n"
+                f"Please provide a valid config file path."
+            )
+
+        cfg.merge_from_file(config_file)
+        cfg.freeze()
+
+        # Set default model weights if not provided (matching demo)
+        if not model_weights:
+            # Default to convnext-l.pth to match the demo
+            default_weights = os.path.join(kEovSegPath, "checkpoints", "convnext-l.pth")
+            if os.path.exists(default_weights):
+                model_weights = default_weights
+                Printer.green(f"EOV-Seg: Using default weights: {model_weights}")
+            else:
+                Printer.yellow(
+                    f"EOV-Seg: Default weights not found at {default_weights}, using config default"
+                )
+
+        # Override model weights if provided
+        if model_weights:
+            cfg.defrost()
+            # Resolve relative paths relative to the config file directory or eov_segmentation root
+            if not os.path.isabs(model_weights):
+                # Try relative to eov_segmentation root first
+                abs_weights = os.path.join(kEovSegPath, model_weights)
+                if os.path.exists(abs_weights):
+                    model_weights = abs_weights
+                else:
+                    # Try relative to config file directory
+                    config_dir = os.path.dirname(config_file)
+                    abs_weights = os.path.join(config_dir, model_weights)
+                    if os.path.exists(abs_weights):
+                        model_weights = abs_weights
+
+            if not os.path.exists(model_weights):
+                raise FileNotFoundError(
+                    f"Model weights not found: {model_weights}\n"
+                    f"Please provide a valid weights file path."
+                )
+
+            cfg.MODEL.WEIGHTS = model_weights
+            Printer.green(f"EOV-Seg: Loading weights from: {model_weights}")
+            cfg.freeze()
+
+        # Set device in config
+        cfg.defrost()
+        if device.type == "cuda":
+            cfg.MODEL.DEVICE = "cuda"
+        elif device.type == "mps":
+            # MPS not directly supported by detectron2, fallback to CPU
+            Printer.yellow("EOV-Seg: MPS not supported by detectron2, using CPU")
+            cfg.MODEL.DEVICE = "cpu"
+        else:
+            cfg.MODEL.DEVICE = "cpu"
+        cfg.freeze()
+
+        # Initialize VisualizationDemo
+        demo = VisualizationDemo(
+            cfg, cache_dir=cache_dir, use_compile=use_compile, use_fp16=use_fp16
+        )
+
+        # Transform is handled internally by detectron2, so we return None
+        return demo, None
+
+    def init_device(self, device):
+        """Initialize and validate device."""
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            if device.type != "cuda":
+                device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+        elif isinstance(device, str):
+            device = torch.device(device)
+
+        if device.type == "cuda":
+            Printer.green("SemanticSegmentationEovSeg: Using CUDA")
+        elif device.type == "mps":
+            if not torch.backends.mps.is_available():
+                raise Exception("SemanticSegmentationEovSeg: MPS is not available")
+            Printer.yellow("SemanticSegmentationEovSeg: Using MPS (may fallback to CPU)")
+        else:
+            Printer.yellow("SemanticSegmentationEovSeg: Using CPU")
+
+        return device
+
+    def num_classes(self):
+        """Get number of output classes."""
+        # EOV-Seg uses open vocabulary, so the number of classes depends on the metadata
+        try:
+            metadata = self.model.metadata
+            if hasattr(metadata, "stuff_classes"):
+                return len(metadata.stuff_classes)
+        except Exception:
+            pass
+
+        # Try to get from model config
+        try:
+            if hasattr(self.model, "predictor") and hasattr(self.model.predictor, "model"):
+                cfg = self.model.predictor.cfg
+                if hasattr(cfg, "MODEL") and hasattr(cfg.MODEL, "SEM_SEG_HEAD"):
+                    num_classes = cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES
+                    if num_classes:
+                        return int(num_classes)
+        except Exception:
+            pass
+
+        # Last resort: probe with a dummy image
+        try:
+            dummy_image = np.zeros((100, 100, 3), dtype=np.uint8)
+            with torch.no_grad():
+                predictions, _ = self.model.run_on_image(dummy_image)
+                if "sem_seg" in predictions:
+                    return int(predictions["sem_seg"].shape[0])
+                elif "panoptic_seg" in predictions:
+                    # For panoptic, we need to check metadata
+                    metadata = self.model.metadata
+                    if hasattr(metadata, "stuff_classes"):
+                        return len(metadata.stuff_classes)
+        except Exception as e:
+            Printer.red(f"SemanticSegmentationEovSeg: Failed to get number of classes: {e}")
+
+        # Default fallback
+        Printer.yellow(
+            "SemanticSegmentationEovSeg: Could not determine number of classes, using default"
+        )
+        return 150  # Common default for ADE20K-like datasets
+
+    @torch.no_grad()
+    def infer(self, image):
+        """
+        Run semantic segmentation inference on an image.
+
+        Args:
+            image: numpy array of shape (H, W, 3) in BGR format (OpenCV format)
+
+        Returns:
+            semantics: numpy array of shape (H, W) for LABEL, or (H, W, num_classes) for PROBABILITY_VECTOR
+        """
+        # Ensure image is in correct format (BGR, uint8)
+        if image.dtype != np.uint8:
+            if image.max() <= 1.0:
+                image = (image * 255).astype(np.uint8)
+            else:
+                image = image.astype(np.uint8)
+
+        # EOV-Seg expects BGR format (OpenCV format)
+        if len(image.shape) == 2:
+            # Grayscale to BGR
+            image = np.stack([image, image, image], axis=2)
+        elif image.shape[2] == 4:
+            # RGBA to BGR
+            image = image[:, :, :3]
+        elif image.shape[2] == 3:
+            # Assume BGR (OpenCV format)
+            pass
+        else:
+            raise ValueError(f"Unsupported image shape: {image.shape}")
+
+        # Run inference
+        predictions, _ = self.model.run_on_image(image)
+
+        # Extract semantic segmentation - optimized path for panoptic
+        if "panoptic_seg" in predictions:
+            # Direct extraction from panoptic (faster, no softmax needed)
+            panoptic_seg, segments_info = predictions["panoptic_seg"]
+            semantic_labels = self._panoptic_to_semantic_labels(panoptic_seg, segments_info)
+
+            # Store segments_info and original image for color mapping
+            # Make a deep copy to ensure segments_info is not modified
+            import copy
+
+            self._last_segments_info = copy.deepcopy(segments_info)
+            self._last_panoptic_seg = panoptic_seg
+            # Store original image (BGR) for visualization - convert to RGB when needed
+            self._last_image = image.copy()
+
+            # Get original image dimensions
+            orig_h, orig_w = image.shape[:2]
+            pred_h, pred_w = semantic_labels.shape
+
+            # Resize if needed (simple nearest neighbor for labels)
+            if orig_h != pred_h or orig_w != pred_w:
+                import cv2
+
+                semantic_labels = cv2.resize(
+                    semantic_labels.astype(np.uint16),
+                    (orig_w, orig_h),
+                    interpolation=cv2.INTER_NEAREST,
+                ).astype(np.int32)
+
+            self.semantics = semantic_labels
+
+        elif "sem_seg" in predictions:
+            # Fallback to semantic segmentation output
+            sem_seg = predictions["sem_seg"]  # Shape: [num_classes, H, W]
+            sem_seg_np = sem_seg.cpu().numpy()
+
+            # Get original image dimensions
+            orig_h, orig_w = image.shape[:2]
+            pred_h, pred_w = sem_seg_np.shape[1], sem_seg_np.shape[2]
+
+            # Resize if needed
+            if orig_h != pred_h or orig_w != pred_w:
+                from torchvision import transforms
+
+                resize_transform = transforms.Resize(
+                    (orig_h, orig_w), interpolation=transforms.InterpolationMode.BILINEAR
+                )
+                sem_seg_tensor = torch.from_numpy(sem_seg_np).unsqueeze(0)
+                sem_seg_resized = resize_transform(sem_seg_tensor)[0]
+                sem_seg_np = sem_seg_resized.numpy()
+
+            # Apply softmax to get probabilities
+            probs = self._softmax_2d(sem_seg_np, axis=0)  # Shape: [num_classes, H, W]
+            probs = probs.transpose(1, 2, 0)  # Shape: [H, W, num_classes]
+
+            # Apply label mapping if needed
+            if self.label_mapping is not None:
+                if self.semantic_feature_type == SemanticFeatureType.LABEL:
+                    labels = np.argmax(probs, axis=-1)
+                    self.semantics = self.label_mapping[labels]
+                else:
+                    self.semantics = self.aggregate_probabilities(probs, self.label_mapping)
+            else:
+                if self.semantic_feature_type == SemanticFeatureType.LABEL:
+                    self.semantics = np.argmax(probs, axis=-1).astype(np.int32)
+                else:
+                    self.semantics = probs
+        else:
+            raise ValueError("No semantic segmentation found in predictions")
+
+        return self.semantics
+
+    def _panoptic_to_semantic_labels(self, panoptic_seg, segments_info):
+        """
+        Convert panoptic segmentation directly to semantic labels (faster, no softmax).
+
+        Args:
+            panoptic_seg: Tensor of shape [H, W] with segment IDs
+            segments_info: List of dicts with segment information
+
+        Returns:
+            semantic_labels: numpy array of shape [H, W] with category IDs
+        """
+        # Get number of classes from metadata for validation
+        num_classes = (
+            len(self.model.metadata.stuff_classes)
+            if hasattr(self.model.metadata, "stuff_classes")
+            else 150
+        )
+
+        # Create a mapping from segment ID to category ID
+        segment_to_category = {}
+        for seg_info in segments_info:
+            seg_id = seg_info["id"]
+            category_id = seg_info["category_id"]
+            # Store category_id as-is (don't clamp here, handle in visualization)
+            segment_to_category[seg_id] = category_id
+
+        # Convert panoptic to semantic labels directly
+        panoptic_np = panoptic_seg.cpu().numpy()
+        semantic_labels = np.zeros_like(panoptic_np, dtype=np.int32)
+
+        # Map segment IDs to category IDs
+        for seg_id, category_id in segment_to_category.items():
+            mask = panoptic_np == seg_id
+            semantic_labels[mask] = category_id
+
+        return semantic_labels
+
+    def _panoptic_to_semantic(self, panoptic_seg, segments_info):
+        """
+        Convert panoptic segmentation to semantic segmentation logits (for probability vectors).
+
+        Args:
+            panoptic_seg: Tensor of shape [H, W] with segment IDs
+            segments_info: List of dicts with segment information
+
+        Returns:
+            sem_seg: Tensor of shape [num_classes, H, W] with semantic logits
+        """
+        # Get number of classes from metadata
+        num_classes = (
+            len(self.model.metadata.stuff_classes)
+            if hasattr(self.model.metadata, "stuff_classes")
+            else 150
+        )
+
+        # Get semantic labels first
+        semantic_labels = self._panoptic_to_semantic_labels(panoptic_seg, segments_info)
+
+        # Don't clamp - use category IDs as-is (matching demo behavior)
+        # Note: Some category IDs may exceed num_classes, but that's handled by the model
+
+        # Convert to one-hot encoding (hard assignment for panoptic)
+        H, W = semantic_labels.shape
+        sem_seg = np.zeros((num_classes, H, W), dtype=np.float32)
+
+        # Use high logit value for assigned classes, low for others
+        for c in range(num_classes):
+            mask = semantic_labels == c
+            sem_seg[c, mask] = 10.0  # High logit value
+            sem_seg[c, ~mask] = -10.0  # Low logit value
+
+        return torch.from_numpy(sem_seg)
+
+    def _softmax_2d(self, x, axis=0):
+        """Apply softmax along specified axis."""
+        exp_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
+        return exp_x / np.sum(exp_x, axis=axis, keepdims=True)
+
+    def aggregate_probabilities(
+        self, semantics: np.ndarray, label_mapping: np.ndarray
+    ) -> np.ndarray:
+        """
+        Aggregates original probabilities into output probabilities using a label mapping.
+
+        Args:
+            semantics: np.ndarray of shape [H, W, original num classes] - softmaxed class probabilities.
+            label_mapping: np.ndarray of shape [original num classes] - maps original class indices to output classes.
+
+        Returns:
+            np.ndarray of shape [H, W, num output classes] - aggregated probabilities.
+        """
+        H, W, num_original_classes = semantics.shape
+        num_output_classes = int(label_mapping.max() + 1)
+
+        aggregated = np.zeros((H, W, num_output_classes), dtype=semantics.dtype)
+
+        for in_idx, out_idx in enumerate(label_mapping):
+            aggregated[..., int(out_idx)] += semantics[..., in_idx]
+
+        return aggregated
+
+    def to_rgb(self, semantics, bgr=False):
+        """Convert semantics to RGB visualization using extracted detectron2 color map.
+
+        This method uses the color map extracted from detectron2's metadata (same colors
+        as detectron2's visualizer) for efficient direct color mapping. The visualizer
+        is only used for panoptic segmentation where full visualization with overlays is needed.
+
+        This method handles two cases:
+        1. 1D array of point labels -> convert each label to RGB color directly
+        2. 2D semantic image -> use extracted color map for direct color mapping
+
+        Args:
+            semantics: Can be either:
+                - 1D array of shape (N,) with label IDs for N points
+                - 2D array of shape (H, W) with label IDs for an image
+            bgr: If True, return BGR format; otherwise RGB
+
+        Returns:
+            RGB/BGR array:
+                - For 1D input: shape (N, 3) with RGB colors for each point
+                - For 2D input: shape (H, W, 3) with RGB image
+        """
+        # Update color map manager with current color map
+        self.color_map_manager.color_map = self.semantics_color_map
+
+        # Prepare panoptic data if available
+        panoptic_data = None
+        if hasattr(self, "_last_segments_info") and hasattr(self, "_last_panoptic_seg"):
+            from detectron2.utils.visualizer import ColorMode
+
+            # EOV-Seg uses OpenVocabVisualizer
+            try:
+                from eov_segmentation.demo.predictor import OpenVocabVisualizer
+
+                visualizer_class = OpenVocabVisualizer
+            except ImportError:
+                visualizer_class = None
+
+            panoptic_data = {
+                "panoptic_seg": self._last_panoptic_seg,
+                "segments_info": self._last_segments_info,
+                "image": getattr(self, "_last_image", None),
+                "visualizer_class": visualizer_class,
+                "instance_mode": getattr(self.model, "instance_mode", ColorMode.IMAGE),
+            }
+
+        # Use color map manager's to_rgb method
+        return self.color_map_manager.to_rgb(
+            semantics,
+            panoptic_data=panoptic_data,
+            visualized_output=None,  # EOV-Seg doesn't store visualized_output
+            bgr=bgr,
+        )

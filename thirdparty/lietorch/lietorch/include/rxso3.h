@@ -7,6 +7,7 @@
 #include <Eigen/Geometry> 
 
 #include "common.h"
+#include "so3.h"
 
 template <typename Scalar>
 class RxSO3 {

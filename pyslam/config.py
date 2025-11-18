@@ -104,6 +104,8 @@ class Config:
     def set_lib(self, lib_name, prepend=False, verbose=False):
         ext_path = None
         if lib_name in self.lib_paths:
+            if verbose:
+                print(f"[Config] setting lib {lib_name} with paths: {self.lib_paths[lib_name]}")
             lib_paths = [e.strip() for e in self.lib_paths[lib_name].split(",")]
             # print('setting lib paths:',lib_paths)
             for lib_path in lib_paths:
@@ -116,7 +118,9 @@ class Config:
                 if verbose:
                     print("[Config] adding path: ", ext_path)
         else:
-            print("cannot set lib: ", lib_name)
+            print("[Config] cannot set lib: ", lib_name)
+            if verbose:
+                print(f"[Config] available lib paths: {self.lib_paths.keys()}")
         return ext_path
 
     def remove_lib(self, lib_name, verbose=False):

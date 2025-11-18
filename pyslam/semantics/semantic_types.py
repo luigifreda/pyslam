@@ -1,8 +1,8 @@
 """
 * This file is part of PYSLAM
 *
-* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 * Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
+* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -47,9 +47,9 @@ class SemanticEntityType(SerializableEnum):
 
 @register_class
 class SemanticDatasetType(SerializableEnum):
-    CITYSCAPES = 0
-    ADE20K = 1
-    VOC = 2
-    NYU40 = 3
-    FEATURE_SIMILARITY = 4
-    CUSTOM_SET = 5
+    CITYSCAPES = 0  # Cityscapes dataset (#classes: 19)
+    ADE20K = 1  # ADE20K dataset (#classes: 150)
+    VOC = 2  # VOC dataset (#classes: 21)
+    NYU40 = 3  # NYU40 dataset (#classes: 41)
+    FEATURE_SIMILARITY = 4  # Feature similarity dataset
+    CUSTOM_SET = 5  # Custom set dataset (#classes: custom)

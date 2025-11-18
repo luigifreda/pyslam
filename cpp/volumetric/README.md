@@ -54,7 +54,7 @@ Both support:
 
 - **Sparse Representation**: Only stores occupied voxels, memory-efficient for large scenes
 - **Multi-threading**: Optional TBB parallelization for faster point cloud integration
-- **SIMD Optimizations**: Vectorized operations for float/double point processing
+- **SIMD Optimizations**: Vectorized operations for float/double point processing (for `voxel_grid.h`)
 - **Type Safety**: C++20 concepts ensure compile-time type checking
 - **Python Integration**: Full pybind11 bindings for Python usage
 - **Semantic Support**: Instance segmentation and class labeling with probabilistic fusion
@@ -70,6 +70,11 @@ The module is designed to be used through Python bindings. Grid types are expose
 - `VoxelBlockSemanticProbabilisticGrid`: Block-based probabilistic semantic grid
 
 All grids support point cloud integration with optional color and semantic information.
+
+
+
+
+
 
 
 

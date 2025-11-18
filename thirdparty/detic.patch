@@ -1,0 +1,1601 @@
+diff --git a/demo.py b/demo.py
+index 9221af2..401dcd0 100755
+--- a/demo.py
++++ b/demo.py
+@@ -16,26 +16,33 @@ from detectron2.config import get_cfg
+ from detectron2.data.detection_utils import read_image
+ from detectron2.utils.logger import setup_logger
+ 
+-sys.path.insert(0, 'third_party/CenterNet2/')
++sys.path.insert(0, "third_party/CenterNet2/")
+ from centernet.config import add_centernet_config
+ from detic.config import add_detic_config
+ 
+ from detic.predictor import VisualizationDemo
+ 
++
+ # Fake a video capture object OpenCV style - half width, half height of first screen using MSS
+ class ScreenGrab:
+     def __init__(self):
+         self.sct = mss.mss()
+         m0 = self.sct.monitors[0]
+-        self.monitor = {'top': 0, 'left': 0, 'width': m0['width'] / 2, 'height': m0['height'] / 2}
++        self.monitor = {
++            "top": 0,
++            "left": 0,
++            "width": m0["width"] / 2,
++            "height": m0["height"] / 2,
++        }
+ 
+     def read(self):
+-        img =  np.array(self.sct.grab(self.monitor))
++        img = np.array(self.sct.grab(self.monitor))
+         nf = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+         return (True, nf)
+ 
+     def isOpened(self):
+         return True
++
+     def release(self):
+         return True
+ 
+@@ -43,10 +50,11 @@ class ScreenGrab:
+ # constants
+ WINDOW_NAME = "Detic"
+ 
++
+ def setup_cfg(args):
+     cfg = get_cfg()
+     if args.cpu:
+-        cfg.MODEL.DEVICE="cpu"
++        cfg.MODEL.DEVICE = "cpu"
+     add_centernet_config(cfg)
+     add_detic_config(cfg)
+     cfg.merge_from_file(args.config_file)
+@@ -54,8 +62,10 @@ def setup_cfg(args):
+     # Set score_threshold for builtin models
+     cfg.MODEL.RETINANET.SCORE_THRESH_TEST = args.confidence_threshold
+     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.confidence_threshold
+-    cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = args.confidence_threshold
+-    cfg.MODEL.ROI_BOX_HEAD.ZEROSHOT_WEIGHT_PATH = 'rand' # load later
++    cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = (
++        args.confidence_threshold
++    )
++    cfg.MODEL.ROI_BOX_HEAD.ZEROSHOT_WEIGHT_PATH = "rand"  # load later
+     if not args.pred_all_class:
+         cfg.MODEL.ROI_HEADS.ONE_CLASS_PER_PROPOSAL = True
+     cfg.freeze()
+@@ -71,7 +81,7 @@ def get_parser():
+         help="path to config file",
+     )
+     parser.add_argument("--webcam", help="Take inputs from webcam.")
+-    parser.add_argument("--cpu", action='store_true', help="Use CPU only.")
++    parser.add_argument("--cpu", action="store_true", help="Use CPU only.")
+     parser.add_argument("--video-input", help="Path to video file.")
+     parser.add_argument(
+         "--input",
+@@ -87,7 +97,7 @@ def get_parser():
+     parser.add_argument(
+         "--vocabulary",
+         default="lvis",
+-        choices=['lvis', 'openimages', 'objects365', 'coco', 'custom'],
++        choices=["lvis", "openimages", "objects365", "coco", "custom"],
+         help="",
+     )
+     parser.add_argument(
+@@ -95,7 +105,7 @@ def get_parser():
+         default="",
+         help="",
+     )
+-    parser.add_argument("--pred_all_class", action='store_true')
++    parser.add_argument("--pred_all_class", action="store_true")
+     parser.add_argument(
+         "--confidence-threshold",
+         type=float,
+@@ -139,6 +149,8 @@ if __name__ == "__main__":
+ 
+     demo = VisualizationDemo(cfg, args)
+ 
++    print(f"args.input: {args.input}")
++
+     if args.input:
+         if len(args.input) == 1:
+             args.input = glob.glob(os.path.expanduser(args.input[0]))
+@@ -150,9 +162,11 @@ if __name__ == "__main__":
+             logger.info(
+                 "{}: {} in {:.2f}s".format(
+                     path,
+-                    "detected {} instances".format(len(predictions["instances"]))
+-                    if "instances" in predictions
+-                    else "finished",
++                    (
++                        "detected {} instances".format(len(predictions["instances"]))
++                        if "instances" in predictions
++                        else "finished"
++                    ),
+                     time.time() - start_time,
+                 )
+             )
+@@ -162,7 +176,9 @@ if __name__ == "__main__":
+                     assert os.path.isdir(args.output), args.output
+                     out_filename = os.path.join(args.output, os.path.basename(path))
+                 else:
+-                    assert len(args.input) == 1, "Please specify a directory with args.output"
++                    assert (
++                        len(args.input) == 1
++                    ), "Please specify a directory with args.output"
+                     out_filename = args.output
+                 visualized_output.save(out_filename)
+             else:
+@@ -192,7 +208,9 @@ if __name__ == "__main__":
+         num_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+         basename = os.path.basename(args.video_input)
+         codec, file_ext = (
+-            ("x264", ".mkv") if test_opencv_video_format("x264", ".mkv") else ("mp4v", ".mp4")
++            ("x264", ".mkv")
++            if test_opencv_video_format("x264", ".mkv")
++            else ("mp4v", ".mp4")
+         )
+         if codec == ".mp4v":
+             warnings.warn("x264 codec not available, switching to mp4v")
+@@ -202,7 +220,10 @@ if __name__ == "__main__":
+                 output_fname = os.path.splitext(output_fname)[0] + file_ext
+             else:
+                 output_fname = args.output
+-            assert not os.path.isfile(output_fname), output_fname
++            if os.path.isfile(output_fname):
++                logger.warning(
++                    f"Output file {output_fname} already exists. It will be overwritten."
++                )
+             output_file = cv2.VideoWriter(
+                 filename=output_fname,
+                 # some installation of opencv may not support x264 (due to its license),
+@@ -213,16 +234,16 @@ if __name__ == "__main__":
+                 isColor=True,
+             )
+         assert os.path.isfile(args.video_input)
++        # Always show frames in real-time, even when saving to file
++        cv2.namedWindow(basename, cv2.WINDOW_NORMAL)
+         for vis_frame in tqdm.tqdm(demo.run_on_video(video), total=num_frames):
+             if args.output:
+                 output_file.write(vis_frame)
+-            else:
+-                cv2.namedWindow(basename, cv2.WINDOW_NORMAL)
+-                cv2.imshow(basename, vis_frame)
+-                if cv2.waitKey(1) == 27:
+-                    break  # esc to quit
++            # Always display frames in real-time
++            cv2.imshow(basename, vis_frame)
++            if cv2.waitKey(1) == 27:
++                break  # esc to quit
+         video.release()
+         if args.output:
+             output_file.release()
+-        else:
+-            cv2.destroyAllWindows()
++        cv2.destroyAllWindows()
+diff --git a/detic/modeling/meta_arch/custom_rcnn.py b/detic/modeling/meta_arch/custom_rcnn.py
+index 9a5ac72..0723d23 100644
+--- a/detic/modeling/meta_arch/custom_rcnn.py
++++ b/detic/modeling/meta_arch/custom_rcnn.py
+@@ -21,25 +21,32 @@ from torch.cuda.amp import autocast
+ from ..text.text_encoder import build_text_encoder
+ from ..utils import load_class_freq, get_fed_loss_inds
+ 
++import os
++
++kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
++kDeticRootPath = os.path.join(kThisFileFolder, "../../..")
++
++
+ @META_ARCH_REGISTRY.register()
+ class CustomRCNN(GeneralizedRCNN):
+-    '''
++    """
+     Add image labels
+-    '''
++    """
++
+     @configurable
+     def __init__(
+-        self, 
+-        with_image_labels = False,
+-        dataset_loss_weight = [],
+-        fp16 = False,
+-        sync_caption_batch = False,
+-        roi_head_name = '',
+-        cap_batch_ratio = 4,
+-        with_caption = False,
+-        dynamic_classifier = False,
+-        **kwargs):
+-        """
+-        """
++        self,
++        with_image_labels=False,
++        dataset_loss_weight=[],
++        fp16=False,
++        sync_caption_batch=False,
++        roi_head_name="",
++        cap_batch_ratio=4,
++        with_caption=False,
++        dynamic_classifier=False,
++        **kwargs
++    ):
++        """ """
+         self.with_image_labels = with_image_labels
+         self.dataset_loss_weight = dataset_loss_weight
+         self.fp16 = fp16
+@@ -50,9 +57,9 @@ class CustomRCNN(GeneralizedRCNN):
+         self.dynamic_classifier = dynamic_classifier
+         self.return_proposal = False
+         if self.dynamic_classifier:
+-            self.freq_weight = kwargs.pop('freq_weight')
+-            self.num_classes = kwargs.pop('num_classes')
+-            self.num_sample_cats = kwargs.pop('num_sample_cats')
++            self.freq_weight = kwargs.pop("freq_weight")
++            self.num_classes = kwargs.pop("num_classes")
++            self.num_sample_cats = kwargs.pop("num_sample_cats")
+         super().__init__(**kwargs)
+         assert self.proposal_generator is not None
+         if self.with_caption:
+@@ -61,29 +68,30 @@ class CustomRCNN(GeneralizedRCNN):
+             for v in self.text_encoder.parameters():
+                 v.requires_grad = False
+ 
+-
+     @classmethod
+     def from_config(cls, cfg):
+         ret = super().from_config(cfg)
+-        ret.update({
+-            'with_image_labels': cfg.WITH_IMAGE_LABELS,
+-            'dataset_loss_weight': cfg.MODEL.DATASET_LOSS_WEIGHT,
+-            'fp16': cfg.FP16,
+-            'with_caption': cfg.MODEL.WITH_CAPTION,
+-            'sync_caption_batch': cfg.MODEL.SYNC_CAPTION_BATCH,
+-            'dynamic_classifier': cfg.MODEL.DYNAMIC_CLASSIFIER,
+-            'roi_head_name': cfg.MODEL.ROI_HEADS.NAME,
+-            'cap_batch_ratio': cfg.MODEL.CAP_BATCH_RATIO,
+-        })
+-        if ret['dynamic_classifier']:
+-            ret['freq_weight'] = load_class_freq(
+-                cfg.MODEL.ROI_BOX_HEAD.CAT_FREQ_PATH,
+-                cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_FREQ_WEIGHT)
+-            ret['num_classes'] = cfg.MODEL.ROI_HEADS.NUM_CLASSES
+-            ret['num_sample_cats'] = cfg.MODEL.NUM_SAMPLE_CATS
++        ret.update(
++            {
++                "with_image_labels": cfg.WITH_IMAGE_LABELS,
++                "dataset_loss_weight": cfg.MODEL.DATASET_LOSS_WEIGHT,
++                "fp16": cfg.FP16,
++                "with_caption": cfg.MODEL.WITH_CAPTION,
++                "sync_caption_batch": cfg.MODEL.SYNC_CAPTION_BATCH,
++                "dynamic_classifier": cfg.MODEL.DYNAMIC_CLASSIFIER,
++                "roi_head_name": cfg.MODEL.ROI_HEADS.NAME,
++                "cap_batch_ratio": cfg.MODEL.CAP_BATCH_RATIO,
++            }
++        )
++        if ret["dynamic_classifier"]:
++            ret["freq_weight"] = load_class_freq(
++                os.path.join(kDeticRootPath, cfg.MODEL.ROI_BOX_HEAD.CAT_FREQ_PATH),
++                cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_FREQ_WEIGHT,
++            )
++            ret["num_classes"] = cfg.MODEL.ROI_HEADS.NUM_CLASSES
++            ret["num_sample_cats"] = cfg.MODEL.NUM_SAMPLE_CATS
+         return ret
+ 
+-
+     def inference(
+         self,
+         batched_inputs: Tuple[Dict[str, torch.Tensor]],
+@@ -98,14 +106,13 @@ class CustomRCNN(GeneralizedRCNN):
+         proposals, _ = self.proposal_generator(images, features, None)
+         results, _ = self.roi_heads(images, features, proposals)
+         if do_postprocess:
+-            assert not torch.jit.is_scripting(), \
+-                "Scripting is not supported for postprocess."
+-            return CustomRCNN._postprocess(
+-                results, batched_inputs, images.image_sizes)
++            assert (
++                not torch.jit.is_scripting()
++            ), "Scripting is not supported for postprocess."
++            return CustomRCNN._postprocess(results, batched_inputs, images.image_sizes)
+         else:
+             return results
+ 
+-
+     def forward(self, batched_inputs: List[Dict[str, torch.Tensor]]):
+         """
+         Add ann_type
+@@ -116,20 +123,20 @@ class CustomRCNN(GeneralizedRCNN):
+ 
+         images = self.preprocess_image(batched_inputs)
+ 
+-        ann_type = 'box'
++        ann_type = "box"
+         gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
+         if self.with_image_labels:
+             for inst, x in zip(gt_instances, batched_inputs):
+-                inst._ann_type = x['ann_type']
+-                inst._pos_category_ids = x['pos_category_ids']
+-            ann_types = [x['ann_type'] for x in batched_inputs]
++                inst._ann_type = x["ann_type"]
++                inst._pos_category_ids = x["pos_category_ids"]
++            ann_types = [x["ann_type"] for x in batched_inputs]
+             assert len(set(ann_types)) == 1
+             ann_type = ann_types[0]
+-            if ann_type in ['prop', 'proptag']:
++            if ann_type in ["prop", "proptag"]:
+                 for t in gt_instances:
+                     t.gt_classes *= 0
+-        
+-        if self.fp16: # TODO (zhouxy): improve
++
++        if self.fp16:  # TODO (zhouxy): improve
+             with autocast():
+                 features = self.backbone(images.tensor.half())
+             features = {k: v.float() for k, v in features.items()}
+@@ -138,33 +145,47 @@ class CustomRCNN(GeneralizedRCNN):
+ 
+         cls_features, cls_inds, caption_features = None, None, None
+ 
+-        if self.with_caption and 'caption' in ann_type:
+-            inds = [torch.randint(len(x['captions']), (1,))[0].item() \
+-                for x in batched_inputs]
+-            caps = [x['captions'][ind] for ind, x in zip(inds, batched_inputs)]
++        if self.with_caption and "caption" in ann_type:
++            inds = [
++                torch.randint(len(x["captions"]), (1,))[0].item()
++                for x in batched_inputs
++            ]
++            caps = [x["captions"][ind] for ind, x in zip(inds, batched_inputs)]
+             caption_features = self.text_encoder(caps).float()
+         if self.sync_caption_batch:
+             caption_features = self._sync_caption_features(
+-                caption_features, ann_type, len(batched_inputs))
+-        
+-        if self.dynamic_classifier and ann_type != 'caption':
+-            cls_inds = self._sample_cls_inds(gt_instances, ann_type) # inds, inv_inds
++                caption_features, ann_type, len(batched_inputs)
++            )
++
++        if self.dynamic_classifier and ann_type != "caption":
++            cls_inds = self._sample_cls_inds(gt_instances, ann_type)  # inds, inv_inds
+             ind_with_bg = cls_inds[0].tolist() + [-1]
+-            cls_features = self.roi_heads.box_predictor[
+-                0].cls_score.zs_weight[:, ind_with_bg].permute(1, 0).contiguous()
++            cls_features = (
++                self.roi_heads.box_predictor[0]
++                .cls_score.zs_weight[:, ind_with_bg]
++                .permute(1, 0)
++                .contiguous()
++            )
+ 
+         classifier_info = cls_features, cls_inds, caption_features
+         proposals, proposal_losses = self.proposal_generator(
+-            images, features, gt_instances)
++            images, features, gt_instances
++        )
+ 
+-        if self.roi_head_name in ['StandardROIHeads', 'CascadeROIHeads']:
++        if self.roi_head_name in ["StandardROIHeads", "CascadeROIHeads"]:
+             proposals, detector_losses = self.roi_heads(
+-                images, features, proposals, gt_instances)
++                images, features, proposals, gt_instances
++            )
+         else:
+             proposals, detector_losses = self.roi_heads(
+-                images, features, proposals, gt_instances,
+-                ann_type=ann_type, classifier_info=classifier_info)
+-        
++                images,
++                features,
++                proposals,
++                gt_instances,
++                ann_type=ann_type,
++                classifier_info=classifier_info,
++            )
++
+         if self.vis_period > 0:
+             storage = get_event_storage()
+             if storage.iter % self.vis_period == 0:
+@@ -173,60 +194,63 @@ class CustomRCNN(GeneralizedRCNN):
+         losses = {}
+         losses.update(detector_losses)
+         if self.with_image_labels:
+-            if ann_type in ['box', 'prop', 'proptag']:
++            if ann_type in ["box", "prop", "proptag"]:
+                 losses.update(proposal_losses)
+-            else: # ignore proposal loss for non-bbox data
++            else:  # ignore proposal loss for non-bbox data
+                 losses.update({k: v * 0 for k, v in proposal_losses.items()})
+         else:
+             losses.update(proposal_losses)
+         if len(self.dataset_loss_weight) > 0:
+-            dataset_sources = [x['dataset_source'] for x in batched_inputs]
++            dataset_sources = [x["dataset_source"] for x in batched_inputs]
+             assert len(set(dataset_sources)) == 1
+             dataset_source = dataset_sources[0]
+             for k in losses:
+                 losses[k] *= self.dataset_loss_weight[dataset_source]
+-        
++
+         if self.return_proposal:
+             return proposals, losses
+         else:
+             return losses
+ 
+-
+     def _sync_caption_features(self, caption_features, ann_type, BS):
+-        has_caption_feature = (caption_features is not None)
+-        BS = (BS * self.cap_batch_ratio) if (ann_type == 'box') else BS
++        has_caption_feature = caption_features is not None
++        BS = (BS * self.cap_batch_ratio) if (ann_type == "box") else BS
+         rank = torch.full(
+-            (BS, 1), comm.get_rank(), dtype=torch.float32, 
+-            device=self.device)
++            (BS, 1), comm.get_rank(), dtype=torch.float32, device=self.device
++        )
+         if not has_caption_feature:
+             caption_features = rank.new_zeros((BS, 512))
+         caption_features = torch.cat([caption_features, rank], dim=1)
+         global_caption_features = comm.all_gather(caption_features)
+-        caption_features = torch.cat(
+-            [x.to(self.device) for x in global_caption_features], dim=0) \
+-                if has_caption_feature else None # (NB) x (D + 1)
++        caption_features = (
++            torch.cat([x.to(self.device) for x in global_caption_features], dim=0)
++            if has_caption_feature
++            else None
++        )  # (NB) x (D + 1)
+         return caption_features
+ 
+-
+-    def _sample_cls_inds(self, gt_instances, ann_type='box'):
+-        if ann_type == 'box':
+-            gt_classes = torch.cat(
+-                [x.gt_classes for x in gt_instances])
++    def _sample_cls_inds(self, gt_instances, ann_type="box"):
++        if ann_type == "box":
++            gt_classes = torch.cat([x.gt_classes for x in gt_instances])
+             C = len(self.freq_weight)
+             freq_weight = self.freq_weight
+         else:
+             gt_classes = torch.cat(
+-                [torch.tensor(
+-                    x._pos_category_ids, 
+-                    dtype=torch.long, device=x.gt_classes.device) \
+-                    for x in gt_instances])
++                [
++                    torch.tensor(
++                        x._pos_category_ids,
++                        dtype=torch.long,
++                        device=x.gt_classes.device,
++                    )
++                    for x in gt_instances
++                ]
++            )
+             C = self.num_classes
+             freq_weight = None
+-        assert gt_classes.max() < C, '{} {}'.format(gt_classes.max(), C)
++        assert gt_classes.max() < C, "{} {}".format(gt_classes.max(), C)
+         inds = get_fed_loss_inds(
+-            gt_classes, self.num_sample_cats, C, 
+-            weight=freq_weight)
+-        cls_id_map = gt_classes.new_full(
+-            (self.num_classes + 1,), len(inds))
++            gt_classes, self.num_sample_cats, C, weight=freq_weight
++        )
++        cls_id_map = gt_classes.new_full((self.num_classes + 1,), len(inds))
+         cls_id_map[inds] = torch.arange(len(inds), device=cls_id_map.device)
+-        return inds, cls_id_map
+\ No newline at end of file
++        return inds, cls_id_map
+diff --git a/detic/modeling/roi_heads/detic_fast_rcnn.py b/detic/modeling/roi_heads/detic_fast_rcnn.py
+index 186822d..3502040 100644
+--- a/detic/modeling/roi_heads/detic_fast_rcnn.py
++++ b/detic/modeling/roi_heads/detic_fast_rcnn.py
+@@ -26,36 +26,42 @@ from .zero_shot_classifier import ZeroShotClassifier
+ __all__ = ["DeticFastRCNNOutputLayers"]
+ 
+ 
++import os
++
++kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
++kDeticRootPath = os.path.join(kThisFileFolder, "../../..")
++
++
+ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+     @configurable
+     def __init__(
+-        self, 
++        self,
+         input_shape: ShapeSpec,
+         *,
+         mult_proposal_score=False,
+         cls_score=None,
+-        sync_caption_batch = False,
+-        use_sigmoid_ce = False,
+-        use_fed_loss = False,
+-        ignore_zero_cats = False,
+-        fed_loss_num_cat = 50,
+-        dynamic_classifier = False,
+-        image_label_loss = '',
+-        use_zeroshot_cls = False,
+-        image_loss_weight = 0.1,
+-        with_softmax_prop = False,
+-        caption_weight = 1.0,
+-        neg_cap_weight = 1.0,
+-        add_image_box = False,
+-        debug = False,
+-        prior_prob = 0.01,
+-        cat_freq_path = '',
+-        fed_loss_freq_weight = 0.5,
+-        softmax_weak_loss = False,
++        sync_caption_batch=False,
++        use_sigmoid_ce=False,
++        use_fed_loss=False,
++        ignore_zero_cats=False,
++        fed_loss_num_cat=50,
++        dynamic_classifier=False,
++        image_label_loss="",
++        use_zeroshot_cls=False,
++        image_loss_weight=0.1,
++        with_softmax_prop=False,
++        caption_weight=1.0,
++        neg_cap_weight=1.0,
++        add_image_box=False,
++        debug=False,
++        prior_prob=0.01,
++        cat_freq_path="",
++        fed_loss_freq_weight=0.5,
++        softmax_weak_loss=False,
+         **kwargs,
+     ):
+         super().__init__(
+-            input_shape=input_shape, 
++            input_shape=input_shape,
+             **kwargs,
+         )
+         self.mult_proposal_score = mult_proposal_score
+@@ -76,31 +82,37 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+         self.debug = debug
+ 
+         if softmax_weak_loss:
+-            assert image_label_loss in ['max_size'] 
++            assert image_label_loss in ["max_size"]
+ 
+         if self.use_sigmoid_ce:
+             bias_value = -math.log((1 - prior_prob) / prior_prob)
+             nn.init.constant_(self.cls_score.bias, bias_value)
+-        
++
+         if self.use_fed_loss or self.ignore_zero_cats:
+-            freq_weight = load_class_freq(cat_freq_path, fed_loss_freq_weight)
+-            self.register_buffer('freq_weight', freq_weight)
++            freq_weight = load_class_freq(
++                os.path.join(kDeticRootPath, cat_freq_path), fed_loss_freq_weight
++            )
++            self.register_buffer("freq_weight", freq_weight)
+         else:
+             self.freq_weight = None
+ 
+         if self.use_fed_loss and len(self.freq_weight) < self.num_classes:
+             # assert self.num_classes == 11493
+-            print('Extending federated loss weight')
++            print("Extending federated loss weight")
+             self.freq_weight = torch.cat(
+-                [self.freq_weight, 
+-                self.freq_weight.new_zeros(
+-                    self.num_classes - len(self.freq_weight))]
++                [
++                    self.freq_weight,
++                    self.freq_weight.new_zeros(
++                        self.num_classes - len(self.freq_weight)
++                    ),
++                ]
+             )
+ 
+         assert (not self.dynamic_classifier) or (not self.use_fed_loss)
+-        input_size = input_shape.channels * \
+-            (input_shape.width or 1) * (input_shape.height or 1)
+-        
++        input_size = (
++            input_shape.channels * (input_shape.width or 1) * (input_shape.height or 1)
++        )
++
+         if self.use_zeroshot_cls:
+             del self.cls_score
+             del self.bbox_pred
+@@ -109,7 +121,7 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+             self.bbox_pred = nn.Sequential(
+                 nn.Linear(input_size, input_size),
+                 nn.ReLU(inplace=True),
+-                nn.Linear(input_size, 4)
++                nn.Linear(input_size, 4),
+             )
+             weight_init.c2_xavier_fill(self.bbox_pred[0])
+             nn.init.normal_(self.bbox_pred[-1].weight, std=0.001)
+@@ -125,44 +137,51 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+             nn.init.normal_(self.prop_score[-1].weight, mean=0, std=0.001)
+             nn.init.constant_(self.prop_score[-1].bias, 0)
+ 
+-
+     @classmethod
+     def from_config(cls, cfg, input_shape):
+         ret = super().from_config(cfg, input_shape)
+-        ret.update({
+-            'mult_proposal_score': cfg.MODEL.ROI_BOX_HEAD.MULT_PROPOSAL_SCORE,
+-            'sync_caption_batch': cfg.MODEL.SYNC_CAPTION_BATCH,
+-            'use_sigmoid_ce': cfg.MODEL.ROI_BOX_HEAD.USE_SIGMOID_CE,
+-            'use_fed_loss': cfg.MODEL.ROI_BOX_HEAD.USE_FED_LOSS,
+-            'ignore_zero_cats': cfg.MODEL.ROI_BOX_HEAD.IGNORE_ZERO_CATS,
+-            'fed_loss_num_cat': cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_NUM_CAT,
+-            'dynamic_classifier': cfg.MODEL.DYNAMIC_CLASSIFIER,
+-            'image_label_loss': cfg.MODEL.ROI_BOX_HEAD.IMAGE_LABEL_LOSS,
+-            'use_zeroshot_cls': cfg.MODEL.ROI_BOX_HEAD.USE_ZEROSHOT_CLS,
+-            'image_loss_weight': cfg.MODEL.ROI_BOX_HEAD.IMAGE_LOSS_WEIGHT,
+-            'with_softmax_prop': cfg.MODEL.ROI_BOX_HEAD.WITH_SOFTMAX_PROP,
+-            'caption_weight': cfg.MODEL.ROI_BOX_HEAD.CAPTION_WEIGHT,
+-            'neg_cap_weight': cfg.MODEL.ROI_BOX_HEAD.NEG_CAP_WEIGHT,
+-            'add_image_box': cfg.MODEL.ROI_BOX_HEAD.ADD_IMAGE_BOX,
+-            'debug': cfg.DEBUG or cfg.SAVE_DEBUG or cfg.IS_DEBUG,
+-            'prior_prob': cfg.MODEL.ROI_BOX_HEAD.PRIOR_PROB,
+-            'cat_freq_path': cfg.MODEL.ROI_BOX_HEAD.CAT_FREQ_PATH,
+-            'fed_loss_freq_weight': cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_FREQ_WEIGHT,
+-            'softmax_weak_loss': cfg.MODEL.ROI_BOX_HEAD.SOFTMAX_WEAK_LOSS,
+-        })
+-        if ret['use_zeroshot_cls']:
+-            ret['cls_score'] = ZeroShotClassifier(cfg, input_shape)
++        ret.update(
++            {
++                "mult_proposal_score": cfg.MODEL.ROI_BOX_HEAD.MULT_PROPOSAL_SCORE,
++                "sync_caption_batch": cfg.MODEL.SYNC_CAPTION_BATCH,
++                "use_sigmoid_ce": cfg.MODEL.ROI_BOX_HEAD.USE_SIGMOID_CE,
++                "use_fed_loss": cfg.MODEL.ROI_BOX_HEAD.USE_FED_LOSS,
++                "ignore_zero_cats": cfg.MODEL.ROI_BOX_HEAD.IGNORE_ZERO_CATS,
++                "fed_loss_num_cat": cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_NUM_CAT,
++                "dynamic_classifier": cfg.MODEL.DYNAMIC_CLASSIFIER,
++                "image_label_loss": cfg.MODEL.ROI_BOX_HEAD.IMAGE_LABEL_LOSS,
++                "use_zeroshot_cls": cfg.MODEL.ROI_BOX_HEAD.USE_ZEROSHOT_CLS,
++                "image_loss_weight": cfg.MODEL.ROI_BOX_HEAD.IMAGE_LOSS_WEIGHT,
++                "with_softmax_prop": cfg.MODEL.ROI_BOX_HEAD.WITH_SOFTMAX_PROP,
++                "caption_weight": cfg.MODEL.ROI_BOX_HEAD.CAPTION_WEIGHT,
++                "neg_cap_weight": cfg.MODEL.ROI_BOX_HEAD.NEG_CAP_WEIGHT,
++                "add_image_box": cfg.MODEL.ROI_BOX_HEAD.ADD_IMAGE_BOX,
++                "debug": cfg.DEBUG or cfg.SAVE_DEBUG or cfg.IS_DEBUG,
++                "prior_prob": cfg.MODEL.ROI_BOX_HEAD.PRIOR_PROB,
++                "cat_freq_path": cfg.MODEL.ROI_BOX_HEAD.CAT_FREQ_PATH,
++                "fed_loss_freq_weight": cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_FREQ_WEIGHT,
++                "softmax_weak_loss": cfg.MODEL.ROI_BOX_HEAD.SOFTMAX_WEAK_LOSS,
++            }
++        )
++        if ret["use_zeroshot_cls"]:
++            ret["cls_score"] = ZeroShotClassifier(cfg, input_shape)
+         return ret
+ 
+-    def losses(self, predictions, proposals, \
++    def losses(
++        self,
++        predictions,
++        proposals,
+         use_advanced_loss=True,
+-        classifier_info=(None,None,None)):
++        classifier_info=(None, None, None),
++    ):
+         """
+         enable advanced loss
+         """
+         scores, proposal_deltas = predictions
+         gt_classes = (
+-            cat([p.gt_classes for p in proposals], dim=0) if len(proposals) else torch.empty(0)
++            cat([p.gt_classes for p in proposals], dim=0)
++            if len(proposals)
++            else torch.empty(0)
+         )
+         num_classes = self.num_classes
+         if self.dynamic_classifier:
+@@ -173,48 +192,63 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+         _log_classification_stats(scores, gt_classes)
+ 
+         if len(proposals):
+-            proposal_boxes = cat([p.proposal_boxes.tensor for p in proposals], dim=0)  # Nx4
+-            assert not proposal_boxes.requires_grad, "Proposals should not require gradients!"
++            proposal_boxes = cat(
++                [p.proposal_boxes.tensor for p in proposals], dim=0
++            )  # Nx4
++            assert (
++                not proposal_boxes.requires_grad
++            ), "Proposals should not require gradients!"
+             gt_boxes = cat(
+-                [(p.gt_boxes if p.has("gt_boxes") else p.proposal_boxes).tensor for p in proposals],
++                [
++                    (p.gt_boxes if p.has("gt_boxes") else p.proposal_boxes).tensor
++                    for p in proposals
++                ],
+                 dim=0,
+             )
+         else:
+-            proposal_boxes = gt_boxes = torch.empty((0, 4), device=proposal_deltas.device)
++            proposal_boxes = gt_boxes = torch.empty(
++                (0, 4), device=proposal_deltas.device
++            )
+ 
+         if self.use_sigmoid_ce:
+             loss_cls = self.sigmoid_cross_entropy_loss(scores, gt_classes)
+         else:
+             loss_cls = self.softmax_cross_entropy_loss(scores, gt_classes)
+         return {
+-            "loss_cls": loss_cls, 
++            "loss_cls": loss_cls,
+             "loss_box_reg": self.box_reg_loss(
+-                proposal_boxes, gt_boxes, proposal_deltas, gt_classes, 
+-                num_classes=num_classes)
++                proposal_boxes,
++                gt_boxes,
++                proposal_deltas,
++                gt_classes,
++                num_classes=num_classes,
++            ),
+         }
+ 
+-
+     def sigmoid_cross_entropy_loss(self, pred_class_logits, gt_classes):
+         if pred_class_logits.numel() == 0:
+-            return pred_class_logits.new_zeros([1])[0] # This is more robust than .sum() * 0.
++            return pred_class_logits.new_zeros([1])[
++                0
++            ]  # This is more robust than .sum() * 0.
+ 
+         B = pred_class_logits.shape[0]
+         C = pred_class_logits.shape[1] - 1
+ 
+         target = pred_class_logits.new_zeros(B, C + 1)
+-        target[range(len(gt_classes)), gt_classes] = 1 # B x (C + 1)
+-        target = target[:, :C] # B x C
++        target[range(len(gt_classes)), gt_classes] = 1  # B x (C + 1)
++        target = target[:, :C]  # B x C
+ 
+         weight = 1
+- 
+-        if self.use_fed_loss and (self.freq_weight is not None): # fedloss
++
++        if self.use_fed_loss and (self.freq_weight is not None):  # fedloss
+             appeared = get_fed_loss_inds(
+-                gt_classes, 
++                gt_classes,
+                 num_sample_cats=self.fed_loss_num_cat,
+                 C=C,
+-                weight=self.freq_weight)
++                weight=self.freq_weight,
++            )
+             appeared_mask = appeared.new_zeros(C + 1)
+-            appeared_mask[appeared] = 1 # C + 1
++            appeared_mask[appeared] = 1  # C + 1
+             appeared_mask = appeared_mask[:C]
+             fed_w = appeared_mask.view(1, C).expand(B, C)
+             weight = weight * fed_w.float()
+@@ -224,11 +258,11 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+             # import pdb; pdb.set_trace()
+ 
+         cls_loss = F.binary_cross_entropy_with_logits(
+-            pred_class_logits[:, :-1], target, reduction='none') # B x C
+-        loss =  torch.sum(cls_loss * weight) / B  
++            pred_class_logits[:, :-1], target, reduction="none"
++        )  # B x C
++        loss = torch.sum(cls_loss * weight) / B
+         return loss
+-        
+-    
++
+     def softmax_cross_entropy_loss(self, pred_class_logits, gt_classes):
+         """
+         change _no_instance handling
+@@ -237,34 +271,36 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+             return pred_class_logits.new_zeros([1])[0]
+ 
+         if self.ignore_zero_cats and (self.freq_weight is not None):
+-            zero_weight = torch.cat([
+-                (self.freq_weight.view(-1) > 1e-4).float(),
+-                self.freq_weight.new_ones(1)]) # C + 1
++            zero_weight = torch.cat(
++                [
++                    (self.freq_weight.view(-1) > 1e-4).float(),
++                    self.freq_weight.new_ones(1),
++                ]
++            )  # C + 1
+             loss = F.cross_entropy(
+-                pred_class_logits, gt_classes, 
+-                weight=zero_weight, reduction="mean")
+-        elif self.use_fed_loss and (self.freq_weight is not None): # fedloss
++                pred_class_logits, gt_classes, weight=zero_weight, reduction="mean"
++            )
++        elif self.use_fed_loss and (self.freq_weight is not None):  # fedloss
+             C = pred_class_logits.shape[1] - 1
+             appeared = get_fed_loss_inds(
+-                gt_classes, 
++                gt_classes,
+                 num_sample_cats=self.fed_loss_num_cat,
+                 C=C,
+-                weight=self.freq_weight)
++                weight=self.freq_weight,
++            )
+             appeared_mask = appeared.new_zeros(C + 1).float()
+-            appeared_mask[appeared] = 1. # C + 1
+-            appeared_mask[C] = 1.
++            appeared_mask[appeared] = 1.0  # C + 1
++            appeared_mask[C] = 1.0
+             loss = F.cross_entropy(
+-                pred_class_logits, gt_classes, 
+-                weight=appeared_mask, reduction="mean")        
++                pred_class_logits, gt_classes, weight=appeared_mask, reduction="mean"
++            )
+         else:
+-            loss = F.cross_entropy(
+-                pred_class_logits, gt_classes, reduction="mean")                  
++            loss = F.cross_entropy(pred_class_logits, gt_classes, reduction="mean")
+         return loss
+ 
+-
+     def box_reg_loss(
+-        self, proposal_boxes, gt_boxes, pred_deltas, gt_classes, 
+-        num_classes=-1):
++        self, proposal_boxes, gt_boxes, pred_deltas, gt_classes, num_classes=-1
++    ):
+         """
+         Allow custom background index
+         """
+@@ -303,9 +339,10 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+         boxes = self.predict_boxes(predictions, proposals)
+         scores = self.predict_probs(predictions, proposals)
+         if self.mult_proposal_score:
+-            proposal_scores = [p.get('objectness_logits') for p in proposals]
+-            scores = [(s * ps[:, None]) ** 0.5 \
+-                for s, ps in zip(scores, proposal_scores)]
++            proposal_scores = [p.get("objectness_logits") for p in proposals]
++            scores = [
++                (s * ps[:, None]) ** 0.5 for s, ps in zip(scores, proposal_scores)
++            ]
+         image_shapes = [x.image_size for x in proposals]
+         return fast_rcnn_inference(
+             boxes,
+@@ -316,7 +353,6 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+             self.test_topk_per_image,
+         )
+ 
+-
+     def predict_probs(self, predictions, proposals):
+         """
+         support sigmoid
+@@ -330,17 +366,22 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+             probs = F.softmax(scores, dim=-1)
+         return probs.split(num_inst_per_image, dim=0)
+ 
+-
+-    def image_label_losses(self, predictions, proposals, image_labels, \
+-        classifier_info=(None,None,None), ann_type='image'):
+-        '''
++    def image_label_losses(
++        self,
++        predictions,
++        proposals,
++        image_labels,
++        classifier_info=(None, None, None),
++        ann_type="image",
++    ):
++        """
+         Inputs:
+             scores: N x (C + 1)
+             image_labels B x 1
+-        '''
++        """
+         num_inst_per_image = [len(p) for p in proposals]
+         scores = predictions[0]
+-        scores = scores.split(num_inst_per_image, dim=0) # B x n x (C + 1)
++        scores = scores.split(num_inst_per_image, dim=0)  # B x n x (C + 1)
+         if self.with_softmax_prop:
+             prop_scores = predictions[2].split(num_inst_per_image, dim=0)
+         else:
+@@ -354,38 +395,39 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+         storage = get_event_storage()
+         loss = scores[0].new_zeros([1])[0]
+         caption_loss = scores[0].new_zeros([1])[0]
+-        for idx, (score, labels, prop_score, p) in enumerate(zip(
+-            scores, image_labels, prop_scores, proposals)):
++        for idx, (score, labels, prop_score, p) in enumerate(
++            zip(scores, image_labels, prop_scores, proposals)
++        ):
+             if score.shape[0] == 0:
+                 loss += score.new_zeros([1])[0]
+                 continue
+-            if 'caption' in ann_type:
++            if "caption" in ann_type:
+                 score, caption_loss_img = self._caption_loss(
+-                    score, classifier_info, idx, B)
++                    score, classifier_info, idx, B
++                )
+                 caption_loss += self.caption_weight * caption_loss_img
+-                if ann_type == 'caption':
++                if ann_type == "caption":
+                     continue
+ 
+             if self.debug:
+-                p.selected = score.new_zeros(
+-                    (len(p),), dtype=torch.long) - 1
++                p.selected = score.new_zeros((len(p),), dtype=torch.long) - 1
+             for i_l, label in enumerate(labels):
+                 if self.dynamic_classifier:
+                     if idx == 0 and i_l == 0 and comm.is_main_process():
+-                        storage.put_scalar('stats_label', label)
++                        storage.put_scalar("stats_label", label)
+                     label = classifier_info[1][1][label]
+                     assert label < score.shape[1]
+-                if self.image_label_loss in ['wsod', 'wsddn']: 
++                if self.image_label_loss in ["wsod", "wsddn"]:
+                     loss_i, ind = self._wsddn_loss(score, prop_score, label)
+-                elif self.image_label_loss == 'max_score':
++                elif self.image_label_loss == "max_score":
+                     loss_i, ind = self._max_score_loss(score, label)
+-                elif self.image_label_loss == 'max_size':
++                elif self.image_label_loss == "max_size":
+                     loss_i, ind = self._max_size_loss(score, label, p)
+-                elif self.image_label_loss == 'first':
++                elif self.image_label_loss == "first":
+                     loss_i, ind = self._first_loss(score, label)
+-                elif self.image_label_loss == 'image':
++                elif self.image_label_loss == "image":
+                     loss_i, ind = self._image_loss(score, label)
+-                elif self.image_label_loss == 'min_loss':
++                elif self.image_label_loss == "min_loss":
+                     loss_i, ind = self._min_loss_loss(score, label)
+                 else:
+                     assert 0
+@@ -397,43 +439,56 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+                             p.selected[ind_i] = label
+                 else:
+                     img_box_count = ind
+-                    select_size_count = p[ind].proposal_boxes.area() / \
+-                        (p.image_size[0] * p.image_size[1])
++                    select_size_count = p[ind].proposal_boxes.area() / (
++                        p.image_size[0] * p.image_size[1]
++                    )
+                     max_score_count = score[ind, label].sigmoid()
+-                    select_x_count = (p.proposal_boxes.tensor[ind, 0] + \
+-                        p.proposal_boxes.tensor[ind, 2]) / 2 / p.image_size[1]
+-                    select_y_count = (p.proposal_boxes.tensor[ind, 1] + \
+-                        p.proposal_boxes.tensor[ind, 3]) / 2 / p.image_size[0]
++                    select_x_count = (
++                        (
++                            p.proposal_boxes.tensor[ind, 0]
++                            + p.proposal_boxes.tensor[ind, 2]
++                        )
++                        / 2
++                        / p.image_size[1]
++                    )
++                    select_y_count = (
++                        (
++                            p.proposal_boxes.tensor[ind, 1]
++                            + p.proposal_boxes.tensor[ind, 3]
++                        )
++                        / 2
++                        / p.image_size[0]
++                    )
+                     if self.debug:
+                         p.selected[ind] = label
+ 
+         loss = loss / B
+-        storage.put_scalar('stats_l_image', loss.item())
+-        if 'caption' in ann_type:
++        storage.put_scalar("stats_l_image", loss.item())
++        if "caption" in ann_type:
+             caption_loss = caption_loss / B
+             loss = loss + caption_loss
+-            storage.put_scalar('stats_l_caption', caption_loss.item())
++            storage.put_scalar("stats_l_caption", caption_loss.item())
+         if comm.is_main_process():
+-            storage.put_scalar('pool_stats', img_box_count)
+-            storage.put_scalar('stats_select_size', select_size_count)
+-            storage.put_scalar('stats_select_x', select_x_count)
+-            storage.put_scalar('stats_select_y', select_y_count)
+-            storage.put_scalar('stats_max_label_score', max_score_count)
++            storage.put_scalar("pool_stats", img_box_count)
++            storage.put_scalar("stats_select_size", select_size_count)
++            storage.put_scalar("stats_select_x", select_x_count)
++            storage.put_scalar("stats_select_y", select_y_count)
++            storage.put_scalar("stats_max_label_score", max_score_count)
+ 
+         return {
+-            'image_loss': loss * self.image_loss_weight,
+-            'loss_cls': score.new_zeros([1])[0],
+-            'loss_box_reg': score.new_zeros([1])[0]}
+-
++            "image_loss": loss * self.image_loss_weight,
++            "loss_cls": score.new_zeros([1])[0],
++            "loss_box_reg": score.new_zeros([1])[0],
++        }
+ 
+-    def forward(self, x, classifier_info=(None,None,None)):
++    def forward(self, x, classifier_info=(None, None, None)):
+         """
+         enable classifier_info
+         """
+         if x.dim() > 2:
+             x = torch.flatten(x, start_dim=1)
+         scores = []
+-   
++
+         if classifier_info[0] is not None:
+             cls_scores = self.cls_score(x, classifier=classifier_info[0])
+             scores.append(cls_scores)
+@@ -444,11 +499,11 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+         if classifier_info[2] is not None:
+             cap_cls = classifier_info[2]
+             if self.sync_caption_batch:
+-                caption_scores = self.cls_score(x, classifier=cap_cls[:, :-1]) 
++                caption_scores = self.cls_score(x, classifier=cap_cls[:, :-1])
+             else:
+                 caption_scores = self.cls_score(x, classifier=cap_cls)
+             scores.append(caption_scores)
+-        scores = torch.cat(scores, dim=1) # B x C' or B x N or B x (C'+N)
++        scores = torch.cat(scores, dim=1)  # B x C' or B x N or B x (C'+N)
+ 
+         proposal_deltas = self.bbox_pred(x)
+         if self.with_softmax_prop:
+@@ -457,129 +512,125 @@ class DeticFastRCNNOutputLayers(FastRCNNOutputLayers):
+         else:
+             return scores, proposal_deltas
+ 
+-
+     def _caption_loss(self, score, classifier_info, idx, B):
+-        assert (classifier_info[2] is not None)
++        assert classifier_info[2] is not None
+         assert self.add_image_box
+         cls_and_cap_num = score.shape[1]
+         cap_num = classifier_info[2].shape[0]
+-        score, caption_score = score.split(
+-            [cls_and_cap_num - cap_num, cap_num], dim=1)
++        score, caption_score = score.split([cls_and_cap_num - cap_num, cap_num], dim=1)
+         # n x (C + 1), n x B
+-        caption_score = caption_score[-1:] # 1 x B # -1: image level box
++        caption_score = caption_score[-1:]  # 1 x B # -1: image level box
+         caption_target = caption_score.new_zeros(
+-            caption_score.shape) # 1 x B or 1 x MB, M: num machines
++            caption_score.shape
++        )  # 1 x B or 1 x MB, M: num machines
+         if self.sync_caption_batch:
+             # caption_target: 1 x MB
+             rank = comm.get_rank()
+             global_idx = B * rank + idx
+-            assert (classifier_info[2][
+-                global_idx, -1] - rank) ** 2 < 1e-8, \
+-                    '{} {} {} {} {}'.format(
+-                        rank, global_idx, 
+-                        classifier_info[2][global_idx, -1],
+-                        classifier_info[2].shape, 
+-                        classifier_info[2][:, -1])
+-            caption_target[:, global_idx] = 1.
++            assert (
++                classifier_info[2][global_idx, -1] - rank
++            ) ** 2 < 1e-8, "{} {} {} {} {}".format(
++                rank,
++                global_idx,
++                classifier_info[2][global_idx, -1],
++                classifier_info[2].shape,
++                classifier_info[2][:, -1],
++            )
++            caption_target[:, global_idx] = 1.0
+         else:
+             assert caption_score.shape[1] == B
+-            caption_target[:, idx] = 1.
++            caption_target[:, idx] = 1.0
+         caption_loss_img = F.binary_cross_entropy_with_logits(
+-                caption_score, caption_target, reduction='none')
++            caption_score, caption_target, reduction="none"
++        )
+         if self.sync_caption_batch:
+             fg_mask = (caption_target > 0.5).float()
+-            assert (fg_mask.sum().item() - 1.) ** 2 < 1e-8, '{} {}'.format(
+-                fg_mask.shape, fg_mask)
++            assert (fg_mask.sum().item() - 1.0) ** 2 < 1e-8, "{} {}".format(
++                fg_mask.shape, fg_mask
++            )
+             pos_loss = (caption_loss_img * fg_mask).sum()
+-            neg_loss = (caption_loss_img * (1. - fg_mask)).sum()
++            neg_loss = (caption_loss_img * (1.0 - fg_mask)).sum()
+             caption_loss_img = pos_loss + self.neg_cap_weight * neg_loss
+         else:
+             caption_loss_img = caption_loss_img.sum()
+         return score, caption_loss_img
+ 
+-
+     def _wsddn_loss(self, score, prop_score, label):
+         assert prop_score is not None
+         loss = 0
+-        final_score = score.sigmoid() * \
+-            F.softmax(prop_score, dim=0) # B x (C + 1)
++        final_score = score.sigmoid() * F.softmax(prop_score, dim=0)  # B x (C + 1)
+         img_score = torch.clamp(
+-            torch.sum(final_score, dim=0), 
+-            min=1e-10, max=1-1e-10) # (C + 1)
+-        target = img_score.new_zeros(img_score.shape) # (C + 1)
+-        target[label] = 1.
++            torch.sum(final_score, dim=0), min=1e-10, max=1 - 1e-10
++        )  # (C + 1)
++        target = img_score.new_zeros(img_score.shape)  # (C + 1)
++        target[label] = 1.0
+         loss += F.binary_cross_entropy(img_score, target)
+         ind = final_score[:, label].argmax()
+         return loss, ind
+ 
+-
+     def _max_score_loss(self, score, label):
+         loss = 0
+         target = score.new_zeros(score.shape[1])
+-        target[label] = 1.
++        target[label] = 1.0
+         ind = score[:, label].argmax().item()
+-        loss += F.binary_cross_entropy_with_logits(
+-            score[ind], target, reduction='sum')
++        loss += F.binary_cross_entropy_with_logits(score[ind], target, reduction="sum")
+         return loss, ind
+ 
+-
+     def _min_loss_loss(self, score, label):
+         loss = 0
+         target = score.new_zeros(score.shape)
+-        target[:, label] = 1.
++        target[:, label] = 1.0
+         with torch.no_grad():
+-            x = F.binary_cross_entropy_with_logits(
+-                score, target, reduction='none').sum(dim=1) # n
++            x = F.binary_cross_entropy_with_logits(score, target, reduction="none").sum(
++                dim=1
++            )  # n
+         ind = x.argmin().item()
+         loss += F.binary_cross_entropy_with_logits(
+-            score[ind], target[0], reduction='sum')
++            score[ind], target[0], reduction="sum"
++        )
+         return loss, ind
+ 
+-
+     def _first_loss(self, score, label):
+         loss = 0
+         target = score.new_zeros(score.shape[1])
+-        target[label] = 1.
++        target[label] = 1.0
+         ind = 0
+-        loss += F.binary_cross_entropy_with_logits(
+-            score[ind], target, reduction='sum')
++        loss += F.binary_cross_entropy_with_logits(score[ind], target, reduction="sum")
+         return loss, ind
+ 
+-
+     def _image_loss(self, score, label):
+         assert self.add_image_box
+         target = score.new_zeros(score.shape[1])
+-        target[label] = 1.
++        target[label] = 1.0
+         ind = score.shape[0] - 1
+-        loss = F.binary_cross_entropy_with_logits(
+-            score[ind], target, reduction='sum')
++        loss = F.binary_cross_entropy_with_logits(score[ind], target, reduction="sum")
+         return loss, ind
+ 
+-
+     def _max_size_loss(self, score, label, p):
+         loss = 0
+         target = score.new_zeros(score.shape[1])
+-        target[label] = 1.
++        target[label] = 1.0
+         sizes = p.proposal_boxes.area()
+         ind = sizes[:-1].argmax().item() if len(sizes) > 1 else 0
+         if self.softmax_weak_loss:
+             loss += F.cross_entropy(
+-                score[ind:ind+1], 
+-                score.new_tensor(label, dtype=torch.long).view(1), 
+-                reduction='sum')
++                score[ind : ind + 1],
++                score.new_tensor(label, dtype=torch.long).view(1),
++                reduction="sum",
++            )
+         else:
+             loss += F.binary_cross_entropy_with_logits(
+-                score[ind], target, reduction='sum')
++                score[ind], target, reduction="sum"
++            )
+         return loss, ind
+ 
+ 
+-
+ def put_label_distribution(storage, hist_name, hist_counts, num_classes):
+-    """
+-    """
++    """ """
+     ht_min, ht_max = 0, num_classes
+     hist_edges = torch.linspace(
+-        start=ht_min, end=ht_max, steps=num_classes + 1, dtype=torch.float32)
++        start=ht_min, end=ht_max, steps=num_classes + 1, dtype=torch.float32
++    )
+ 
+     hist_params = dict(
+         tag=hist_name,
+@@ -592,4 +643,4 @@ def put_label_distribution(storage, hist_name, hist_counts, num_classes):
+         bucket_counts=hist_counts.tolist(),
+         global_step=storage._iter,
+     )
+-    storage._histograms.append(hist_params)
+\ No newline at end of file
++    storage._histograms.append(hist_params)
+diff --git a/detic/modeling/utils.py b/detic/modeling/utils.py
+index 297fb46..a938e71 100644
+--- a/detic/modeling/utils.py
++++ b/detic/modeling/utils.py
+@@ -3,18 +3,26 @@ import torch
+ import json
+ import numpy as np
+ from torch.nn import functional as F
++import os
++
++kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
++kDeticRootPath = os.path.join(kThisFileFolder, "/../..")
++
+ 
+ def load_class_freq(
+-    path='datasets/metadata/lvis_v1_train_cat_info.json', freq_weight=1.0):
+-    cat_info = json.load(open(path, 'r'))
++    path=f"{kDeticRootPath}/datasets/metadata/lvis_v1_train_cat_info.json",
++    freq_weight=1.0,
++):
++    cat_info = json.load(open(path, "r"))
+     cat_info = torch.tensor(
+-        [c['image_count'] for c in sorted(cat_info, key=lambda x: x['id'])])
++        [c["image_count"] for c in sorted(cat_info, key=lambda x: x["id"])]
++    )
+     freq_weight = cat_info.float() ** freq_weight
+     return freq_weight
+ 
+ 
+ def get_fed_loss_inds(gt_classes, num_sample_cats, C, weight=None):
+-    appeared = torch.unique(gt_classes) # C'
++    appeared = torch.unique(gt_classes)  # C'
+     prob = appeared.new_ones(C + 1).float()
+     prob[-1] = 0
+     if len(appeared) < num_sample_cats:
+@@ -22,28 +30,29 @@ def get_fed_loss_inds(gt_classes, num_sample_cats, C, weight=None):
+             prob[:C] = weight.float().clone()
+         prob[appeared] = 0
+         more_appeared = torch.multinomial(
+-            prob, num_sample_cats - len(appeared),
+-            replacement=False)
++            prob, num_sample_cats - len(appeared), replacement=False
++        )
+         appeared = torch.cat([appeared, more_appeared])
+     return appeared
+ 
+ 
+-
+ def reset_cls_test(model, cls_path, num_classes):
+     model.roi_heads.num_classes = num_classes
+     if type(cls_path) == str:
+-        print('Resetting zs_weight', cls_path)
+-        zs_weight = torch.tensor(
+-            np.load(cls_path), 
+-            dtype=torch.float32).permute(1, 0).contiguous() # D x C
++        print("Resetting zs_weight", cls_path)
++        zs_weight = (
++            torch.tensor(np.load(cls_path), dtype=torch.float32)
++            .permute(1, 0)
++            .contiguous()
++        )  # D x C
+     else:
+         zs_weight = cls_path
+     zs_weight = torch.cat(
+-        [zs_weight, zs_weight.new_zeros((zs_weight.shape[0], 1))], 
+-        dim=1) # D x (C + 1)
++        [zs_weight, zs_weight.new_zeros((zs_weight.shape[0], 1))], dim=1
++    )  # D x (C + 1)
+     if model.roi_heads.box_predictor[0].cls_score.norm_weight:
+         zs_weight = F.normalize(zs_weight, p=2, dim=0)
+     zs_weight = zs_weight.to(model.device)
+     for k in range(len(model.roi_heads.box_predictor)):
+         del model.roi_heads.box_predictor[k].cls_score.zs_weight
+-        model.roi_heads.box_predictor[k].cls_score.zs_weight = zs_weight
+\ No newline at end of file
++        model.roi_heads.box_predictor[k].cls_score.zs_weight = zs_weight
+diff --git a/run_demo.sh b/run_demo.sh
+new file mode 100755
+index 0000000..f3240b5
+--- /dev/null
++++ b/run_demo.sh
+@@ -0,0 +1,31 @@
++#!/usr/bin/env bash
++# Author: Luigi Freda 
++# Author: Luigi Freda 
++# This file is part of https://github.com/luigifreda/pyslam
++
++#set -e
++
++SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
++SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
++
++ROOT_DIR="$SCRIPT_DIR_/../.."
++
++cd $SCRIPT_DIR_
++
++
++# single image demo
++IMAGE_FILE="$ROOT_DIR/data/images/desk_detic.jpeg"
++# python demo.py --config-file configs/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.yaml \
++#     --input "$IMAGE_FILE" \
++#     --output "$ROOT_DIR/results/$(basename $IMAGE_FILE)_detic_out.jpeg" \
++#     --vocabulary lvis \
++#     --opts MODEL.WEIGHTS models/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth
++
++
++# video demo
++VIDEO_FILE="$ROOT_DIR/data/videos/kitti06/video_color.mp4"
++python demo.py --config-file configs/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.yaml \
++    --video-input "$VIDEO_FILE" \
++    --output "$ROOT_DIR/results/$(basename $VIDEO_FILE)_detic_out.mp4" \
++    --vocabulary lvis \
++    --opts MODEL.WEIGHTS models/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth
+\ No newline at end of file
+diff --git a/third_party/CenterNet2 b/third_party/CenterNet2
+--- a/third_party/CenterNet2
++++ b/third_party/CenterNet2
+@@ -1 +1 @@
+-Subproject commit 8745e012e4dbdf560ac2f27e0b771d4907ad4aaf
++Subproject commit 8745e012e4dbdf560ac2f27e0b771d4907ad4aaf-dirty
+diff --git a/third_party/centernet2.patch b/third_party/centernet2.patch
+new file mode 100644
+index 0000000..d00888d
+--- /dev/null
++++ b/third_party/centernet2.patch
+@@ -0,0 +1,247 @@
++diff --git a/centernet/modeling/roi_heads/custom_fast_rcnn.py b/centernet/modeling/roi_heads/custom_fast_rcnn.py
++index 1f0f430..79f1753 100644
++--- a/centernet/modeling/roi_heads/custom_fast_rcnn.py
+++++ b/centernet/modeling/roi_heads/custom_fast_rcnn.py
++@@ -22,30 +22,31 @@ from .fed_loss import load_class_freq, get_fed_loss_inds
++ 
++ __all__ = ["CustomFastRCNNOutputLayers"]
++ 
+++import os
+++
+++kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
+++kDeticRootPath = os.path.join(kThisFileFolder, "../../..")
+++
+++
++ class CustomFastRCNNOutputLayers(FastRCNNOutputLayers):
++-    def __init__(
++-        self, 
++-        cfg, 
++-        input_shape: ShapeSpec,
++-        **kwargs
++-    ):
+++    def __init__(self, cfg, input_shape: ShapeSpec, **kwargs):
++         super().__init__(cfg, input_shape, **kwargs)
++         self.use_sigmoid_ce = cfg.MODEL.ROI_BOX_HEAD.USE_SIGMOID_CE
++         if self.use_sigmoid_ce:
++             prior_prob = cfg.MODEL.ROI_BOX_HEAD.PRIOR_PROB
++             bias_value = -math.log((1 - prior_prob) / prior_prob)
++             nn.init.constant_(self.cls_score.bias, bias_value)
++-        
+++
++         self.cfg = cfg
++         self.use_fed_loss = cfg.MODEL.ROI_BOX_HEAD.USE_FED_LOSS
++         if self.use_fed_loss:
++             self.fed_loss_num_cat = cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_NUM_CAT
++             self.register_buffer(
++-                'freq_weight', 
+++                "freq_weight",
++                 load_class_freq(
++-                    cfg.MODEL.ROI_BOX_HEAD.CAT_FREQ_PATH, 
+++                    os.path.join(kDeticRootPath, cfg.MODEL.ROI_BOX_HEAD.CAT_FREQ_PATH),
++                     cfg.MODEL.ROI_BOX_HEAD.FED_LOSS_FREQ_WEIGHT,
++-                )
+++                ),
++             )
++ 
++     def losses(self, predictions, proposals):
++@@ -54,62 +55,76 @@ class CustomFastRCNNOutputLayers(FastRCNNOutputLayers):
++         """
++         scores, proposal_deltas = predictions
++         gt_classes = (
++-            cat([p.gt_classes for p in proposals], dim=0) if len(proposals) else torch.empty(0)
+++            cat([p.gt_classes for p in proposals], dim=0)
+++            if len(proposals)
+++            else torch.empty(0)
++         )
++         num_classes = self.num_classes
++         _log_classification_stats(scores, gt_classes)
++ 
++         if len(proposals):
++-            proposal_boxes = cat([p.proposal_boxes.tensor for p in proposals], dim=0)  # Nx4
++-            assert not proposal_boxes.requires_grad, "Proposals should not require gradients!"
+++            proposal_boxes = cat(
+++                [p.proposal_boxes.tensor for p in proposals], dim=0
+++            )  # Nx4
+++            assert (
+++                not proposal_boxes.requires_grad
+++            ), "Proposals should not require gradients!"
++             gt_boxes = cat(
++-                [(p.gt_boxes if p.has("gt_boxes") else p.proposal_boxes).tensor for p in proposals],
+++                [
+++                    (p.gt_boxes if p.has("gt_boxes") else p.proposal_boxes).tensor
+++                    for p in proposals
+++                ],
++                 dim=0,
++             )
++         else:
++-            proposal_boxes = gt_boxes = torch.empty((0, 4), device=proposal_deltas.device)
+++            proposal_boxes = gt_boxes = torch.empty(
+++                (0, 4), device=proposal_deltas.device
+++            )
++ 
++         if self.use_sigmoid_ce:
++             loss_cls = self.sigmoid_cross_entropy_loss(scores, gt_classes)
++         else:
++             loss_cls = self.softmax_cross_entropy_loss(scores, gt_classes)
++         return {
++-            "loss_cls": loss_cls, 
+++            "loss_cls": loss_cls,
++             "loss_box_reg": self.box_reg_loss(
++-                proposal_boxes, gt_boxes, proposal_deltas, gt_classes)
+++                proposal_boxes, gt_boxes, proposal_deltas, gt_classes
+++            ),
++         }
++ 
++-
++     def sigmoid_cross_entropy_loss(self, pred_class_logits, gt_classes):
++         if pred_class_logits.numel() == 0:
++-            return pred_class_logits.new_zeros([1])[0] # This is more robust than .sum() * 0.
+++            return pred_class_logits.new_zeros([1])[
+++                0
+++            ]  # This is more robust than .sum() * 0.
++ 
++         B = pred_class_logits.shape[0]
++         C = pred_class_logits.shape[1] - 1
++ 
++         target = pred_class_logits.new_zeros(B, C + 1)
++-        target[range(len(gt_classes)), gt_classes] = 1 # B x (C + 1)
++-        target = target[:, :C] # B x C
+++        target[range(len(gt_classes)), gt_classes] = 1  # B x (C + 1)
+++        target = target[:, :C]  # B x C
++ 
++         weight = 1
++-        if self.use_fed_loss and (self.freq_weight is not None): # fedloss
+++        if self.use_fed_loss and (self.freq_weight is not None):  # fedloss
++             appeared = get_fed_loss_inds(
++-                gt_classes, 
+++                gt_classes,
++                 num_sample_cats=self.fed_loss_num_cat,
++                 C=C,
++-                weight=self.freq_weight)
+++                weight=self.freq_weight,
+++            )
++             appeared_mask = appeared.new_zeros(C + 1)
++-            appeared_mask[appeared] = 1 # C + 1
+++            appeared_mask[appeared] = 1  # C + 1
++             appeared_mask = appeared_mask[:C]
++             fed_w = appeared_mask.view(1, C).expand(B, C)
++             weight = weight * fed_w.float()
++ 
++         cls_loss = F.binary_cross_entropy_with_logits(
++-            pred_class_logits[:, :-1], target, reduction='none') # B x C
++-        loss =  torch.sum(cls_loss * weight) / B  
+++            pred_class_logits[:, :-1], target, reduction="none"
+++        )  # B x C
+++        loss = torch.sum(cls_loss * weight) / B
++         return loss
++-        
++-    
+++
++     def softmax_cross_entropy_loss(self, pred_class_logits, gt_classes):
++         """
++         change _no_instance handling
++@@ -120,22 +135,21 @@ class CustomFastRCNNOutputLayers(FastRCNNOutputLayers):
++         if self.use_fed_loss and (self.freq_weight is not None):
++             C = pred_class_logits.shape[1] - 1
++             appeared = get_fed_loss_inds(
++-                gt_classes, 
+++                gt_classes,
++                 num_sample_cats=self.fed_loss_num_cat,
++                 C=C,
++-                weight=self.freq_weight)
+++                weight=self.freq_weight,
+++            )
++             appeared_mask = appeared.new_zeros(C + 1).float()
++-            appeared_mask[appeared] = 1. # C + 1
++-            appeared_mask[C] = 1.
+++            appeared_mask[appeared] = 1.0  # C + 1
+++            appeared_mask[C] = 1.0
++             loss = F.cross_entropy(
++-                pred_class_logits, gt_classes, 
++-                weight=appeared_mask, reduction="mean")        
+++                pred_class_logits, gt_classes, weight=appeared_mask, reduction="mean"
+++            )
++         else:
++-            loss = F.cross_entropy(
++-                pred_class_logits, gt_classes, reduction="mean")                  
+++            loss = F.cross_entropy(pred_class_logits, gt_classes, reduction="mean")
++         return loss
++ 
++-
++     def inference(self, predictions, proposals):
++         """
++         enable use proposal boxes
++@@ -143,9 +157,10 @@ class CustomFastRCNNOutputLayers(FastRCNNOutputLayers):
++         boxes = self.predict_boxes(predictions, proposals)
++         scores = self.predict_probs(predictions, proposals)
++         if self.cfg.MODEL.ROI_BOX_HEAD.MULT_PROPOSAL_SCORE:
++-            proposal_scores = [p.get('objectness_logits') for p in proposals]
++-            scores = [(s * ps[:, None]) ** 0.5 \
++-                for s, ps in zip(scores, proposal_scores)]
+++            proposal_scores = [p.get("objectness_logits") for p in proposals]
+++            scores = [
+++                (s * ps[:, None]) ** 0.5 for s, ps in zip(scores, proposal_scores)
+++            ]
++         image_shapes = [x.image_size for x in proposals]
++         return fast_rcnn_inference(
++             boxes,
++@@ -156,7 +171,6 @@ class CustomFastRCNNOutputLayers(FastRCNNOutputLayers):
++             self.test_topk_per_image,
++         )
++ 
++-
++     def predict_probs(self, predictions, proposals):
++         """
++         support sigmoid
++diff --git a/centernet/modeling/roi_heads/fed_loss.py b/centernet/modeling/roi_heads/fed_loss.py
++index 290f0f0..2bc013b 100644
++--- a/centernet/modeling/roi_heads/fed_loss.py
+++++ b/centernet/modeling/roi_heads/fed_loss.py
++@@ -2,20 +2,28 @@ import torch
++ import json
++ import numpy as np
++ from torch.nn import functional as F
+++import os
+++
+++kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
+++kDeticRootPath = os.path.join(kThisFileFolder, "../../..")
+++
++ 
++ def load_class_freq(
++-    path='datasets/lvis/lvis_v1_train_cat_info.json', 
++-    freq_weight=0.5):
++-    cat_info = json.load(open(path, 'r'))
+++    path=os.path.join(kDeticRootPath, "datasets/lvis/lvis_v1_train_cat_info.json"),
+++    freq_weight=0.5,
+++):
+++    cat_info = json.load(open(path, "r"))
++     cat_info = torch.tensor(
++-        [c['image_count'] for c in sorted(cat_info, key=lambda x: x['id'])])
+++        [c["image_count"] for c in sorted(cat_info, key=lambda x: x["id"])]
+++    )
++     freq_weight = cat_info.float() ** freq_weight
++     return freq_weight
++ 
+++
++ def get_fed_loss_inds(
++-    gt_classes, num_sample_cats=50, C=1203, \
++-    weight=None, fed_cls_inds=-1):
++-    appeared = torch.unique(gt_classes) # C'
+++    gt_classes, num_sample_cats=50, C=1203, weight=None, fed_cls_inds=-1
+++):
+++    appeared = torch.unique(gt_classes)  # C'
++     prob = appeared.new_ones(C + 1).float()
++     prob[-1] = 0
++     if len(appeared) < num_sample_cats:
++@@ -25,7 +33,7 @@ def get_fed_loss_inds(
++         if fed_cls_inds > 0:
++             prob[fed_cls_inds:] = 0
++         more_appeared = torch.multinomial(
++-            prob, num_sample_cats - len(appeared),
++-            replacement=False)
+++            prob, num_sample_cats - len(appeared), replacement=False
+++        )
++         appeared = torch.cat([appeared, more_appeared])
++-    return appeared
++\ No newline at end of file
+++    return appeared

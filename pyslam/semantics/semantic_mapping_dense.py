@@ -105,7 +105,10 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         Printer.green(f"semantic_segmentation_type: {semantic_segmentation_type.name}")
 
         if semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY:
-            self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
+            # Pass semantic_segmentation_type to use EOV-Seg color map when needed
+            self.semantics_color_map = labels_color_map_factory(
+                semantic_dataset_type, semantic_segmentation_type=semantic_segmentation_type
+            )
             self.semantic_sigma2_factor = information_weights_factory(semantic_dataset_type)
         else:
             self.semantics_color_map = None

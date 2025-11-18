@@ -136,6 +136,18 @@ if [ -d "thirdparty/vggt" ]; then
     rm -rf thirdparty/vggt
 fi
 
+if [ -d "thirdparty/detectron2" ]; then
+    rm -rf thirdparty/detectron2
+fi
+
+if [ -d "thirdparty/EOV-Seg" ]; then
+    rm -rf thirdparty/EOV-Seg
+fi
+
+if [ -d "thirdparty/odise" ]; then
+    rm -rf thirdparty/odise
+fi
+
 if [ -d "$ROOT_DIR/.pyslam.egg-info" ]; then
     echo "Removing pyslam.egg-info directory"
     rm -rf "$ROOT_DIR/.pyslam.egg-info"
