@@ -126,6 +126,15 @@ git apply ../patch_netvlad.patch
 cd "$ROOT_DIR"
 
 
+# Patching lightglue
+print_blue '================================================'
+print_blue "Patching lightglue ..."
+cd thirdparty
+cd LightGlue
+git apply ../lightglue.patch 
+cd "$ROOT_DIR"
+
+
 print_blue '================================================'
 print_blue "Configuring and building thirdparty/json ..."
 # Must be installed before building slam cpp

@@ -523,7 +523,7 @@ class FileLogger:
 # N.B.: if a method is needed you CAN'T
 # from module import name.method
 # since method is an attribute of name!
-def import_from(module, name, method=None):
+def import_from(module, name, method=None, debug=True):
     try:
         imported_module = __import__(module, fromlist=[name])
         imported_name = getattr(imported_module, name)
@@ -541,6 +541,8 @@ def import_from(module, name, method=None):
             + module
             + ", check the file docs/TROUBLESHOOTING.md"
         )
+        if debug:
+            Printer.orange(traceback.format_exc())
         return None
 
 

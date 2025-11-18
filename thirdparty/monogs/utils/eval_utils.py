@@ -12,7 +12,54 @@ from evo.tools import plot
 from evo.tools.plot import PlotMode
 from evo.tools.settings import SETTINGS
 from matplotlib import pyplot as plt
-from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
+
+try:
+    from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
+except ImportError:
+    try:
+        from torchmetrics.image import LearnedPerceptualImagePatchSimilarity
+    except ImportError:
+        try:
+            from torchmetrics import LearnedPerceptualImagePatchSimilarity
+        except ImportError:
+            # Fallback to standalone lpips package
+            try:
+                import lpips
+
+                # Create a wrapper class to match torchmetrics interface
+                class LearnedPerceptualImagePatchSimilarity:
+                    def __init__(self, net_type="alex", normalize=True):
+                        self.loss_fn = lpips.LPIPS(net=net_type)
+                        self.normalize = normalize
+                        self.device = None
+
+                    def to(self, device):
+                        if isinstance(device, str):
+                            self.device = torch.device(device)
+                        else:
+                            self.device = device
+                        self.loss_fn = self.loss_fn.to(self.device)
+                        return self
+
+                    def __call__(self, img1, img2):
+                        # lpips expects images in range [-1, 1] if normalize=True
+                        if self.normalize:
+                            img1 = img1 * 2.0 - 1.0
+                            img2 = img2 * 2.0 - 1.0
+                        # lpips.LPIPS returns tensor, ensure we return a scalar tensor
+                        result = self.loss_fn(img1, img2)
+                        # Squeeze all dimensions and take mean if batch size > 1
+                        while result.dim() > 1:
+                            result = result.squeeze()
+                        # Return mean if batch, otherwise the scalar
+                        return result.mean() if result.numel() > 1 else result
+
+            except ImportError:
+                raise ImportError(
+                    "Could not import LearnedPerceptualImagePatchSimilarity. "
+                    "Please install torchmetrics with: pip install torchmetrics[image] "
+                    "or install lpips with: pip install lpips"
+                )
 
 import wandb
 from gaussian_splatting.gaussian_renderer import render
@@ -20,20 +67,19 @@ from gaussian_splatting.utils.image_utils import psnr
 from gaussian_splatting.utils.loss_utils import ssim
 from gaussian_splatting.utils.system_utils import mkdir_p
 
-try: 
+try:
     from utils.logging_utils import Log
 except:
     script_dir = os.path.dirname(os.path.abspath(__file__))
     sys.path.append(os.path.join(script_dir, "."))
     from .logging_utils import Log
 
+
 def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
     ## Plot
     traj_ref = PosePath3D(poses_se3=poses_gt)
     traj_est = PosePath3D(poses_se3=poses_est)
-    traj_est_aligned = trajectory.align_trajectory(
-        traj_est, traj_ref, correct_scale=monocular
-    )
+    traj_est_aligned = trajectory.align_trajectory(traj_est, traj_ref, correct_scale=monocular)
 
     ## RMSE
     pose_relation = metrics.PoseRelation.translation_part
@@ -76,7 +122,6 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False)
     trj_id, trj_est, trj_gt = [], [], []
     trj_est_np, trj_gt_np = [], []
 
-
     for kf_id in kf_ids:
         kf = frames[kf_id]
         pose_est = np.linalg.inv(kf.T.cpu().numpy())
@@ -97,9 +142,7 @@ def eval_ate(frames, kf_ids, save_dir, iterations, final=False, monocular=False)
     mkdir_p(plot_dir)
 
     label_evo = "final" if final else "{:04}".format(iterations)
-    with open(
-        os.path.join(plot_dir, f"trj_{label_evo}.json"), "w", encoding="utf-8"
-    ) as f:
+    with open(os.path.join(plot_dir, f"trj_{label_evo}.json"), "w", encoding="utf-8") as f:
         json.dump(trj_data, f, indent=4)
 
     ate = evaluate_evo(
@@ -127,9 +170,7 @@ def eval_rendering(
     img_pred, img_gt, saved_frame_idx = [], [], []
     end_idx = len(frames) - 1 if iteration == "final" or "before_opt" else iteration
     psnr_array, ssim_array, lpips_array = [], [], []
-    cal_lpips = LearnedPerceptualImagePatchSimilarity(
-        net_type="alex", normalize=True
-    ).to("cuda")
+    cal_lpips = LearnedPerceptualImagePatchSimilarity(net_type="alex", normalize=True).to("cuda")
     for idx in range(0, end_idx, interval):
         if idx in kf_indices:
             continue
@@ -141,9 +182,7 @@ def eval_rendering(
         image = torch.clamp(rendering, 0.0, 1.0)
 
         gt = (gt_image.cpu().numpy().transpose((1, 2, 0)) * 255).astype(np.uint8)
-        pred = (image.detach().cpu().numpy().transpose((1, 2, 0)) * 255).astype(
-            np.uint8
-        )
+        pred = (image.detach().cpu().numpy().transpose((1, 2, 0)) * 255).astype(np.uint8)
         gt = cv2.cvtColor(gt, cv2.COLOR_BGR2RGB)
         pred = cv2.cvtColor(pred, cv2.COLOR_BGR2RGB)
         img_pred.append(pred)
@@ -187,13 +226,13 @@ def save_gaussians(gaussians, name, iteration, final=False):
         point_cloud_path = os.path.join(name, "point_cloud/final")
     else:
         point_cloud_path = os.path.join(name, f"point_cloud/iteration_{iteration}")
-    #print(f'Saving Gaussians as point cloud to {point_cloud_path}')
+    # print(f'Saving Gaussians as point cloud to {point_cloud_path}')
     gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
 
 
 def load_gaussians(gaussians, file_path):
     if os.path.isfile(file_path):
-        print(f'Loading point cloud from {file_path}')
+        print(f"Loading point cloud from {file_path}")
         gaussians.load_ply(file_path)
     else:
         raise ValueError(f"File {file_path} does not exist")

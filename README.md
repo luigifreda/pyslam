@@ -10,7 +10,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
 - A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
 - Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
-- A suite of segmentation models for **[semantic understanding](#semantic-mapping)** of the scene, such as DeepLabv3, Segformer, and dense CLIP.
+- A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as DeepLabv3, Segformer, CLIP, DETIC, EOV-SEG, ODISE, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
@@ -58,7 +58,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
     - [Depth prediction](#depth-prediction)
     - [Semantic mapping and Image Segmentation](#semantic-mapping-and-image-segmentation)
       - [Sparse Semantic Mapping](#sparse-semantic-mapping)
-      - [Semantic volumetric mapping](#semantic-volumetric-mapping)
+      - [Volumetric Semantic mapping](#volumetric-semantic-mapping)
     - [Saving and reloading](#saving-and-reloading)
       - [Save the a map](#save-the-a-map)
       - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
@@ -436,7 +436,7 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
   <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" style="height: 300px; width: auto;"/>
 </p>
 
-The sparse semantic mapping pipeline can be enabled by setting the parameter `kDoSparseSemanticMappingAndSegmentation=True` in `pyslam/config_parameters.py`. The best way of configuring the semantic mapping module used is to modify it in `pyslam/semantics/semantic_mapping_configs.py`.
+The sparse semantic mapping pipeline can be enabled by setting the parameter `kDoSparseSemanticMappingAndSegmentation=True` in `pyslam/config_parameters.py`. You can configure the semantic mapping module by mofifying the default segmentation models assigned to each dataset in `pyslam/semantics/semantic_mapping_configs.py`. Otherwise, you can override the used segmentation model by setting `kSemanticSegmentationType` in `config_parameters.py`. 
 
 #### Sparse Semantic Mapping
 
@@ -444,6 +444,9 @@ Different semantic mapping methods are available (see [here](./docs/semantics.md
   - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
   - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
   - `CLIP`: from `f3rm` package for open-vocabulary support.
+  - `DETIC`: from https://github.com/facebookresearch/Detic
+  - `EOV-SEG`: from https://github.com/nhw649/EOV-Seg
+  - `ODISE`: from https://github.com/NVlabs/ODISE 
 
 **Semantic features** are assigned to **keypoints** on the image and fused into map points. The semantic features can be:
 - *Labels*: categorical labels as numbers.
@@ -453,14 +456,16 @@ Different semantic mapping methods are available (see [here](./docs/semantics.md
 The simplest way to test the available segmentation models is to run: `test/semantics/test_semantic_segmentation.py`.
 
 
-#### Semantic volumetric mapping
+#### Volumetric Semantic mapping
 
-Semantic volumetric mapping can be performed by setting: 
+Volumetric semantic mapping can be performed by setting: 
 ```python
 kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
 kDoVolumetricIntegration = True # enable volumetric integration
 kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
+
+Further information about the volumetric integration models and SW architecture are available [here](cpp/volumetric/README.md).
 
 ---
 
@@ -907,8 +912,8 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mast3r](https://github.com/naver/mast3r)
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * [MegaLoc](https://github.com/gmberton/MegaLoc)
-* Many thanks to [Anathonic](https://github.com/anathonic) for adding the trajectory-saving feature and for the comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
-* Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for his great work on integrating [semantic sparse mapping](./docs/semantics.md) into pySLAM.
+* Many thanks to [Anathonic](https://github.com/anathonic) for adding the first version of the trajectory-saving feature and for the nice comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
+* Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for creating the first version of [sparse semantic mapping](./docs/semantics.md) in pySLAM.
 
 ---
 ## License 
@@ -934,8 +939,9 @@ Many improvements and additional features are currently under development:
 - [x] Stereo and RGBD support
 - [x] Map saving/loading 
 - [x] Modern DL matching algorithms 
-- [ ] Object detection
-  - [ ] Open vocabulary segment (object) detection
+- [x] Object detection
+  - [x] Open vocabulary segment (object) detection
+  - [ ] Object-level mapping 
 - [X] Semantic segmentation [by @dvdmc]
   - [X] Dense closed-set labels
   - [X] Dense closed-set probability vectors
@@ -943,7 +949,7 @@ Many improvements and additional features are currently under development:
 - [x] 3D dense reconstruction 
 - [x] Unified install procedure (single branch) for all OSs 
 - [x] Trajectory saving 
-- [x] Depth prediction integration, more models: VGGT, MoGE [WIP]
+- [x] Depth prediction integration, more models: VGGT, MoGE, etc. [WIP]
 - [x] ROS support [WIP]
 - [x] Gaussian splatting integration
 - [x] Documentation [WIP]

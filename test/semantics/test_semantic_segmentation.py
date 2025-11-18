@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     # Select your semantic segmentation configuration (see the file semantics/semantic_segmentation_factory.py)
 
-    semantic_segmentation_type = SemanticSegmentationType.SEGFORMER
+    semantic_segmentation_type = SemanticSegmentationType.ODISE
     semantic_feature_type = SemanticFeatureType.LABEL
     semantic_dataset_type = SemanticDatasetType.ADE20K
     image_size = (512, 512)
@@ -80,7 +80,9 @@ if __name__ == "__main__":
 
     img_writer = ImgWriter(font_scale=0.7)
 
-    cv2.namedWindow("semantic prediction", cv2.WINDOW_NORMAL)  # to get a resizable window
+    # Create windows before the loop to avoid delay on first display
+    cv2.namedWindow("img", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("semantic prediction", cv2.WINDOW_NORMAL)
 
     img_id = 0  # 180, 340, 400   # you can start from a desired frame id if needed
     key = None
@@ -106,6 +108,7 @@ if __name__ == "__main__":
 
             key = cv2.waitKey(1)
         else:
+            Printer.red("No image found - waiting for 100ms")
             key = cv2.waitKey(100)
 
         if key == ord("q") or key == 27:
