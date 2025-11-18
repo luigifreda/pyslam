@@ -142,7 +142,7 @@ std::vector<torch::Tensor> corr_index_cuda_forward(
   torch::Tensor corr = torch::zeros(
     {batch_size, 2*radius+1, 2*radius+1, ht, wd}, opts);
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(volume.type(), "sampler_forward_kernel", ([&] {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(volume.scalar_type(), "sampler_forward_kernel", ([&] {
     corr_index_forward_kernel<scalar_t><<<blocks, threads>>>(
       volume.packed_accessor32<scalar_t,5,torch::RestrictPtrTraits>(),
       coords.packed_accessor32<float,4,torch::RestrictPtrTraits>(),
@@ -173,7 +173,7 @@ std::vector<torch::Tensor> corr_index_cuda_backward(
   const dim3 threads(BLOCK, BLOCK);
 
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(volume.type(), "sampler_backward_kernel", ([&] {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(volume.scalar_type(), "sampler_backward_kernel", ([&] {
     corr_index_backward_kernel<scalar_t><<<blocks, threads>>>(
       coords.packed_accessor32<float,4,torch::RestrictPtrTraits>(),
       corr_grad.packed_accessor32<scalar_t,5,torch::RestrictPtrTraits>(),

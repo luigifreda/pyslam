@@ -1,8 +1,8 @@
 """
 * This file is part of PYSLAM
 *
-* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 * Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
+* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ from .semantic_labels import (
     get_nyu40_color_map,
     get_voc_color_map,
     get_generic_color_map,
+    get_open_vocab_color_map,
 )
 from .semantic_labels import (
     get_ade20k_labels,
@@ -37,6 +38,13 @@ from .semantic_labels import (
     get_voc_labels,
 )
 from pyslam.utilities.serialization import SerializableEnum, register_class
+
+# Import SemanticSegmentationType here to avoid circular imports
+# We'll import it conditionally in the function that needs it
+try:
+    from .semantic_segmentation_factory import SemanticSegmentationType
+except ImportError:
+    SemanticSegmentationType = None
 
 
 def similarity_heatmap_image(sim_map, colormap=cv2.COLORMAP_JET, sim_scale=1.0, bgr=False):
@@ -136,8 +144,123 @@ def single_label_to_color(label, semantics_color_map, bgr=False):
     return color
 
 
+def _needs_large_color_map(semantic_segmentation_type):
+    """
+    Check if a semantic segmentation type needs a large color map (open-vocabulary models).
+
+    Open-vocabulary models (like EOV-Seg and Detic) output category IDs that can be much larger
+    than standard dataset class counts, so they need large color maps (e.g., 3000 classes).
+
+    Args:
+        semantic_segmentation_type: SemanticSegmentationType enum value
+
+    Returns:
+        tuple: (needs_large_color_map: bool, model_name: str or None)
+            - needs_large_color_map: True if the type needs a large color map
+            - model_name: Human-readable model name if it needs large color map, None otherwise
+    """
+    if semantic_segmentation_type is None:
+        return False, None
+
+    # Open-vocabulary models that need large color maps
+    open_vocab_types = {
+        "EOV_SEG": "EOV-Seg",
+        "DETIC": "Detic",
+    }
+
+    # Check by name first (most reliable)
+    if hasattr(semantic_segmentation_type, "name"):
+        model_name = open_vocab_types.get(semantic_segmentation_type.name)
+        if model_name:
+            return True, model_name
+    # Check by value (EOV_SEG = 3, DETIC = 4)
+    elif hasattr(semantic_segmentation_type, "value"):
+        if semantic_segmentation_type.value == 3:  # EOV_SEG
+            return True, "EOV-Seg"
+        elif semantic_segmentation_type.value == 4:  # DETIC
+            return True, "Detic"
+    # Direct comparison with enum
+    elif SemanticSegmentationType is not None:
+        if semantic_segmentation_type == SemanticSegmentationType.EOV_SEG:
+            return True, "EOV-Seg"
+        elif semantic_segmentation_type == SemanticSegmentationType.DETIC:
+            return True, "Detic"
+
+    return False, None
+
+
 # We map from SLAM datasets to semantic datasets
-def labels_color_map_factory(semantic_dataset_type=SemanticDatasetType.CITYSCAPES, **kwargs):
+def labels_color_map_factory(
+    semantic_dataset_type=SemanticDatasetType.CITYSCAPES,
+    semantic_segmentation_type=None,
+    needs_large_color_map=None,
+    **kwargs,
+):
+    """
+    Factory function to get the appropriate color map for semantic segmentation.
+
+    Args:
+        semantic_dataset_type: The semantic dataset type (CITYSCAPES, ADE20K, etc.)
+        semantic_segmentation_type: Optional semantic segmentation type. If EOV_SEG or DETIC is specified,
+                                    uses a large color map suitable for open-vocabulary models.
+                                    Ignored if needs_large_color_map is explicitly provided.
+        needs_large_color_map: Optional explicit flag to request a large color map (for open-vocabulary models).
+                              If None, automatically determined from semantic_segmentation_type.
+                              If True, uses a large color map (3000 classes by default).
+        **kwargs: Additional arguments (e.g., num_classes for CUSTOM_SET or for large color maps)
+
+    Returns:
+        np.ndarray: Color map array of shape (num_classes, 3)
+    """
+    # Determine if we need a large color map
+    # If explicitly provided, use it; otherwise check from semantic_segmentation_type
+    model_name = None
+    if needs_large_color_map is None and semantic_segmentation_type is not None:
+        needs_large_color_map, model_name = _needs_large_color_map(semantic_segmentation_type)
+    elif needs_large_color_map is True and semantic_segmentation_type is not None:
+        # If explicitly set to True, still try to get model name for better debug output
+        _, model_name = _needs_large_color_map(semantic_segmentation_type)
+
+    # If EOV-Seg or Detic is being used, use the large color map regardless of dataset type
+    # This is because open-vocabulary models output category IDs that can be much larger than standard
+    # dataset class counts (e.g., 1432 vs 150 for ADE20K, or 1203 for LVIS)
+    if needs_large_color_map:
+        # Debug: show what we received
+        try:
+            from pyslam.utilities.system import Printer
+
+            if semantic_segmentation_type is not None:
+                seg_type_str = (
+                    semantic_segmentation_type.name
+                    if hasattr(semantic_segmentation_type, "name")
+                    else str(semantic_segmentation_type)
+                )
+                Printer.yellow(
+                    f"labels_color_map_factory: semantic_segmentation_type={seg_type_str}, "
+                    f"needs_large_color_map={needs_large_color_map}"
+                )
+            else:
+                Printer.yellow(
+                    f"labels_color_map_factory: needs_large_color_map={needs_large_color_map} (explicitly set)"
+                )
+        except:
+            pass
+
+        num_classes = kwargs.get("num_classes", 3000)
+        color_map = get_open_vocab_color_map(num_classes=num_classes)
+        # Debug output
+        try:
+            from pyslam.utilities.system import Printer
+
+            display_name = model_name if model_name else "Open-vocabulary model"
+            Printer.green(
+                f"labels_color_map_factory: Using {display_name} color map with {len(color_map)} classes (requested {num_classes})"
+            )
+        except:
+            display_name = model_name if model_name else "Open-vocabulary model"
+            print(f"DEBUG: Using {display_name} color map with {len(color_map)} classes")
+        return color_map
+
     if semantic_dataset_type == SemanticDatasetType.VOC:
         return get_voc_color_map()
     elif semantic_dataset_type == SemanticDatasetType.CITYSCAPES:

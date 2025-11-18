@@ -123,7 +123,7 @@ imgviz = "==1.2.6"
 glfw = "*"
 roma = "*"
 pyqt5 = "*"
-kornia = "==0.7.3"
+kornia = "==0.8.2"
 kornia_moons = "==0.2.9"
 #transformers = "==4.38.2" 
 #f3rm = "*"                # conflict 

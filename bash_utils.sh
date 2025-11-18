@@ -161,6 +161,11 @@ function gdrive_download () {
   gdown https://drive.google.com/uc?id=$1
 }
  
+
+# ====================================================
+# CUDA
+# ====================================================
+
 function extract_version(){
     #version=$(echo $1 | sed 's/[^0-9]*//g')
     #version=$(echo $1 | sed 's/[[:alpha:]|(|[:space:]]//g')
@@ -213,6 +218,59 @@ function brew_install(){
         brew install $1
     fi
 }
+
+# Function to detect CUDA toolkit version (not driver version)
+function detect_cuda_toolkit_version() {
+    local cuda_version=""
+    
+    # Method 1: Check nvcc (most reliable for toolkit version)
+    if command -v nvcc &> /dev/null; then
+        NVCC_OUTPUT=$(nvcc --version 2>&1)
+        # Extract version from "release X.Y" pattern
+        cuda_version=$(echo "$NVCC_OUTPUT" | grep -oP 'release \K[\d.]+' | head -1 || echo "")
+        if [ -z "$cuda_version" ]; then
+            cuda_version=$(echo "$NVCC_OUTPUT" | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p' | head -1 || echo "")
+        fi
+    fi
+    
+    # Method 2: Check common CUDA installation paths
+    if [ -z "$cuda_version" ]; then
+        for cuda_path in /usr/local/cuda /usr/local/cuda-* /opt/cuda /opt/cuda-*; do
+            if [ -d "$cuda_path" ] && [ -f "$cuda_path/version.txt" ]; then
+                cuda_version=$(grep -oP '\d+\.\d+' "$cuda_path/version.txt" 2>/dev/null | head -1 || echo "")
+                [ ! -z "$cuda_version" ] && break
+            fi
+        done
+    fi
+    
+    # Method 3: Check CUDA_HOME environment variable
+    if [ -z "$cuda_version" ] && [ ! -z "$CUDA_HOME" ] && [ -f "$CUDA_HOME/version.txt" ]; then
+        cuda_version=$(grep -oP '\d+\.\d+' "$CUDA_HOME/version.txt" 2>/dev/null | head -1 || echo "")
+    fi
+    
+    echo "$cuda_version"
+}
+
+# Function to verify PyTorch has CUDA support
+function verify_pytorch_cuda() {
+    python -c "import torch; from torch.utils import cpp_extension; assert torch.cuda.is_available() or torch.version.cuda is not None, 'PyTorch CUDA not available'" 2>/dev/null
+}
+
+
+# Helper: get currently installed torch CUDA version if torch is already present; else empty
+function get_installed_torch_cuda_ver() {
+  python3 - <<'PY'
+import importlib.util
+spec = importlib.util.find_spec("torch")
+if spec is None:
+    print("")
+else:
+    import torch
+    print(getattr(torch.version, "cuda", "") or "")
+PY
+}
+
+# ====================================================
 
 # Function to load .env file
 function load_env_file() {
@@ -302,16 +360,3 @@ fi
 
 
 # ====================================================
-
-# Helper: get currently installed torch CUDA version if torch is already present; else empty
-get_installed_torch_cuda_ver() {
-  python3 - <<'PY'
-import importlib.util
-spec = importlib.util.find_spec("torch")
-if spec is None:
-    print("")
-else:
-    import torch
-    print(getattr(torch.version, "cuda", "") or "")
-PY
-}

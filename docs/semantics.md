@@ -3,42 +3,49 @@
 <!-- TOC -->
 
 - [Semantic Mapping and Segmentation](#semantic-mapping-and-segmentation)
-  - [Quick test](#quick-test)
   - [Sparse Semantic Mapping and Segmentation](#sparse-semantic-mapping-and-segmentation)
-  - [Implemented features](#implemented-features)
+    - [Quick test](#quick-test)
+  - [Short description](#short-description)
     - [Semantic features types](#semantic-features-types)
     - [Dense vs Object-Based](#dense-vs-object-based)
     - [Supported Models](#supported-models)
     - [Dataset Type Support](#dataset-type-support)
     - [Feature Fusion](#feature-fusion)
     - [Visualizations](#visualizations)
-    - [Dataset Support](#dataset-support)
-  - [Semantic volumetric mapping](#semantic-volumetric-mapping)
+  - [Volumetric Semantic mapping](#volumetric-semantic-mapping)
   - [TODOs](#todos)
 
 <!-- /TOC -->
 
 
-The `semantics` module in pySLAM enables **semantic mapping** and **image segmentation** capabilities. It is designed to support rapid prototyping, benchmarking, and evaluation of semantic mapping methods within the SLAM pipeline.
+The `semantics` module in pySLAM enables **semantic mapping** and **image segmentation** capabilities. It is designed to support rapid prototyping, benchmarking, and evaluation of semantic mapping methods within the SLAM pipeline. If combined with the volumetric mapping module, the `semantics` module allows to get semantic volumetric mapping.
 
-## Quick test
 
-- Enable sparse semantic mapping and segmentation by setting: ``
-- Run the `main_slam.py` example to run Segformer (trained on Cityscapes) on the default KITTI video.
+---
+## Sparse Semantic Mapping and Segmentation
 
-For testing the **open-vocabulary feature**: change the semantic mapping config in the `semantic_mapping_configs.py` file to:  
+### Quick test
+
+1. Enable sparse semantic mapping and segmentation by setting:
+    ```python
+    kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
+    ```
+2. Run the `main_slam.py` example to run Segformer (trained on Cityscapes) on the default KITTI video.
+
+For testing the **open-vocabulary feature**: change the semantic segmentation model to:
+```python
+kSemanticSegmentationType="CLIP" # in config_parameters.py
+```
 Then change your query word in `semantic_segmentation_clip.py` to your desire.
 
 
-## Sparse Semantic Mapping and Segmentation
+## Short description
 
-## Implemented features
+The _sparse semantic mapping module_ assigns semantic features to keypoints on keyframes and uses them to assign semantic features to map points.
 
-- A semantic mapping module that assigns semantic features to keypoints on keyframes and uses them to assign semantic features to map points.
-- The semantic mapping module acts **after** the local mapping module has refined a keyframe and **before** the loop closure and volumetric integration modules. But, since it can be run on a different thread, the latter is not ensured.
-- The interface for the semantic mapping module is:  
-  * **IN**: KFs, 
-  * **OUT**: semantic features for KPs and MPs.
+The semantic mapping module acts **after** the local mapping module has refined a keyframe and **before** the loop closure and volumetric integration modules. If semantic volumetric mapping is requested, the volumetric mapping waits the semantic prediction of a keyframe is available before processing it. 
+
+In a few words, the semantic mapping module takes as input the extracted keyframes and returns as output the semantic features for KPs and MPs.
 
 ### Semantic features types
 
@@ -48,22 +55,25 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 
 ### Dense vs Object-Based
 
-- The semantic mapping module can potentially be “dense” or “object-based”. Both will maintain the same interface.
+The semantic mapping module can potentially be “dense” or “object-based”. Both will maintain the same interface.
 - **Dense** version:
   - Uses per-pixel semantic segmentation.
-- **Object-based** [*not implemented yet*]:
+- **Object-based** [*NOT IMPLEMENTED YET*]:
   - Generate, track, and maintain 3D segments as groups of points.
   - Features are assigned at object-level: multiple KPs or MPs share descriptors.
-  - Approaches: project 2D masks or use DBSCAN for 3D clustering.
+  - Possible approaches: project 2D masks or use DBSCAN for 3D clustering.
 
 ### Supported Models
 
-- Segmentation models have a base class with an `infer` interface returning semantic images.
+- Segmentation models are implemented on the top of a base class with an `infer` method returning semantic images.
 - A `to_rgb` method converts semantic outputs into color maps.
 - Implemented models:
   - **DeepLabv3** (torchvision, pre-trained on COCO/VOC)
   - **Segformer** (transformers, pre-trained on Cityscapes or ADE20k)
   - **Dense CLIP** (from f3rm repo for open-vocabulary)
+  - **DETIC** (from https://github.com/facebookresearch/Detic)
+  - **EOV-SEG** (from https://github.com/nhw649/EOV-Seg)
+  - **ODISE** (from https://github.com/NVlabs/ODISE)
 
 ### Dataset Type Support
 
@@ -74,22 +84,22 @@ Then change your query word in `semantic_segmentation_clip.py` to your desire.
 
 ### Feature Fusion
 
-- Features are fused from KPs into MPs using a fusion method.
+- Features are fused from KPs into MPs using one of the available fusion methods.
 
 ### Visualizations
 
-- Visualizations of:
-  - Label color maps
-  - Similarity heatmaps (open vocab)
-- Available in both 2D and 3D viewers.
+It is possible to visualize both in 2D and 3D the:
+- Label color maps
+- Similarity heatmaps (open vocab)
 
-### Dataset Support
+<!-- ### Dataset Support
 
 - **Scannet** is supported with GT pose and GT semantics.
-- Evaluation done with Segformer on ADE20k + class mapping.
+- Evaluation done with Segformer on ADE20k + class mapping. -->
 
+---
 
-## Semantic volumetric mapping
+## Volumetric Semantic mapping
 
 Semantic volumetric mapping can be performed by setting: 
 ```python
@@ -98,10 +108,10 @@ kDoVolumetricIntegration = True # enable volumetric integration
 kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
 
+Further information about the volumetric integration models and SW architecture are available [here](../cpp/volumetric/README.md).
 
 ## TODOs
 
-- Investigate variants in KF count for LABEL vs PROBABILITY_VECTOR
-- Implement object-based semantic mapping
-- Add interaction in 3D viewer to change query word (open-vocab)
-- Refactor `sem_des_to_rgb` vs `sem_img_to_rgb` (may be redundant)
+- [ ] Investigate variants in KF count for LABEL vs PROBABILITY_VECTOR
+- [ ] Implement object-level semantic mapping
+- [ ] Add interaction in 3D viewer to change query word (open-vocab)

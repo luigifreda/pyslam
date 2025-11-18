@@ -19,12 +19,18 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
+#include <string_view>
 
 namespace pyslam {
 
 class Parameters {
   public:
+    // ----------------------------------------------------------------------------
+    // Constants
+    // ----------------------------------------------------------------------------
+
     static constexpr float kChi2Mono =
         5.991; // chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
     static constexpr float kChi2Stereo =
@@ -97,13 +103,6 @@ class Parameters {
     static constexpr float kMinDistanceFromEpipole =
         10.0f; // [pixels] Used with search by epipolar lines
 
-    static float kFeatureMatchDefaultRatioTest; // This is the default ratio test used by all
-                                                // feature matchers. It can be configured per
-                                                // descriptor in feature_tracker_configs.py
-
-    static float kMaxDescriptorDistance; // It is initialized by the first created instance of
-                                         // feature_manager.py at runtime
-
     static constexpr bool kCheckFeaturesOrientation = true;
 
     static constexpr int kLocalBAWindowSize = 10;
@@ -127,6 +126,17 @@ class Parameters {
 
     static constexpr int kLocalMappingNumNeighborKeyFramesMonocular =
         20; //  [# frames]   for generating new points and fusing them under monocular
+
+    // ----------------------------------------------------------------------------
+    // Modifiable parameters
+    // ----------------------------------------------------------------------------
+
+    static float kFeatureMatchDefaultRatioTest; // This is the default ratio test used by all
+                                                // feature matchers. It can be configured per
+                                                // descriptor in feature_tracker_configs.py
+
+    static float kMaxDescriptorDistance; // It is initialized by the first created instance of
+                                         // feature_manager.py at runtime
 };
 
 } // namespace pyslam

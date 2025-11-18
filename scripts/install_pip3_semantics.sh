@@ -61,6 +61,27 @@ pip install f3rm $CONSTRAINTS
 pip install timm==1.0.15 $CONSTRAINTS
 #pip install protobuf==3.20.3 --force-reinstall
 
+
+print_blue '================================================================'
+print_blue "Installing python packages for detectron2 ..."
+# Install detectron2
+$SCRIPT_DIR_/install_detectron2.sh
+
+print_blue '================================================================'
+print_blue "Installing python packages for EOV-Seg ..."
+# Install EOV-Seg
+$SCRIPT_DIR_/install_eov_seg.sh
+
+print_blue '================================================================'
+print_blue "Installing python packages for Detic ..."
+# Install Detic
+$SCRIPT_DIR_/install_detic.sh
+
+print_blue '================================================================'
+print_blue "Installing python packages for ODISE ..."
+# Install ODISE
+$SCRIPT_DIR_/install_odise.sh
+
 # HACK
 shopt -s nullglob
 FILES=("$ROOT_DIR"/thirdparty/opencv-python/opencv*.whl)
@@ -72,4 +93,4 @@ else
 fi
 
 # Install supported numpy version <2 to avoid conflicts
-pip3 install "numpy<2"
+pip install "numpy<2"

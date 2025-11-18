@@ -1,0 +1,264 @@
+diff --git a/detectron2/data/transforms/transform.py b/detectron2/data/transforms/transform.py
+index de44b99..46769a2 100644
+--- a/detectron2/data/transforms/transform.py
++++ b/detectron2/data/transforms/transform.py
+@@ -43,7 +43,7 @@ class ExtentTransform(Transform):
+     See: https://pillow.readthedocs.io/en/latest/PIL.html#PIL.ImageTransform.ExtentTransform
+     """
+ 
+-    def __init__(self, src_rect, output_size, interp=Image.LINEAR, fill=0):
++    def __init__(self, src_rect, output_size, interp=Image.BILINEAR, fill=0):
+         """
+         Args:
+             src_rect (x0, y0, x1, y1): src coordinates
+diff --git a/detectron2/evaluation/pascal_voc_evaluation.py b/detectron2/evaluation/pascal_voc_evaluation.py
+index 1d1abcd..9b13c09 100644
+--- a/detectron2/evaluation/pascal_voc_evaluation.py
++++ b/detectron2/evaluation/pascal_voc_evaluation.py
+@@ -225,8 +225,8 @@ def voc_eval(detpath, annopath, imagesetfile, classname, ovthresh=0.5, use_07_me
+     for imagename in imagenames:
+         R = [obj for obj in recs[imagename] if obj["name"] == classname]
+         bbox = np.array([x["bbox"] for x in R])
+-        difficult = np.array([x["difficult"] for x in R]).astype(np.bool)
+-        # difficult = np.array([False for x in R]).astype(np.bool)  # treat all "difficult" as GT
++        difficult = np.array([x["difficult"] for x in R]).astype(np.bool_)
++        # difficult = np.array([False for x in R]).astype(np.bool_)  # treat all "difficult" as GT
+         det = [False] * len(R)
+         npos = npos + sum(~difficult)
+         class_recs[imagename] = {"bbox": bbox, "difficult": difficult, "det": det}
+diff --git a/detectron2/layers/deform_conv.py b/detectron2/layers/deform_conv.py
+index eca070f..314ce53 100644
+--- a/detectron2/layers/deform_conv.py
++++ b/detectron2/layers/deform_conv.py
+@@ -29,7 +29,9 @@ class _DeformConv(Function):
+     ):
+         if input is not None and input.dim() != 4:
+             raise ValueError(
+-                "Expected 4D tensor as input, got {}D tensor instead.".format(input.dim())
++                "Expected 4D tensor as input, got {}D tensor instead.".format(
++                    input.dim()
++                )
+             )
+         ctx.stride = _pair(stride)
+         ctx.padding = _pair(padding)
+@@ -41,7 +43,9 @@ class _DeformConv(Function):
+         ctx.save_for_backward(input, offset, weight)
+ 
+         output = input.new_empty(
+-            _DeformConv._output_size(input, weight, ctx.padding, ctx.dilation, ctx.stride)
++            _DeformConv._output_size(
++                input, weight, ctx.padding, ctx.dilation, ctx.stride
++            )
+         )
+ 
+         ctx.bufs_ = [input.new_empty(0), input.new_empty(0)]  # columns, ones
+@@ -55,8 +59,12 @@ class _DeformConv(Function):
+                 input, offset, weight, stride=stride, padding=padding, dilation=dilation
+             )
+         else:
+-            cur_im2col_step = _DeformConv._cal_im2col_step(input.shape[0], ctx.im2col_step)
+-            assert (input.shape[0] % cur_im2col_step) == 0, "im2col step must divide batchsize"
++            cur_im2col_step = _DeformConv._cal_im2col_step(
++                input.shape[0], ctx.im2col_step
++            )
++            assert (
++                input.shape[0] % cur_im2col_step
++            ) == 0, "im2col step must divide batchsize"
+ 
+             _C.deform_conv_forward(
+                 input,
+@@ -89,8 +97,12 @@ class _DeformConv(Function):
+         if not grad_output.is_cuda:
+             raise NotImplementedError("Deformable Conv is not supported on CPUs!")
+         else:
+-            cur_im2col_step = _DeformConv._cal_im2col_step(input.shape[0], ctx.im2col_step)
+-            assert (input.shape[0] % cur_im2col_step) == 0, "im2col step must divide batchsize"
++            cur_im2col_step = _DeformConv._cal_im2col_step(
++                input.shape[0], ctx.im2col_step
++            )
++            assert (
++                input.shape[0] % cur_im2col_step
++            ) == 0, "im2col step must divide batchsize"
+ 
+             if ctx.needs_input_grad[0] or ctx.needs_input_grad[1]:
+                 grad_input = torch.zeros_like(input)
+@@ -208,6 +220,20 @@ class _ModulatedDeformConv(Function):
+             bias = input.new_empty(1)  # fake tensor
+         if not input.is_cuda:
+             raise NotImplementedError("Deformable Conv is not supported on CPUs!")
++
++        # Fix dtype mismatch when using autocast with FP16 and torch.compile()
++        # Ensure all tensors have the same dtype before calling C++ kernel
++        # Use weight dtype as reference (model parameters maintain their dtype)
++        target_dtype = weight.dtype
++        if input.dtype != target_dtype:
++            input = input.to(dtype=target_dtype)
++        if offset.dtype != target_dtype:
++            offset = offset.to(dtype=target_dtype)
++        if mask.dtype != target_dtype:
++            mask = mask.to(dtype=target_dtype)
++        if bias.dtype != target_dtype:
++            bias = bias.to(dtype=target_dtype)
++
+         if (
+             weight.requires_grad
+             or mask.requires_grad
+@@ -340,12 +366,14 @@ class DeformConv(nn.Module):
+         super(DeformConv, self).__init__()
+ 
+         assert not bias
+-        assert in_channels % groups == 0, "in_channels {} cannot be divisible by groups {}".format(
+-            in_channels, groups
+-        )
++        assert (
++            in_channels % groups == 0
++        ), "in_channels {} cannot be divisible by groups {}".format(in_channels, groups)
+         assert (
+             out_channels % groups == 0
+-        ), "out_channels {} cannot be divisible by groups {}".format(out_channels, groups)
++        ), "out_channels {} cannot be divisible by groups {}".format(
++            out_channels, groups
++        )
+ 
+         self.in_channels = in_channels
+         self.out_channels = out_channels
+@@ -374,7 +402,11 @@ class DeformConv(nn.Module):
+             output_shape = [
+                 (i + 2 * p - (di * (k - 1) + 1)) // s + 1
+                 for i, p, di, k, s in zip(
+-                    x.shape[-2:], self.padding, self.dilation, self.kernel_size, self.stride
++                    x.shape[-2:],
++                    self.padding,
++                    self.dilation,
++                    self.kernel_size,
++                    self.stride,
+                 )
+             ]
+             output_shape = [x.shape[0], self.weight.shape[0]] + output_shape
+@@ -464,7 +496,11 @@ class ModulatedDeformConv(nn.Module):
+             output_shape = [
+                 (i + 2 * p - (di * (k - 1) + 1)) // s + 1
+                 for i, p, di, k, s in zip(
+-                    x.shape[-2:], self.padding, self.dilation, self.kernel_size, self.stride
++                    x.shape[-2:],
++                    self.padding,
++                    self.dilation,
++                    self.kernel_size,
++                    self.stride,
+                 )
+             ]
+             output_shape = [x.shape[0], self.weight.shape[0]] + output_shape
+diff --git a/detectron2/structures/masks.py b/detectron2/structures/masks.py
+index ed7b3be..37b4217 100644
+--- a/detectron2/structures/masks.py
++++ b/detectron2/structures/masks.py
+@@ -30,10 +30,10 @@ def polygons_to_bitmask(polygons: List[np.ndarray], height: int, width: int) ->
+     """
+     if len(polygons) == 0:
+         # COCOAPI does not support empty polygons
+-        return np.zeros((height, width)).astype(np.bool)
++        return np.zeros((height, width)).astype(np.bool_)
+     rles = mask_util.frPyObjects(polygons, height, width)
+     rle = mask_util.merge(rles)
+-    return mask_util.decode(rle).astype(np.bool)
++    return mask_util.decode(rle).astype(np.bool_)
+ 
+ 
+ def rasterize_polygons_within_box(
+@@ -341,7 +341,7 @@ class PolygonMasks:
+                 a BoolTensor which represents whether each mask is empty (False) or not (True).
+         """
+         keep = [1 if len(polygon) > 0 else 0 for polygon in self.polygons]
+-        return torch.from_numpy(np.asarray(keep, dtype=np.bool))
++        return torch.from_numpy(np.asarray(keep, dtype=np.bool_))
+ 
+     def __getitem__(self, item: Union[int, slice, List[int], torch.BoolTensor]) -> "PolygonMasks":
+         """
+diff --git a/detectron2/utils/video_visualizer.py b/detectron2/utils/video_visualizer.py
+index a3624cb..b151d6b 100644
+--- a/detectron2/utils/video_visualizer.py
++++ b/detectron2/utils/video_visualizer.py
+@@ -191,7 +191,7 @@ class VideoVisualizer:
+         """
+ 
+         # Compute iou with either boxes or masks:
+-        is_crowd = np.zeros((len(instances),), dtype=np.bool)
++        is_crowd = np.zeros((len(instances),), dtype=np.bool_)
+         if instances[0].bbox is None:
+             assert instances[0].mask_rle is not None
+             # use mask iou only when box iou is None
+diff --git a/detectron2/utils/visualizer.py b/detectron2/utils/visualizer.py
+index 747efad..82e0c43 100644
+--- a/detectron2/utils/visualizer.py
++++ b/detectron2/utils/visualizer.py
+@@ -207,7 +207,7 @@ class _PanopticPrediction:
+         assert (
+             len(empty_ids) == 1
+         ), ">1 ids corresponds to no labels. This is currently not supported"
+-        return (self._seg != empty_ids[0]).numpy().astype(np.bool)
++        return (self._seg != empty_ids[0]).numpy().astype(np.bool_)
+ 
+     def semantic_masks(self):
+         for sid in self._seg_ids:
+@@ -215,14 +215,14 @@ class _PanopticPrediction:
+             if sinfo is None or sinfo["isthing"]:
+                 # Some pixels (e.g. id 0 in PanopticFPN) have no instance or semantic predictions.
+                 continue
+-            yield (self._seg == sid).numpy().astype(np.bool), sinfo
++            yield (self._seg == sid).numpy().astype(np.bool_), sinfo
+ 
+     def instance_masks(self):
+         for sid in self._seg_ids:
+             sinfo = self._sinfo.get(sid)
+             if sinfo is None or not sinfo["isthing"]:
+                 continue
+-            mask = (self._seg == sid).numpy().astype(np.bool)
++            mask = (self._seg == sid).numpy().astype(np.bool_)
+             if mask.sum() > 0:
+                 yield mask, sinfo
+ 
+diff --git a/tests/test_visualizer.py b/tests/test_visualizer.py
+index 729d279..32a80a9 100644
+--- a/tests/test_visualizer.py
++++ b/tests/test_visualizer.py
+@@ -24,9 +24,11 @@ class TestVisualizer(unittest.TestCase):
+         def _rand_poly():
+             return np.random.rand(3, 2).flatten() * H
+ 
+-        polygons = [[_rand_poly() for _ in range(np.random.randint(1, 5))] for _ in range(N)]
++        polygons = [
++            [_rand_poly() for _ in range(np.random.randint(1, 5))] for _ in range(N)
++        ]
+ 
+-        mask = np.zeros_like(img[:, :, 0], dtype=np.bool)
++        mask = np.zeros_like(img[:, :, 0], dtype=np.bool_)
+         mask[:40, 10:20] = 1
+ 
+         labels = [str(i) for i in range(N)]
+@@ -94,17 +96,23 @@ class TestVisualizer(unittest.TestCase):
+         img, boxes, labels, polygons, masks = self._random_data()
+ 
+         v = Visualizer(img, self.metadata)
+-        output = v.overlay_instances(masks=polygons, boxes=boxes, labels=labels).get_image()
++        output = v.overlay_instances(
++            masks=polygons, boxes=boxes, labels=labels
++        ).get_image()
+         self.assertEqual(output.shape, img.shape)
+ 
+         # Test 2x scaling
+         v = Visualizer(img, self.metadata, scale=2.0)
+-        output = v.overlay_instances(masks=polygons, boxes=boxes, labels=labels).get_image()
++        output = v.overlay_instances(
++            masks=polygons, boxes=boxes, labels=labels
++        ).get_image()
+         self.assertEqual(output.shape[0], img.shape[0] * 2)
+ 
+         # Test overlay masks
+         v = Visualizer(img, self.metadata)
+-        output = v.overlay_instances(masks=masks, boxes=boxes, labels=labels).get_image()
++        output = v.overlay_instances(
++            masks=masks, boxes=boxes, labels=labels
++        ).get_image()
+         self.assertEqual(output.shape, img.shape)
+ 
+     def test_overlay_instances_no_boxes(self):

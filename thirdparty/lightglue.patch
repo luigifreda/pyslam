@@ -1,0 +1,13 @@
+diff --git a/lightglue/lightglue.py b/lightglue/lightglue.py
+index 14e6a61..54903f0 100644
+--- a/lightglue/lightglue.py
++++ b/lightglue/lightglue.py
+@@ -21,7 +21,7 @@ else:
+ torch.backends.cudnn.deterministic = True
+ 
+ 
+-@torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
++@torch.amp.custom_fwd(cast_inputs=torch.float32, device_type="cuda")
+ def normalize_keypoints(
+     kpts: torch.Tensor, size: Optional[torch.Tensor] = None
+ ) -> torch.Tensor:

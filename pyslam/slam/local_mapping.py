@@ -63,7 +63,7 @@ if TYPE_CHECKING:
     # Only imported when type checking, not at runtime
     from .slam import Slam  #
     from .keyframe import KeyFrame
-    from .slam import EpipolarMatcher
+    from .geometry_matchers import EpipolarMatcher
     from .local_mapping_core import LocalMappingCore
 
 

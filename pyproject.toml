@@ -21,7 +21,7 @@ dependencies = [
     "h5py>=3.1.1",
     "imageio==2.34.2",
     "importlib_metadata==8.0.0",
-    "kornia==0.7.3",
+    "kornia==0.8.2",
     "kornia_moons==0.2.9",
     "Keras-Applications==1.0.8",
     "Keras-Preprocessing==1.1.2",

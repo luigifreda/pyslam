@@ -777,3 +777,28 @@ def get_ade20k_labels():
         "clock",
         "flag",
     ]
+
+
+# ==============================================
+# Open-Vocabulary Models (EOV-Seg, Detic, etc.)
+# ==============================================
+
+
+def get_open_vocab_color_map(num_classes=3000):
+    """
+    Returns a large color map for open-vocabulary semantic segmentation models.
+
+    Open-vocabulary models (like EOV-Seg and Detic) can output category IDs that are much
+    larger than standard dataset class counts (e.g., category IDs can be 1203 for LVIS
+    or 1432+ for ADE20K), so they need large color maps to avoid color collisions.
+
+    Args:
+        num_classes (int): Maximum number of classes to support. Default 3000 to handle
+                          large category IDs from open-vocabulary models.
+
+    Returns:
+        np.ndarray: A NumPy array of shape (num_classes, 3) representing the
+        color map. Each row represents a color, and the columns represent the
+        R, G, and B values (0-255).
+    """
+    return get_generic_color_map(num_classes)

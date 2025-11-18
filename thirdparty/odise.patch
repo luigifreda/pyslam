@@ -1,0 +1,1801 @@
+diff --git a/compatibility_patches.py b/compatibility_patches.py
+new file mode 100644
+index 0000000..ca3ede2
+--- /dev/null
++++ b/compatibility_patches.py
+@@ -0,0 +1,548 @@
++# ------------------------------------------------------------------------------
++# Copyright (c) 2022-2023, NVIDIA Corporation & Affiliates. All rights reserved.
++#
++# This work is made available under the Nvidia Source Code License.
++# To view a copy of this license, visit
++# https://github.com/NVlabs/ODISE/blob/main/LICENSE
++#
++# Written by Jiarui Xu
++# Modified for video segmentation testing
++# ------------------------------------------------------------------------------
++
++# Fix for pytorch_lightning compatibility with newer torchmetrics
++# This must be done before any imports that trigger pytorch_lightning
++# The old pytorch_lightning tries to import get_num_classes which was removed in torchmetrics 0.8.0+
++import sys
++import builtins
++import dataclasses
++import os
++
++# Flag to prevent recursion when patching
++_patching_torchmetrics = False
++_patching_einops_keras = False
++
++# Store original import before we override it
++_original_import = builtins.__import__
++
++
++def _patch_einops_keras_compatibility():
++    """Patch einops/keras compatibility issue.
++
++    einops 0.3.0 tries to use keras.backend.is_tensor() which doesn't exist
++    in newer keras versions. This patch adds the missing method.
++    """
++    global _patching_einops_keras
++
++    # Prevent recursion
++    if _patching_einops_keras:
++        return
++
++    # Check if already patched
++    if "keras.backend" in sys.modules:
++        K = sys.modules["keras.backend"]
++        if hasattr(K, "is_tensor") and hasattr(K, "is_keras_tensor"):
++            return  # Already patched
++
++    _patching_einops_keras = True
++    try:
++        # Use original import to avoid recursion
++        builtins.__import__ = _original_import
++        try:
++            import keras.backend as K
++        finally:
++            # Only restore patched import if it was already set up
++            # (it might not exist if called before _patched_import is defined)
++            try:
++                builtins.__import__ = _patched_import
++            except NameError:
++                # _patched_import not defined yet, leave it as original
++                pass
++
++        if not hasattr(K, "is_tensor"):
++            # Add missing is_tensor method for einops compatibility
++            def is_tensor(x):
++                """Compatibility shim for einops."""
++                # Check if it's a tensor-like object
++                # For PyTorch tensors, this should return False (einops will use PyTorch backend)
++                # For Keras tensors, check if it has tensor attributes
++                if hasattr(x, "__class__"):
++                    class_name = x.__class__.__name__.lower()
++                    module_name = getattr(x.__class__, "__module__", "").lower()
++                    if "keras" in module_name or "tensorflow" in module_name:
++                        if "tensor" in class_name or "variable" in class_name:
++                            return True
++                return False
++
++            K.is_tensor = is_tensor
++
++        # Also patch is_keras_tensor if it doesn't exist
++        if not hasattr(K, "is_keras_tensor"):
++
++            def is_keras_tensor(x):
++                """Compatibility shim for einops."""
++                # For PyTorch tensors, this should return False
++                # Only return True for actual Keras/TensorFlow tensors
++                if hasattr(x, "__class__"):
++                    module_name = getattr(x.__class__, "__module__", "").lower()
++                    if "keras" in module_name or "tensorflow" in module_name:
++                        return True
++                return False
++
++            K.is_keras_tensor = is_keras_tensor
++    except (ImportError, AttributeError):
++        # If keras isn't available, that's okay
++        pass
++    finally:
++        _patching_einops_keras = False
++
++
++# Apply einops/keras patch early
++_patch_einops_keras_compatibility()
++
++
++def _patch_torchmetrics():
++    """Patch torchmetrics to add back get_num_classes and AUC for old pytorch_lightning compatibility."""
++    global _patching_torchmetrics
++
++    # Prevent recursion
++    if _patching_torchmetrics:
++        return
++
++    # Check if already patched
++    if "torchmetrics.utilities.data" in sys.modules:
++        tm_data = sys.modules["torchmetrics.utilities.data"]
++        if hasattr(tm_data, "get_num_classes"):
++            # Check if torchmetrics main module is also patched
++            if "torchmetrics" in sys.modules:
++                tm = sys.modules["torchmetrics"]
++                # Check if common metrics are patched
++                if (
++                    hasattr(tm, "AUC")
++                    and hasattr(tm, "F1")
++                    and hasattr(tm, "IoU")
++                    and hasattr(tm, "PSNR")
++                    and hasattr(tm, "SSIM")
++                ):
++                    return  # Already patched
++
++    _patching_torchmetrics = True
++    try:
++        # Use original import to avoid recursion
++        # Temporarily restore original import, import, then restore patched import
++        builtins.__import__ = _original_import
++        try:
++            import torchmetrics.utilities.data as tm_data
++            import torchmetrics as tm
++
++            # AUC was removed in newer torchmetrics, replaced by AUROC
++            # Create a compatibility shim for old pytorch_lightning
++            try:
++                from torchmetrics.classification import AUROC as _AUROC_class
++
++                # Create a compatibility class that aliases AUROC as AUC
++                class _AUCCompat(_AUROC_class):
++                    """Compatibility shim: AUC -> AUROC for old pytorch_lightning"""
++
++                    pass
++
++                _AUC_class = _AUCCompat
++            except ImportError:
++                # If AUROC is not available, try to find it elsewhere
++                try:
++                    from torchmetrics import AUROC as _AUROC_class
++
++                    class _AUCCompat(_AUROC_class):
++                        """Compatibility shim: AUC -> AUROC for old pytorch_lightning"""
++
++                        pass
++
++                    _AUC_class = _AUCCompat
++                except ImportError:
++                    _AUC_class = None
++        finally:
++            builtins.__import__ = _patched_import
++
++        # Define the compatibility function for get_num_classes
++        def get_num_classes(preds, target, num_classes=None):
++            """Compatibility function for old pytorch_lightning that expects get_num_classes."""
++            if num_classes is not None:
++                return num_classes
++            # Try to infer from the data
++            if hasattr(preds, "shape"):
++                if len(preds.shape) > 1:
++                    return preds.shape[-1]
++            if hasattr(target, "max"):
++                return int(target.max().item()) + 1
++            return None
++
++        # Patch get_num_classes if not already present
++        if not hasattr(tm_data, "get_num_classes"):
++            tm_data.get_num_classes = get_num_classes
++            # Also patch the module dict in case of direct imports
++            if "torchmetrics.utilities.data" in sys.modules:
++                sys.modules["torchmetrics.utilities.data"].get_num_classes = (
++                    get_num_classes
++                )
++
++        # Patch common metrics imports for old pytorch_lightning
++        # Old pytorch_lightning expects: from torchmetrics import AUC, F1, FBeta, etc.
++        # These are now in torchmetrics.classification in newer versions
++        metrics_to_patch = {}
++
++        # Patch AUC
++        if not hasattr(tm, "AUC") and _AUC_class is not None:
++            metrics_to_patch["AUC"] = _AUC_class
++
++        # Patch other common metrics that old pytorch_lightning expects
++        try:
++            from torchmetrics.classification import (
++                F1Score,
++                FBetaScore,
++                Accuracy,
++                Precision,
++                Recall,
++                JaccardIndex,  # IoU is called JaccardIndex in newer versions
++            )
++
++            # Map old names to new classes
++            if not hasattr(tm, "F1"):
++                metrics_to_patch["F1"] = F1Score
++            if not hasattr(tm, "FBeta"):
++                metrics_to_patch["FBeta"] = FBetaScore
++            if not hasattr(tm, "Accuracy"):
++                metrics_to_patch["Accuracy"] = Accuracy
++            if not hasattr(tm, "Precision"):
++                metrics_to_patch["Precision"] = Precision
++            if not hasattr(tm, "Recall"):
++                metrics_to_patch["Recall"] = Recall
++            if not hasattr(tm, "IoU"):
++                metrics_to_patch["IoU"] = JaccardIndex  # IoU -> JaccardIndex
++        except ImportError:
++            pass
++
++        # Patch regression and image metrics
++        try:
++            from torchmetrics.image import (
++                PeakSignalNoiseRatio,
++                StructuralSimilarityIndexMeasure,
++            )
++            from torchmetrics.regression import (
++                MeanSquaredError,
++                MeanAbsoluteError,
++                MeanSquaredLogError,
++            )
++
++            # Map old names to new classes
++            if not hasattr(tm, "PSNR"):
++                metrics_to_patch["PSNR"] = PeakSignalNoiseRatio
++            if not hasattr(tm, "SSIM"):
++                metrics_to_patch["SSIM"] = StructuralSimilarityIndexMeasure
++            if not hasattr(tm, "MSE"):
++                metrics_to_patch["MSE"] = MeanSquaredError
++            if not hasattr(tm, "MAE"):
++                metrics_to_patch["MAE"] = MeanAbsoluteError
++            if not hasattr(tm, "MSLE"):
++                metrics_to_patch["MSLE"] = MeanSquaredLogError
++        except ImportError:
++            pass
++
++        # Apply all patches
++        for metric_name, metric_class in metrics_to_patch.items():
++            if not hasattr(tm, metric_name):
++                setattr(tm, metric_name, metric_class)
++                if "torchmetrics" in sys.modules:
++                    setattr(sys.modules["torchmetrics"], metric_name, metric_class)
++    except (ImportError, AttributeError):
++        # If torchmetrics isn't available, that's okay - the patch will be applied when it's imported
++        pass
++    finally:
++        _patching_torchmetrics = False
++
++
++def _patch_hydra_dataclass():
++    """Patch hydra-core to fix Python 3.11 dataclass mutable default issue."""
++    if "hydra.conf" in sys.modules:
++        try:
++            import hydra.conf as hydra_conf
++
++            # The issue is in JobConf.JobConfig.OverrideDirname being used as a default
++            # We need to patch it to use default_factory instead
++            if hasattr(hydra_conf, "JobConf"):
++                JobConf = hydra_conf.JobConf
++                if hasattr(JobConf, "JobConfig"):
++                    JobConfig = JobConf.JobConfig
++                    # Check if override_dirname field exists and has a mutable default
++                    if hasattr(JobConfig, "__dataclass_fields__"):
++                        fields = JobConfig.__dataclass_fields__
++                        if "override_dirname" in fields:
++                            field = fields["override_dirname"]
++                            # If it has a mutable default, we need to recreate the dataclass
++                            # This is a workaround - we'll monkey-patch the class after import
++                            pass  # Will be handled after import
++        except Exception:
++            pass
++
++
++def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
++    """Intercept imports to patch torchmetrics when it's first imported."""
++    # Patch keras backend for einops compatibility before importing
++    if name == "keras" or name.startswith("keras."):
++        _patch_einops_keras_compatibility()
++
++    # Patch hydra before importing to fix Python 3.11 dataclass issue
++    if name == "hydra" or name.startswith("hydra."):
++        # We'll patch after import since we need the module to exist first
++        pass
++
++    # Fast path: only check torchmetrics-related imports
++    is_torchmetrics_import = name.startswith("torchmetrics") or (
++        name == "pytorch_lightning.metrics.utils"
++        and fromlist
++        and "get_num_classes" in fromlist
++    )
++
++    if not is_torchmetrics_import:
++        # Not a torchmetrics import, use original import directly
++        module = _original_import(name, globals, locals, fromlist, level)
++        # Patch keras after import if it was just imported
++        if name == "keras" or (name.startswith("keras.") and "keras" in sys.modules):
++            _patch_einops_keras_compatibility()
++        return module
++
++    # It's a torchmetrics-related import, proceed with patching logic
++    # Patch BEFORE importing to ensure it's ready when pytorch_lightning imports it
++    if not _patching_torchmetrics:
++        # Preemptively patch if we're about to import torchmetrics or its submodules
++        if name == "torchmetrics" or name.startswith("torchmetrics."):
++            _patch_torchmetrics()
++        elif name == "torchmetrics.utilities.data" or (
++            name == "torchmetrics.utilities" and fromlist and "data" in fromlist
++        ):
++            _patch_torchmetrics()
++        elif name == "torchmetrics" and fromlist:
++            # Check if importing from utilities.data or importing common metrics
++            common_metrics = [
++                "AUC",
++                "F1",
++                "FBeta",
++                "Accuracy",
++                "Precision",
++                "Recall",
++                "IoU",
++                "PSNR",
++                "SSIM",
++                "MSE",
++                "MAE",
++                "MSLE",
++            ]
++            if any(
++                "utilities" in str(f)
++                or "data" in str(f)
++                or any(metric in str(f) for metric in common_metrics)
++                for f in fromlist
++            ):
++                _patch_torchmetrics()
++
++    module = _original_import(name, globals, locals, fromlist, level)
++
++    # Patch hydra after import to fix Python 3.11 dataclass issue
++    if name == "hydra.conf" or (name == "hydra" and "hydra.conf" not in sys.modules):
++        try:
++            # Wait a bit for hydra.conf to be fully loaded if hydra was just imported
++            if name == "hydra":
++                # Give it a moment, then patch
++                import time
++
++                time.sleep(0.01)  # Small delay to ensure hydra.conf is loaded
++
++            if "hydra.conf" in sys.modules:
++                import hydra.conf as hydra_conf
++
++                # Patch the JobConf.JobConfig dataclass to fix mutable default issue
++                if hasattr(hydra_conf, "JobConf"):
++                    JobConf = hydra_conf.JobConf
++                    if hasattr(JobConf, "JobConfig"):
++                        JobConfig = JobConf.JobConfig
++                        # The issue is that OverrideDirname is used as a default value
++                        # We need to recreate the dataclass with default_factory
++                        if hasattr(JobConfig, "__dataclass_fields__"):
++                            fields = JobConfig.__dataclass_fields__
++                            if "override_dirname" in fields:
++                                field = fields["override_dirname"]
++                                # Check if default is a mutable type (class instance)
++                                if (
++                                    hasattr(field, "default")
++                                    and field.default != dataclasses.MISSING
++                                ):
++                                    default_val = field.default
++                                    # If it's a class instance (mutable), replace with default_factory
++                                    if not isinstance(
++                                        default_val,
++                                        (type(None), str, int, float, bool, type),
++                                    ):
++                                        # Create a factory function
++                                        def _override_dirname_factory():
++                                            return default_val.__class__()
++
++                                        # Patch the field
++                                        field.default = dataclasses.MISSING
++                                        field.default_factory = (
++                                            _override_dirname_factory
++                                        )
++        except Exception as e:
++            # If patching fails, continue - might not be needed or already patched
++            pass
++
++    # Patch after import as well (in case it wasn't patched before)
++    if not _patching_torchmetrics:
++        # Patch when torchmetrics main module is imported
++        if name == "torchmetrics":
++            _patch_torchmetrics()
++        elif name == "torchmetrics.utilities.data":
++            _patch_torchmetrics()
++        elif name == "torchmetrics.utilities" and fromlist and "data" in fromlist:
++            _patch_torchmetrics()
++        # Also patch if torchmetrics modules are now in sys.modules
++        if (
++            "torchmetrics" in sys.modules
++            or "torchmetrics.utilities.data" in sys.modules
++        ):
++            try:
++                # Check if torchmetrics main module needs metric patches
++                if "torchmetrics" in sys.modules:
++                    tm = sys.modules["torchmetrics"]
++                    # Check if common metrics are patched (check a few key ones)
++                    # If any are missing, patch will add all of them
++                    if (
++                        not hasattr(tm, "AUC")
++                        or not hasattr(tm, "F1")
++                        or not hasattr(tm, "IoU")
++                        or not hasattr(tm, "PSNR")
++                        or not hasattr(tm, "SSIM")
++                    ):
++                        _patch_torchmetrics()
++                # Check if torchmetrics.utilities.data needs get_num_classes patch
++                if "torchmetrics.utilities.data" in sys.modules:
++                    tm_data = sys.modules["torchmetrics.utilities.data"]
++                    if not hasattr(tm_data, "get_num_classes"):
++                        _patch_torchmetrics()
++            except (AttributeError, KeyError):
++                pass
++    return module
++
++
++# Override builtins.__import__ to intercept imports
++builtins.__import__ = _patched_import
++
++# Apply patch immediately (if torchmetrics is already available)
++_patch_torchmetrics()
++
++
++def filter_cudnn_conflicts():
++    """Filter out paths containing conflicting cuDNN libraries from LD_LIBRARY_PATH.
++
++    This allows PyTorch to use its bundled cuDNN instead of system cuDNN.
++    Also tries to find and prioritize PyTorch's bundled cuDNN location.
++    """
++    import sys
++
++    # Try to find PyTorch's installation directory (where bundled cuDNN might be)
++    pytorch_cudnn_paths = []
++    try:
++        # PyTorch's bundled cuDNN is typically in the site-packages/torch/lib directory
++        import site
++
++        for site_pkg in site.getsitepackages():
++            torch_lib_path = os.path.join(site_pkg, "torch", "lib")
++            if os.path.isdir(torch_lib_path):
++                # Check if it contains cuDNN
++                try:
++                    lib_files = os.listdir(torch_lib_path)
++                    if any("libcudnn" in f.lower() for f in lib_files):
++                        pytorch_cudnn_paths.append(torch_lib_path)
++                        break  # Found it, no need to check other site-packages
++                except (OSError, PermissionError):
++                    pass
++    except Exception:
++        pass
++
++    if "LD_LIBRARY_PATH" not in os.environ:
++        # If no LD_LIBRARY_PATH, add PyTorch's cuDNN path if found
++        if pytorch_cudnn_paths:
++            os.environ["LD_LIBRARY_PATH"] = ":".join(pytorch_cudnn_paths)
++            print(
++                "[cuDNN fix] Added PyTorch's bundled cuDNN to LD_LIBRARY_PATH",
++                file=sys.stderr,
++            )
++        return
++
++    ld_paths = os.environ["LD_LIBRARY_PATH"].split(":")
++    filtered_paths = []
++    removed_paths = []
++
++    for path in ld_paths:
++        if not path:  # Skip empty paths
++            continue
++
++        # Check if this path contains cuDNN libraries
++        # Common locations: /usr/lib/x86_64-linux-gnu (system cuDNN)
++        # We want to keep CUDA paths but remove paths with conflicting cuDNN
++        path_has_cudnn = False
++
++        # Check if path exists and contains cuDNN libraries
++        if os.path.isdir(path):
++            try:
++                # Check for cuDNN library files
++                lib_files = os.listdir(path)
++                for lib_file in lib_files:
++                    if "libcudnn" in lib_file.lower():
++                        path_has_cudnn = True
++                        break
++            except (OSError, PermissionError):
++                # Can't read directory, keep it to be safe
++                pass
++
++        # Keep paths that don't have cuDNN, or are CUDA installation paths
++        # (CUDA paths are needed for other CUDA libraries)
++        # Also keep PyTorch's cuDNN paths
++        is_pytorch_cudnn = path in pytorch_cudnn_paths
++        is_cuda_path = "/usr/local/cuda" in path or "/opt/cuda" in path
++
++        if not path_has_cudnn or is_cuda_path or is_pytorch_cudnn:
++            filtered_paths.append(path)
++        else:
++            removed_paths.append(path)
++
++    # Prepend PyTorch's cuDNN paths to the beginning of LD_LIBRARY_PATH
++    # This ensures PyTorch's bundled cuDNN is found first
++    for pytorch_path in pytorch_cudnn_paths:
++        if pytorch_path not in filtered_paths:
++            filtered_paths.insert(0, pytorch_path)
++
++    # Update LD_LIBRARY_PATH
++    new_ld_path = ":".join(filtered_paths)
++    os.environ["LD_LIBRARY_PATH"] = new_ld_path
++
++    # Log what we did
++    if removed_paths or pytorch_cudnn_paths:
++        print(
++            "[cuDNN fix] Optimizing LD_LIBRARY_PATH for PyTorch's bundled cuDNN",
++            file=sys.stderr,
++        )
++        if pytorch_cudnn_paths:
++            print(
++                f"  + Prioritized PyTorch cuDNN path: {pytorch_cudnn_paths[0]}",
++                file=sys.stderr,
++            )
++        if removed_paths:
++            print(
++                f"  - Removed {len(removed_paths)} conflicting path(s):",
++                file=sys.stderr,
++            )
++            for removed in removed_paths:
++                print(f"    {removed}", file=sys.stderr)
++
++
++# Apply the filter before importing torch
++filter_cudnn_conflicts()
++
+diff --git a/odise/checkpoint/odise_checkpointer.py b/odise/checkpoint/odise_checkpointer.py
+index cb281c9..dfeee47 100644
+--- a/odise/checkpoint/odise_checkpointer.py
++++ b/odise/checkpoint/odise_checkpointer.py
+@@ -17,6 +17,7 @@
+ import os.path as osp
+ from collections import defaultdict
+ from typing import List
++import torch
+ from detectron2.checkpoint import DetectionCheckpointer
+ from detectron2.checkpoint.c2_model_loading import align_and_update_state_dicts
+ from fvcore.common.checkpoint import Checkpointer
+@@ -58,6 +59,29 @@ class ODISECheckpointer(DetectionCheckpointer):
+         )
+         self.path_manager = PathManager
+ 
++    def _load_file(self, filename):
++        """
++        Override to handle PyTorch 2.6+ weights_only default change.
++        The checkpoint may contain pytorch_lightning classes which are not in the
++        default safe globals list, so we need to set weights_only=False.
++        """
++        # Check PyTorch version to determine if weights_only parameter exists
++        # PyTorch 2.6+ changed default from False to True
++        try:
++            # Try loading with weights_only=False for compatibility with checkpoints
++            # that contain pytorch_lightning classes
++            return torch.load(
++                self.path_manager.get_local_path(filename),
++                map_location=torch.device("cpu"),
++                weights_only=False,  # Allow loading pytorch_lightning classes
++            )
++        except TypeError:
++            # Older PyTorch versions don't have weights_only parameter
++            return torch.load(
++                self.path_manager.get_local_path(filename),
++                map_location=torch.device("cpu"),
++            )
++
+     def _load_model(self, checkpoint):
+ 
+         if hasattr(self.model, "preprocess_state_dict"):
+@@ -108,7 +132,8 @@ class ODISECheckpointer(DetectionCheckpointer):
+                 for grouped_names in group_by_prefix(removed_keys).values()
+             ]
+             self.logger.warn(
+-                "Keys with prefix are removed from state_dict:\n" + ",".join(prefix_list)
++                "Keys with prefix are removed from state_dict:\n"
++                + ",".join(prefix_list)
+             )
+ 
+             self.logger.warn(
+@@ -134,6 +159,29 @@ class LdmCheckpointer(Checkpointer):
+         )
+         self.path_manager = PathManager
+ 
++    def _load_file(self, filename):
++        """
++        Override to handle PyTorch 2.6+ weights_only default change.
++        The checkpoint contains pytorch_lightning classes which are not in the
++        default safe globals list, so we need to set weights_only=False.
++        """
++        # Check PyTorch version to determine if weights_only parameter exists
++        # PyTorch 2.6+ changed default from False to True
++        try:
++            # Try loading with weights_only=False for compatibility with checkpoints
++            # that contain pytorch_lightning classes
++            return torch.load(
++                self.path_manager.get_local_path(filename),
++                map_location=torch.device("cpu"),
++                weights_only=False,  # Allow loading pytorch_lightning classes
++            )
++        except TypeError:
++            # Older PyTorch versions don't have weights_only parameter
++            return torch.load(
++                self.path_manager.get_local_path(filename),
++                map_location=torch.device("cpu"),
++            )
++
+     def _load_model(self, checkpoint):
+         # rename the keys in checkpoint
+         checkpoint["model"] = checkpoint.pop("state_dict")
+diff --git a/run_demo.sh b/run_demo.sh
+new file mode 100755
+index 0000000..ffa210d
+--- /dev/null
++++ b/run_demo.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++# Author: Luigi Freda 
++# Author: Luigi Freda 
++# This file is part of https://github.com/luigifreda/pyslam
++
++#set -e
++
++SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
++SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
++
++ROOT_DIR="$SCRIPT_DIR_/../.."
++
++cd $SCRIPT_DIR_
++
++
++# video demo
++VIDEO_FILE="$ROOT_DIR/data/videos/kitti06/video_color.mp4"
++python test_video_segmentation.py --video "$VIDEO_FILE"
+diff --git a/setup.py b/setup.py
+index 794d47d..700eb44 100644
+--- a/setup.py
++++ b/setup.py
+@@ -16,14 +16,23 @@ import shutil
+ from os import path
+ from setuptools import find_packages, setup
+ from typing import List
+-import torch
+ 
+-torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
+-assert torch_ver >= [1, 8], "Requires PyTorch >= 1.8"
++# Check torch version only if torch is available (not during build isolation)
++try:
++    import torch
++
++    torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
++    if torch_ver < [1, 8]:
++        raise RuntimeError("Requires PyTorch >= 1.8")
++except ImportError:
++    # torch not available during build, skip version check
++    pass
+ 
+ 
+ def get_version():
+-    init_py_path = path.join(path.abspath(path.dirname(__file__)), "odise", "__init__.py")
++    init_py_path = path.join(
++        path.abspath(path.dirname(__file__)), "odise", "__init__.py"
++    )
+     init_py = open(init_py_path, "r").readlines()
+     version_line = [l.strip() for l in init_py if l.startswith("__version__")][0]
+     version = version_line.split("=")[-1].strip().strip("'\"")
+@@ -39,7 +48,9 @@ def get_model_zoo_configs() -> List[str]:
+ 
+     # Use absolute paths while symlinking.
+     source_configs_dir = path.join(path.dirname(path.realpath(__file__)), "configs")
+-    destination = path.join(path.dirname(path.realpath(__file__)), "odise", "model_zoo", "configs")
++    destination = path.join(
++        path.dirname(path.realpath(__file__)), "odise", "model_zoo", "configs"
++    )
+     # Symlink the config directory inside package to have a cleaner pip install.
+ 
+     # Remove stale symlink/directory from a previous build.
+@@ -72,8 +83,8 @@ setup(
+     package_data={"odise.model_zoo": get_model_zoo_configs()},
+     python_requires=">=3.8",
+     install_requires=[
+-        "timm==0.6.11",  # freeze timm version for stabliity
+-        "opencv-python==4.6.0.66",
++        "timm>=0.6.11",  # freeze timm version for stabliity
++        "opencv-python>=4.6.0.66",
+         "diffdist==0.1",
+         "nltk>=3.6.2",
+         "einops>=0.3.0",
+@@ -81,20 +92,21 @@ setup(
+         # "transformers==4.20.1",  # freeze transformers version for stabliity
+         # there is BC breaking in omegaconf 2.2.1
+         # see: https://github.com/omry/omegaconf/issues/939
+-        "omegaconf==2.1.1",
+-        "open-clip-torch==2.0.2",
++        # Allow 2.1.x versions to satisfy stable-diffusion-sdkit and hydra-core 1.1.1 requirements
++        "omegaconf>=2.1.1,<2.2",
++        "open-clip-torch>=2.0.2",
+         f"mask2former @ file://localhost/{os.getcwd()}/third_party/Mask2Former/",
+-        "stable-diffusion-sdkit==2.1.3",
++        "stable-diffusion-sdkit>=2.1.3",
+     ],
+     extras_require={
+         # dev dependencies. Install them by `pip install 'odise[dev]'`
+         "dev": [
+-            "flake8==3.8.1",
+-            "isort==4.3.21",
++            "flake8>=3.8.1",
++            "isort>=4.3.21",
+             "flake8-bugbear",
+             "flake8-comprehensions",
+-            "click==8.0.4",
+-            "importlib-metadata==4.11.3",
++            "click>=8.0.4",
++            "importlib-metadata>=4.11.3",
+         ],
+     },
+     include_package_data=True,
+diff --git a/test_video_segmentation.py b/test_video_segmentation.py
+new file mode 100644
+index 0000000..1c820ee
+--- /dev/null
++++ b/test_video_segmentation.py
+@@ -0,0 +1,699 @@
++# ------------------------------------------------------------------------------
++# Copyright (c) 2022-2023, NVIDIA Corporation & Affiliates. All rights reserved.
++#
++# This work is made available under the Nvidia Source Code License.
++# To view a copy of this license, visit
++# https://github.com/NVlabs/ODISE/blob/main/LICENSE
++#
++# Written by Jiarui Xu
++# Modified for video segmentation testing
++# ------------------------------------------------------------------------------
++
++# Import compatibility patches before any other imports
++# This must be done before any imports that trigger pytorch_lightning
++try:
++    # Try relative import first (when used as a module)
++    from . import compatibility_patches  # noqa: F401
++    from .compatibility_patches import _patch_torchmetrics
++except ImportError:
++    # Fall back to absolute import (when run as a script)
++    import compatibility_patches  # noqa: F401
++    from compatibility_patches import _patch_torchmetrics
++
++import argparse
++import os
++import time
++import cv2
++import numpy as np
++import matplotlib.colors as mplc
++import torch
++from mask2former.data.datasets.register_ade20k_panoptic import ADE20K_150_CATEGORIES
++from PIL import Image
++from torch.cuda.amp import autocast
++from tqdm import tqdm
++from contextlib import ExitStack
++
++from detectron2.config import instantiate
++from detectron2.data import MetadataCatalog
++from detectron2.data import detection_utils as utils
++from detectron2.data import transforms as T
++from detectron2.data.datasets.builtin_meta import COCO_CATEGORIES
++from detectron2.evaluation import inference_context
++from detectron2.utils.env import seed_all_rng
++from detectron2.utils.logger import setup_logger
++from detectron2.utils.visualizer import (
++    ColorMode,
++    Visualizer as _Visualizer,
++    random_color,
++)
++
++from odise import model_zoo
++from odise.checkpoint import ODISECheckpointer
++from odise.config import instantiate_odise
++from odise.data import get_openseg_labels
++from odise.modeling.wrapper import OpenPanopticInference
++
++setup_logger()
++logger = setup_logger(name="odise")
++
++COCO_THING_CLASSES = [
++    label
++    for idx, label in enumerate(get_openseg_labels("coco_panoptic", True))
++    if COCO_CATEGORIES[idx]["isthing"] == 1
++]
++COCO_THING_COLORS = [c["color"] for c in COCO_CATEGORIES if c["isthing"] == 1]
++COCO_STUFF_CLASSES = [
++    label
++    for idx, label in enumerate(get_openseg_labels("coco_panoptic", True))
++    if COCO_CATEGORIES[idx]["isthing"] == 0
++]
++COCO_STUFF_COLORS = [c["color"] for c in COCO_CATEGORIES if c["isthing"] == 0]
++
++ADE_THING_CLASSES = [
++    label
++    for idx, label in enumerate(get_openseg_labels("ade20k_150", True))
++    if ADE20K_150_CATEGORIES[idx]["isthing"] == 1
++]
++ADE_THING_COLORS = [c["color"] for c in ADE20K_150_CATEGORIES if c["isthing"] == 1]
++ADE_STUFF_CLASSES = [
++    label
++    for idx, label in enumerate(get_openseg_labels("ade20k_150", True))
++    if ADE20K_150_CATEGORIES[idx]["isthing"] == 0
++]
++ADE_STUFF_COLORS = [c["color"] for c in ADE20K_150_CATEGORIES if c["isthing"] == 0]
++
++
++class Visualizer(_Visualizer):
++
++    def draw_text(
++        self,
++        text,
++        position,
++        *,
++        font_size=None,
++        color="g",
++        horizontal_alignment="center",
++        rotation=0,
++    ):
++        """
++        Args:
++            text (str): class label
++            position (tuple): a tuple of the x and y coordinates to place text on image.
++            font_size (int, optional): font of the text. If not provided, a font size
++                proportional to the image width is calculated and used.
++            color: color of the text. Refer to `matplotlib.colors` for full list
++                of formats that are accepted.
++            horizontal_alignment (str): see `matplotlib.text.Text`
++            rotation: rotation angle in degrees CCW
++        Returns:
++            output (VisImage): image object with text drawn.
++        """
++        if not font_size:
++            font_size = self._default_font_size
++
++        # since the text background is dark, we don't want the text to be dark
++        color = np.clip(color, 0, 1).tolist()
++        color = np.maximum(list(mplc.to_rgb(color)), 0.2)
++        color[np.argmax(color)] = max(0.8, np.max(color))
++
++        x, y = position
++        self.output.ax.text(
++            x,
++            y,
++            text,
++            size=font_size * self.output.scale,
++            family="sans-serif",
++            bbox={"facecolor": "black", "alpha": 0.8, "pad": 0.7, "edgecolor": "none"},
++            verticalalignment="top",
++            horizontalalignment=horizontal_alignment,
++            color=color,
++            zorder=10,
++            rotation=rotation,
++        )
++        return self.output
++
++
++class VideoSegmentationDemo(object):
++    def __init__(self, model, metadata, aug, instance_mode=ColorMode.IMAGE):
++        """
++        Args:
++            model (nn.Module):
++            metadata (MetadataCatalog): image metadata.
++            aug: augmentation pipeline
++            instance_mode (ColorMode):
++        """
++        self.model = model
++        self.metadata = metadata
++        self.aug = aug
++        self.cpu_device = torch.device("cpu")
++        self.instance_mode = instance_mode
++
++    def predict(self, original_image):
++        """
++        Args:
++            original_image (np.ndarray): an image of shape (H, W, C) (in BGR order).
++        Returns:
++            predictions (dict):
++                the output of the model for one image only.
++        """
++        height, width = original_image.shape[:2]
++        aug_input = T.AugInput(original_image, sem_seg=None)
++        self.aug(aug_input)
++        image = aug_input.image
++        image = torch.as_tensor(image.astype("float32").transpose(2, 0, 1))
++
++        inputs = {"image": image, "height": height, "width": width}
++        # Use torch.amp.autocast for PyTorch 2.0+ compatibility
++        if hasattr(torch.amp, "autocast"):
++            with torch.amp.autocast(
++                "cuda" if next(self.model.parameters()).is_cuda else "cpu"
++            ):
++                try:
++                    predictions = self.model([inputs])[0]
++                except RuntimeError as e:
++                    if "cuDNN" in str(e) or "cudnn" in str(e).lower():
++                        # cuDNN error - disable cuDNN and retry
++                        # Note: Model is still on GPU, just using PyTorch CUDA ops instead of cuDNN
++                        logger.warning(
++                            f"cuDNN error detected: {e}. Disabling cuDNN and retrying with PyTorch CUDA operations (model still on GPU)..."
++                        )
++                        torch.backends.cudnn.enabled = False
++                        predictions = self.model([inputs])[0]
++                        logger.info(
++                            "✓ Inference continuing on GPU without cuDNN acceleration"
++                        )
++                    else:
++                        raise
++        else:
++            with autocast():
++                try:
++                    predictions = self.model([inputs])[0]
++                except RuntimeError as e:
++                    if "cuDNN" in str(e) or "cudnn" in str(e).lower():
++                        # cuDNN error - disable cuDNN and retry
++                        # Note: Model is still on GPU, just using PyTorch CUDA ops instead of cuDNN
++                        logger.warning(
++                            f"cuDNN error detected: {e}. Disabling cuDNN and retrying with PyTorch CUDA operations (model still on GPU)..."
++                        )
++                        torch.backends.cudnn.enabled = False
++                        predictions = self.model([inputs])[0]
++                        logger.info(
++                            "✓ Inference continuing on GPU without cuDNN acceleration"
++                        )
++                    else:
++                        raise
++        return predictions
++
++    def process_frame(self, frame):
++        """
++        Args:
++            frame (np.ndarray): an image frame of shape (H, W, C) (in BGR order).
++        Returns:
++            predictions (dict): the output of the model.
++            vis_output (VisImage): the visualized image output.
++        """
++        vis_output = None
++        predictions = self.predict(frame)
++        visualizer = Visualizer(frame, self.metadata, instance_mode=self.instance_mode)
++        if "panoptic_seg" in predictions:
++            panoptic_seg, segments_info = predictions["panoptic_seg"]
++            vis_output = visualizer.draw_panoptic_seg(
++                panoptic_seg.to(self.cpu_device), segments_info
++            )
++        else:
++            if "sem_seg" in predictions:
++                vis_output = visualizer.draw_sem_seg(
++                    predictions["sem_seg"].argmax(dim=0).to(self.cpu_device)
++                )
++            if "instances" in predictions:
++                instances = predictions["instances"].to(self.cpu_device)
++                vis_output = visualizer.draw_instance_predictions(predictions=instances)
++
++        return predictions, vis_output
++
++
++def build_demo_classes_and_metadata(vocab, label_list):
++    """Build classes and metadata for segmentation."""
++    extra_classes = []
++
++    if vocab:
++        for words in vocab.split(";"):
++            extra_classes.append([word.strip() for word in words.split(",")])
++    extra_colors = [
++        random_color(rgb=True, maximum=1) for _ in range(len(extra_classes))
++    ]
++
++    demo_thing_classes = extra_classes
++    demo_stuff_classes = []
++    demo_thing_colors = extra_colors
++    demo_stuff_colors = []
++
++    if any("COCO" in label for label in label_list):
++        demo_thing_classes += COCO_THING_CLASSES
++        demo_stuff_classes += COCO_STUFF_CLASSES
++        demo_thing_colors += COCO_THING_COLORS
++        demo_stuff_colors += COCO_STUFF_COLORS
++    if any("ADE" in label for label in label_list):
++        demo_thing_classes += ADE_THING_CLASSES
++        demo_stuff_classes += ADE_STUFF_CLASSES
++        demo_thing_colors += ADE_THING_COLORS
++        demo_stuff_colors += ADE_STUFF_COLORS
++
++    MetadataCatalog.pop("odise_demo_metadata", None)
++    demo_metadata = MetadataCatalog.get("odise_demo_metadata")
++    demo_metadata.thing_classes = [c[0] for c in demo_thing_classes]
++    demo_metadata.stuff_classes = [
++        *demo_metadata.thing_classes,
++        *[c[0] for c in demo_stuff_classes],
++    ]
++    demo_metadata.thing_colors = demo_thing_colors
++    demo_metadata.stuff_colors = demo_thing_colors + demo_stuff_colors
++    demo_metadata.stuff_dataset_id_to_contiguous_id = {
++        idx: idx for idx in range(len(demo_metadata.stuff_classes))
++    }
++    demo_metadata.thing_dataset_id_to_contiguous_id = {
++        idx: idx for idx in range(len(demo_metadata.thing_classes))
++    }
++
++    demo_classes = demo_thing_classes + demo_stuff_classes
++
++    return demo_classes, demo_metadata
++
++
++def process_video(
++    video_path,
++    output_path=None,
++    vocab="",
++    label_list=None,
++    max_frames=None,
++    frame_skip=1,
++    show_preview=True,
++    use_cpu=False,
++    input_size=1024,
++    max_size=2560,
++):
++    """
++    Process a video file and segment each frame.
++
++    Args:
++        video_path (str): Path to input video file
++        output_path (str, optional): Path to save output video. If None, frames are saved as images.
++        vocab (str): Extra vocabulary for segmentation (format: 'a1,a2;b1,b2')
++        label_list (list): List of categories to use (e.g., ['COCO (133 categories)'])
++        max_frames (int, optional): Maximum number of frames to process
++        frame_skip (int): Process every Nth frame (1 = all frames)
++        show_preview (bool): Whether to show preview window during processing
++        use_cpu (bool): Force CPU usage (slower but uses less GPU memory)
++        input_size (int): Input image short edge size. Smaller values (512, 640) are faster but less accurate
++        max_size (int): Maximum input image size. Smaller values are faster
++    """
++    if label_list is None:
++        label_list = ["COCO (133 categories)", "ADE (150 categories)"]
++
++    # Ensure torchmetrics is patched before config loading (which triggers lazy imports)
++    _patch_torchmetrics()
++
++    logger.info("Loading model...")
++    cfg = model_zoo.get_config("Panoptic/odise_label_coco_50e.py", trained=True)
++    cfg.model.overlap_threshold = 0
++
++    # Disable checkpointing for faster inference (checkpointing saves memory but slows down inference)
++    if hasattr(cfg.model, "backbone") and hasattr(cfg.model.backbone, "use_checkpoint"):
++        cfg.model.backbone.use_checkpoint = False
++        logger.info("Disabled gradient checkpointing for faster inference")
++
++    # Clear GPU cache if available
++    if use_cpu or not torch.cuda.is_available():
++        cfg.train.device = "cpu"
++        logger.info("Using CPU for inference")
++    else:
++        torch.cuda.empty_cache()
++        cfg.train.device = "cuda"
++        logger.info("Using CUDA for inference")
++
++        # Check cuDNN status and try to enable it
++        cudnn_enabled = torch.backends.cudnn.enabled
++        cudnn_available = torch.backends.cudnn.is_available()
++        cudnn_benchmark = torch.backends.cudnn.benchmark
++
++        if cudnn_available:
++            try:
++                cudnn_version = torch.backends.cudnn.version()
++                logger.info(f"cuDNN available: version {cudnn_version}")
++
++                if cudnn_enabled:
++                    logger.info(
++                        f"✓ cuDNN is enabled (default: PyTorch enables it automatically)"
++                    )
++                    if cudnn_benchmark:
++                        logger.info(
++                            "✓ cuDNN benchmark mode: enabled (will optimize for your input sizes)"
++                        )
++                    else:
++                        logger.info(
++                            "  cuDNN benchmark mode: disabled (enabling for faster inference...)"
++                        )
++                        torch.backends.cudnn.benchmark = True
++                        logger.info("  ✓ Benchmark mode activated")
++                else:
++                    logger.info("Enabling cuDNN for faster inference...")
++                    torch.backends.cudnn.enabled = True
++                    # Try to set benchmark mode for faster inference (if input sizes are consistent)
++                    # Benchmark mode finds the fastest cuDNN algorithms for your specific input sizes
++                    # This can provide 20-50% speedup for convolution-heavy models like ODISE
++                    torch.backends.cudnn.benchmark = True
++                    logger.info("✓ cuDNN enabled and benchmark mode activated")
++
++                logger.info(
++                    "  cuDNN optimizations will speed up convolution operations"
++                )
++                logger.info(
++                    "  Note: Speedup depends on model architecture - ODISE uses diffusion + CLIP which may limit gains"
++                )
++            except Exception as e:
++                error_msg = str(e)
++                logger.warning(f"cuDNN check failed: {error_msg}")
++                # If there's still a version incompatibility after filtering, disable cuDNN
++                if (
++                    "version incompatibility" in error_msg.lower()
++                    or "LD_LIBRARY_PATH" in error_msg
++                ):
++                    logger.info(
++                        "Detected cuDNN version conflict - disabling cuDNN proactively"
++                    )
++                    logger.info(
++                        "  (Model will still use GPU with PyTorch CUDA operations)"
++                    )
++                    torch.backends.cudnn.enabled = False
++        else:
++            logger.warning(
++                "cuDNN not available - inference will be slower but still on GPU"
++            )
++
++    seed_all_rng(42)
++
++    dataset_cfg = cfg.dataloader.test
++    aug = instantiate(dataset_cfg.mapper).augmentations
++
++    # Optimize input resolution for faster inference
++    # Reduce resolution significantly improves speed with minimal quality loss
++    if hasattr(aug, "augs"):
++        # AugmentationList has .augs attribute
++        aug_list = aug.augs
++    elif hasattr(aug, "__iter__"):
++        # Try to iterate directly
++        aug_list = aug
++    else:
++        aug_list = [aug]
++
++    for transform in aug_list:
++        if isinstance(transform, T.ResizeShortestEdge):
++            transform.short_edge_length = (input_size, input_size)
++            transform.max_size = max_size
++            logger.info(
++                f"Set input resolution: short_edge={input_size}, max_size={max_size}"
++            )
++            break
++
++    # Instantiate model on CPU first to avoid OOM during loading
++    logger.info(f"Instantiating model on CPU...")
++    model = instantiate_odise(cfg.model)
++
++    # Load checkpoint on CPU first
++    logger.info("Loading checkpoint...")
++    ODISECheckpointer(model).load(cfg.train.init_checkpoint)
++
++    # Convert to float16 and move to device
++    logger.info(f"Converting to float16 and moving to {cfg.train.device}...")
++    model.to(torch.float16)
++    if cfg.train.device == "cuda":
++        try:
++            model.to(cfg.train.device)
++            torch.cuda.empty_cache()  # Clear cache after moving
++            # Verify device
++            device_name = (
++                torch.cuda.get_device_name(0) if torch.cuda.is_available() else "N/A"
++            )
++            logger.info(f"✓ Model successfully moved to GPU: {device_name}")
++        except RuntimeError as e:
++            if "out of memory" in str(e):
++                logger.warning(f"GPU out of memory, falling back to CPU: {e}")
++                cfg.train.device = "cpu"
++                model.to(cfg.train.device)
++                logger.info("✓ Model moved to CPU (fallback)")
++            else:
++                raise
++    else:
++        model.to(cfg.train.device)
++        logger.info("✓ Model moved to CPU")
++
++    # Final verification - check where model parameters actually are
++    sample_param = next(model.parameters())
++    actual_device = sample_param.device
++    logger.info(
++        f"✓ Model is running on: {actual_device} (device type: {actual_device.type})"
++    )
++
++    # Verify GPU usage and cuDNN status
++    if actual_device.type == "cuda":
++        gpu_memory_allocated = torch.cuda.memory_allocated(0) / 1024**3  # GB
++        gpu_memory_reserved = torch.cuda.memory_reserved(0) / 1024**3  # GB
++        logger.info(
++            f"✓ GPU memory: {gpu_memory_allocated:.2f} GB allocated, {gpu_memory_reserved:.2f} GB reserved"
++        )
++        cudnn_status = "enabled" if torch.backends.cudnn.enabled else "disabled"
++        logger.info(f"✓ cuDNN status: {cudnn_status}")
++        if not torch.backends.cudnn.enabled:
++            logger.info(
++                "  Note: Inference is on GPU but using PyTorch CUDA operations (slower than cuDNN)"
++            )
++
++    logger.info("Building class names and metadata...")
++    demo_classes, demo_metadata = build_demo_classes_and_metadata(vocab, label_list)
++
++    # Open video
++    cap = cv2.VideoCapture(video_path)
++    if not cap.isOpened():
++        raise ValueError(f"Could not open video file: {video_path}")
++
++    # Get video properties
++    fps = int(cap.get(cv2.CAP_PROP_FPS))
++    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
++    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
++    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
++
++    logger.info(
++        f"Video properties: {width}x{height} @ {fps} fps, {total_frames} frames"
++    )
++
++    # Setup output video writer if output_path is provided
++    video_writer = None
++    if output_path:
++        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
++        video_writer = cv2.VideoWriter(
++            output_path, fourcc, fps / frame_skip, (width, height)
++        )
++        logger.info(f"Will save output video to: {output_path}")
++
++    # Create output directory for frames if saving as images
++    output_dir = None
++    if (
++        output_path
++        and output_path.endswith("/")
++        or (output_path and not output_path.endswith(".mp4"))
++    ):
++        output_dir = (
++            output_path if os.path.isdir(output_path) else os.path.dirname(output_path)
++        )
++        if output_dir and not os.path.exists(output_dir):
++            os.makedirs(output_dir)
++            logger.info(f"Created output directory: {output_dir}")
++
++    # Initialize demo
++    with ExitStack() as stack:
++        inference_model = OpenPanopticInference(
++            model=model,
++            labels=demo_classes,
++            metadata=demo_metadata,
++            semantic_on=False,
++            instance_on=False,
++            panoptic_on=True,
++        )
++        stack.enter_context(inference_context(inference_model))
++        stack.enter_context(torch.no_grad())
++
++        demo = VideoSegmentationDemo(inference_model, demo_metadata, aug)
++
++        frame_count = 0
++        processed_count = 0
++        inference_times = []
++
++        logger.info("Processing video frames...")
++        pbar = tqdm(total=min(total_frames, max_frames) if max_frames else total_frames)
++
++        while True:
++            ret, frame = cap.read()
++            if not ret:
++                break
++
++            # Skip frames if needed
++            if frame_count % frame_skip != 0:
++                frame_count += 1
++                continue
++
++            # Limit number of frames if specified
++            if max_frames and processed_count >= max_frames:
++                break
++
++            # Convert BGR to RGB for processing
++            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
++
++            # Process frame with timing
++            start_time = time.time()
++            predictions, vis_output = demo.process_frame(frame_rgb)
++            inference_time = time.time() - start_time
++            inference_times.append(inference_time)
++
++            # Log timing every 10 frames
++            if processed_count % 10 == 0 and processed_count > 0:
++                avg_time = sum(inference_times[-10:]) / min(10, len(inference_times))
++                fps_estimate = 1.0 / avg_time if avg_time > 0 else 0
++                logger.info(
++                    f"Frame {processed_count}: Avg inference time: {avg_time:.2f}s/frame (~{fps_estimate:.2f} FPS)"
++                )
++
++            # Get visualized image
++            vis_image = vis_output.get_image()
++            vis_image_bgr = cv2.cvtColor(vis_image, cv2.COLOR_RGB2BGR)
++
++            # Save frame
++            if video_writer:
++                video_writer.write(vis_image_bgr)
++            elif output_dir:
++                frame_filename = os.path.join(
++                    output_dir, f"frame_{processed_count:06d}.jpg"
++                )
++                cv2.imwrite(frame_filename, vis_image_bgr)
++            else:
++                # Save to default location
++                if not os.path.exists("output_frames"):
++                    os.makedirs("output_frames")
++                frame_filename = os.path.join(
++                    "output_frames", f"frame_{processed_count:06d}.jpg"
++                )
++                cv2.imwrite(frame_filename, vis_image_bgr)
++
++            # Show preview
++            if show_preview:
++                cv2.imshow("ODISE Video Segmentation", vis_image_bgr)
++                if cv2.waitKey(1) & 0xFF == ord("q"):
++                    logger.info("Stopped by user")
++                    break
++
++            processed_count += 1
++            frame_count += 1
++            pbar.update(1)
++
++        pbar.close()
++
++    cap.release()
++    if video_writer:
++        video_writer.release()
++    if show_preview:
++        cv2.destroyAllWindows()
++
++    logger.info(f"Processed {processed_count} frames")
++    if inference_times:
++        avg_time = sum(inference_times) / len(inference_times)
++        total_time = sum(inference_times)
++        fps_avg = 1.0 / avg_time if avg_time > 0 else 0
++        logger.info(
++            f"Inference statistics: Avg {avg_time:.3f}s/frame, Total {total_time:.1f}s, ~{fps_avg:.2f} FPS"
++        )
++
++    if output_path and video_writer:
++        logger.info(f"Output video saved to: {output_path}")
++    elif output_dir:
++        logger.info(f"Output frames saved to: {output_dir}")
++
++
++def main():
++    parser = argparse.ArgumentParser(description="ODISE Video Segmentation Test")
++    parser.add_argument(
++        "--video",
++        type=str,
++        required=True,
++        help="Path to input video file",
++    )
++    parser.add_argument(
++        "--output",
++        type=str,
++        default=None,
++        help="Path to output video file or directory for frames",
++    )
++    parser.add_argument(
++        "--vocab",
++        type=str,
++        default="",
++        help="Extra vocabulary (format: 'a1,a2;b1,b2')",
++    )
++    parser.add_argument(
++        "--categories",
++        nargs="+",
++        default=["COCO (133 categories)"],
++        choices=["COCO (133 categories)", "ADE (150 categories)"],
++        help="Categories to use for segmentation",
++    )
++    parser.add_argument(
++        "--max-frames",
++        type=int,
++        default=None,
++        help="Maximum number of frames to process",
++    )
++    parser.add_argument(
++        "--frame-skip",
++        type=int,
++        default=1,
++        help="Process every Nth frame (default: 1 = all frames)",
++    )
++    parser.add_argument(
++        "--no-preview",
++        action="store_true",
++        help="Don't show preview window",
++    )
++    parser.add_argument(
++        "--cpu",
++        action="store_true",
++        help="Force CPU usage (useful if GPU memory is insufficient)",
++    )
++    parser.add_argument(
++        "--input-size",
++        type=int,
++        default=384,
++        help="Input image short edge size (default: 1024). Smaller values (512, 640) are faster but less accurate",
++    )
++    parser.add_argument(
++        "--max-size",
++        type=int,
++        default=960,
++        help="Maximum input image size (default: 1280). Smaller values are faster",
++    )
++
++    args = parser.parse_args()
++
++    process_video(
++        video_path=args.video,
++        output_path=args.output,
++        vocab=args.vocab,
++        label_list=args.categories,
++        max_frames=args.max_frames,
++        frame_skip=args.frame_skip,
++        show_preview=not args.no_preview,
++        use_cpu=args.cpu,
++        input_size=args.input_size,
++        max_size=args.max_size,
++    )
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/cuda/ms_deform_attn_cuda.cu b/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/cuda/ms_deform_attn_cuda.cu
+index 0c465da..33dc940 100644
+--- a/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/cuda/ms_deform_attn_cuda.cu
++++ b/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/cuda/ms_deform_attn_cuda.cu
+@@ -9,38 +9,33 @@
+ */
+ 
+ /*!
+-* Copyright (c) Facebook, Inc. and its affiliates.
+-* Modified by Bowen Cheng from https://github.com/fundamentalvision/Deformable-DETR
+-*/
++ * Copyright (c) Facebook, Inc. and its affiliates.
++ * Modified by Bowen Cheng from https://github.com/fundamentalvision/Deformable-DETR
++ */
+ 
+-#include <vector>
+ #include "cuda/ms_deform_im2col_cuda.cuh"
++#include <vector>
+ 
+ #include <ATen/ATen.h>
+ #include <ATen/cuda/CUDAContext.h>
+ #include <cuda.h>
+ #include <cuda_runtime.h>
+ 
+-
+-at::Tensor ms_deform_attn_cuda_forward(
+-    const at::Tensor &value, 
+-    const at::Tensor &spatial_shapes,
+-    const at::Tensor &level_start_index,
+-    const at::Tensor &sampling_loc,
+-    const at::Tensor &attn_weight,
+-    const int im2col_step)
+-{
++at::Tensor ms_deform_attn_cuda_forward(const at::Tensor &value, const at::Tensor &spatial_shapes,
++                                       const at::Tensor &level_start_index,
++                                       const at::Tensor &sampling_loc,
++                                       const at::Tensor &attn_weight, const int im2col_step) {
+     AT_ASSERTM(value.is_contiguous(), "value tensor has to be contiguous");
+     AT_ASSERTM(spatial_shapes.is_contiguous(), "spatial_shapes tensor has to be contiguous");
+     AT_ASSERTM(level_start_index.is_contiguous(), "level_start_index tensor has to be contiguous");
+     AT_ASSERTM(sampling_loc.is_contiguous(), "sampling_loc tensor has to be contiguous");
+     AT_ASSERTM(attn_weight.is_contiguous(), "attn_weight tensor has to be contiguous");
+ 
+-    AT_ASSERTM(value.type().is_cuda(), "value must be a CUDA tensor");
+-    AT_ASSERTM(spatial_shapes.type().is_cuda(), "spatial_shapes must be a CUDA tensor");
+-    AT_ASSERTM(level_start_index.type().is_cuda(), "level_start_index must be a CUDA tensor");
+-    AT_ASSERTM(sampling_loc.type().is_cuda(), "sampling_loc must be a CUDA tensor");
+-    AT_ASSERTM(attn_weight.type().is_cuda(), "attn_weight must be a CUDA tensor");
++    AT_ASSERTM(value.is_cuda(), "value must be a CUDA tensor");
++    AT_ASSERTM(spatial_shapes.is_cuda(), "spatial_shapes must be a CUDA tensor");
++    AT_ASSERTM(level_start_index.is_cuda(), "level_start_index must be a CUDA tensor");
++    AT_ASSERTM(sampling_loc.is_cuda(), "sampling_loc must be a CUDA tensor");
++    AT_ASSERTM(attn_weight.is_cuda(), "attn_weight must be a CUDA tensor");
+ 
+     const int batch = value.size(0);
+     const int spatial_size = value.size(1);
+@@ -54,46 +49,41 @@ at::Tensor ms_deform_attn_cuda_forward(
+ 
+     const int im2col_step_ = std::min(batch, im2col_step);
+ 
+-    AT_ASSERTM(batch % im2col_step_ == 0, "batch(%d) must divide im2col_step(%d)", batch, im2col_step_);
+-    
++    AT_ASSERTM(batch % im2col_step_ == 0, "batch(%d) must divide im2col_step(%d)", batch,
++               im2col_step_);
++
+     auto output = at::zeros({batch, num_query, num_heads, channels}, value.options());
+ 
+     const int batch_n = im2col_step_;
+-    auto output_n = output.view({batch/im2col_step_, batch_n, num_query, num_heads, channels});
++    auto output_n = output.view({batch / im2col_step_, batch_n, num_query, num_heads, channels});
+     auto per_value_size = spatial_size * num_heads * channels;
+     auto per_sample_loc_size = num_query * num_heads * num_levels * num_point * 2;
+     auto per_attn_weight_size = num_query * num_heads * num_levels * num_point;
+-    for (int n = 0; n < batch/im2col_step_; ++n)
+-    {
++    for (int n = 0; n < batch / im2col_step_; ++n) {
+         auto columns = output_n.select(0, n);
+-        AT_DISPATCH_FLOATING_TYPES(value.type(), "ms_deform_attn_forward_cuda", ([&] {
+-            ms_deformable_im2col_cuda(at::cuda::getCurrentCUDAStream(),
+-                value.data<scalar_t>() + n * im2col_step_ * per_value_size,
+-                spatial_shapes.data<int64_t>(),
+-                level_start_index.data<int64_t>(),
+-                sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
+-                attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size,
+-                batch_n, spatial_size, num_heads, channels, num_levels, num_query, num_point,
+-                columns.data<scalar_t>());
+-
+-        }));
++        AT_DISPATCH_FLOATING_TYPES(
++            value.scalar_type(), "ms_deform_attn_forward_cuda", ([&] {
++                ms_deformable_im2col_cuda(
++                    at::cuda::getCurrentCUDAStream(),
++                    value.data<scalar_t>() + n * im2col_step_ * per_value_size,
++                    spatial_shapes.data<int64_t>(), level_start_index.data<int64_t>(),
++                    sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
++                    attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size, batch_n,
++                    spatial_size, num_heads, channels, num_levels, num_query, num_point,
++                    columns.data<scalar_t>());
++            }));
+     }
+ 
+-    output = output.view({batch, num_query, num_heads*channels});
++    output = output.view({batch, num_query, num_heads * channels});
+ 
+     return output;
+ }
+ 
+-
+-std::vector<at::Tensor> ms_deform_attn_cuda_backward(
+-    const at::Tensor &value, 
+-    const at::Tensor &spatial_shapes,
+-    const at::Tensor &level_start_index,
+-    const at::Tensor &sampling_loc,
+-    const at::Tensor &attn_weight,
+-    const at::Tensor &grad_output,
+-    const int im2col_step)
+-{
++std::vector<at::Tensor>
++ms_deform_attn_cuda_backward(const at::Tensor &value, const at::Tensor &spatial_shapes,
++                             const at::Tensor &level_start_index, const at::Tensor &sampling_loc,
++                             const at::Tensor &attn_weight, const at::Tensor &grad_output,
++                             const int im2col_step) {
+ 
+     AT_ASSERTM(value.is_contiguous(), "value tensor has to be contiguous");
+     AT_ASSERTM(spatial_shapes.is_contiguous(), "spatial_shapes tensor has to be contiguous");
+@@ -102,12 +92,12 @@ std::vector<at::Tensor> ms_deform_attn_cuda_backward(
+     AT_ASSERTM(attn_weight.is_contiguous(), "attn_weight tensor has to be contiguous");
+     AT_ASSERTM(grad_output.is_contiguous(), "grad_output tensor has to be contiguous");
+ 
+-    AT_ASSERTM(value.type().is_cuda(), "value must be a CUDA tensor");
+-    AT_ASSERTM(spatial_shapes.type().is_cuda(), "spatial_shapes must be a CUDA tensor");
+-    AT_ASSERTM(level_start_index.type().is_cuda(), "level_start_index must be a CUDA tensor");
+-    AT_ASSERTM(sampling_loc.type().is_cuda(), "sampling_loc must be a CUDA tensor");
+-    AT_ASSERTM(attn_weight.type().is_cuda(), "attn_weight must be a CUDA tensor");
+-    AT_ASSERTM(grad_output.type().is_cuda(), "grad_output must be a CUDA tensor");
++    AT_ASSERTM(value.is_cuda(), "value must be a CUDA tensor");
++    AT_ASSERTM(spatial_shapes.is_cuda(), "spatial_shapes must be a CUDA tensor");
++    AT_ASSERTM(level_start_index.is_cuda(), "level_start_index must be a CUDA tensor");
++    AT_ASSERTM(sampling_loc.is_cuda(), "sampling_loc must be a CUDA tensor");
++    AT_ASSERTM(attn_weight.is_cuda(), "attn_weight must be a CUDA tensor");
++    AT_ASSERTM(grad_output.is_cuda(), "grad_output must be a CUDA tensor");
+ 
+     const int batch = value.size(0);
+     const int spatial_size = value.size(1);
+@@ -121,7 +111,8 @@ std::vector<at::Tensor> ms_deform_attn_cuda_backward(
+ 
+     const int im2col_step_ = std::min(batch, im2col_step);
+ 
+-    AT_ASSERTM(batch % im2col_step_ == 0, "batch(%d) must divide im2col_step(%d)", batch, im2col_step_);
++    AT_ASSERTM(batch % im2col_step_ == 0, "batch(%d) must divide im2col_step(%d)", batch,
++               im2col_step_);
+ 
+     auto grad_value = at::zeros_like(value);
+     auto grad_sampling_loc = at::zeros_like(sampling_loc);
+@@ -131,28 +122,25 @@ std::vector<at::Tensor> ms_deform_attn_cuda_backward(
+     auto per_value_size = spatial_size * num_heads * channels;
+     auto per_sample_loc_size = num_query * num_heads * num_levels * num_point * 2;
+     auto per_attn_weight_size = num_query * num_heads * num_levels * num_point;
+-    auto grad_output_n = grad_output.view({batch/im2col_step_, batch_n, num_query, num_heads, channels});
+-    
+-    for (int n = 0; n < batch/im2col_step_; ++n)
+-    {
++    auto grad_output_n =
++        grad_output.view({batch / im2col_step_, batch_n, num_query, num_heads, channels});
++
++    for (int n = 0; n < batch / im2col_step_; ++n) {
+         auto grad_output_g = grad_output_n.select(0, n);
+-        AT_DISPATCH_FLOATING_TYPES(value.type(), "ms_deform_attn_backward_cuda", ([&] {
+-            ms_deformable_col2im_cuda(at::cuda::getCurrentCUDAStream(),
+-                                    grad_output_g.data<scalar_t>(),
+-                                    value.data<scalar_t>() + n * im2col_step_ * per_value_size,
+-                                    spatial_shapes.data<int64_t>(),
+-                                    level_start_index.data<int64_t>(),
+-                                    sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
+-                                    attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size,
+-                                    batch_n, spatial_size, num_heads, channels, num_levels, num_query, num_point,
+-                                    grad_value.data<scalar_t>() +  n * im2col_step_ * per_value_size,
+-                                    grad_sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
+-                                    grad_attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size);
+-
+-        }));
++        AT_DISPATCH_FLOATING_TYPES(
++            value.scalar_type(), "ms_deform_attn_backward_cuda", ([&] {
++                ms_deformable_col2im_cuda(
++                    at::cuda::getCurrentCUDAStream(), grad_output_g.data<scalar_t>(),
++                    value.data<scalar_t>() + n * im2col_step_ * per_value_size,
++                    spatial_shapes.data<int64_t>(), level_start_index.data<int64_t>(),
++                    sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
++                    attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size, batch_n,
++                    spatial_size, num_heads, channels, num_levels, num_query, num_point,
++                    grad_value.data<scalar_t>() + n * im2col_step_ * per_value_size,
++                    grad_sampling_loc.data<scalar_t>() + n * im2col_step_ * per_sample_loc_size,
++                    grad_attn_weight.data<scalar_t>() + n * im2col_step_ * per_attn_weight_size);
++            }));
+     }
+ 
+-    return {
+-        grad_value, grad_sampling_loc, grad_attn_weight
+-    };
++    return {grad_value, grad_sampling_loc, grad_attn_weight};
+ }
+\ No newline at end of file
+diff --git a/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/ms_deform_attn.h b/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/ms_deform_attn.h
+index 2f80a1b..a9af6f1 100644
+--- a/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/ms_deform_attn.h
++++ b/third_party/Mask2Former/mask2former/modeling/pixel_decoder/ops/src/ms_deform_attn.h
+@@ -31,7 +31,7 @@ ms_deform_attn_forward(
+     const at::Tensor &attn_weight,
+     const int im2col_step)
+ {
+-    if (value.type().is_cuda())
++    if (value.is_cuda())
+     {
+ #ifdef WITH_CUDA
+         return ms_deform_attn_cuda_forward(
+@@ -53,7 +53,7 @@ ms_deform_attn_backward(
+     const at::Tensor &grad_output,
+     const int im2col_step)
+ {
+-    if (value.type().is_cuda())
++    if (value.is_cuda())
+     {
+ #ifdef WITH_CUDA
+         return ms_deform_attn_cuda_backward(
+diff --git a/third_party/Mask2Former/setup.py b/third_party/Mask2Former/setup.py
+index 399dfbb..62edd1c 100644
+--- a/third_party/Mask2Former/setup.py
++++ b/third_party/Mask2Former/setup.py
+@@ -5,15 +5,34 @@ import glob
+ import os
+ from os import path
+ from setuptools import find_packages, setup
+-import torch
+-from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
+ 
+-torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
+-assert torch_ver >= [1, 8], "Requires PyTorch >= 1.8"
++# Check torch version only if torch is available (not during build isolation)
++try:
++    import torch
++    from torch.utils.cpp_extension import (
++        CUDA_HOME,
++        CppExtension,
++        CUDAExtension,
++        BuildExtension,
++    )
++
++    torch_ver = [int(x) for x in torch.__version__.split(".")[:2]]
++    if torch_ver < [1, 8]:
++        raise RuntimeError("Requires PyTorch >= 1.8")
++    TORCH_AVAILABLE = True
++except ImportError:
++    # torch not available during build, skip version check
++    TORCH_AVAILABLE = False
++    CUDA_HOME = None
++    CppExtension = None
++    CUDAExtension = None
++    BuildExtension = None
+ 
+ 
+ def get_version():
+-    init_py_path = path.join(path.abspath(path.dirname(__file__)), "mask2former", "__init__.py")
++    init_py_path = path.join(
++        path.abspath(path.dirname(__file__)), "mask2former", "__init__.py"
++    )
+     init_py = open(init_py_path, "r").readlines()
+     version_line = [l.strip() for l in init_py if l.startswith("__version__")][0]
+     version = version_line.split("=")[-1].strip().strip("'\"")
+@@ -21,14 +40,39 @@ def get_version():
+     return version
+ 
+ 
++def get_detectron2_requirement():
++    """Check if detectron2 is already installed, if so use version specifier instead of URL."""
++    try:
++        import detectron2
++
++        # detectron2 is already installed, use version specifier
++        return "detectron2>=0.6"
++    except ImportError:
++        # detectron2 not installed, use GitHub URL
++        return "detectron2 @ https://github.com/facebookresearch/detectron2/archive/v0.6.zip"
++
++
+ # Copied from Detectron2
+ def get_extensions():
++    # skip building if torch is not available
++    if not TORCH_AVAILABLE:
++        return []
++
++    # Allow skipping CUDA extensions via environment variable (useful for compatibility issues)
++    if os.environ.get("SKIP_CUDA_EXTENSIONS", "").lower() in ("1", "true", "yes"):
++        return []
++
+     # skip building
+-    if not (os.environ.get("FORCE_CUDA") or torch.cuda.is_available()) or CUDA_HOME is None:
++    if (
++        not (os.environ.get("FORCE_CUDA") or torch.cuda.is_available())
++        or CUDA_HOME is None
++    ):
+         return []
+ 
+     this_dir = os.path.dirname(os.path.abspath(__file__))
+-    extensions_dir = os.path.join(this_dir, "mask2former/modeling/pixel_decoder/ops/src")
++    extensions_dir = os.path.join(
++        this_dir, "mask2former/modeling/pixel_decoder/ops/src"
++    )
+ 
+     main_file = glob.glob(os.path.join(extensions_dir, "*.cpp"))
+     source_cpu = glob.glob(os.path.join(extensions_dir, "cpu", "*.cpp"))
+@@ -40,7 +84,9 @@ def get_extensions():
+     define_macros = []
+ 
+     # Force cuda since torch ask for a device, not if cuda is in fact available.
+-    if (os.environ.get("FORCE_CUDA") or torch.cuda.is_available()) and CUDA_HOME is not None:
++    if (
++        os.environ.get("FORCE_CUDA") or torch.cuda.is_available()
++    ) and CUDA_HOME is not None:
+         extension = CUDAExtension
+         sources += source_cuda
+         define_macros += [("WITH_CUDA", None)]
+@@ -77,22 +123,27 @@ def get_extensions():
+ setup(
+     name="mask2former",
+     version=get_version(),
+-    author="Bowen Cheng", # Thanks Bowen! 
++    author="Bowen Cheng",  # Thanks Bowen!
+     url="https://github.com/facebook/mask2former",
+     description="A pip installable version of mask2former",
+     packages=find_packages(exclude=("configs", "tests*")),
+     python_requires=">=3.6",
+     install_requires=[
+-        "detectron2 @ https://github.com/facebookresearch/detectron2/archive/v0.6.zip",
++        get_detectron2_requirement(),
+         "scipy>=1.7.3",
+         "boto3>=1.21.25",
++        # Changed from >=1.3.2 to allow versions compatible with omegaconf 2.1.1
++        # (required by stable-diffusion-sdkit)
++        # Pin to 1.1.1 to avoid Python 3.11 dataclass issues in 1.1.2
+         "hydra-core==1.1.1",
+         # there is BC breaking in omegaconf 2.2.1
+         # see: https://github.com/omry/omegaconf/issues/939
+-        "omegaconf==2.1.1",
++        "omegaconf>=2.1.1",
+         "panopticapi @ https://github.com/cocodataset/panopticapi/archive/master.zip",
+         "lvis @ https://github.com/lvis-dataset/lvis-api/archive/master.zip",
+     ],
+     ext_modules=get_extensions(),
+-    cmdclass={"build_ext": torch.utils.cpp_extension.BuildExtension},
++    cmdclass=(
++        {"build_ext": BuildExtension} if TORCH_AVAILABLE and BuildExtension else {}
++    ),
+ )

@@ -1,8 +1,8 @@
 """
 * This file is part of PYSLAM
 *
-* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 * Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
+* Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -36,6 +36,9 @@ try:
     from .semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
     from .semantic_segmentation_segformer import SemanticSegmentationSegformer
     from .semantic_segmentation_clip import SemanticSegmentationCLIP
+    from .semantic_segmentation_eov_seg import SemanticSegmentationEovSeg
+    from .semantic_segmentation_detic import SemanticSegmentationDetic
+    from .semantic_segmentation_odise import SemanticSegmentationOdise
 except ModuleNotFoundError:
     SemanticSegmentationBase = import_from(
         "pyslam.semantics.semantic_segmentation_base", "SemanticSegmentationBase"
@@ -49,6 +52,15 @@ except ModuleNotFoundError:
     SemanticSegmentationCLIP = import_from(
         "pyslam.semantics.semantic_segmentation_clip", "SemanticSegmentationCLIP"
     )
+    SemanticSegmentationEovSeg = import_from(
+        "pyslam.semantics.semantic_segmentation_eov_seg", "SemanticSegmentationEovSeg"
+    )
+    SemanticSegmentationDetic = import_from(
+        "pyslam.semantics.semantic_segmentation_detic", "SemanticSegmentationDetic"
+    )
+    SemanticSegmentationOdise = import_from(
+        "pyslam.semantics.semantic_segmentation_odise", "SemanticSegmentationOdise"
+    )
 
 
 from typing import TYPE_CHECKING
@@ -57,6 +69,9 @@ if TYPE_CHECKING:
     from pyslam.semantics.semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
     from pyslam.semantics.semantic_segmentation_segformer import SemanticSegmentationSegformer
     from pyslam.semantics.semantic_segmentation_clip import SemanticSegmentationCLIP
+    from pyslam.semantics.semantic_segmentation_eov_seg import SemanticSegmentationEovSeg
+    from pyslam.semantics.semantic_segmentation_detic import SemanticSegmentationDetic
+    from pyslam.semantics.semantic_segmentation_odise import SemanticSegmentationOdise
 
 
 kScriptPath = os.path.realpath(__file__)
@@ -69,6 +84,9 @@ class SemanticSegmentationType(SerializableEnum):
     DEEPLABV3 = 0  # Semantics from torchvision DeepLab's v3
     SEGFORMER = 1  # Semantics from transformer's Segformer
     CLIP = 2  # Semantics from CLIP's segmentation head
+    EOV_SEG = 3  # Semantics from EOV-Seg (Open Vocabulary Segmentation)
+    DETIC = 4  # Semantics from Detic (Detecting Twenty-thousand Classes)
+    ODISE = 5  # Semantics from ODISE (Open-vocabulary DIffusion-based panoptic SEgmentation)
 
     @staticmethod
     def from_string(name: str):
@@ -121,6 +139,33 @@ def semantic_segmentation_factory(
             image_size=image_size,
             semantic_feature_type=semantic_feature_type,
             encoder_name=encoder_name,
+            **kwargs,
+        )
+    elif semantic_segmentation_type == SemanticSegmentationType.EOV_SEG:
+        # For EOV-Seg, config_file and model_weights can be passed via kwargs
+        return SemanticSegmentationEovSeg(
+            device=device,
+            semantic_dataset_type=semantic_dataset_type,
+            image_size=image_size,
+            semantic_feature_type=semantic_feature_type,
+            **kwargs,
+        )
+    elif semantic_segmentation_type == SemanticSegmentationType.DETIC:
+        # For Detic, config_file, model_weights, vocabulary, etc. can be passed via kwargs
+        return SemanticSegmentationDetic(
+            device=device,
+            semantic_dataset_type=semantic_dataset_type,
+            image_size=image_size,
+            semantic_feature_type=semantic_feature_type,
+            **kwargs,
+        )
+    elif semantic_segmentation_type == SemanticSegmentationType.ODISE:
+        # For ODISE, config_file, model_weights, vocab, label_list, etc. can be passed via kwargs
+        return SemanticSegmentationOdise(
+            device=device,
+            semantic_dataset_type=semantic_dataset_type,
+            image_size=image_size,
+            semantic_feature_type=semantic_feature_type,
             **kwargs,
         )
     else:
