@@ -58,6 +58,7 @@ template <typename VoxelDataT> class VoxelBlockGridT {
     VoxelBlockGridT(float voxel_size = 0.05, int block_size = 8)
         : voxel_size_(voxel_size), inv_voxel_size_(1.0f / voxel_size), block_size_(block_size) {
         static_assert(Voxel<VoxelDataT>, "VoxelDataT must satisfy the Voxel concept");
+        num_voxels_per_block_ = block_size_ * block_size_ * block_size_;
     }
 
     // Insert a point cloud into the voxel grid
@@ -386,6 +387,9 @@ template <typename VoxelDataT> class VoxelBlockGridT {
     get_voxel_data(int min_count = 1) const {
         std::vector<std::array<double, 3>> points;
         std::vector<std::array<float, 3>> colors;
+        const size_t upper_bound_num_voxels = num_voxels_per_block_ * blocks_.size();
+        points.reserve(upper_bound_num_voxels);
+        colors.reserve(upper_bound_num_voxels);
 
         for (const auto &[block_key, block] : blocks_) {
             for (const auto &v : block.data) {
@@ -424,8 +428,9 @@ template <typename VoxelDataT> class VoxelBlockGridT {
 
   protected:
     float voxel_size_;
-    float inv_voxel_size_; // Precomputed 1.0f / voxel_size_ for faster division
-    int block_size_;       // Size of each block (NxNxN voxels)
+    float inv_voxel_size_;     // Precomputed 1.0f / voxel_size_ for faster division
+    int block_size_;           // number of voxels per side of the block
+    int num_voxels_per_block_; // number of voxels per block (block_size_^3)
 #ifdef TBB_FOUND
     tbb::concurrent_unordered_map<BlockKey, Block, BlockKeyHash> blocks_;
 #else

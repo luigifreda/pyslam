@@ -1113,14 +1113,20 @@ def pose_optimization(frame, verbose=False, rounds=10):
 def local_bundle_adjustment(
     keyframes,
     points,
-    keyframes_ref=[],
+    keyframes_ref=None,
     fixed_points=False,
     verbose=False,
     rounds=10,
-    abort_flag=g2o.Flag(),
+    abort_flag=None,
     mp_abort_flag=None,
     map_lock=None,
 ):
+    if keyframes_ref is None:
+        keyframes_ref = []
+
+    if abort_flag is None:
+        abort_flag = gtsam.Flag()
+
     graph = gtsam.NonlinearFactorGraph()
     initial_estimates = gtsam.Values()
 

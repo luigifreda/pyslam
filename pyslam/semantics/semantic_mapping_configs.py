@@ -38,7 +38,7 @@ class SemanticMappingConfig:
         semantic_feature_type=SemanticFeatureType.LABEL,
         encoder_name="",
         model_path="",
-        custom_set_labels=[],
+        custom_set_labels=None,
         sim_text_query="",
         image_size=(512, 512),
         device=None,
@@ -49,7 +49,7 @@ class SemanticMappingConfig:
         self.semantic_feature_type = semantic_feature_type
         self.encoder_name = encoder_name
         self.model_path = model_path
-        self.custom_set_labels = custom_set_labels
+        self.custom_set_labels = custom_set_labels if custom_set_labels is not None else []
         self.sim_text_query = sim_text_query
         self.image_size = image_size
         self.device = device

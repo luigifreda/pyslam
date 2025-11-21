@@ -45,7 +45,7 @@ namespace volumetric {
 template <typename VoxelDataT> struct VoxelBlockT {
     // Flattened 3D array: data[lx + ly * block_size + lz * block_size * block_size]
     std::vector<VoxelDataT> data;
-    const int block_size;
+    const int block_size; // number of voxels per side of the block
     const int block_size_squared;
 
 #ifdef TBB_FOUND

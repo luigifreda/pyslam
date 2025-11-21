@@ -8,12 +8,13 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 **pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
 - Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
-- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
-- Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, RAFT-Stereo, CREStereo, etc.  
+- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports voxel grids, **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
+- Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, DepthAnythingV3, RAFT-Stereo, CREStereo, etc.  
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as DeepLabv3, Segformer, CLIP, DETIC, EOV-SEG, ODISE, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
+- A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like **Mast3r**, **VGGT**, and **DepthFromAnythingV3**. Further details [here](pyslam/scene_from_views/README.md)
 
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines. pySLAM is a research framework and a work in progress. It is not optimized for real-time performance.   
 
@@ -69,6 +70,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
     - [Evaluating SLAM](#evaluating-slam)
       - [Run a SLAM evaluation](#run-a-slam-evaluation)
       - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
+    - [End-to-end inference of 3D scenes from image views](#end-to-end-inference-of-3d-scenes-from-image-views)
   - [Supported components and models](#supported-components-and-models)
     - [Supported local features](#supported-local-features)
     - [Supported matchers](#supported-matchers)
@@ -78,6 +80,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
     - [Supported depth prediction models](#supported-depth-prediction-models)
     - [Supported volumetric mapping methods](#supported-volumetric-mapping-methods)
     - [Supported semantic segmentation methods](#supported-semantic-segmentation-methods)
+    - [Supported models for end-to-end inference of 3D scenes from multiple images](#supported-models-for-end-to-end-inference-of-3d-scenes-from-multiple-images)
   - [Configuration](#configuration)
     - [Main configuration file](#main-configuration-file)
     - [Datasets](#datasets)
@@ -87,6 +90,8 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
       - [EuRoC Datasets](#euroc-datasets)
       - [Replica Datasets](#replica-datasets)
       - [Tartanair Datasets](#tartanair-datasets)
+      - [7 Scenes dataset](#7-scenes-dataset)
+      - [Neural RGBD dataset](#neural-rgbd-dataset)
       - [ScanNet Datasets](#scannet-datasets)
       - [ROS1 bags](#ros1-bags)
       - [ROS2 bags](#ros2-bags)
@@ -114,6 +119,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 │   ├── io
 │   ├── local_features
 │   ├── loop_closing
+│   ├── scene_from_views # Unified 3D scene reconstruction from multiple views
 │   ├── semantics
 │       ├── cpp  # C++ core for semantics  
 │   ├── slam
@@ -141,6 +147,8 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 * `main_map_dense_reconstruction.py` reloads a saved map and uses a configured volumetric integrator to obtain a dense reconstruction (see [here](#volumetric-reconstruction)). 
 
 * `main_slam_evaluation.py` enables automated SLAM evaluation by executing `main_slam.py` across a collection of datasets and configuration presets (see [here](#evaluating-slam)).
+
+* `main_scene_from_views.py` infers 3D scenes from multiple images using models like Mast3r, VGGT, and DepthFromAnythingV3 (see [here](#end-to-end-inference-of-3d-scenes-from-image-views)).  
 
 Other *test/example scripts* are provided in the `test` folder.
 
@@ -445,7 +453,7 @@ Different semantic mapping methods are available (see [here](./docs/semantics.md
   - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
   - `CLIP`: from `f3rm` package for open-vocabulary support.
   - `DETIC`: from https://github.com/facebookresearch/Detic
-  - `EOV-SEG`: from https://github.com/nhw649/EOV-Seg
+  - `EOV_SEG`: from https://github.com/nhw649/EOV-Seg
   - `ODISE`: from https://github.com/NVlabs/ODISE 
 
 **Semantic features** are assigned to **keypoints** on the image and fused into map points. The semantic features can be:
@@ -458,14 +466,14 @@ The simplest way to test the available segmentation models is to run: `test/sema
 
 #### Volumetric Semantic mapping
 
-Volumetric semantic mapping can be performed by setting: 
+Volumetric semantic mapping can be enabled by setting: 
 ```python
 kDoSparseSemanticMappingAndSegmentation=True #  enable sparse mapping and segmentation
 kDoVolumetricIntegration = True # enable volumetric integration
 kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" # use semantic volumetric models like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID
 ```
 
-Further information about the volumetric integration models and SW architecture are available [here](cpp/volumetric/README.md).
+Further information about the **volumetric integration models and SW architecture** are available [here](cpp/volumetric/README.md).
 
 ---
 
@@ -570,6 +578,24 @@ For a comparative evaluation of the "**online**" trajectory estimated by pySLAM 
 
 **Note**: Unlike ORB-SLAM3, which only saves the final pose estimates (recorded after the entire dataset has been processed), pySLAM saves both online and final pose estimates. For details on how to save trajectories in pySLAM, refer to this [section](#trajectory-saving).
 When you click the `Draw Ground Truth` button in the GUI (see [here](#slam-gui)), you can visualize the *Absolute Trajectory Error* (ATE or *RMSE*) history and evaluate both online and final errors up to the current time.
+
+
+---
+
+### End-to-end inference of 3D scenes from image views
+
+A unified interface for end-to-end 3D scene reconstruction from multiple views, following a modular factory pattern architecture. The pipeline provides a consistent API across different reconstruction models while maintaining model-specific optimizations. See the main script `main_scene_from_views.py`.
+
+**Supported Models**:
+- **DUSt3R**: Joint depth and pose estimation with global alignment optimization
+- **MASt3R**: Sparse global alignment with optional TSDF post-processing
+- **Depth Anything V3**: Monocular depth estimation with optional pose and intrinsic estimation
+- **MVDust3r**: Multi-view variant processing multiple views simultaneously
+- **VGGT**: Transformer-based model for pointmap or depthmap regression
+
+All models return standardized `SceneFromViewsResult` output containing point clouds, meshes, camera poses, depth maps, and intrinsics in a consistent format. The factory pattern allows easy switching between models while maintaining the same interface.
+
+Further details [here](pyslam/scene_from_views/README.md).
 
 ---
 
@@ -705,9 +731,23 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 
 ### Supported semantic segmentation methods
 
-- [DeepLabv3](https://arxiv.org/abs/1706.05587): from `torchvision`, pre-trained on COCO/VOC.
-- [Segformer](https://arxiv.org/abs/2105.15203): from `transformers`, pre-trained on Cityscapes or ADE20k.
-- [CLIP](https://arxiv.org/abs/2212.09506): from `f3rm` package for open-vocabulary support.
+- [DeepLabv3](https://arxiv.org/abs/1706.05587): from `torchvision`, pre-trained on COCO/VOC
+- [Segformer](https://arxiv.org/abs/2105.15203): from `transformers`, pre-trained on Cityscapes or ADE20k
+- [CLIP](https://arxiv.org/abs/2212.09506): from `f3rm` package for open-vocabulary support
+- [EOV-Seg](https://github.com/nhw649/EOV-Seg): [_"EOV-Seg: Efficient Open-Vocabulary Panoptic Segmentation"_](https://arxiv.org/abs/2412.08628)
+- [Detic](https://github.com/facebookresearch/Detic): [_"Detecting Twenty-thousand Classes using Image-level Supervision"_](https://arxiv.org/abs/2201.02605)
+- [ODISE](https://github.com/NVlabs/ODISE): [_"Open-Vocabulary Panoptic Segmentation with Text-to-Image Diffusion Models"_](https://arxiv.org/abs/2303.04803)
+
+
+### Supported models for end-to-end inference of 3D scenes from multiple images
+
+* [DUSt3R](https://arxiv.org/abs/2312.14132): Geometric 3D Vision Made Easy (CVPR 2024)
+* [MASt3R](https://arxiv.org/abs/2406.09756): Grounding Image Matching in 3D with MASt3R (ECCV 2024)
+* [Depth Anything V3](https://arxiv.org/abs/2511.10647): Recovering the Visual Space from Any Views
+* [MVDust3r](https://github.com/naver/mvdust3r): Multi-view DUSt3R variant
+* [VGGT](https://github.com/facebookresearch/vggt): Visual Geometry Grounded Transformer
+
+For further details, refer to [pyslam/scene_from_views/README.md](pyslam/scene_from_views/README.md).
 
 --- 
 
@@ -729,6 +769,8 @@ Dataset | type in `config.yaml`
 [EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
+[SEVEN_SCENES dataset](https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/)                                         | `type: SEVEN_SCENES_DATASET` 
+[NEURAL_RGBD dataset](https://github.com/dazinovic/neural-rgbd-surface-reconstruction)                                         | `type: NEURAL_RGBD_DATASET` 
 [ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`
 [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
 [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
@@ -796,6 +838,14 @@ Follow the same instructions provided for the TUM datasets.
 2. Then, uncompress them and deploy the files as you wish.
 3. Select the corresponding calibration settings file (section `TARTANAIR_DATASET: settings:` in the file `config.yaml`).
 
+#### 7 Scenes dataset 
+
+To dowload the dataset follow the instructions at https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/. Select the section `SEVEN_SCENES_DATASET: settings:` in the file `config.yaml`.A calibration file `settings/SEVEN_SCENES.yaml` is already available.
+
+#### Neural RGBD dataset 
+
+To dowload the dataset follow the instructions at https://github.com/dazinovic/neural-rgbd-surface-reconstruction. Select the section `NEURAL_RGBD_DATASET: settings:` in the file `config.yaml`.A calibration file `settings/NEURAL_RGBD.yaml` is already available.
+
 #### ScanNet Datasets
 
 1. You can download the datasets following instructions in http://www.scan-net.org/. You will need to request the dataset from the authors.
@@ -820,7 +870,7 @@ Follow the same instructions provided for the TUM datasets.
 
 #### MCAP files
 
-A concise introduction of the `mcap` format is available [here](https://foxglove.dev/blog/introducing-the-mcap-file-format). These files are also recorded and played by using ros2 tools.  
+A concise introduction of the `mcap` format is available [here](https://foxglove.dev/blog/introducing-the-mcap-file-format). These files can be also recorded and played-back by using ROS2 tools.  
 
 #### Video and Folder Datasets
 
@@ -941,16 +991,18 @@ Many improvements and additional features are currently under development:
 - [x] Modern DL matching algorithms 
 - [x] Object detection
   - [x] Open vocabulary segment (object) detection
-  - [ ] Object-level mapping 
-- [X] Semantic segmentation [by @dvdmc]
+  - [ ] Object-level mapping [WIP] (Detic now allows to extract bounding boxes and segments of objects)
+- [X] Semantic segmentation and mapping
   - [X] Dense closed-set labels
   - [X] Dense closed-set probability vectors
   - [X] Dense open vocabulary feature vectors
+  - [X] New segmentation models (EOV-Seg, Detic, ODISE)
+  - [X] Volumetric semantic mapping
 - [x] 3D dense reconstruction 
 - [x] Unified install procedure (single branch) for all OSs 
 - [x] Trajectory saving 
 - [x] Depth prediction integration, more models: VGGT, MoGE, etc. [WIP]
-- [x] ROS support [WIP]
+- [x] ROS1 and ROS2 support. Dedicated MCAP dataset.
 - [x] Gaussian splatting integration
 - [x] Documentation [WIP]
 - [x] GTSAM integration [WIP]

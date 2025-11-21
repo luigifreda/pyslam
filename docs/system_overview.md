@@ -3,15 +3,16 @@
 <!-- TOC -->
 
 - [System Overview](#system-overview)
-    - [1. SLAM Workflow and Components](#1-slam-workflow-and-components)
-    - [2. Main System Components](#2-main-system-components)
-        - [2.1. Feature Tracker](#21-feature-tracker)
-        - [2.2. Feature Matcher](#22-feature-matcher)
-        - [2.3. Loop Detector](#23-loop-detector)
-        - [2.4. Depth Estimator](#24-depth-estimator)
-        - [2.5. Volumetric Integrator](#25-volumetric-integrator)
-        - [2.6. Semantic Mapping](#26-semantic-mapping)
-    - [3. C++ Core](#3-c-core)
+  - [SLAM Workflow and Components](#slam-workflow-and-components)
+  - [Main SLAM System Components](#main-slam-system-components)
+    - [Feature Tracker](#feature-tracker)
+    - [Feature Matcher](#feature-matcher)
+    - [Loop Detector](#loop-detector)
+    - [Depth Estimator](#depth-estimator)
+    - [Volumetric Integrator](#volumetric-integrator)
+    - [Semantic Mapping](#semantic-mapping)
+  - [C++ Core for Sparse SLAM](#c-core-for-sparse-slam)
+  - [Scene from Views](#scene-from-views)
 
 <!-- /TOC -->
 
@@ -63,7 +64,7 @@ This other figure details the internal components and interactions of the above 
 
 ---
 
-## Main System Components
+## Main SLAM System Components
 
 ### Feature Tracker
 
@@ -146,7 +147,7 @@ The section [Supported volumetric mapping methods](../README.md#supported-volume
 
 This diagram outlines the architecture of the *Semantic Mapping* module. At its core is the `semantic_mapping_factory`, which creates semantic mapping instances according to the selected `semantic_mapping_type`. Currently, the supported type is `DENSE`, which instantiates either the `SemanticMappingDense` class or the `SemanticMappingDenseProcess` class if `Parameters.kSemanticMappingMoveSemanticSegmentationToSeparateProcess=True`. Both these classes extend `SemanticMappingDenseBase` and runs asynchronously in a dedicated thread to process keyframes as they become available. In particular, the `SemanticMappingDenseProcess` class offloads semantic segmentation inference to a separate process, thereby making better use of CPU core parallelism.
 
-`SemanticMappingDense` and `SemanticMappingDenseProcess` integrate semantic information into the SLAM map by leveraging per-keyframe predictions from a semantic segmentation model. The segmentation model is instantiated via the `semantic_segmentation_factory`, based on the selected `semantic_segmentation_type`. Supported segmentation backends include `DEEPLABV3`, `SEGFORMER`, and `CLIP`, each of which corresponds to a dedicated class (`SemanticSegmentationDeepLabV3`, `SemanticSegmentationSegformer`, `SemanticSegmentationCLIP`) inheriting from the shared `SemanticSegmentationBase`.
+`SemanticMappingDense` and `SemanticMappingDenseProcess` integrate semantic information into the SLAM map by leveraging per-keyframe predictions from a semantic segmentation model. The segmentation model is instantiated via the `semantic_segmentation_factory`, based on the selected `semantic_segmentation_type`. Supported segmentation backends include `DEEPLABV3`, `SEGFORMER`, `CLIP`, `EOV_SEG`, `DETIC` and `ODISE`, each of which corresponds to a dedicated class (`SemanticSegmentationDeepLabV3`, `SemanticSegmentationSegformer`, `SemanticSegmentationCLIP`, `SemanticSegmentationEovSeg`, `SemanticSegmentationDetic`, and `SemanticSegmentationOdise`) inheriting from the shared `SemanticSegmentationBase`.
 
 The system supports multiple semantic feature representations - such as categorical labels, probability vectors, and high-dimensional feature embeddings - and fuses them into the map using configurable methods like count-based fusion, Bayesian fusion, or feature averaging.
 
@@ -154,11 +155,31 @@ This modular design decouples semantic segmentation from mapping logic, enabling
 
 The section [Supported semantic segmentation methods](../README.md#supported-semantic-segmentation-methods) provides a list of supported semantic segmentation methods.
 
-This paper provides a more in-depth presentation of the semantic mapping module.
+This paper provides a presentation of the first version of sparse semantic mapping module.
 *["Semantic pySLAM: Unifying semantic mapping approaches under the same framework"](./pyslam-semantic.pdf)*, David Morilla-Cabello, Eduardo Montijano  
 
-## C++ Core
+## C++ Core for Sparse SLAM
 
-A brief overview of the C++ core is provided in this [document](../pyslam/slam/cpp/README.md).
+The system provides a modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11.
 
+The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible. To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`.
+
+A detailed overview of the C++ core architecture, design principles, and implementation details is provided in this [document](../pyslam/slam/cpp/README.md). 
+
+--- 
+
+## Scene from Views
+
+
+<p align="center">
+<img src="./images/scene_from_views.png" alt="3D Scene From Views"  /> 
+</p>
+
+This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, and `VGGT`.
+
+Each type creates a corresponding implementation (e.g., `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsDepthAnythingV3`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`), all inheriting from a common `SceneFromViewsBase`. This base class implements a unified three-step reconstruction pipeline: `preprocess_images()` prepares input images for the specific model, `infer()` runs model inference, and `postprocess_results()` converts raw model output to a standardized `SceneFromViewsResult` format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
+
+The module supports both pairwise models (DUSt3R, MASt3R) that process image pairs and perform global alignment, as well as multi-view models (MV-DUSt3R, VGGT) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
+
+For more details, refer to the [Scene from Views documentation](./scene_from_views.md).
 

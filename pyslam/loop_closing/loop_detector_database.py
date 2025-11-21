@@ -59,9 +59,9 @@ kDataFolder = kRootFolder + "/data"
 
 # abstract class
 class Database:
-    def __init__(self, score=ScoreCosine()):
+    def __init__(self, score=None):
         self.global_des_database = None
-        self.score = score
+        self.score = score if score is not None else ScoreCosine()
 
     def query(self, g_des, max_num_results=kMaxResultsForLoopClosure):
         raise NotImplementedError
@@ -85,9 +85,9 @@ class Database:
 
 # Simple database implementation with numpy entries
 class SimpleDatabase(Database):
-    def __init__(self, score=ScoreCosine()):
+    def __init__(self, score=None):
         self.global_des_database = []
-        self.score = score
+        self.score = score if score is not None else ScoreCosine()
 
     def query(self, g_des, max_num_results=kMaxResultsForLoopClosure):
         if g_des.ndim == 1:
@@ -118,9 +118,9 @@ class SimpleDatabase(Database):
 
 # Similar to SimpleDatabase but with torch entries
 class SimpleTorchDatabase(Database):
-    def __init__(self, score=ScoreTorchCosine()):
+    def __init__(self, score=None):
         self.global_des_database = []
-        self.score = score
+        self.score = score if score is not None else ScoreTorchCosine()
 
     def size(self):
         return len(self.global_des_database)
@@ -167,10 +167,10 @@ class SimpleTorchDatabase(Database):
 
 
 class FlannDatabase(Database):
-    def __init__(self, score=ScoreCosine(), rebuild_threshold=50):
+    def __init__(self, score=None, rebuild_threshold=50):
         self.global_des_database = []
         self.recent_descriptors = []
-        self.score = score
+        self.score = score if score is not None else ScoreCosine()
         self.flann = None
         if platform.system() != "Darwin":
             self.flann = FLANN()
@@ -338,10 +338,10 @@ class FlannDatabase(Database):
 
 # See https://github.com/facebookresearch/faiss
 class FaissDatabase(Database):
-    def __init__(self, score=ScoreCosine(), rebuild_threshold=50):
+    def __init__(self, score=None, rebuild_threshold=50):
         self.global_des_database = []
         self.recent_descriptors = []
-        self.score = score
+        self.score = score if score is not None else ScoreCosine()
         self.index = None
         self.index_built = False
         self.rebuild_threshold = rebuild_threshold

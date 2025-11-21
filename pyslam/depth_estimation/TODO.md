@@ -1,9 +1,5 @@
 To integrate 
 
-# DepthAnything V2
-Latest monocular depth estimation. 10x faster than diffusion models, incredible detail preservation.
-→ https://lnkd.in/dgHWZryi
-
 # ZoeDepth (Intel)
 Metric depth estimation with zero-shot transfer. Combines relative and absolute depth for real-world scale.
 → https://lnkd.in/geYS6ktp

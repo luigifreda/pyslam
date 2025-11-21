@@ -1149,3 +1149,353 @@ class TartanairDataset(Dataset):
             self.is_ok = False
             self._timestamp = None
         return np.ascontiguousarray(img) if img is not None else None
+
+
+# 7-Scenes Dataset
+# References:
+# https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/
+# Structure: path/scene_name/seq-XX/ contains frames
+# Each frame: frame-XXXXXX.color.png, frame-XXXXXX.depth.png, frame-XXXXXX.pose.txt
+# Depth: millimeters, 16-bit PNG, invalid depth = 65535
+# Pose: camera-to-world, 4x4 matrix in homogeneous coordinates
+class SevenScenesDataset(Dataset):
+    fps = 30  # Default FPS for 7-Scenes dataset
+    Ts = 1.0 / fps
+
+    def __init__(
+        self,
+        path,
+        name,
+        sensor_type=SensorType.RGBD,
+        associations=None,
+        start_frame_id=0,
+        type=DatasetType.SEVEN_SCENES,
+        config=None,
+    ):
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+            raise ValueError("SevenScenesDataset only supports MONOCULAR and RGBD sensor types")
+
+        self.fps = SevenScenesDataset.fps
+        self.Ts = SevenScenesDataset.Ts
+        self.scale_viewer_3d = 0.1
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05
+
+        print("Processing 7-Scenes Sequence")
+        self.base_path = os.path.join(self.path, self.name)
+
+        # Handle sequence selection (if associations specifies a sequence, use it; otherwise use all sequences)
+        self.sequence_name = None
+        if associations:
+            # If associations is provided, it might specify a sequence (e.g., "seq-01")
+            if associations.startswith("seq-"):
+                self.sequence_name = associations
+            # Or it might be a split file (TrainSplit.txt or TestSplit.txt)
+            elif associations.endswith(".txt"):
+                # Read the split file to get sequence and frame information
+                split_file = os.path.join(self.base_path, associations)
+                if os.path.exists(split_file):
+                    self._load_split_file(split_file)
+                else:
+                    Printer.yellow(f"Split file not found: {split_file}, using all sequences")
+
+        # Find all sequences if not specified
+        if self.sequence_name is None:
+            # Look for seq-XX folders
+            seq_folders = sorted(glob.glob(os.path.join(self.base_path, "seq-*")))
+            if seq_folders:
+                # Use the first sequence by default, or all sequences concatenated
+                self.sequence_name = os.path.basename(seq_folders[0])
+                Printer.green(f"Using sequence: {self.sequence_name}")
+            else:
+                # If no seq-XX folders, assume frames are directly in base_path
+                self.sequence_name = ""
+
+        # Build frame list
+        if hasattr(self, "_frame_list") and self._frame_list:
+            # Use frame list from split file
+            self.color_paths = self._frame_list
+            self.max_frame_id = len(self.color_paths)
+        else:
+            # Find all color frames in the sequence
+            if self.sequence_name:
+                seq_path = os.path.join(self.base_path, self.sequence_name)
+            else:
+                seq_path = self.base_path
+
+            # Find all color images (frame-XXXXXX.color.png)
+            color_pattern = os.path.join(seq_path, "frame-*.color.png")
+            self.color_paths = sorted(glob.glob(color_pattern))
+            self.max_frame_id = len(self.color_paths)
+
+        self.num_frames = self.max_frame_id
+        print(f"Number of frames: {self.max_frame_id}")
+
+        # Depth map factor: depth is in millimeters, convert to meters
+        # DepthMapFactor in settings is 1000.0, so depth_in_meters = depth_pixels / 1000.0
+        self.depthmap_factor = 1000.0
+
+    def _load_split_file(self, split_file):
+        """Load sequence and frame information from TrainSplit.txt or TestSplit.txt"""
+        self._frame_list = []
+        try:
+            with open(split_file, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Format: seq-XX/frame-XXXXXX
+                    parts = line.split("/")
+                    if len(parts) == 2:
+                        seq_name, frame_name = parts
+                        # Construct full path to color image
+                        color_path = os.path.join(
+                            self.base_path, seq_name, f"{frame_name}.color.png"
+                        )
+                        if os.path.exists(color_path):
+                            self._frame_list.append(color_path)
+                        else:
+                            Printer.yellow(f"Frame not found: {color_path}")
+        except Exception as e:
+            Printer.red(f"Error loading split file {split_file}: {e}")
+            self._frame_list = []
+
+    def _get_frame_info(self, frame_id):
+        """Get sequence name and frame name from frame_id"""
+        if frame_id >= self.max_frame_id:
+            return None, None
+
+        if hasattr(self, "_frame_list") and self._frame_list:
+            # Use frame list from split file
+            color_path = self.color_paths[frame_id]
+            # Extract sequence and frame name from path
+            rel_path = os.path.relpath(color_path, self.base_path)
+            parts = rel_path.split(os.sep)
+            if len(parts) >= 2:
+                seq_name = parts[0]
+                frame_name = parts[1].replace(".color.png", "")
+            else:
+                seq_name = ""
+                frame_name = parts[0].replace(".color.png", "")
+        else:
+            # Extract from color path
+            color_path = self.color_paths[frame_id]
+            frame_name = os.path.basename(color_path).replace(".color.png", "")
+            # Get sequence name from parent directory
+            parent_dir = os.path.basename(os.path.dirname(color_path))
+            if parent_dir.startswith("seq-"):
+                seq_name = parent_dir
+            else:
+                seq_name = ""
+
+        return seq_name, frame_name
+
+    def getImage(self, frame_id):
+        img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
+        if frame_id < self.max_frame_id:
+            file = self.color_paths[frame_id]
+            img = cv2.imread(file)
+            self.is_ok = img is not None
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts
+        else:
+            self.is_ok = False
+            self._timestamp = None
+        return np.ascontiguousarray(img) if img is not None else None
+
+    def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None  # force a monocular camera if required
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            seq_name, frame_name = self._get_frame_info(frame_id)
+            if seq_name and frame_name:
+                if seq_name:
+                    depth_file = os.path.join(self.base_path, seq_name, f"{frame_name}.depth.png")
+                else:
+                    depth_file = os.path.join(self.base_path, f"{frame_name}.depth.png")
+            else:
+                # Fallback: construct from color path
+                color_path = self.color_paths[frame_id]
+                depth_file = color_path.replace(".color.png", ".depth.png")
+
+            # Read depth image (16-bit PNG, depth in millimeters)
+            # Note: cv2.IMREAD_UNCHANGED preserves the original bit depth
+            img = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
+            if img is not None:
+                # Convert from millimeters to meters
+                # Invalid depth values are 65535, set them to 0 or keep as is
+                # The conversion happens in Frame constructor via camera.depth_factor
+                # For 7-Scenes, DepthMapFactor=1000.0, so depth_in_meters = depth_pixels / 1000.0
+                pass  # Keep depth as-is, conversion happens in Frame constructor
+            self.is_ok = img is not None
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts
+        else:
+            self.is_ok = False
+            self._timestamp = None
+        return np.ascontiguousarray(img) if img is not None else None
+
+    def getPose(self, frame_id):
+        """Get camera pose (4x4 camera-to-world transformation matrix) for a frame"""
+        if frame_id >= self.max_frame_id:
+            return None
+
+        seq_name, frame_name = self._get_frame_info(frame_id)
+        if seq_name and frame_name:
+            if seq_name:
+                pose_file = os.path.join(self.base_path, seq_name, f"{frame_name}.pose.txt")
+            else:
+                pose_file = os.path.join(self.base_path, f"{frame_name}.pose.txt")
+        else:
+            # Fallback: construct from color path
+            color_path = self.color_paths[frame_id]
+            pose_file = color_path.replace(".color.png", ".pose.txt")
+
+        try:
+            # Read 4x4 matrix from text file
+            pose = np.loadtxt(pose_file)
+            if pose.shape == (4, 4):
+                return pose
+            else:
+                Printer.red(f"Invalid pose matrix shape in {pose_file}: {pose.shape}")
+                return None
+        except Exception as e:
+            Printer.red(f"Error reading pose file {pose_file}: {e}")
+            return None
+
+
+# Neural RGB-D Dataset
+# References:
+# https://github.com/dazinovic/neural-rgbd-surface-reconstruction
+# Structure: path/scene_name/ contains:
+#   - images/img0.png, img1.png, ...
+#   - depth_filtered/depth0.png, depth1.png, ...
+#   - focal.txt (single float value)
+#   - poses.txt or trainval_poses.txt (4N x 4 format, N 4x4 matrices stacked vertically)
+# Uses OpenGL convention for camera coordinate system
+class NeuralRGBDDataset(Dataset):
+    fps = 30  # Default FPS for Neural RGB-D dataset
+    Ts = 1.0 / fps
+
+    def __init__(
+        self,
+        path,
+        name,
+        sensor_type=SensorType.RGBD,
+        associations=None,
+        start_frame_id=0,
+        type=DatasetType.NEURAL_RGBD,
+        config=None,
+    ):
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+            raise ValueError("NeuralRGBDDataset only supports MONOCULAR and RGBD sensor types")
+
+        self.fps = NeuralRGBDDataset.fps
+        self.Ts = NeuralRGBDDataset.Ts
+        self.scale_viewer_3d = 0.1
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05
+
+        print("Processing Neural RGB-D Sequence")
+        self.base_path = os.path.join(self.path, self.name)
+
+        # Paths for images and depth
+        self.images_path = os.path.join(self.base_path, "images")
+        self.depth_path = os.path.join(self.base_path, "depth_filtered")
+
+        # Check if paths exist
+        if not os.path.exists(self.images_path):
+            error_message = (
+                f"ERROR: [NeuralRGBDDataset] Images directory not found: {self.images_path}!"
+            )
+            Printer.red(error_message)
+            sys.exit(error_message)
+
+        if sensor_type == SensorType.RGBD and not os.path.exists(self.depth_path):
+            Printer.yellow(
+                f"WARNING: [NeuralRGBDDataset] Depth directory not found: {self.depth_path}!"
+            )
+            Printer.yellow("Falling back to MONOCULAR mode")
+            self.sensor_type = SensorType.MONOCULAR
+
+        # Find all RGB images (img0.png, img1.png, ...)
+        image_pattern = os.path.join(self.images_path, "img*.png")
+        self.image_paths = sorted(
+            glob.glob(image_pattern),
+            key=lambda x: int(os.path.basename(x).replace("img", "").replace(".png", "")),
+        )
+        self.max_frame_id = len(self.image_paths)
+        self.num_frames = self.max_frame_id
+
+        if self.max_frame_id == 0:
+            error_message = f"ERROR: [NeuralRGBDDataset] No images found in {self.images_path}!"
+            Printer.red(error_message)
+            sys.exit(error_message)
+
+        print(f"Number of frames: {self.max_frame_id}")
+
+        # Read focal length from focal.txt
+        focal_file = os.path.join(self.base_path, "focal.txt")
+        self.focal_length = None
+        if os.path.exists(focal_file):
+            try:
+                with open(focal_file, "r") as f:
+                    self.focal_length = float(f.read().strip())
+                Printer.green(f"Loaded focal length: {self.focal_length}")
+            except Exception as e:
+                Printer.yellow(f"Could not read focal length from {focal_file}: {e}")
+        else:
+            Printer.yellow(f"Focal length file not found: {focal_file}")
+
+        # Depth map factor: depth values are typically in meters for this dataset
+        # Adjust if needed based on actual data format
+        self.depthmap_factor = 1.0
+
+    def getImage(self, frame_id):
+        img = None
+        # NOTE: frame_id is already shifted by start_frame_id in Dataset.getImageColor()
+        if frame_id < self.max_frame_id:
+            file = self.image_paths[frame_id]
+            img = cv2.imread(file)
+            self.is_ok = img is not None
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts
+        else:
+            self.is_ok = False
+            self._timestamp = None
+        return np.ascontiguousarray(img) if img is not None else None
+
+    def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None  # force a monocular camera if required
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            # Construct depth filename: depth0.png, depth1.png, ...
+            depth_filename = f"depth{frame_id}.png"
+            depth_file = os.path.join(self.depth_path, depth_filename)
+
+            # Read depth image
+            img = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED)
+            if img is not None:
+                # Depth values are typically in meters for this dataset
+                # Conversion happens in Frame constructor via camera.depth_factor
+                pass  # Keep depth as-is, conversion happens in Frame constructor
+            self.is_ok = img is not None
+            self._timestamp = frame_id * self.Ts
+            self._next_timestamp = self._timestamp + self.Ts
+        else:
+            self.is_ok = False
+            self._timestamp = None
+        return np.ascontiguousarray(img) if img is not None else None
+
+    def getFocalLength(self):
+        """Get the focal length in pixels"""
+        return self.focal_length
