@@ -89,7 +89,7 @@ def similarity_heatmap_point(sim_point, colormap=cv2.COLORMAP_JET, sim_scale=1.0
 
 
 # create a scaled image of uint8 from a image of semantics
-def labels_to_image(label_img, semantics_color_map, bgr=False, ignore_labels=[], rgb_image=None):
+def labels_to_image(label_img, semantics_color_map, bgr=False, ignore_labels=None, rgb_image=None):
     """
     Converts a class label image to an RGB image.
     Args:
@@ -104,7 +104,7 @@ def labels_to_image(label_img, semantics_color_map, bgr=False, ignore_labels=[],
 
     rgb_output = semantics_color_map[label_img]
 
-    if len(ignore_labels) > 0:
+    if ignore_labels is not None and len(ignore_labels) > 0:
         if rgb_image is None:
             raise ValueError("rgb_image must be provided if ignore_labels is not empty")
         else:

@@ -62,6 +62,7 @@
 #include <tbb/global_control.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_for_each.h>
+#include <tbb/task_arena.h>
 #endif
 
 namespace py = pybind11;
@@ -163,8 +164,10 @@ template <typename VoxelDataT> class VoxelGridT {
                                   auto [it, inserted] = grid_.insert({key, VoxelDataT()});
                                   auto &v = it->second;
 
-                                  if (inserted) {
-                                      // New voxel: initialize and update
+                                  if (inserted || v.count == 0) {
+                                      // New voxel or reset voxel: initialize and update
+                                      // If count==0, the voxel was reset and should be treated as
+                                      // new
                                       v.update_point(x, y, z);
                                       if constexpr (HasColors) {
                                           v.update_color(color_x, color_y, color_z);
@@ -201,8 +204,9 @@ template <typename VoxelDataT> class VoxelGridT {
             auto [it, inserted] = grid_.try_emplace(key);
             auto &v = it->second;
 
-            if (inserted) {
-                // New voxel: initialize and update
+            if (inserted || v.count == 0) {
+                // New voxel or reset voxel: initialize and update
+                // If count==0, the voxel was reset and should be treated as new
                 v.update_point(x, y, z);
                 if constexpr (HasColors) {
                     v.update_color(color_x, color_y, color_z);
@@ -349,8 +353,9 @@ template <typename VoxelDataT> class VoxelGridT {
 #endif
                 auto &v = it->second;
 
-                if (inserted) {
-                    // New voxel: initialize with accumulated values
+                if (inserted || v.count == 0) {
+                    // New voxel or reset voxel: initialize with accumulated values
+                    // If count==0, the voxel was reset and should be treated as new
                     v.position_sum[0] = update.pos_sum[0];
                     v.position_sum[1] = update.pos_sum[1];
                     v.position_sum[2] = update.pos_sum[2];
@@ -405,7 +410,9 @@ template <typename VoxelDataT> class VoxelGridT {
 #endif
             auto &v = it->second;
 
-            if (inserted) {
+            if (inserted || v.count == 0) {
+                // New voxel or reset voxel: initialize and update
+                // If count==0, the voxel was reset and should be treated as new
                 v.update_point(x, y, z);
                 if constexpr (HasColors) {
                     const float color_x = cols_ptr[idx + 0];
@@ -415,6 +422,7 @@ template <typename VoxelDataT> class VoxelGridT {
                 }
                 v.count = 1;
             } else {
+                // Existing voxel: just update
                 v.update_point(x, y, z);
                 if constexpr (HasColors) {
                     const float color_x = cols_ptr[idx + 0];
@@ -533,8 +541,9 @@ template <typename VoxelDataT> class VoxelGridT {
 #endif
                 auto &v = it->second;
 
-                if (inserted) {
-                    // New voxel: initialize with accumulated values
+                if (inserted || v.count == 0) {
+                    // New voxel or reset voxel: initialize with accumulated values
+                    // If count==0, the voxel was reset and should be treated as new
                     v.position_sum[0] = update.pos_sum[0];
                     v.position_sum[1] = update.pos_sum[1];
                     v.position_sum[2] = update.pos_sum[2];
@@ -596,7 +605,9 @@ template <typename VoxelDataT> class VoxelGridT {
 #endif
             auto &v = it->second;
 
-            if (inserted) {
+            if (inserted || v.count == 0) {
+                // New voxel or reset voxel: initialize and update
+                // If count==0, the voxel was reset and should be treated as new
                 v.update_point(x, y, z);
                 if constexpr (HasColors) {
                     const float color_x = cols_ptr[idx + 0];
@@ -606,6 +617,7 @@ template <typename VoxelDataT> class VoxelGridT {
                 }
                 v.count = 1;
             } else {
+                // Existing voxel: just update
                 v.update_point(x, y, z);
                 if constexpr (HasColors) {
                     const float color_x = cols_ptr[idx + 0];
@@ -711,8 +723,9 @@ template <typename VoxelDataT> class VoxelGridT {
 #endif
                 auto &v = it->second;
 
-                if (inserted) {
-                    // New voxel: initialize with accumulated values
+                if (inserted || v.count == 0) {
+                    // New voxel or reset voxel: initialize with accumulated values
+                    // If count==0, the voxel was reset and should be treated as new
                     v.position_sum[0] = update.pos_sum[0];
                     v.position_sum[1] = update.pos_sum[1];
                     v.position_sum[2] = update.pos_sum[2];
@@ -770,7 +783,9 @@ template <typename VoxelDataT> class VoxelGridT {
 #endif
             auto &v = it->second;
 
-            if (inserted) {
+            if (inserted || v.count == 0) {
+                // New voxel or reset voxel: initialize and update
+                // If count==0, the voxel was reset and should be treated as new
                 v.update_point(x, y, z);
                 if constexpr (HasColors) {
                     const float color_x = cols_ptr[idx + 0];
@@ -780,6 +795,7 @@ template <typename VoxelDataT> class VoxelGridT {
                 }
                 v.count = 1;
             } else {
+                // Existing voxel: just update
                 v.update_point(x, y, z);
                 if constexpr (HasColors) {
                     const float color_x = cols_ptr[idx + 0];
@@ -815,19 +831,22 @@ template <typename VoxelDataT> class VoxelGridT {
         points.reserve(grid_.size());
 #ifdef TBB_FOUND
         // Parallel version: collect keys first, then process in parallel
+        // Use isolate() to prevent deadlock from nested parallelism
         std::vector<VoxelKey> keys;
         keys.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
             keys.push_back(key);
         }
         points.resize(keys.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  points[i] = v.get_position();
-                              }
-                          });
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+                              [&](const tbb::blocked_range<size_t> &range) {
+                                  for (size_t i = range.begin(); i < range.end(); ++i) {
+                                      const auto &v = grid_.at(keys[i]);
+                                      points[i] = v.get_position();
+                                  }
+                              });
+        });
 #else
         // Sequential version
         for (const auto &[key, v] : grid_) {
@@ -842,19 +861,22 @@ template <typename VoxelDataT> class VoxelGridT {
         colors.reserve(grid_.size());
 #ifdef TBB_FOUND
         // Parallel version: collect keys first, then process in parallel
+        // Use isolate() to prevent deadlock from nested parallelism
         std::vector<VoxelKey> keys;
         keys.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
             keys.push_back(key);
         }
         colors.resize(keys.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  colors[i] = v.get_color();
-                              }
-                          });
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+                              [&](const tbb::blocked_range<size_t> &range) {
+                                  for (size_t i = range.begin(); i < range.end(); ++i) {
+                                      const auto &v = grid_.at(keys[i]);
+                                      colors[i] = v.get_color();
+                                  }
+                              });
+        });
 #else
         // Sequential version
         for (const auto &[key, v] : grid_) {
@@ -868,6 +890,7 @@ template <typename VoxelDataT> class VoxelGridT {
     get_voxel_data(int min_count = 1) const {
 #ifdef TBB_FOUND
         // Parallel version: collect keys first, filter, then process in parallel
+        // Use isolate() to prevent deadlock from nested parallelism
         std::vector<VoxelKey> keys;
         keys.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
@@ -877,14 +900,16 @@ template <typename VoxelDataT> class VoxelGridT {
         }
         std::vector<std::array<double, 3>> points(keys.size());
         std::vector<std::array<float, 3>> colors(keys.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  points[i] = v.get_position();
-                                  colors[i] = v.get_color();
-                              }
-                          });
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+                              [&](const tbb::blocked_range<size_t> &range) {
+                                  for (size_t i = range.begin(); i < range.end(); ++i) {
+                                      const auto &v = grid_.at(keys[i]);
+                                      points[i] = v.get_position();
+                                      colors[i] = v.get_color();
+                                  }
+                              });
+        });
         return {points, colors};
 #else
         // Sequential version
@@ -893,15 +918,9 @@ template <typename VoxelDataT> class VoxelGridT {
         std::vector<std::array<float, 3>> colors;
         colors.reserve(grid_.size());
 
-        if (min_count > 1) {
-            for (const auto &[key, v] : grid_) {
-                if (v.count >= min_count) {
-                    points.push_back(v.get_position());
-                    colors.push_back(v.get_color());
-                }
-            }
-        } else {
-            for (const auto &[key, v] : grid_) {
+        // Always filter by min_count to exclude reset voxels (count=0) unless explicitly requested
+        for (const auto &[key, v] : grid_) {
+            if (v.count >= min_count) {
                 points.push_back(v.get_position());
                 colors.push_back(v.get_color());
             }

@@ -25,7 +25,7 @@ graph LR;
     %%Slam -->|*_has-a_*| Map;
     Slam -->|*_has-a_*| VolumetricIntegrator["VolumetricIntegrator<br><span style='font-size:14px;'><b>[Process]</b></span>"];
     %%Slam -->|*_has-a_*| GlobalBundleAdjustment["GlobalBundleAdjustment<br><span style='font-size:14px;'><b>[Process/Thread]</b></span>"];
-    Slam -->|*_has-a_*| SemanticMapping["SemanticMappingDense<br><span style='font-size:14px;'><b>[Process]</b></span>"];
+    Slam -->|*_has-a_*| SemanticMapping["SemanticMappingDense<br><span style='font-size:14px;'><b>[Process/Thread]</b></span>"];
 
     Tracking -->|*_has-a_*| Initializer;
     Tracking -->|*_has-a_*| SLAMDynamicConfig;

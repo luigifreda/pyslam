@@ -423,6 +423,66 @@ def xyzq2Tmat(x, y, z, qx, qy, qz, qw):
     )
 
 
+def quaternion_slerp(q1, q2, t):
+    """Spherical linear interpolation between two quaternions"""
+    # Normalize quaternions
+    q1 = q1 / np.linalg.norm(q1)
+    q2 = q2 / np.linalg.norm(q2)
+
+    # Compute dot product
+    dot = np.dot(q1, q2)
+
+    # If dot product is negative, negate one quaternion for shorter path
+    if dot < 0.0:
+        q2 = -q2
+        dot = -dot
+
+    # If quaternions are very close, use linear interpolation
+    if dot > 0.9995:
+        result = (1.0 - t) * q1 + t * q2
+        return result / np.linalg.norm(result)
+
+    # Compute angle between quaternions
+    theta = np.arccos(np.clip(dot, -1.0, 1.0))
+    sin_theta = np.sin(theta)
+
+    # SLERP formula
+    w1 = np.sin((1.0 - t) * theta) / sin_theta
+    w2 = np.sin(t * theta) / sin_theta
+    result = w1 * q1 + w2 * q2
+    return result / np.linalg.norm(result)
+
+
+def interpolate_pose(pose1, pose2, alpha):
+    """Interpolate between two poses: linear for translation, SLERP for rotation"""
+    # Extract translation and rotation
+    t1 = pose1[0:3, 3]
+    t2 = pose2[0:3, 3]
+    R1 = pose1[0:3, 0:3]
+    R2 = pose2[0:3, 0:3]
+
+    # Linear interpolation for translation
+    t_interp = (1 - alpha) * t1 + alpha * t2
+
+    # SLERP for rotation using quaternion SLERP
+    r1 = Rotation.from_matrix(R1)
+    r2 = Rotation.from_matrix(R2)
+    q1 = r1.as_quat()  # Returns [x, y, z, w]
+    q2 = r2.as_quat()
+
+    # Interpolate quaternion
+    q_interp = quaternion_slerp(q1, q2, alpha)
+
+    # Convert back to rotation matrix
+    r_interp = Rotation.from_quat(q_interp)
+
+    # Construct interpolated pose
+    pose_interp = np.eye(4)
+    pose_interp[0:3, 0:3] = r_interp.as_matrix()
+    pose_interp[0:3, 3] = t_interp
+    return pose_interp
+
+
 # we compute H = K*(R-t*n'/d)*Kinv  with n=(0,0,1)' and d=1  <-- Hartley-Zisserman pag 327
 # => the plane containing `img` is on the optical axis (i.e. along z=(0,0,1)) at a distance d=1, i.e. the plane is Z=1
 # we set fx = fy = img.shape[1] = img.width

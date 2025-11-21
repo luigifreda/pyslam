@@ -54,6 +54,8 @@ from .dataset import (
     TartanairDataset,
     VideoDataset,
     LiveDataset,
+    SevenScenesDataset,
+    NeuralRGBDDataset,
 )
 from .mcap_dataset import McapDataset
 
@@ -218,6 +220,14 @@ def dataset_factory(config: "Config") -> Dataset:
     if type == "scannet":
         dataset = ScannetDataset(
             path, name, sensor_type, associations, start_frame_id, DatasetType.SCANNET, config
+        )
+    if type == "seven_scenes" or type == "7scenes":
+        dataset = SevenScenesDataset(
+            path, name, sensor_type, associations, start_frame_id, DatasetType.SEVEN_SCENES, config
+        )
+    if type == "neural_rgbd" or type == "neuralrgbd":
+        dataset = NeuralRGBDDataset(
+            path, name, sensor_type, associations, start_frame_id, DatasetType.NEURAL_RGBD, config
         )
 
     dataset.minimal_config = MinimalDatasetConfig(config=config)

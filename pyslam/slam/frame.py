@@ -565,7 +565,6 @@ class Frame(FrameBase):
             self.semantic_img = np.ascontiguousarray(semantic_img.copy())
         if self.kps is not None:
             with self._lock_features:
-                # TODO(dvdmc): is the consensus that label images are (H,W) or (H,W,1)?
                 if len(semantic_img.shape) == 3:
                     self.kps_sem = semantic_img[
                         self.kps[:, 1].astype(int), self.kps[:, 0].astype(int), :

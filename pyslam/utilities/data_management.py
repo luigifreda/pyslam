@@ -182,7 +182,7 @@ class SafeQueue:
         """Put an item into the queue."""
         with self._lock:
             self._size.value += 1
-        self.queue.put(item, block=block, timeout=timeout)
+        return self.queue.put(item, block=block, timeout=timeout)
 
     def get(self, block=True, timeout=None):
         """Remove and return an item from the queue."""

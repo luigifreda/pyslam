@@ -180,7 +180,7 @@ class LoopDetectorConfigs:
     DBOW3_INDEPENDENT = dict(
         global_descriptor_type=GlobalDescriptorType.DBOW3,
         local_feature_manager_config=FeatureManagerConfigs.ORB2,  # Use an independent ORB2 local feature manager for loop detection (must be compatible with the used descriptor aggregator and loaded vocabulary)
-        local_descriptor_aggregation_type=LocalDescriptorAggregationType.VLAD,
+        local_descriptor_aggregation_type=LocalDescriptorAggregationType.DBOW3,
         vocabulary_data=dbow3_orb_vocabulary_factory(),
     )  # Must be a vocabulary built with the adopted local descriptor type
 

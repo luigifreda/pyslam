@@ -186,6 +186,14 @@ fi
 
 cd $ROOT_DIR
 
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/depth_anything_v3 ..."
+$SCRIPTS_DIR/install_depth_anything_v3.sh
+
+cd $ROOT_DIR
+
+
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/raft_stereo ..."
 

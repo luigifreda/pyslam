@@ -25,7 +25,7 @@ def img_from_depth(img_flt, img_max=None, img_min=None, eps=1e-9):
     assert img_flt.dtype in [np.float32, np.float64, np.float16, np.double, np.single]
     img_max = np.max(img_flt) if img_max is None else img_max
     img_min = np.min(img_flt) if img_min is None else img_min
-    if img_max is not None or img is not None:
+    if img_max is not None or img_min is not None:
         img_flt = np.clip(img_flt, img_min, img_max)
     img_range = img_max - img_min
     if img_range < eps:
@@ -38,12 +38,21 @@ class PointCloud:
     def __init__(self, points=None, colors=None, semantics=None, instance_ids=None):
         self.points = points  # array Nx3
         self.colors = colors  # array Nx3
-        self.semantics = semantics  # array Nx1
+        self.semantics = semantics  # array Nx1 (or NxD where D is the semantic dimension)
         self.instance_ids = instance_ids  # array Nx1
 
 
 def depth2pointcloud(
-    depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, semantic_image=None, instance_image=None
+    depth,
+    image,
+    fx,
+    fy,
+    cx,
+    cy,
+    max_depth=np.inf,
+    min_depth=0.0,
+    semantic_image=None,
+    instance_image=None,
 ):
     """
     Convert depth image and color image to point cloud.
@@ -62,14 +71,14 @@ def depth2pointcloud(
     rows, cols = np.where(valid)
     x = (cols - cx) * z * inv_fx
     y = (rows - cy) * z * inv_fy
-    points = np.column_stack([x, y, z])
+    points = np.column_stack([x, y, z])  # [N, 3] in camera coordinates
     # colors corresponding to valid depth values
     colors = image[valid] / 255.0
-    if semantic_image is not None:
+    if semantic_image is not None and semantic_image.size > 0:
         semantics = semantic_image[valid]
     else:
         semantics = None
-    if instance_image is not None:
+    if instance_image is not None and instance_image.size > 0:
         instance_ids = instance_image[valid]
     else:
         instance_ids = None

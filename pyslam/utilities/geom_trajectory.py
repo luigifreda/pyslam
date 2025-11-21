@@ -281,9 +281,9 @@ def find_poses_associations(
 class TrajectoryAlignementData:
     def __init__(
         self,
-        timestamps_associations=[],
-        estimated_t_wi=[],
-        gt_t_wi=[],
+        timestamps_associations=None,
+        estimated_t_wi=None,
+        gt_t_wi=None,
         T_gt_est=None,
         T_est_gt=None,
         rms_error=-1.0,
@@ -296,15 +296,19 @@ class TrajectoryAlignementData:
         # gt_t_wi [Nx3]             =>  gt_t_wi[i] corresponds to estimated_t_wi[i] at timestamps_associations[i]
         # T_gt_est [4x4]
         # T_est_gt [4x4]
-        self.timestamps_associations = timestamps_associations
-        self.estimated_t_wi = estimated_t_wi
-        self.gt_t_wi = gt_t_wi
+        self.timestamps_associations = (
+            timestamps_associations if timestamps_associations is not None else []
+        )
+        self.estimated_t_wi = estimated_t_wi if estimated_t_wi is not None else []
+        self.gt_t_wi = gt_t_wi if gt_t_wi is not None else []
         self.T_gt_est = T_gt_est
         self.T_est_gt = T_est_gt
         self.rms_error = rms_error  # average alignment error
         self.max_error = max_error  # max alignement error
         self.is_est_aligned = is_est_aligned  # is estimated traj aligned?
-        self.num_associations = len(timestamps_associations)
+        self.num_associations = (
+            len(timestamps_associations) if timestamps_associations is not None else 0
+        )
         #
         self.gt_trajectory_aligned = None
         self.gt_trajectory_aligned_associated = None

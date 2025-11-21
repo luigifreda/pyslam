@@ -49,6 +49,13 @@ except ImportError:
         "DepthEstimatorDepthAnythingV2",
     )
 try:
+    from .depth_estimator_depth_anything_v3 import DepthEstimatorDepthAnythingV3
+except ImportError:
+    DepthEstimatorDepthAnythingV3 = import_from(
+        "pyslam.depth_estimation.depth_estimator_depth_anything_v3",
+        "DepthEstimatorDepthAnythingV3",
+    )
+try:
     from .depth_estimator_raft_stereo import DepthEstimatorRaftStereo
 except ImportError:
     DepthEstimatorRaftStereo = import_from(
@@ -89,6 +96,7 @@ class DepthEstimatorType(SerializableEnum):
     DEPTH_MVDUST3R = (
         7  # "MV-DUSt3R+: Single-Stage Scene Reconstruction from Sparse Views In 2 Seconds"
     )
+    DEPTH_ANYTHING_V3 = 8  # "Depth Anything V3" [Monocular]
 
     @staticmethod
     def from_string(name: str):
@@ -183,6 +191,15 @@ def depth_estimator_factory(
             min_depth=min_depth,
             max_depth=max_depth,
             dataset_env_type=dataset_env_type,
+        )
+    elif depth_estimator_type == DepthEstimatorType.DEPTH_ANYTHING_V3:
+        return DepthEstimatorDepthAnythingV3(
+            device=device,
+            camera=camera,
+            min_depth=min_depth,
+            max_depth=max_depth,
+            dataset_env_type=dataset_env_type,
+            precision=precision,
         )
     else:
         raise ValueError(f"Invalid depth estimator type: {depth_estimator_type}")

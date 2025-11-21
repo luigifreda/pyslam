@@ -64,8 +64,6 @@ class SemanticMappingType(SerializableEnum):
     DENSE = 0  # Pixel-wise segmentation to points maps
 
 
-# TODO(dvdmc): some missing features are:
-# - Warm start when loading a new local map (not tested)
 class SemanticMappingBase:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
 
@@ -370,5 +368,3 @@ class SemanticMappingBase:
                     f"semantic prediction values out of int32 range [{vmin}, {vmax}], keeping dtype {prediction.dtype}"
                 )
         return prediction, is_cast_to_int32_safe
-
-    # TODO(dvdmc): Missing save and load functions

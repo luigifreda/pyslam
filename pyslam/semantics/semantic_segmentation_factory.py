@@ -84,7 +84,7 @@ class SemanticSegmentationType(SerializableEnum):
     DEEPLABV3 = 0  # Semantics from torchvision DeepLab's v3
     SEGFORMER = 1  # Semantics from transformer's Segformer
     CLIP = 2  # Semantics from CLIP's segmentation head
-    EOV_SEG = 3  # Semantics from EOV-Seg (Open Vocabulary Segmentation)
+    EOV_SEG = 3  # Semantics from EOV-Seg (Efficient Open Vocabulary Segmentation)
     DETIC = 4  # Semantics from Detic (Detecting Twenty-thousand Classes)
     ODISE = 5  # Semantics from ODISE (Open-vocabulary DIffusion-based panoptic SEgmentation)
 

@@ -855,7 +855,7 @@ class Map(object):
         rounds=10,
         use_robust_kernel=False,
         do_cull_points=False,
-        abort_flag=g2o.Flag(),
+        abort_flag=None,
     ):
         """
         Optimize pixel reprojection error, bundle adjustment.
@@ -863,6 +863,9 @@ class Map(object):
         - mean_squared_error
         - result_dict: filled dictionary with the updates of the keyframes and points if provided in the input
         """
+        if abort_flag is None:
+            abort_flag = g2o.Flag()
+
         if Parameters.kOptimizationBundleAdjustUseGtsam:
             bundle_adjustment_fun = optimizer_gtsam.bundle_adjustment
         else:
@@ -883,7 +886,7 @@ class Map(object):
 
     # local BA: only local keyframes and local points are adjusted
     def locally_optimize(
-        self, kf_ref, verbose=False, rounds=10, abort_flag=g2o.Flag(), mp_abort_flag=None
+        self, kf_ref, verbose=False, rounds=10, abort_flag=None, mp_abort_flag=None
     ):
         """
         Local bundle adjustment (optimize points reprojection error)
@@ -893,6 +896,10 @@ class Map(object):
         from .local_mapping import LocalMapping
 
         print = LocalMapping.print
+
+        if abort_flag is None:
+            abort_flag = g2o.Flag()
+
         try:
             keyframes, points, ref_keyframes = self.local_map.update(kf_ref)
             print("local optimization window: ", sorted([kf.id for kf in keyframes]))
@@ -935,7 +942,9 @@ class Map(object):
             print(f"\t traceback details: {traceback_details}")
             return -1
 
-    def to_json(self, out_json={}):
+    def to_json(self, out_json=None):
+        if out_json is None:
+            out_json = {}
         with self._lock:
             with self.update_lock:
                 # static stuff

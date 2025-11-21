@@ -566,25 +566,26 @@ class Viewer3D(object):
         if last_dense_state is not None:
             self.dense_state = last_dense_state
 
-        if self.dense_state is not None:
-            # update the camera images buffer
-            self.camera_images.clear()
-            for cam in self.dense_state.camera_images:
-                if not isinstance(cam, VizCameraImage):
-                    Printer.red(
-                        f"Viewer3D: viewer_refresh - camera_images should be a list of VizCameraImage objects - found cam of type: {type(cam)}"
+            if self.dense_state is not None:
+                # Update the dense state with the last received dense state
+                # update the camera images buffer
+                self.camera_images.clear()
+                for cam in self.dense_state.camera_images:
+                    if not isinstance(cam, VizCameraImage):
+                        Printer.red(
+                            f"Viewer3D: viewer_refresh - camera_images should be a list of VizCameraImage objects - found cam of type: {type(cam)}"
+                        )
+                        continue
+                    # print(f'Viewer3D: viewer_refresh - adding camera image with id: {cam.id}, scale: {cam.scale}, Twc: {cam.Twc}, image.shape: {cam.image.shape}, image.dtype: {cam.image.dtype}')
+                    self.camera_images.add(
+                        image=cam.image,
+                        pose=cam.Twc,
+                        id=cam.id,
+                        scale=cam.scale,
+                        h_ratio=cam.h_ratio,
+                        z_ratio=cam.z_ratio,
+                        color=cam.color,
                     )
-                    continue
-                # print(f'Viewer3D: viewer_refresh - adding camera image with id: {cam.id}, scale: {cam.scale}, Twc: {cam.Twc}, image.shape: {cam.image.shape}, image.dtype: {cam.image.dtype}')
-                self.camera_images.add(
-                    image=cam.image,
-                    pose=cam.Twc,
-                    id=cam.id,
-                    scale=cam.scale,
-                    h_ratio=cam.h_ratio,
-                    z_ratio=cam.z_ratio,
-                    color=cam.color,
-                )
 
         last_camera_trajectories_state = get_last_item_from_queue(qcams)
         if last_camera_trajectories_state is not None:
@@ -964,9 +965,11 @@ class Viewer3D(object):
     #   point_cloud: o3d.geometry.PointCloud or VolumetricIntegrationPointCloud (see the file volumetric_integrator.py)
     #   mesh: o3d.geometry.TriangleMesh or VolumetricIntegrationMesh (see the file volumetric_integrator.py)
     #   camera_images: list of VizCameraImage objects
-    def draw_dense_geometry(self, point_cloud=None, mesh=None, camera_images=[]):
+    def draw_dense_geometry(self, point_cloud=None, mesh=None, camera_images=None):
         if self.qdense is None:
             return
+        if camera_images is None:
+            camera_images = []
         dense_state = Viewer3DDenseInput()
         if mesh is not None:
             dense_state.mesh = (
@@ -978,11 +981,14 @@ class Viewer3D(object):
             if point_cloud is not None:
                 points = np.array(point_cloud.points)
                 colors = np.array(point_cloud.colors)
-                semantic_colors = (
-                    np.array(point_cloud.semantic_colors)
-                    if point_cloud.semantic_colors is not None
-                    else None
-                )
+                if hasattr(point_cloud, "semantic_colors"):
+                    semantic_colors = (
+                        np.array(point_cloud.semantic_colors)
+                        if point_cloud.semantic_colors is not None
+                        else None
+                    )
+                else:
+                    semantic_colors = None
                 print(
                     f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
                 )

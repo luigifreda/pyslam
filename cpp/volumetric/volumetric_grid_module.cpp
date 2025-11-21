@@ -286,6 +286,15 @@ namespace py = pybind11;
                 }                                                                                  \
             },                                                                                     \
             "Clear the voxel grid")                                                                \
+        .def(                                                                                      \
+            "reset",                                                                               \
+            [](CLASS_TYPE &self) {                                                                 \
+                {                                                                                  \
+                    py::gil_scoped_release release;                                                \
+                    self.clear();                                                                  \
+                }                                                                                  \
+            },                                                                                     \
+            "Reset the voxel grid, same as clear()")                                               \
         .def("size", &CLASS_TYPE::size, "Returns the size of the voxel grid")                      \
         .def("empty", &CLASS_TYPE::empty, "Returns True if the voxel grid is empty");
 
@@ -410,7 +419,24 @@ namespace py = pybind11;
                 return colors;                                                                     \
             },                                                                                     \
             "Returns the colors")                                                                  \
-        .def("clear", &CLASS_TYPE::clear, "Clear the voxel grid")                                  \
+        .def(                                                                                      \
+            "clear",                                                                               \
+            [](CLASS_TYPE &self) {                                                                 \
+                {                                                                                  \
+                    py::gil_scoped_release release;                                                \
+                    self.clear();                                                                  \
+                }                                                                                  \
+            },                                                                                     \
+            "Clear the voxel grid")                                                                \
+        .def(                                                                                      \
+            "reset",                                                                               \
+            [](CLASS_TYPE &self) {                                                                 \
+                {                                                                                  \
+                    py::gil_scoped_release release;                                                \
+                    self.clear();                                                                  \
+                }                                                                                  \
+            },                                                                                     \
+            "Reset the voxel grid, same as clear()")                                               \
         .def("size", &CLASS_TYPE::size, "Returns the size of the voxel grid")                      \
         .def("empty", &CLASS_TYPE::empty, "Returns True if the voxel grid is empty")
 

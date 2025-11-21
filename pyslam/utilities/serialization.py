@@ -387,14 +387,18 @@ class NumpyB64Json:
 
     # Serialize map id -> dense numpy array
     @staticmethod
-    def map_id2img_to_json(map_obj, output={}):
+    def map_id2img_to_json(map_obj, output=None):
+        if output is None:
+            output = {}
         for k, v in map_obj.items():
             output[k] = NumpyB64Json.numpy_to_json(v)
         return output
 
     # Deserialize map id -> dense numpy array
     @staticmethod
-    def map_id2img_from_json(map_data, output_obj={}):
+    def map_id2img_from_json(map_data, output_obj=None):
+        if output_obj is None:
+            output_obj = {}
         for k, v in map_data.items():
             output_obj[int(k)] = NumpyB64Json.json_to_numpy(v)
         return output_obj

@@ -44,6 +44,7 @@
 #include <tbb/global_control.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_for_each.h>
+#include <tbb/task_arena.h>
 #endif
 
 namespace py = pybind11;
@@ -123,8 +124,10 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
                                   auto [it, inserted] = grid_.insert({key, VoxelDataT()});
                                   auto &v = it->second;
 
-                                  if (inserted) {
-                                      // New voxel: initialize and update
+                                  if (inserted || v.count == 0) {
+                                      // New voxel or reset voxel: initialize and update
+                                      // If count==0, the voxel was reset and should be treated as
+                                      // new
                                       v.update_point(x, y, z);
                                       v.update_color(color_x, color_y, color_z);
                                       v.initialize_semantics(instance_id, class_id);
@@ -159,8 +162,9 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
             auto [it, inserted] = grid_.try_emplace(key);
             auto &v = it->second;
 
-            if (inserted) {
-                // New voxel: initialize and update
+            if (inserted || v.count == 0) {
+                // New voxel or reset voxel: initialize and update
+                // If count==0, the voxel was reset and should be treated as new
                 v.update_point(x, y, z);
                 v.update_color(color_x, color_y, color_z);
                 v.initialize_semantics(instance_id, class_id);
@@ -218,8 +222,10 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
                                   auto [it, inserted] = grid_.insert({key, VoxelDataT()});
                                   auto &v = it->second;
 
-                                  if (inserted) {
-                                      // New voxel: initialize and update
+                                  if (inserted || v.count == 0) {
+                                      // New voxel or reset voxel: initialize and update
+                                      // If count==0, the voxel was reset and should be treated as
+                                      // new
                                       v.update_point(x, y, z);
                                       v.update_color(color_x, color_y, color_z);
                                       v.initialize_semantics(instance_id, class_id);
@@ -251,8 +257,9 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
             auto [it, inserted] = grid_.try_emplace(key);
             auto &v = it->second;
 
-            if (inserted) {
-                // New voxel: initialize and update
+            if (inserted || v.count == 0) {
+                // New voxel or reset voxel: initialize and update
+                // If count==0, the voxel was reset and should be treated as new
                 v.update_point(x, y, z);
                 v.update_color(color_x, color_y, color_z);
                 v.initialize_semantics(instance_id, class_id);
@@ -273,11 +280,14 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     void merge_segments(const int instance_id1, const int instance_id2) {
 #ifdef TBB_FOUND
         // Parallel version using TBB - concurrent_unordered_map is thread-safe
-        tbb::parallel_for_each(grid_.begin(), grid_.end(), [&](auto &pair) {
-            if (pair.second.instance_id == instance_id2) {
-                // concurrent_unordered_map allows safe concurrent modification
-                pair.second.instance_id = instance_id1;
-            }
+        // Use isolate() to prevent deadlock from nested parallelism
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for_each(grid_.begin(), grid_.end(), [&](auto &pair) {
+                if (pair.second.instance_id == instance_id2) {
+                    // concurrent_unordered_map allows safe concurrent modification
+                    pair.second.instance_id = instance_id1;
+                }
+            });
         });
 #else
         // Sequential version
@@ -348,19 +358,22 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         points.reserve(grid_.size());
 #ifdef TBB_FOUND
         // Parallel version: collect keys first, then process in parallel
+        // Use isolate() to prevent deadlock from nested parallelism
         std::vector<VoxelKey> keys;
         keys.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
             keys.push_back(key);
         }
         points.resize(keys.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  points[i] = v.get_position();
-                              }
-                          });
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+                              [&](const tbb::blocked_range<size_t> &range) {
+                                  for (size_t i = range.begin(); i < range.end(); ++i) {
+                                      const auto &v = grid_.at(keys[i]);
+                                      points[i] = v.get_position();
+                                  }
+                              });
+        });
 #else
         // Sequential version
         for (const auto &[key, v] : grid_) {
@@ -376,19 +389,22 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         colors.reserve(grid_.size());
 #ifdef TBB_FOUND
         // Parallel version: collect keys first, then process in parallel
+        // Use isolate() to prevent deadlock from nested parallelism
         std::vector<VoxelKey> keys;
         keys.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
             keys.push_back(key);
         }
         colors.resize(keys.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  colors[i] = v.get_color();
-                              }
-                          });
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+                              [&](const tbb::blocked_range<size_t> &range) {
+                                  for (size_t i = range.begin(); i < range.end(); ++i) {
+                                      const auto &v = grid_.at(keys[i]);
+                                      colors[i] = v.get_color();
+                                  }
+                              });
+        });
 #else
         // Sequential version
         for (const auto &[key, v] : grid_) {
@@ -406,6 +422,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         instance_ids.reserve(grid_.size());
 #ifdef TBB_FOUND
         // Parallel version: collect keys first, then process in parallel
+        // Use isolate() to prevent deadlock from nested parallelism
         std::vector<VoxelKey> keys;
         keys.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
@@ -413,14 +430,16 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         }
         class_ids.resize(keys.size());
         instance_ids.resize(keys.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  class_ids[i] = v.class_id;
-                                  instance_ids[i] = v.instance_id;
-                              }
-                          });
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+                              [&](const tbb::blocked_range<size_t> &range) {
+                                  for (size_t i = range.begin(); i < range.end(); ++i) {
+                                      const auto &v = grid_.at(keys[i]);
+                                      class_ids[i] = v.class_id;
+                                      instance_ids[i] = v.instance_id;
+                                  }
+                              });
+        });
 #else
         // Sequential version
         for (const auto &[key, v] : grid_) {
@@ -436,6 +455,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     get_voxel_data(int min_count = 1) const {
 #ifdef TBB_FOUND
         // Parallel version: collect keys first, filter, then process in parallel
+        // Use isolate() to prevent deadlock from nested parallelism
         std::vector<VoxelKey> keys;
         keys.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
@@ -447,16 +467,18 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         std::vector<std::array<float, 3>> colors(keys.size());
         std::vector<int> class_ids(keys.size());
         std::vector<int> instance_ids(keys.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  points[i] = v.get_position();
-                                  colors[i] = v.get_color();
-                                  class_ids[i] = v.class_id;
-                                  instance_ids[i] = v.instance_id;
-                              }
-                          });
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+                              [&](const tbb::blocked_range<size_t> &range) {
+                                  for (size_t i = range.begin(); i < range.end(); ++i) {
+                                      const auto &v = grid_.at(keys[i]);
+                                      points[i] = v.get_position();
+                                      colors[i] = v.get_color();
+                                      class_ids[i] = v.class_id;
+                                      instance_ids[i] = v.instance_id;
+                                  }
+                              });
+        });
         return {points, colors, class_ids, instance_ids};
 #else
         // Sequential version
@@ -468,17 +490,9 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         class_ids.reserve(grid_.size());
         std::vector<int> instance_ids;
         instance_ids.reserve(grid_.size());
-        if (min_count > 1) {
-            for (const auto &[key, v] : grid_) {
-                if (v.count >= min_count) {
-                    points.push_back(v.get_position());
-                    colors.push_back(v.get_color());
-                    class_ids.push_back(v.class_id);
-                    instance_ids.push_back(v.instance_id);
-                }
-            }
-        } else {
-            for (const auto &[key, v] : grid_) {
+        // Always filter by min_count to exclude reset voxels (count=0) unless explicitly requested
+        for (const auto &[key, v] : grid_) {
+            if (v.count >= min_count) {
                 points.push_back(v.get_position());
                 colors.push_back(v.get_color());
                 class_ids.push_back(v.class_id);

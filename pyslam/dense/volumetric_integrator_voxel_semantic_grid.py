@@ -121,11 +121,20 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
         else:
             self.volume = VoxelSemanticGrid(voxel_size=Parameters.kVolumetricIntegrationVoxelLength)
 
+        if not SemanticMappingShared.is_semantic_mapping_enabled():
+            Printer.red(
+                f"\nVolumetricIntegratorVoxelSemanticGrid: semantic mapping is not enabled -> skipping semantic integration"
+            )
+            Printer.red(
+                f"\tYou can enable semantic mapping by setting the kSemanticSegmentationType parameter in config_parameters.py or select a non-semantic volumetric integrator."
+            )
+
     def volume_integration(
         self,
         q_in,
         q_out,
         q_out_condition,
+        q_management,
         is_running,
         load_request_completed,
         load_request_condition,
@@ -140,6 +149,22 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
         timer.start()
         try:
             if is_running.value == 1:
+
+                self.last_management_task = None
+                try:
+                    self.last_management_task = (
+                        q_management.get_nowait()
+                    )  # non-blocking call to get a new management task for volume integration
+                except:
+                    pass
+                if (
+                    self.last_management_task is not None
+                    and self.last_management_task.task_type == VolumetricIntegrationTaskType.RESET
+                ):
+                    VolumetricIntegratorBase.print(
+                        "VolumetricIntegratorVoxelSemanticGrid: resetting..."
+                    )
+                    self.volume.reset()
 
                 self.last_input_task: VolumetricIntegrationTask = (
                     q_in.get()
@@ -285,8 +310,6 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
 
                         last_output = VolumetricIntegrationOutput(self.last_input_task.task_type)
 
-                    elif self.last_input_task.task_type == VolumetricIntegrationTaskType.RESET:
-                        self.volume.clear()
                     elif (
                         self.last_input_task.task_type
                         == VolumetricIntegrationTaskType.UPDATE_OUTPUT
@@ -314,6 +337,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             )
                             / 255.0
                             if semantics is not None
+                            and SemanticMappingShared.is_semantic_mapping_enabled()
                             else None
                         )
 

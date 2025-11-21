@@ -117,6 +117,12 @@ if __name__ == "__main__":
         datetime_string = None
 
     dataset = dataset_factory(config)
+
+    if Parameters.kUseDepthEstimatorInFrontEnd and dataset.sensor_type == SensorType.MONOCULAR:
+        config.sensor_type = SensorType.RGBD
+        dataset.sensor_type = SensorType.RGBD
+        dataset.scale_viewer_3d = 0.5
+
     is_monocular = dataset.sensor_type == SensorType.MONOCULAR
     num_total_frames = dataset.num_frames
 
@@ -214,7 +220,7 @@ if __name__ == "__main__":
     if Parameters.kUseDepthEstimatorInFrontEnd:
         Parameters.kVolumetricIntegrationUseDepthEstimator = False  # Just use this depth estimator in the front-end (This is not a choice, we are imposing it for avoiding computing the depth twice)
         # Select your depth estimator (see the file depth_estimator_factory.py)
-        # DEPTH_ANYTHING_V2, DEPTH_PRO, DEPTH_RAFT_STEREO, DEPTH_SGBM, etc.
+        # DEPTH_ANYTHING_V2, DEPTH_ANYTHING_V3, DEPTH_PRO, DEPTH_RAFT_STEREO, DEPTH_SGBM, etc.
         depth_estimator_type = DepthEstimatorType.DEPTH_PRO
         max_depth = 20
         depth_estimator = depth_estimator_factory(
@@ -380,14 +386,13 @@ if __name__ == "__main__":
                 if args.headless:
                     break  # exit from the loop if headless
 
-            # 3D display (map display)
-            if viewer3D:
-                # TODO(dvdmc): add semantics
-                viewer3D.draw_dense_map(slam)
-
         else:
             time.sleep(0.1)  # pause or do step on GUI
             # Printer.yellow("sleeping for 0.1 seconds - GUI paused")
+
+        # 3D display (map display)
+        if viewer3D:
+            viewer3D.draw_dense_map(slam)
 
         if not args.headless:
             # get keys
@@ -442,6 +447,8 @@ if __name__ == "__main__":
 
         if key == "q" or (key_cv == ord("q") or key_cv == 27):  # press 'q' or ESC for quitting
             break
+
+    # exit from the main loop
 
     # here we save the online estimated trajectory
     if online_trajectory_writer:

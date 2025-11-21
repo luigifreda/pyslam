@@ -19,6 +19,7 @@
 
 import os
 import time
+import threading
 import torch.multiprocessing as mp
 
 import cv2
@@ -247,12 +248,12 @@ class VolumetricIntegratorBase:
         self.sensor_type = sensor_type
 
         self.keyframe_queue_timer = SimpleTaskTimer(
-            interval=1,
+            interval=0.5,  # NOTE: This is the interval in seconds for flushing the keyframe queue.
             callback=self.flush_keyframe_queue,
             single_shot=False,
             name="KeyframeQueueTimer",
         )
-        # self.keyframe_queue_lock = mp.Lock()
+        self.keyframe_queue_lock = threading.Lock()  # Thread-safe access to keyframe_queue
         self.keyframe_queue = (
             deque()
         )  # We use a deque to accumulate keyframes for volumetric integration.
@@ -279,8 +280,15 @@ class VolumetricIntegratorBase:
 
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
         self.mp_manager = MultiprocessingManager()
-        self.q_in = self.mp_manager.Queue()
-        self.q_out = self.mp_manager.Queue()
+        self.q_in = (
+            self.mp_manager.Queue()
+        )  # This queue is used for regular tasks of the volumetric integration process (e.g., integrate, update output, save, etc.)
+        self.q_out = (
+            self.mp_manager.Queue()
+        )  # This queue is used for output tasks of the volumetric integration process (e.g., visualize, save, etc.)
+        self.q_management = (
+            self.mp_manager.Queue()
+        )  # This queue is used for special management tasks of the volumetric integration process (e.g., reset, rebuild, etc.)
 
         # NOTE: The Parameters static fields are not sinced in the parallel process launched below (which has its own memory space).
         #       Here we explicitly copy the current state at _initialization time_ and pass it to the parallel process.
@@ -288,7 +296,9 @@ class VolumetricIntegratorBase:
         self.parameters_dict = self.mp_manager.Dict()
         self.parameters_dict = static_fields_to_dict(Parameters)
 
-        self.q_in_condition = mp.Condition()
+        self.q_in_condition = (
+            mp.Condition()
+        )  # Shared condition for self.q_in and self.q_management queues
         self.q_out_condition = mp.Condition()
 
         self.is_running = mp.Value("i", 0)
@@ -346,12 +356,16 @@ class VolumetricIntegratorBase:
         # Remove from the state the things you don't want to pickle
         if "keyframe_queue_timer" in state:
             del state["keyframe_queue_timer"]
+        if "keyframe_queue_lock" in state:
+            del state["keyframe_queue_lock"]
         return state
 
     def __setstate__(self, state):
         # Restore the state (without 'lock' initially)
         self.__dict__.update(state)
         # Recreate the lock after unpickling
+        if not hasattr(self, "keyframe_queue_lock"):
+            self.keyframe_queue_lock = threading.Lock()
         # self.keyframe_queue_timer = SimpleTaskTimer(interval=1, callback=self.flush_keyframe_queue, single_shot=False)
 
     def start(self):
@@ -366,6 +380,7 @@ class VolumetricIntegratorBase:
                 self.q_in_condition,
                 self.q_out,
                 self.q_out_condition,
+                self.q_management,
                 self.is_running,
                 self.is_looping,
                 self.reset_mutex,
@@ -437,7 +452,8 @@ class VolumetricIntegratorBase:
                 if self.reset_requested.value == 0:
                     break
             time.sleep(0.1)
-        self.keyframe_queue.clear()
+        with self.keyframe_queue_lock:
+            self.keyframe_queue.clear()
         VolumetricIntegratorBase.print("VolumetricIntegratorBase: ...Reset done.")
 
     def reset_if_requested(
@@ -586,6 +602,7 @@ class VolumetricIntegratorBase:
         q_in_condition,
         q_out,
         q_out_condition,
+        q_management,
         is_running,
         is_looping,
         reset_mutex,
@@ -606,14 +623,28 @@ class VolumetricIntegratorBase:
         # main loop
         while is_running.value == 1:
             try:
+                # Check if we have management tasks or regular tasks to process
+                has_management_task = not q_management.empty()
+                has_regular_task = not q_in.empty()
 
                 with q_in_condition:
-                    while q_in.empty() and is_running.value == 1 and reset_requested.value != 1:
+                    # Wait only if both q_in and q_management queues are empty and reset is not requested
+                    while (
+                        not has_management_task
+                        and not has_regular_task
+                        and is_running.value == 1
+                        and reset_requested.value != 1
+                    ):
                         VolumetricIntegratorBase.print(
                             "VolumetricIntegratorBase: waiting for new task..."
                         )
                         q_in_condition.wait()
-                if not q_in.empty():
+                        # Re-check queues after wait
+                        has_management_task = not q_management.empty()
+                        has_regular_task = not q_in.empty()
+
+                # Process tasks if available
+                if has_regular_task or has_management_task:
                     # check q_in size and dump a warn message if it is too big
                     q_in_size = q_in.qsize()
                     if q_in_size >= 10:
@@ -625,6 +656,7 @@ class VolumetricIntegratorBase:
                         q_in,
                         q_out,
                         q_out_condition,
+                        q_management,
                         is_running,
                         load_request_completed,
                         load_request_condition,
@@ -632,10 +664,10 @@ class VolumetricIntegratorBase:
                         save_request_condition,
                         time_volumetric_integration,
                     )
-
                 else:
                     VolumetricIntegratorBase.print("VolumetricIntegratorBase: q_in is empty...")
                     time.sleep(0.1)  # sleep for a bit before checking the queue again
+
                 self.reset_if_requested(
                     reset_mutex, reset_requested, q_in, q_in_condition, q_out, q_out_condition
                 )
@@ -727,6 +759,7 @@ class VolumetricIntegratorBase:
         q_in,
         q_out,
         q_out_condition,
+        q_management,
         is_running,
         load_request_completed,
         load_request_condition,
@@ -735,53 +768,77 @@ class VolumetricIntegratorBase:
         time_volumetric_integration,
     ):
         # to be overridden in the derived classes
-        pass
+        raise NotImplementedError(
+            "Volume integration is not implemented for this volumetric integrator"
+        )
 
     # called by add_keyframe() and periodically by the keyframe_queue_timer
     def flush_keyframe_queue(self):
         # iterate over the keyframe queue and flush the keyframes into the task queue
-        # Lock-free pattern using only atomic deque ops (popleft/rotate)
-        max_checks = len(self.keyframe_queue)
-        for _ in range(max_checks):
-            try:
-                kf_to_process = self.keyframe_queue[0]
-            except IndexError:
-                break
-
-            # If semantic mapping is enabled and the keyframe has no semantic image, wait for it so we can process it during volumetric integration
-            wait_for_semantic_mapping = False
-            if SemanticMappingShared.is_semantic_mapping_enabled():
-                if not kf_to_process.is_semantics_available():
-                    wait_for_semantic_mapping = True
+        # Thread-safe pattern using lock to protect concurrent access
+        verbose = False
+        with self.keyframe_queue_lock:
+            if len(self.keyframe_queue) == 0:
+                if verbose:
                     VolumetricIntegratorBase.print(
-                        f"VolumetricIntegratorBase: flush_keyframe_queue: waiting for semantic mapping for keyframe {kf_to_process.id} (kid: {kf_to_process.kid})"
+                        "VolumetricIntegratorBase: flush_keyframe_queue: keyframe queue is empty"
                     )
-                else:
-                    VolumetricIntegratorBase.print(
-                        f"VolumetricIntegratorBase: flush_keyframe_queue: keyframe {kf_to_process.id} (kid: {kf_to_process.kid}) has semantic image {kf_to_process.semantic_img.shape}"
-                    )
+                return
 
-            # We integrate only the keyframes that have been processed by LBA at least once.
-            if (
-                kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes
-                and not wait_for_semantic_mapping
-            ):
-                # Remove from queue and schedule task
+            # Process all items currently in the queue, but limit iterations to prevent infinite loops
+            # if all items keep rotating without meeting criteria
+            max_checks = len(self.keyframe_queue)
+            processed_count = 0
+
+            while processed_count < max_checks and len(self.keyframe_queue) > 0:
                 try:
-                    self.keyframe_queue.popleft()
+                    kf_to_process = self.keyframe_queue[0]
                 except IndexError:
+                    VolumetricIntegratorBase.print(
+                        "VolumetricIntegratorBase: flush_keyframe_queue: IndexError: keyframe queue is empty"
+                    )
                     break
-                VolumetricIntegratorBase.print(
-                    f"VolumetricIntegratorBase: Adding integration task with keyframe id: {kf_to_process.id} (kid: {kf_to_process.kid})"
-                )
-                task_type = VolumetricIntegrationTaskType.INTEGRATE
-                task = VolumetricIntegrationTask(kf_to_process, task_type=task_type)
-                self.add_task(task)
-            else:
-                # Move the current head to the tail to examine others next
-                if len(self.keyframe_queue) == 0:
-                    break
-                self.keyframe_queue.rotate(-1)
+
+                # If semantic mapping is enabled and the keyframe has no semantic image, wait for it so we can process it during volumetric integration
+                wait_for_semantic_mapping = False
+                if SemanticMappingShared.is_semantic_mapping_enabled():
+                    if not kf_to_process.is_semantics_available():
+                        wait_for_semantic_mapping = True
+                        VolumetricIntegratorBase.print(
+                            f"VolumetricIntegratorBase: flush_keyframe_queue: waiting for semantic mapping for keyframe {kf_to_process.id} (kid: {kf_to_process.kid})"
+                        )
+                    else:
+                        VolumetricIntegratorBase.print(
+                            f"VolumetricIntegratorBase: flush_keyframe_queue: keyframe {kf_to_process.id} (kid: {kf_to_process.kid}) has semantic image {kf_to_process.semantic_img.shape}"
+                        )
+
+                # We integrate only the keyframes that have been processed by LBA at least once.
+                if (
+                    kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes
+                    and not wait_for_semantic_mapping
+                ):
+                    # Remove from queue and schedule task
+                    try:
+                        self.keyframe_queue.popleft()
+                        processed_count += 1
+                    except IndexError:
+                        break
+                    # Release lock before adding task to avoid holding lock during potentially slow operation
+                    kf_to_add = kf_to_process
+                    task_type = VolumetricIntegrationTaskType.INTEGRATE
+                    task = VolumetricIntegrationTask(kf_to_add, task_type=task_type)
+                    VolumetricIntegratorBase.print(
+                        f"VolumetricIntegratorBase: Adding integration task with keyframe id: {kf_to_add.id} (kid: {kf_to_add.kid})"
+                    )
+                    # Add task outside the lock to avoid blocking other threads
+                    self.add_task(task)
+                else:
+                    # Move the current head to the tail to examine others next
+                    if len(self.keyframe_queue) <= 1:
+                        # Only one item left, no point in rotating
+                        break
+                    self.keyframe_queue.rotate(-1)
+                    processed_count += 1
 
     def add_keyframe(self, keyframe: KeyFrame, img, img_right, depth, print=print):
         VolumetricIntegratorBase.print(
@@ -797,7 +854,9 @@ class VolumetricIntegratorBase:
         try:
             # We accumulate the keyframe in a queue.
             # We integrate only the keyframes that have been processed by LBA at least once.
-            self.keyframe_queue.append(keyframe)
+            with self.keyframe_queue_lock:
+                self.keyframe_queue.append(keyframe)
+            # Flush outside the lock to avoid deadlock (flush_keyframe_queue will acquire the lock)
             self.flush_keyframe_queue()
 
         except Exception as e:
@@ -838,21 +897,59 @@ class VolumetricIntegratorBase:
             f"VolumetricIntegratorBase: rebuild() rebuilding volumetric mapping..."
         )
         if self.is_running.value == 1:
-            task = VolumetricIntegrationTask(task_type=VolumetricIntegrationTaskType.RESET)
-            self.add_task(task)
+            # Clear the task queue first to ensure RESET is processed before any INTEGRATE tasks
+            # that might be added by flush_keyframe_queue(). This prevents RESET from being postponed.
+            with self.q_in_condition:
+                empty_queue(self.q_in)
+                VolumetricIntegratorBase.print(
+                    "VolumetricIntegratorBase: rebuild() cleared task queue before adding RESET task"
+                )
 
-            self.keyframe_queue.clear()
-            for kf in map.keyframes:
-                if (
-                    not kf.is_bad()
-                    and kf.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes
-                ):
-                    if kf.depth_img is None:
+            task = VolumetricIntegrationTask(task_type=VolumetricIntegrationTaskType.RESET)
+            # Add to management queue and notify using q_in_condition (shared for both q_in and q_management queues)
+            try:
+                with self.q_in_condition:
+                    self.q_management.put(task, timeout=1.0)
+                    self.q_in_condition.notify_all()  # Wake up worker to process management task
+            except Exception as e:
+                VolumetricIntegratorBase.print(
+                    f"VolumetricIntegratorBase: rebuild: EXCEPTION: q_management.put(task): {e} !!!"
+                )
+                if kPrintTrackebackDetails:
+                    traceback_details = traceback.format_exc()
+                    VolumetricIntegratorBase.print(f"\t traceback details: {traceback_details}")
+
+            # Wait for the RESET task to be processed with timeout
+            max_wait_time = 5.0  # seconds
+            wait_start = time.time()
+            while self.is_running.value == 1 and not self.q_management.empty():
+                if time.time() - wait_start > max_wait_time:
+                    VolumetricIntegratorBase.print(
+                        f"VolumetricIntegratorBase: rebuild() WARNING: Timeout waiting for RESET task. "
+                        f"Queue may still contain management tasks."
+                    )
+                    break
+                time.sleep(0.1)
+
+            # Add all the map keyframes to the queue for re-integration
+            with self.keyframe_queue_lock:
+                self.keyframe_queue.clear()
+                for kf in map.keyframes:
+                    if (
+                        not kf.is_bad()
+                        and kf.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes
+                    ):
+                        if kf.depth_img is None:
+                            VolumetricIntegratorBase.print(
+                                f"VolumetricIntegratorBase: rebuild: depth is None -> skipping frame {kf.id}"
+                            )
+                            continue
+                        self.keyframe_queue.append(kf)
+                    else:
                         VolumetricIntegratorBase.print(
-                            f"VolumetricIntegratorBase: rebuild: depth is None -> skipping frame {kf.id}"
+                            f"VolumetricIntegratorBase: rebuild: keyframe {kf.id} (kid: {kf.kid}) is bad or has not been processed by LBA at least once -> skipping"
                         )
-                        continue
-                    self.keyframe_queue.append(kf)
+            # Flush outside the lock to avoid deadlock
             self.flush_keyframe_queue()
 
     def pop_output(

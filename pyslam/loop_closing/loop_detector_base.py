@@ -99,10 +99,15 @@ class LoopDetectorTask:
         keyframe: KeyFrame,
         img,
         task_type=LoopDetectorTaskType.NONE,
-        covisible_keyframes=[],
-        connected_keyframes=[],
+        covisible_keyframes=None,
+        connected_keyframes=None,
         load_save_path=None,
     ):
+        if covisible_keyframes is None:
+            covisible_keyframes = []
+        if connected_keyframes is None:
+            connected_keyframes = []
+
         self.task_type = task_type
         self.keyframe_data = LoopDetectKeyframeData(keyframe, img)
         self.covisible_keyframes_data = [
@@ -129,14 +134,23 @@ class LoopDetectorOutput:
     def __init__(
         self,
         task_type,
-        candidate_idxs=[],
-        candidate_scores=[],
+        candidate_idxs=None,
+        candidate_scores=None,
         g_des_vec=None,
         frame_id=None,
         img=None,
-        covisible_ids=[],
-        covisible_gdes_vecs=[],
+        covisible_ids=None,
+        covisible_gdes_vecs=None,
     ):
+        if candidate_idxs is None:
+            candidate_idxs = []
+        if candidate_scores is None:
+            candidate_scores = []
+        if covisible_ids is None:
+            covisible_ids = []
+        if covisible_gdes_vecs is None:
+            covisible_gdes_vecs = []
+
         self.task_type = task_type
         # candidates information + input keyframe data
         self.candidate_idxs = candidate_idxs

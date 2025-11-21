@@ -614,11 +614,11 @@ def pose_optimization(frame, verbose=False, rounds=10):
 def local_bundle_adjustment(
     keyframes: list[KeyFrame],
     points: list[MapPoint],
-    keyframes_ref: list[KeyFrame] = [],
+    keyframes_ref: list[KeyFrame] | None = None,
     fixed_points: bool = False,
     verbose: bool = False,
     rounds: int = 10,
-    abort_flag: g2o.Flag = g2o.Flag(),
+    abort_flag: g2o.Flag | None = None,
     mp_abort_flag=None,
     map_lock=None,
 ):
@@ -631,6 +631,12 @@ def local_bundle_adjustment(
     from .local_mapping import LocalMapping
 
     print = LocalMapping.print
+
+    if abort_flag is None:
+        abort_flag = g2o.Flag()
+
+    if keyframes_ref is None:
+        keyframes_ref = []
 
     # create g2o optimizer
     opt = g2o.SparseOptimizer()
@@ -1080,17 +1086,23 @@ def lba_optimization_process(
 def local_bundle_adjustment_parallel(
     keyframes,
     points,
-    keyframes_ref=[],
+    keyframes_ref=None,
     fixed_points=False,
     verbose=False,
     rounds=10,
-    abort_flag=g2o.Flag(),
+    abort_flag=None,
     mp_abort_flag=None,
     map_lock=None,
 ):
     from .local_mapping import LocalMapping
 
     print = LocalMapping.print
+
+    if keyframes_ref is None:
+        keyframes_ref = []
+
+    if abort_flag is None:
+        abort_flag = g2o.Flag()
 
     # NOTE: we need a keyframe map (kf.id->kf) in order to be able retrieve and discard the outlier-edge keyframes after optimization
     good_keyframes = {kf.kid: kf for kf in keyframes if not kf.is_bad()}

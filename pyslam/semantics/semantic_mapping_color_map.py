@@ -130,7 +130,7 @@ class SemanticMappingColorMap:
             return labels_to_image(np.argmax(semantic_img, axis=-1), self.color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
             # Transform semantic to tensor
-            # TODO(dvdmc): check if doing these operations (and functions below) in CPU is more efficient (it probably is)
+            # TODO: check if doing these operations (and functions below) in CPU is more efficient (it probably is)
             semantics = torch.from_numpy(semantic_img).to(self.device)
             # Convert text_embs to tensor if needed
             if isinstance(self.text_embs, np.ndarray):

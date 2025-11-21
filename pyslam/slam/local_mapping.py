@@ -482,7 +482,6 @@ class LocalMapping:
             )
 
         if self.slam.semantic_mapping is not None and self.kf_cur is not None:
-            # TODO(dvdmc) do we need to wait_idle here?
             LocalMapping.print("pushing new keyframe to semantic mapping...")
             self.slam.semantic_mapping.push_keyframe(
                 self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur
