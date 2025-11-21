@@ -88,6 +88,6 @@ class DepthEstimatorDepthPro(DepthEstimator):
         # Extract depth and focal length.
         depth_prediction = prediction["depth"]  # Depth in [m].
         # focallength_px = prediction["focallength_px"]  # Focal length in pixels.
-        depth_prediction = depth_prediction.squeeze().cpu().numpy()
+        depth_prediction = depth_prediction.squeeze().cpu().numpy().astype(np.float32)
         self.depth_map = depth_prediction
         return depth_prediction, None

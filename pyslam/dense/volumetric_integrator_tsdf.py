@@ -108,6 +108,7 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
         q_in,
         q_out,
         q_out_condition,
+        q_management,
         is_running,
         load_request_completed,
         load_request_condition,
@@ -122,6 +123,20 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
         timer.start()
         try:
             if is_running.value == 1:
+
+                self.last_management_task = None
+                try:
+                    self.last_management_task = (
+                        q_management.get_nowait()
+                    )  # non-blocking call to get a new management task for volume integration
+                except:
+                    pass
+                if (
+                    self.last_management_task is not None
+                    and self.last_management_task.task_type == VolumetricIntegrationTaskType.RESET
+                ):
+                    VolumetricIntegratorBase.print("VolumetricIntegratorTsdf: resetting...")
+                    self.volume.reset()
 
                 self.last_input_task = (
                     q_in.get()
@@ -211,8 +226,6 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
 
                         last_output = VolumetricIntegrationOutput(self.last_input_task.task_type)
 
-                    elif self.last_input_task.task_type == VolumetricIntegrationTaskType.RESET:
-                        self.volume.reset()
                     elif (
                         self.last_input_task.task_type
                         == VolumetricIntegrationTaskType.UPDATE_OUTPUT

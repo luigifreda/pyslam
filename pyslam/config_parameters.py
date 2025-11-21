@@ -34,7 +34,7 @@ class Parameters:
     # ================================================================
     # C++ core
     # ================================================================
-    USE_CPP_CORE = True  # True: use the C++ core; False: use the Python core
+    USE_CPP_CORE = False  # True: use the C++ core; False: use the Python core
 
     # ================================================================
     # Logs
@@ -270,9 +270,11 @@ class Parameters:
     kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
     # kVolumetricIntegrationType: "VOXEL_GRID", "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID",
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py)
-    kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
+    kVolumetricIntegrationType = "VOXEL_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
-    kVolumetricIntegrationExtractMesh = False  # Extract mesh or point cloud as output
+    kVolumetricIntegrationExtractMesh = (
+        False  # Extract mesh or point cloud as output; only for TSDF
+    )
     kVolumetricIntegrationVoxelLength = 0.015  # [m]
     kVolumetricIntegrationUseVoxelBlocks = True  # Use or not more efficient voxel blocks (indirect hashing to blocks instead of direct voxel hashing) for volumetric integration
     kVolumetricIntegrationBlockSize = 8  # [voxels]
@@ -298,10 +300,13 @@ class Parameters:
     kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
     kVolumetricIntegrationDepthEstimationFilterShadowPoints = True
 
-    # Depth estimator (experimental usage in the front-end, WIP)
+    # ================================================================
+    # Depth estimator in the front-end (EXPERIMENTAL, WIP)
+    # ================================================================
     kUseDepthEstimatorInFrontEnd = (
         False  # To enable/disable depth estimation with monocular front-end.
     )
+
     # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
 

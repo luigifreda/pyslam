@@ -1,20 +1,23 @@
-# PYSLAM C++ Core Module
+# pySLAM C++ Core Module
 
 <!-- TOC -->
 
-- [PYSLAM C++ Core Module](#pyslam-c-core-module)
-  - [Code overview](#code-overview)
-  - [Architecture and Design Goals](#architecture-and-design-goals)
-  - [Core Principles](#core-principles)
+- [pySLAM C++ Core Module](#pyslam-c-core-module)
+    - [1. Code organization and overview](#1-code-organization-and-overview)
+    - [2. Architecture and Design Goals](#2-architecture-and-design-goals)
+    - [3. Core Principles](#3-core-principles)
 
 <!-- /TOC -->
 
 
-This directory contains the **C++ implementations** of the core SLAM classes, exposed to Python via **pybind11** bindings.  
-The module is currently **under active development**.
+This directory contains the **C++ implementations** of the core SLAM classes, exposed to Python via **pybind11** bindings. The system provides a modular **sparse-SLAM core**, implemented in **both Python and C++**, allowing users to switch between high-performance/speed and high-flexibility modes.
+
+The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
+
+To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. The module is currently **under active development**.
 
 
-## Code overview
+## Code organization and overview
 
 ```bash
 ├── pyslam      # Core Python package

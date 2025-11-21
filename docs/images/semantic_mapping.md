@@ -10,11 +10,18 @@ graph LR;
     semantic_segmentation_factory -->|*SemanticSegmentationType*| DEEPLABV3;
     semantic_segmentation_factory -->|*SemanticSegmentationType*| SEGFORMER;
     semantic_segmentation_factory -->|*SemanticSegmentationType*| CLIP;
+    semantic_segmentation_factory -->|*SemanticSegmentationType*| DETIC;
+    semantic_segmentation_factory -->|*SemanticSegmentationType*| ODISE;
+    semantic_segmentation_factory -->|*SemanticSegmentationType*| EOV_SEG;
+
 
     %% Segmentation types create corresponding classes
     DEEPLABV3 -->|*creates*| SemanticSegmentationDeepLabV3;
     SEGFORMER -->|*creates*| SemanticSegmentationSegformer;
     CLIP -->|*creates*| SemanticSegmentationCLIP;
+    DETIC -->|*creates*| SemanticSegmentationDetic;
+    ODISE -->|*creates*| SemanticSegmentationOdise;
+    EOV_SEG -->|*creates*| SemanticSegmentationEovSeg;
 
     %% Each segmentation class --> base
     SemanticSegmentationDeepLabV3 -->|*_is-a_*| SemanticSegmentationBase;
@@ -40,7 +47,13 @@ graph LR;
     class DEEPLABV3 segmentation;
     class SEGFORMER segmentation;
     class CLIP segmentation;
+    class DETIC segmentation;
+    class EOV_SEG segmentation;
+    class ODISE segmentation;
 
+    class SemanticSegmentationDetic segmentation;
+    class SemanticSegmentationEovSeg segmentation;
+    class SemanticSegmentationOdise segmentation;
     class SemanticSegmentationDeepLabV3 segmentation;
     class SemanticSegmentationSegformer segmentation;
     class SemanticSegmentationCLIP segmentation;

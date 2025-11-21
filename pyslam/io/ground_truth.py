@@ -21,13 +21,14 @@ import os
 import sys
 import csv
 import json
+import glob
 import numpy as np
 import traceback
 
 from enum import Enum
 
 from pyslam.utilities.system import Printer
-from pyslam.utilities.geometry import rotmat2qvec, xyzq2Tmat
+from pyslam.utilities.geometry import rotmat2qvec, xyzq2Tmat, quaternion_slerp, interpolate_pose
 from pyslam.utilities.serialization import (
     SerializableEnum,
     register_class,
@@ -43,6 +44,8 @@ kScaleTum = 1.0
 kScaleEuroc = 1.0
 kScaleReplica = 1.0
 kScaleScannet = 1.0
+kScaleSevenScenes = 1.0
+kScaleNeuralRGBD = 1.0
 
 
 @register_class
@@ -56,6 +59,8 @@ class GroundTruthType(SerializableEnum):
     SIMPLE = 7
     SCANNET = 8
     ICL_NUIM = 9
+    SEVEN_SCENES = 10
+    NEURAL_RGBD = 11
 
 
 def groundtruth_factory(settings):
@@ -102,6 +107,14 @@ def groundtruth_factory(settings):
     if type == "scannet":
         return ScannetGroundTruth(
             path, name, associations, start_frame_id, type=GroundTruthType.SCANNET
+        )
+    if type == "seven_scenes" or type == "7scenes":
+        return SevenScenesGroundTruth(
+            path, name, associations, start_frame_id, type=GroundTruthType.SEVEN_SCENES
+        )
+    if type == "neural_rgbd" or type == "neuralrgbd":
+        return NeuralRGBDGroundTruth(
+            path, name, associations, start_frame_id, type=GroundTruthType.NEURAL_RGBD
         )
     if type == "video" or type == "folder":
         if "groundtruth_file" in settings:
@@ -1146,3 +1159,444 @@ class ScannetGroundTruth(GroundTruth):
         else:
             abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp, x, y, z, qx, qy, qz, qw, abs_scale
+
+
+class SevenScenesGroundTruth(GroundTruth):
+    def __init__(
+        self, path, name, associations=None, start_frame_id=0, type=GroundTruthType.SEVEN_SCENES
+    ):
+        super().__init__(path, name, associations, start_frame_id, type)
+        from pyslam.io.dataset import SevenScenesDataset
+
+        self.Ts = SevenScenesDataset.Ts
+        self.scale = kScaleSevenScenes
+        self.base_path = os.path.join(path, name)
+
+        # Handle sequence selection (if associations specifies a sequence, use it; otherwise use all sequences)
+        self.sequence_name = None
+        self.pose_paths = []
+
+        if associations:
+            # If associations is provided, it might specify a sequence (e.g., "seq-01")
+            if associations.startswith("seq-"):
+                self.sequence_name = associations
+            # Or it might be a split file (TrainSplit.txt or TestSplit.txt)
+            elif associations.endswith(".txt"):
+                # Read the split file to get sequence and frame information
+                split_file = os.path.join(self.base_path, associations)
+                if os.path.exists(split_file):
+                    self._load_split_file(split_file)
+                else:
+                    Printer.yellow(f"Split file not found: {split_file}, using all sequences")
+
+        # Find all sequences if not specified
+        if not self.pose_paths:
+            if self.sequence_name is None:
+                # Look for seq-XX folders
+                seq_folders = sorted(glob.glob(os.path.join(self.base_path, "seq-*")))
+                if seq_folders:
+                    # Use the first sequence by default
+                    self.sequence_name = os.path.basename(seq_folders[0])
+                    Printer.green(f"Using sequence: {self.sequence_name}")
+                else:
+                    # If no seq-XX folders, assume poses are directly in base_path
+                    self.sequence_name = ""
+
+            # Find all pose files in the sequence
+            if self.sequence_name:
+                seq_path = os.path.join(self.base_path, self.sequence_name)
+            else:
+                seq_path = self.base_path
+
+            # Find all pose files (frame-XXXXXX.pose.txt)
+            pose_pattern = os.path.join(seq_path, "frame-*.pose.txt")
+            self.pose_paths = sorted(glob.glob(pose_pattern))
+
+        if not self.pose_paths:
+            error_message = (
+                f"ERROR: [SevenScenesGroundTruth] No pose files found in {self.base_path}!"
+            )
+            Printer.red(error_message)
+            sys.exit(error_message)
+
+        # Load all poses
+        self.poses_ = []
+        self.timestamps_ = []
+        self.data = []
+        for i, pose_file in enumerate(self.pose_paths):
+            try:
+                pose = np.loadtxt(pose_file)
+                if pose.shape == (4, 4):
+                    self.poses_.append(pose)
+                    # Extract frame number from filename for timestamp
+                    frame_name = os.path.basename(pose_file).replace(".pose.txt", "")
+                    # Extract number from frame-XXXXXX format
+                    frame_num = int(frame_name.split("-")[-1])
+                    timestamp = frame_num * self.Ts
+                    self.timestamps_.append(timestamp)
+                    self.data.append(pose)
+                else:
+                    Printer.yellow(f"Invalid pose matrix shape in {pose_file}: {pose.shape}")
+            except Exception as e:
+                Printer.red(f"Error reading pose file {pose_file}: {e}")
+
+        self.data = np.ascontiguousarray(self.data)
+        print(f"Number of poses: {len(self.poses_)}")
+        if len(self.poses_) == 0:
+            sys.exit("ERROR while reading groundtruth files!")
+
+    def _load_split_file(self, split_file):
+        """Load sequence and frame information from TrainSplit.txt or TestSplit.txt"""
+        self.pose_paths = []
+        try:
+            with open(split_file, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Format: seq-XX/frame-XXXXXX
+                    parts = line.split("/")
+                    if len(parts) == 2:
+                        seq_name, frame_name = parts
+                        # Construct full path to pose file
+                        pose_path = os.path.join(self.base_path, seq_name, f"{frame_name}.pose.txt")
+                        if os.path.exists(pose_path):
+                            self.pose_paths.append(pose_path)
+                        else:
+                            Printer.yellow(f"Pose file not found: {pose_path}")
+        except Exception as e:
+            Printer.red(f"Error loading split file {split_file}: {e}")
+            self.pose_paths = []
+
+    def getDataLine(self, frame_id):
+        return super().getDataLine(frame_id)
+
+    # return timestamp,x,y,z,scale
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
+        frame_id += self.start_frame_id
+        try:
+            pos_prev = self.poses_[frame_id - 1][0:3, 3] * self.scale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        timestamp = self.timestamps_[frame_id]
+        pos = self.poses_[frame_id][0:3, 3] * self.scale
+        x, y, z = pos[0], pos[1], pos[2]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, abs_scale
+
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id += self.start_frame_id
+        try:
+            pos_prev = self.poses_[frame_id - 1][0:3, 3] * self.scale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        timestamp = self.timestamps_[frame_id]
+        pose = self.poses_[frame_id]
+        x, y, z = pose[0:3, 3] * self.scale
+        # Extract rotation matrix and convert to quaternion
+        R = pose[0:3, 0:3]
+        q = rotmat2qvec(R)  # [qx, qy, qz, qw]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, q[0], q[1], q[2], q[3], abs_scale
+
+
+class NeuralRGBDGroundTruth(GroundTruth):
+    def __init__(
+        self, path, name, associations=None, start_frame_id=0, type=GroundTruthType.NEURAL_RGBD
+    ):
+        super().__init__(path, name, associations, start_frame_id, type)
+        from pyslam.io.dataset import NeuralRGBDDataset
+
+        self.Ts = NeuralRGBDDataset.Ts
+        self.scale = kScaleNeuralRGBD
+        self.base_path = os.path.join(path, name)
+
+        # Determine which poses file to use
+        # Priority: trainval_poses.txt > poses.txt
+        poses_file = os.path.join(self.base_path, "trainval_poses.txt")
+        if not os.path.exists(poses_file):
+            poses_file = os.path.join(self.base_path, "poses.txt")
+
+        if not os.path.exists(poses_file):
+            error_message = (
+                f"ERROR: [NeuralRGBDGroundTruth] Poses file not found in {self.base_path}!"
+            )
+            Printer.red(error_message)
+            Printer.red("Expected either trainval_poses.txt or poses.txt")
+            sys.exit(error_message)
+
+        # Read poses file (4N x 4 format: N 4x4 matrices stacked vertically)
+        # Similar to load_poses in the reference code
+        try:
+            # Read all lines first
+            poses_rows = []
+            with open(poses_file, "r") as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Try to parse the line
+                    try:
+                        values = [float(x) for x in line.split()]
+                        if len(values) == 4:
+                            poses_rows.append(values)
+                        else:
+                            Printer.yellow(
+                                f"WARNING: Line {line_num} has {len(values)} values, expected 4"
+                            )
+                            # Pad or truncate to 4 values
+                            while len(values) < 4:
+                                values.append(0.0)
+                            poses_rows.append(values[:4])
+                    except (ValueError, OverflowError) as e:
+                        # If parsing fails (e.g., NaN string), mark as NaN
+                        Printer.yellow(f"WARNING: Could not parse line {line_num}: {line[:50]}...")
+                        # Use NaN to mark invalid lines
+                        poses_rows.append([np.nan, np.nan, np.nan, np.nan])
+
+            if len(poses_rows) == 0:
+                error_message = f"ERROR: [NeuralRGBDGroundTruth] No data found in {poses_file}!"
+                Printer.red(error_message)
+                sys.exit(error_message)
+
+            # Convert to numpy array
+            poses_data = np.array(poses_rows)
+
+            # Reshape to (N, 4, 4) where N is the number of poses
+            num_poses = poses_data.shape[0] // 4
+            if poses_data.shape[0] % 4 != 0:
+                error_message = (
+                    f"ERROR: [NeuralRGBDGroundTruth] Invalid poses file format: "
+                    f"expected 4N rows, got {poses_data.shape[0]} rows"
+                )
+                Printer.red(error_message)
+                sys.exit(error_message)
+
+            # Reshape to (num_poses, 4, 4)
+            # Now poses with NaN will be properly detected as invalid
+            self.poses_ = poses_data.reshape(num_poses, 4, 4)
+
+            # First pass: identify valid poses (similar to load_poses in reference code)
+            # A pose is valid if:
+            # 1. No NaN or Inf values
+            # 2. Rotation matrix is valid (orthogonal, determinant ~1)
+            # 3. Translation is reasonable (not all zeros, reasonable magnitude)
+            valid_pose_indices = []
+            valid_poses_list = []
+            num_invalid = 0
+
+            def is_valid_pose(pose):
+                """Check if a 4x4 pose matrix is valid"""
+                # Check for NaN or Inf
+                if np.any(np.isnan(pose)) or np.any(np.isinf(pose)):
+                    return False
+
+                # Check if all zeros
+                if np.allclose(pose, 0.0):
+                    return False
+
+                # Extract rotation matrix (3x3) and translation (3x1)
+                R = pose[0:3, 0:3]
+                t = pose[0:3, 3]
+
+                # Check if rotation matrix is valid (orthogonal, determinant ~1)
+                # R should be orthogonal: R @ R.T should be identity
+                RRT = R @ R.T
+                if not np.allclose(RRT, np.eye(3), atol=1e-3):
+                    return False
+
+                # Check determinant (should be ~1 for rotation matrix)
+                det = np.linalg.det(R)
+                if abs(det - 1.0) > 1e-2:
+                    return False
+
+                # Check translation is reasonable (not all zeros, reasonable magnitude < 1000m)
+                if np.allclose(t, 0.0):
+                    return False
+                if np.linalg.norm(t) > 1000.0:  # Unreasonably large translation
+                    return False
+
+                return True
+
+            for i in range(num_poses):
+                pose = self.poses_[i].copy()
+                if is_valid_pose(pose):
+                    valid_pose_indices.append(i)
+                    valid_poses_list.append(pose)
+
+            if len(valid_poses_list) == 0:
+                error_message = (
+                    f"ERROR: [NeuralRGBDGroundTruth] No valid poses found after processing!"
+                )
+                Printer.red(error_message)
+                sys.exit(error_message)
+
+            num_invalid = num_poses - len(valid_pose_indices)
+            if num_invalid > 0:
+                Printer.yellow(
+                    f"WARNING: Found {num_invalid} invalid poses (NaN/Inf/zeros), will interpolate"
+                )
+
+            # Second pass: interpolate poses for gaps and detect large jumps
+
+            # Build final pose list with interpolation
+            final_poses = []
+            last_valid_idx = -1
+            last_valid_pose = None
+
+            for i in range(num_poses):
+                if i in valid_pose_indices:
+                    # Valid pose
+                    pose_idx = valid_pose_indices.index(i)
+                    pose = valid_poses_list[pose_idx]
+
+                    # Check for large jumps from previous valid pose
+                    if last_valid_pose is not None:
+                        t_prev = last_valid_pose[0:3, 3]
+                        t_curr = pose[0:3, 3]
+                        translation_jump = np.linalg.norm(t_curr - t_prev)
+                        if translation_jump > 1.0:  # Threshold: 1 meter
+                            Printer.yellow(
+                                f"WARNING: Large translation jump at pose {i}: {translation_jump:.3f} m"
+                            )
+
+                    final_poses.append(pose)
+                    last_valid_idx = i
+                    last_valid_pose = pose
+                else:
+                    # Invalid pose - need to interpolate
+                    if last_valid_idx == -1:
+                        # No previous valid pose, use identity
+                        Printer.yellow(
+                            f"WARNING: Pose {i} is invalid, no previous valid pose, using identity"
+                        )
+                        identity_pose = np.eye(4)
+                        final_poses.append(identity_pose)
+                        last_valid_pose = identity_pose
+                    else:
+                        # Find next valid pose
+                        next_valid_idx = None
+                        for j in range(i + 1, num_poses):
+                            if j in valid_pose_indices:
+                                next_valid_idx = j
+                                break
+
+                        if next_valid_idx is not None:
+                            # Interpolate between last_valid_idx and next_valid_idx
+                            next_pose_idx = valid_pose_indices.index(next_valid_idx)
+                            next_valid_pose = valid_poses_list[next_pose_idx]
+                            gap_size = next_valid_idx - last_valid_idx
+
+                            # Check if there's a large jump between valid poses
+                            t_prev = last_valid_pose[0:3, 3]
+                            t_next = next_valid_pose[0:3, 3]
+                            translation_jump = np.linalg.norm(t_next - t_prev)
+
+                            # Only interpolate if gap is reasonable AND jump is reasonable
+                            max_gap_for_interpolation = 50  # frames
+                            max_jump_for_interpolation = 2.0  # meters
+
+                            if gap_size > max_gap_for_interpolation:
+                                # Gap too large, use last valid pose
+                                Printer.yellow(
+                                    f"WARNING: Pose {i} is invalid, gap too large ({gap_size} frames), "
+                                    f"using last valid pose instead of interpolating"
+                                )
+                                final_poses.append(last_valid_pose.copy())
+                            elif translation_jump > max_jump_for_interpolation:
+                                # Large jump between valid poses - don't interpolate, use last valid pose
+                                Printer.yellow(
+                                    f"WARNING: Pose {i} is invalid, large jump ({translation_jump:.3f} m) "
+                                    f"between valid poses {last_valid_idx} and {next_valid_idx}, "
+                                    f"using last valid pose instead of interpolating"
+                                )
+                                final_poses.append(last_valid_pose.copy())
+                            else:
+                                # Safe to interpolate
+                                alpha = (i - last_valid_idx) / gap_size
+                                interpolated_pose = interpolate_pose(
+                                    last_valid_pose, next_valid_pose, alpha
+                                )
+                                final_poses.append(interpolated_pose)
+                        else:
+                            # No next valid pose, use last valid pose
+                            Printer.yellow(
+                                f"WARNING: Pose {i} is invalid, no next valid pose, using last valid pose"
+                            )
+                            final_poses.append(last_valid_pose.copy())
+
+            # Convert to numpy array
+            self.poses_ = np.array(final_poses)
+            self.timestamps_ = []
+            self.data = []
+
+            # Generate timestamps (frame-based, maintaining original frame indices)
+            for i in range(num_poses):
+                timestamp = i * self.Ts
+                self.timestamps_.append(timestamp)
+                self.data.append(self.poses_[i])
+
+            self.data = np.ascontiguousarray(self.data)
+            print(f"Number of valid poses: {len(self.poses_)}")
+
+            if len(self.poses_) == 0:
+                sys.exit("ERROR while reading groundtruth file!")
+
+        except Exception as e:
+            error_message = (
+                f"ERROR: [NeuralRGBDGroundTruth] Error reading poses file {poses_file}: {e}"
+            )
+            Printer.red(error_message)
+            import traceback
+
+            Printer.red(traceback.format_exc())
+            sys.exit(error_message)
+
+    def getDataLine(self, frame_id):
+        return super().getDataLine(frame_id)
+
+    # return timestamp,x,y,z,scale
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
+        frame_id += self.start_frame_id
+        try:
+            pos_prev = self.poses_[frame_id - 1][0:3, 3] * self.scale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        timestamp = self.timestamps_[frame_id]
+        pos = self.poses_[frame_id][0:3, 3] * self.scale
+        x, y, z = pos[0], pos[1], pos[2]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, abs_scale
+
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id += self.start_frame_id
+        try:
+            pos_prev = self.poses_[frame_id - 1][0:3, 3] * self.scale
+            x_prev, y_prev, z_prev = pos_prev[0], pos_prev[1], pos_prev[2]
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        timestamp = self.timestamps_[frame_id]
+        pose = self.poses_[frame_id]
+        x, y, z = pose[0:3, 3] * self.scale
+        # Extract rotation matrix and convert to quaternion
+        R = pose[0:3, 0:3]
+        q = rotmat2qvec(R)  # [qx, qy, qz, qw]
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, q[0], q[1], q[2], q[3], abs_scale

@@ -260,6 +260,11 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
         std::vector<std::array<float, 3>> colors;
         std::vector<int> class_ids;
         std::vector<int> instance_ids;
+        const size_t upper_bound_num_voxels = this->num_voxels_per_block_ * this->blocks_.size();
+        points.reserve(upper_bound_num_voxels);
+        colors.reserve(upper_bound_num_voxels);
+        class_ids.reserve(upper_bound_num_voxels);
+        instance_ids.reserve(upper_bound_num_voxels);
 
         for (const auto &[block_key, block] : this->blocks_) {
             for (const auto &v : block.data) {

@@ -1,4 +1,4 @@
-# Volumetric Module
+# Volumetric Mapping Module
 
 This module provides efficient C++ implementations for volumetric data structures used in SLAM (Simultaneous Localization and Mapping) applications. It offers voxel grid representations with support for point cloud integration, color information, and semantic segmentation.
 
@@ -54,7 +54,7 @@ Both support:
 
 - **Sparse Representation**: Only stores occupied voxels, memory-efficient for large scenes
 - **Multi-threading**: Optional TBB parallelization for faster point cloud integration
-- **SIMD Optimizations**: Vectorized operations for float/double point processing (for `voxel_grid.h`)
+- **SIMD Optimizations**: Optional vectorized operations for float/double point processing (for `voxel_grid.h`)
 - **Type Safety**: C++20 concepts ensure compile-time type checking
 - **Python Integration**: Full pybind11 bindings for Python usage
 - **Semantic Support**: Instance segmentation and class labeling with probabilistic fusion

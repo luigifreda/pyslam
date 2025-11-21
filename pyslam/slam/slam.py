@@ -272,7 +272,6 @@ class Slam(object):
 
     def init_volumetric_integrator(self):
         if Parameters.kDoVolumetricIntegration:
-            # TODO(dvdmc): Implement semantics in vol. integrator.
             self.volumetric_integrator_type = VolumetricIntegratorType.from_string(
                 Parameters.kVolumetricIntegrationType
             )
@@ -349,7 +348,7 @@ class Slam(object):
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.save(path)
 
-        # TODO(dvdmc): missing save for semantic mapping
+        # TODO: missing save for semantic mapping?
 
         Printer.green(f"SLAM: ...system state successfully saved to: {path}")
 
