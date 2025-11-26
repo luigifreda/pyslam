@@ -31,6 +31,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <cassert>
 
 namespace g2o {
 

@@ -269,8 +269,8 @@ ENDIF(MSVC)
 SET(g2o_C_FLAGS "${g2o_C_FLAGS} -fPIC")   # added for python binding
 SET(g2o_CXX_FLAGS "${g2o_CXX_FLAGS} -fPIC")   # added for python binding
 
-# C++11 support
-set(CMAKE_CXX_STANDARD 11)
+# C++ standard: modern Eigen (as provided by Homebrew) requires at least C++17
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # specifying compiler flags

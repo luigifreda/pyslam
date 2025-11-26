@@ -31,6 +31,7 @@
 #include "g2o_types_slam2d_api.h"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <cassert>
 
 namespace g2o {
 

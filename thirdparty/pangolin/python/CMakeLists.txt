@@ -2,9 +2,16 @@ set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to 
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# Find Eigen3
-find_package(Eigen3 REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIR})
+# Find Eigen (platform-specific)
+if(APPLE)
+  # On macOS, Pangolin ships its own FindEigen.cmake which defines EIGEN_INCLUDE_DIR
+  find_package(Eigen REQUIRED)
+  include_directories(${EIGEN_INCLUDE_DIR})
+else()
+  # On Linux, use Eigen3 config as before (EIGEN3_INCLUDE_DIR)
+  find_package(Eigen3 REQUIRED)
+  include_directories(${EIGEN3_INCLUDE_DIR})
+endif()
 
 # the following 2 lines are added to correctly detect the python version 
 if(WITH_PYTHON_INTERP_CHECK)

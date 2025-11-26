@@ -311,6 +311,19 @@ gtsam::Similarity3 getSimilarity3(const gtsam::Values &values, gtsam::Key key) {
     return values.at<gtsam::Similarity3>(key);  // Return by value (safe)
 }
 
+// Function to insert Pose3 into Values (helper to ensure correct type storage)
+void insertPose3(gtsam::Values &values, const Key& key, const gtsam::Pose3 &pose) {
+    values.insert(key, pose);
+}
+
+// Function to get Pose3 from Values
+gtsam::Pose3 getPose3(const gtsam::Values &values, gtsam::Key key) {
+    if (!values.exists(key)) {
+        throw std::runtime_error("Key not found in Values.");
+    }
+    return values.at<gtsam::Pose3>(key);  // Return by value (safe)
+}
+
 // =====================================================================================================================
 
 
@@ -548,6 +561,12 @@ PYBIND11_MODULE(gtsam_factors, m) {
         py::arg("values"), py::arg("key"), py::arg("sim3"));    
 
     m.def("get_similarity3", &getSimilarity3, "Get Similarity3 from Values",
+        py::arg("values"), py::arg("key"));
+    
+    m.def("insert_pose3", &insertPose3, "Insert Pose3 into Values",
+        py::arg("values"), py::arg("key"), py::arg("pose"));
+    
+    m.def("get_pose3", &getPose3, "Get Pose3 from Values",
         py::arg("values"), py::arg("key"));
 
 #if 0

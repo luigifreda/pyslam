@@ -13,7 +13,26 @@ set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -march=native -fPIC -DNDEBUG")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fPIC -DNDEBUG")
 
-find_package(Eigen3 REQUIRED)
+# Find Eigen3 - try CONFIG mode first, fallback to MODULE mode
+find_package(Eigen3 CONFIG QUIET)
+if(NOT TARGET Eigen3::Eigen)
+    find_package(Eigen3 REQUIRED)
+endif()
+
+# Get Eigen include directory
+if(TARGET Eigen3::Eigen)
+    get_target_property(EIGEN3_INCLUDE_DIR Eigen3::Eigen INTERFACE_INCLUDE_DIRECTORIES)
+    if(EIGEN3_INCLUDE_DIR)
+        list(GET EIGEN3_INCLUDE_DIR 0 EIGEN3_INCLUDE_DIR)
+    endif()
+endif()
+
+# EIGEN3_INCLUDE_DIR is set by find_package in MODULE mode if target doesn't exist
+if(NOT EIGEN3_INCLUDE_DIR)
+    message(FATAL_ERROR "Could not find Eigen3 include directory")
+endif()
+
+message(STATUS "Found Eigen3 at: ${EIGEN3_INCLUDE_DIR}")
 
 find_package(OpenCV ${OPENCV_VERSION} QUIET)
 message(STATUS "found OpenCV version: ${OpenCV_VERSION}")
@@ -62,12 +81,12 @@ target_link_libraries(pyslam_utils PRIVATE
 
 pybind11_add_module(sim3solver sim3solver_module.cpp Sim3Solver.cpp Sim3PointRegistrationSolver.cpp Random.cpp)
 target_link_libraries(sim3solver PRIVATE
-    ${OpenCV_LIBS}    
+    ${OpenCV_LIBS}
 )
 
 pybind11_add_module(pnpsolver pnpsolver_module.cpp PnPsolver.cpp MLPnPsolver.cpp Random.cpp)
 target_link_libraries(pnpsolver PRIVATE
-    ${OpenCV_LIBS}    
+    ${OpenCV_LIBS}
 )
 
 pybind11_add_module(glutils glutils_module.cpp)

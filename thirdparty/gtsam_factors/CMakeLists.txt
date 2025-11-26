@@ -33,8 +33,15 @@ message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
 message(STATUS "CXX flags: ${CMAKE_CXX_FLAGS}")
 
 # eigen 
-find_package(Eigen3 3.1.0 REQUIRED)
-message(STATUS "eigen include: ${EIGEN3_INCLUDE_DIR}")
+find_package(Eigen3 CONFIG REQUIRED)
+# Get the include directory from the target (modern Eigen3 uses targets)
+if(TARGET Eigen3::Eigen)
+    get_target_property(EIGEN3_INCLUDE_DIR Eigen3::Eigen INTERFACE_INCLUDE_DIRECTORIES)
+    message(STATUS "eigen include: ${EIGEN3_INCLUDE_DIR}")
+else()
+    # Fallback for older Eigen3 installations
+    message(STATUS "eigen include: ${EIGEN3_INCLUDE_DIR}")
+endif()
 
 # gtsam
 set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/../gtsam_local/install/lib/cmake/GTSAM/)

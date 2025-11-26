@@ -40,6 +40,19 @@ macro(_eigen3_check_version)
   set(EIGEN3_MINOR_VERSION "${CMAKE_MATCH_1}")
 
   set(EIGEN3_VERSION ${EIGEN3_WORLD_VERSION}.${EIGEN3_MAJOR_VERSION}.${EIGEN3_MINOR_VERSION})
+  # On some newer Eigen / CMake combinations the above regexes may fail to
+  # extract the version numbers, which would leave the components empty and
+  # cause a bogus version string like ".." and a failed comparison.
+  # If that happens, assume a sufficiently recent Eigen (this project only
+  # requires >= 2.91.0 and enables the Eigen-based solvers for >= 3.1.0)
+  # and skip the strict version check.
+  if(EIGEN3_WORLD_VERSION STREQUAL "" OR EIGEN3_MAJOR_VERSION STREQUAL "" OR EIGEN3_MINOR_VERSION STREQUAL "")
+    # Pick a conservative modern version so VERSION_GREATER checks still work
+    set(EIGEN3_VERSION "3.3.0")
+    set(EIGEN3_VERSION_OK TRUE)
+    return()
+  endif()
+
   if(${EIGEN3_VERSION} VERSION_LESS ${Eigen3_FIND_VERSION})
     set(EIGEN3_VERSION_OK FALSE)
   else(${EIGEN3_VERSION} VERSION_LESS ${Eigen3_FIND_VERSION})

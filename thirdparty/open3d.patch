@@ -13,6 +13,22 @@ index ef5f87f94..f1f37fa1e 100644
      CONFIGURE_COMMAND ""
      BUILD_COMMAND ""
      INSTALL_COMMAND ""
+diff --git a/cpp/pybind/CMakeLists.txt b/cpp/pybind/CMakeLists.txt
+index a6c66fdc8..847f86fe8 100644
+--- a/cpp/pybind/CMakeLists.txt
++++ b/cpp/pybind/CMakeLists.txt
+@@ -46,11 +46,9 @@ target_link_libraries(pybind PRIVATE Open3D::Open3D)
+ 
+ if (WIN32)
+     target_link_options(pybind PUBLIC "/force:multiple")
+-    # TODO(Sameer): Only export PyInit_pybind, open3d_core_cuda_device_count
+ elseif (APPLE)
+     file(GENERATE OUTPUT pybind.map CONTENT
+         [=[_PyInit_pybind
+-open3d_core_cuda_device_count
+         ]=])
+     target_link_options(pybind PRIVATE $<$<CONFIG:Release>:
+         -Wl,-exported_symbols_list
 diff --git a/patches/ext_poisson/SparseMatrix.inl b/patches/ext_poisson/SparseMatrix.inl
 new file mode 100644
 index 000000000..a2c14d97c
