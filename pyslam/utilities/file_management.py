@@ -23,6 +23,9 @@ import __main__ as main
 from email.mime.text import MIMEText
 import os
 import gdown
+import glob
+import cv2
+from pyslam.utilities.system import Printer
 
 
 def check_dir(dir):
@@ -140,3 +143,31 @@ def select_image_files(images_path, start_frame_name, n_frame, delta_frame):
     # Select the images
     selected_img_paths = [img_paths[start_idx + i * delta_frame] for i in range(n_frame)]
     return selected_img_paths
+
+
+def load_images_from_directory(image_dir, pattern="*.png", max_num_images=None):
+    """
+    Load images from a directory.
+
+    Args:
+        image_dir: Path to directory containing images
+        pattern: Glob pattern for image files (default: "*.png")
+        max_num_images: Maximum number of images to load (None for all)
+
+    Returns:
+        List of images (BGR format)
+    """
+    image_paths = sorted(glob.glob(os.path.join(image_dir, pattern)))
+    if max_num_images is not None:
+        image_paths = image_paths[:max_num_images]
+
+    images = []
+    for img_path in image_paths:
+        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        if img is not None:
+            images.append(img)
+            print(f"Loaded: {img_path} ({img.shape[1]}x{img.shape[0]})")
+        else:
+            Printer.red(f"Failed to load image: {img_path}")
+
+    return images

@@ -152,8 +152,8 @@ class SceneFromViewsDepthAnythingV3(SceneFromViewsBase):
         poses_are_available = extrinsics is not None and intrinsics is not None
 
         for i in range(len(images)):
-            # Processed image
-            processed_images_list.append(depth_prediction_processed_images[i])
+            # Processed image - make a copy to avoid all images referencing the same data
+            processed_images_list.append(np.copy(depth_prediction_processed_images[i]))
 
             # Filter depth if requested
             if self.filter_depth:
