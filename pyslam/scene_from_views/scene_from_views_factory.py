@@ -22,6 +22,11 @@ from .scene_from_views_base import SceneFromViewsBase
 
 from pyslam.utilities.system import import_from
 
+from pyslam.scene_from_views.optimizers import (
+    DEFAULT_SPARSE_OPTIMIZER_CONFIG,
+    DEFAULT_DENSE_OPTIMIZER_CONFIG,
+)
+
 
 def scene_from_views_factory(
     scene_from_views_type: SceneFromViewsType = SceneFromViewsType.DEPTH_ANYTHING_V3,
@@ -61,7 +66,12 @@ def scene_from_views_factory(
                 "pyslam.scene_from_views.scene_from_views_mast3r",
                 "SceneFromViewsMast3r",
             )
-        return SceneFromViewsMast3r(device=device, **kwargs)
+        return SceneFromViewsMast3r(
+            device=device,
+            optimizer_config=DEFAULT_SPARSE_OPTIMIZER_CONFIG.copy(),
+            # optimizer_config=DEFAULT_DENSE_OPTIMIZER_CONFIG.copy(),
+            **kwargs,
+        )
 
     elif scene_from_views_type == SceneFromViewsType.MVDUST3R:
         try:
@@ -91,7 +101,12 @@ def scene_from_views_factory(
                 "pyslam.scene_from_views.scene_from_views_dust3r",
                 "SceneFromViewsDust3r",
             )
-        return SceneFromViewsDust3r(device=device, **kwargs)
+        return SceneFromViewsDust3r(
+            device=device,
+            # optimizer_config=DEFAULT_SPARSE_OPTIMIZER_CONFIG.copy(),
+            optimizer_config=DEFAULT_DENSE_OPTIMIZER_CONFIG.copy(),
+            **kwargs,
+        )
 
     else:
         raise ValueError(f"Invalid scene_from_views_type: {scene_from_views_type}")

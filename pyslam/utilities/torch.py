@@ -33,11 +33,13 @@ def to_np(x, ret_type=float) -> np.ndarray:
     return x_np
 
 
-# Transfer some variables to another device (i.e. GPU, CPU:torch, CPU:numpy).
-# - batch: list, tuple, dict of tensors or other things
-# - device: pytorch device or 'numpy'
-# - callback: function that would be called on every sub-elements.
 def to_device(batch, device, callback=None, non_blocking=False):
+    """Transfer some variables to another device (i.e. GPU, CPU:torch, CPU:numpy).
+
+    batch: list, tuple, dict of tensors or other things
+    device: pytorch device or 'numpy'
+    callback: function that would be called on every sub-elements.
+    """
     if callback:
         batch = callback(batch)
 

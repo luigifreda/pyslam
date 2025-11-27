@@ -8,6 +8,7 @@ DATASET:
   #type: TARTANAIR_DATASET
   #type: SEVEN_SCENES_DATASET
   #type: NEURAL_RGBD_DATASET
+  #type: BONN_RGBD_DYNAMIC_DATASET
   type: VIDEO_DATASET
   #type: SCANNET_DATASET
   #type: ROS1BAG_DATASET
@@ -118,6 +119,7 @@ TARTANAIR_DATASET:
   groundtruth_file: auto
   environment_type: outdoor
 
+
 SEVEN_SCENES_DATASET:
   type: seven_scenes
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
@@ -134,6 +136,19 @@ NEURAL_RGBD_DATASET:
   name: 'complete_kitchen'  
   settings: settings/NEURAL_RGBD.yaml
   groundtruth_file: auto
+
+
+BONN_RGBD_DYNAMIC_DATASET:
+  type: tum
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: /home/luigi/Work/datasets/rgbd_datasets/bonn_dynamic_rgbd
+  #
+  name: 'rgbd_bonn_balloon'
+  settings: settings/BONN_RGBD_DYNAMIC.yaml
+  #
+  associations: associations.txt
+  groundtruth_file: auto
+
 
 VIDEO_DATASET:
   type: video

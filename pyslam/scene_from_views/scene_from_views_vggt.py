@@ -37,6 +37,7 @@ class SceneFromViewsVggt(SceneFromViewsBase):
     Scene reconstruction using VGGT (Visual Geometry Grounded Transformer).
 
     This model performs multi-view reconstruction with pose estimation.
+    NOTE: This model requires a lot of GPU memory!
     """
 
     def __init__(

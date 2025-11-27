@@ -57,19 +57,14 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         model_path=None,
         inference_size=512,
         min_conf_thr=1.5,
-        optim_level="refine+depth",
-        lr1=0.07,
-        niter1=500,
-        lr2=0.014,
-        niter2=200,
-        matching_conf_thr=5.0,
-        shared_intrinsics=False,
         scenegraph_type="complete",
         winsize=1,
         win_cyclic=False,
         refid=0,
         TSDF_thresh=0.0,
+        use_tsdf=None,
         clean_depth=True,
+        optimizer_config=None,
         **kwargs,
     ):
         """
@@ -80,19 +75,36 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
             model_path: Path to model checkpoint
             inference_size: Image size for inference (224 or 512)
             min_conf_thr: Minimum confidence threshold for filtering points
-            optim_level: Optimization level ('coarse', 'refine', 'refine+depth')
-            lr1: Coarse learning rate
-            niter1: Number of iterations for coarse alignment
-            lr2: Fine learning rate
-            niter2: Number of iterations for refinement
-            matching_conf_thr: Matching confidence threshold
-            shared_intrinsics: Whether to use shared intrinsics
             scenegraph_type: Scene graph type ('complete', 'swin', 'logwin', 'oneref')
             winsize: Window size for scene graph
             win_cyclic: Whether to use cyclic windows
             refid: Reference image ID for 'oneref' scenegraph
-            TSDF_thresh: TSDF threshold (0 to disable)
+            TSDF_thresh: TSDF threshold for post-processing (only used if use_tsdf=True)
+            use_tsdf: Whether to apply TSDFPostProcess (None = auto-detect from TSDF_thresh > 0)
             clean_depth: Whether to clean up depth maps
+            optimizer_config: Dictionary specifying optimizer configuration:
+                - type: 'dense_scene_optimizer' or 'sparse_scene_optimizer'
+                - Additional parameters specific to the optimizer type
+                If None, defaults to 'sparse_scene_optimizer' with default parameters.
+                If type='dense_scene_optimizer', uses DEFAULT_DENSE_OPTIMIZER_CONFIG as base.
+                Note: dense_scene_optimizer requires format conversion (not yet implemented).
+                Optimizer parameters can be provided via kwargs.
+            **kwargs: Additional parameters including optimizer parameters:
+                - type: Optimizer type ('sparse_scene_optimizer' or 'dense_scene_optimizer')
+                For sparse_scene_optimizer:
+                    - optim_level: Optimization level ('coarse', 'refine', 'refine+depth')
+                    - lr1: Coarse learning rate
+                    - niter1: Number of iterations for coarse alignment
+                    - lr2: Fine learning rate
+                    - niter2: Number of iterations for refinement
+                    - matching_conf_thr: Matching confidence threshold
+                    - shared_intrinsics: Whether to use shared intrinsics
+                    - subsample: Subsampling factor for feature extraction
+                    - kinematic_mode: Kinematic chain mode ('mst', 'hclust-ward', etc.)
+                For dense_scene_optimizer:
+                    - niter: Number of iterations
+                    - schedule: Learning rate schedule ('linear', 'cosine', etc.)
+                    - lr: Learning rate
         """
         super().__init__(device=device, **kwargs)
 
@@ -112,22 +124,96 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         self.model = AsymmetricMASt3R.from_pretrained(model_path).to(self.device)
         self.inference_size = inference_size
         self.min_conf_thr = min_conf_thr
-        self.optim_level = optim_level
-        self.lr1 = lr1
-        self.niter1 = niter1
-        self.lr2 = lr2
-        self.niter2 = niter2
-        self.matching_conf_thr = matching_conf_thr
-        self.shared_intrinsics = shared_intrinsics
         self.scenegraph_type = scenegraph_type
         self.winsize = winsize
         self.win_cyclic = win_cyclic
         self.refid = refid
         self.TSDF_thresh = TSDF_thresh
+        # Auto-detect use_tsdf from TSDF_thresh if not explicitly set
+        if use_tsdf is None:
+            use_tsdf = TSDF_thresh > 0
+        self.use_tsdf = use_tsdf
         self.clean_depth = clean_depth
+
+        # Setup optimizer configuration
+        # Extract optimizer parameters from kwargs (including type)
+        optimizer_params = {}
+        for param in [
+            "type",  # Allow type to be specified in kwargs
+            "optim_level",
+            "lr1",
+            "niter1",
+            "lr2",
+            "niter2",
+            "matching_conf_thr",
+            "shared_intrinsics",
+            "subsample",
+            "kinematic_mode",
+            # Dense optimizer parameters
+            "niter",
+            "schedule",
+            "lr",
+        ]:
+            if param in kwargs:
+                optimizer_params[param] = kwargs.pop(param)
+
+        # Determine optimizer type (from optimizer_config or kwargs)
+        optimizer_type = None
+        if optimizer_config is not None:
+            optimizer_type = optimizer_config.get("type")
+        if optimizer_type is None:
+            optimizer_type = optimizer_params.get("type", "sparse_scene_optimizer")
+
+        if optimizer_config is None:
+            # Use appropriate default config based on optimizer type
+            from pyslam.scene_from_views.optimizers import (
+                DEFAULT_SPARSE_OPTIMIZER_CONFIG,
+                DEFAULT_DENSE_OPTIMIZER_CONFIG,
+            )
+
+            if optimizer_type == "dense_scene_optimizer":
+                optimizer_config = DEFAULT_DENSE_OPTIMIZER_CONFIG.copy()
+            else:
+                optimizer_config = DEFAULT_SPARSE_OPTIMIZER_CONFIG.copy()
+
+            # Override with user-provided parameters from kwargs
+            optimizer_config.update(optimizer_params)
+        else:
+            # Merge optimizer_params into provided config
+            optimizer_config = optimizer_config.copy()
+            optimizer_config.update(optimizer_params)
+            # Ensure type is set
+            if "type" not in optimizer_config:
+                optimizer_config["type"] = optimizer_type
+
+        self.optimizer_config = optimizer_config
+
+        # Initialize optimizer based on config
+        self._init_optimizer()
 
         self.dust3r_preprocessor = Dust3rImagePreprocessor(
             inference_size=inference_size, verbose=True
+        )
+
+    def _init_optimizer(self):
+        """Initialize the optimizer based on optimizer_config."""
+        from pyslam.scene_from_views.optimizers import (
+            scene_optimizer_factory,
+            SceneOptimizerType,
+        )
+
+        # Determine default type based on optimizer_config
+        optimizer_type_str = self.optimizer_config.get("type", "sparse_scene_optimizer")
+        if optimizer_type_str == "dense_scene_optimizer":
+            default_type = SceneOptimizerType.DENSE
+        else:
+            default_type = SceneOptimizerType.SPARSE
+
+        # Both dense and sparse optimizers are now supported with unified format
+        self.optimizer = scene_optimizer_factory(
+            optimizer_config=self.optimizer_config,
+            device=self.device,
+            default_type=default_type,
         )
 
     def preprocess_images(self, images: List[np.ndarray], **kwargs) -> List:
@@ -153,19 +239,33 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         """
         # Override parameters with kwargs if provided
         min_conf_thr = kwargs.get("min_conf_thr", self.min_conf_thr)
-        optim_level = kwargs.get("optim_level", self.optim_level)
-        lr1 = kwargs.get("lr1", self.lr1)
-        niter1 = kwargs.get("niter1", self.niter1)
-        lr2 = kwargs.get("lr2", self.lr2)
-        niter2 = kwargs.get("niter2", self.niter2)
-        matching_conf_thr = kwargs.get("matching_conf_thr", self.matching_conf_thr)
-        shared_intrinsics = kwargs.get("shared_intrinsics", self.shared_intrinsics)
         scenegraph_type = kwargs.get("scenegraph_type", self.scenegraph_type)
         winsize = kwargs.get("winsize", self.winsize)
         win_cyclic = kwargs.get("win_cyclic", self.win_cyclic)
         refid = kwargs.get("refid", self.refid)
         TSDF_thresh = kwargs.get("TSDF_thresh", self.TSDF_thresh)
+        use_tsdf = kwargs.get("use_tsdf", self.use_tsdf)
         clean_depth = kwargs.get("clean_depth", self.clean_depth)
+        verbose = kwargs.get("verbose", True)
+
+        # Extract optimizer parameters from kwargs or use defaults from optimizer_config
+        optim_level = kwargs.pop(
+            "optim_level", self.optimizer_config.get("optim_level", "refine+depth")
+        )
+        lr1 = kwargs.pop("lr1", self.optimizer_config.get("lr1", 0.07))
+        niter1 = kwargs.pop("niter1", self.optimizer_config.get("niter1", 500))
+        lr2 = kwargs.pop("lr2", self.optimizer_config.get("lr2", 0.014))
+        niter2 = kwargs.pop("niter2", self.optimizer_config.get("niter2", 200))
+        matching_conf_thr = kwargs.pop(
+            "matching_conf_thr", self.optimizer_config.get("matching_conf_thr", 5.0)
+        )
+        shared_intrinsics = kwargs.pop(
+            "shared_intrinsics", self.optimizer_config.get("shared_intrinsics", False)
+        )
+        subsample = kwargs.pop("subsample", self.optimizer_config.get("subsample", 8))
+        kinematic_mode = kwargs.pop(
+            "kinematic_mode", self.optimizer_config.get("kinematic_mode", "hclust-ward")
+        )
 
         imgs_preproc = processed_images
 
@@ -196,42 +296,118 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         if optim_level == "coarse":
             niter2 = 0
 
-        # Run sparse global alignment
-        from mast3r.cloud_opt.sparse_ga import sparse_global_alignment
+        # Create cache directory
         import tempfile
         import os
 
         cache_dir = tempfile.mkdtemp(suffix="_mast3r_cache")
         os.makedirs(cache_dir, exist_ok=True)
 
-        scene = sparse_global_alignment(
-            filelist,
-            pairs,
-            cache_dir,
+        # ====================================================================
+        # INFERENCE PART: Forward pass to extract features and correspondences
+        # ====================================================================
+        from mast3r.cloud_opt.sparse_ga import (
+            convert_dust3r_pairs_naming,
+            forward_mast3r,
+            prepare_canonical_data,
+            condense_data,
+            compute_min_spanning_tree,
+        )
+
+        # Convert pair naming convention from dust3r to mast3r
+        pairs_in = convert_dust3r_pairs_naming(filelist, pairs)
+
+        # Forward pass: runs MASt3R model on all pairs
+        # This extracts 3D points, confidence maps, and descriptors for each pair
+        pairs_output, cache_path = forward_mast3r(
+            pairs_in,
             self.model,
+            cache_path=cache_dir,
+            subsample=subsample,
+            desc_conf="desc_conf",
+            device=self.device,
+        )
+
+        # Extract canonical pointmaps per image
+        tmp_pairs, pairwise_scores, canonical_views, canonical_paths, preds_21 = (
+            prepare_canonical_data(
+                filelist,
+                pairs_output,
+                subsample=subsample,
+                cache_path=cache_dir,
+                mode="avg-angle",
+                device=self.device,
+            )
+        )
+
+        # Smartly combine all useful data
+        imsizes, pps, base_focals, core_depth, anchors, corres, corres2d, preds_21 = condense_data(
+            filelist, tmp_pairs, canonical_views, preds_21, dtype=torch.float32
+        )
+
+        # ====================================================================
+        # OPTIMIZER: Optimize camera poses, intrinsics, depth maps
+        # ====================================================================
+        optimizer_type = self.optimizer_config.get("type", "sparse_scene_optimizer")
+
+        if verbose:
+            print(f"[Optimizer] Using {optimizer_type}...")
+
+        # Create unified optimizer input
+        optimizer_input = self.create_optimizer_input(
+            raw_output=pairs_output,  # pairs_output for canonical view processing
+            pairs=pairs,
+            processed_images=imgs_preproc,
+            filelist=filelist,
+            cache_dir=cache_dir,
+        )
+
+        # Optimize using unified interface
+        optimizer_output = self.optimizer.optimize(
+            optimizer_input=optimizer_input,
+            verbose=verbose,
+            subsample=subsample,
             lr1=lr1,
             niter1=niter1,
             lr2=lr2,
             niter2=niter2,
-            device=self.device,
-            opt_depth="depth" in optim_level,
-            shared_intrinsics=shared_intrinsics,
             matching_conf_thr=matching_conf_thr,
+            shared_intrinsics=shared_intrinsics,
+            optim_level=optim_level,
+            kinematic_mode=kinematic_mode,
         )
 
-        # Extract dense 3D map
-        from mast3r.cloud_opt.tsdf_optimizer import TSDFPostProcess
+        scene = optimizer_output.scene
 
+        # Extract additional data if available
+        additional_data = optimizer_output.additional_data or {}
+        pairs_in = additional_data.get("pairs_in", pairs_in)
+        anchors = additional_data.get("anchors", anchors)
+        canonical_paths = additional_data.get("canonical_paths", canonical_paths)
+
+        # Extract dense 3D map
         rgb_imgs = scene.imgs
+        if rgb_imgs is None:
+            # If images are not available, create dummy images from image shapes
+            rgb_imgs = [torch.zeros((h, w, 3), device=scene.device) for h, w in scene.imshapes]
+
         focals = scene.get_focals().cpu()
         cams2world = scene.get_im_poses().cpu()
 
         # Get dense point clouds
-        if TSDF_thresh > 0:
+        # TSDFPostProcess is optional and can be disabled via use_tsdf parameter
+        if use_tsdf and TSDF_thresh > 0:
+            from pyslam.scene_from_views.optimizers.tsdf_postprocess import TSDFPostProcess
+
             tsdf = TSDFPostProcess(scene, TSDF_thresh=TSDF_thresh)
-            pts3d, _, confs = to_numpy(tsdf.get_dense_pts3d(clean_depth=clean_depth))
+            pts3d, _, confs = tsdf.get_dense_pts3d(clean_depth=clean_depth)
         else:
-            pts3d, _, confs = to_numpy(scene.get_dense_pts3d(clean_depth=clean_depth))
+            pts3d, _, confs = scene.get_dense_pts3d(clean_depth=clean_depth)
+
+        # Convert to numpy (convert each element separately)
+        pts3d = to_numpy(pts3d)
+        confs = [to_numpy(x) for x in confs]
+        rgb_imgs = to_numpy(rgb_imgs)
 
         return {
             "scene": scene,
@@ -271,13 +447,36 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
         confs = raw_output["confs"]
         min_conf_thr = raw_output["min_conf_thr"]
 
-        mask = to_numpy([c > min_conf_thr for c in confs])
+        # Ensure rgb_imgs is numpy (it should already be converted in infer())
+        if not isinstance(rgb_imgs, (list, tuple)) or (
+            rgb_imgs and isinstance(rgb_imgs[0], torch.Tensor)
+        ):
+            rgb_imgs = to_numpy(rgb_imgs)
+
+        # Ensure pts3d and confs are numpy (they should already be converted in infer())
+        if not isinstance(pts3d, (list, tuple)) or (pts3d and isinstance(pts3d[0], torch.Tensor)):
+            pts3d = to_numpy(pts3d)
+        if not isinstance(confs, (list, tuple)) or (confs and isinstance(confs[0], torch.Tensor)):
+            confs = [to_numpy(x) for x in confs]
+
+        # Ensure all arrays have correct shapes: [H, W, 3] for pts3d and rgb_imgs, [H, W] for confs
+        # Remove any extra dimensions (e.g., if shape is [1, H, W, 3], reshape to [H, W, 3])
+        rgb_imgs = [np.squeeze(img) for img in rgb_imgs]
+        pts3d = [np.squeeze(pts) for pts in pts3d]
+        confs = [np.squeeze(conf) for conf in confs]
+
+        # Ensure rgb_imgs and pts3d have 3 dimensions [H, W, 3]
+        rgb_imgs = [img if img.ndim == 3 else img.reshape(*img.shape[:2], -1) for img in rgb_imgs]
+        pts3d = [pts if pts.ndim == 3 else pts.reshape(*pts.shape[:2], -1) for pts in pts3d]
+
+        # Ensure confs have 2 dimensions [H, W]
+        confs = [conf if conf.ndim == 2 else conf.reshape(*conf.shape[:2]) for conf in confs]
+
+        # Create mask with correct shape matching confs
+        mask = [c > min_conf_thr for c in confs]
 
         # Convert to geometry
         global_pc, global_mesh = convert_mv_output_to_geometry(rgb_imgs, pts3d, mask, as_pointcloud)
-
-        # Convert to numpy
-        rgb_imgs = to_numpy(rgb_imgs)
         cams2world = to_numpy(cams2world)
         focals = to_numpy(focals)
         confs = [to_numpy(x) for x in confs]
@@ -333,4 +532,119 @@ class SceneFromViewsMast3r(SceneFromViewsBase):
             point_clouds=point_clouds,
             intrinsics=intrinsics_list,
             confidences=confs,
+        )
+
+    def create_optimizer_input(
+        self,
+        raw_output,
+        pairs: List,
+        processed_images: List,
+        **kwargs,
+    ):
+        """
+        Create SceneOptimizerInput from MASt3r model output.
+
+        Args:
+            raw_output: Output from forward_mast3r() (pairs_output)
+            pairs: List of image pairs
+            processed_images: Preprocessed images
+            **kwargs: Additional parameters:
+                - filelist: List of image file names (required)
+                - cache_dir: Cache directory (required)
+
+        Returns:
+            SceneOptimizerInput: Unified input representation
+        """
+        from pyslam.scene_from_views.optimizers import SceneOptimizerInput, PairPrediction
+        import torch
+
+        # Extract required parameters
+        filelist = kwargs.get("filelist")
+        cache_dir = kwargs.get("cache_dir")
+
+        if filelist is None:
+            raise ValueError(
+                "filelist is required for create_optimizer_input() in SceneFromViewsMast3r"
+            )
+        if cache_dir is None:
+            raise ValueError(
+                "cache_dir is required for create_optimizer_input() in SceneFromViewsMast3r"
+            )
+
+        # Extract images from processed_images
+        images = []
+        for img_data in processed_images:
+            if isinstance(img_data, dict) and "img" in img_data:
+                images.append(img_data["img"])
+            elif isinstance(img_data, torch.Tensor):
+                images.append(img_data)
+
+        # Convert pairs_output to pair_predictions format
+        # pairs_output is a dict: {(img1, img2): ((path1, path2), path_corres)}
+        # We need to load the cached data to extract pts3d and conf
+        pair_predictions = []
+
+        # Create mapping from image names to indices
+        img_to_idx = {img: idx for idx, img in enumerate(filelist)}
+
+        # Extract pair predictions from pairs_output
+        if raw_output:  # pairs_output from forward_mast3r
+            for (img1, img2), ((path1, path2), path_corres) in raw_output.items():
+                try:
+                    # Load cached data: (X, C, X2, C2) where:
+                    # X: pts3d for view1, C: conf for view1
+                    # X2: pts3d for view2 (in view1's frame), C2: conf for view2
+                    # Convert device to torch.device if it's a string
+                    device = (
+                        self.device
+                        if isinstance(self.device, torch.device)
+                        else torch.device(self.device)
+                    )
+                    X1, C1, X2, C2 = torch.load(path1, map_location=device)
+
+                    # Ensure all tensors are on the correct device
+                    X1 = X1.to(device) if isinstance(X1, torch.Tensor) else X1
+                    C1 = C1.to(device) if isinstance(C1, torch.Tensor) else C1
+                    X2 = X2.to(device) if isinstance(X2, torch.Tensor) else X2
+                    C2 = C2.to(device) if isinstance(C2, torch.Tensor) else C2
+
+                    # Get image indices
+                    idx_i = img_to_idx.get(img1)
+                    idx_j = img_to_idx.get(img2)
+
+                    if idx_i is not None and idx_j is not None:
+                        # Get images and ensure they're on the correct device
+                        img_i = images[idx_i] if idx_i < len(images) else None
+                        img_j = images[idx_j] if idx_j < len(images) else None
+                        if img_i is not None and isinstance(img_i, torch.Tensor):
+                            img_i = img_i.to(device)
+                        if img_j is not None and isinstance(img_j, torch.Tensor):
+                            img_j = img_j.to(device)
+
+                        # Create PairPrediction
+                        pair_pred = PairPrediction(
+                            image_idx_i=idx_i,
+                            image_idx_j=idx_j,
+                            pts3d_i=X1,  # [H, W, 3] 3D points for image i
+                            pts3d_j=X2,  # [H, W, 3] 3D points for image j (in image i's frame)
+                            conf_i=C1,  # [H, W] confidence for image i
+                            conf_j=C2,  # [H, W] confidence for image j
+                            image_i=img_i,
+                            image_j=img_j,
+                        )
+                        pair_predictions.append(pair_pred)
+                except Exception as e:
+                    # Skip pairs that can't be loaded (shouldn't happen, but be safe)
+                    verbose = kwargs.get("verbose", False)
+                    if verbose:
+                        print(f"Warning: Could not load pair ({img1}, {img2}): {e}")
+                    continue
+
+        return SceneOptimizerInput(
+            images=images,
+            pairs=pairs,
+            filelist=filelist,
+            cache_dir=cache_dir,
+            pair_predictions=pair_predictions,
+            pairs_output=raw_output,  # pairs_output for canonical view processing
         )

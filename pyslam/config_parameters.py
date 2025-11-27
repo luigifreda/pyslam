@@ -34,7 +34,7 @@ class Parameters:
     # ================================================================
     # C++ core
     # ================================================================
-    USE_CPP_CORE = False  # True: use the C++ core; False: use the Python core
+    USE_CPP_CORE = True  # True: use the C++ core; False: use the Python core
 
     # ================================================================
     # Logs
@@ -277,7 +277,7 @@ class Parameters:
     )
     kVolumetricIntegrationVoxelLength = 0.015  # [m]
     kVolumetricIntegrationUseVoxelBlocks = True  # Use or not more efficient voxel blocks (indirect hashing to blocks instead of direct voxel hashing) for volumetric integration
-    kVolumetricIntegrationBlockSize = 8  # [voxels]
+    kVolumetricIntegrationBlockSize = 8  # [voxels] Numer of voxels per side of the block
     kVolumetricIntegrationTBBThreads = (
         4  # Number of threads for TBB parallel operations (global setting)
     )

@@ -53,7 +53,7 @@ from pyslam.scene_from_views import (
 )
 from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
 from pyslam.utilities.img_management import ImageTable, img_from_floats
-from pyslam.utilities.file_management import select_image_files
+from pyslam.utilities.file_management import select_image_files, load_images_from_directory
 
 
 kThisFileFolder = os.path.dirname(os.path.abspath(__file__))
@@ -64,40 +64,17 @@ images_path = (
     "/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb"
 )
 start_frame_name = "1341847980.722988.png"
-n_frame = 10
-delta_frame = 30
-
-
-def load_images_from_directory(image_dir, pattern="*.png", max_images=None):
-    """
-    Load images from a directory.
-
-    Args:
-        image_dir: Path to directory containing images
-        pattern: Glob pattern for image files (default: "*.png")
-        max_images: Maximum number of images to load (None for all)
-
-    Returns:
-        List of images (BGR format)
-    """
-    image_paths = sorted(glob.glob(os.path.join(image_dir, pattern)))
-    if max_images is not None:
-        image_paths = image_paths[:max_images]
-
-    images = []
-    for img_path in image_paths:
-        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        if img is not None:
-            images.append(img)
-            print(f"Loaded: {img_path} ({img.shape[1]}x{img.shape[0]})")
-        else:
-            Printer.red(f"Failed to load image: {img_path}")
-
-    return images
+n_frame = 3
+delta_frame = 100
 
 
 def visualize_results(
-    result: SceneFromViewsResult, show_images=True, show_3d=True, reverse_3d_colors=True
+    result: SceneFromViewsResult,
+    show_images=True,
+    show_3d=True,
+    reverse_3d_colors=True,
+    original_images=None,
+    method=None,
 ):
     """
     Visualize reconstruction results.
@@ -106,9 +83,19 @@ def visualize_results(
         result: SceneFromViewsResult containing reconstruction data
         show_images: Whether to show 2D image visualizations
         show_3d: Whether to show 3D visualization
+        reverse_3d_colors: Whether to reverse colors for 3D visualization
+        original_images: Optional list of original input images to display
     """
     if show_images:
-        # Show original/processed images
+        # Show original input images if provided
+        if original_images is not None and len(original_images) > 0:
+            orig_table = ImageTable(num_columns=min(4, len(original_images)), resize_scale=0.8)
+            for img in original_images:
+                orig_table.add(img)
+            orig_table.render()
+            cv2.imshow("Original Input Images", orig_table.image())
+
+        # Show processed images
         if len(result.processed_images) > 0:
             img_table = ImageTable(
                 num_columns=min(4, len(result.processed_images)), resize_scale=0.8
@@ -168,6 +155,9 @@ def visualize_results(
 
         # Visualize camera poses if available
         viz_camera_images = []
+        cam_scale = 0.1
+        if method == SceneFromViewsType.DUST3R:
+            cam_scale = 0.05
         if result.camera_poses is not None and len(result.camera_poses) > 0:
             for i, (pose, img) in enumerate(zip(result.camera_poses, result.processed_images)):
                 if pose is not None:
@@ -175,7 +165,9 @@ def visualize_results(
                         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     else:
                         img_rgb = img
-                    viz_camera_images.append(VizCameraImage(image=img_rgb, Twc=pose, scale=0.1))
+                    viz_camera_images.append(
+                        VizCameraImage(image=img_rgb, Twc=pose, scale=cam_scale)
+                    )
             Printer.green(f"Camera poses: {len(viz_camera_images)} cameras")
 
         viewer3D.draw_dense_geometry(
@@ -200,11 +192,12 @@ def main():
     )
 
     # see the file pyslam/scene_from_views/scene_from_views_types.py for the available methods
+    # NOTE: VGGT requires a lot of GPU memory!
     parser.add_argument(
         "--method",
         type=str,
         default="DEPTH_ANYTHING_V3",
-        choices=["DEPTH_ANYTHING_V3", "MAST3R", "MVDUST3R", "VGGT", "DUST3R"],
+        choices=["DUST3R", "MAST3R", "MVDUST3R", "VGGT", "DEPTH_ANYTHING_V3"],
         help="Reconstruction method to use",
     )
 
@@ -234,6 +227,12 @@ def main():
         type=str,
         default=None,
         help="Device to use (cuda, cpu, or None for auto)",
+    )
+
+    parser.add_argument(
+        "--skip_optimizer",
+        action="store_true",
+        help="Skip optimizer and use initial poses from Dust3r inference (for debugging)",
     )
 
     parser.add_argument(
@@ -297,12 +296,13 @@ def main():
 
     images = load_images_from_directory(args.image_dir, args.pattern, args.max_images)
 
-    if False:  # DEBUG override images with selected image files
+    if True:  # DEBUG: override images with selected image files
         image_filenames = select_image_files(
             images_path, start_frame_name, n_frame=n_frame, delta_frame=delta_frame
         )
         print(f"selected image files: {image_filenames}")
         img_paths = [os.path.join(images_path, x) for x in image_filenames]
+        print(f"selected image paths: {img_paths}")
         images = [cv2.imread(x, cv2.IMREAD_COLOR) for x in img_paths]
 
     if len(images) == 0:
@@ -347,9 +347,13 @@ def main():
     start_time = time.time()
 
     try:
+        # Option to skip optimizer and use initial poses (for debugging)
+        skip_optimizer = getattr(args, "skip_optimizer", False)
+
         result = reconstructor.reconstruct(
             images=images,
             as_pointcloud=args.as_pointcloud,
+            skip_optimizer=skip_optimizer,  # Skip optimization and use initial poses
         )
         elapsed_time = time.time() - start_time
         Printer.green(f"Scene reconstruction completed in {elapsed_time:.2f} seconds")
@@ -398,6 +402,8 @@ def main():
             result,
             show_images=not args.no_images,
             show_3d=not args.no_3d,
+            # original_images=images,
+            method=method,
         )
 
     Printer.green("Scene reconstruction completed!")
