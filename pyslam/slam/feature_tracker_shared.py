@@ -96,6 +96,7 @@ class FeatureTrackerShared:
         # For the following guys we need to store the images since they need them at each matching step
         if FeatureTrackerShared.feature_matcher is not None and (
             FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE
+            or FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.XFEAT
             or FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR
         ):
             Frame.is_store_imgs = True

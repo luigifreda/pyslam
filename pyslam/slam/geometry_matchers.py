@@ -1181,6 +1181,10 @@ def _search_frame_for_triangulation(
 
     # Filter by descriptor distance
     good_descriptor = descriptor_dists <= max_descriptor_distance
+    # Flatten in case descriptor_distances returns 2D array (e.g., l2_distances with keepdims=True)
+    good_descriptor = good_descriptor.ravel()
+    descriptor_dists = descriptor_dists.ravel()
+
     if not np.any(good_descriptor):
         return [], [], 0
 

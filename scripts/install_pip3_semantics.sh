@@ -53,8 +53,11 @@ fi
 # Torchvision will be installed already
 # Install transformers with specific version due to break of last version
 pip install transformers==4.38.2 $CONSTRAINTS # originally suggested version 4.51.0
+
 # Install f3rm for the dense CLIP model
+pip install "fpsample<0.3.0"  # required by f3rm without upgrading pybind11 version
 pip install f3rm $CONSTRAINTS
+
 pip install timm==1.0.15 $CONSTRAINTS
 #pip install protobuf==3.20.3 --force-reinstall
 
