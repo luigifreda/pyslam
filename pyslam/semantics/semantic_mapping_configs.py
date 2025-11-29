@@ -146,7 +146,8 @@ class SemanticMappingConfigs:
         elif slam_dataset_name == DatasetType.TUM:
             if semantic_segmentation_type is None:
                 semantic_segmentation_type = (
-                    SemanticSegmentationType.SEGFORMER
+                    # SemanticSegmentationType.SEGFORMER
+                    SemanticSegmentationType.DETIC
                 )  # default to SEGFORMER for TUM
                 if semantic_segmentation_type == SemanticSegmentationType.SEGFORMER:
                     Printer.red(

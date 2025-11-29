@@ -102,41 +102,38 @@ template <typename VoxelDataT> class VoxelBlockGridT {
 
     // Implementation
     template <typename Tpos, typename Tcolor = std::nullptr_t, typename Tinstance = std::nullptr_t,
-              typename Tclass = std::nullptr_t>
+              typename Tclass = std::nullptr_t, typename Tdepth = std::nullptr_t>
     void integrate_raw(const Tpos *pts_ptr, size_t num_points, const Tcolor *cols_ptr = nullptr,
                        const Tinstance *instance_ids_ptr = nullptr,
-                       const Tclass *class_ids_ptr = nullptr) {
+                       const Tclass *class_ids_ptr = nullptr, const Tdepth *depths_ptr = nullptr) {
         // Here we actually select the implementation of the integration function.
 #if 1
         // Implementation with
         // 1) Preliminary parallelized block-based grouping to minimize mutex contention
         // 2) Per-block parallelized integration without block-level mutex protection
-        integrate_raw_preorder_no_block_mutex<Tpos, Tcolor, Tinstance, Tclass>(
-            pts_ptr, num_points, cols_ptr, instance_ids_ptr, class_ids_ptr);
+        integrate_raw_preorder_no_block_mutex<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+            pts_ptr, num_points, cols_ptr, instance_ids_ptr, class_ids_ptr, depths_ptr);
 #else
         // Implementation with parallelized per-point integration with block-level mutex protection
-        integrate_raw_baseline<Tpos, Tcolor, Tinstance, Tclass>(pts_ptr, num_points, cols_ptr,
-                                                                instance_ids_ptr, class_ids_ptr);
+        integrate_raw_baseline<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+            pts_ptr, num_points, cols_ptr, instance_ids_ptr, class_ids_ptr, depths_ptr);
 #endif
     }
 
     // Implementation with per-point parallelization and mutex protection for each block.
     template <typename Tpos, typename Tcolor = std::nullptr_t, typename Tinstance = std::nullptr_t,
-              typename Tclass = std::nullptr_t>
+              typename Tclass = std::nullptr_t, typename Tdepth = std::nullptr_t>
     void integrate_raw_baseline(const Tpos *pts_ptr, size_t num_points,
                                 const Tcolor *cols_ptr = nullptr,
                                 const Tinstance *instance_ids_ptr = nullptr,
-                                const Tclass *class_ids_ptr = nullptr) {
+                                const Tclass *class_ids_ptr = nullptr,
+                                const Tdepth *depths_ptr = nullptr) {
 #ifdef TBB_FOUND
         // Parallel version using TBB with concurrent_unordered_map (thread-safe, no mutex needed)
         tbb::parallel_for(
             tbb::blocked_range<size_t>(0, num_points),
             [&](const tbb::blocked_range<size_t> &range) {
                 for (size_t i = range.begin(); i < range.end(); ++i) {
-#else
-        // Sequential version
-        for (size_t i = 0; i < num_points; ++i) {
-#endif
                     const size_t idx = i * 3;
                     const Tpos x = pts_ptr[idx + 0];
                     const Tpos y = pts_ptr[idx + 1];
@@ -151,32 +148,110 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                         const Tcolor color_y = cols_ptr[idx + 1];
                         const Tcolor color_z = cols_ptr[idx + 2];
 
-                        if constexpr (std::is_same_v<Tinstance, std::nullptr_t> &&
-                                      std::is_same_v<Tclass, std::nullptr_t>) {
+                        if constexpr (std::is_same_v<Tclass, std::nullptr_t>) {
                             // No semantics
                             update_voxel<Tpos, Tcolor>(x, y, z, color_x, color_y, color_z);
                         } else {
                             // With semantics
-                            const Tinstance instance_id = instance_ids_ptr[i];
                             const Tclass class_id = class_ids_ptr[i];
+                            if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                                const Tinstance instance_id = instance_ids_ptr[i];
+                                // we have instance id
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    const Tdepth depth = depths_ptr[i];
+                                    update_voxel<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+                                        x, y, z, color_x, color_y, color_z, instance_id, class_id,
+                                        depth);
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    update_voxel<Tpos, Tcolor, Tinstance, Tclass>(
+                                        x, y, z, color_x, color_y, color_z, instance_id, class_id);
+                                }
+                            } else {
+                                // we do not have instance id => use default instance id 1
+                                const Tinstance instance_id = 1;
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    const Tdepth depth = depths_ptr[i];
+                                    update_voxel<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+                                        x, y, z, color_x, color_y, color_z, instance_id, class_id,
+                                        depth);
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    update_voxel<Tpos, Tcolor, Tinstance, Tclass>(
+                                        x, y, z, color_x, color_y, color_z, instance_id, class_id);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+#else
+        // Sequential version
+        for (size_t i = 0; i < num_points; ++i) {
+            const size_t idx = i * 3;
+            const Tpos x = pts_ptr[idx + 0];
+            const Tpos y = pts_ptr[idx + 1];
+            const Tpos z = pts_ptr[idx + 2];
+
+            if constexpr (std::is_same_v<Tcolor, std::nullptr_t>) {
+                // No colors: call overload without color parameters
+                update_voxel<Tpos>(x, y, z);
+            } else {
+                // Colors provided: read colors and call with color parameters
+                const Tcolor color_x = cols_ptr[idx + 0];
+                const Tcolor color_y = cols_ptr[idx + 1];
+                const Tcolor color_z = cols_ptr[idx + 2];
+
+                if constexpr (std::is_same_v<Tclass, std::nullptr_t>) {
+                    // No semantics
+                    update_voxel<Tpos, Tcolor>(x, y, z, color_x, color_y, color_z);
+                } else {
+                    // With semantics
+                    const Tclass class_id = class_ids_ptr[i];
+                    if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                        const Tinstance instance_id = instance_ids_ptr[i];
+                        // we have instance id
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            const Tdepth depth = depths_ptr[i];
+                            update_voxel<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+                                x, y, z, color_x, color_y, color_z, instance_id, class_id, depth);
+                        } else {
+                            // we do not have depth => use confidence = 1.0
+                            update_voxel<Tpos, Tcolor, Tinstance, Tclass>(
+                                x, y, z, color_x, color_y, color_z, instance_id, class_id);
+                        }
+                    } else {
+                        // we do not have instance id => use default instance id 1
+                        const Tinstance instance_id = 1;
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            const Tdepth depth = depths_ptr[i];
+                            update_voxel<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+                                x, y, z, color_x, color_y, color_z, instance_id, class_id, depth);
+                        } else {
+                            // we do not have depth => use confidence = 1.0
                             update_voxel<Tpos, Tcolor, Tinstance, Tclass>(
                                 x, y, z, color_x, color_y, color_z, instance_id, class_id);
                         }
                     }
                 }
-#ifdef TBB_FOUND
-            });
+            }
+        }
 #endif
     }
 
     // Optimized implementation with block-based grouping to minimize mutex contention
     // Groups points by block key using hash map (O(n)).
     template <typename Tpos, typename Tcolor = std::nullptr_t, typename Tinstance = std::nullptr_t,
-              typename Tclass = std::nullptr_t>
+              typename Tclass = std::nullptr_t, typename Tdepth = std::nullptr_t>
     void integrate_raw_preorder_no_block_mutex(const Tpos *pts_ptr, size_t num_points,
                                                const Tcolor *cols_ptr = nullptr,
                                                const Tinstance *instance_ids_ptr = nullptr,
-                                               const Tclass *class_ids_ptr = nullptr) {
+                                               const Tclass *class_ids_ptr = nullptr,
+                                               const Tdepth *depths_ptr = nullptr) {
 #ifdef TBB_FOUND
         // Group point indices by block key using concurrent hash map
         struct PointInfo {
@@ -245,9 +320,38 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                         v.update_color(cx, cy, cz);
                     }
                     if constexpr (SemanticVoxel<VoxelDataT>) {
-                        if constexpr (!std::is_same_v<Tinstance, std::nullptr_t> &&
-                                      !std::is_same_v<Tclass, std::nullptr_t>) {
-                            v.initialize_semantics(instance_ids_ptr[i], class_ids_ptr[i]);
+                        if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                            // we have semantics/class id
+                            if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                                // we have instance id
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.initialize_semantics_with_depth(
+                                            instance_ids_ptr[i], class_ids_ptr[i], depths_ptr[i]);
+                                    } else {
+                                        v.initialize_semantics(instance_ids_ptr[i],
+                                                               class_ids_ptr[i]);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.initialize_semantics(instance_ids_ptr[i], class_ids_ptr[i]);
+                                }
+                            } else {
+                                // we do not have instance id => use default instance id 1
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.initialize_semantics_with_depth(1, class_ids_ptr[i],
+                                                                          depths_ptr[i]);
+                                    } else {
+                                        v.initialize_semantics(1, class_ids_ptr[i]);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.initialize_semantics(1, class_ids_ptr[i]);
+                                }
+                            }
                         }
                     }
                     v.count = 1;
@@ -259,9 +363,37 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                         v.update_color(cx, cy, cz);
                     }
                     if constexpr (SemanticVoxel<VoxelDataT>) {
-                        if constexpr (!std::is_same_v<Tinstance, std::nullptr_t> &&
-                                      !std::is_same_v<Tclass, std::nullptr_t>) {
-                            v.update_semantics(instance_ids_ptr[i], class_ids_ptr[i]);
+                        if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                            // we have semantics/class id
+                            if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                                // we have instance id
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.update_semantics_with_depth(
+                                            instance_ids_ptr[i], class_ids_ptr[i], depths_ptr[i]);
+                                    } else {
+                                        v.update_semantics(instance_ids_ptr[i], class_ids_ptr[i]);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.update_semantics(instance_ids_ptr[i], class_ids_ptr[i]);
+                                }
+                            } else {
+                                // we do not have instance id => use default instance id 1
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.update_semantics_with_depth(1, class_ids_ptr[i],
+                                                                      depths_ptr[i]);
+                                    } else {
+                                        v.update_semantics(1, class_ids_ptr[i]);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.update_semantics(1, class_ids_ptr[i]);
+                                }
+                            }
                         }
                     }
                     ++v.count;
@@ -269,23 +401,23 @@ template <typename VoxelDataT> class VoxelBlockGridT {
             }
         });
 #else
-        // Sequential version: fall back to integrate_raw_old
-        integrate_raw_baseline<Tpos, Tcolor, Tinstance, Tclass>(pts_ptr, num_points, cols_ptr,
-                                                                instance_ids_ptr, class_ids_ptr);
+        // Sequential version: fall back to integrate_raw_baseline
+        integrate_raw_baseline<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+            pts_ptr, num_points, cols_ptr, instance_ids_ptr, class_ids_ptr, depths_ptr);
 #endif
     }
 
-    // Helper function to update voxel with colors
+    // Helper function to update voxel
     template <typename Tpos, typename Tcolor = std::nullptr_t, typename Tinstance = std::nullptr_t,
-              typename Tclass = std::nullptr_t>
+              typename Tclass = std::nullptr_t, typename Tdepth = std::nullptr_t>
     void update_voxel(const Tpos x, const Tpos y, const Tpos z, const Tcolor color_x = nullptr,
                       const Tcolor color_y = nullptr, const Tcolor color_z = nullptr,
-                      const Tinstance instance_id = nullptr, const Tclass class_id = nullptr) {
+                      const Tinstance instance_id = nullptr, const Tclass class_id = nullptr,
+                      const Tdepth depth = nullptr) {
         // Compute voxel coordinates
         const VoxelKey voxel_key = get_voxel_key_inv<Tpos, float>(x, y, z, inv_voxel_size_);
 
-        // Compute block coordinates using helper function from
-        // voxel_hashing.h
+        // Compute block coordinates using helper function from voxel_hashing.h
         const BlockKey block_key = get_block_key(voxel_key, block_size_);
         const LocalVoxelKey local_key = get_local_voxel_key(voxel_key, block_key, block_size_);
 
@@ -308,9 +440,35 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                 v.update_color(color_x, color_y, color_z);
             }
             if constexpr (SemanticVoxel<VoxelDataT>) {
-                if constexpr ((!std::is_same_v<Tinstance, std::nullptr_t>) &&
-                              (!std::is_same_v<Tclass, std::nullptr_t>)) {
-                    v.initialize_semantics(instance_id, class_id);
+                if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                    // we have semantics/class id
+                    if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                        // we have instance id
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                v.initialize_semantics_with_depth(instance_id, class_id, depth);
+                            } else {
+                                v.initialize_semantics(instance_id, class_id);
+                            }
+                        } else {
+                            // we do not have depth => use confidence = 1.0
+                            v.initialize_semantics(instance_id, class_id);
+                        }
+                    } else {
+                        // we do not have instance id => use default instance id 1
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                v.initialize_semantics_with_depth(1, class_id, depth);
+                            } else {
+                                v.initialize_semantics(1, class_id);
+                            }
+                        } else {
+                            // we do not have depth => use confidence = 1.0
+                            v.initialize_semantics(1, class_id);
+                        }
+                    }
                 }
             }
             v.count = 1;
@@ -321,9 +479,35 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                 v.update_color(color_x, color_y, color_z);
             }
             if constexpr (SemanticVoxel<VoxelDataT>) {
-                if constexpr ((!std::is_same_v<Tinstance, std::nullptr_t>) &&
-                              (!std::is_same_v<Tclass, std::nullptr_t>)) {
-                    v.update_semantics(instance_id, class_id);
+                if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                    // we have semantics/class id
+                    if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                        // we have instance id
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                v.update_semantics_with_depth(instance_id, class_id, depth);
+                            } else {
+                                v.update_semantics(instance_id, class_id);
+                            }
+                        } else {
+                            // we do not have depth => use confidence = 1.0
+                            v.update_semantics(instance_id, class_id);
+                        }
+                    } else {
+                        // we do not have instance id => use default instance id 1
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                v.update_semantics_with_depth(1, class_id, depth);
+                            } else {
+                                v.update_semantics(1, class_id);
+                            }
+                        } else {
+                            // we do not have depth => use confidence = 1.0
+                            v.update_semantics(1, class_id);
+                        }
+                    }
                 }
             }
             ++v.count;
