@@ -62,15 +62,30 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
                       "VoxelDataT must satisfy the SemanticVoxel concept");
     }
 
+    void set_depth_threshold(float depth_threshold) {
+        if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+            VoxelDataT::kDepthThreshold = depth_threshold;
+        }
+    }
+
+    void set_depth_decay_rate(float depth_decay_rate) {
+        if constexpr (std::is_same_v<VoxelDataT, VoxelSemanticDataProbabilistic>) {
+            VoxelDataT::kDepthDecayRate = depth_decay_rate;
+        }
+    }
+
     // Insert a point cloud into the voxel grid
-    template <typename Tpos, typename Tcolor, typename Tinstance = int, typename Tclass = int>
+    template <typename Tpos, typename Tcolor, typename Tinstance = int, typename Tclass = int,
+              typename Tdepth = float>
     void integrate(py::array_t<Tpos> points, py::array_t<Tcolor> colors,
-                   py::array_t<Tinstance> instance_ids, py::array_t<Tclass> class_ids) {
+                   py::array_t<Tinstance> instance_ids, py::array_t<Tclass> class_ids,
+                   py::array_t<Tdepth> depths) {
 
         auto pts_info = points.request();
         auto cols_info = colors.request();
         auto instance_ids_info = instance_ids.request();
         auto class_ids_info = class_ids.request();
+        auto depths_info = depths.request();
 
         // Validate array shapes: points and colors should be (N, 3) or have 3*N elements
         if (pts_info.ndim != 2 || pts_info.shape[1] != 3) {
@@ -93,11 +108,19 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
                 "points, instance_ids, and class_ids must have the same number of rows");
         }
 
+        // if depths is not None, check if it has the same number of rows as points
+        if (depths_info.ptr) {
+            if (pts_info.shape[0] != depths_info.shape[0]) {
+                throw std::runtime_error("points and depths must have the same number of rows");
+            }
+        }
+
         VoxelBlockGridT<VoxelDataT>::template integrate_raw<Tpos, Tcolor, Tinstance, Tclass>(
             static_cast<const Tpos *>(pts_info.ptr), pts_info.shape[0],
             static_cast<const Tcolor *>(cols_info.ptr),
             static_cast<const Tinstance *>(instance_ids_info.ptr),
-            static_cast<const Tclass *>(class_ids_info.ptr));
+            static_cast<const Tclass *>(class_ids_info.ptr),
+            static_cast<const Tdepth *>(depths_info.ptr));
     }
 
     // Insert a segment of points (same instance and class IDs) into the voxel grid
@@ -218,7 +241,9 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
             auto &block = pair.second;
             std::lock_guard<std::mutex> lock(*block.mutex);
             for (auto &v : block.data) {
-                if (v.confidence_counter < min_confidence_counter) {
+                // Use getter method if available (for probabilistic), otherwise direct member
+                // access
+                if (get_confidence_counter_value(v) < min_confidence_counter) {
                     v.reset();
                 }
             }
@@ -227,7 +252,9 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
         // Sequential version
         for (auto &[block_key, block] : this->blocks_) {
             for (auto &v : block.data) {
-                if (v.confidence_counter < min_confidence_counter) {
+                // Use getter method if available (for probabilistic), otherwise direct member
+                // access
+                if (get_confidence_counter_value(v) < min_confidence_counter) {
                     v.reset();
                 }
             }

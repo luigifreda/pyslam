@@ -121,6 +121,34 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
         else:
             self.volume = VoxelSemanticGrid(voxel_size=Parameters.kVolumetricIntegrationVoxelLength)
 
+        try:
+            # Settings for semantic integration:
+            #       - The decay rate is just used with semantic probabilistic integration
+            #       - With non-probabilistic integration, the confidence counter is only updated when the depth is below the depth threshold
+            #       - With probabilistic integration, we use the depth to compute the confidence weights for semantics:
+            #         if depth < depth_threshold, the confidence weight is 1.0, otherwise it exponentially decays with the depth decay rate
+            if environment_type == DatasetEnvironmentType.INDOOR:
+                self.volume.set_depth_threshold(
+                    Parameters.kVolumetricSemanticProbabilisticIntegrationDepthThresholdIndoor
+                )
+                self.volume.set_depth_decay_rate(
+                    Parameters.kVolumetricSemanticProbabilisticIntegrationDepthDecayRateIndoor
+                )
+            else:
+                self.volume.set_depth_threshold(
+                    Parameters.kVolumetricSemanticProbabilisticIntegrationDepthThresholdOutdoor
+                )
+                self.volume.set_depth_decay_rate(
+                    Parameters.kVolumetricSemanticProbabilisticIntegrationDepthDecayRateOutdoor
+                )
+        except Exception as e:
+            VolumetricIntegratorBase.print(
+                f"VolumetricIntegratorVoxelSemanticGrid: EXCEPTION: {e} !!!"
+            )
+            if kPrintTrackebackDetails:
+                traceback_details = traceback.format_exc()
+                VolumetricIntegratorBase.print(f"\t traceback details: {traceback_details}")
+
         if not SemanticMappingShared.is_semantic_mapping_enabled():
             Printer.red(
                 f"\nVolumetricIntegratorVoxelSemanticGrid: semantic mapping is not enabled -> skipping semantic integration"
@@ -243,6 +271,12 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             instance_image=None,  # TODO: at present time, we do not use instance segmentation for volumetric integration
                         )
 
+                        # camera depths are used to generate confidence weights for semantics
+                        # if depth is less than kDepthThreshold, the confidence is 1.0
+                        # if depth is greater than kDepthThreshold, the confidence decays exponentially with depth
+                        depths = point_cloud.points[:, 2]
+                        depths = np.ascontiguousarray(depths, dtype=np.float32)
+
                         # transform point cloud from camera coordinate system to world coordinate system
                         points_world = (
                             inv_pose[:3, :3] @ point_cloud.points.T + inv_pose[:3, 3].reshape(3, 1)
@@ -277,11 +311,16 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 point_cloud.instance_ids, dtype=np.int32
                             )
                         else:
-                            instance_ids = np.ascontiguousarray(
-                                np.ones(point_cloud.points.shape[0], dtype=np.int32), dtype=np.int32
-                            )
+                            # instance_ids = np.ascontiguousarray(np.ones(point_cloud.points.shape[0], dtype=np.int32), dtype=np.int32)
+                            instance_ids = None
 
-                        self.volume.integrate(points, colors, instance_ids, semantics)
+                        self.volume.integrate(
+                            points,
+                            colors,
+                            instance_ids=instance_ids,
+                            class_ids=semantics,
+                            depths=depths,  # used to compute confidence weights for semantics
+                        )
 
                         self.last_integrated_id = keyframe_data.id
 
