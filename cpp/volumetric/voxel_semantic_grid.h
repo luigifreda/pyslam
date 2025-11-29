@@ -33,8 +33,10 @@
 
 #include <cmath>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <tuple>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -58,6 +60,18 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         : voxel_size_(voxel_size), inv_voxel_size_(1.0 / voxel_size) {
         static_assert(SemanticVoxel<VoxelDataT>,
                       "VoxelDataT must satisfy the SemanticVoxel concept");
+    }
+
+    void set_depth_threshold(float depth_threshold) {
+        if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+            VoxelDataT::kDepthThreshold = depth_threshold;
+        }
+    }
+
+    void set_depth_decay_rate(float depth_decay_rate) {
+        if constexpr (std::is_same_v<VoxelDataT, VoxelSemanticDataProbabilistic>) {
+            VoxelDataT::kDepthDecayRate = depth_decay_rate;
+        }
     }
 
     // Insert a point cloud into the voxel grid
@@ -97,50 +111,183 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
                               static_cast<const int *>(class_ids_info.ptr));
     }
 
-    template <typename Tp, typename Tc>
-    void integrate_raw(const Tp *pts_ptr, size_t num_points, const Tc *cols_ptr,
-                       const int *instance_ids_ptr, const int *class_ids_ptr) {
+    // Insert a point cloud into the voxel grid (with optional depth-based confidence)
+    // Uses pre-partitioning to avoid race conditions: groups points by voxel key first,
+    // then processes each voxel group serially in parallel. This ensures each voxel is
+    // updated by exactly one thread, eliminating concurrent access to the same VoxelDataT object.
+    template <typename Tp, typename Tcolor = std::nullptr_t, typename Tinstance = std::nullptr_t,
+              typename Tclass = std::nullptr_t, typename Tdepth = std::nullptr_t>
+    void integrate_raw(const Tp *pts_ptr, size_t num_points, const Tcolor *cols_ptr = nullptr,
+                       const Tinstance *instance_ids_ptr = nullptr,
+                       const Tclass *class_ids_ptr = nullptr, const Tdepth *depths_ptr = nullptr) {
 #ifdef TBB_FOUND
-        // Parallel version using TBB with concurrent_unordered_map (thread-safe, no mutex needed)
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_points),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const size_t idx = i * 3;
-                                  const Tp x = pts_ptr[idx + 0];
-                                  const Tp y = pts_ptr[idx + 1];
-                                  const Tp z = pts_ptr[idx + 2];
+        // Pre-partition points by voxel key to avoid race conditions
+        // Helper types to handle nullptr_t template parameters
+        using ColorType = std::conditional_t<std::is_same_v<Tcolor, std::nullptr_t>, float, Tcolor>;
+        using InstanceType =
+            std::conditional_t<std::is_same_v<Tinstance, std::nullptr_t>, int, Tinstance>;
+        using ClassType = std::conditional_t<std::is_same_v<Tclass, std::nullptr_t>, int, Tclass>;
+        using DepthType = std::conditional_t<std::is_same_v<Tdepth, std::nullptr_t>, float, Tdepth>;
 
-                                  const Tc color_x = cols_ptr[idx + 0];
-                                  const Tc color_y = cols_ptr[idx + 1];
-                                  const Tc color_z = cols_ptr[idx + 2];
+        struct PointInfo {
+            Tp x, y, z;
+            ColorType color_x, color_y, color_z;
+            InstanceType instance_id;
+            ClassType class_id;
+            DepthType depth;
+        };
+        tbb::concurrent_unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> voxel_groups;
 
-                                  const int instance_id = instance_ids_ptr[i];
-                                  const int class_id = class_ids_ptr[i];
+        // Phase 1: Group points by voxel key in parallel (thread-local accumulation)
+        std::mutex merge_mutex;
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, num_points),
+            [&](const tbb::blocked_range<size_t> &range) {
+                // Thread-local map for this range
+                std::unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> local_groups;
+                local_groups.reserve(64); // Pre-allocate for typical voxel count
 
-                                  const VoxelKey key =
-                                      get_voxel_key_inv<Tp, double>(x, y, z, inv_voxel_size_);
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    const size_t idx = i * 3;
+                    const Tp x = pts_ptr[idx + 0];
+                    const Tp y = pts_ptr[idx + 1];
+                    const Tp z = pts_ptr[idx + 2];
 
-                                  // concurrent_unordered_map is thread-safe, no mutex needed
-                                  auto [it, inserted] = grid_.insert({key, VoxelDataT()});
-                                  auto &v = it->second;
+                    const VoxelKey key = get_voxel_key_inv<Tp, double>(x, y, z, inv_voxel_size_);
 
-                                  if (inserted || v.count == 0) {
-                                      // New voxel or reset voxel: initialize and update
-                                      // If count==0, the voxel was reset and should be treated as
-                                      // new
-                                      v.update_point(x, y, z);
-                                      v.update_color(color_x, color_y, color_z);
-                                      v.initialize_semantics(instance_id, class_id);
-                                      v.count = 1;
-                                  } else {
-                                      // Existing voxel: just update
-                                      v.update_point(x, y, z);
-                                      v.update_color(color_x, color_y, color_z);
-                                      v.update_semantics(instance_id, class_id);
-                                      ++v.count;
-                                  }
-                              }
-                          });
+                    PointInfo info;
+                    info.x = x;
+                    info.y = y;
+                    info.z = z;
+                    if constexpr (!std::is_same_v<Tcolor, std::nullptr_t>) {
+                        info.color_x = cols_ptr[idx + 0];
+                        info.color_y = cols_ptr[idx + 1];
+                        info.color_z = cols_ptr[idx + 2];
+                    }
+                    if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                        info.instance_id = instance_ids_ptr[i];
+                    }
+                    if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                        info.class_id = class_ids_ptr[i];
+                    }
+                    if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                        info.depth = depths_ptr[i];
+                    }
+
+                    local_groups[key].push_back(info);
+                }
+
+                // Merge local groups into global concurrent map
+                std::lock_guard<std::mutex> lock(merge_mutex);
+                for (auto &[key, points] : local_groups) {
+                    auto it = voxel_groups.find(key);
+                    if (it == voxel_groups.end()) {
+                        auto result = voxel_groups.insert({key, std::vector<PointInfo>()});
+                        it = result.first;
+                    }
+                    auto &global_vec = it->second;
+                    global_vec.insert(global_vec.end(), points.begin(), points.end());
+                }
+            });
+
+        // Phase 2: Process each voxel group in parallel (one thread per voxel)
+        tbb::parallel_for_each(voxel_groups.begin(), voxel_groups.end(), [&](const auto &pair) {
+            const VoxelKey &key = pair.first;
+            const std::vector<PointInfo> &points = pair.second;
+
+            // Get or create voxel (concurrent map is thread-safe)
+            auto [it, inserted] = grid_.insert({key, VoxelDataT()});
+            auto &v = it->second;
+
+            // Update all points for this voxel serially (by this thread only)
+            bool is_first = true;
+            for (const auto &info : points) {
+                if (inserted || (is_first && v.count == 0)) {
+                    // New voxel or reset voxel: initialize and update
+                    v.update_point(info.x, info.y, info.z);
+                    if constexpr (!std::is_same_v<Tcolor, std::nullptr_t>) {
+                        v.update_color(info.color_x, info.color_y, info.color_z);
+                    }
+                    if constexpr (SemanticVoxel<VoxelDataT>) {
+                        if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                            // we have semantics/class id
+                            if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                                // we have instance id
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.initialize_semantics_with_depth(
+                                            info.instance_id, info.class_id, info.depth);
+                                    } else {
+                                        v.initialize_semantics(info.instance_id, info.class_id);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.initialize_semantics(info.instance_id, info.class_id);
+                                }
+                            } else {
+                                // we do not have instance id => use default instance id 1
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.initialize_semantics_with_depth(1, info.class_id,
+                                                                          info.depth);
+                                    } else {
+                                        v.initialize_semantics(1, info.class_id);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.initialize_semantics(1, info.class_id);
+                                }
+                            }
+                        }
+                    }
+                    v.count = 1;
+                    inserted = false; // Only first point is "inserted"
+                    is_first = false;
+                } else {
+                    // Existing voxel: accumulate
+                    v.update_point(info.x, info.y, info.z);
+                    if constexpr (!std::is_same_v<Tcolor, std::nullptr_t>) {
+                        v.update_color(info.color_x, info.color_y, info.color_z);
+                    }
+                    if constexpr (SemanticVoxel<VoxelDataT>) {
+                        if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                            // we have semantics/class id
+                            if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                                // we have instance id
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.update_semantics_with_depth(info.instance_id,
+                                                                      info.class_id, info.depth);
+                                    } else {
+                                        v.update_semantics(info.instance_id, info.class_id);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.update_semantics(info.instance_id, info.class_id);
+                                }
+                            } else {
+                                // we do not have instance id => use default instance id 1
+                                if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                    // we have depth
+                                    if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                        v.update_semantics_with_depth(1, info.class_id, info.depth);
+                                    } else {
+                                        v.update_semantics(1, info.class_id);
+                                    }
+                                } else {
+                                    // we do not have depth => use confidence = 1.0
+                                    v.update_semantics(1, info.class_id);
+                                }
+                            }
+                        }
+                    }
+                    ++v.count;
+                }
+            }
+        });
 #else
         // Sequential version
         for (size_t i = 0; i < num_points; ++i) {
@@ -148,13 +295,6 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
             const Tp x = pts_ptr[idx + 0];
             const Tp y = pts_ptr[idx + 1];
             const Tp z = pts_ptr[idx + 2];
-
-            const Tc color_x = cols_ptr[idx + 0];
-            const Tc color_y = cols_ptr[idx + 1];
-            const Tc color_z = cols_ptr[idx + 2];
-
-            const int instance_id = instance_ids_ptr[i];
-            const int class_id = class_ids_ptr[i];
 
             const VoxelKey key = get_voxel_key_inv<Tp, double>(x, y, z, inv_voxel_size_);
 
@@ -166,14 +306,94 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
                 // New voxel or reset voxel: initialize and update
                 // If count==0, the voxel was reset and should be treated as new
                 v.update_point(x, y, z);
-                v.update_color(color_x, color_y, color_z);
-                v.initialize_semantics(instance_id, class_id);
+                if constexpr (!std::is_same_v<Tcolor, std::nullptr_t>) {
+                    const Tcolor color_x = cols_ptr[idx + 0];
+                    const Tcolor color_y = cols_ptr[idx + 1];
+                    const Tcolor color_z = cols_ptr[idx + 2];
+                    v.update_color(color_x, color_y, color_z);
+                }
+                if constexpr (SemanticVoxel<VoxelDataT>) {
+                    if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                        // we have semantics/class id
+                        if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                            // we have instance id
+                            const Tinstance instance_id = instance_ids_ptr[i];
+                            const Tclass class_id = class_ids_ptr[i];
+                            if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                // we have depth
+                                if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                    v.initialize_semantics_with_depth(instance_id, class_id,
+                                                                      depths_ptr[i]);
+                                } else {
+                                    v.initialize_semantics(instance_id, class_id);
+                                }
+                            } else {
+                                // we do not have depth => use confidence = 1.0
+                                v.initialize_semantics(instance_id, class_id);
+                            }
+                        } else {
+                            // we do not have instance id => use default instance id 1
+                            const Tclass class_id = class_ids_ptr[i];
+                            if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                // we have depth
+                                if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                    v.initialize_semantics_with_depth(1, class_id, depths_ptr[i]);
+                                } else {
+                                    v.initialize_semantics(1, class_id);
+                                }
+                            } else {
+                                // we do not have depth => use confidence = 1.0
+                                v.initialize_semantics(1, class_id);
+                            }
+                        }
+                    }
+                }
                 v.count = 1;
             } else {
                 // Existing voxel: just update
                 v.update_point(x, y, z);
-                v.update_color(color_x, color_y, color_z);
-                v.update_semantics(instance_id, class_id);
+                if constexpr (!std::is_same_v<Tcolor, std::nullptr_t>) {
+                    const Tcolor color_x = cols_ptr[idx + 0];
+                    const Tcolor color_y = cols_ptr[idx + 1];
+                    const Tcolor color_z = cols_ptr[idx + 2];
+                    v.update_color(color_x, color_y, color_z);
+                }
+                if constexpr (SemanticVoxel<VoxelDataT>) {
+                    if constexpr (!std::is_same_v<Tclass, std::nullptr_t>) {
+                        // we have semantics/class id
+                        if constexpr (!std::is_same_v<Tinstance, std::nullptr_t>) {
+                            // we have instance id
+                            const Tinstance instance_id = instance_ids_ptr[i];
+                            const Tclass class_id = class_ids_ptr[i];
+                            if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                // we have depth
+                                if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                    v.update_semantics_with_depth(instance_id, class_id,
+                                                                  depths_ptr[i]);
+                                } else {
+                                    v.update_semantics(instance_id, class_id);
+                                }
+                            } else {
+                                // we do not have depth => use confidence = 1.0
+                                v.update_semantics(instance_id, class_id);
+                            }
+                        } else {
+                            // we do not have instance id => use default instance id 1
+                            const Tclass class_id = class_ids_ptr[i];
+                            if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                                // we have depth
+                                if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
+                                    v.update_semantics_with_depth(1, class_id, depths_ptr[i]);
+                                } else {
+                                    v.update_semantics(1, class_id);
+                                }
+                            } else {
+                                // we do not have depth => use confidence = 1.0
+                                v.update_semantics(1, class_id);
+                            }
+                        }
+                    }
+                }
                 ++v.count;
             }
         }
@@ -192,6 +412,9 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     }
 
     // Insert a cluster of points (same instance and class IDs) into the voxel grid
+    // Uses pre-partitioning to avoid race conditions: groups points by voxel key first,
+    // then processes each voxel group serially in parallel. This ensures each voxel is
+    // updated by exactly one thread, eliminating concurrent access to the same VoxelDataT object.
     template <typename Tp, typename Tc>
     void integrate_segment_raw(const Tp *pts_ptr, const size_t num_points, const Tc *cols_ptr,
                                const int instance_id, const int class_id) {
@@ -202,43 +425,83 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         }
 
 #ifdef TBB_FOUND
-        // Parallel version using TBB with concurrent_unordered_map (thread-safe, no mutex needed)
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_points),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const size_t idx = i * 3;
-                                  const Tp x = pts_ptr[idx + 0];
-                                  const Tp y = pts_ptr[idx + 1];
-                                  const Tp z = pts_ptr[idx + 2];
+        // Pre-partition points by voxel key to avoid race conditions
+        struct PointInfo {
+            Tp x, y, z;
+            Tc color_x, color_y, color_z;
+        };
+        tbb::concurrent_unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> voxel_groups;
 
-                                  const Tc color_x = cols_ptr[idx + 0];
-                                  const Tc color_y = cols_ptr[idx + 1];
-                                  const Tc color_z = cols_ptr[idx + 2];
+        // Phase 1: Group points by voxel key in parallel (thread-local accumulation)
+        std::mutex merge_mutex;
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, num_points),
+            [&](const tbb::blocked_range<size_t> &range) {
+                // Thread-local map for this range
+                std::unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> local_groups;
+                local_groups.reserve(64); // Pre-allocate for typical voxel count
 
-                                  const VoxelKey key =
-                                      get_voxel_key_inv<Tp, double>(x, y, z, inv_voxel_size_);
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    const size_t idx = i * 3;
+                    const Tp x = pts_ptr[idx + 0];
+                    const Tp y = pts_ptr[idx + 1];
+                    const Tp z = pts_ptr[idx + 2];
 
-                                  // concurrent_unordered_map is thread-safe, no mutex needed
-                                  auto [it, inserted] = grid_.insert({key, VoxelDataT()});
-                                  auto &v = it->second;
+                    const VoxelKey key = get_voxel_key_inv<Tp, double>(x, y, z, inv_voxel_size_);
 
-                                  if (inserted || v.count == 0) {
-                                      // New voxel or reset voxel: initialize and update
-                                      // If count==0, the voxel was reset and should be treated as
-                                      // new
-                                      v.update_point(x, y, z);
-                                      v.update_color(color_x, color_y, color_z);
-                                      v.initialize_semantics(instance_id, class_id);
-                                      v.count = 1;
-                                  } else {
-                                      // Existing voxel: just update
-                                      v.update_point(x, y, z);
-                                      v.update_color(color_x, color_y, color_z);
-                                      v.update_semantics(instance_id, class_id);
-                                      ++v.count;
-                                  }
-                              }
-                          });
+                    PointInfo info;
+                    info.x = x;
+                    info.y = y;
+                    info.z = z;
+                    info.color_x = cols_ptr[idx + 0];
+                    info.color_y = cols_ptr[idx + 1];
+                    info.color_z = cols_ptr[idx + 2];
+
+                    local_groups[key].push_back(info);
+                }
+
+                // Merge local groups into global concurrent map
+                std::lock_guard<std::mutex> lock(merge_mutex);
+                for (auto &[key, points] : local_groups) {
+                    auto it = voxel_groups.find(key);
+                    if (it == voxel_groups.end()) {
+                        auto result = voxel_groups.insert({key, std::vector<PointInfo>()});
+                        it = result.first;
+                    }
+                    auto &global_vec = it->second;
+                    global_vec.insert(global_vec.end(), points.begin(), points.end());
+                }
+            });
+
+        // Phase 2: Process each voxel group in parallel (one thread per voxel)
+        tbb::parallel_for_each(voxel_groups.begin(), voxel_groups.end(), [&](const auto &pair) {
+            const VoxelKey &key = pair.first;
+            const std::vector<PointInfo> &points = pair.second;
+
+            // Get or create voxel (concurrent map is thread-safe)
+            auto [it, inserted] = grid_.insert({key, VoxelDataT()});
+            auto &v = it->second;
+
+            // Update all points for this voxel serially (by this thread only)
+            bool is_first = true;
+            for (const auto &info : points) {
+                if (inserted || (is_first && v.count == 0)) {
+                    // New voxel or reset voxel: initialize and update
+                    v.update_point(info.x, info.y, info.z);
+                    v.update_color(info.color_x, info.color_y, info.color_z);
+                    v.initialize_semantics(instance_id, class_id);
+                    v.count = 1;
+                    inserted = false; // Only first point is "inserted"
+                    is_first = false;
+                } else {
+                    // Existing voxel: accumulate
+                    v.update_point(info.x, info.y, info.z);
+                    v.update_color(info.color_x, info.color_y, info.color_z);
+                    v.update_semantics(instance_id, class_id);
+                    ++v.count;
+                }
+            }
+        });
 #else
         // Sequential version
         for (size_t i = 0; i < num_points; ++i) {
@@ -332,7 +595,8 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         std::vector<VoxelKey> keys_to_remove;
         keys_to_remove.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
-            if (v.confidence_counter < min_confidence_counter) {
+            // Use getter method if available (for probabilistic), otherwise direct member access
+            if (get_confidence_counter_value(v) < min_confidence_counter) {
                 keys_to_remove.push_back(key);
             }
         }
@@ -342,7 +606,8 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
 #else
         // Sequential version for std::unordered_map
         for (auto it = grid_.begin(); it != grid_.end();) {
-            if (it->second.confidence_counter < min_confidence_counter) {
+            // Use getter method if available (for probabilistic), otherwise direct member access
+            if (get_confidence_counter_value(it->second) < min_confidence_counter) {
                 // Remove the voxel with low confidence_counter
                 it = grid_.erase(it);
             } else {

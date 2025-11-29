@@ -51,82 +51,294 @@ namespace py = pybind11;
                                                     CONSTRUCTOR, ...)                              \
     py::class_<EXPAND_CLASS_DEF(CLASS_DEF)>(m, PYTHON_NAME)                                        \
         .def(CONSTRUCTOR, __VA_ARGS__)                                                             \
+        .def("set_depth_threshold", &CLASS_TYPE::set_depth_threshold,                              \
+             py::arg("depth_threshold") = 5.0)                                                     \
+        .def("set_depth_decay_rate", &CLASS_TYPE::set_depth_decay_rate,                            \
+             py::arg("depth_decay_rate") = 0.07)                                                   \
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<uint8_t> colors,          \
-               py::array_t<int> instance_ids, py::array_t<int> class_ids) {                        \
+               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object depths = py::none()) {                                                   \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
-                auto instance_ids_info = instance_ids.request();                                   \
                 auto class_ids_info = class_ids.request();                                         \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    self.integrate_raw<double, uint8_t>(                                           \
-                        static_cast<const double *>(pts_info.ptr), pts_info.shape[0],              \
-                        static_cast<const uint8_t *>(cols_info.ptr),                               \
-                        static_cast<const int *>(instance_ids_info.ptr),                           \
-                        static_cast<const int *>(class_ids_info.ptr));                             \
+                    if (depths.is_none()) {                                                        \
+                        if (instance_ids.is_none()) {                                              \
+                            self.integrate_raw<double, uint8_t, std::nullptr_t, int>(              \
+                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
+                                static_cast<const uint8_t *>(cols_info.ptr), nullptr,              \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        } else {                                                                   \
+                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
+                            auto instance_ids_info = instance_ids_arr.request();                   \
+                            self.integrate_raw<double, uint8_t, int, int>(                         \
+                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
+                                static_cast<const uint8_t *>(cols_info.ptr),                       \
+                                static_cast<const int *>(instance_ids_info.ptr),                   \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        }                                                                          \
+                    } else {                                                                       \
+                        try {                                                                      \
+                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<double, uint8_t, std::nullptr_t, int, float>(   \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<double, uint8_t, int, int, float>(              \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            }                                                                      \
+                        } catch (const py::cast_error &) {                                         \
+                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<double, uint8_t, std::nullptr_t, int, double>(  \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<double, uint8_t, int, int, double>(             \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            }                                                                      \
+                        }                                                                          \
+                    }                                                                              \
                 }                                                                                  \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"),      \
-            py::arg("instance_ids"), py::arg("class_ids"))                                         \
+            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<float> colors,            \
-               py::array_t<int> instance_ids, py::array_t<int> class_ids) {                        \
+               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object depths = py::none()) {                                                   \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
-                auto instance_ids_info = instance_ids.request();                                   \
                 auto class_ids_info = class_ids.request();                                         \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    self.integrate_raw<double, float>(                                             \
-                        static_cast<const double *>(pts_info.ptr), pts_info.shape[0],              \
-                        static_cast<const float *>(cols_info.ptr),                                 \
-                        static_cast<const int *>(instance_ids_info.ptr),                           \
-                        static_cast<const int *>(class_ids_info.ptr));                             \
+                    if (depths.is_none()) {                                                        \
+                        if (instance_ids.is_none()) {                                              \
+                            self.integrate_raw<double, float, std::nullptr_t, int>(                \
+                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
+                                static_cast<const float *>(cols_info.ptr), nullptr,                \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        } else {                                                                   \
+                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
+                            auto instance_ids_info = instance_ids_arr.request();                   \
+                            self.integrate_raw<double, float, int, int>(                           \
+                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
+                                static_cast<const float *>(cols_info.ptr),                         \
+                                static_cast<const int *>(instance_ids_info.ptr),                   \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        }                                                                          \
+                    } else {                                                                       \
+                        try {                                                                      \
+                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<double, float, std::nullptr_t, int, float>(     \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<double, float, int, int, float>(                \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const float *>(cols_info.ptr),                     \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            }                                                                      \
+                        } catch (const py::cast_error &) {                                         \
+                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<double, float, std::nullptr_t, int, double>(    \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<double, float, int, int, double>(               \
+                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
+                                    static_cast<const float *>(cols_info.ptr),                     \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            }                                                                      \
+                        }                                                                          \
+                    }                                                                              \
                 }                                                                                  \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"),      \
-            py::arg("instance_ids"), py::arg("class_ids"))                                         \
+            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<uint8_t> colors,           \
-               py::array_t<int> instance_ids, py::array_t<int> class_ids) {                        \
+               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object depths = py::none()) {                                                   \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
-                auto instance_ids_info = instance_ids.request();                                   \
                 auto class_ids_info = class_ids.request();                                         \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    self.integrate_raw<float, uint8_t>(                                            \
-                        static_cast<const float *>(pts_info.ptr), pts_info.shape[0],               \
-                        static_cast<const uint8_t *>(cols_info.ptr),                               \
-                        static_cast<const int *>(instance_ids_info.ptr),                           \
-                        static_cast<const int *>(class_ids_info.ptr));                             \
+                    if (depths.is_none()) {                                                        \
+                        if (instance_ids.is_none()) {                                              \
+                            self.integrate_raw<float, uint8_t, std::nullptr_t, int>(               \
+                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
+                                static_cast<const uint8_t *>(cols_info.ptr), nullptr,              \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        } else {                                                                   \
+                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
+                            auto instance_ids_info = instance_ids_arr.request();                   \
+                            self.integrate_raw<float, uint8_t, int, int>(                          \
+                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
+                                static_cast<const uint8_t *>(cols_info.ptr),                       \
+                                static_cast<const int *>(instance_ids_info.ptr),                   \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        }                                                                          \
+                    } else {                                                                       \
+                        try {                                                                      \
+                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<float, uint8_t, std::nullptr_t, int, float>(    \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<float, uint8_t, int, int, float>(               \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            }                                                                      \
+                        } catch (const py::cast_error &) {                                         \
+                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<float, uint8_t, std::nullptr_t, int, double>(   \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<float, uint8_t, int, int, double>(              \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            }                                                                      \
+                        }                                                                          \
+                    }                                                                              \
                 }                                                                                  \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"),      \
-            py::arg("instance_ids"), py::arg("class_ids"))                                         \
+            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<float> colors,             \
-               py::array_t<int> instance_ids, py::array_t<int> class_ids) {                        \
+               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object depths = py::none()) {                                                   \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
-                auto instance_ids_info = instance_ids.request();                                   \
                 auto class_ids_info = class_ids.request();                                         \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    self.integrate_raw<float, float>(                                              \
-                        static_cast<const float *>(pts_info.ptr), pts_info.shape[0],               \
-                        static_cast<const float *>(cols_info.ptr),                                 \
-                        static_cast<const int *>(instance_ids_info.ptr),                           \
-                        static_cast<const int *>(class_ids_info.ptr));                             \
+                    if (depths.is_none()) {                                                        \
+                        if (instance_ids.is_none()) {                                              \
+                            self.integrate_raw<float, float, std::nullptr_t, int>(                 \
+                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
+                                static_cast<const float *>(cols_info.ptr), nullptr,                \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        } else {                                                                   \
+                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
+                            auto instance_ids_info = instance_ids_arr.request();                   \
+                            self.integrate_raw<float, float, int, int>(                            \
+                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
+                                static_cast<const float *>(cols_info.ptr),                         \
+                                static_cast<const int *>(instance_ids_info.ptr),                   \
+                                static_cast<const int *>(class_ids_info.ptr));                     \
+                        }                                                                          \
+                    } else {                                                                       \
+                        try {                                                                      \
+                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<float, float, std::nullptr_t, int, float>(      \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<float, float, int, int, float>(                 \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const float *>(cols_info.ptr),                     \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const float *>(depths_info.ptr));                  \
+                            }                                                                      \
+                        } catch (const py::cast_error &) {                                         \
+                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
+                            auto depths_info = depths_arr.request();                               \
+                            if (instance_ids.is_none()) {                                          \
+                                self.integrate_raw<float, float, std::nullptr_t, int, double>(     \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            } else {                                                               \
+                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
+                                auto instance_ids_info = instance_ids_arr.request();               \
+                                self.integrate_raw<float, float, int, int, double>(                \
+                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
+                                    static_cast<const float *>(cols_info.ptr),                     \
+                                    static_cast<const int *>(instance_ids_info.ptr),               \
+                                    static_cast<const int *>(class_ids_info.ptr),                  \
+                                    static_cast<const double *>(depths_info.ptr));                 \
+                            }                                                                      \
+                        }                                                                          \
+                    }                                                                              \
                 }                                                                                  \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"),      \
-            py::arg("instance_ids"), py::arg("class_ids"))                                         \
+            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<uint8_t> colors,          \
@@ -296,7 +508,7 @@ namespace py = pybind11;
             },                                                                                     \
             "Reset the voxel grid, same as clear()")                                               \
         .def("size", &CLASS_TYPE::size, "Returns the size of the voxel grid")                      \
-        .def("empty", &CLASS_TYPE::empty, "Returns True if the voxel grid is empty");
+        .def("empty", &CLASS_TYPE::empty, "Returns True if the voxel grid is empty")
 
 // ----------------------------------------
 // Unified macro for VoxelGrid and VoxelBlockGrid bindings
