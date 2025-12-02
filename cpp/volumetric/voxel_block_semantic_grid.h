@@ -190,8 +190,8 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
             auto &block = pair.second;
             std::lock_guard<std::mutex> lock(*block.mutex);
             for (auto &v : block.data) {
-                if (v.instance_id == instance_id2) {
-                    v.instance_id = instance_id1;
+                if (v.get_instance_id() == instance_id2) {
+                    v.set_instance_id(instance_id1);
                 }
             }
         });
@@ -199,8 +199,8 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
         // Sequential version
         for (auto &[block_key, block] : this->blocks_) {
             for (auto &v : block.data) {
-                if (v.instance_id == instance_id2) {
-                    v.instance_id = instance_id1;
+                if (v.get_instance_id() == instance_id2) {
+                    v.set_instance_id(instance_id1);
                 }
             }
         }
@@ -216,7 +216,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
             auto &block = pair.second;
             std::lock_guard<std::mutex> lock(*block.mutex);
             for (auto &v : block.data) {
-                if (v.instance_id == instance_id) {
+                if (v.get_instance_id() == instance_id) {
                     v.reset();
                 }
             }
@@ -225,7 +225,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
         // Sequential version
         for (auto &[block_key, block] : this->blocks_) {
             for (auto &v : block.data) {
-                if (v.instance_id == instance_id) {
+                if (v.get_instance_id() == instance_id) {
                     v.reset();
                 }
             }
@@ -243,7 +243,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
             for (auto &v : block.data) {
                 // Use getter method if available (for probabilistic), otherwise direct member
                 // access
-                if (get_confidence_counter_value(v) < min_confidence_counter) {
+                if (v.get_confidence_counter() < min_confidence_counter) {
                     v.reset();
                 }
             }
@@ -254,7 +254,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
             for (auto &v : block.data) {
                 // Use getter method if available (for probabilistic), otherwise direct member
                 // access
-                if (get_confidence_counter_value(v) < min_confidence_counter) {
+                if (v.get_confidence_counter() < min_confidence_counter) {
                     v.reset();
                 }
             }
@@ -272,8 +272,8 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
         for (const auto &[block_key, block] : this->blocks_) {
             for (const auto &v : block.data) {
                 if (v.count > 0) {
-                    class_ids.push_back(v.class_id);
-                    instance_ids.push_back(v.instance_id);
+                    class_ids.push_back(v.get_class_id());
+                    instance_ids.push_back(v.get_instance_id());
                 }
             }
         }
@@ -298,8 +298,8 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
                 if (v.count >= min_count) {
                     points.push_back(v.get_position());
                     colors.push_back(v.get_color());
-                    class_ids.push_back(v.class_id);
-                    instance_ids.push_back(v.instance_id);
+                    class_ids.push_back(v.get_class_id());
+                    instance_ids.push_back(v.get_instance_id());
                 }
             }
         }
@@ -312,7 +312,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
         for (const auto &[block_key, block] : this->blocks_) {
             for (const auto &v : block.data) {
                 if (v.count > 0) {
-                    segments[v.instance_id].push_back(v.get_position());
+                    segments[v.get_instance_id()].push_back(v.get_position());
                 }
             }
         }

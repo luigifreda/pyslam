@@ -245,7 +245,13 @@ class LoopDetectingProcess:
             with self.q_out_reloc_condition:
                 self.q_out_reloc_condition.notify_all()
             if self.process.is_alive():
-                self.process.join(timeout=5)
+                # check if "spawn" method is used, so we increse the default timeout
+                timeout = (
+                    Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                    if mp.get_start_method() != "spawn"
+                    else 2 * Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                )
+                self.process.join(timeout=timeout)
             if self.process.is_alive():
                 Printer.orange(
                     "Warning: Loop detection process did not terminate in time, forced kill."

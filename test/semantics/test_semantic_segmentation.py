@@ -21,15 +21,13 @@ import numpy as np
 
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.slam.frame import Frame, FeatureTrackerShared
-from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes
+from pyslam.local_features.feature_tracker import feature_tracker_factory
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from pyslam.semantics.semantic_segmentation_factory import (
-    semantic_segmentation_factory,
-    SemanticSegmentationType,
-)
-from pyslam.semantics.semantic_utils import SemanticDatasetType, labels_color_map_factory
-from pyslam.semantics.semantic_types import SemanticFeatureType
+from pyslam.semantics.semantic_segmentation_factory import semantic_segmentation_factory
+from pyslam.semantics.semantic_segmentation_types import SemanticSegmentationType
+from pyslam.semantics.semantic_color_utils import labels_color_map_factory
+from pyslam.semantics.semantic_types import SemanticFeatureType, SemanticDatasetType
 
 from pyslam.semantics.semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
 from pyslam.semantics.semantic_segmentation_segformer import SemanticSegmentationSegformer
@@ -74,9 +72,9 @@ if __name__ == "__main__":
     Printer.green(f"semantic_dataset_type: {semantic_dataset_type.name}")
     Printer.green(f"num classes: {semantic_segmentation.num_classes()}")
 
-    semantics_color_map = None
+    semantic_color_map = None
     if semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY:
-        semantics_color_map = labels_color_map_factory(semantic_dataset_type)
+        semantic_color_map = labels_color_map_factory(semantic_dataset_type)
 
     img_writer = ImgWriter(font_scale=0.7)
 

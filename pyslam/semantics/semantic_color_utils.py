@@ -37,14 +37,9 @@ from .semantic_labels import (
     get_nyu40_labels,
     get_voc_labels,
 )
+from .semantic_segmentation_types import SemanticSegmentationType
 from pyslam.utilities.serialization import SerializableEnum, register_class
-
-# Import SemanticSegmentationType here to avoid circular imports
-# We'll import it conditionally in the function that needs it
-try:
-    from .semantic_segmentation_factory import SemanticSegmentationType
-except ImportError:
-    SemanticSegmentationType = None
+from pyslam.utilities.system import Printer
 
 
 def similarity_heatmap_image(sim_map, colormap=cv2.COLORMAP_JET, sim_scale=1.0, bgr=False):
@@ -89,7 +84,7 @@ def similarity_heatmap_point(sim_point, colormap=cv2.COLORMAP_JET, sim_scale=1.0
 
 
 # create a scaled image of uint8 from a image of semantics
-def labels_to_image(label_img, semantics_color_map, bgr=False, ignore_labels=None, rgb_image=None):
+def labels_to_image(label_img, semantic_color_map, bgr=False, ignore_labels=None, rgb_image=None):
     """
     Converts a class label image to an RGB image.
     Args:
@@ -98,11 +93,23 @@ def labels_to_image(label_img, semantics_color_map, bgr=False, ignore_labels=Non
     Returns:
         rgb_output: RGB image as a NumPy array.
     """
-    semantics_color_map = np.array(semantics_color_map, dtype=np.uint8)
+    semantic_color_map = np.array(semantic_color_map, dtype=np.uint8)
     if bgr:
-        semantics_color_map = semantics_color_map[:, ::-1]
+        semantic_color_map = semantic_color_map[:, ::-1]
 
-    rgb_output = semantics_color_map[label_img]
+    # Clamp label values to valid range [0, num_classes-1] to prevent index errors
+    # This handles cases where values might be corrupted during dtype conversion or multiprocessing
+    label_img = np.asarray(label_img)
+    num_classes = len(semantic_color_map)
+    if not np.issubdtype(label_img.dtype, np.integer):
+        label_img = label_img.astype(np.int64, copy=False)
+    if label_img.size > 0 and (label_img.max() >= num_classes or label_img.min() < 0):
+        Printer.red(
+            f"labels_to_image: label_img has values out of range: {label_img.min()} - {label_img.max()}"
+        )
+        label_img = np.clip(label_img, 0, num_classes - 1)
+
+    rgb_output = semantic_color_map[label_img]
 
     if ignore_labels is not None and len(ignore_labels) > 0:
         if rgb_image is None:
@@ -136,15 +143,15 @@ def rgb_to_class(rgb_labels, label_map):
     return class_image.reshape(rgb_np.shape[:2])
 
 
-def single_label_to_color(label, semantics_color_map, bgr=False):
+def single_label_to_color(label, semantic_color_map, bgr=False):
     label = int(label)  # ensure label is a Python int
-    color = semantics_color_map[label]
+    color = semantic_color_map[label]
     if bgr:
         color = color[::-1]
     return color
 
 
-def _needs_large_color_map(semantic_segmentation_type):
+def need_large_color_map(semantic_segmentation_type: SemanticSegmentationType):
     """
     Check if a semantic segmentation type needs a large color map (open-vocabulary models).
 
@@ -162,29 +169,12 @@ def _needs_large_color_map(semantic_segmentation_type):
     if semantic_segmentation_type is None:
         return False, None
 
-    # Open-vocabulary models that need large color maps
-    open_vocab_types = {
-        "EOV_SEG": "EOV-Seg",
-        "DETIC": "Detic",
-    }
+    # Direct comparison with enum values (most reliable and type-safe)
 
-    # Check by name first (most reliable)
-    if hasattr(semantic_segmentation_type, "name"):
-        model_name = open_vocab_types.get(semantic_segmentation_type.name)
-        if model_name:
-            return True, model_name
-    # Check by value (EOV_SEG = 3, DETIC = 4)
-    elif hasattr(semantic_segmentation_type, "value"):
-        if semantic_segmentation_type.value == 3:  # EOV_SEG
-            return True, "EOV-Seg"
-        elif semantic_segmentation_type.value == 4:  # DETIC
-            return True, "Detic"
-    # Direct comparison with enum
-    elif SemanticSegmentationType is not None:
-        if semantic_segmentation_type == SemanticSegmentationType.EOV_SEG:
-            return True, "EOV-Seg"
-        elif semantic_segmentation_type == SemanticSegmentationType.DETIC:
-            return True, "Detic"
+    if semantic_segmentation_type == SemanticSegmentationType.EOV_SEG:
+        return True, "EOV-Seg"
+    elif semantic_segmentation_type == SemanticSegmentationType.DETIC:
+        return True, "Detic"
 
     return False, None
 
@@ -216,10 +206,10 @@ def labels_color_map_factory(
     # If explicitly provided, use it; otherwise check from semantic_segmentation_type
     model_name = None
     if needs_large_color_map is None and semantic_segmentation_type is not None:
-        needs_large_color_map, model_name = _needs_large_color_map(semantic_segmentation_type)
+        needs_large_color_map, model_name = need_large_color_map(semantic_segmentation_type)
     elif needs_large_color_map is True and semantic_segmentation_type is not None:
         # If explicitly set to True, still try to get model name for better debug output
-        _, model_name = _needs_large_color_map(semantic_segmentation_type)
+        _, model_name = need_large_color_map(semantic_segmentation_type)
 
     # If EOV-Seg or Detic is being used, use the large color map regardless of dataset type
     # This is because open-vocabulary models output category IDs that can be much larger than standard
@@ -275,96 +265,3 @@ def labels_color_map_factory(
         return get_generic_color_map(kwargs["num_classes"])
     else:
         raise ValueError("Unknown dataset name: {}".format(semantic_dataset_type))
-
-
-def labels_name_factory(semantic_dataset_type=SemanticDatasetType.CITYSCAPES):
-    if semantic_dataset_type == SemanticDatasetType.VOC:
-        return get_voc_labels()
-    elif semantic_dataset_type == SemanticDatasetType.CITYSCAPES:
-        return get_cityscapes_labels()
-    elif semantic_dataset_type == SemanticDatasetType.ADE20K:
-        return get_ade20k_labels()
-    elif semantic_dataset_type == SemanticDatasetType.NYU40:
-        return get_nyu40_labels()
-    elif semantic_dataset_type == SemanticDatasetType.CUSTOM_SET:
-        raise ValueError("CUSTOM_SET does not have predefined labels")
-    else:
-        raise ValueError("Unknown dataset name: {}".format(semantic_dataset_type))
-
-
-def information_weights_factory(semantic_dataset_type=SemanticDatasetType.CITYSCAPES, **kwargs):
-    if semantic_dataset_type == SemanticDatasetType.VOC:
-        return get_voc_information_weights()
-    elif semantic_dataset_type == SemanticDatasetType.CITYSCAPES:
-        return get_cityscapes_information_weights()
-    elif semantic_dataset_type == SemanticDatasetType.ADE20K:
-        return get_ade20k_information_weights()
-    elif semantic_dataset_type == SemanticDatasetType.NYU40:
-        return get_nyu40_information_weights()
-    elif semantic_dataset_type == SemanticDatasetType.CUSTOM_SET:
-        if "num_classes" not in kwargs:
-            raise ValueError("num_classes must be provided if semantic_dataset_type is CUSTOM_SET")
-        return get_trivial_information(kwargs["num_classes"])
-    else:
-        raise ValueError("Unknown dataset name: {}".format(semantic_dataset_type))
-
-
-def get_voc_information_weights():
-    return [
-        1.0,  # aeroplane
-        1.0,  # bicycle
-        1.0,  # bird
-        1.0,  # boat
-        1.0,  # bottle
-        1.0,  # bus
-        1.0,  # car
-        1.0,  # cat
-        1.0,  # chair
-        1.0,  # cow
-        1.0,  # diningtable
-        1.0,  # dog
-        1.0,  # horse
-        1.0,  # motorbike
-        1.0,  # person
-        1.0,  # pottedplant
-        1.0,  # sheep
-        1.0,  # sofa
-        1.0,  # train
-        1.0,  # tvmonitor
-    ]
-
-
-def get_cityscapes_information_weights():
-    return [
-        1.0,  # road
-        1.0,  # sidewalk
-        1.0,  # building
-        1.0,  # wall
-        1.0,  # fence
-        1.0,  # pole
-        1.0,  # traffic light
-        1.0,  # traffic sign
-        0.001,  # vegetation
-        1.0,  # terrain
-        1.0,  # sky
-        1.0,  # person
-        1.0,  # rider
-        1.0,  # car
-        1.0,  # truck
-        1.0,  # bus
-        1.0,  # train
-        1.0,  # motorcycle
-        1.0,  # bicycle
-    ]
-
-
-def get_ade20k_information_weights():
-    return get_trivial_information(num_classes=150)
-
-
-def get_nyu40_information_weights():
-    return get_trivial_information(num_classes=41)
-
-
-def get_trivial_information(num_classes):
-    return np.ones(num_classes)

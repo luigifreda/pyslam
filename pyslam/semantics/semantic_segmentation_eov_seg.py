@@ -29,12 +29,12 @@ from torchvision import transforms
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
-from .semantic_utils import (
+from .semantic_color_utils import (
     labels_color_map_factory,
     labels_to_image,
 )
-from .semantic_mapping_color_map import Detectron2ColorMapManager
-
+from .semantic_color_map_factory import semantic_color_map_factory
+from .semantic_segmentation_types import SemanticSegmentationType
 from pyslam.utilities.system import Printer
 
 kScriptPath = os.path.realpath(__file__)
@@ -101,41 +101,42 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         # Store demo as model (it contains the predictor)
         super().__init__(demo, transform, device, semantic_feature_type)
 
-        # Extract color map from EOV-Seg's detectron2 metadata (actual dataset colors)
+        # Extract color map from EOV-Seg's detectron2 metadata using SemanticColorMap
         # This uses the same colors as detectron2's visualizer, extracted directly from metadata
         # Now self.model is available after super().__init__
-        from .semantic_segmentation_factory import SemanticSegmentationType
 
-        # Initialize color map manager
-        self.color_map_manager = Detectron2ColorMapManager(
-            metadata=getattr(self.model, "metadata", None),
-            semantic_feature_type=semantic_feature_type,
-            semantic_dataset_type=semantic_dataset_type,
-            semantic_segmentation_type=SemanticSegmentationType.EOV_SEG,
-        )
-
+        # Get the number of classes to determine color map size
+        num_classes = None
         try:
-            if hasattr(self.model, "metadata") and hasattr(self.model.metadata, "stuff_colors"):
-                # Extract actual colors from detectron2 metadata
+            if hasattr(self.model, "metadata") and hasattr(self.model.metadata, "stuff_classes"):
                 num_classes = self.num_classes() if hasattr(self, "num_classes") else None
-                self.semantics_color_map = self.color_map_manager.extract_from_metadata(
-                    color_attr="stuff_colors",
-                    num_classes=num_classes,
-                    min_size=150,  # EOV-Seg typically uses ADE20K (150 classes)
-                    use_detectron2_padding=True,
-                    verbose=True,
-                )
-                Printer.green(
-                    f"EOV-Seg: Extracted color map from metadata with {len(self.semantics_color_map)} classes"
-                )
-            else:
-                # Fallback to generic color map if metadata not available
-                self.semantics_color_map = self.color_map_manager.create_fallback()
-                Printer.yellow("EOV-Seg: Using fallback color map (metadata not available)")
+                if num_classes is None:
+                    num_classes = len(self.model.metadata.stuff_classes)
+        except Exception:
+            pass
+
+        # Initialize semantic color map using factory - it will create SemanticColorMapDetectron2 if metadata is available
+        try:
+            metadata = getattr(self.model, "metadata", None)
+            self.semantic_color_map_obj = semantic_color_map_factory(
+                semantic_dataset_type=semantic_dataset_type,
+                semantic_feature_type=semantic_feature_type,
+                num_classes=num_classes,
+                semantic_segmentation_type=SemanticSegmentationType.EOV_SEG,
+                metadata=metadata,
+            )
+            # Extract the color map array for backward compatibility
+            self.semantic_color_map = self.semantic_color_map_obj.color_map
         except Exception as e:
-            # Fallback to generic color map on error
-            self.semantics_color_map = self.color_map_manager.create_fallback()
+            # Fallback to factory-based color map on error
             Printer.yellow(f"EOV-Seg: Using fallback color map due to error: {e}")
+            self.semantic_color_map_obj = semantic_color_map_factory(
+                semantic_dataset_type=semantic_dataset_type,
+                semantic_feature_type=semantic_feature_type,
+                num_classes=num_classes or 150,
+                semantic_segmentation_type=SemanticSegmentationType.EOV_SEG,
+            )
+            self.semantic_color_map = self.semantic_color_map_obj.color_map
 
         self.semantic_dataset_type = semantic_dataset_type
 
@@ -333,7 +334,14 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             raise ValueError(f"Unsupported image shape: {image.shape}")
 
         # Run inference
-        predictions, _ = self.model.run_on_image(image)
+        # EOV-Seg's VisualizationDemo.run_on_image() returns both predictions and visualized_output
+        # This is the preferred method as it provides pre-computed visualization with overlays
+        predictions, visualized_output = self.model.run_on_image(image)
+
+        # Store visualized_output for use in to_rgb
+        # The centralized visualization system in semantic_color_map_obj.to_rgb() will use
+        # this pre-computed visualization if available, ensuring consistent output across models
+        self._last_visualized_output = visualized_output
 
         # Extract semantic segmentation - optimized path for panoptic
         if "panoptic_seg" in predictions:
@@ -530,9 +538,6 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
                 - For 1D input: shape (N, 3) with RGB colors for each point
                 - For 2D input: shape (H, W, 3) with RGB image
         """
-        # Update color map manager with current color map
-        self.color_map_manager.color_map = self.semantics_color_map
-
         # Prepare panoptic data if available
         panoptic_data = None
         if hasattr(self, "_last_segments_info") and hasattr(self, "_last_panoptic_seg"):
@@ -554,10 +559,14 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
                 "instance_mode": getattr(self.model, "instance_mode", ColorMode.IMAGE),
             }
 
-        # Use color map manager's to_rgb method
-        return self.color_map_manager.to_rgb(
+        # Use semantic color map's centralized to_rgb method
+        # This method handles visualization consistently across all detectron2-based models:
+        # - Uses pre-computed visualized_output if available (DETIC, EOV_SEG)
+        # - Falls back to panoptic_data visualization if needed (supports OpenVocabVisualizer)
+        # - Uses direct color mapping as final fallback
+        return self.semantic_color_map_obj.to_rgb(
             semantics,
             panoptic_data=panoptic_data,
-            visualized_output=None,  # EOV-Seg doesn't store visualized_output
+            visualized_output=getattr(self, "_last_visualized_output", None),
             bgr=bgr,
         )

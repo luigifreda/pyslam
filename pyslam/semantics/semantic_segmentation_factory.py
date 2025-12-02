@@ -27,6 +27,7 @@ import torch
 import platform
 
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
+from .semantic_segmentation_types import SemanticSegmentationType
 
 from pyslam.utilities.system import Printer, import_from
 from pyslam.utilities.serialization import SerializableEnum, register_class
@@ -77,23 +78,6 @@ if TYPE_CHECKING:
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + "/../.."
-
-
-@register_class
-class SemanticSegmentationType(SerializableEnum):
-    DEEPLABV3 = 0  # Semantics from torchvision DeepLab's v3
-    SEGFORMER = 1  # Semantics from transformer's Segformer
-    CLIP = 2  # Semantics from CLIP's segmentation head
-    EOV_SEG = 3  # Semantics from EOV-Seg (Efficient Open Vocabulary Segmentation)
-    DETIC = 4  # Semantics from Detic (Detecting Twenty-thousand Classes)
-    ODISE = 5  # Semantics from ODISE (Open-vocabulary DIffusion-based panoptic SEgmentation)
-
-    @staticmethod
-    def from_string(name: str):
-        try:
-            return SemanticSegmentationType[name]
-        except KeyError:
-            raise ValueError(f"Invalid SemanticSegmentationType: {name}")
 
 
 def semantic_segmentation_factory(

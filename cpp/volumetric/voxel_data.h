@@ -123,10 +123,21 @@ struct VoxelSemanticData {
     VOXEL_POSITION_MEMBERS()
     VOXEL_COLOR_MEMBERS()
 
-    int instance_id = -1;       // instance ID
-    int class_id = -1;          // class ID
-    int confidence_counter = 0; // confidence counter for the instance and class IDs
+    int get_confidence_counter() const { return confidence_counter_; }
+    int get_instance_id() const { return instance_id; }
+    int get_class_id() const { return class_id; }
 
+    // Setters for semantic data (needed for operations like merge_segments)
+    void set_instance_id(int id) { instance_id = id; }
+    void set_class_id(int id) { class_id = id; }
+    void set_confidence_counter(int counter) { confidence_counter_ = counter; }
+
+  protected:
+    int instance_id = -1;        // instance ID
+    int class_id = -1;           // class ID
+    int confidence_counter_ = 0; // confidence counter for the instance and class IDs
+
+  public:
     VOXEL_POSITION_METHODS()
     VOXEL_COLOR_METHODS()
 
@@ -137,13 +148,13 @@ struct VoxelSemanticData {
         // reset semantics
         instance_id = -1;
         class_id = -1;
-        confidence_counter = 0;
+        confidence_counter_ = 0;
     }
 
     void initialize_semantics(const int instance_id, const int class_id) {
         this->instance_id = instance_id;
         this->class_id = class_id;
-        this->confidence_counter = 1;
+        this->confidence_counter_ = 1;
     }
 
     void initialize_semantics_with_depth(const int instance_id, const int class_id,
@@ -158,16 +169,16 @@ struct VoxelSemanticData {
 
         if (this->instance_id == instance_id && this->class_id == class_id) {
             // Update confidence counter if the instance and class IDs are the same
-            this->confidence_counter++;
+            this->confidence_counter_++;
         } else {
             // If the instance and class IDs are different, decrement the confidence counter
-            this->confidence_counter--;
-            if (this->confidence_counter <= 0) {
+            this->confidence_counter_--;
+            if (this->confidence_counter_ <= 0) {
                 // If the confidence counter is less than or equal to 0, set the instance
                 // and class IDs and reset the confidence counter to 1
                 this->instance_id = instance_id;
                 this->class_id = class_id;
-                this->confidence_counter = 1;
+                this->confidence_counter_ = 1;
             }
         }
     }
@@ -243,12 +254,14 @@ struct VoxelSemanticDataProbabilistic {
     mutable float most_likely_log_prob = -std::numeric_limits<float>::infinity();
     mutable bool cache_valid = false;
 
+  protected:
     // Direct access members for compatibility (lazy evaluation via getters)
     // Note: These are mutable to allow const access patterns
-    mutable int instance_id = -1;       // cached most likely instance ID
-    mutable int class_id = -1;          // cached most likely class ID
-    mutable int confidence_counter = 0; // cached confidence counter
+    mutable int instance_id = -1;        // cached most likely instance ID
+    mutable int class_id = -1;           // cached most likely class ID
+    mutable int confidence_counter_ = 0; // cached confidence counter
 
+  public:
     static constexpr float MIN_CONFIDENCE = 1e-10f;
 
     VOXEL_POSITION_METHODS()
@@ -266,7 +279,7 @@ struct VoxelSemanticDataProbabilistic {
         // Reset cached members for compatibility
         instance_id = -1;
         class_id = -1;
-        confidence_counter = 0;
+        confidence_counter_ = 0;
     }
 
     void initialize_semantics_log_prob(const int instance_id, const int class_id,
@@ -280,10 +293,7 @@ struct VoxelSemanticDataProbabilistic {
         most_likely_pair = key;
         most_likely_log_prob = log_prob;
         cache_valid = true;
-        // Update cached members for compatibility
-        this->instance_id = most_likely_pair.first;
-        this->class_id = most_likely_pair.second;
-        this->confidence_counter = get_confidence_counter();
+        update_cached_members();
     }
 
     void initialize_semantics(const int instance_id, const int class_id,
@@ -320,20 +330,28 @@ struct VoxelSemanticDataProbabilistic {
         float &log_prob = log_probabilities[key];
         log_prob += new_log_prob;
 
-        // Incremental cache maintenance: update most likely label on-the-fly if cache is valid
-        // This avoids full recomputation in the common case
+        // Incremental cache maintenance: keep cached values in sync and avoid full recompute
         if (cache_valid) {
             if (key == most_likely_pair) {
-                // Still the argmax; value increased
+                // Still the argmax; value changed (could increase or decrease)
+                const float old_most_likely_log_prob = most_likely_log_prob;
                 most_likely_log_prob = log_prob;
+                if (log_prob < old_most_likely_log_prob) {
+                    // Max decreased; need full recomputation to verify the argmax
+                    update_cache();
+                } else {
+                    update_cached_members();
+                }
             } else if (log_prob > most_likely_log_prob) {
                 // New argmax found
                 most_likely_log_prob = log_prob;
                 most_likely_pair = key;
+                update_cached_members();
             }
             // If this is a new key (was 0.0f) and it's not the new max, cache remains valid
         } else {
-            // Cache invalid; will be recomputed lazily when needed
+            // Cache invalid; recompute now to keep direct member access consistent
+            update_cache();
         }
     }
 
@@ -380,6 +398,24 @@ struct VoxelSemanticDataProbabilistic {
         return most_likely_pair.second;
     }
 
+    // Setters for semantic data (needed for operations like merge_segments)
+    // Note: For probabilistic voxels, these update the cached values but don't modify
+    // the underlying probability distribution. Use with caution.
+    void set_instance_id(int id) {
+        ensure_cache_updated();
+        instance_id = id;
+        most_likely_pair.first = id;
+    }
+    void set_class_id(int id) {
+        ensure_cache_updated();
+        class_id = id;
+        most_likely_pair.second = id;
+    }
+    void set_confidence_counter(int counter) {
+        ensure_cache_updated();
+        confidence_counter_ = counter;
+    }
+
     // Get the probability of the most likely label (in linear space)
     float get_most_likely_probability() const {
         if (!cache_valid) {
@@ -397,12 +433,8 @@ struct VoxelSemanticDataProbabilistic {
         if (!cache_valid) {
             update_cache();
         }
-        if (most_likely_pair.first == -1 || most_likely_pair.second == -1) {
-            return 0;
-        }
-        // Return a confidence based on the normalized probability
-        // Scale by count to maintain similar semantics to the counter-based version
-        return static_cast<int>(get_most_likely_probability() * count);
+        // Reuse compute_confidence_counter() to avoid code duplication
+        return compute_confidence_counter();
     }
 
     // For compatibility with existing interface - these are computed on access
@@ -421,27 +453,41 @@ struct VoxelSemanticDataProbabilistic {
         return most_likely_pair.second;
     }
 
-    int get_confidence_counter_member() const { return get_confidence_counter(); }
-
     // Accessor that updates cached values (for compatibility with direct member access)
     void ensure_cache_updated() const {
         if (!cache_valid) {
             update_cache();
-            const_cast<VoxelSemanticDataProbabilistic *>(this)->instance_id =
-                most_likely_pair.first;
-            const_cast<VoxelSemanticDataProbabilistic *>(this)->class_id = most_likely_pair.second;
-            const_cast<VoxelSemanticDataProbabilistic *>(this)->confidence_counter =
-                get_confidence_counter();
         }
+        update_cached_members();
     }
 
   private:
+    // Helper to compute and store cached members based on current argmax
+    void update_cached_members() const {
+        const_cast<VoxelSemanticDataProbabilistic *>(this)->instance_id = most_likely_pair.first;
+        const_cast<VoxelSemanticDataProbabilistic *>(this)->class_id = most_likely_pair.second;
+        const_cast<VoxelSemanticDataProbabilistic *>(this)->confidence_counter_ =
+            compute_confidence_counter();
+    }
+
+    int compute_confidence_counter() const {
+        if (most_likely_pair.first == -1 || most_likely_pair.second == -1) {
+            return 0;
+        }
+        if (log_probabilities.empty()) {
+            return 0;
+        }
+        const float normalized_prob = std::exp(most_likely_log_prob - get_log_normalization());
+        return static_cast<int>(normalized_prob * count);
+    }
+
     // Update the cache of most likely label
     void update_cache() const {
         if (log_probabilities.empty()) {
             most_likely_pair = {-1, -1};
             most_likely_log_prob = -std::numeric_limits<float>::infinity();
             cache_valid = true;
+            update_cached_members();
             return;
         }
 
@@ -454,6 +500,7 @@ struct VoxelSemanticDataProbabilistic {
             }
         }
         cache_valid = true;
+        update_cached_members();
     }
 
     // Compute log of normalization constant (log-sum-exp trick for numerical stability)
@@ -462,11 +509,18 @@ struct VoxelSemanticDataProbabilistic {
             return 0.0f;
         }
 
-        // Find max log probability
-        float max_log_prob = -std::numeric_limits<float>::infinity();
-        for (const auto &[key, log_prob] : log_probabilities) {
-            if (log_prob > max_log_prob) {
-                max_log_prob = log_prob;
+        // Optimize: use cached most_likely_log_prob as max when cache is valid
+        // This avoids recomputing the max, which is already known
+        float max_log_prob;
+        if (cache_valid) {
+            max_log_prob = most_likely_log_prob;
+        } else {
+            // Find max log probability (fallback when cache is invalid)
+            max_log_prob = -std::numeric_limits<float>::infinity();
+            for (const auto &[key, log_prob] : log_probabilities) {
+                if (log_prob > max_log_prob) {
+                    max_log_prob = log_prob;
+                }
             }
         }
 
@@ -522,17 +576,22 @@ concept Voxel = requires(T v, double x, double y, double z, float cx, float cy, 
 
 // Concept for semantic voxel data types
 // Checks that a type has all the required members and methods for semantic voxel functionality
-// A semantic voxel must satisfy the Voxel concept plus have semantic-specific members and methods
+// A semantic voxel must satisfy the Voxel concept plus have semantic-specific methods
 template <typename T>
 concept SemanticVoxel = Voxel<T> && requires(T v, int instance_id, int class_id) {
-    // Semantic members (check they exist and are accessible)
-    v.instance_id;
-    v.class_id;
-    v.confidence_counter;
+    // Semantic getter methods (check they exist and are callable)
+    v.get_instance_id();
+    v.get_class_id();
+    v.get_confidence_counter();
 
     // Semantic methods
     v.initialize_semantics(instance_id, class_id);
     v.update_semantics(instance_id, class_id);
+
+    // Check return types are convertible to int (using nested requires)
+    requires std::is_convertible_v<decltype(v.get_instance_id()), int>;
+    requires std::is_convertible_v<decltype(v.get_class_id()), int>;
+    requires std::is_convertible_v<decltype(v.get_confidence_counter()), int>;
 };
 
 // Concept for semantic voxel data types with depth-based integration
@@ -556,30 +615,6 @@ static_assert(SemanticVoxel<VoxelSemanticDataProbabilistic>,
               "VoxelSemanticDataProbabilistic must satisfy the SemanticVoxel concept");
 static_assert(SemanticVoxelWithDepth<VoxelSemanticDataProbabilistic>,
               "VoxelSemanticDataProbabilistic must satisfy the SemanticVoxelWithDepth concept");
-
-// Helper trait to detect if get_confidence_counter() exists
-template <typename T, typename = void> struct has_get_confidence_counter : std::false_type {};
-template <typename T>
-struct has_get_confidence_counter<
-    T, std::void_t<decltype(std::declval<const T &>().get_confidence_counter())>> : std::true_type {
-};
-template <typename T>
-inline constexpr bool has_get_confidence_counter_v = has_get_confidence_counter<T>::value;
-
-// Helper function to get confidence_counter, using getter if available (for probabilistic),
-// otherwise using direct member access (for non-probabilistic)
-// This uses SFINAE (Substitution Failure Is Not An Error) to prefer get_confidence_counter() when
-// available
-template <typename T>
-auto get_confidence_counter_value(const T &v) -> decltype(v.get_confidence_counter(), int()) {
-    return v.get_confidence_counter();
-}
-// Fallback: only matches when get_confidence_counter() doesn't exist
-template <typename T>
-auto get_confidence_counter_value(const T &v)
-    -> std::enable_if_t<!has_get_confidence_counter_v<T>, int> {
-    return v.confidence_counter;
-}
 
 #undef VOXEL_POSITION_MEMBERS
 #undef VOXEL_POSITION_METHODS

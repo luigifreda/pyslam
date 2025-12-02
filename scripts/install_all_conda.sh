@@ -76,7 +76,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     pip install "tensorflow==2.15.*" --force-reinstall
 fi 
 
-# 9. outliers under conda
+# 10. outliers under conda
 pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
 pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
 # NOTE: There can be possible issues with delf and protobuf too. To solve them, run the following command:

@@ -29,11 +29,8 @@ from torchvision import transforms
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
-from .semantic_utils import (
-    labels_color_map_factory,
-    labels_to_image,
-)
-from .semantic_mapping_color_map import Detectron2ColorMapManager
+from .semantic_color_map_factory import semantic_color_map_factory
+from .semantic_segmentation_types import SemanticSegmentationType
 
 from pyslam.utilities.system import Printer
 
@@ -103,55 +100,42 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
         # Store demo as model (it contains the predictor)
         super().__init__(demo, transform, device, semantic_feature_type)
 
-        # Extract color map from Detic's detectron2 metadata
+        # Extract color map from Detic's detectron2 metadata using SemanticColorMap
         # IMPORTANT: Detic outputs category IDs that can be very large (up to 1203 for LVIS),
         # so we MUST use a large color map (3000 classes) to avoid clamping different objects to the same color
-        from .semantic_segmentation_factory import SemanticSegmentationType
 
-        # Initialize color map manager
-        self.color_map_manager = Detectron2ColorMapManager(
-            metadata=getattr(self.model, "metadata", None),
-            semantic_feature_type=semantic_feature_type,
-            semantic_dataset_type=semantic_dataset_type,
-            semantic_segmentation_type=SemanticSegmentationType.DETIC,
-        )
-
+        # Get the number of classes to determine color map size
+        num_classes = None
         try:
             if hasattr(self.model, "metadata") and hasattr(self.model.metadata, "thing_classes"):
-                # Detic uses thing_classes (objects), not stuff_classes
-                # Get the number of classes to determine color map size
                 num_classes = self.num_classes() if hasattr(self, "num_classes") else None
                 if num_classes is None:
                     num_classes = len(self.model.metadata.thing_classes)
+        except Exception:
+            pass
 
-                # Use unified color map extraction function
-                if hasattr(self.model.metadata, "thing_colors"):
-                    self.semantics_color_map = self.color_map_manager.extract_from_metadata(
-                        color_attr="thing_colors",
-                        num_classes=max(num_classes, 3000),
-                        min_size=2000,
-                        use_detectron2_padding=True,
-                        verbose=True,
-                    )
-                else:
-                    # thing_colors not available - use detectron2's colormap if possible
-                    self.semantics_color_map = self.color_map_manager.create_fallback(
-                        num_classes=3000
-                    )
-                    Printer.green(
-                        f"Detic: Using detectron2 colormap (3000 classes) - thing_colors not available"
-                    )
-                Printer.green(
-                    f"Detic: Using color map with {len(self.semantics_color_map)} classes"
-                )
-            else:
-                # Fallback to large color map if metadata not available
-                self.semantics_color_map = self.color_map_manager.create_fallback(num_classes=3000)
-                Printer.yellow("Detic: Using fallback color map (metadata not available)")
+        # Initialize semantic color map using factory - it will create SemanticColorMapDetectron2 if metadata is available
+        try:
+            metadata = getattr(self.model, "metadata", None)
+            self.semantic_color_map_obj = semantic_color_map_factory(
+                semantic_dataset_type=semantic_dataset_type,
+                semantic_feature_type=semantic_feature_type,
+                num_classes=max(num_classes, 3000) if num_classes is not None else 3000,
+                semantic_segmentation_type=SemanticSegmentationType.DETIC,
+                metadata=metadata,
+            )
+            # Extract the color map array for backward compatibility
+            self.semantic_color_map = self.semantic_color_map_obj.color_map
         except Exception as e:
-            # Fallback to large color map on error
-            self.semantics_color_map = self.color_map_manager.create_fallback(num_classes=3000)
+            # Fallback to factory-based color map on error
             Printer.yellow(f"Detic: Using fallback color map due to error: {e}")
+            self.semantic_color_map_obj = semantic_color_map_factory(
+                semantic_dataset_type=semantic_dataset_type,
+                semantic_feature_type=semantic_feature_type,
+                num_classes=3000,
+                semantic_segmentation_type=SemanticSegmentationType.DETIC,
+            )
+            self.semantic_color_map = self.semantic_color_map_obj.color_map
 
         self.semantic_dataset_type = semantic_dataset_type
 
@@ -520,9 +504,13 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             raise ValueError(f"Unsupported image shape: {image.shape}")
 
         # Run inference
+        # DETIC's VisualizationDemo.run_on_image() returns both predictions and visualized_output
+        # This is the preferred method as it provides pre-computed visualization with overlays
         predictions, visualized_output = self.model.run_on_image(image)
 
         # Store visualized_output for use in to_rgb
+        # The centralized visualization system in semantic_color_map_obj.to_rgb() will use
+        # this pre-computed visualization if available, ensuring consistent output across models
         self._last_visualized_output = visualized_output
 
         # Extract semantic segmentation
@@ -640,7 +628,9 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             max_cat_id = max(category_ids_seen)
             num_unique = len(category_ids_seen)
             color_map_size = (
-                len(self.semantics_color_map) if hasattr(self, "semantics_color_map") else 0
+                len(self.semantic_color_map_obj.color_map)
+                if hasattr(self, "semantic_color_map_obj")
+                else 0
             )
             Printer.green(
                 f"Detic: Category IDs range: {min_cat_id}-{max_cat_id} ({num_unique} unique), "
@@ -734,9 +724,6 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
                 - For 1D input: shape (N, 3) with RGB colors for each point
                 - For 2D input: shape (H, W, 3) with RGB image
         """
-        # Update color map manager with current color map
-        self.color_map_manager.color_map = self.semantics_color_map
-
         # Prepare panoptic data if available
         panoptic_data = None
         if hasattr(self, "_last_segments_info") and hasattr(self, "_last_panoptic_seg"):
@@ -750,8 +737,12 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
                 "instance_mode": getattr(self.model, "instance_mode", ColorMode.IMAGE),
             }
 
-        # Use color map manager's to_rgb method
-        return self.color_map_manager.to_rgb(
+        # Use semantic color map's centralized to_rgb method
+        # This method handles visualization consistently across all detectron2-based models:
+        # - Uses pre-computed visualized_output if available (DETIC, EOV_SEG)
+        # - Falls back to panoptic_data visualization if needed
+        # - Uses direct color mapping as final fallback
+        return self.semantic_color_map_obj.to_rgb(
             semantics,
             panoptic_data=panoptic_data,
             visualized_output=getattr(self, "_last_visualized_output", None),

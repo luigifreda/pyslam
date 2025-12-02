@@ -102,6 +102,7 @@ void bind_semantic_mapping_shared_resources(py::module &m) {
             }
             pyslam::SemanticMappingSharedResources::init_color_map(
                 static_cast<pyslam::SemanticDatasetType>(semantic_dataset_type), num_classes);
-        });
+        })
+        .def_static("reset_color_map", &pyslam::SemanticMappingSharedResources::reset_color_map);
     // clang-format on
 }

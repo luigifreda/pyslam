@@ -30,8 +30,6 @@ from queue import Queue
 
 from pyslam.config_parameters import Parameters
 
-from .semantic_segmentation_factory import SemanticSegmentationType, semantic_segmentation_factory
-from .semantic_fusion_methods import SemanticFusionMethods
 from .semantic_types import SemanticFeatureType, SemanticEntityType
 
 from pyslam.utilities.timer import TimerFps
@@ -171,7 +169,7 @@ class SemanticMappingBase:
         SemanticMappingBase.print("SemanticMapping: quitting...")
         if self.is_running and self.work_thread is not None:
             self.is_running = False
-            self.work_thread.join(timeout=5)
+            self.work_thread.join(timeout=Parameters.kMultithreadingThreadJoinDefaultTimeout)
         SemanticMappingBase.print("SemanticMapping: done")
 
     # push the new keyframe and its image into the queue
@@ -368,3 +366,57 @@ class SemanticMappingBase:
                     f"semantic prediction values out of int32 range [{vmin}, {vmax}], keeping dtype {prediction.dtype}"
                 )
         return prediction, is_cast_to_int32_safe
+
+    def __getstate__(self):
+        """
+        Custom pickling: exclude non-picklable attributes.
+        This allows bound methods like sem_img_to_rgb to be pickled
+        even though self.slam contains non-picklable objects (like ORBextractor).
+
+        Note: semantic_segmentation and semantic_segmentation_process contain
+        multiprocessing synchronized objects (mp.Value, mp.Lock, etc.) that can't be pickled
+        with spawn method. The fallback in SemanticMappingShared.import_state() will recreate
+        the callables.
+        """
+        state = self.__dict__.copy()
+        # Exclude non-picklable attributes
+        # self.slam contains ORBextractor and other C++ objects that can't be pickled
+        if "slam" in state:
+            del state["slam"]
+        # Exclude threading primitives that can't be pickled
+        if "queue" in state:
+            del state["queue"]
+        if "queue_condition" in state:
+            del state["queue_condition"]
+        if "work_thread" in state:
+            del state["work_thread"]
+        if "stop_mutex" in state:
+            del state["stop_mutex"]
+        if "reset_mutex" in state:
+            del state["reset_mutex"]
+        if "idle_condition" in state:
+            del state["idle_condition"]
+        # Note: semantic_segmentation might not be picklable (PyTorch models, CUDA tensors)
+        # If it's not picklable, the bound method will fail, but the fallback
+        # in SemanticMappingShared.import_state() will recreate the callables
+        if "semantic_segmentation" in state:
+            del state["semantic_segmentation"]
+        # semantic_segmentation_process is now picklable (see SemanticSegmentationProcess.__getstate__)
+        # It excludes multiprocessing primitives but keeps semantic_color_map which is what we need
+        # So we don't exclude it here - let it be pickled
+        return state
+
+    def __setstate__(self, state):
+        """
+        Custom unpickling: restore state and set excluded attributes to None.
+        The excluded attributes (like self.slam) are not needed for the
+        callable methods (sem_img_to_rgb, etc.) to work.
+        """
+        self.__dict__.update(state)
+        # Set excluded attributes to None (they're not needed for callable methods)
+        if not hasattr(self, "slam"):
+            self.slam = None
+        # Note: Threading primitives are not restored - they're not needed
+        # for the callable methods to work in spawned processes
+        # Note: If semantic_segmentation was excluded and is None, the callable
+        # methods won't work, but SemanticMappingShared.import_state() will recreate them

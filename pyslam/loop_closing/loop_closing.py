@@ -897,7 +897,9 @@ class LoopClosing:
             if self.stop == False:
                 self.stop = True
                 if self.work_thread is not None and self.work_thread.is_alive():
-                    self.work_thread.join(timeout=5)
+                    self.work_thread.join(
+                        timeout=Parameters.kMultithreadingThreadJoinDefaultTimeout
+                    )
         self.loop_detecting_process.quit()
         self.GBA.quit()
         if (

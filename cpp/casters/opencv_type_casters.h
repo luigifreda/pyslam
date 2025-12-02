@@ -47,6 +47,7 @@ inline std::string dtype_to_string(const py::dtype &dt) {
 // Helpers: NumPy dtype <-> cv depth
 // -----------------------------
 inline int numpy_to_cv_depth(const py::dtype &dt) {
+    // Fast path: standard dtypes recognized by pybind
     if (dt.is(py::dtype::of<bool>()))
         return CV_8U; // masks -> 0/1 u8
     if (dt.is(py::dtype::of<uint8_t>()))
@@ -63,7 +64,35 @@ inline int numpy_to_cv_depth(const py::dtype &dt) {
         return CV_32F;
     if (dt.is(py::dtype::of<double>()))
         return CV_64F;
-    throw py::value_error("Unsupported NumPy dtype: " + dtype_to_string(dt) +
+
+    // Robust fallback: rely on dtype metadata (kind + itemsize) to catch NumPy variants
+    const std::string dtype_name = dtype_to_string(dt);
+    const char kind = py::cast<char>(dt.attr("kind"));       // 'b','i','u','f',...
+    const ssize_t itemsize = py::cast<ssize_t>(dt.attr("itemsize")); // bytes per element
+
+    // int32 variants (e.g., NumPy 2.0 "int32" not matching dtype::of<int32_t>())
+    if ((dtype_name == "int32" || dtype_name == "i4") || (kind == 'i' && itemsize == 4)) {
+        return CV_32S;
+    }
+    // int16 variants
+    if (kind == 'i' && itemsize == 2)
+        return CV_16S;
+    // int8 variants
+    if (kind == 'i' && itemsize == 1)
+        return CV_8S;
+    // uint16 variants
+    if (kind == 'u' && itemsize == 2)
+        return CV_16U;
+    // uint8 variants (includes bool-like u1)
+    if (kind == 'u' && itemsize == 1)
+        return CV_8U;
+    // float32/64 variants
+    if (kind == 'f' && itemsize == 4)
+        return CV_32F;
+    if (kind == 'f' && itemsize == 8)
+        return CV_64F;
+
+    throw py::value_error("Unsupported NumPy dtype: " + dtype_name +
                           " (expected: bool,uint8,int8,uint16,int16,int32,float32,float64)");
 }
 

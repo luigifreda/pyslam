@@ -31,7 +31,11 @@ namespace volumetric {
 // Voxel hashing
 // ----------------------------------------
 
-using KeyType = int64_t;
+// For int32_t (range: ±2,147,483,647):
+// With voxel_size = 0.015m: world coordinates up to ±32,212km
+// With voxel_size = 0.001m (1mm): world coordinates up to ±2,147km
+// With voxel_size = 0.0001m (0.1mm): world coordinates up to ±214km
+using KeyType = int32_t;
 
 struct VoxelKey {
     KeyType x, y, z;

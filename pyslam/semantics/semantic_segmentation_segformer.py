@@ -31,7 +31,7 @@ from torchvision import transforms
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
-from .semantic_utils import labels_color_map_factory, labels_to_image
+from .semantic_color_utils import labels_color_map_factory, labels_to_image
 
 from pyslam.utilities.system import Printer
 
@@ -92,7 +92,7 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
             device, encoder_name, semantic_dataset_type, image_size, model_path
         )
 
-        self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
+        self.semantic_color_map = labels_color_map_factory(semantic_dataset_type)
 
         self.semantic_dataset_type = semantic_dataset_type
 
@@ -255,6 +255,6 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
 
     def to_rgb(self, semantics, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            return labels_to_image(semantics, self.semantics_color_map, bgr=bgr)
+            return labels_to_image(semantics, self.semantic_color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
-            return labels_to_image(np.argmax(semantics, axis=-1), self.semantics_color_map, bgr=bgr)
+            return labels_to_image(np.argmax(semantics, axis=-1), self.semantic_color_map, bgr=bgr)
