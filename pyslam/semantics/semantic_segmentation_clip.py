@@ -35,12 +35,12 @@ from f3rm.features.clip import tokenize
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
-from .semantic_utils import (
+from .semantic_color_utils import (
     similarity_heatmap_image,
     labels_color_map_factory,
-    labels_name_factory,
     labels_to_image,
 )
+from .semantic_labels_factory import semantic_labels_factory
 
 from pyslam.utilities.system import Printer
 
@@ -105,7 +105,7 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
                 raise ValueError(
                     "custom_set_labels must be provided if semantic_dataset_type is CUSTOM_SET"
                 )
-            self.semantics_color_map = labels_color_map_factory(
+            self.semantic_color_map = labels_color_map_factory(
                 semantic_dataset_type, num_classes=len(custom_set_labels)
             )
         elif semantic_dataset_type == SemanticDatasetType.FEATURE_SIMILARITY:
@@ -117,10 +117,10 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
                 raise ValueError(
                     "sim_text_query must be provided if semantic_dataset_type is FEATURE_SIMILARITY"
                 )
-            self.semantics_color_map = None
+            self.semantic_color_map = None
             self.sim_scale = 3.0  # NOTE: This is for visualization
         else:
-            self.semantics_color_map = labels_color_map_factory(semantic_dataset_type)
+            self.semantic_color_map = labels_color_map_factory(semantic_dataset_type)
 
         self.semantic_dataset_type = semantic_dataset_type
 
@@ -135,7 +135,7 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
                 tokenize(sim_text_query).to(device)
             ]  # We will only work with a single text query
         else:
-            self.label_names = labels_name_factory(semantic_dataset_type)
+            self.label_names = semantic_labels_factory(semantic_dataset_type)
             self.tokens = torch.stack(
                 [tokenize(text_query).to(device) for text_query in self.label_names]
             )  # Shape: (N, token_dim)
@@ -274,9 +274,9 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
 
     def to_rgb(self, semantics, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            return labels_to_image(semantics, self.semantics_color_map, bgr=bgr)
+            return labels_to_image(semantics, self.semantic_color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
-            return labels_to_image(np.argmax(semantics, axis=-1), self.semantics_color_map, bgr=bgr)
+            return labels_to_image(np.argmax(semantics, axis=-1), self.semantic_color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
             # Transform semantic to tensor
             # TODO(dvdmc): check if doing these operations (and functions below) in CPU is more efficient (it probably is)
@@ -293,7 +293,7 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
             else:
                 pred = sims.argmax(dim=-1)
                 return labels_to_image(
-                    pred.cpu().detach().numpy(), self.semantics_color_map, bgr=bgr
+                    pred.cpu().detach().numpy(), self.semantic_color_map, bgr=bgr
                 )
 
     def features_to_sims(self, semantics):

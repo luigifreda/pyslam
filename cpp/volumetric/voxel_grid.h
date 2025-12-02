@@ -56,6 +56,7 @@
 #endif
 
 #include "voxel_data.h"
+#include "voxel_grid_data.h"
 #include "voxel_hashing.h"
 
 #ifdef TBB_FOUND
@@ -527,6 +528,200 @@ template <typename VoxelDataT> class VoxelGridT {
         }
         return {points, colors};
 #endif
+    }
+
+    // Get voxels within a spatial interval (bounding box)
+    // Returns points and colors for voxels whose centers fall within [min_xyz, max_xyz]
+    // If IncludeSemantics is true and VoxelDataT is a SemanticVoxel, also returns semantic data
+    template <typename T, bool IncludeSemantics = false>
+    VoxelGridData get_voxels_in_interval(const T min_x, const T min_y, const T min_z, const T max_x,
+                                         const T max_y, const T max_z,
+                                         const int min_count = 1) const {
+        // Convert spatial bounds to voxel key bounds
+        const VoxelKey min_key = get_voxel_key_inv<T, float>(min_x, min_y, min_z, inv_voxel_size_);
+        const VoxelKey max_key = get_voxel_key_inv<T, float>(max_x, max_y, max_z, inv_voxel_size_);
+
+        const size_t estimated_num_voxels =
+            (max_key.x - min_key.x + 1) * (max_key.y - min_key.y + 1) * (max_key.z - min_key.z + 1);
+
+#ifdef TBB_FOUND
+        // Parallel version: use thread-local storage to collect data directly
+        // Each thread processes distinct voxels, so no contention on reads
+        VoxelGridData result;
+        std::mutex merge_mutex; // Single mutex for merging thread-local results
+
+        tbb::this_task_arena::isolate([&]() {
+            tbb::parallel_for(min_key.x, max_key.x + 1, [&](KeyType kx) {
+                // Thread-local storage for collecting data (reduces contention)
+                VoxelGridData local_result;
+                local_result.points.reserve((max_key.y - min_key.y + 1) *
+                                            (max_key.z - min_key.z + 1));
+                local_result.colors.reserve((max_key.y - min_key.y + 1) *
+                                            (max_key.z - min_key.z + 1));
+                if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
+                    local_result.instance_ids.reserve((max_key.y - min_key.y + 1) *
+                                                      (max_key.z - min_key.z + 1));
+                    local_result.class_ids.reserve((max_key.y - min_key.y + 1) *
+                                                   (max_key.z - min_key.z + 1));
+                    local_result.confidence_counters.reserve((max_key.y - min_key.y + 1) *
+                                                             (max_key.z - min_key.z + 1));
+                }
+
+                for (KeyType ky = min_key.y; ky <= max_key.y; ++ky) {
+                    for (KeyType kz = min_key.z; kz <= max_key.z; ++kz) {
+                        VoxelKey key(kx, ky, kz);
+                        auto it = grid_.find(key);
+                        if (it != grid_.end()) {
+                            const auto &v = it->second;
+                            if (v.count >= min_count) {
+                                // Check if voxel center is actually within bounds
+                                auto pos = v.get_position();
+                                if (pos[0] >= static_cast<double>(min_x) &&
+                                    pos[0] <= static_cast<double>(max_x) &&
+                                    pos[1] >= static_cast<double>(min_y) &&
+                                    pos[1] <= static_cast<double>(max_y) &&
+                                    pos[2] >= static_cast<double>(min_z) &&
+                                    pos[2] <= static_cast<double>(max_z)) {
+                                    local_result.points.push_back(pos);
+                                    local_result.colors.push_back(v.get_color());
+
+                                    if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
+                                        local_result.instance_ids.push_back(v.get_instance_id());
+                                        local_result.class_ids.push_back(v.get_class_id());
+                                        local_result.confidence_counters.push_back(
+                                            v.get_confidence_counter());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Merge local results into global result (protected by mutex)
+                if (!local_result.points.empty()) {
+                    std::lock_guard<std::mutex> lock(merge_mutex);
+                    result.points.insert(result.points.end(), local_result.points.begin(),
+                                         local_result.points.end());
+                    result.colors.insert(result.colors.end(), local_result.colors.begin(),
+                                         local_result.colors.end());
+                    if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
+                        result.instance_ids.insert(result.instance_ids.end(),
+                                                   local_result.instance_ids.begin(),
+                                                   local_result.instance_ids.end());
+                        result.class_ids.insert(result.class_ids.end(),
+                                                local_result.class_ids.begin(),
+                                                local_result.class_ids.end());
+                        result.confidence_counters.insert(result.confidence_counters.end(),
+                                                          local_result.confidence_counters.begin(),
+                                                          local_result.confidence_counters.end());
+                    }
+                }
+            });
+        });
+#else
+        // Sequential version
+        VoxelGridData result;
+        result.points.reserve(estimated_num_voxels);
+        result.colors.reserve(estimated_num_voxels);
+        if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
+            result.instance_ids.reserve(estimated_num_voxels);
+            result.class_ids.reserve(estimated_num_voxels);
+            result.confidence_counters.reserve(estimated_num_voxels);
+        }
+
+        // Iterate over all voxel keys in the interval
+        for (KeyType kx = min_key.x; kx <= max_key.x; ++kx) {
+            for (KeyType ky = min_key.y; ky <= max_key.y; ++ky) {
+                for (KeyType kz = min_key.z; kz <= max_key.z; ++kz) {
+                    VoxelKey key(kx, ky, kz);
+                    auto it = grid_.find(key);
+                    if (it != grid_.end()) {
+                        const auto &v = it->second;
+                        if (v.count >= min_count) {
+                            // Check if voxel center is actually within bounds
+                            // (voxel key bounds may be slightly larger than spatial bounds)
+                            auto pos = v.get_position();
+                            if (pos[0] >= static_cast<double>(min_x) &&
+                                pos[0] <= static_cast<double>(max_x) &&
+                                pos[1] >= static_cast<double>(min_y) &&
+                                pos[1] <= static_cast<double>(max_y) &&
+                                pos[2] >= static_cast<double>(min_z) &&
+                                pos[2] <= static_cast<double>(max_z)) {
+                                result.points.push_back(pos);
+                                result.colors.push_back(v.get_color());
+
+                                // Extract semantic data if requested and available
+                                if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
+                                    result.instance_ids.push_back(v.get_instance_id());
+                                    result.class_ids.push_back(v.get_class_id());
+                                    result.confidence_counters.push_back(
+                                        v.get_confidence_counter());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+#endif
+
+        return result;
+    }
+
+    // Iterate over voxels in a spatial interval with a callback function
+    // The callback receives (voxel_key, voxel_data) for each voxel in the interval
+    template <typename T, typename Callback>
+    void iterate_voxels_in_interval(T min_x, T min_y, T min_z, T max_x, T max_y, T max_z,
+                                    Callback &&callback, int min_count = 1) const {
+        // Convert spatial bounds to voxel key bounds
+        const VoxelKey min_key = get_voxel_key_inv<T, float>(min_x, min_y, min_z, inv_voxel_size_);
+        const VoxelKey max_key = get_voxel_key_inv<T, float>(max_x, max_y, max_z, inv_voxel_size_);
+
+        // Iterate over all voxel keys in the interval
+        for (KeyType kx = min_key.x; kx <= max_key.x; ++kx) {
+            for (KeyType ky = min_key.y; ky <= max_key.y; ++ky) {
+                for (KeyType kz = min_key.z; kz <= max_key.z; ++kz) {
+                    VoxelKey key(kx, ky, kz);
+                    auto it = grid_.find(key);
+                    if (it != grid_.end()) {
+                        const auto &v = it->second;
+                        if (v.count >= min_count) {
+                            // Check if voxel center is actually within bounds
+                            auto pos = v.get_position();
+                            if (pos[0] >= static_cast<double>(min_x) &&
+                                pos[0] <= static_cast<double>(max_x) &&
+                                pos[1] >= static_cast<double>(min_y) &&
+                                pos[1] <= static_cast<double>(max_y) &&
+                                pos[2] >= static_cast<double>(min_z) &&
+                                pos[2] <= static_cast<double>(max_z)) {
+                                callback(key, v);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Get voxels within a spatial interval using array input (for Python interface)
+    // bounds should be a 1D array with 6 elements: [min_x, min_y, min_z, max_x, max_y, max_z]
+    template <typename T, bool IncludeSemantics = false>
+    auto get_voxels_in_interval_array(py::array_t<T> bounds, int min_count = 1) const {
+        auto bounds_info = bounds.request();
+
+        // Validate array shape: bounds should be (6,) or have 6 elements
+        if (bounds_info.ndim != 1 || bounds_info.shape[0] != 6) {
+            throw std::runtime_error("bounds must be a 1D array with 6 elements: [min_x, min_y, "
+                                     "min_z, max_x, max_y, max_z]");
+        }
+        if (!bounds_info.ptr) {
+            throw std::runtime_error("bounds array must be contiguous");
+        }
+
+        const T *bounds_ptr = static_cast<const T *>(bounds_info.ptr);
+        return get_voxels_in_interval<T, IncludeSemantics>(bounds_ptr[0], bounds_ptr[1],
+                                                           bounds_ptr[2], bounds_ptr[3],
+                                                           bounds_ptr[4], bounds_ptr[5], min_count);
     }
 
     // Clear the voxel grid

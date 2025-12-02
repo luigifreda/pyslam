@@ -36,4 +36,6 @@ void SemanticMappingSharedResources::init_color_map(
     semantic_color_map = std::make_shared<SemanticColorMap>(semantic_dataset_type, num_classes);
 }
 
+void SemanticMappingSharedResources::reset_color_map() { semantic_color_map.reset(); }
+
 } // namespace pyslam

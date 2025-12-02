@@ -546,17 +546,17 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         // Use isolate() to prevent deadlock from nested parallelism
         tbb::this_task_arena::isolate([&]() {
             tbb::parallel_for_each(grid_.begin(), grid_.end(), [&](auto &pair) {
-                if (pair.second.instance_id == instance_id2) {
+                if (pair.second.get_instance_id() == instance_id2) {
                     // concurrent_unordered_map allows safe concurrent modification
-                    pair.second.instance_id = instance_id1;
+                    pair.second.set_instance_id(instance_id1);
                 }
             });
         });
 #else
         // Sequential version
         for (auto &[key, v] : grid_) {
-            if (v.instance_id == instance_id2) {
-                v.instance_id = instance_id1;
+            if (v.get_instance_id() == instance_id2) {
+                v.set_instance_id(instance_id1);
             }
         }
 #endif
@@ -569,7 +569,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         std::vector<VoxelKey> keys_to_remove;
         keys_to_remove.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
-            if (v.instance_id == instance_id) {
+            if (v.get_instance_id() == instance_id) {
                 keys_to_remove.push_back(key);
             }
         }
@@ -579,7 +579,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
 #else
         // Sequential version for std::unordered_map
         for (auto it = grid_.begin(); it != grid_.end();) {
-            if (it->second.instance_id == instance_id) {
+            if (it->second.get_instance_id() == instance_id) {
                 it = grid_.erase(it);
             } else {
                 ++it;
@@ -596,7 +596,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         keys_to_remove.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
             // Use getter method if available (for probabilistic), otherwise direct member access
-            if (get_confidence_counter_value(v) < min_confidence_counter) {
+            if (v.get_confidence_counter() < min_confidence_counter) {
                 keys_to_remove.push_back(key);
             }
         }
@@ -607,7 +607,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         // Sequential version for std::unordered_map
         for (auto it = grid_.begin(); it != grid_.end();) {
             // Use getter method if available (for probabilistic), otherwise direct member access
-            if (get_confidence_counter_value(it->second) < min_confidence_counter) {
+            if (it->second.get_confidence_counter() < min_confidence_counter) {
                 // Remove the voxel with low confidence_counter
                 it = grid_.erase(it);
             } else {
@@ -700,16 +700,16 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
                               [&](const tbb::blocked_range<size_t> &range) {
                                   for (size_t i = range.begin(); i < range.end(); ++i) {
                                       const auto &v = grid_.at(keys[i]);
-                                      class_ids[i] = v.class_id;
-                                      instance_ids[i] = v.instance_id;
+                                      class_ids[i] = v.get_class_id();
+                                      instance_ids[i] = v.get_instance_id();
                                   }
                               });
         });
 #else
         // Sequential version
         for (const auto &[key, v] : grid_) {
-            class_ids.push_back(v.class_id);
-            instance_ids.push_back(v.instance_id);
+            class_ids.push_back(v.get_class_id());
+            instance_ids.push_back(v.get_instance_id());
         }
 #endif
         return {class_ids, instance_ids};
@@ -739,8 +739,8 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
                                       const auto &v = grid_.at(keys[i]);
                                       points[i] = v.get_position();
                                       colors[i] = v.get_color();
-                                      class_ids[i] = v.class_id;
-                                      instance_ids[i] = v.instance_id;
+                                      class_ids[i] = v.get_class_id();
+                                      instance_ids[i] = v.get_instance_id();
                                   }
                               });
         });
@@ -760,8 +760,8 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
             if (v.count >= min_count) {
                 points.push_back(v.get_position());
                 colors.push_back(v.get_color());
-                class_ids.push_back(v.class_id);
-                instance_ids.push_back(v.instance_id);
+                class_ids.push_back(v.get_class_id());
+                instance_ids.push_back(v.get_instance_id());
             }
         }
         return {points, colors, class_ids, instance_ids};
@@ -772,7 +772,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     std::unordered_map<int, std::vector<std::array<double, 3>>> get_segments() const {
         std::unordered_map<int, std::vector<std::array<double, 3>>> segments;
         for (const auto &[key, v] : grid_) {
-            segments[v.instance_id].push_back(v.get_position());
+            segments[v.get_instance_id()].push_back(v.get_position());
         }
         return segments;
     }

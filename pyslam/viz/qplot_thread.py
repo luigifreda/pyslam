@@ -168,7 +168,8 @@ class Qplot2d:
     def quit(self):
         print(f'Qplot2d "{self.title}" closing...')
         self.is_running.value = 0
-        self.process.join(timeout=5)
+        timeout = 5 if mp.get_start_method() != "spawn" else 10
+        self.process.join(timeout=timeout)
         if self.process.is_alive():
             print(
                 f'Warning: Qplot2d "{self.title}" process did not terminate in time, forced kill.'
@@ -589,7 +590,8 @@ class Qplot3d:
     def quit(self):
         print(f'Qplot3d "{self.title}" closing...')
         self.is_running.value = 0
-        self.process.join(timeout=5)
+        timeout = 5 if mp.get_start_method() != "spawn" else 10
+        self.process.join(timeout=timeout)
         if self.process.is_alive():
             print(
                 f'Warning: Qplot3d "{self.title}" process did not terminate in time, forced kill.'

@@ -30,11 +30,8 @@ from queue import Queue
 
 from pyslam.config_parameters import Parameters
 
-from .semantic_segmentation_factory import SemanticSegmentationType
-from .semantic_mapping_base import (
-    SemanticMappingType,
-    SemanticMappingBase,
-)
+from .semantic_segmentation_types import SemanticSegmentationType
+from .semantic_mapping_base import SemanticMappingBase
 from .semantic_mapping_dense import SemanticMappingDenseBase
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_segmentation_process import SemanticSegmentationProcess
@@ -103,6 +100,16 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
         )
         self.semantic_segmentation = self.semantic_segmentation_process
 
+        # Update the base class semantic_color_map to use the one from the semantic segmentation process
+        # This ensures consistency between the sparse semantic map colors and the semantic color image
+        # when using a separate process for semantic segmentation
+        # Note: The base class expects a numpy array, while semantic_segmentation_process.semantic_color_map
+        # is a SemanticColorMap object, so we extract the color_map array from it
+        if self.semantic_segmentation_process.semantic_color_map.color_map is not None:
+            self.semantic_color_map = (
+                self.semantic_segmentation_process.semantic_color_map.color_map
+            )
+
     def is_ready(self):
         return self.is_running and self.semantic_segmentation_process.is_ready()
 
@@ -139,8 +146,14 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
         SemanticMappingBase.print("SemanticMapping: quitting...")
         if self.is_running and self.work_thread is not None:
             self.is_running = False
-            self.work_thread.join(timeout=5)
+            self.work_thread.join(timeout=Parameters.kMultithreadingThreadJoinDefaultTimeout)
         self.semantic_segmentation_process.quit()
+
+        # Clean up C++ semantic mapping resources
+        from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
+
+        SemanticMappingShared.cleanup_cpp_module()
+
         if QimageViewer.is_running():
             QimageViewer.get_instance().quit()
         SemanticMappingBase.print("SemanticMapping: done")
@@ -225,17 +238,51 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
         Printer.cyan("@semantic mapping")
         time_start = time.time()
 
-        if self.kf_cur is None:
-            Printer.red("semantic mapping: no keyframe to process")
+        # CRITICAL: Match the prediction to the correct keyframe using frame_id
+        # The prediction might be for a different keyframe than self.kf_cur due to async processing
+        if perception_output.frame_id is None:
+            Printer.red("semantic mapping: perception_output has no frame_id")
             return
+
+        # Find the correct keyframe matching the prediction's frame_id
+        kf_target = None
+        if self.kf_cur is not None and self.kf_cur.id == perception_output.frame_id:
+            # Current keyframe matches - use it
+            kf_target = self.kf_cur
+        else:
+            # Need to find the correct keyframe from the map
+            keyframes = self.map.get_keyframes()
+            for kf in keyframes:
+                if kf.id == perception_output.frame_id:
+                    kf_target = kf
+                    break
+
+        if kf_target is None:
+            Printer.red(
+                f"semantic mapping: no keyframe found for frame_id {perception_output.frame_id}"
+            )
+            return
+
+        # Temporarily set kf_cur to the correct keyframe for this prediction
+        kf_cur_original = self.kf_cur
+        self.kf_cur = kf_target
 
         if kSemanticMappingOnSeparateThread:
             SemanticMappingBase.print("..................................")
+            if kf_cur_original is not None and kf_cur_original.id != kf_target.id:
+                SemanticMappingBase.print(
+                    f"WARNING: frame_id mismatch - using KF {kf_target.id} (was {kf_cur_original.id}) for frame_id {perception_output.frame_id}"
+                )
             SemanticMappingBase.print(
-                "processing KF: ", self.kf_cur.id, ", queue size: ", self.queue_size()
+                f"processing KF: {self.kf_cur.id} (frame_id: {perception_output.frame_id}), queue size: {self.queue_size()}"
             )
 
         self.semantic_mapping_impl(perception_output)
+
+        # Restore original kf_cur if it was more recent (higher ID)
+        # Otherwise keep kf_target as it was the one we just processed
+        if kf_cur_original is not None and kf_cur_original.id > kf_target.id:
+            self.kf_cur = kf_cur_original
 
         elapsed_time = time.time() - time_start
         self.time_semantic_mapping = elapsed_time
@@ -247,6 +294,103 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
         self.timer_inference.start()
         self.curr_semantic_prediction = perception_output.inference_output
         self.curr_semantic_prediction_color_image = perception_output.inference_color_image
+
+        # CRITICAL: After multiprocessing pickling/unpickling, numpy arrays may have platform-specific
+        # dtypes (e.g., np.intc instead of np.int32) that pybind11 doesn't recognize.
+        # Only convert dtype if necessary for C++ compatibility, preserving the actual values.
+        if Parameters.USE_CPP_CORE and isinstance(self.curr_semantic_prediction, np.ndarray):
+            if np.issubdtype(self.curr_semantic_prediction.dtype, np.integer):
+                # For int64, use the safe conversion method that checks value ranges
+                if self.curr_semantic_prediction.dtype == np.int64:
+                    self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
+                        SemanticMappingBase.ensure_int32_prediction(
+                            self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe
+                        )
+                    )
+                # Only convert dtype if necessary for C++ compatibility
+                # Preserve original dtype if it's already compatible (uint8, uint16, int8, int16, int32)
+                # Only convert platform-specific types (like intc) that pybind11 doesn't recognize
+                dtype_name = self.curr_semantic_prediction.dtype.name
+                # dtype_obj = self.curr_semantic_prediction.dtype
+                is_contiguous = self.curr_semantic_prediction.flags["C_CONTIGUOUS"]
+
+                # Check if dtype needs conversion: only convert if it's a platform-specific type
+                # (like 'intc') or if it's not C-contiguous. Preserve compatible dtypes.
+                needs_conversion = (
+                    dtype_name not in ["int8", "int16", "int32", "uint8", "uint16"]
+                    or not is_contiguous
+                )
+
+                if needs_conversion:
+                    # Use astype() to preserve values while changing dtype to int32
+                    # This ensures pybind11 compatibility while preserving semantic label values
+                    self.curr_semantic_prediction = np.ascontiguousarray(
+                        self.curr_semantic_prediction.astype(np.int32, copy=False)
+                    )
+
         self.timer_inference.refresh()
 
         self.update_kf_cur_semantics()
+
+    @override
+    def draw_semantic_prediction(self):
+        """
+        Override to use the pre-computed inference_color_image from the separate process
+        instead of regenerating it. This ensures the displayed image matches what was
+        computed in the separate process.
+        """
+        if self.headless:
+            return
+        draw = False
+        use_cv2_for_drawing = (
+            platform.system() != "Darwin"
+        )  # under mac we can't use cv2 imshow here
+
+        if self.curr_semantic_prediction is not None:
+            if not self.draw_semantic_mapping_init:
+                if use_cv2_for_drawing:
+                    cv2.namedWindow("semantic prediction")  # to get a resizable window
+                self.draw_semantic_mapping_init = True
+            draw = True
+
+            # Use the pre-computed color image from the separate process if available
+            # This ensures consistency with what was computed in the separate process
+            if (
+                hasattr(self, "curr_semantic_prediction_color_image")
+                and self.curr_semantic_prediction_color_image is not None
+            ):
+                semantic_color_img = self.curr_semantic_prediction_color_image
+            else:
+                # Fallback to generating it (shouldn't happen in normal operation)
+                semantic_color_img = self.semantic_segmentation.to_rgb(
+                    self.curr_semantic_prediction, bgr=True
+                )
+
+            if use_cv2_for_drawing:
+                cv2.imshow("semantic prediction", semantic_color_img)
+            else:
+                QimageViewer.get_instance().draw(semantic_color_img, "semantic prediction")
+
+        if draw:
+            if use_cv2_for_drawing:
+                cv2.waitKey(1)
+
+    @override
+    def sem_des_to_rgb(self, semantic_des, bgr=False):
+        """
+        Override to use the color map from SemanticSegmentationProcess instead of the base class.
+        This ensures consistency between the sparse semantic map colors and the semantic color image.
+        """
+        return self.semantic_segmentation_process.semantic_color_map.sem_des_to_rgb(
+            semantic_des, bgr=bgr
+        )
+
+    @override
+    def sem_img_to_rgb(self, semantic_img, bgr=False):
+        """
+        Override to use the color map from SemanticSegmentationProcess instead of the base class.
+        This ensures consistency between the sparse semantic map colors and the semantic color image.
+        """
+        return self.semantic_segmentation_process.semantic_color_map.sem_img_to_rgb(
+            semantic_img, bgr=bgr
+        )

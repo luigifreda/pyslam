@@ -58,4 +58,9 @@ else
     . "$SCRIPTS_DIR"/install_all_venv.sh
 fi
 
+print_blue '================================================'
+print_blue "Building and installing pyslam C++ core"
+print_blue '================================================'
+"$SCRIPTS_DIR"/build_cpp.sh
+
 cd "$STARTING_DIR"

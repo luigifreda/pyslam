@@ -31,7 +31,7 @@ from torchvision import transforms
 
 from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
-from .semantic_mapping_color_map import Detectron2ColorMapManager
+from .semantic_color_map_factory import semantic_color_map_factory
 
 from pyslam.utilities.system import Printer
 
@@ -41,7 +41,7 @@ kRootFolder = os.path.abspath(os.path.join(kScriptFolder, "..", ".."))
 kOdisePath = os.path.abspath(os.path.join(kRootFolder, "thirdparty", "odise"))
 
 
-class OdiseDemo:
+class OdiseDemoWrapper:
     """
     Demo wrapper for ODISE inference that handles preprocessing and model execution.
     """
@@ -230,7 +230,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         # Store demo as model (it contains the inference wrapper)
         super().__init__(demo, transform, device, semantic_feature_type)
 
-        # Initialize color map
+        # Initialize color map using SemanticColorMap
         self._initialize_color_map(semantic_feature_type, semantic_dataset_type)
 
     def _derive_input_sizes(
@@ -267,7 +267,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         semantic_feature_type: SemanticFeatureType,
         semantic_dataset_type: SemanticDatasetType,
     ):
-        """Initialize color map from ODISE's detectron2 metadata."""
+        """Initialize color map from ODISE's detectron2 metadata using semantic_color_map_factory."""
         from .semantic_segmentation_factory import SemanticSegmentationType
 
         # Get metadata
@@ -275,34 +275,34 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         if demo_metadata is None:
             demo_metadata = getattr(self.model, "metadata", None)
 
-        # Initialize color map manager
-        self.color_map_manager = Detectron2ColorMapManager(
-            metadata=demo_metadata,
-            semantic_feature_type=semantic_feature_type,
-            semantic_dataset_type=semantic_dataset_type,
-            semantic_segmentation_type=SemanticSegmentationType.ODISE,
-        )
-
-        # Extract color map from metadata
+        # Get the number of classes to determine color map size
+        num_classes = None
         try:
-            if demo_metadata is not None and hasattr(demo_metadata, "stuff_colors"):
-                num_classes = self.num_classes() if hasattr(self, "num_classes") else None
-                self.semantics_color_map = self.color_map_manager.extract_from_metadata(
-                    color_attr="stuff_colors",
-                    num_classes=num_classes,
-                    min_size=300,  # ODISE typically uses COCO (133) + ADE (150) = 283+ classes
-                    use_detectron2_padding=True,
-                    verbose=True,
-                )
-                Printer.green(
-                    f"ODISE: Extracted color map from metadata with {len(self.semantics_color_map)} classes"
-                )
-            else:
-                self.semantics_color_map = self.color_map_manager.create_fallback()
-                Printer.yellow("ODISE: Using fallback color map (metadata not available)")
+            num_classes = self.num_classes() if hasattr(self, "num_classes") else None
+        except Exception:
+            pass
+
+        # Initialize semantic color map using factory - it will create SemanticColorMapDetectron2 if metadata is available
+        try:
+            self.semantic_color_map_obj = semantic_color_map_factory(
+                semantic_dataset_type=semantic_dataset_type,
+                semantic_feature_type=semantic_feature_type,
+                num_classes=num_classes,
+                semantic_segmentation_type=SemanticSegmentationType.ODISE,
+                metadata=demo_metadata,
+            )
+            # Extract the color map array for backward compatibility
+            self.semantic_color_map = self.semantic_color_map_obj.color_map
         except Exception as e:
-            self.semantics_color_map = self.color_map_manager.create_fallback()
+            # Fallback to factory-based color map on error
             Printer.yellow(f"ODISE: Using fallback color map due to error: {e}")
+            self.semantic_color_map_obj = semantic_color_map_factory(
+                semantic_dataset_type=semantic_dataset_type,
+                semantic_feature_type=semantic_feature_type,
+                num_classes=num_classes or 300,
+                semantic_segmentation_type=SemanticSegmentationType.ODISE,
+            )
+            self.semantic_color_map = self.semantic_color_map_obj.color_map
 
     # ========================================================================
     # Model Initialization
@@ -318,12 +318,12 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         input_size: int,
         max_size: int,
         use_fp16: bool,
-    ) -> Tuple[OdiseDemo, None]:
+    ) -> Tuple[OdiseDemoWrapper, None]:
         """
         Initialize ODISE model using OpenPanopticInference wrapper.
 
         Returns:
-            demo: OdiseDemo instance (wraps OpenPanopticInference)
+            demo: OdiseDemoWrapper instance (wraps OpenPanopticInference)
             transform: None (transform is handled internally by detectron2)
         """
         # Load compatibility patches
@@ -377,7 +377,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         self._demo_metadata = demo_metadata
 
         # Create demo wrapper
-        demo = OdiseDemo(inference_model, demo_metadata, aug)
+        demo = OdiseDemoWrapper(inference_model, demo_metadata, aug)
 
         return demo, None
 
@@ -855,6 +855,20 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         Printer.green(f"ODISE: Starting inference on image shape {rgb_image.shape[:2]}...")
         predictions = self.model.predict(rgb_image)
 
+        # Generate visualized output using centralized visualization generation
+        # ODISE's demo wrapper doesn't provide visualized_output like DETIC/EOV_SEG do,
+        # so we generate it on-demand using the consolidated visualization method.
+        # This ensures consistent visualization across all detectron2-based models.
+        visualized_output = None
+        if hasattr(self, "semantic_color_map_obj") and self.semantic_color_map_obj is not None:
+            if hasattr(self.semantic_color_map_obj, "generate_visualization"):
+                # Use SemanticColorMapDetectron2's centralized generate_visualization method
+                # This method consolidates visualization logic from DETIC, EOV_SEG, and ODISE
+                visualized_output = self.semantic_color_map_obj.generate_visualization(
+                    predictions, rgb_image
+                )
+        self._last_visualized_output = visualized_output
+
         # Postprocess predictions
         self.semantics = self._postprocess_predictions(predictions, rgb_image)
 
@@ -1090,9 +1104,6 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
                 - For 1D input: shape (N, 3) with RGB colors for each point
                 - For 2D input: shape (H, W, 3) with RGB image
         """
-        # Update color map manager with current color map
-        self.color_map_manager.color_map = self.semantics_color_map
-
         # Prepare panoptic data if available
         panoptic_data = None
         if hasattr(self, "_last_segments_info") and hasattr(self, "_last_panoptic_seg"):
@@ -1106,10 +1117,15 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
                 "instance_mode": ColorMode.IMAGE,
             }
 
-        # Use color map manager's to_rgb method
-        return self.color_map_manager.to_rgb(
+        # Use semantic color map's centralized to_rgb method
+        # This method handles visualization consistently across all detectron2-based models:
+        # - Uses pre-computed visualized_output if available (generated via generate_visualization())
+        # - Falls back to panoptic_data visualization if needed
+        # - Uses direct color mapping as final fallback
+        # ODISE generates visualization on-demand since its demo wrapper doesn't provide it automatically
+        return self.semantic_color_map_obj.to_rgb(
             semantics,
             panoptic_data=panoptic_data,
-            visualized_output=None,  # ODISE doesn't store visualized_output
+            visualized_output=getattr(self, "_last_visualized_output", None),
             bgr=bgr,
         )

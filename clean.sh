@@ -52,6 +52,9 @@ fi
 if [ -d "thirdparty/depth_anything_v2" ]; then
     rm -Rf thirdparty/depth_anything_v2
 fi
+if [ -d "thirdparty/depth_anything_v3" ]; then
+    rm -Rf thirdparty/depth_anything_v3
+fi
 if [ -d "thirdparty/crestereo" ]; then
     rm -Rf thirdparty/crestereo
 fi
@@ -140,8 +143,12 @@ if [ -d "thirdparty/detectron2" ]; then
     rm -rf thirdparty/detectron2
 fi
 
-if [ -d "thirdparty/EOV-Seg" ]; then
-    rm -rf thirdparty/EOV-Seg
+if [ -d "thirdparty/detic" ]; then
+    rm -rf thirdparty/detic
+fi
+
+if [ -d "thirdparty/eov_segmentation" ]; then
+    rm -rf thirdparty/eov_segmentation
 fi
 
 if [ -d "thirdparty/odise" ]; then
@@ -156,6 +163,16 @@ fi
 if [ -f "$ROOT_DIR/.env" ]; then
     echo "Removing $ROOT_DIR/.env file"
     rm "$ROOT_DIR/.env"
+fi
+
+if [ -d "thirdparty/megengine" ]; then
+    echo "Removing thirdparty/megengine directory"
+    sudo rm -rf thirdparty/megengine
+fi
+
+if [ -d "thirdparty/json" ]; then
+    echo "Removing thirdparty/json directory"
+    sudo rm -rf thirdparty/json
 fi
 
 # clean downloaded models, reset submodules and clean repo itself

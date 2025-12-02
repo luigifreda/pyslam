@@ -188,7 +188,8 @@ class QimageViewer:
         # Give the process time to finish its current iteration
         time.sleep(0.1)
         # Join the process with a timeout
-        self.process.join(timeout=5)
+        timeout = 5 if mp.get_start_method() != "spawn" else 10
+        self.process.join(timeout=timeout)
         if self.process.is_alive():
             print(f"Warning: QimageViewer process did not terminate in time, forcing kill.")
             self.process.terminate()

@@ -132,7 +132,7 @@ class Slam(object):
 
         if slam_mode == SlamMode.SLAM:
             self.init_semantic_mapping(semantic_mapping_config, headless=headless)
-            self.init_volumetric_integrator()
+            self.init_volumetric_integrator()  # should be after semantic mapping since it uses the semantic mapping
             self.init_loop_closing(loop_detector_config, headless=headless)
 
         if Parameters.kLocalMappingOnSeparateThread:

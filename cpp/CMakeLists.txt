@@ -15,6 +15,12 @@ set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -DNDEBUG")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG")
 
+# Enable C++20 concepts for GCC (required for GCC < 10)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts")
+endif()
+
+
 # Add -march=native if requested and not on macOS
 # (macOS system clang doesn't properly support -march=native on Apple Silicon)
 if(BUILD_WITH_MARCH_NATIVE AND NOT APPLE)

@@ -1,4 +1,4 @@
-/*
+/**
  * This file is part of PYSLAM
  *
  * Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
@@ -16,28 +16,23 @@
  * You should have received a copy of the GNU General Public License
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #pragma once
 
-#include "semantic_colormap.h"
-#include "semantic_fusion_methods.h"
-#include "semantic_types.h"
-#include <memory>
-namespace pyslam {
+#include <array>
+#include <vector>
 
-class SemanticMappingSharedResources {
-  public:
-    static SemanticFeatureType semantic_feature_type;
-    static SemanticDatasetType semantic_dataset_type;
-    static SemanticEntityType semantic_entity_type;
-    static SemanticSegmentationType semantic_segmentation_type;
+namespace volumetric {
 
-    static std::shared_ptr<SemanticColorMap> semantic_color_map;
+// Output structure for voxel grid data extraction
+// Contains points, colors, and optionally semantic data
+struct VoxelGridData {
+    std::vector<std::array<double, 3>> points;
+    std::vector<std::array<float, 3>> colors;
 
-  public:
-    static void init_color_map(const SemanticDatasetType &semantic_dataset_type,
-                               int num_classes = 0);
-    static void reset_color_map();
+    // Semantic data (only populated if IncludeSemantics is true)
+    std::vector<int> instance_ids;
+    std::vector<int> class_ids;
+    std::vector<int> confidence_counters;
 };
 
-} // namespace pyslam
+} // namespace volumetric

@@ -23,7 +23,7 @@ A collection of ready-to-used semantic mapping configurations
 """
 
 from .semantic_mapping_base import SemanticMappingType
-from .semantic_segmentation_factory import SemanticSegmentationType
+from .semantic_segmentation_types import SemanticSegmentationType
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from pyslam.io.dataset_types import DatasetType
 from pyslam.utilities.system import Printer

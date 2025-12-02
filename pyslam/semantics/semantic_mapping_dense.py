@@ -31,21 +31,21 @@ from queue import Queue
 
 from pyslam.config_parameters import Parameters
 
-from .semantic_segmentation_factory import SemanticSegmentationType, semantic_segmentation_factory
+from .semantic_segmentation_factory import semantic_segmentation_factory
+from .semantic_segmentation_types import SemanticSegmentationType
 from .semantic_fusion_methods import SemanticFusionMethods
 from .semantic_mapping_base import SemanticMappingType, SemanticMappingBase
-from .semantic_types import SemanticFeatureType
-from .semantic_mapping_color_map import SemanticMappingColorMap
-from .semantic_segmentation_process import SemanticSegmentationProcess
+from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_mapping_configs import SemanticMappingConfig
-
-from pyslam.semantics.semantic_utils import (
-    SemanticDatasetType,
-    information_weights_factory,
+from .semantic_color_utils import (
     labels_color_map_factory,
     single_label_to_color,
     similarity_heatmap_point,
 )
+from .semantic_information_weights_factory import (
+    semantic_information_weights_factory,
+)
+
 from pyslam.utilities.timer import TimerFps
 from pyslam.utilities.serialization import SerializableEnum, register_class
 from pyslam.utilities.system import Printer, Logging
@@ -106,12 +106,14 @@ class SemanticMappingDenseBase(SemanticMappingBase):
 
         if semantic_dataset_type != SemanticDatasetType.FEATURE_SIMILARITY:
             # Pass semantic_segmentation_type to use EOV-Seg color map when needed
-            self.semantics_color_map = labels_color_map_factory(
+            self.semantic_color_map = labels_color_map_factory(
                 semantic_dataset_type, semantic_segmentation_type=semantic_segmentation_type
             )
-            self.semantic_sigma2_factor = information_weights_factory(semantic_dataset_type)
+            self.semantic_sigma2_factor = semantic_information_weights_factory(
+                semantic_dataset_type
+            )
         else:
-            self.semantics_color_map = None
+            self.semantic_color_map = None
             self.semantic_sigma2_factor = [1.0]
 
         self.timer_verbose = kTimerVerbose
@@ -125,17 +127,31 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         self._is_sem_pred_cast_to_int32_safe = None
 
     def update_kf_cur_semantics(self):
-        # Ensure semantics use int32 if the prediction is int64 (for downstream compatibility)
+        # Ensure semantics use int32 for C++ compatibility
+        # The C++ type caster requires exact np.int32 dtype, not platform-specific int types
         if Parameters.USE_CPP_CORE:
-            if (
-                isinstance(self.curr_semantic_prediction, np.ndarray)
-                and self.curr_semantic_prediction.dtype == np.int64
-            ):
-                self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
-                    SemanticMappingBase.ensure_int32_prediction(
-                        self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe
-                    )
-                )
+            if isinstance(self.curr_semantic_prediction, np.ndarray):
+                # Check if dtype is integer type (int64, int32, intc, etc.)
+                if np.issubdtype(self.curr_semantic_prediction.dtype, np.integer):
+                    # For int64, use the safe conversion method that checks value ranges
+                    if self.curr_semantic_prediction.dtype == np.int64:
+                        self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
+                            SemanticMappingBase.ensure_int32_prediction(
+                                self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe
+                            )
+                        )
+                    # Ensure the dtype is exactly np.int32 that pybind11 will recognize
+                    # Create a fresh array with explicit dtype to ensure pybind11 compatibility
+                    # Use np.array() with copy=True and explicit dtype to create a new array
+                    # The C++ code now has a fallback to check dtype name, but we still ensure
+                    # the dtype is np.int32 for maximum compatibility
+                    if (
+                        self.curr_semantic_prediction.dtype != np.int32
+                        or not self.curr_semantic_prediction.flags["C_CONTIGUOUS"]
+                    ):
+                        self.curr_semantic_prediction = np.array(
+                            self.curr_semantic_prediction, dtype=np.int32, copy=True
+                        )
 
         Printer.green(f"#semantic inference, timing: {self.timer_inference.last_elapsed}")
         # TODO(dvdmc): the prints don't work for some reason. They block the Thread ?
@@ -185,10 +201,10 @@ class SemanticMappingDenseBase(SemanticMappingBase):
 
     def sem_des_to_rgb(self, semantic_des, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:
-            return single_label_to_color(semantic_des, self.semantics_color_map, bgr=bgr)
+            return single_label_to_color(semantic_des, self.semantic_color_map, bgr=bgr)
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             return single_label_to_color(
-                np.argmax(semantic_des, axis=-1), self.semantics_color_map, bgr=bgr
+                np.argmax(semantic_des, axis=-1), self.semantic_color_map, bgr=bgr
             )
         elif self.semantic_feature_type == SemanticFeatureType.FEATURE_VECTOR:
             if self.semantic_dataset_type == SemanticDatasetType.FEATURE_SIMILARITY:
@@ -202,7 +218,7 @@ class SemanticMappingDenseBase(SemanticMappingBase):
                 )
             else:
                 label = self.semantic_segmentation.features_to_labels(semantic_des)
-                return single_label_to_color(label, self.semantics_color_map, bgr=bgr)
+                return single_label_to_color(label, self.semantic_color_map, bgr=bgr)
 
     def sem_img_to_rgb(self, semantic_img, bgr=False):
         return self.semantic_segmentation.to_rgb(semantic_img, bgr=bgr)

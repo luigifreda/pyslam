@@ -304,6 +304,28 @@ class VolumetricIntegratorBase:
         self.is_running = mp.Value("i", 0)
         self.is_looping = mp.Value("i", 0)
 
+        # Export SemanticMappingShared state for passing to spawned process
+        # This is needed when using spawn multiprocessing method, as static fields
+        # are not inherited by spawned processes
+        self.semantic_mapping_shared_state = None
+        if (
+            SemanticMappingShared.is_semantic_mapping_enabled()
+            # and Parameters.kSemanticMappingMoveSemanticSegmentationToSeparateProcess
+        ):
+            try:
+                Printer.green(
+                    "VolumetricIntegratorBase: Exporting SemanticMappingShared state for passing to spawned process"
+                )
+                VolumetricIntegratorBase.print(
+                    "VolumetricIntegratorBase: Exporting SemanticMappingShared state for passing to spawned process"
+                )
+                self.semantic_mapping_shared_state = SemanticMappingShared.export_state()
+            except Exception as e:
+                Printer.orange(
+                    f"WARNING: VolumetricIntegratorBase: Failed to export SemanticMappingShared state: {e}"
+                )
+                traceback.print_exc()
+
         self.init_print()
         self.start()
 
@@ -392,6 +414,7 @@ class VolumetricIntegratorBase:
                 self.time_volumetric_integration,
                 self.parameters_dict,
                 self.constructor_kwargs,
+                self.semantic_mapping_shared_state,  # Pass SemanticMappingShared state
             ),
             name=kVolumetricIntegratorProcessName,
         )
@@ -494,7 +517,14 @@ class VolumetricIntegratorBase:
                 with self.q_out_condition:
                     self.q_out_condition.notify_all()
 
-                self.process.join(timeout=5)
+                # check if "spawn" method is used, so we increse the default timeout
+                timeout = (
+                    Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                    if mp.get_start_method() != "spawn"
+                    else 2 * Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                )
+                self.process.join(timeout=timeout)
+
                 if self.process.is_alive():
                     Printer.orange(
                         "Warning: Volumetric integration process did not terminate in time, forced kill."
@@ -614,9 +644,27 @@ class VolumetricIntegratorBase:
         time_volumetric_integration,
         parameters_dict,
         constructor_kwargs,
+        semantic_mapping_shared_state=None,
     ):
         is_running.value = 1
         VolumetricIntegratorBase.print("VolumetricIntegratorBase: starting...")
+
+        # Restore SemanticMappingShared state in spawned process if using spawn method
+        if semantic_mapping_shared_state is not None:
+            try:
+                SemanticMappingShared.import_state(semantic_mapping_shared_state, force=True)
+                Printer.green(
+                    "VolumetricIntegratorBase: SemanticMappingShared state restored in spawned process"
+                )
+                VolumetricIntegratorBase.print(
+                    "VolumetricIntegratorBase: SemanticMappingShared state restored in spawned process"
+                )
+            except Exception as e:
+                Printer.orange(
+                    f"WARNING: VolumetricIntegratorBase: Failed to restore SemanticMappingShared state: {e}"
+                )
+                traceback.print_exc()
+
         self.init(camera, environment_type, sensor_type, parameters_dict, constructor_kwargs)
         is_looping.value = 1
 

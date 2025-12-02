@@ -20,6 +20,7 @@
 import os
 import time
 import math
+import sys
 
 # import multiprocessing as mp
 import torch.multiprocessing as mp
@@ -46,7 +47,7 @@ from .semantic_types import SemanticFeatureType, SemanticEntityType
 from .semantic_segmentation_base import SemanticSegmentationBase
 from .semantic_segmentation_clip import SemanticSegmentationCLIP
 from .perception_tasks import PerceptionTaskType, PerceptionTask, PerceptionOutput
-from .semantic_mapping_color_map import SemanticMappingColorMap
+from .semantic_color_map_factory import semantic_color_map_factory
 
 
 import traceback
@@ -132,6 +133,8 @@ class SemanticSegmentationProcess:
         self.semantic_segmentation_shared_data = self.mp_manager.Dict()
         self._num_classes = None
         self._text_embs = None
+        self._color_map = None
+        self._color_map_params = None
 
         self.start()
 
@@ -144,14 +147,35 @@ class SemanticSegmentationProcess:
             shared_data = self.q_shared_data.get()
             self._num_classes = shared_data["num_classes"]
             self._text_embs = shared_data["text_embs"]
+            # Keep the semantic color map produced in the worker so we can reuse the exact palette
+            self._color_map = shared_data.get("color_map")
+            self._color_map_params = shared_data.get("color_map_params")
 
-        self.semantics_color_map = SemanticMappingColorMap(
-            semantic_mapping_config.semantic_dataset_type,
-            semantic_mapping_config.semantic_feature_type,
-            num_classes=self._num_classes,
-            text_embs=self._text_embs,
-            device=device,
-        )
+        # Recreate the color map using the parameters (and palette) coming from the worker
+        color_map_params = self._color_map_params or {}
+        semantic_color_map_kwargs = {
+            "semantic_dataset_type": color_map_params.get(
+                "semantic_dataset_type", semantic_mapping_config.semantic_dataset_type
+            ),
+            "semantic_feature_type": color_map_params.get(
+                "semantic_feature_type", semantic_mapping_config.semantic_feature_type
+            ),
+            "num_classes": color_map_params.get("num_classes", self._num_classes),
+            "text_embs": color_map_params.get("text_embs", self._text_embs),
+            "device": color_map_params.get("device", device),
+            "sim_scale": color_map_params.get("sim_scale", 1.0),
+            "semantic_segmentation_type": color_map_params.get(
+                "semantic_segmentation_type", semantic_mapping_config.semantic_segmentation_type
+            ),
+        }
+
+        self.semantic_color_map = semantic_color_map_factory(**semantic_color_map_kwargs)
+
+        # If the worker provided an explicit palette, enforce it to keep colors consistent
+        if self._color_map is not None:
+            color_map_array = np.ascontiguousarray(np.array(self._color_map))
+            self.semantic_color_map.color_map = color_map_array
+            self._num_classes = len(color_map_array)
 
     def num_classes(self):
         return self._num_classes
@@ -160,7 +184,64 @@ class SemanticSegmentationProcess:
         return self._text_embs
 
     def to_rgb(self, semantics, bgr=False):
-        return self.semantics_color_map.to_rgb(semantics, bgr=bgr)
+        return self.semantic_color_map.to_rgb(semantics, bgr=bgr)
+
+    def __getstate__(self):
+        """
+        Custom pickling: exclude non-picklable multiprocessing primitives.
+        This allows SemanticSegmentationProcess to be pickled for passing to spawned processes.
+        Only the essential data (semantic_color_map, config, etc.) is preserved.
+        """
+        state = self.__dict__.copy()
+        # Exclude multiprocessing synchronized objects that can't be pickled with spawn
+        if "time_semantic_segmentation" in state:
+            del state["time_semantic_segmentation"]
+        if "reset_mutex" in state:
+            del state["reset_mutex"]
+        if "reset_requested" in state:
+            del state["reset_requested"]
+        if "load_request_completed" in state:
+            del state["load_request_completed"]
+        if "load_request_condition" in state:
+            del state["load_request_condition"]
+        if "save_request_completed" in state:
+            del state["save_request_completed"]
+        if "save_request_condition" in state:
+            del state["save_request_condition"]
+        if "mp_manager" in state:
+            del state["mp_manager"]
+        if "q_in" in state:
+            del state["q_in"]
+        if "q_out" in state:
+            del state["q_out"]
+        if "q_shared_data" in state:
+            del state["q_shared_data"]
+        if "q_in_condition" in state:
+            del state["q_in_condition"]
+        if "q_out_condition" in state:
+            del state["q_out_condition"]
+        if "q_shared_data_condition" in state:
+            del state["q_shared_data_condition"]
+        if "is_running" in state:
+            del state["is_running"]
+        if "is_looping" in state:
+            del state["is_looping"]
+        if "semantic_segmentation_shared_data" in state:
+            del state["semantic_segmentation_shared_data"]
+        if "process" in state:
+            del state["process"]
+        # Keep: semantic_color_map, _num_classes, _text_embs, semantic_mapping_config, headless
+        return state
+
+    def __setstate__(self, state):
+        """
+        Custom unpickling: restore state and set excluded multiprocessing primitives to None.
+        The excluded attributes are not needed for the callable methods (to_rgb, etc.) to work.
+        """
+        self.__dict__.update(state)
+        # Set excluded multiprocessing primitives to None (they're not needed for callable methods)
+        # Note: The process itself won't be running in the spawned process, but that's okay
+        # because we only need semantic_color_map for the callable methods
 
     def start(self):
         self.process = mp.Process(
@@ -187,7 +268,8 @@ class SemanticSegmentationProcess:
             ),
         )
 
-        # self.process.daemon = True
+        # Note: We don't set daemon=True because we need the process to finish its work
+        # Setting daemon=True would cause the process to be killed immediately on exit
         self.process.start()
 
         if MultiprocessingManager.is_start_method_spawn():
@@ -262,22 +344,159 @@ class SemanticSegmentationProcess:
                 reset_requested.value = 0
 
     def quit(self):
+        SemanticSegmentationBase.print("SemanticSegmentationProcess: quit() called...")
+
+        # Check if process is already stopped
+        if not hasattr(self, "process") or not self.process.is_alive():
+            SemanticSegmentationBase.print("SemanticSegmentationProcess: process already stopped.")
+            return
+
         if self.is_running.value == 1:
             SemanticSegmentationBase.print("SemanticSegmentationProcess: quitting...")
             self.is_running.value = 0
-            with self.q_in_condition:
-                self.q_in.put(None)  # put a None in the queue to signal we have to exit
-                self.q_in_condition.notify_all()
-            with self.q_out_condition:
-                self.q_out_condition.notify_all()
+
+            # Signal the process to exit
+            try:
+                with self.q_in_condition:
+                    # Put None first to signal immediate exit, then empty remaining items
+                    # This ensures the process exits quickly even if queue has many items
+                    self.q_in.put(None)  # put a None in the queue to signal we have to exit
+                    self.q_in_condition.notify_all()
+            except Exception as e:
+                SemanticSegmentationBase.print(f"Warning: Error signaling q_in: {e}")
+
+            try:
+                with self.q_out_condition:
+                    # Notify waiting threads
+                    self.q_out_condition.notify_all()
+            except Exception as e:
+                SemanticSegmentationBase.print(f"Warning: Error signaling q_out: {e}")
+
+            # Wait for the process to finish with longer timeout to allow graceful shutdown
+            # Increase timeout to handle large queues (e.g., 23 items * ~1.3s per item = ~30s)
             if self.process.is_alive():
-                self.process.join(timeout=5)
+                SemanticSegmentationBase.print(
+                    "SemanticSegmentationProcess: waiting for process to finish gracefully..."
+                )
+                total_timeout = (
+                    Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                    if mp.get_start_method() != "spawn"
+                    else 2 * Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                )
+                check_interval = 3  # Print status every 3 seconds
+                elapsed = 0
+                while self.process.is_alive() and elapsed < total_timeout:
+                    self.process.join(timeout=check_interval)
+                    elapsed += check_interval
+                    if self.process.is_alive():
+                        remaining = total_timeout - elapsed
+                        q_in_size = 0
+                        q_out_size = 0
+                        try:
+                            q_in_size = self.q_in.qsize()
+                            q_out_size = self.q_out.qsize()
+                        except Exception:
+                            # Queue might be closed or unavailable, ignore
+                            pass
+                        SemanticSegmentationBase.print(
+                            f"SemanticSegmentationProcess: still waiting... "
+                            f"(elapsed: {elapsed}s, remaining: {remaining}s, "
+                            f"q_in: {q_in_size}, q_out: {q_out_size})"
+                        )
+                # Check if process exited during the wait
+                if not self.process.is_alive():
+                    SemanticSegmentationBase.print(
+                        f"SemanticSegmentationProcess: process exited gracefully after {elapsed}s"
+                    )
+
+            # If still alive, force termination
             if self.process.is_alive():
                 Printer.orange(
-                    "Warning: Loop detection process did not terminate in time, forced kill."
+                    "Warning: Semantic segmentation process did not terminate in time, forcing shutdown."
                 )
+                SemanticSegmentationBase.print("SemanticSegmentationProcess: sending SIGTERM...")
                 self.process.terminate()
+                # Wait with status updates
+                terminate_timeout = (
+                    Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                    if mp.get_start_method() != "spawn"
+                    else 2 * Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                )
+                check_interval = 1  # Check every second during termination
+                elapsed = 0
+                while self.process.is_alive() and elapsed < terminate_timeout:
+                    self.process.join(timeout=check_interval)
+                    elapsed += check_interval
+                    if self.process.is_alive():
+                        remaining = terminate_timeout - elapsed
+                        SemanticSegmentationBase.print(
+                            f"SemanticSegmentationProcess: waiting for termination... "
+                            f"(elapsed: {elapsed}s, remaining: {remaining}s)"
+                        )
+
+                # Force kill if still alive
+                if self.process.is_alive():
+                    Printer.red("Process still alive after terminate, killing...")
+                    SemanticSegmentationBase.print(
+                        "SemanticSegmentationProcess: sending SIGKILL..."
+                    )
+                    self.process.kill()
+                    self.process.join(timeout=2)
+                    if self.process.is_alive():
+                        SemanticSegmentationBase.print(
+                            "SemanticSegmentationProcess: process killed."
+                        )
+
+            # CRITICAL: Shutdown the manager AFTER the process has exited
+            # This prevents the manager from closing queues while the process is still using them
+            # Do this regardless of whether process exited cleanly or not
+            if hasattr(self, "mp_manager") and self.mp_manager.manager is not None:
+                try:
+                    SemanticSegmentationBase.print("Shutting down multiprocessing manager...")
+                    self.mp_manager.manager.shutdown()
+                    SemanticSegmentationBase.print("Manager shut down successfully.")
+                except Exception as e:
+                    SemanticSegmentationBase.print(f"Warning: Error shutting down manager: {e}")
+
+            # Try to empty queues after manager shutdown (but don't block if they're already closed)
+            if not self.process.is_alive():
+                # Process exited cleanly - try to empty queues
+                try:
+                    with self.q_in_condition:
+                        empty_queue(self.q_in)
+                except Exception as e:
+                    SemanticSegmentationBase.print(f"Warning: Error emptying q_in: {e}")
+
+                try:
+                    with self.q_out_condition:
+                        empty_queue(self.q_out)
+                except Exception as e:
+                    SemanticSegmentationBase.print(f"Warning: Error emptying q_out: {e}")
+
+                try:
+                    with self.q_shared_data_condition:
+                        empty_queue(self.q_shared_data)
+                except Exception as e:
+                    SemanticSegmentationBase.print(f"Warning: Error emptying q_shared_data: {e}")
+
+            # Final check: ensure process is fully dead
+            if hasattr(self, "process") and self.process.is_alive():
+                Printer.red("CRITICAL: Process still alive after cleanup, forcing kill...")
+                try:
+                    self.process.kill()
+                    self.process.join(timeout=1)
+                except Exception as e:
+                    SemanticSegmentationBase.print(f"Error killing process: {e}")
+
             SemanticSegmentationBase.print("SemanticSegmentationProcess: done")
+
+            # Flush any pending output
+            sys.stdout.flush()
+            sys.stderr.flush()
+
+            # Small delay to allow Python's atexit handlers to run properly
+            # This helps prevent hanging when multiprocessing queues are finalized
+            time.sleep(0.1)
 
     def init(
         self,
@@ -301,11 +520,63 @@ class SemanticSegmentationProcess:
         else:
             semantic_segmentation_shared_data["text_embs"] = None
 
+        # Share the exact color map (and its parameters) created by the semantic segmentation model
+        color_map_obj = None
+        if hasattr(self.semantic_segmentation, "semantic_color_map_obj"):
+            color_map_obj = self.semantic_segmentation.semantic_color_map_obj
+        elif hasattr(self.semantic_segmentation, "semantic_color_map") and not isinstance(
+            getattr(self.semantic_segmentation, "semantic_color_map", None), np.ndarray
+        ):
+            potential_obj = self.semantic_segmentation.semantic_color_map
+            if hasattr(potential_obj, "color_map"):
+                color_map_obj = potential_obj
+
+        shared_color_map = None
+        color_map_params = None
+        if color_map_obj is not None and getattr(color_map_obj, "color_map", None) is not None:
+            shared_color_map = np.ascontiguousarray(color_map_obj.color_map)
+            color_map_params = {
+                "semantic_dataset_type": color_map_obj.semantic_dataset_type,
+                "semantic_feature_type": color_map_obj.semantic_feature_type,
+                "num_classes": getattr(color_map_obj, "num_classes", None),
+                "semantic_segmentation_type": getattr(
+                    color_map_obj, "semantic_segmentation_type", None
+                ),
+                "device": getattr(color_map_obj, "device", "cpu"),
+                "sim_scale": getattr(color_map_obj, "sim_scale", 1.0),
+            }
+            if hasattr(color_map_obj, "text_embs") and color_map_obj.text_embs is not None:
+                text_embs = color_map_obj.text_embs
+                if hasattr(text_embs, "cpu"):
+                    text_embs = text_embs.cpu()
+                if hasattr(text_embs, "detach"):
+                    text_embs = text_embs.detach()
+                color_map_params["text_embs"] = (
+                    text_embs.numpy() if hasattr(text_embs, "numpy") else text_embs
+                )
+            # Keep num_classes in sync with the exported palette size when available
+            if color_map_params["num_classes"] is None:
+                color_map_params["num_classes"] = len(shared_color_map)
+        elif hasattr(self.semantic_segmentation, "semantic_color_map") and isinstance(
+            getattr(self.semantic_segmentation, "semantic_color_map", None), np.ndarray
+        ):
+            shared_color_map = np.ascontiguousarray(self.semantic_segmentation.semantic_color_map)
+            color_map_params = {
+                "semantic_dataset_type": semantic_mapping_config.semantic_dataset_type,
+                "semantic_feature_type": semantic_mapping_config.semantic_feature_type,
+                "num_classes": len(shared_color_map),
+                "semantic_segmentation_type": semantic_mapping_config.semantic_segmentation_type,
+                "device": "cpu",
+                "sim_scale": 1.0,
+            }
+
         with q_shared_data_condition:
             q_shared_data.put(
                 {
                     "num_classes": semantic_segmentation_shared_data["num_classes"],
                     "text_embs": semantic_segmentation_shared_data["text_embs"],
+                    "color_map": shared_color_map,
+                    "color_map_params": color_map_params,
                 }
             )
             q_shared_data_condition.notify_all()
@@ -353,19 +624,37 @@ class SemanticSegmentationProcess:
                     )
                     q_in_condition.wait()
             if not q_in.empty():
-                self.semantic_segmenting(
-                    self.semantic_segmentation,
-                    q_in,
-                    q_out,
-                    q_out_condition,
-                    is_running,
-                    load_request_completed,
-                    load_request_condition,
-                    save_request_completed,
-                    save_request_condition,
-                    time_semantic_segmentation,
-                    headless,
-                )
+                # Get the task and check if it's None (shutdown signal)
+                try:
+                    task = q_in.get()
+                    if task is None:
+                        # Received shutdown signal, exit immediately
+                        is_running.value = 0
+                        SemanticSegmentationBase.print(
+                            "SemanticSegmentationProcess: received shutdown signal, exiting..."
+                        )
+                        break
+                    else:
+                        # Process the task directly (pass it to avoid getting it again from queue)
+                        self.semantic_segmenting(
+                            self.semantic_segmentation,
+                            q_in,
+                            q_out,
+                            q_out_condition,
+                            is_running,
+                            load_request_completed,
+                            load_request_condition,
+                            save_request_completed,
+                            save_request_condition,
+                            time_semantic_segmentation,
+                            headless,
+                            task=task,  # Pass the task directly
+                        )
+                except Exception as e:
+                    SemanticSegmentationBase.print(
+                        f"SemanticSegmentationProcess: error getting task: {e}"
+                    )
+                    break
             else:
                 SemanticSegmentationBase.print("SemanticSegmentationProcess: q_in is empty...")
                 time.sleep(0.01)
@@ -395,6 +684,7 @@ class SemanticSegmentationProcess:
         save_request_condition,
         time_semantic_segmentation,
         headless,
+        task=None,  # Optional: if provided, use this task instead of getting from queue
     ):
         # print('SemanticSegmentationProcess: semantic_segmenting')
         timer = TimerFps("SemanticSegmentationProcess", is_verbose=kTimerVerbose)
@@ -409,11 +699,20 @@ class SemanticSegmentationProcess:
                     SemanticSegmentationBase.print(warn_msg)
                     Printer.red(warn_msg)
 
-                self.last_input_task = (
-                    q_in.get()
-                )  # blocking call to get a new input task for semantic segmentation
+                # Get task from parameter or from queue
+                if task is not None:
+                    self.last_input_task = task
+                else:
+                    self.last_input_task = (
+                        q_in.get()
+                    )  # blocking call to get a new input task for semantic segmentation
+
                 if self.last_input_task is None:
                     is_running.value = 0  # got a None to exit
+                    SemanticSegmentationBase.print(
+                        "SemanticSegmentationProcess: received None task, exiting immediately..."
+                    )
+                    return  # Exit immediately without processing more tasks
                 else:
                     last_output = None
                     try:

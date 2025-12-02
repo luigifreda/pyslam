@@ -37,11 +37,10 @@ def semantic_mapping_factory(slam: "Slam", headless=False, image_size=(512, 512)
         raise ValueError("semantic_mapping_type is not specified in semantic_mapping_config")
 
     if semantic_mapping_type == SemanticMappingType.DENSE:
-        SemanticMappingDenseClass = SemanticMappingDense
+        semantic_mapping_dense_class = SemanticMappingDense
         if Parameters.kSemanticMappingMoveSemanticSegmentationToSeparateProcess:
-            SemanticMappingDenseClass = SemanticMappingDenseProcess
-        # TODO(dvdmc): fix this with a better approach that checks for existence of configs
-        return SemanticMappingDenseClass(
+            semantic_mapping_dense_class = SemanticMappingDenseProcess
+        return semantic_mapping_dense_class(
             slam=slam,
             headless=headless,
             image_size=image_size,

@@ -167,7 +167,8 @@ class Mplot2d:
     def quit(self):
         print(f'Mplot2d "{self.title}" closing...')
         self.is_running.value = 0
-        self.process.join(timeout=5)
+        timeout = 5 if mp.get_start_method() != "spawn" else 10
+        self.process.join(timeout=timeout)
         if self.process.is_alive():
             print(
                 f'Warning: Mplot2d "{self.title}" process did not terminate in time, forced kill.'
@@ -388,7 +389,8 @@ class Mplot3d:
     def quit(self):
         print(f'Mplot3d "{self.title}" closing...')
         self.is_running.value = 0
-        self.process.join(timeout=5)
+        timeout = 5 if mp.get_start_method() != "spawn" else 10
+        self.process.join(timeout=timeout)
         if self.process.is_alive():
             print('Warning: Mplot3d "{self.title}" process did not terminate in time, forced kill.')
             self.process.terminate()

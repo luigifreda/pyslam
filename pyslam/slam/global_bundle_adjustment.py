@@ -224,7 +224,12 @@ class GlobalBundleAdjustment:
             GlobalBundleAdjustment.print("GlobalBundleAdjustment: quitting...")
             self.abort()
             if self.process.is_alive():
-                self.process.join(timeout=1)
+                timeout = (
+                    Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                    if mp.get_start_method() != "spawn"
+                    else 2 * Parameters.kMultiprocessingProcessJoinDefaultTimeout
+                )
+                self.process.join(timeout=timeout)
             if self.process.is_alive():
                 message = "GlobalBundleAdjustment: WARNING: GBA process did not terminate in time, forced kill."
                 GlobalBundleAdjustment.print(message)
