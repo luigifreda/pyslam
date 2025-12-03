@@ -35,12 +35,13 @@ import g2o
 from pyslam.semantics.semantic_mapping_shared import (
     SemanticMappingShared,
 )  # TODO(dvdmc): do we want semnatics to be used in this file?
-from pyslam.utilities.utils_geom import poseRt, Sim3Pose
+from pyslam.utilities.utils_geom import poseRt
+from pyslam.slam.sim3_pose import Sim3Pose
 from pyslam.utilities.utils_sys import Printer
 from pyslam.utilities.utils_mp import MultiprocessingManager
 from pyslam.utilities.utils_draw import draw_histogram
 
-from .frame import FeatureTrackerShared
+from .feature_tracker_shared import FeatureTrackerShared
 from .map_point import MapPoint
 from .keyframe import KeyFrame
 
@@ -72,7 +73,7 @@ def sync_flag_fun(abort_flag, mp_abort_flag, print=print):
 def bundle_adjustment(
     keyframes,
     points,
-    local_window,
+    local_window_size,
     fixed_points=False,
     rounds=10,
     loop_kf_id=0,
@@ -83,10 +84,16 @@ def bundle_adjustment(
     verbose=False,
     print=print,
 ):
-    if local_window is None:
+    """
+    Optimize pixel reprojection error, bundle adjustment.
+    Returns:
+    - mean_squared_error
+    - result_dict: filled dictionary with the updates of the keyframes and points if provided in the input
+    """
+    if local_window_size is None:
         local_frames = keyframes
     else:
-        local_frames = keyframes[-local_window:]
+        local_frames = keyframes[-local_window_size:]
 
     robust_rounds = rounds // 2 if use_robust_kernel else 0
     final_rounds = rounds - robust_rounds
@@ -100,8 +107,9 @@ def bundle_adjustment(
     sync_flag_thread = None
     if mp_abort_flag is not None:
         # Create a thread for keeping abort_flag in sync with mp_abort_flag.
-        # Why? The g2o-abort-flag passed (via pickling) to a launched parallel process (via multiprocessing module) is just a different instance that is not kept in sync
-        # with its source instance in the parent process. This means we don't succeed to abort the BA when set the source instance.
+        # Why? The g2o-abort-flag passed (via pickling) to a launched parallel process (via multiprocessing module) is just a
+        # different instance that is not kept in sync with its source instance in the parent process. This means we don't
+        # succeed to abort the BA when set the source instance.
         sync_flag_thread = threading.Thread(
             target=sync_flag_fun, args=(abort_flag, mp_abort_flag, print)
         )
@@ -129,7 +137,8 @@ def bundle_adjustment(
         if kf.is_bad:
             continue
         # print('adding vertex frame ', f.id, ' to graph')
-        se3 = g2o.SE3Quat(kf.Rcw.copy(), kf.tcw.copy())
+        kf_Tcw = kf.Tcw()
+        se3 = g2o.SE3Quat(kf_Tcw[:3, :3], kf_Tcw[:3, 3])
         v_se3 = g2o.VertexSE3Expmap()
         v_se3.set_estimate(se3)
         v_se3.set_id(kf.kid * 2)  # even ids  (use f.kid here!)
@@ -166,7 +175,9 @@ def bundle_adjustment(
         for kf, idx in p.observations():
             # if kf.is_bad:  # redundant since we check kf is in graph_keyframes (selected as non-bad)
             #     continue
-            if kf not in graph_keyframes:
+            try:
+                v_se3_kf = graph_keyframes[kf]
+            except KeyError:
                 continue
 
             kf_kpsu_idx = kf.kpsu[idx]
@@ -184,7 +195,7 @@ def bundle_adjustment(
             if is_stereo_obs:
                 edge = g2o.EdgeStereoSE3ProjectXYZ()
                 edge.set_vertex(0, v_p)
-                edge.set_vertex(1, graph_keyframes[kf])
+                edge.set_vertex(1, v_se3_kf)
                 obs = [kf_kpsu_idx[0], kf_kpsu_idx[1], kf_kps_ur_idx]
                 edge.set_measurement(obs)
 
@@ -200,7 +211,7 @@ def bundle_adjustment(
             else:
                 edge = g2o.EdgeSE3ProjectXYZ()
                 edge.set_vertex(0, v_p)
-                edge.set_vertex(1, graph_keyframes[kf])
+                edge.set_vertex(1, v_se3_kf)
                 edge.set_measurement(kf_kpsu_idx)
 
                 edge.set_information(eye2 * invSigma2)
@@ -232,8 +243,7 @@ def bundle_adjustment(
     if robust_rounds > 0:
         opt.optimize(robust_rounds)
         # check inliers observation
-        for edge, edge_data in graph_edges.items():
-            is_stereo = edge_data
+        for edge, is_stereo in graph_edges.items():
 
             edge_chi2 = edge.chi2()
             chi2_check_failure = (edge_chi2 > chi2Stereo) if is_stereo else (edge_chi2 > chi2Mono)
@@ -263,14 +273,14 @@ def bundle_adjustment(
     # put frames back
     if keyframe_updates is not None:
         # store the updates in a dictionary
-        for kf in graph_keyframes:
-            est = graph_keyframes[kf].estimate()
+        for kf, v_se3 in graph_keyframes.items():
+            est = v_se3.estimate()
             R, t = est.rotation().matrix(), est.translation()
             T = poseRt(R, t)
             keyframe_updates[kf.id] = T
     else:
-        for kf in graph_keyframes:
-            est = graph_keyframes[kf].estimate()
+        for kf, v_se3 in graph_keyframes.items():
+            est = v_se3.estimate()
             R, t = est.rotation().matrix(), est.translation()
             T = poseRt(R, t)
             if loop_kf_id == 0:
@@ -285,18 +295,18 @@ def bundle_adjustment(
     if not fixed_points:
         if point_updates is not None:
             # store the updates in a dictionary
-            for p in graph_points:
-                point_updates[p.id] = np.array(graph_points[p].estimate())
+            for p, v_p in graph_points.items():
+                point_updates[p.id] = np.array(v_p.estimate())
         else:
             if loop_kf_id == 0:
-                for p in graph_points:
+                for p, v_p in graph_points.items():
                     # direct update on map
-                    p.update_position(np.array(graph_points[p].estimate()))
+                    p.update_position(np.array(v_p.estimate()))
                     p.update_normal_and_depth(force=True)
             else:
-                for p in graph_points:
+                for p, v_p in graph_points.items():
                     # update for loop closure
-                    p.pt_GBA = np.array(graph_points[p].estimate())
+                    p.pt_GBA = np.array(v_p.estimate())
                     p.GBA_kf_id = loop_kf_id
 
     num_active_edges = num_edges - num_bad_edges
@@ -332,7 +342,7 @@ def global_bundle_adjustment(
     mean_squared_error, result_dict = bundle_adjustment(
         keyframes,
         points,
-        local_window=None,
+        local_window_size=None,
         fixed_points=fixed_points,
         rounds=rounds,
         loop_kf_id=loop_kf_id,
@@ -400,11 +410,12 @@ def pose_optimization(frame, verbose=False, rounds=10):
     thHuberMono = math.sqrt(5.991)  # chi-squared 2 DOFS
     thHuberStereo = math.sqrt(7.815)  # chi-squared 3 DOFS
 
-    point_edge_pairs = {}
+    edge_data = []
     num_point_edges = 0
 
-    Rcw = frame.Rcw
-    tcw = frame.tcw
+    frame_Tcw = frame.Tcw()
+    Rcw = frame_Tcw[:3, :3]
+    tcw = frame_Tcw[:3, 3]
 
     v_se3 = g2o.VertexSE3Expmap()
     v_se3.set_estimate(g2o.SE3Quat(Rcw.copy(), tcw.copy()))
@@ -476,7 +487,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
 
             opt.add_edge(edge)
 
-            point_edge_pairs[p] = (edge, idx, is_stereo_obs)  # one edge per point
+            edge_data.append((edge, idx, is_stereo_obs))  # one edge per point
             num_point_edges += 1
 
     if num_point_edges < 3:
@@ -501,7 +512,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
 
         num_bad_point_edges = 0
 
-        for p, (edge, idx, is_stereo_obs) in point_edge_pairs.items():
+        for edge, idx, is_stereo_obs in edge_data:
             if frame.outliers[idx]:
                 edge.compute_error()
 
@@ -554,7 +565,7 @@ def pose_optimization(frame, verbose=False, rounds=10):
     if draw_chi2_histograms:
         chi2_mono_vals = []
         chi2_stereo_vals = []
-        for p, (edge, idx, is_stereo_obs) in point_edge_pairs.items():
+        for edge, idx, is_stereo_obs in edge_data:
             chi2 = edge.chi2()
             if is_stereo_obs:
                 chi2_stereo_vals.append(chi2)
@@ -608,6 +619,12 @@ def local_bundle_adjustment(
     mp_abort_flag=None,
     map_lock=None,
 ):
+    """
+    Local bundle adjustment (optimize points reprojection error)
+    Returns:
+    - mean_squared_error
+    - ratio_bad_observations: percentage of bad observations
+    """
     from .local_mapping import LocalMapping
 
     print = LocalMapping.print
@@ -636,7 +653,8 @@ def local_bundle_adjustment(
     # add frame vertices to graph
     for kf in good_keyframes:
         # print('adding vertex frame ', f.id, ' to graph')
-        se3 = g2o.SE3Quat(kf.Rcw.copy(), kf.tcw.copy())
+        kf_Tcw = kf.Tcw()
+        se3 = g2o.SE3Quat(kf_Tcw[:3, :3], kf_Tcw[:3, 3])
         v_se3 = g2o.VertexSE3Expmap()
         v_se3.set_estimate(se3)
         v_se3.set_id(kf.kid * 2)  # even ids  (use f.kid here!)
@@ -673,24 +691,22 @@ def local_bundle_adjustment(
         opt.add_vertex(v_p)
         graph_points[p] = v_p
 
-        # add edges
-        good_observations = [
-            (kf, p_idx) for kf, p_idx in p.observations() if not kf.is_bad and kf in graph_keyframes
-        ]
+        for kf, p_idx in p.observations():
+            if kf.is_bad:
+                continue
 
-        # for kf, p_idx in p.observations():
-        for kf, p_idx in good_observations:
-            # if kf.is_bad:
-            #     continue
-            # if kf not in graph_keyframes:
-            #     continue
-            if __debug__:
-                p_f = kf.get_point_match(p_idx)
-                if p_f != p:
-                    print("frame: ", kf.id, " missing point ", p.id, " at index p_idx: ", p_idx)
-                    if p_f is not None:
-                        print("p_f:", p_f)
-                    print("p:", p)
+            try:
+                v_se3_kf = graph_keyframes[kf]
+            except KeyError:
+                continue
+
+            # if __debug__:
+            #     p_f = kf.get_point_match(p_idx)
+            #     if p_f != p:
+            #         print("frame: ", kf.id, " missing point ", p.id, " at index p_idx: ", p_idx)
+            #         if p_f is not None:
+            #             print("p_f:", p_f)
+            #         print("p:", p)
             assert kf.get_point_match(p_idx) is p
 
             # print('adding edge between point ', p.id,' and frame ', f.id)
@@ -724,7 +740,7 @@ def local_bundle_adjustment(
             edge.fx, edge.fy, edge.cx, edge.cy = camera.fx, camera.fy, camera.cx, camera.cy
 
             edge.set_vertex(0, v_p)
-            edge.set_vertex(1, graph_keyframes[kf])
+            edge.set_vertex(1, v_se3_kf)
             opt.add_edge(edge)
 
             graph_edges[edge] = (p, kf, p_idx, is_stereo_obs)  # one has kf.points[p_idx] == p
@@ -750,8 +766,7 @@ def local_bundle_adjustment(
     if not abort_flag.value:
 
         # check inliers observation
-        for edge, edge_data in graph_edges.items():
-            p, kf, p_idx, is_stereo = edge_data
+        for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
 
             # if p.is_bad: # redundant check since the considered points come from good_points
             #     continue
@@ -773,8 +788,7 @@ def local_bundle_adjustment(
 
     chi2_limits = {True: chi2Stereo, False: chi2Mono}
 
-    for edge, edge_data in graph_edges.items():
-        p, kf, p_idx, is_stereo = edge_data
+    for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
 
         # if p.is_bad: # redundant check since the considered points come from good_points
         #     continue
@@ -783,7 +797,7 @@ def local_bundle_adjustment(
 
         if edge.chi2() > chi2_limits[is_stereo] or not edge.is_depth_positive():
             num_bad_observations += 1
-            outliers_edge_data.append(edge_data)
+            outliers_edge_data.append((p, kf, p_idx, is_stereo))
 
     if map_lock is None:
         map_lock = threading.RLock()  # put a fake lock
@@ -800,8 +814,8 @@ def local_bundle_adjustment(
                 # f.remove_point_match(p_idx) # this does not remove multiple point instances, but now there cannot be multiple instances any more
 
         # put frames back
-        for kf in graph_keyframes:
-            est = graph_keyframes[kf].estimate()
+        for kf, v_se3 in graph_keyframes.items():
+            est = v_se3.estimate()
             R = est.rotation().matrix()
             t = est.translation()
             kf.update_pose(poseRt(R, t))
@@ -810,8 +824,8 @@ def local_bundle_adjustment(
 
         # put points back
         if not fixed_points:
-            for p in graph_points:
-                p.update_position(np.array(graph_points[p].estimate()))
+            for p, v_p in graph_points.items():
+                p.update_position(np.array(v_p.estimate()))
                 p.update_normal_and_depth(force=True)
 
     num_active_edges = num_edges - num_bad_edges
@@ -823,7 +837,7 @@ def local_bundle_adjustment(
 # ------------------------------------------------------------------------------------------
 
 
-# Parallel local bundle adjustment (optimize points reprojection error)
+# Parallel-process local bundle adjustment (optimize points reprojection error)
 # - frames and points are optimized
 # - frames_ref are fixed
 # This function will handle the multiprocessing part of the optimization.
@@ -870,7 +884,8 @@ def lba_optimization_process(
         # add frame vertices to graph
         for kf in good_keyframes.values():
             # print('adding vertex frame ', f.id, ' to graph')
-            se3 = g2o.SE3Quat(kf.Rcw.copy(), kf.tcw.copy())
+            kf_Tcw = kf.Tcw()
+            se3 = g2o.SE3Quat(kf_Tcw[:3, :3], kf_Tcw[:3, 3])
             v_se3 = g2o.VertexSE3Expmap()
             v_se3.set_estimate(se3)
             v_se3.set_id(kf.kid * 2)  # even ids  (use f.kid here!)
@@ -900,12 +915,13 @@ def lba_optimization_process(
             graph_points[p] = v_p
 
             # add edges
-            good_observations = [
-                (kf, p_idx)
-                for kf, p_idx in p.observations()
-                if not kf.is_bad and kf in graph_keyframes
-            ]
-            for kf, p_idx in good_observations:
+            for kf, p_idx in p.observations():
+                if kf.is_bad:
+                    continue
+                try:
+                    v_se3_kf = graph_keyframes[kf]
+                except KeyError:
+                    continue
 
                 if __debug__:
                     p_f = kf.get_point_match(p_idx)
@@ -951,7 +967,7 @@ def lba_optimization_process(
                 )
 
                 edge.set_vertex(0, v_p)
-                edge.set_vertex(1, graph_keyframes[kf])
+                edge.set_vertex(1, v_se3_kf)
                 opt.add_edge(edge)
 
                 graph_edges[edge] = (p, kf, p_idx, is_stereo_obs)
@@ -982,9 +998,7 @@ def lba_optimization_process(
         if not abort_flag.value:
 
             # check inliers observation
-            for edge, edge_data in graph_edges.items():
-                p, kf, p_idx, is_stereo = edge_data
-
+            for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
                 # if p.is_bad: # redundant check since the considered points come from good_points
                 #     continue
 
@@ -1010,8 +1024,7 @@ def lba_optimization_process(
 
         chi2_limits = {True: chi2Stereo, False: chi2Mono}
 
-        for edge, edge_data in graph_edges.items():
-            p, kf, p_idx, is_stereo = edge_data
+        for edge, (p, kf, p_idx, is_stereo) in graph_edges.items():
 
             # if p.is_bad: # redundant check since the considered points come from good_points
             #     continue
@@ -1020,7 +1033,7 @@ def lba_optimization_process(
 
             if edge.chi2() > chi2_limits[is_stereo] or not edge.is_depth_positive():
                 num_bad_observations += 1
-                outliers_edge_data.append(edge_data)
+                outliers_edge_data.append((p, kf, p_idx, is_stereo))
 
         num_active_edges = num_edges - num_bad_edges
         mean_squared_error = opt.active_chi2() / max(num_active_edges, 1)
@@ -1105,7 +1118,7 @@ def local_bundle_adjustment_parallel(
             mp_abort_flag,
         ),
     )
-    # p.daemon = True
+    p.daemon = True
 
     p.start()
     print("local_bundle_adjustment_parallel - started")
@@ -1217,8 +1230,10 @@ def optimize_sim3(
     cam1 = kf1.camera
     cam2 = kf2.camera
 
-    R1w, t1w = kf1.Rcw.copy(), kf1.tcw.copy()
-    R2w, t2w = kf2.Rcw.copy(), kf2.tcw.copy()
+    kf1_Tcw = kf1.Tcw()
+    kf2_Tcw = kf2.Tcw()
+    R1w, t1w = kf1_Tcw[:3, :3], kf1_Tcw[:3, 3]
+    R2w, t2w = kf2_Tcw[:3, :3], kf2_Tcw[:3, 3]
 
     optimizer = g2o.SparseOptimizer()
     solver = g2o.BlockSolverX(g2o.LinearSolverDenseX())
@@ -1435,7 +1450,8 @@ def optimize_essential_graph(
             corrected_sim3 = corrected_sim3_map[keyframe]
             Siw = Sim3Pose(R=corrected_sim3.R.copy(), t=corrected_sim3.t.copy(), s=corrected_sim3.s)
         except:
-            Siw = Sim3Pose(keyframe.Rcw.copy(), keyframe.tcw.copy(), 1.0)
+            kf_Tcw = keyframe.Tcw()
+            Siw = Sim3Pose(kf_Tcw[:3, :3], kf_Tcw[:3, 3], 1.0)
         vec_Scw[keyframe_id] = Siw
 
         vertex_sim3.set_estimate(g2o.Sim3(Siw.R, Siw.t.ravel(), Siw.s))

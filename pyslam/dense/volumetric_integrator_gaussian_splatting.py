@@ -154,7 +154,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                             self.estimate_depth_if_needed_and_rectify(keyframe_data)
                         )
 
-                        pose = keyframe_data.pose  # Tcw
+                        pose = keyframe_data.pose()  # Tcw
                         # inv_pose = inv_T(pose)   # Twc
 
                         VolumetricIntegratorBase.print(

@@ -1,21 +1,38 @@
-// File: LevenbergMarquardtOptimizerG2o.h
+/**
+ * This file is part of PYSLAM
+ *
+ * Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+ *
+ * PYSLAM is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * PYSLAM is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #pragma once
 
-#include <gtsam/nonlinear/NonlinearOptimizer.h>
-#include <gtsam/nonlinear/LevenbergMarquardtParams.h>
-#include <gtsam/nonlinear/Values.h>
-#include <gtsam/nonlinear/internal/NonlinearOptimizerState.h>
+#include <gtsam/base/timing.h>
+#include <gtsam/inference/Ordering.h>
 #include <gtsam/linear/GaussianFactorGraph.h>
-#include <gtsam/linear/VectorValues.h>
 #include <gtsam/linear/JacobianFactor.h>
 #include <gtsam/linear/NoiseModel.h>
-#include <gtsam/inference/Ordering.h>
-#include <gtsam/base/timing.h>
+#include <gtsam/linear/VectorValues.h>
+#include <gtsam/nonlinear/LevenbergMarquardtParams.h>
+#include <gtsam/nonlinear/NonlinearOptimizer.h>
+#include <gtsam/nonlinear/Values.h>
+#include <gtsam/nonlinear/internal/NonlinearOptimizerState.h>
 
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/format.hpp>
 #include <boost/range/adaptor/map.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <cmath>
 #include <fstream>
@@ -26,10 +43,9 @@
 using namespace gtsam;
 using boost::adaptors::map_values;
 
-
-// A custom LM optimizer that mimics the G2o implementation. 
+// A custom LM optimizer that mimics the G2o implementation.
 class LevenbergMarquardtOptimizerG2o : public NonlinearOptimizer {
-protected:
+  protected:
     const LevenbergMarquardtParams params_;
     boost::posix_time::ptime startTime_;
     double _tau = 1e-5;
@@ -48,11 +64,11 @@ protected:
 
         State(const Values &initialValues, double error, double lambda, double factor,
               unsigned int iterations = 0, unsigned int totalInner = 0)
-            : internal::NonlinearOptimizerState(initialValues, error, iterations),
-              lambda(lambda), currentFactor(factor), totalNumberInnerIterations(totalInner) {}
+            : internal::NonlinearOptimizerState(initialValues, error, iterations), lambda(lambda),
+              currentFactor(factor), totalNumberInnerIterations(totalInner) {}
 
-        std::unique_ptr<State> decreaseLambda(const LevenbergMarquardtParams &params,
-                                              double rho, Values &&newValues, double newError) const {
+        std::unique_ptr<State> decreaseLambda(const LevenbergMarquardtParams &params, double rho,
+                                              Values &&newValues, double newError) const {
             double newLambda = lambda;
             double newFactor = currentFactor;
             if (params.useFixedLambdaFactor) {
@@ -70,22 +86,25 @@ protected:
         }
     };
 
-public:
-    LevenbergMarquardtOptimizerG2o(const NonlinearFactorGraph &graph, const Values &initialValues,
-                                   const LevenbergMarquardtParams &params = LevenbergMarquardtParams())
-        : NonlinearOptimizer(graph, std::make_unique<State>(initialValues, graph.error(initialValues),
-                                                            params.lambdaInitial, params.lambdaFactor)),
+  public:
+    LevenbergMarquardtOptimizerG2o(
+        const NonlinearFactorGraph &graph, const Values &initialValues,
+        const LevenbergMarquardtParams &params = LevenbergMarquardtParams())
+        : NonlinearOptimizer(graph,
+                             std::make_unique<State>(initialValues, graph.error(initialValues),
+                                                     params.lambdaInitial, params.lambdaFactor)),
           params_(LevenbergMarquardtParams::EnsureHasOrdering(params, graph)) {
         _g2oLmState.currentLambda = computeLambdaInit();
         _g2oLmState.maxTrialsAfterFailure = params.maxIterations;
         startTime_ = boost::posix_time::microsec_clock::universal_time();
     }
 
-    LevenbergMarquardtOptimizerG2o(const NonlinearFactorGraph &graph, const Values &initialValues,
-                                   const Ordering &ordering,
-                                   const LevenbergMarquardtParams &params = LevenbergMarquardtParams())
-        : NonlinearOptimizer(graph, std::make_unique<State>(initialValues, graph.error(initialValues),
-                                                            params.lambdaInitial, params.lambdaFactor)),
+    LevenbergMarquardtOptimizerG2o(
+        const NonlinearFactorGraph &graph, const Values &initialValues, const Ordering &ordering,
+        const LevenbergMarquardtParams &params = LevenbergMarquardtParams())
+        : NonlinearOptimizer(graph,
+                             std::make_unique<State>(initialValues, graph.error(initialValues),
+                                                     params.lambdaInitial, params.lambdaFactor)),
           params_(LevenbergMarquardtParams::ReplaceOrdering(params, ordering)) {
         _g2oLmState.currentLambda = computeLambdaInit();
         _g2oLmState.maxTrialsAfterFailure = params.maxIterations;
@@ -111,14 +130,16 @@ public:
         return std::max(scale, 1e-3);
     }
 
-    GaussianFactorGraph buildDampedSystem(const GaussianFactorGraph &linear, const VectorValues &sqrtHessianDiagonal) const {
+    GaussianFactorGraph buildDampedSystem(const GaussianFactorGraph &linear,
+                                          const VectorValues &sqrtHessianDiagonal) const {
         auto currentState = static_cast<const State *>(state_.get());
         GaussianFactorGraph damped = linear;
         for (const auto &[key, diagVec] : sqrtHessianDiagonal) {
             Vector diag = diagVec.cwiseSqrt();
             Matrix A = diag.asDiagonal();
             Vector b = Vector::Zero(diag.size());
-            SharedDiagonal model = noiseModel::Isotropic::Sigma(diag.size(), 1.0 / std::sqrt(currentState->lambda));
+            SharedDiagonal model =
+                noiseModel::Isotropic::Sigma(diag.size(), 1.0 / std::sqrt(currentState->lambda));
             damped.push_back(boost::make_shared<JacobianFactor>(key, A, b, model));
         }
         return damped;
@@ -168,22 +189,22 @@ public:
                     _g2oLmState.currentLambda *= alpha;
                     _g2oLmState.ni = 2.0;
                     currentChi = tempChi;
-                    state_ = currentState->decreaseLambda(params_, rho, std::move(newValues), tempChi);
+                    state_ =
+                        currentState->decreaseLambda(params_, rho, std::move(newValues), tempChi);
                 } else {
                     _g2oLmState.currentLambda *= _g2oLmState.ni;
                     _g2oLmState.ni *= 2.0;
-                    state_ = std::make_unique<State>(backupValues, backupError,
-                                                     currentState->lambda, currentState->currentFactor,
-                                                     currentState->iterations,
-                                                     currentState->totalNumberInnerIterations + 1);
+                    state_ = std::make_unique<State>(
+                        backupValues, backupError, currentState->lambda,
+                        currentState->currentFactor, currentState->iterations,
+                        currentState->totalNumberInnerIterations + 1);
                 }
             } else {
                 _g2oLmState.currentLambda *= _g2oLmState.ni;
                 _g2oLmState.ni *= 2.0;
-                state_ = std::make_unique<State>(backupValues, backupError,
-                                                 currentState->lambda, currentState->currentFactor,
-                                                 currentState->iterations,
-                                                 currentState->totalNumberInnerIterations + 1);
+                state_ = std::make_unique<State>(
+                    backupValues, backupError, currentState->lambda, currentState->currentFactor,
+                    currentState->iterations, currentState->totalNumberInnerIterations + 1);
             }
 
             if (!std::isfinite(_g2oLmState.currentLambda))
@@ -193,8 +214,9 @@ public:
             _g2oLmState.levenbergIterations++;
 
             if (params_.verbosityLM == LevenbergMarquardtParams::SUMMARY) {
-                std::cout << boost::format("% 4d % 8e   % 3.2e   % 3.2e  % 4d") % currentState->iterations %
-                             tempChi % rho % currentState->lambda % success
+                std::cout << boost::format("% 4d % 8e   % 3.2e   % 3.2e  % 4d") %
+                                 currentState->iterations % tempChi % rho % currentState->lambda %
+                                 success
                           << std::endl;
             }
 
@@ -209,16 +231,17 @@ public:
             std::ofstream os(params_.logFile, std::ios::app);
             boost::posix_time::ptime now = boost::posix_time::microsec_clock::universal_time();
             os << currentState->totalNumberInnerIterations << ","
-               << 1e-6 * (now - startTime_).total_microseconds() << ","
-               << currentError << "," << currentState->lambda << ","
-               << currentState->iterations << std::endl;
+               << 1e-6 * (now - startTime_).total_microseconds() << "," << currentError << ","
+               << currentState->lambda << "," << currentState->iterations << std::endl;
         }
     }
 
     const LevenbergMarquardtParams &params() const { return params_; }
     double lambda() const { return static_cast<const State *>(state_.get())->lambda; }
-    int getInnerIterations() const { return static_cast<const State *>(state_.get())->totalNumberInnerIterations; }
+    int getInnerIterations() const {
+        return static_cast<const State *>(state_.get())->totalNumberInnerIterations;
+    }
 
-protected:
+  protected:
     const NonlinearOptimizerParams &_params() const override { return params_; }
 };

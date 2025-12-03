@@ -26,7 +26,7 @@ from .utils_sys import Printer
 from .utils_geom_lie import so3_exp, so3_log, is_so3
 from scipy.spatial.transform import Rotation
 
-from numba import jit
+from numba import njit
 
 
 sign = lambda x: math.copysign(1, x)
@@ -34,7 +34,7 @@ sign = lambda x: math.copysign(1, x)
 
 # returns the difference between ang1 [deg] and ang2 [deg] in the manifold S1 (unit circle)
 # result is the representation of the angle with the smallest absolute value
-@jit(nopython=True)
+@njit(cache=True)
 def s1_diff_deg(angle1, angle2):
     diff = (angle1 - angle2) % 360.0  # now delta is in [0,360)
     if diff > 180.0:
@@ -44,7 +44,7 @@ def s1_diff_deg(angle1, angle2):
 
 # returns the positive distance between ang1 [deg] and ang2 [deg] in the manifold S1 (unit circle)
 # result is smallest positive angle between ang1 and ang2
-@jit(nopython=True)
+@njit(cache=True)
 def s1_dist_deg(angle1, angle2):
     diff = (angle1 - angle2) % 360.0  # now delta is in [0,360)
     if diff > 180.0:
@@ -57,7 +57,7 @@ def s1_dist_deg(angle1, angle2):
 k2pi = 2.0 * math.pi
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def s1_diff_rad(angle1, angle2):
     diff = (angle1 - angle2) % k2pi  # now delta is in [0,k2pi)
     if diff > math.pi:
@@ -67,7 +67,7 @@ def s1_diff_rad(angle1, angle2):
 
 # returns the positive distance between ang1 [rad] and ang2 [rad] in the manifold S1 (unit circle)
 # result is smallest positive angle between ang1 and ang2
-@jit(nopython=True)
+@njit(cache=True)
 def s1_dist_rad(angle1, angle2):
     diff = (angle1 - angle2) % k2pi  # now delta is in [0,k2pi)
     if diff > math.pi:
@@ -76,7 +76,7 @@ def s1_dist_rad(angle1, angle2):
 
 
 # [4x4] homogeneous T from [3x3] R and [3x1] t
-@jit(nopython=True)
+@njit(cache=True)
 def poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R
@@ -85,7 +85,7 @@ def poseRt(R, t):
 
 
 # [4x4] homogeneous inverse T^-1 in SE(3) from T represented with [3x3] R and [3x1] t
-@jit(nopython=True)
+@njit(cache=True)
 def inv_poseRt(R, t):
     ret = np.eye(4)
     ret[:3, :3] = R.T
@@ -94,7 +94,7 @@ def inv_poseRt(R, t):
 
 
 # [4x4] homogeneous inverse T^-1 in SE(3)from [4x4] T
-@jit(nopython=True)
+@njit(cache=True)
 def inv_T(T):
     ret = np.eye(4)
     R_T = T[:3, :3].T
@@ -104,116 +104,7 @@ def inv_T(T):
     return ret
 
 
-class Sim3Pose:
-    def __init__(
-        self,
-        R: np.ndarray = np.eye(3, dtype=float),
-        t: np.ndarray = np.zeros(3, dtype=float),
-        s: float = 1.0,
-    ):
-        self.R = R
-        self.t = t.reshape(3, 1)
-        self.s = s
-        assert s > 0
-        self._T = None
-        self._inv_T = None
-
-    def __repr__(self):
-        return f"Sim3Pose({self.R}, {self.t}, {self.s})"
-
-    def from_matrix(self, T):
-        if isinstance(T, np.ndarray):
-            R = T[:3, :3]
-            # Compute scale as the average norm of the rows of the rotation matrix
-            # self.s = np.mean([np.linalg.norm(R[i, :]) for i in range(3)])
-            row_norms = np.linalg.norm(R, axis=1)
-            self.s = row_norms.mean()
-            self.R = R / self.s
-            self.t = T[:3, 3].reshape(3, 1)
-        else:
-            raise ValueError(f"Input T is not a numpy array. T={T}")
-        return self
-
-    def from_se3_matrix(self, T):
-        if isinstance(T, np.ndarray):
-            self.s = 1.0
-            self.R = T[:3, :3]
-            self.t = T[:3, 3].reshape(3, 1)
-        else:
-            raise ValueError(f"Input T is not a numpy array. T={T}")
-        return self
-
-    # corresponding homogeneous transformation matrix (4x4)
-    def matrix(self):
-        if self._T is None:
-            self._T = poseRt(self.R * self.s, self.t.ravel())
-        return self._T
-
-    def inverse(self):
-        return Sim3Pose(self.R.T, -1.0 / self.s * self.R.T @ self.t, 1.0 / self.s)
-
-    # corresponding homogeneous inverse transformation matrix (4x4)
-    def inverse_matrix(self):
-        if self._inv_T is None:
-            self._inv_T = np.eye(4)
-            sR_inv = 1.0 / self.s * self.R.T
-            self._inv_T[:3, :3] = sR_inv
-            self._inv_T[:3, 3] = -sR_inv @ self.t.ravel()
-        return self._inv_T
-
-    def to_se3_matrix(self):
-        return poseRt(self.R, self.t.squeeze() / self.s)  # [R t/s;0 1]
-
-    def copy(self):
-        return Sim3Pose(self.R.copy(), self.t.copy(), self.s)
-
-    # map a 3D point
-    def map(self, p3d):
-        return self.s * self.R @ p3d.reshape(3, 1) + self.t
-
-    # map a set of 3D points [Nx3]
-    def map_points(self, points):
-        return (self.s * self.R @ points.T + self.t).T
-
-    # Define the @ operator
-    def __matmul__(self, other):
-        result = None
-        if isinstance(other, Sim3Pose):
-            # Perform matrix multiplication within the class
-            s_res = self.s * other.s
-            R_res = self.R @ other.R
-            t_res = self.s * self.R @ other.t + self.t
-            result = Sim3Pose(R_res, t_res, s_res)
-        elif isinstance(other, np.ndarray):
-            if other.shape == (4, 4):
-                # Perform matrix multiplication with numpy (4x4) matrix
-                R_other = other[:3, :3]  # before scaling
-                s_other = np.mean([np.linalg.norm(R_other[i, :]) for i in range(3)])
-                R_other = R_other / s_other
-                t_other = other[:3, 3].reshape(3, 1)
-                s_res = self.s * s_other
-                R_res = self.R @ R_other
-                t_res = self.s * self.R @ t_other + self.t
-                result = Sim3Pose(R_res, t_res, s_res)
-            # elif (other.ndim == 1 and other.shape[0] == 3) or \
-            #      (other.ndim == 2 and other.shape in [(3, 1), (1, 3)]):
-            #     # Perform matrix multiplication with numpy (3x1) vector
-            #     result = self.s * self.R @ other + self.t
-            else:
-                raise TypeError(
-                    f"Unsupported operand type(s) for @: '{type(self)}' and '{type(other)}' with shape {other.shape}"
-                )
-        else:
-            raise TypeError(
-                "Unsupported operand type(s) for @: '{}' and '{}'".format(type(self), type(other))
-            )
-        return result
-
-    def __str__(self):
-        return f"Sim3Pose(R={self.R}, t={self.t}, s={self.s})"
-
-
-@jit(nopython=True)
+@njit(cache=True)
 def normalize_vector(v):
     norm = np.linalg.norm(v)
     if norm < 1.0e-10:
@@ -221,7 +112,7 @@ def normalize_vector(v):
     return v / norm, norm
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def normalize_vector2(v):
     norm = np.linalg.norm(v)
     if norm < 1.0e-10:
@@ -238,14 +129,14 @@ def add_ones(x):
 
 
 # turn [[x,y]] -> [[x,y,1]]
-@jit(nopython=True)
+@njit(cache=True)
 def add_ones_1D(x):
     # return np.concatenate([x,np.array([1.0])], axis=0)
     return np.array([x[0], x[1], 1])
     # return np.append(x, 1)
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def add_ones_numba(uvs):
     N = uvs.shape[0]
     out = np.ones((N, 3), dtype=uvs.dtype)
@@ -254,7 +145,7 @@ def add_ones_numba(uvs):
 
 
 # turn [[x,y,w]]= Kinv*[u,v,1] into [[x/w,y/w,1]]
-@jit(nopython=True)
+@njit(cache=True)
 def normalize(Kinv, pts):
     return np.dot(Kinv, add_ones(pts).T).T[:, 0:2]
 
@@ -263,13 +154,13 @@ def normalize(Kinv, pts):
 # w in IR^3 -> [0,-wz,wy],
 #              [wz,0,-wx],
 #              [-wy,wx,0]]
-@jit(nopython=True)
+@njit(cache=True)
 def skew(w):
     wx, wy, wz = w.ravel()
     return np.array([[0, -wz, wy], [wz, 0, -wx], [-wy, wx, 0]])
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def hamming_distance(a, b):
     # r = (1 << np.arange(8))[:,None]
     # return np.count_nonzero((np.bitwise_xor(a,b) & r) != 0)
@@ -280,7 +171,7 @@ def hamming_distances(a, b):
     return np.count_nonzero(a != b, axis=1)
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def l2_distance(a, b):
     return np.linalg.norm(a.ravel() - b.ravel())
 
@@ -290,7 +181,7 @@ def l2_distances(a, b):
 
 
 # z rotation, input in radians
-@jit(nopython=True)
+@njit(cache=True)
 def yaw_matrix(yaw):
     return np.array(
         [[math.cos(yaw), -math.sin(yaw), 0.0], [math.sin(yaw), math.cos(yaw), 0.0], [0.0, 0.0, 1.0]]
@@ -298,7 +189,7 @@ def yaw_matrix(yaw):
 
 
 # y rotation, input in radians
-@jit(nopython=True)
+@njit(cache=True)
 def pitch_matrix(pitch):
     return np.array(
         [
@@ -310,7 +201,7 @@ def pitch_matrix(pitch):
 
 
 # x rotation, input in radians
-@jit(nopython=True)
+@njit(cache=True)
 def roll_matrix(roll):
     return np.array(
         [
@@ -321,7 +212,7 @@ def roll_matrix(roll):
     )
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def rotation_matrix_from_yaw_pitch_roll(yaw_degs, pitch_degs, roll_degs):
     # Convert angles from degrees to radians
     yaw = np.radians(yaw_degs)
@@ -353,7 +244,7 @@ def euler_from_rotation(R, order="xyz"):
     return Rotation.from_matrix(R).as_euler(order, degrees=False)
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def rodrigues_rotation_matrix(axis, angle):
     """
     Compute the rotation matrix from axis and angle using Rodrigues' formula.
@@ -371,7 +262,7 @@ def rodrigues_rotation_matrix(axis, angle):
     return R
 
 
-@jit(nopython=True)
+@njit(cache=True)
 def clip_scalar(x, x_min, x_max):
     if x < x_min:
         return x_min
@@ -383,7 +274,7 @@ def clip_scalar(x, x_min, x_max):
 
 # from z-vector to rotation matrix
 # input: vector is a 3x1 vector
-@jit(nopython=True)
+@njit(cache=True)
 def get_rotation_from_z_vector(vector):
     vector_norm = np.linalg.norm(vector)
     if vector_norm < 1e-8:
@@ -413,7 +304,7 @@ def get_rotation_from_z_vector(vector):
 
 
 # Checks if a matrix is a valid rotation matrix
-@jit(nopython=True)
+@njit(cache=True)
 def is_rotation_matrix(R):
     Rt = R.T
     should_be_identity = Rt @ R
@@ -443,7 +334,7 @@ def closest_rotation_matrix(A):
 
 # from quaternion vector to rotation matrix
 # input: qvec = [qx, qy, qz, qw]
-@jit(nopython=True)
+@njit(cache=True)
 def qvec2rotmat(qvec):
     qx, qy, qz, qw = qvec
     return np.array(
@@ -511,7 +402,7 @@ def xyzq2Tmat(x, y, z, qx, qy, qz, qw):
 # =>  on the plane Z=1 (in front of the camera) we have that 1 meter correspond to fx=img.width pixels
 # =>  tx=0.5 implies a shift of half image width
 # input in meters and radians
-@jit(nopython=True)
+@njit(cache=True)
 def homography_matrix(img, roll, pitch, yaw, tx=0, ty=0, tz=0):
     d = 1
     Rwc = yaw_matrix(yaw) @ pitch_matrix(pitch) @ roll_matrix(roll)

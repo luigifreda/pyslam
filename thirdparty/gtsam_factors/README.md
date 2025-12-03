@@ -1,6 +1,6 @@
 # gtsam_factors 
 
-**Author**: Luigi Freda
+**Author**: [Luigi Freda](www.luigifreda.com)
 
 This package contains a custom **pybind11** module for **pySLAM**, wrapping additional **GTSAM** helpers and factors that are not included in the original codebase. Specifically, there are factors for handling **Similarity3** transformations and camera resectioning in SLAM. The factors are designed to be used in non-linear optimization for pose estimation and 3D point positioning.
 

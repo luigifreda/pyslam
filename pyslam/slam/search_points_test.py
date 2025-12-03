@@ -25,7 +25,9 @@ import cv2
 
 from pyslam.config_parameters import Parameters
 
-from .frame import Frame, FeatureTrackerShared
+from .frame import Frame
+from .feature_tracker_shared import FeatureTrackerShared
+
 
 from pyslam.utilities.utils_geom import add_ones
 from pyslam.utilities.utils_geom_2views import computeF12
@@ -151,6 +153,7 @@ def find_matches_along_line(
 # N.B.: experimental version, just for testing
 def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1=None):
 
+    print("search_frame_for_triangulation_test - start")
     idxs2_out = []
     idxs1_out = []
     lines_out = []
@@ -161,8 +164,13 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1=None):
         timer = Timer()
         timer.start()
 
-    O1w = f1.Ow
-    O2w = f2.Ow
+    print("getting Ow")
+    O1w = f1.Ow()
+    print("O1w: ", O1w)
+    O2w = f2.Ow()
+    print("O2w: ", O2w)
+
+    print("projecting Ow")
     # compute epipoles
     e1, _ = f1.project_point(O2w)  # in first frame
     e2, _ = f2.project_point(O1w)  # in second frame
@@ -170,6 +178,7 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1=None):
     # print('e2: ', e2)
 
     baseline = np.linalg.norm(O1w - O2w)
+    print("baseline: ", baseline)
 
     # if the translation is too small we cannot triangulate
     # if False:
@@ -177,6 +186,7 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1=None):
     #         Printer.red("search for triangulation: impossible with almost zero translation!")
     #         return idxs1_out, idxs2_out, num_found_matches, img2_epi # EXIT
     # else:
+    print("search_frame_for_triangulation_test - compute_points_median_depth")
     medianDepthF2 = f2.compute_points_median_depth()
     ratioBaselineDepth = baseline / medianDepthF2
     if ratioBaselineDepth < Parameters.kMinRatioBaselineDepth:
@@ -185,6 +195,13 @@ def search_frame_for_triangulation_test(f1: Frame, f2: Frame, img2, img1=None):
 
     # compute the fundamental matrix between the two frames by using their estimated poses
     F12, H21 = computeF12(f1, f2)
+
+    points1 = f1.get_points()
+    print(f"points1: {len(points1)}")
+    kps1 = f1.kps
+    print(f"kps1: {kps1.shape}")
+    kpsu1 = f1.kpsu
+    print(f"kpsu1: {kpsu1.shape}")
 
     idxs1 = []
     for i, p in enumerate(f1.get_points()):

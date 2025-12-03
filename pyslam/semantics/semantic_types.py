@@ -30,6 +30,7 @@ In order to add a new SEMANTIC representation:
 
 @register_class
 class SemanticFeatureType(SerializableEnum):
+    NONE = -1
     LABEL = 0  # [1] One value with the categorical label of the class
     PROBABILITY_VECTOR = 1  # [N] A vector of distribution parameters (categorical or Dirichlet) over N categorical classes
     FEATURE_VECTOR = (

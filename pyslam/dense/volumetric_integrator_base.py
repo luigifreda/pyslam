@@ -87,7 +87,7 @@ class VolumetricIntegrationKeyframeData:
         self.kid = keyframe.kid if keyframe is not None else -1
         self.img_id = keyframe.img_id if keyframe is not None else -1
         self.timestamp = keyframe.timestamp if keyframe is not None else -1
-        self.pose = keyframe.pose if keyframe is not None else None  # Tcw
+        self.pose = keyframe.pose() if keyframe is not None else None  # Tcw
         self.camera = keyframe.camera if keyframe is not None else None
 
         self.img = img if img is not None else (keyframe.img if keyframe is not None else None)
@@ -265,11 +265,14 @@ class VolumetricIntegratorBase:
                         )
 
                     def print_file(*args, **kwargs):
-                        if VolumetricIntegratorBase.logger is not None:
-                            message = " ".join(
-                                str(arg) for arg in args
-                            )  # Convert all arguments to strings and join with spaces
-                            return VolumetricIntegratorBase.logger.info(message, **kwargs)
+                        try:
+                            if VolumetricIntegratorBase.logger is not None:
+                                message = " ".join(
+                                    str(arg) for arg in args
+                                )  # Convert all arguments to strings and join with spaces
+                                return VolumetricIntegratorBase.logger.info(message, **kwargs)
+                        except:
+                            print("Error printing: ", args, kwargs)
 
                 else:
 
@@ -410,6 +413,16 @@ class VolumetricIntegratorBase:
                 VolumetricIntegratorBase.print("VolumetricIntegratorBase: quitting...")
                 self.is_running.value = 0
                 self.keyframe_queue_timer.stop()
+
+                # Clean up LoggerQueue before terminating process
+                if VolumetricIntegratorBase.logging_manager is not None:
+                    try:
+                        VolumetricIntegratorBase.logging_manager.stop_listener()
+                        VolumetricIntegratorBase.logging_manager = None
+                        VolumetricIntegratorBase.logger = None
+                    except Exception as e:
+                        VolumetricIntegratorBase.print(f"Error cleaning up logging manager: {e}")
+
                 with self.q_in_condition:
                     self.q_in.put(None)  # put a None in the queue to signal we have to exit
                     self.q_in_condition.notify_all()
@@ -421,7 +434,8 @@ class VolumetricIntegratorBase:
                         "Warning: Volumetric integration process did not terminate in time, forced kill."
                     )
                     self.process.terminate()
-                VolumetricIntegratorBase.print("VolumetricIntegratorBase: done")
+                # Use regular print instead of VolumetricIntegratorBase.print after cleanup
+                print("VolumetricIntegratorBase: done")
         except Exception as e:
             VolumetricIntegratorBase.print(f"VolumetricIntegratorBase: quit: Exception: {e}")
             if kPrintTrackebackDetails:

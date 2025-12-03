@@ -54,6 +54,23 @@ def normalize_keypoints(keypoints, image_size):
     return keypoints_norm
 
 
+# Convert cv2.KeyPoint objects to tuples
+def convert_keypoints_to_tuples(kps):
+    # Convert cv2.KeyPoint objects to tuples
+    if kps is not None and len(kps) > 0:
+        if isinstance(kps[0], cv2.KeyPoint):
+            kps_tuples = [
+                (kp.pt[0], kp.pt[1], kp.size, kp.angle, kp.response, kp.octave) for kp in kps
+            ]
+        elif isinstance(kps[0], tuple):
+            kps_tuples = kps
+        else:
+            raise ValueError(f"Unknown keypoint type: {type(kps[0])}")
+        return kps_tuples
+    else:
+        return []
+
+
 # convert matrix of pts into list of cv2 keypoints
 def convert_pts_to_keypoints(pts, size=1):
     kps = []
@@ -590,7 +607,7 @@ def compute_NSAD_between_matched_keypoints(img1, img2, kps1, kps2, window_size=5
 #   disparities: disparity values of the left image
 #   us_right: u values of the right image
 #   valid_idxs: valid indexes of the left image
-@njit
+@njit(cache=True)
 def stereo_match_subpixel_correlation(
     kps_left, kps_right, min_disparity, max_disparity, image_left, image_right
 ):

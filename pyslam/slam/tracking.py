@@ -33,10 +33,19 @@ import g2o
 
 from pyslam.config_parameters import Parameters
 
-from .frame import Frame, FeatureTrackerShared, match_frames
-from .keyframe import KeyFrame
-from .map_point import MapPoint
-from .map import Map
+from .frame import Frame, match_frames
+from .feature_tracker_shared import FeatureTrackerShared
+
+# from .keyframe import KeyFrame
+# from .map_point import MapPoint
+# from .map import Map
+from pyslam.slam import (
+    Frame,
+    MapPoint,
+    KeyFrame,
+    Map,
+)
+
 from .slam_commons import SlamState
 from .search_points import (
     propagate_map_point_matches,
@@ -50,22 +59,8 @@ from .motion_model import MotionModel, MotionModelDamping
 from . import optimizer_g2o
 from . import optimizer_gtsam
 
-from pyslam.loop_closing.loop_closing import LoopClosing
-
 from pyslam.io.dataset import SensorType
 
-from pyslam.local_features.feature_types import (
-    FeatureDetectorTypes,
-    FeatureDescriptorTypes,
-    FeatureInfo,
-)
-from pyslam.local_features.feature_tracker import (
-    feature_tracker_factory,
-    FeatureTracker,
-    FeatureTrackerTypes,
-)
-
-from pyslam.utilities.utils_serialization import SerializableEnum, SerializationJSON, register_class
 from pyslam.utilities.utils_sys import Printer, Logging
 from pyslam.utilities.utils_draw import draw_feature_matches
 from pyslam.utilities.utils_geom import poseRt, inv_T
@@ -362,7 +357,7 @@ class Tracking:
 
         # Mcr = np.linalg.inv(poseRt(Mrc[:3, :3], Mrc[:3, 3]))
         Mcr = inv_T(Mrc)
-        estimated_Tcw = np.dot(Mcr, f_ref.pose)
+        estimated_Tcw = np.dot(Mcr, f_ref.pose())
         self.timer_pose_est.refresh()
 
         # remove outliers from keypoint matches by using the mask computed with inter frame pose estimation
@@ -382,7 +377,7 @@ class Tracking:
             # f_cur.pose[:3,:3] = estimated_Tcw[:3,:3] # copy only the rotation
             # f_cur.pose[:,3] = f_ref.pose[:,3].copy() # override translation with ref frame translation
             Rcw = estimated_Tcw[:3, :3]  # copy only the rotation
-            tcw = f_ref.pose[:3, 3]  # override translation with ref frame translation
+            tcw = f_ref.pose()[:3, 3]  # override translation with ref frame translation
             f_cur.update_rotation_and_translation(Rcw, tcw)
         return idxs_ref, idxs_cur
 
@@ -419,7 +414,7 @@ class Tracking:
 
     def pose_optimization(self, f_cur, name=""):
         print("pose opt %s " % (name))
-        pose_before = f_cur.pose.copy()
+        pose_before = f_cur.pose()
         # f_cur pose optimization 1  (here we use f_cur pose as first guess and exploit the matched map points of f_ref )
         self.timer_pose_opt.start()
         if Parameters.kOptimizationFrontEndUseGtsam:
@@ -532,7 +527,7 @@ class Tracking:
                 self.idxs_ref = idxs_ref
                 self.idxs_cur = idxs_cur
 
-                pose_before_pos_opt = f_cur.pose.copy()
+                pose_before_pos_opt = f_cur.pose()
 
                 # f_cur pose optimization 1:
                 # here, we use f_cur pose as first guess and exploit the matched map point of f_ref
@@ -693,7 +688,7 @@ class Tracking:
         self.idxs_ref = idxs_ref
         self.idxs_cur = idxs_cur
 
-        pose_before_pos_opt = f_cur.pose.copy()
+        pose_before_pos_opt = f_cur.pose()
 
         # f_cur pose optimization using last matches with kf_ref:
         # here, we use first guess of f_cur pose and propated map point matches from f_ref (matched keypoints)
@@ -719,7 +714,7 @@ class Tracking:
     # track camera motion of f_cur w.r.t. given keyframe
     # estimate motion by matching keypoint descriptors
     def track_keyframe(self, keyframe, f_cur, name="match-frame-keyframe"):
-        f_cur.update_pose(self.f_ref.pose.copy())  # start pose optimization from last frame pose
+        f_cur.update_pose(self.f_ref.pose())  # start pose optimization from last frame pose
         self.track_reference_frame(keyframe, f_cur, name)
 
     def update_local_map(self):
@@ -774,7 +769,7 @@ class Tracking:
             cv2.imshow("tracking local map - matched trails", img_matched_trails)
             cv2.waitKey(1)
 
-        pose_before_pos_opt = f_cur.pose.copy()
+        pose_before_pos_opt = f_cur.pose()
 
         # f_cur pose optimization 2 with all the matched local map points
         self.pose_optimization(f_cur, "proj-map-frame")
@@ -802,7 +797,7 @@ class Tracking:
     def update_tracking_history(self):
         if self.state == SlamState.OK:
             isometry3d_Tcr = (
-                self.f_cur.isometry3d * self.f_cur.kf_ref.isometry3d.inverse()
+                self.f_cur.isometry3d() * self.f_cur.kf_ref.isometry3d().inverse()
             )  # pose of current frame w.r.t. current reference keyframe kf_ref
             self.tracking_history.relative_frame_poses.append(isometry3d_Tcr)
             self.tracking_history.kf_references.append(self.kf_ref)
@@ -1192,8 +1187,9 @@ class Tracking:
     # so that each pose estimate is refined multiple times by LBA and BA over the multiple window optimizations that cover it.
     def update_history(self):
         f_cur = self.map.get_frame(-1)
-        self.cur_R = f_cur.pose[:3, :3].T
-        self.cur_t = np.dot(-self.cur_R, f_cur.pose[:3, 3])
+        f_cur_pose = f_cur.pose()
+        self.cur_R = f_cur_pose[:3, :3].T
+        self.cur_t = np.dot(-self.cur_R, f_cur_pose[:3, 3])
         if self.init_history is True:
             self.t0_est = np.array(
                 [self.cur_t[0], self.cur_t[1], self.cur_t[2]]
@@ -1323,7 +1319,9 @@ class Tracking:
                 self.state = SlamState.OK
 
                 self.update_tracking_history()
-                self.motion_model.update_pose(kf_cur.timestamp, kf_cur.position, kf_cur.quaternion)
+                self.motion_model.update_pose(
+                    kf_cur.timestamp, kf_cur.position(), kf_cur.quaternion()
+                )
                 self.motion_model.is_ok = False  # after initialization you cannot use motion model for next frame pose prediction (time ids of initialized poses may not be consecutive)
 
                 self.initializer.reset()
@@ -1376,7 +1374,7 @@ class Tracking:
                     # update f_ref pose according to its reference keyframe (the pose of the reference keyframe could have been updated by local mapping)
                     self.f_ref.update_pose(
                         self.tracking_history.relative_frame_poses[-1]
-                        * self.f_ref.kf_ref.isometry3d
+                        * self.f_ref.kf_ref.isometry3d()
                     )
                     if Parameters.kUseVisualOdometryPoints:
                         self.create_vo_points_on_last_frame()
@@ -1387,13 +1385,13 @@ class Tracking:
 
                     # predict pose by using motion model
                     self.predicted_pose, _ = self.motion_model.predict_pose(
-                        timestamp, self.f_ref.position, self.f_ref.orientation
+                        timestamp, self.f_ref.position(), self.f_ref.orientation()
                     )
                     f_cur.update_pose(self.predicted_pose)
                 else:
                     print("setting f_cur.pose <-- f_ref.pose")
                     # use reference frame pose as initial guess
-                    f_cur.update_pose(f_ref.pose)
+                    f_cur.update_pose(f_ref.pose())
 
                 if not self.motion_model.is_ok or f_cur.id < self.last_reloc_frame_id + 2:
                     assert self.kf_ref is not None
@@ -1446,7 +1444,7 @@ class Tracking:
             if self.pose_is_ok:  # if tracking was successful
 
                 # update motion model
-                self.motion_model.update_pose(timestamp, f_cur.position, f_cur.quaternion)
+                self.motion_model.update_pose(timestamp, f_cur.position(), f_cur.quaternion())
 
                 f_cur.clean_vo_matches()  # clean VO matches
                 self.clean_vo_points()  # clean VO points

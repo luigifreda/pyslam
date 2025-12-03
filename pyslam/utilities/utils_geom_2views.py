@@ -25,7 +25,7 @@ from .utils_geom import skew, poseRt
 from numba import njit
 
 
-@njit
+@njit(cache=True)
 def computeF12_numba(R1w, t1w, R2w, t2w, K1inv, K2, K2inv):
     R12 = R1w @ R2w.T
     t12 = -R1w @ (R2w.T @ t2w) + t1w
@@ -40,10 +40,12 @@ def computeF12_numba(R1w, t1w, R2w, t2w, K1inv, K2, K2inv):
 # compute the fundamental mat F12 and the infinite homography H21 [Hartley Zisserman pag 339]
 # from two frames
 def computeF12_(f1, f2):
-    R1w = f1.Rcw
-    t1w = f1.tcw
-    R2w = f2.Rcw
-    t2w = f2.tcw
+    f1_Tcw = f1.Tcw()
+    f2_Tcw = f2.Tcw()
+    R1w = f1_Tcw[:3, :3]
+    t1w = f1_Tcw[:3, 3]
+    R2w = f2_Tcw[:3, :3]
+    t2w = f2_Tcw[:3, 3]
 
     R12 = R1w @ R2w.T
     t12 = -R1w @ (R2w.T @ t2w) + t1w
@@ -59,14 +61,16 @@ def computeF12_(f1, f2):
 
 
 def computeF12(f1, f2):
-    R1w = np.ascontiguousarray(f1.Rcw)
-    t1w = np.ascontiguousarray(f1.tcw)
-    R2w = np.ascontiguousarray(f2.Rcw)
-    t2w = np.ascontiguousarray(f2.tcw)
+    f1_Tcw = f1.Tcw()
+    f2_Tcw = f2.Tcw()
+    R1w = np.ascontiguousarray(f1_Tcw[:3, :3])
+    t1w = np.ascontiguousarray(f1_Tcw[:3, 3])
+    R2w = np.ascontiguousarray(f2_Tcw[:3, :3])
+    t2w = np.ascontiguousarray(f2_Tcw[:3, 3])
     return computeF12_numba(R1w, t1w, R2w, t2w, f1.camera.Kinv, f2.camera.K, f2.camera.Kinv)
 
 
-@njit
+@njit(cache=True)
 def check_dist_epipolar_line(kp1, kp2, F12, sigma2_kp2):
     # Epipolar line in second image l = kp1' * F12 = [a b c]
     l = np.dot(F12.T, np.array([kp1[0], kp1[1], 1]))

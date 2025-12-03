@@ -65,24 +65,16 @@ kDrawReferenceCamera = True
 kMinWeightForDrawingCovisibilityEdge = 100
 
 kAlignGroundTruthNumMinKeyframes = 10  # minimum number of keyframes to start aligning
-kAlignGroundTruthMaxEveryNKeyframes = (
-    10  # maximum number of keyframes between alignments
-)
-kAlignGroundTruthMinNumFramesPassed = (
-    10  # minimum number of frames passed since last alignment
-)
+kAlignGroundTruthMaxEveryNKeyframes = 10  # maximum number of keyframes between alignments
+kAlignGroundTruthMinNumFramesPassed = 10  # minimum number of frames passed since last alignment
 kAlignGroundTruthMaxEveryNFrames = 20  # maximum number of frames between alignments
-kAlignGroundTruthMaxEveryTimeInterval = (
-    3  # [s] maximum time interval between alignments
-)
+kAlignGroundTruthMaxEveryTimeInterval = 3  # [s] maximum time interval between alignments
 
 kRefreshDurationTime = 0.03  # [s]
 
 
 class VizPointCloud:
-    def __init__(
-        self, points=None, colors=None, normalize_colors=False, reverse_colors=False
-    ):
+    def __init__(self, points=None, colors=None, normalize_colors=False, reverse_colors=False):
         self.points = np.asarray(points) if points is not None else None
         self.colors = np.asarray(colors) if colors is not None else None
         if self.colors is not None and self.colors.shape[1] == 4:
@@ -104,12 +96,8 @@ class VizMesh:
     ):
         self.vertices = np.asarray(vertices) if vertices is not None else None
         self.triangles = np.asarray(triangles) if triangles is not None else None
-        self.vertex_colors = (
-            np.asarray(vertex_colors) if vertex_colors is not None else None
-        )
-        self.vertex_normals = (
-            np.asarray(vertex_normals) if vertex_normals is not None else None
-        )
+        self.vertex_colors = np.asarray(vertex_colors) if vertex_colors is not None else None
+        self.vertex_normals = np.asarray(vertex_normals) if vertex_normals is not None else None
         if self.vertex_colors is not None and self.vertex_colors.shape[1] == 4:
             self.vertex_colors = self.vertex_colors[:, 0:3]
         if normalize_colors and self.vertex_colors is not None:
@@ -197,18 +185,12 @@ class Viewer3DCameraTrajectoriesInput:
     def add(self, camera_pose_array, camera_color=None):
         self.camera_trajectories.append(camera_pose_array)
         if self.build_trajectory_line:
-            trajectory_line = np.array([c[:3, 3] for c in camera_pose_array]).reshape(
-                -1, 3
-            )
+            trajectory_line = np.array([c[:3, 3] for c in camera_pose_array]).reshape(-1, 3)
             self.camera_trajectory_lines.append(trajectory_line)
         if camera_color is None:
-            unused_colors = [
-                c for c in GlColors.get_colors() if c not in self.camera_colors
-            ]
+            unused_colors = [c for c in GlColors.get_colors() if c not in self.camera_colors]
             camera_color = (
-                unused_colors[0]
-                if len(unused_colors) > 0
-                else GlColors.get_random_color()
+                unused_colors[0] if len(unused_colors) > 0 else GlColors.get_random_color()
             )
         self.camera_colors.append(camera_color)
 
@@ -278,9 +260,7 @@ class Viewer3D(object):
 
     def set_gt_trajectory(self, gt_trajectory, gt_timestamps, align_with_scale=False):
         if gt_trajectory is None or gt_timestamps is None:
-            Printer.yellow(
-                "Viewer3D: set_gt_trajectory: gt_trajectory or gt_timestamps is None"
-            )
+            Printer.yellow("Viewer3D: set_gt_trajectory: gt_trajectory or gt_timestamps is None")
             return
         if len(gt_timestamps) > 0:
             self.gt_trajectory = gt_trajectory
@@ -458,28 +438,18 @@ class Viewer3D(object):
         self.checkboxCovisibility = pangolin.VarBool(
             "ui.Draw Covisibility", value=True, toggle=True
         )
-        self.checkboxSpanningTree = pangolin.VarBool(
-            "ui.Draw Tree", value=True, toggle=True
-        )
+        self.checkboxSpanningTree = pangolin.VarBool("ui.Draw Tree", value=True, toggle=True)
         self.checkboxLoops = pangolin.VarBool("ui.Draw Loops", value=True, toggle=True)
-        self.checkboxGT = pangolin.VarBool(
-            "ui.Draw Ground Truth", value=False, toggle=True
-        )
+        self.checkboxGT = pangolin.VarBool("ui.Draw Ground Truth", value=False, toggle=True)
         self.checkboxGTassociations = pangolin.VarBool(
             "ui.Draw GT Associations", value=False, toggle=True
         )
-        self.checkboxPredicted = pangolin.VarBool(
-            "ui.Draw Predicted", value=False, toggle=True
-        )
-        self.checkboxFovCenters = pangolin.VarBool(
-            "ui.Draw Fov Centers", value=False, toggle=True
-        )
+        self.checkboxPredicted = pangolin.VarBool("ui.Draw Predicted", value=False, toggle=True)
+        self.checkboxFovCenters = pangolin.VarBool("ui.Draw Fov Centers", value=False, toggle=True)
         self.checkboxDrawSparseCloud = pangolin.VarBool(
             "ui.Draw Sparse Map", value=True, toggle=True
         )
-        self.checkboxDrawDenseCloud = pangolin.VarBool(
-            "ui.Draw Dense Map", value=True, toggle=True
-        )
+        self.checkboxDrawDenseCloud = pangolin.VarBool("ui.Draw Dense Map", value=True, toggle=True)
         self.checkboxColorSemantics = pangolin.VarBool(
             "ui.Color Semantics", value=False, toggle=True
         )
@@ -498,9 +468,7 @@ class Viewer3D(object):
         self.densePointSizeSlider = pangolin.VarInt(
             "ui.Dense Point Size", value=kDefaultDensePointSize, min=1, max=10
         )
-        self.checkboxWireframe = pangolin.VarBool(
-            "ui.Mesh Wireframe", value=False, toggle=True
-        )
+        self.checkboxWireframe = pangolin.VarBool("ui.Mesh Wireframe", value=False, toggle=True)
 
         self.sparsePointSize = self.sparsePointSizeSlider.Get()
         self.densePointSize = self.densePointSizeSlider.Get()
@@ -657,9 +625,7 @@ class Viewer3D(object):
                 # draw keypoints with their color
                 gl.glPointSize(5)
                 # gl.glColor3f(1.0, 0.0, 0.0)
-                glutils.DrawPoints(
-                    self.map_state.fov_centers, self.map_state.fov_centers_colors
-                )
+                glutils.DrawPoints(self.map_state.fov_centers, self.map_state.fov_centers_colors)
 
             if self.thread_gt_timestamps is not None:
                 if self.draw_gt:
@@ -680,8 +646,7 @@ class Viewer3D(object):
                         + self.thread_last_frame_id_gt_was_aligned
                     )
                     condition4 = (
-                        self.map_state.cur_frame_id
-                        - self.thread_last_frame_id_gt_was_aligned
+                        self.map_state.cur_frame_id - self.thread_last_frame_id_gt_was_aligned
                         > kAlignGroundTruthMinNumFramesPassed
                     )
                     if (
@@ -698,18 +663,11 @@ class Viewer3D(object):
                             )
 
                             self.thread_last_time_gt_was_aligned = time.time()
-                            self.thread_last_num_poses_gt_was_aligned = len(
-                                self.map_state.poses
-                            )
-                            self.thread_last_frame_id_gt_was_aligned = (
-                                self.map_state.cur_frame_id
-                            )
+                            self.thread_last_num_poses_gt_was_aligned = len(self.map_state.poses)
+                            self.thread_last_frame_id_gt_was_aligned = self.map_state.cur_frame_id
 
                             estimated_trajectory = np.array(
-                                [
-                                    pose[0:3, 3]
-                                    for i, pose in enumerate(self.map_state.poses)
-                                ],
+                                [pose[0:3, 3] for i, pose in enumerate(self.map_state.poses)],
                                 dtype=float,
                             )
 
@@ -723,29 +681,20 @@ class Viewer3D(object):
                             )
 
                             if not self.aligner_output_queue.empty():
-                                T_gt_est, error, alignment_gt_data = (
-                                    self.aligner_output_queue.get()
-                                )
-                                self.thread_alignment_gt_data_queue.put(
-                                    alignment_gt_data
-                                )
+                                T_gt_est, error, alignment_gt_data = self.aligner_output_queue.get()
+                                self.thread_alignment_gt_data_queue.put(alignment_gt_data)
 
                                 print(
                                     f"Viewer3D: viewer_refresh - align gt with scale: {self.thread_align_gt_with_scale}, RMS error: {error}"
                                 )
                                 self.thread_gt_aligned = True
 
-                                self.thread_gt_associated_traj = (
-                                    alignment_gt_data.gt_t_wi
-                                )
-                                self.thread_est_associated_traj = (
-                                    alignment_gt_data.estimated_t_wi
-                                )
+                                self.thread_gt_associated_traj = alignment_gt_data.gt_t_wi
+                                self.thread_est_associated_traj = alignment_gt_data.estimated_t_wi
 
                                 T_est_gt = alignment_gt_data.T_est_gt
                                 self.thread_gt_trajectory_aligned = (
-                                    T_est_gt[:3, :3]
-                                    @ np.array(self.thread_gt_trajectory).T
+                                    T_est_gt[:3, :3] @ np.array(self.thread_gt_trajectory).T
                                 ).T + T_est_gt[
                                     :3, 3
                                 ]  # all gt data aligned to the estimated
@@ -758,9 +707,7 @@ class Viewer3D(object):
                                     ]  # only the associated gt samples aligned to the estimated samples
 
                         except Exception as e:
-                            print(
-                                f"Viewer3D: viewer_refresh - align_gt_with_svd failed: {e}"
-                            )
+                            print(f"Viewer3D: viewer_refresh - align_gt_with_svd failed: {e}")
 
                     if self.thread_gt_aligned:
                         gl.glLineWidth(1)
@@ -916,43 +863,33 @@ class Viewer3D(object):
         map = slam.map  # type: Map
         map_state = Viewer3DMapInput()
 
-        map_state.cur_frame_id = (
-            slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
-        )
+        map_state.cur_frame_id = slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
 
         if map.num_frames() > 0:
-            map_state.cur_pose = map.get_frame(-1).Twc.copy()
+            map_state.cur_pose = map.get_frame(-1).Twc()
             map_state.cur_pose_timestamp = map.get_frame(-1).timestamp
 
         if slam.tracking.predicted_pose is not None:
-            map_state.predicted_pose = (
-                slam.tracking.predicted_pose.inverse().matrix().copy()
-            )
+            map_state.predicted_pose = slam.tracking.predicted_pose.inverse().matrix().copy()
 
         if False:
             if slam.tracking.kf_ref is not None:
-                map_state.reference_pose = slam.tracking.kf_ref.Twc.copy()
+                map_state.reference_pose = slam.tracking.kf_ref.Twc()
 
         keyframes = map.get_keyframes()
         num_map_keyframes = len(keyframes)
         if num_map_keyframes > 0:
             for kf in keyframes:
-                map_state.poses.append(kf.Twc)
+                map_state.poses.append(kf.Twc())
                 map_state.pose_timestamps.append(kf.timestamp)
                 if kf.fov_center_w is not None:
                     map_state.fov_centers.append(kf.fov_center_w.T)
-                    map_state.fov_centers_colors.append(
-                        np.array([1.0, 0.0, 0.0])
-                    )  # green
+                    map_state.fov_centers_colors.append(np.array([1.0, 0.0, 0.0]))  # green
         map_state.poses = np.array(map_state.poses, dtype=float)
-        map_state.pose_timestamps = np.array(
-            map_state.pose_timestamps, dtype=np.float64
-        )
+        map_state.pose_timestamps = np.array(map_state.pose_timestamps, dtype=np.float64)
         if len(map_state.fov_centers) > 0:
             map_state.fov_centers = np.array(map_state.fov_centers).reshape(-1, 3)
-            map_state.fov_centers_colors = np.array(
-                map_state.fov_centers_colors
-            ).reshape(-1, 3)
+            map_state.fov_centers_colors = np.array(map_state.fov_centers_colors).reshape(-1, 3)
 
         map_points = map.get_points()
         num_map_points = len(map_points)
@@ -968,10 +905,8 @@ class Viewer3D(object):
                         p.semantic_des is not None
                         and SemanticMappingShared.sem_des_to_rgb is not None
                     ):
-                        map_state.semantic_colors[i] = (
-                            SemanticMappingShared.sem_des_to_rgb(
-                                p.semantic_des, bgr=False
-                            )
+                        map_state.semantic_colors[i] = SemanticMappingShared.sem_des_to_rgb(
+                            p.semantic_des, bgr=False
                         )
                     else:
                         map_state.semantic_colors[i] = np.array([0.0, 0.0, 0.0])
@@ -983,16 +918,14 @@ class Viewer3D(object):
         map_state.semantic_colors = np.array(map_state.semantic_colors) / 256.0
 
         for kf in keyframes:
-            for kf_cov in kf.get_covisible_by_weight(
-                kMinWeightForDrawingCovisibilityEdge
-            ):
+            for kf_cov in kf.get_covisible_by_weight(kMinWeightForDrawingCovisibilityEdge):
                 if kf_cov.kid > kf.kid:
-                    map_state.covisibility_graph.append([*kf.Ow, *kf_cov.Ow])
+                    map_state.covisibility_graph.append([*kf.Ow(), *kf_cov.Ow()])
             if kf.parent is not None:
-                map_state.spanning_tree.append([*kf.Ow, *kf.parent.Ow])
+                map_state.spanning_tree.append([*kf.Ow(), *kf.parent.Ow()])
             for kf_loop in kf.get_loop_edges():
                 if kf_loop.kid > kf.kid:
-                    map_state.loops.append([*kf.Ow, *kf_loop.Ow])
+                    map_state.loops.append([*kf.Ow(), *kf_loop.Ow()])
         map_state.covisibility_graph = np.array(map_state.covisibility_graph)
         map_state.spanning_tree = np.array(map_state.spanning_tree)
         map_state.loops = np.array(map_state.loops)
@@ -1010,9 +943,7 @@ class Viewer3D(object):
             return
         dense_map_output = slam.get_dense_map()
         if dense_map_output is not None:
-            self.draw_dense_geometry(
-                dense_map_output.point_cloud, dense_map_output.mesh
-            )
+            self.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
 
     # inputs:
     #   point_cloud: o3d.geometry.PointCloud or VolumetricIntegrationPointCloud (see the file volumetric_integrator.py)
@@ -1051,9 +982,7 @@ class Viewer3D(object):
     # inputs:
     #   camera_trajectories: list of arrays of camera poses (np 4x4 matrices Twc), each arrays is a distinct camera 6D trajectory
     #   camera_colors: list of colors (one for each camera array, not one for each camera)
-    def draw_cameras(
-        self, camera_trajectories, camera_colors=None, show_trajectory_line=False
-    ):
+    def draw_cameras(self, camera_trajectories, camera_colors=None, show_trajectory_line=False):
         if self.qcams is None:
             return
         camera_state = Viewer3DCameraTrajectoriesInput(show_trajectory_line)

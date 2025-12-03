@@ -30,7 +30,7 @@ from .frame import (
 from .keyframe import KeyFrame
 from .map_point import predict_detection_levels, MapPoint
 
-from pyslam.utilities.utils_geom import Sim3Pose
+from pyslam.slam.sim3_pose import Sim3Pose
 from pyslam.utilities.utils_geom_2views import computeF12, check_dist_epipolar_line
 from pyslam.utilities.utils_sys import Printer
 from pyslam.utilities.timer import Timer
@@ -123,12 +123,12 @@ def search_frame_by_projection(
     forward = False
     backward = False
     if check_forward_backward:
-        Tcw = f_cur.pose
+        Tcw = f_cur.pose()
         Rcw = Tcw[:3, :3]
         tcw = Tcw[:3, 3]
         twc = -Rcw.T.dot(tcw)
 
-        Trw = f_ref.pose
+        Trw = f_ref.pose()
         Rrw = Trw[:3, :3]
         trw = Trw[:3, 3]
         trc = Rrw.T.dot(twc) + trw
@@ -304,7 +304,7 @@ def search_keyframe_by_projection(
     rot_histo = RotationHistogram()
     check_orientation = kCheckFeaturesOrientation and FeatureTrackerShared.oriented_features
 
-    Tcw = f_cur.pose
+    Tcw = f_cur.pose()
     Rcw = Tcw[:3, :3]
     tcw = Tcw[:3, 3]
     Ow = -Rcw.T @ tcw  # camera center in world coords
@@ -502,13 +502,13 @@ def search_map_by_projection(
 
 # search by projection matches between {map points of last frames} and {unmatched keypoints of f_cur}, (access frame from tracking thread, no need to lock)
 def search_local_frames_by_projection(
-    map, f_cur, local_window=Parameters.kLocalBAWindow, max_descriptor_distance=None
+    map, f_cur, local_window_size=Parameters.kLocalBAWindowSize, max_descriptor_distance=None
 ):
     if max_descriptor_distance is None:
         max_descriptor_distance = Parameters.kMaxDescriptorDistance
 
     # take the points in the last N frame
-    frames = map.keyframes[-local_window:]
+    frames = map.keyframes[-local_window_size:]
     f_points = set([p for f in frames for p in f.get_points() if (p is not None)])
     print("searching %d map points" % len(f_points))
     return search_map_by_projection(
@@ -660,8 +660,8 @@ def search_more_map_points_by_projection(
 #         timer = Timer()
 #         timer.start()
 
-#     O1w = kf1.Ow
-#     O2w = kf2.Ow
+#     O1w = kf1.Ow()
+#     O2w = kf2.Ow()
 #     # compute epipoles
 #     e1,_ = kf1.project_point(O2w)  # in first frame
 #     e2,_ = kf2.project_point(O1w)  # in second frame
@@ -770,8 +770,8 @@ def search_frame_for_triangulation(
         timer = Timer()
         timer.start()
 
-    O1w = kf1.Ow
-    O2w = kf2.Ow
+    O1w = kf1.Ow()
+    O2w = kf2.Ow()
     # compute epipoles
     e1, _ = kf1.project_point(O2w)  # in first frame
     e2, _ = kf2.project_point(O1w)  # in second frame

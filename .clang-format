@@ -1,0 +1,14 @@
+---
+# Minimal C++ Code Formatting Configuration
+# Just column limit and 4-space indent
+
+BasedOnStyle: LLVM
+Language: Cpp
+
+# Column limit
+ColumnLimit: 100
+
+# 4-space indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never

@@ -68,7 +68,7 @@ def feature_tracker_factory(
     descriptor_type=FeatureDescriptorTypes.ORB,
     match_ratio_test=kDefaultRatioTest,
     tracker_type=FeatureTrackerTypes.LK,
-    other_data_dict={},
+    **kwargs,  # Collect all remaining keyword arguments
 ):
     if tracker_type == FeatureTrackerTypes.LK:
         return LkFeatureTracker(
@@ -80,6 +80,7 @@ def feature_tracker_factory(
             descriptor_type=descriptor_type,
             match_ratio_test=match_ratio_test,
             tracker_type=tracker_type,
+            **kwargs,
         )
     elif tracker_type == FeatureTrackerTypes.LOFTR:
         return LoftrFeatureTracker(
@@ -91,6 +92,7 @@ def feature_tracker_factory(
             descriptor_type=descriptor_type,
             match_ratio_test=match_ratio_test,
             tracker_type=tracker_type,
+            **kwargs,
         )
     elif tracker_type == FeatureTrackerTypes.MAST3R:
         return Mast3rFeatureTracker(
@@ -102,6 +104,7 @@ def feature_tracker_factory(
             descriptor_type=descriptor_type,
             match_ratio_test=match_ratio_test,
             tracker_type=tracker_type,
+            **kwargs,
         )
     else:
         return DescriptorFeatureTracker(
@@ -113,7 +116,7 @@ def feature_tracker_factory(
             descriptor_type=descriptor_type,
             match_ratio_test=match_ratio_test,
             tracker_type=tracker_type,
-            other_data_dict=other_data_dict,
+            **kwargs,
         )
     return None
 
@@ -147,6 +150,7 @@ class FeatureTracker(object):
         descriptor_type=FeatureDescriptorTypes.ORB,
         match_ratio_test=kDefaultRatioTest,
         tracker_type=FeatureTrackerTypes.LK,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         self.detector_type = detector_type
         self.descriptor_type = descriptor_type
@@ -212,6 +216,7 @@ class LkFeatureTracker(FeatureTracker):
         descriptor_type=FeatureDescriptorTypes.NONE,
         match_ratio_test=kDefaultRatioTest,
         tracker_type=FeatureTrackerTypes.LK,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             num_features=num_features,
@@ -284,7 +289,7 @@ class DescriptorFeatureTracker(FeatureTracker):
         descriptor_type=FeatureDescriptorTypes.ORB,
         match_ratio_test=kDefaultRatioTest,
         tracker_type=FeatureTrackerTypes.DES_FLANN,
-        other_data_dict={},
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             num_features=num_features,
@@ -294,6 +299,7 @@ class DescriptorFeatureTracker(FeatureTracker):
             descriptor_type=descriptor_type,
             match_ratio_test=match_ratio_test,
             tracker_type=tracker_type,
+            **kwargs,
         )
         self.feature_manager = feature_manager_factory(
             num_features=num_features,
@@ -302,6 +308,7 @@ class DescriptorFeatureTracker(FeatureTracker):
             sigma_level0=sigma_level0,
             detector_type=detector_type,
             descriptor_type=descriptor_type,
+            **kwargs,
         )
 
         if tracker_type == FeatureTrackerTypes.XFEAT:
@@ -322,7 +329,7 @@ class DescriptorFeatureTracker(FeatureTracker):
             matcher_type=self.matcher_type,
             detector_type=detector_type,
             descriptor_type=descriptor_type,
-            other_data_dict=other_data_dict,
+            **kwargs,
         )
 
     # out: keypoints and descriptors
@@ -370,6 +377,7 @@ class LoftrFeatureTracker(FeatureTracker):
         descriptor_type=FeatureDescriptorTypes.NONE,
         match_ratio_test=kDefaultRatioTest,
         tracker_type=FeatureTrackerTypes.LOFTR,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             num_features=num_features,
@@ -387,6 +395,7 @@ class LoftrFeatureTracker(FeatureTracker):
             sigma_level0=sigma_level0,
             detector_type=detector_type,
             descriptor_type=descriptor_type,
+            **kwargs,
         )
 
         if tracker_type == FeatureTrackerTypes.LOFTR:
@@ -401,6 +410,7 @@ class LoftrFeatureTracker(FeatureTracker):
             matcher_type=self.matcher_type,
             detector_type=detector_type,
             descriptor_type=detector_type,
+            **kwargs,
         )
 
     # out: keypoints and descriptors (LOFTR does not compute kps,des on single images)
@@ -457,6 +467,7 @@ class Mast3rFeatureTracker(FeatureTracker):
         descriptor_type=FeatureDescriptorTypes.NONE,
         match_ratio_test=kDefaultRatioTest,
         tracker_type=FeatureTrackerTypes.MAST3R,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             num_features=num_features,
@@ -466,6 +477,7 @@ class Mast3rFeatureTracker(FeatureTracker):
             descriptor_type=descriptor_type,
             match_ratio_test=match_ratio_test,
             tracker_type=tracker_type,
+            **kwargs,
         )
         self.feature_manager = feature_manager_factory(
             num_features=num_features,
@@ -474,6 +486,7 @@ class Mast3rFeatureTracker(FeatureTracker):
             sigma_level0=sigma_level0,
             detector_type=detector_type,
             descriptor_type=descriptor_type,
+            **kwargs,
         )
 
         if tracker_type == FeatureTrackerTypes.MAST3R:
@@ -488,6 +501,7 @@ class Mast3rFeatureTracker(FeatureTracker):
             matcher_type=self.matcher_type,
             detector_type=detector_type,
             descriptor_type=detector_type,
+            **kwargs,
         )
 
     # out: keypoints and descriptors (MAST3R does not compute kps,des on single images)

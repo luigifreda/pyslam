@@ -24,10 +24,12 @@ import numpy as np
 
 from .frame import (
     Frame,
-    FeatureTrackerShared,
     compute_frame_matches,
     prepare_input_data_for_pnpsolver,
 )
+from .feature_tracker_shared import FeatureTrackerShared
+
+
 from pyslam.utilities.rotation_histogram import filter_matches_with_histogram_orientation
 from pyslam.slam import optimizer_gtsam
 from pyslam.slam import optimizer_g2o
@@ -230,7 +232,7 @@ class Relocalizer:
                             frame.points[idx] = None
                     idxs_kf_inliers = idxs_kf[inlier_flags]
 
-                    pose_before = frame.pose.copy()
+                    pose_before = frame.pose()
                     mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = (
                         pose_optimization(frame, verbose=False)
                     )
@@ -267,7 +269,7 @@ class Relocalizer:
                             num_matched_map_points + num_new_found_map_points
                             >= Parameters.kRelocalizationDoPoseOpt2NumInliers
                         ):
-                            pose_before = frame.pose.copy()
+                            pose_before = frame.pose()
                             mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = (
                                 pose_optimization(frame, verbose=False)
                             )
@@ -306,7 +308,7 @@ class Relocalizer:
                                     num_matched_map_points + num_new_found_map_points
                                     >= Parameters.kRelocalizationDoPoseOpt2NumInliers
                                 ):
-                                    pose_before = frame.pose.copy()
+                                    pose_before = frame.pose()
                                     mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = (
                                         pose_optimization(frame, verbose=False)
                                     )

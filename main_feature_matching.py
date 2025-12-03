@@ -8,16 +8,9 @@ from matplotlib import pyplot as plt
 from pyslam.config import Config
 
 from pyslam.viz.mplot_figure import MPlotFigure
-from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes
-from pyslam.local_features.feature_manager import feature_manager_factory
-from pyslam.local_features.feature_types import (
-    FeatureDetectorTypes,
-    FeatureDescriptorTypes,
-    FeatureInfo,
-)
-from pyslam.local_features.feature_matcher import FeatureMatcherTypes
+from pyslam.local_features.feature_tracker import feature_tracker_factory
+from pyslam.local_features.feature_types import FeatureInfo
 from pyslam.utilities.utils_img import (
-    combine_images_horizontally,
     rotate_img,
     transform_img,
     add_background,

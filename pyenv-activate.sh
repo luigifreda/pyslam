@@ -21,6 +21,24 @@ cd "$ROOT_DIR"
 
 #set -e
 
+# ====================================================
+# some useful environment variables to remove unwanted warnings
+
+export TF_CPP_MIN_LOG_LEVEL=3 # 0=all messages are logged (default), 1=INFO, 2=WARNING, 3=ERROR, 4=FATAL
+
+# Ignore *all* warnings coming from NumPy getlimits
+export PYTHONWARNINGS="ignore:::numpy.core.getlimits"
+# Add pkg_resources deprecation message too
+export PYTHONWARNINGS="$PYTHONWARNINGS,ignore:pkg_resources is deprecated"
+
+# optional:
+# export PYTHONWARNINGS="ignore::UserWarning" # ignore all UserWarning
+# export TF_ENABLE_ONEDNN_OPTS=0
+# export GLOG_minloglevel=3
+# export GLOG_logtostderr=1
+
+# ====================================================
+
 # Check if conda is installed
 if command -v conda &> /dev/null; then
     CONDA_INSTALLED=true

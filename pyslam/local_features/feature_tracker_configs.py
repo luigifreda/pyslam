@@ -153,6 +153,7 @@ class FeatureTrackerConfigs:
         sigma_level0=Parameters.kSigmaLevel0,
         match_ratio_test=kDefaultRatioTest,
         tracker_type=kTrackerType,
+        deterministic=False,
     )
 
     BRISK = dict(
@@ -270,7 +271,7 @@ class FeatureTrackerConfigs:
         sigma_level0=Parameters.kSigmaLevel0,
         match_ratio_test=0.8,
         tracker_type=FeatureTrackerTypes.XFEAT,
-        other_data_dict=dict(submatcher_type="lightglue"),
+        submatcher_type="lightglue",
     )  # <= Using XFEAT custom LIGHTGLUE matcher here!
 
     LIGHTGLUE = dict(

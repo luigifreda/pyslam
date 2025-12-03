@@ -1,10 +1,31 @@
+#!/usr/bin/env -S python3 -O
+"""
+* This file is part of PYSLAM
+*
+* Copyright (C) 2016-present Luigi Freda <luigi dot freda at gmail dot com>
+*
+* PYSLAM is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* PYSLAM is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
+"""
 import sys
+
 sys.path.append("./lib")
 
 import unittest
 import numpy as np
 import gtsam
 import gtsam_factors
+
 
 class TestResectioningFactors(unittest.TestCase):
     def test_resectioning_factor(self):
@@ -19,10 +40,12 @@ class TestResectioningFactors(unittest.TestCase):
         measured_point = gtsam.Point2(320.0, 240.0)
 
         # Create a key
-        key = gtsam.symbol('x', 1)
+        key = gtsam.symbol("x", 1)
 
         # Create a factor
-        factor = gtsam_factors.ResectioningFactor(noise_model, key, calib, measured_point, world_point)
+        factor = gtsam_factors.ResectioningFactor(
+            noise_model, key, calib, measured_point, world_point
+        )
 
         # Create a graph
         graph = gtsam.NonlinearFactorGraph()
@@ -30,15 +53,15 @@ class TestResectioningFactors(unittest.TestCase):
 
         # Create initial estimates
         initial_estimates = gtsam.Values()
-        initial_pose = gtsam.Pose3() #create a Pose3 object.
-        initial_estimates.insert(key, initial_pose) #insert the pose3 object.
+        initial_pose = gtsam.Pose3()  # create a Pose3 object.
+        initial_estimates.insert(key, initial_pose)  # insert the pose3 object.
 
         # Debugging: Check the type of the stored value
         stored_value = initial_estimates.atPose3(key)
         print(f"Type of stored value: {type(stored_value)}")
-        
-        print(f'graph: {graph}')
-        
+
+        print(f"graph: {graph}")
+
         # Create optimizer
         params = gtsam.LevenbergMarquardtParams()
         optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_estimates, params)
@@ -61,10 +84,12 @@ class TestResectioningFactors(unittest.TestCase):
         measured_stereo_point = gtsam.StereoPoint2(320.0, 310.0, 240.0)
 
         # Create a key
-        key = gtsam.symbol('x', 1)
+        key = gtsam.symbol("x", 1)
 
         # Create a factor
-        factor = gtsam_factors.ResectioningFactorStereo(noise_model, key, calib, measured_stereo_point, world_point)
+        factor = gtsam_factors.ResectioningFactorStereo(
+            noise_model, key, calib, measured_stereo_point, world_point
+        )
 
         # Create a graph
         graph = gtsam.NonlinearFactorGraph()
@@ -72,15 +97,15 @@ class TestResectioningFactors(unittest.TestCase):
 
         # Create initial estimates
         initial_estimates = gtsam.Values()
-        initial_pose = gtsam.Pose3() #create a Pose3 object.
-        initial_estimates.insert(key, initial_pose) #insert the pose3 object.
+        initial_pose = gtsam.Pose3()  # create a Pose3 object.
+        initial_estimates.insert(key, initial_pose)  # insert the pose3 object.
 
         # Debugging: Check the type of the stored value
         stored_value = initial_estimates.atPose3(key)
         print(f"Type of stored value: {type(stored_value)}")
-        
-        print(f'graph: {graph}')
-        
+
+        print(f"graph: {graph}")
+
         # Create optimizer
         params = gtsam.LevenbergMarquardtParams()
         optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial_estimates, params)
@@ -91,5 +116,6 @@ class TestResectioningFactors(unittest.TestCase):
         # Check result
         self.assertTrue(result.exists(key))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

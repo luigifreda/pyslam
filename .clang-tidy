@@ -1,0 +1,63 @@
+---
+# C++ Static Analysis Configuration for PYSLAM
+# Based on modern C++ best practices and scientific computing needs
+
+Checks: >
+  -*,  # Disable all checks first
+  bugprone-*,  # Enable bug detection checks
+  clang-analyzer-*,  # Enable static analyzer checks
+  cppcoreguidelines-*,  # Enable C++ Core Guidelines checks
+  modernize-*,  # Enable modernization checks
+  performance-*,  # Enable performance checks
+  readability-*,  # Enable readability checks
+  misc-*,  # Enable miscellaneous checks
+  -bugprone-easily-swappable-parameters,  # Too noisy for scientific code
+  -cppcoreguidelines-avoid-magic-numbers,  # Allow magic numbers in scientific code
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,  # Common in OpenCV
+  -cppcoreguidelines-pro-bounds-constant-array-index,  # Common in OpenCV
+  -cppcoreguidelines-pro-type-union-access,  # Common in Eigen
+  -cppcoreguidelines-pro-type-vararg,  # Common in pybind11
+  -modernize-use-trailing-return-type,  # Not always preferred
+  -readability-identifier-naming,  # Allow existing naming conventions
+  -readability-magic-numbers,  # Allow magic numbers in scientific code
+  -readability-named-parameter,  # Not always needed
+
+WarningsAsErrors: ''
+
+HeaderFilterRegex: '.*'
+
+CheckOptions:
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.StructCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.FunctionCase
+    value:           camelCase
+  - key:             readability-identifier-naming.VariableCase
+    value:           camelCase
+  - key:             readability-identifier-naming.ParameterCase
+    value:           camelCase
+  - key:             readability-identifier-naming.MemberCase
+    value:           camelCase
+  - key:             readability-identifier-naming.PrivateMemberSuffix
+    value:           '_'
+  - key:             readability-identifier-naming.ProtectedMemberSuffix
+    value:           '_'
+  - key:             readability-identifier-naming.PublicMemberCase
+    value:           camelCase
+  - key:             readability-identifier-naming.EnumCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.EnumConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.ConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.MacroDefinitionCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.NamespaceCase
+    value:           lower_case
+  - key:             readability-identifier-naming.TemplateParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TypeAliasCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.TypedefCase
+    value:           CamelCase

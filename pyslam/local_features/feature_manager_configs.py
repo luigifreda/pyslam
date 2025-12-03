@@ -54,6 +54,7 @@ class FeatureManagerConfigs(object):
         }
         return dict_out
 
+    # NOTE:
     # The following configurations were manually extracted from the corresponding tracker configs in feature_tracker_configs.py.
     # These are just examples.
     # Normally, you should use the FeatureManagerConfigs.extract_from() method instead of manually specifying these configurations.
@@ -65,6 +66,7 @@ class FeatureManagerConfigs(object):
         detector_type=FeatureDetectorTypes.ORB2,
         descriptor_type=FeatureDescriptorTypes.ORB2,
         sigma_level0=Parameters.kSigmaLevel0,
+        deterministic=False,
     )
 
     BRISK = dict(

@@ -27,13 +27,18 @@ from numba import njit
 # import json
 import ujson as json
 
-# import g2o
+from pyslam.config import Config
 from pyslam.utilities.utils_geom import add_ones, add_ones_numba
 from pyslam.utilities.utils_sys import Printer
 from pyslam.io.dataset_types import SensorType
 
+from typing import TYPE_CHECKING
 
-class CameraTypes(Enum):
+# if TYPE_CHECKING:
+#     from pyslam.config import Config
+
+
+class CameraType(Enum):
     NONE = 0
     PINHOLE = 1
 
@@ -63,7 +68,7 @@ class CameraUtils:
         p3d = depth.reshape(-1, 1) * (np.linalg.inv(K) @ uv1.T).T
         return p3d.reshape(-1, 3)
 
-    @njit
+    @njit(cache=True)
     def backproject_3d_numba(uv, depth, Kinv):
         N = uv.shape[0]
         uv1 = np.ones((N, 3), dtype=np.float64)
@@ -86,7 +91,7 @@ class CameraUtils:
 
     # project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
     # out: Nx2 image points, [Nx1] array of map point depths
-    @njit
+    @njit(cache=True)
     def project_numba(xcs, K):  # numba-optimized version
         N = xcs.shape[0]
         projs = K @ xcs.T  # shape (3, N)
@@ -116,7 +121,7 @@ class CameraUtils:
     # stereo-project a 3D point or an array of 3D points (w.r.t. camera frame), of shape [Nx3]
     # (assuming rectified stereo images)
     # out: Nx3 image points, [Nx1] array of map point depths
-    @njit
+    @njit(cache=True)
     def project_stereo_numba(xcs, K, bf):  # numba-optimized version
         N = xcs.shape[0]
         projs = K @ xcs.T  # shape (3, N)
@@ -138,7 +143,7 @@ class CameraUtils:
 
     # in:  uvs [Nx2]
     # out: xcs array [Nx2] of 2D normalized coordinates (representing 3D points on z=1 plane)
-    @njit
+    @njit(cache=True)
     def unproject_points_numba(uvs, Kinv):  # numba-optimized version
         N = uvs.shape[0]
         uv1 = add_ones_numba(uvs)
@@ -156,7 +161,7 @@ class CameraUtils:
 
     # in:  uvs [Nx2], depths [Nx1]
     # out: xcs array [Nx3] of backprojected 3D points
-    @njit
+    @njit(cache=True)
     def unproject_points_3d_numba(uvs, depths, Kinv):  # numba-optimized version
         N = uvs.shape[0]
         uv1 = add_ones_numba(uvs)
@@ -170,7 +175,7 @@ class CameraUtils:
 
     # input: [Nx2] array of uvs, [Nx1] of zs
     # output: [Nx1] array of visibility flags
-    @njit
+    @njit(cache=True)
     def are_in_image_numba(uvs, zs, u_min, u_max, v_min, v_max):
         N = uvs.shape[0]
         out = np.empty(N, dtype=np.bool_)
@@ -187,18 +192,21 @@ class CameraUtils:
 
 class CameraBase:
     def __init__(self):
-        self.type = CameraTypes.NONE
+        self.type = CameraType.NONE
         self.width, self.height = None, None
         self.fx, self.fy = None, None
         self.cx, self.cy = None, None
+        self.K, self.Kinv = None, None
 
-        self.D = None
+        self.D: np.ndarray | None = None
         self.is_distorted = None
 
         self.fps = None
 
         self.bf = None
         self.b = None
+        self.depth_factor = None
+        self.depth_threshold = None
 
         self.u_min = None
         self.u_max = None
@@ -208,10 +216,16 @@ class CameraBase:
 
 
 class Camera(CameraBase):
-    def __init__(self, config):
+    def __init__(self, config: "Config"):
         super().__init__()
         if config is None:
             return
+        if isinstance(config, dict):
+            # convert a possibly dict input into Config
+            config_ = Config()
+            config_.from_json(config)
+            config = config_
+
         width = (
             config.cam_settings["Camera.width"]
             if "Camera.width" in config.cam_settings
@@ -236,6 +250,10 @@ class Camera(CameraBase):
         self.cx = cx
         self.cy = cy
 
+        self.K: np.ndarray | None = None
+        self.Kinv: np.ndarray | None = None
+        self.compute_intrinsic_matrices()
+
         self.fovx = focal2fov(fx, width)
         self.fovy = focal2fov(fy, height)
 
@@ -257,7 +275,7 @@ class Camera(CameraBase):
         self.depth_factor = 1.0  # Depthmap values factor
         if "DepthMapFactor" in config.cam_settings:
             self.depth_factor = 1.0 / float(config.cam_settings["DepthMapFactor"])
-            # print('Using DepthMapFactor = %f' % self.depth_factor)
+            # print("Using DepthMapFactor = %f" % self.depth_factor)
         if config.sensor_type == "rgbd" and self.depth_factor is None:
             raise ValueError("Camera: Expecting the field DepthMapFactor in the camera config file")
         self.depth_threshold = float("inf")  # Close/Far threshold.
@@ -270,6 +288,14 @@ class Camera(CameraBase):
             config.sensor_type == "rgbd" or config.sensor_type == "stereo"
         ) and self.depth_threshold is None:
             raise ValueError("Camera: Expecting the field ThDepth in the camera config file")
+
+    def compute_intrinsic_matrices(self):
+        fx, fy, cx, cy = self.fx, self.fy, self.cx, self.cy
+        self.K = np.array([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], dtype=np.float64)
+        self.Kinv = np.array(
+            [[1.0 / fx, 0.0, -cx / fx], [0.0, 1.0 / fy, -cy / fy], [0.0, 0.0, 1.0]],
+            dtype=np.float64,
+        )
 
     def is_stereo(self):
         return self.bf is not None
@@ -287,18 +313,22 @@ class Camera(CameraBase):
             "fps": int(self.fps),
             "bf": float(self.bf),
             "b": float(self.b),
-            "depth_factor": float(self.depth_factor),
-            "depth_threshold": float(self.depth_threshold),
-            "is_distorted": bool(self.is_distorted),
-            "u_min": float(self.u_min),
-            "u_max": float(self.u_max),
-            "v_min": float(self.v_min),
-            "v_max": float(self.v_max),
-            "initialized": bool(self.initialized),
+            "depth_factor": float(self.depth_factor) if self.depth_factor is not None else None,
+            "depth_threshold": (
+                float(self.depth_threshold) if self.depth_threshold is not None else None
+            ),
+            "is_distorted": bool(self.is_distorted if self.is_distorted is not None else None),
+            "u_min": float(self.u_min) if self.u_min is not None else None,
+            "u_max": float(self.u_max) if self.u_max is not None else None,
+            "v_min": float(self.v_min) if self.v_min is not None else None,
+            "v_max": float(self.v_max) if self.v_max is not None else None,
+            "initialized": bool(self.initialized if self.initialized is not None else None),
+            "K": json.dumps(self.K.astype(float).tolist() if self.K is not None else None),
+            "Kinv": json.dumps(self.Kinv.astype(float).tolist() if self.Kinv is not None else None),
         }
 
     def init_from_json(self, json_str):
-        self.type = CameraTypes(int(json_str["type"]))
+        self.type = CameraType(int(json_str["type"]))
         self.width = int(json_str["width"])
         self.height = int(json_str["height"])
         self.fx = float(json_str["fx"])
@@ -321,6 +351,8 @@ class Camera(CameraBase):
             self.fovx = focal2fov(self.fx, self.width)
         if not hasattr(self, "fovy"):
             self.fovy = focal2fov(self.fy, self.height)
+        self.K = np.array(json.loads(json_str["K"]))
+        self.Kinv = np.array(json.loads(json_str["Kinv"]))
 
     def is_in_image(self, uv, z):
         return (
@@ -376,20 +408,10 @@ class Camera(CameraBase):
 class PinholeCamera(Camera):
     def __init__(self, config=None):
         super().__init__(config)
-        self.type = CameraTypes.PINHOLE
+        self.type = CameraType.PINHOLE
 
         if config is None:
             return
-
-        fx = self.fx
-        fy = self.fy
-        cx = self.cx
-        cy = self.cy
-        self.K = np.array([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], dtype=np.float64)
-        self.Kinv = np.array(
-            [[1.0 / fx, 0.0, -cx / fx], [0.0, 1.0 / fy, -cy / fy], [0.0, 0.0, 1.0]],
-            dtype=np.float64,
-        )
 
         # print(f'PinholeCamera: K = {self.K}')
         if self.width is None or self.height is None:
@@ -402,16 +424,12 @@ class PinholeCamera(Camera):
 
     def to_json(self):
         camera_json = super().to_json()
-        camera_json["K"] = json.dumps(self.K.astype(float).tolist())
-        camera_json["Kinv"] = json.dumps(self.Kinv.astype(float).tolist())
         return camera_json
 
     @staticmethod
     def from_json(json_str):
         c = PinholeCamera(None)
         c.init_from_json(json_str)
-        c.K = np.array(json.loads(json_str["K"]))
-        c.Kinv = np.array(json.loads(json_str["Kinv"]))
         return c
 
     def init(self):

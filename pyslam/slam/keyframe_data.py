@@ -16,9 +16,10 @@ class KeyFrameData:
         self.camera = keyframe.camera
 
         # self.pose = keyframe.pose
-        self.Rcw = keyframe.Rcw
-        self.tcw = keyframe.tcw
-        self.Tcw = keyframe.Tcw
+        kf_Tcw = keyframe.Tcw()
+        self.Rcw = kf_Tcw[:3, :3]
+        self.tcw = kf_Tcw[:3, 3]
+        self.Tcw = kf_Tcw
         self.timestamp = keyframe.timestamp
 
         self.is_bad = keyframe.is_bad

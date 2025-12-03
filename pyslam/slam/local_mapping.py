@@ -508,7 +508,7 @@ class LocalMapping:
         self.kid_last_BA = self.kf_cur.kid
         self.time_large_opt.start()
         err = self.map.optimize(
-            local_window=Parameters.kLargeBAWindow, abort_flag=self.opt_abort_flag
+            local_window_size=Parameters.kLargeBAWindowSize, abort_flag=self.opt_abort_flag
         )  # verbose=True)
         self.time_large_opt.refresh()
         Printer.blue("large window optimization error^2: %f, KF id: %d" % (err, self.kf_cur.kid))
@@ -518,12 +518,16 @@ class LocalMapping:
         # and update normal and descriptor
         kf_cur_points = self.kf_cur.get_points()
         LocalMapping.print(f">>>> updating map points ({len(kf_cur_points)})...")
-        valid_points = [(idx, p) for idx, p in enumerate(kf_cur_points) if p is not None]
+        valid_points = [
+            (idx, p) for idx, p in enumerate(kf_cur_points) if p is not None and not p.is_bad
+        ]
         for idx, p in valid_points:
-            added, is_bad = p.add_observation_if_not_bad(self.kf_cur, idx)
+            # Try to add observation
+            added = p.add_observation(self.kf_cur, idx)
             if added:
                 p.update_info()
-            elif not is_bad:
+            else:
+                # this happens for new stereo points inserted by Tracking
                 self.recently_added_points.add(p)
 
         LocalMapping.print(">>>> updating connections ...")
@@ -711,7 +715,7 @@ class LocalMapping:
             if len(idxs_cur) > 0:
                 # try to triangulate the matched keypoints that do not have a corresponding map point
                 pts3d, mask_pts3d = triangulate_normalized_points(
-                    self.kf_cur.pose, kf.pose, self.kf_cur.kpsn[idxs_cur], kf.kpsn[idxs]
+                    self.kf_cur.pose(), kf.pose(), self.kf_cur.kpsn[idxs_cur], kf.kpsn[idxs]
                 )
 
                 new_pts_count, _, list_added_points = self.map.add_points(
@@ -810,7 +814,7 @@ class LocalMapping:
             if len(idxs_cur) > 0:
                 # try to triangulate the matched keypoints that do not have a corresponding map point
                 pts3d, mask_pts3d = triangulate_normalized_points(
-                    self.kf_cur.pose, kf.pose, self.kf_cur.kpsn[idxs_cur], kf.kpsn[idxs]
+                    self.kf_cur.pose(), kf.pose(), self.kf_cur.kpsn[idxs_cur], kf.kpsn[idxs]
                 )
 
                 new_pts_count, _, list_added_points = self.map.add_points(

@@ -23,7 +23,7 @@ import numpy as np
 from pyslam.utilities.utils_features import descriptor_sigma_mad, descriptor_sigma_mad_v2
 from pyslam.utilities.utils_sys import Printer
 
-from .frame import FeatureTrackerShared
+from .feature_tracker_shared import FeatureTrackerShared
 
 from pyslam.config_parameters import Parameters
 
