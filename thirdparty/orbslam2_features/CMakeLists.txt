@@ -9,9 +9,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
+set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O3 -march=native -fPIC -DNDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fPIC -DNDEBUG")
+# Set base optimization flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -DNDEBUG")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG")
+
+# Add -march=native if requested and not on macOS
+# (macOS system clang doesn't properly support -march=native on Apple Silicon)
+if(BUILD_WITH_MARCH_NATIVE AND NOT APPLE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+    message(STATUS "Using -march=native for optimization")
+elseif(BUILD_WITH_MARCH_NATIVE)
+    message(STATUS "Skipping -march=native on macOS (system clang limitation)")
+endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")

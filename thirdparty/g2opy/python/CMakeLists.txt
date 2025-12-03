@@ -9,11 +9,17 @@ include_directories(${CSPARSE_INCLUDE_DIR})
 # the following 2 lines are added to correctly detect the python version 
 if(WITH_PYTHON_INTERP_CHECK)
   message(STATUS "WITH_PYTHON_INTERP_CHECK: ${WITH_PYTHON_INTERP_CHECK}")
-  # find_package(PythonInterp) 
-  # find_package(PythonLibs)
-  # message(STATUS "PythonInterp: ${PythonInterp}")
-  # message(STATUS "PythonLibs: ${PythonLibs}")
-  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+    # When building a Python extension we should use the Module component to
+    # avoid pulling in an extra libpython runtime (which can crash on import).
+    # Development.Module requires CMake 3.18+
+    find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
+  else()
+    find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+  endif()
+  
   message(STATUS "Python3_EXECUTABLE: ${Python3_EXECUTABLE}")
   message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")  
 endif()
@@ -50,7 +56,7 @@ target_link_libraries(g2o PRIVATE
     ${EIGEN3_LIBRARIES}
     ${CHOLMOD_LIBRARIES}
     ${CSPARSE_LIBRARY}
-    ${Python3_LIBRARIES}
+    Python3::Module
     ${OPENGL_LIBRARIES} 
     ${GLUT_LIBRARIES}
 )

@@ -51,7 +51,7 @@ print_blue '================================================'
 print_blue "Building and installing cpp ..."
 
 CURRENT_USED_PYENV=$(get_virtualenv_name)
-print_blue "Currently used pyenv: $CURRENT_USED_PYENV"
+print_blue "Currently used python virtual environment: $CURRENT_USED_PYENV"
 
 cd cpp 
 

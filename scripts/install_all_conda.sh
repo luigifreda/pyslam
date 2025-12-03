@@ -69,6 +69,14 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "./"
 
+# 9. outliers under macos
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # To solve under mac the (crash) issue mentioned in the troubleshoting document
+    pip uninstall tensorflow
+    #pip install "tensorflow==2.15.*"
+    pip install tensorflow-macos tensorflow-metal --force-reinstall
+fi 
+
 # 9. outliers under conda
 pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
 pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc

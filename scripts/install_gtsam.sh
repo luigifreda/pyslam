@@ -63,6 +63,19 @@ if [[ "$CONDA_INSTALLED" == true && "$ubuntu_version" == "20" && "$gcc_version" 
     export CXX=/usr/bin/g++-9
 fi
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Make sure we don't accidentally use a Linux cross-compiler or Linux sysroot from conda
+    unset CC CXX CFLAGS CXXFLAGS LDFLAGS CPPFLAGS SDKROOT CONDA_BUILD_SYSROOT CONDA_BUILD_CROSS_COMPILATION
+
+    # Ask Xcode for the proper macOS SDK path (fallback to default if unavailable)
+    MAC_SYSROOT=$(xcrun --show-sdk-path 2>/dev/null || echo "")
+
+    MAC_OPTIONS="-DCMAKE_C_COMPILER=/usr/bin/clang \
+    -DCMAKE_CXX_COMPILER=/usr/bin/clang++"
+
+    echo "Using MAC_OPTIONS for cpp build: $MAC_OPTIONS"
+fi
+
 print_blue '================================================'
 print_blue "Installing gtsam from source"
 print_blue '================================================'
@@ -99,7 +112,7 @@ if [[ ! -f "$TARGET_GTSAM_LIB" ]]; then
         GTSAM_OPTIONS+=" -DGTSAM_WITH_TBB=OFF"
     fi 
     echo GTSAM_OPTIONS: $GTSAM_OPTIONS
-    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $GTSAM_OPTIONS $EXTERNAL_OPTIONS
+    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $GTSAM_OPTIONS $EXTERNAL_OPTIONS $MAC_OPTIONS
 	make -j $(nproc)
     make install 
 

@@ -77,51 +77,19 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 # ====================================================
 
 CURRENT_USED_PYENV=$(get_virtualenv_name)
-print_blue "Currently used pyenv: $CURRENT_USED_PYENV"
+print_blue "Currently used python virtual environment: $CURRENT_USED_PYENV"
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features
-. build.sh $EXTERNAL_OPTIONS
+./build.sh $EXTERNAL_OPTIONS
 cd "$ROOT_DIR"
 
 print_blue '================================================'
-print_blue "Configuring and building thirdparty/Pangolin ..."
+print_blue "Configuring and building thirdparty/pangolin ..."
 
-cd thirdparty
-#     # N.B.: pay attention this will generate a module 'pypangolin' 
-#     if [ ! -d "pangolin" ]; then
-#         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-#             echo "OS: $OSTYPE"   
-#             sudo apt-get install -y libglew-dev
-#         fi
-#         git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin        
-#         cd pangolin
-#         git apply ../pangolin.patch
-#         cd ..
-#     fi
-#     cd pangolin
-#     if [ ! -f pypangolin.cpython-*.so ]; then   
-#         make_dir build   
-#         cd build
-#         cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
-#                  -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
-#                  -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF $EXTERNAL_OPTIONS # disable realsense 
-#         make -j8
-#         cd ..
-#         #python setup.py install
-#     fi
-cd pangolin
-if [ ! -f pypangolin.cpython-*.so ]; then   
-    make_dir build   
-    cd build
-    cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
-                -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
-                -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF $EXTERNAL_OPTIONS # disable realsense 
-    make -j8
-    cd ..
-    #python setup.py install
-fi
+cd thirdparty/pangolin
+./build.sh $EXTERNAL_OPTIONS
 
 cd "$ROOT_DIR"
 
@@ -129,30 +97,9 @@ cd "$ROOT_DIR"
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/g2o ..."
 
-cd thirdparty
-# if [ ! -d g2opy ]; then
-#     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-#         sudo apt-get install -y libsuitesparse-dev libeigen3-dev
-#     fi     
-# 	  git clone https://github.com/uoip/g2opy.git
-#     cd g2opy
-#     G2OPY_REVISION=5587024
-#     git checkout $G2OPY_REVISION
-#     git apply ../g2opy.patch
-#     cd ..     
-# fi
-cd g2opy
-if [ ! -f lib/g2o.cpython*.so ]; then  
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        sudo apt-get install -y libsuitesparse-dev libeigen3-dev
-    fi   
-    make_buid_dir
-    cd build
-    cmake .. -DPython3_EXECUTABLE=$(which python3) $EXTERNAL_OPTIONS
-    make -j8
-    cd ..
-    #python3 setup.py install --user
-fi    
+cd thirdparty/g2opy
+./build.sh $EXTERNAL_OPTIONS 
+
 cd $ROOT_DIR
 
 

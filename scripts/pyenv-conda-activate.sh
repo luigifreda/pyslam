@@ -61,10 +61,14 @@ else
     echo "OS: $version"
 fi
 
-ubuntu_version=$(lsb_release -rs | cut -d. -f1)
-gcc_version=$(gcc -dumpversion | cut -d. -f1)
-#echo "Ubuntu version: $ubuntu_version, GCC version: $gcc_version"
-
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    ubuntu_version="0"
+    gcc_version="0"
+else
+    ubuntu_version=$(lsb_release -rs | cut -d. -f1)
+    gcc_version=$(gcc -dumpversion | cut -d. -f1)
+    #echo "Ubuntu version: $ubuntu_version, GCC version: $gcc_version"
+fi
 # for conda potentially needed under Ubuntu 22.04 and 24.04
 # if [[ "$ubuntu_version" == "22" || "$ubuntu_version" == "24" ]]; then
 #     export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libgcc_s.so.1

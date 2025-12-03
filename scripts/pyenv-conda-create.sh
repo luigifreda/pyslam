@@ -24,6 +24,11 @@ export PYSLAM_PYTHON_VERSION="${2:-3.11.9}"  # Default Python version
 
 # ====================================================
 
+# On macOS/Apple Silicon, default to arm64 packages unless the caller overrides
+if [[ "$OSTYPE" == darwin* ]]; then
+    export CONDA_SUBDIR=${CONDA_SUBDIR:-osx-arm64}
+fi
+
 print_blue '================================================'
 print_blue "Creating Conda Environment: $ENV_NAME"
 print_blue '================================================'
@@ -34,7 +39,7 @@ if ! command -v conda &> /dev/null ; then
     exit 1
 fi
 
-ubuntu_version=$(lsb_release -rs | cut -d. -f1)
+#ubuntu_version=$(lsb_release -rs | cut -d. -f1)
 
 conda install -n base -y conda-anaconda-tos
 conda config --set plugins.auto_accept_tos yes || export CONDA_PLUGINS_AUTO_ACCEPT_TOS=yes
@@ -73,20 +78,28 @@ pip install --upgrade pip setuptools wheel build
 pip install -e .
 
 # NOTE: these are the "system" packages that are needed within conda to build code from source
-conda install -y -c conda-forge \
-    pkg-config \
-    glew \
-    cmake \
-    suitesparse \
-    lapack \
-    glew glfw mesa-libgl-devel-cos7-x86_64 \
-    libtiff zlib jpeg eigen tbb libpng \
-    x264 ffmpeg \
-    freetype cairo \
-    pygobject gtk2 gtk3 glib xorg-xorgproto \
-    libwebp expat \
-    compilers gcc_linux-64 gxx_linux-64 tbb tbb-devel \
-    boost openblas
+if [[ "$OSTYPE" == darwin* ]]; then
+    # macOS: use clang from Xcode; avoid Linux-only packages
+    conda install -y -c conda-forge \
+        pkg-config cmake eigen suitesparse lapack openblas \
+        tbb libpng libtiff zlib jpeg freetype \
+        ffmpeg glew glfw boost
+else
+    conda install -y -c conda-forge \
+        pkg-config \
+        glew \
+        cmake \
+        suitesparse \
+        lapack \
+        glew glfw mesa-libgl-devel-cos7-x86_64 \
+        libtiff zlib jpeg eigen tbb libpng \
+        x264 ffmpeg \
+        freetype cairo \
+        pygobject gtk2 gtk3 glib xorg-xorgproto \
+        libwebp expat \
+        compilers gcc_linux-64 gxx_linux-64 tbb tbb-devel \
+        boost openblas
+fi
 
 cd "$STARTING_DIR"
 

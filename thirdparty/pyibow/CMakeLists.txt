@@ -33,7 +33,7 @@ if(BUILD_WITH_MARCH_NATIVE)
         include(CheckCXXCompilerFlag)
         unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
         CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
-        if(COMPILER_SUPPORTS_MARCH_NATIVE)
+        if(COMPILER_SUPPORTS_MARCH_NATIVE AND NOT APPLE)
             message(STATUS "Build with -march=native")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
             set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
@@ -63,7 +63,18 @@ link_directories(
     ${IBOW_LCD_LIB_DIR}
 )
 
-find_package(Python3 COMPONENTS Interpreter NumPy REQUIRED)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+    # When building a Python extension we should use the Module component to
+    # avoid pulling in an extra libpython runtime (which can crash on import).
+    # Development.Module requires CMake 3.18+
+    find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
+else()
+    find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
+endif()
+message(STATUS "Python3_EXECUTABLE: ${Python3_EXECUTABLE}")
+message(STATUS "Python3_LIBRARIES: ${Python3_LIBRARIES}")
+# Force bundled pybind11 to use the same interpreter
+set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
@@ -77,7 +88,8 @@ PRIVATE
     ${OpenCV_LIBS}
     ${IBOW_LCD_LIBS}
     ${Boost_LIBRARIES}
-    ${PYTHON_LIBRARIES} Python3::NumPy
+    Python3::Module
+    Python3::NumPy
 )
 target_compile_definitions(pyibow 
 PRIVATE 
@@ -94,7 +106,8 @@ PRIVATE
     ${OpenCV_LIBS}
     ${IBOW_LCD_LIBS}
     ${Boost_LIBRARIES}    
-    ${PYTHON_LIBRARIES} Python3::NumPy
+    Python3::Module
+    Python3::NumPy
 )
 target_compile_definitions(pyobindex2 
 PRIVATE 

@@ -218,8 +218,14 @@ if [[ ! -d "$TARGET_FOLDER/opencv" ]]; then
                 freetype cairo \
                 pygobject gtk2 gtk3 glib xorg-xorgproto \
                 libwebp expat \
-                compilers gcc_linux-64 gxx_linux-64 tbb tbb-devel \
-                boost openblas
+                boost openblas \
+                glog gflags
+
+            # Linux-specific compilers
+            if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                conda install -y -c conda-forge \
+                    compilers gcc_linux-64 gxx_linux-64 tbb tbb-devel
+            fi
 
             if [[ "$CUDA_ON" == "ON" ]]; then 
                 conda install -y -c conda-forge cudnn libcudnn libcudnn-dev
@@ -247,7 +253,10 @@ export MAC_OPTIONS=""
 
 if [ "$CONDA_INSTALLED" = true ]; then
 
-    CPPFLAGS="$CPPFLAGS -Wl,--disable-new-dtags" # enable RPATH support in conda environments
+    # This linker flag only makes sense on Linux, not on macOS
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        CPPFLAGS="$CPPFLAGS -Wl,--disable-new-dtags" # enable RPATH support in conda environments
+    fi
   
     CONDA_OPTIONS="-DOPENCV_FFMPEG_USE_FIND_PACKAGE=OFF \
     -DPKG_CONFIG_EXECUTABLE=$(which pkg-config) \
@@ -263,9 +272,21 @@ if [[ $version == *"24.04"* ]] ; then
 fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Make sure we don't accidentally use a Linux cross-compiler or Linux sysroot from conda
+    unset CC CXX CFLAGS CXXFLAGS LDFLAGS CPPFLAGS SDKROOT CONDA_BUILD_SYSROOT CONDA_BUILD_CROSS_COMPILATION
+
+    # Ask Xcode for the proper macOS SDK path (fallback to default if unavailable)
+    MAC_SYSROOT=$(xcrun --show-sdk-path 2>/dev/null || echo "")
+
     MAC_OPTIONS="-DBUILD_PROTOBUF=OFF -DPROTOBUF_UPDATE_FILES=ON \
     -DVIDEOIO_ENABLE_STRICT=ON -DWITH_FFMPEG=OFF \
-    -DWITH_OPENGL=OFF"
+    -DWITH_OPENGL=OFF \
+    -DBUILD_opencv_hdf=OFF -DWITH_HDF5=OFF \
+    -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF \
+    -DBUILD_opencv_sfm=OFF \
+    -DCMAKE_C_COMPILER=/usr/bin/clang \
+    -DCMAKE_CXX_COMPILER=/usr/bin/clang++"
+
     echo "Using MAC_OPTIONS for opencv build: $MAC_OPTIONS"
 fi
 
@@ -279,7 +300,14 @@ export CMAKE_LIBRARY_PATH="$LIBRARY_PATH"
 
 cd $TARGET_FOLDER
 
-if [ ! -f opencv/install/lib/libopencv_core.so ]; then
+# Choose correct core library name based on platform
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OPENCV_CORE_LIB="opencv/install/lib/libopencv_core.dylib"
+else
+    OPENCV_CORE_LIB="opencv/install/lib/libopencv_core.so"
+fi
+
+if [ ! -f $OPENCV_CORE_LIB ]; then
     if [ ! -d opencv ]; then
       wget https://github.com/opencv/opencv/archive/$OPENCV_VERSION.zip
       sleep 1
@@ -303,7 +331,7 @@ if [ ! -f opencv/install/lib/libopencv_core.so ]; then
     echo "I am in "$(pwd)
     machine="$(uname -m)"
     echo OS: $version
-    if [[ "$machine" == "x86_64" || "$machine" == "x64" || $version == "darwin"* ]]; then
+    if [[ "$machine" == "x86_64" || "$machine" == "x64" || "$version" == "darwin"* ]]; then
 		# standard configuration 
         echo "building laptop/desktop config under $version"
         # as for the flags and consider this nice reference https://gist.github.com/raulqf/f42c718a658cddc16f9df07ecc627be7

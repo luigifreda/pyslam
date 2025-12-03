@@ -196,8 +196,11 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
   #ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # Linux
   IF(BUILD_WITH_MARCH_NATIVE AND NOT "${ARCH}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+    message(STATUS "Build with -march=native")
     SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -DNDEBUG")
     SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native -DNDEBUG")
+  ELSE()
+    message(STATUS "Build without -march=native")
   ENDIF()
   # activate warnings !!!
   SET(g2o_C_FLAGS "${g2o_C_FLAGS} -Wall -W")

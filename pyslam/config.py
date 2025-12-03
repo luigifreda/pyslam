@@ -58,8 +58,10 @@ class Config:
         self.root_folder = root_folder
         self.config_path = config_path  # path to config.yaml: dataset, system, and camera settings
         self.config_libs_path = config_libs_path  # path to config_libs.yaml: lib paths
-        self.config = yaml.load(open(self.config_path, "r"), Loader=yaml.FullLoader)
-        self.config_libs = yaml.load(open(self.config_libs_path, "r"), Loader=yaml.FullLoader)
+        with open(self.config_path, "r") as f:
+            self.config = yaml.load(f, Loader=yaml.FullLoader)
+        with open(self.config_libs_path, "r") as f:
+            self.config_libs = yaml.load(f, Loader=yaml.FullLoader)
         self.cam_settings: dict | None = None
         self.system_settings: dict | None = None
         self.dataset_settings: dict | None = None

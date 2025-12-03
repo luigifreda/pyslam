@@ -117,6 +117,7 @@ Under mac a first step is to run:
 python3 -I -X dev -X faulthandler main_slam.py
 ```
 and check the output.
+
 --- 
 
 ### RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_

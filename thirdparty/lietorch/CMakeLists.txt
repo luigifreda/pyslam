@@ -55,9 +55,6 @@ message(STATUS "Using C++ standard: C++${CPP_STANDARD_VERSION}")
 set(CMAKE_CXX_STANDARD ${CPP_STANDARD_VERSION})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CUDA_STANDARD ${CPP_STANDARD_VERSION})
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
 # Generate compile_commands.json for tooling
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -171,6 +168,14 @@ message(STATUS "Detected CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 find_package(CUDAToolkit QUIET)
 if (NOT CUDAToolkit_FOUND)
   find_package(CUDA REQUIRED)
+endif()
+
+# Note: We don't set CMAKE_CUDA_STANDARD here because it causes CMake to interpret
+# "CUDA17" as a language dialect. Instead, we set the standard via CUDA_NVCC_FLAGS
+# below using -std=c++17, which is the correct way for NVCC.
+# Enable CUDA separable compilation for better compatibility
+if(CMAKE_CUDA_COMPILER)
+  set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 # Check if we are in a conda/virtual environment and correctly detect it

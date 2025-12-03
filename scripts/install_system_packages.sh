@@ -44,6 +44,31 @@ fi
 if [[ "$OSTYPE" == darwin* ]]; then 
     ## MacOS
 
+    # Check and install Xcode Command Line Tools (provides clang/clang++)
+    print_blue "Checking for Xcode Command Line Tools..."
+    if ! xcode-select -p &> /dev/null; then
+        print_yellow "⚠️  Xcode Command Line Tools not found!"
+        print_yellow "Installing Xcode Command Line Tools (this may take a while)..."
+        print_yellow "A dialog will appear - please click 'Install' and wait for completion."
+        xcode-select --install
+        print_yellow "Waiting for Xcode Command Line Tools installation to complete..."
+        print_yellow "Please complete the installation in the dialog, then press Enter to continue..."
+        read -r
+    else
+        print_green "✓ Xcode Command Line Tools already installed"
+    fi
+    
+    # Verify clang is available
+    if ! command -v clang &> /dev/null; then
+        print_red "❌ ERROR: clang compiler not found!"
+        print_red "Please ensure Xcode Command Line Tools are properly installed:"
+        print_red "  xcode-select --install"
+        exit 1
+    else
+        CLANG_VERSION=$(clang --version | head -n 1)
+        print_green "✓ Found clang: $CLANG_VERSION"
+    fi
+
     echo "Installing macOs packages with brew..."
 
     # Check if brew is installed
@@ -56,6 +81,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
         
     # install required packages
     brew update 
+    brew install curl
     brew install wget 
     brew install doxygen 
     brew install eigen 
@@ -83,7 +109,8 @@ if [[ "$OSTYPE" == darwin* ]]; then
     #brew install open3d     # we are going to build open3d from source for different issues 
     brew install x265 libjpeg libde265 libheif   # for pillow-heif
     brew install tbb
-
+    brew install embree    # for open3d compilation
+    brew install jsoncpp glfw fmt zeromq    # for open3d compilation (use system packages to avoid architecture issues)
 else 
     ## Linux 
 
@@ -134,6 +161,7 @@ else
 
     install_package libomp-dev
     install_package libtbb-dev
+    install_package embree3    # for open3d compilation
     
     # detect CUDA VERSION
     . "$ROOT_DIR"/cuda_config.sh

@@ -1,25 +1,13 @@
 #!/usr/bin/env bash
 
-
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
-
 
 function make_dir(){
 if [ ! -d $1 ]; then
     mkdir $1
 fi
 }
-
-# Check if conda is installed
-if command -v conda &> /dev/null; then
-    echo "Conda is installed"
-    CONDA_INSTALLED=true
-else
-    echo "Conda is not installed"
-    CONDA_INSTALLED=false
-fi
-
 
 # ====================================================
 # check if we have external options
@@ -28,20 +16,10 @@ if [[ -n "$EXTERNAL_OPTIONS" ]]; then
     echo "external option: $EXTERNAL_OPTIONS" 
 fi
 
-OpenCV_DIR="$SCRIPT_DIR/../thirdparty/opencv/install/lib/cmake/opencv4"
-echo "OpenCV_DIR: $OpenCV_DIR"
+OpenCV_DIR="$SCRIPT_DIR/../opencv/install/lib/cmake/opencv4"
 if [[ -d "$OpenCV_DIR" ]]; then
     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
 fi 
-
-export CONDA_OPTIONS=""
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    if [ "$CONDA_INSTALLED" = true ]; then
-        CONDA_OPTIONS="-DOPENGL_opengl_LIBRARY=/usr/lib/x86_64-linux-gnu/libOpenGL.so \
-            -DOPENGL_glx_LIBRARY=/usr/lib/x86_64-linux-gnu/libGLX.so"
-        echo "Using CONDA_OPTIONS for build: $CONDA_OPTIONS"
-    fi
-fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Make sure we don't accidentally use a Linux cross-compiler or Linux sysroot from conda
@@ -50,19 +28,31 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     # Ask Xcode for the proper macOS SDK path (fallback to default if unavailable)
     MAC_SYSROOT=$(xcrun --show-sdk-path 2>/dev/null || echo "")
 
-    MAC_OPTIONS="-DCMAKE_C_COMPILER=/usr/bin/clang \
-    -DCMAKE_CXX_COMPILER=/usr/bin/clang++"
+    MAC_OPTIONS="\
+    -DCMAKE_C_COMPILER=/usr/bin/clang \
+    -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
+    -DBUILD_PANGOLIN_LZ4=OFF"
 
-    echo "Using MAC_OPTIONS for cpp build: $MAC_OPTIONS"
+    echo "Using MAC_OPTIONS for opencv build: $MAC_OPTIONS"
 fi
+
 
 echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 # ====================================================
 
-make_dir build
-cd build
-cmake .. $EXTERNAL_OPTIONS $CONDA_OPTIONS $MAC_OPTIONS
-make -j 4
+if [ ! -f pypangolin.cpython-*.so ]; then   
+    make_dir build   
+    cd build
+    
+    cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
+                -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
+                -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF \
+                $EXTERNAL_OPTIONS $MAC_OPTIONS 
+    make -j8
+    cd ..
+    #python setup.py install
+fi
+
 
 cd ..

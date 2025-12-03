@@ -1,5 +1,119 @@
+diff --git a/3rdparty/embree/embree.cmake b/3rdparty/embree/embree.cmake
+index 6d55198ec..7a71b6a52 100644
+--- a/3rdparty/embree/embree.cmake
++++ b/3rdparty/embree/embree.cmake
+@@ -8,11 +8,18 @@ include(ExternalProject)
+ # select ISAs
+ if(APPLE)
+     if(APPLE_AARCH64)
+-        set(ISA_ARGS -DEMBREE_ISA_NEON=OFF
+-                     -DEMBREE_ISA_NEON2X=ON
++        # Enable a single ISA on Apple Silicon to avoid AppleClang static multi-ISA failures.
++        # Explicitly disable all x86 ISAs to prevent auto-detection from enabling multiple ISAs.
++        set(ISA_ARGS -DEMBREE_ISA_AVX=OFF
++                     -DEMBREE_ISA_AVX2=OFF
++                     -DEMBREE_ISA_AVX512=OFF
++                     -DEMBREE_ISA_SSE2=OFF
++                     -DEMBREE_ISA_SSE42=OFF
++                     -DEMBREE_ISA_NEON=ON
++                     -DEMBREE_ISA_NEON2X=OFF
+         )
+-        set(ISA_LIBS embree_avx2)
+-        set(ISA_BUILD_BYPRODUCTS "<INSTALL_DIR>/${Open3D_INSTALL_LIB_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}embree_avx2${CMAKE_STATIC_LIBRARY_SUFFIX}")
++        set(ISA_LIBS "")
++        set(ISA_BUILD_BYPRODUCTS "")
+     else()
+         # With AppleClang we can select only 1 ISA.
+         set(ISA_ARGS -DEMBREE_ISA_AVX=OFF
+diff --git a/3rdparty/find_dependencies.cmake b/3rdparty/find_dependencies.cmake
+index 13f6501c8..f54c14abe 100644
+--- a/3rdparty/find_dependencies.cmake
++++ b/3rdparty/find_dependencies.cmake
+@@ -190,6 +190,17 @@ set(ExternalProject_CMAKE_ARGS_hidden
+     -DCMAKE_VISIBILITY_INLINES_HIDDEN=ON
+     )
+ 
++# Ensure ExternalProjects inherit CMAKE_OSX_ARCHITECTURES on macOS
++# This is critical for building dependencies like uvatlas for the correct architecture
++if(APPLE AND CMAKE_OSX_ARCHITECTURES)
++    list(APPEND ExternalProject_CMAKE_ARGS
++        -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
++    )
++    list(APPEND ExternalProject_CMAKE_ARGS_hidden
++        -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
++    )
++endif()
++
+ # open3d_pkg_config_3rdparty_library(name ...)
+ #
+ # Creates an interface library for a pkg-config dependency.
+@@ -867,16 +878,21 @@ if(USE_SYSTEM_CURL)
+         set(USE_SYSTEM_CURL OFF)
+     endif()
+ endif()
+-if(NOT USE_SYSTEM_CURL)
+-    if(USE_SYSTEM_OPENSSL)
+-        open3d_find_package_3rdparty_library(3rdparty_openssl
+-            PACKAGE OpenSSL
+-            TARGETS OpenSSL::Crypto
+-        )
+-        if(NOT 3rdparty_openssl_FOUND)
+-            set(USE_SYSTEM_OPENSSL OFF)
+-        endif()
++# Always search for system OpenSSL when USE_SYSTEM_OPENSSL=ON, regardless of USE_SYSTEM_CURL
++# This is needed because the utility library uses OpenSSL MD5 functions directly
++if(USE_SYSTEM_OPENSSL)
++    open3d_find_package_3rdparty_library(3rdparty_openssl
++        PACKAGE OpenSSL
++        TARGETS OpenSSL::Crypto
++    )
++    if(3rdparty_openssl_FOUND)
++        # Add OpenSSL to the 3rd party targets list so it gets linked to utility library
++        list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_CUSTOM Open3D::3rdparty_openssl)
++    else()
++        set(USE_SYSTEM_OPENSSL OFF)
+     endif()
++endif()
++if(NOT USE_SYSTEM_CURL)
+     if(NOT USE_SYSTEM_OPENSSL)
+         # BoringSSL
+         include(${Open3D_3RDPARTY_DIR}/boringssl/boringssl.cmake)
+@@ -1429,6 +1445,33 @@ if(USE_SYSTEM_ZEROMQ)
+     open3d_pkg_config_3rdparty_library(3rdparty_zeromq SEARCH_ARGS libzmq)
+     if(NOT 3rdparty_zeromq_FOUND)
+         set(USE_USE_SYSTEM_ZEROMQ OFF)
++    else()
++        # Also find cppzmq headers (zmq.hpp) - required for C++ bindings
++        if(PKGCONFIG_FOUND)
++            pkg_check_modules(CPPZMQ cppzmq)
++        endif()
++        if(CPPZMQ_FOUND)
++            # Add cppzmq include directories to the zeromq target
++            # Use 3rdparty_zeromq (the actual target) not Open3D::3rdparty_zeromq (the alias)
++            target_include_directories(3rdparty_zeromq SYSTEM INTERFACE ${CPPZMQ_INCLUDE_DIRS})
++        else()
++            # Fallback: try to find cppzmq using find_path
++            find_path(CPPZMQ_INCLUDE_DIR zmq.hpp
++                PATHS
++                    ${CMAKE_PREFIX_PATH}
++                    ENV CMAKE_PREFIX_PATH
++                    /opt/homebrew/include
++                    /home/linuxbrew/.linuxbrew/include
++                    /usr/local/include
++                    /usr/include
++                PATH_SUFFIXES
++                    cppzmq
++            )
++            if(CPPZMQ_INCLUDE_DIR)
++                # Use 3rdparty_zeromq (the actual target) not Open3D::3rdparty_zeromq (the alias)
++                target_include_directories(3rdparty_zeromq SYSTEM INTERFACE ${CPPZMQ_INCLUDE_DIR})
++            endif()
++        endif()
+     endif()
+ endif()
+ if(NOT USE_SYSTEM_ZEROMQ)
 diff --git a/3rdparty/possionrecon/possionrecon.cmake b/3rdparty/possionrecon/possionrecon.cmake
-index ef5f87f94..f1f37fa1e 100644
+index ef5f87f94..48e9e86d1 100644
 --- a/3rdparty/possionrecon/possionrecon.cmake
 +++ b/3rdparty/possionrecon/possionrecon.cmake
 @@ -8,6 +8,10 @@ ExternalProject_Add(
@@ -9,19 +123,20 @@ index ef5f87f94..f1f37fa1e 100644
 +    PATCH_COMMAND ${CMAKE_COMMAND} -E echo "Replacing SparseMatrix.inl..." &&
 +                   ${CMAKE_COMMAND} -E copy
 +                     ${CMAKE_SOURCE_DIR}/patches/ext_poisson/SparseMatrix.inl
-+                     ${CMAKE_BINARY_DIR}/poisson/src/ext_poisson/PoissonRecon/Src/SparseMatrix.inl    
++                     ${CMAKE_BINARY_DIR}/poisson/src/ext_poisson/PoissonRecon/Src/SparseMatrix.inl
      CONFIGURE_COMMAND ""
      BUILD_COMMAND ""
      INSTALL_COMMAND ""
 diff --git a/cpp/pybind/CMakeLists.txt b/cpp/pybind/CMakeLists.txt
-index a6c66fdc8..847f86fe8 100644
+index a6c66fdc8..15a3eac64 100644
 --- a/cpp/pybind/CMakeLists.txt
 +++ b/cpp/pybind/CMakeLists.txt
-@@ -46,11 +46,9 @@ target_link_libraries(pybind PRIVATE Open3D::Open3D)
+@@ -46,11 +46,10 @@ target_link_libraries(pybind PRIVATE Open3D::Open3D)
  
  if (WIN32)
      target_link_options(pybind PUBLIC "/force:multiple")
 -    # TODO(Sameer): Only export PyInit_pybind, open3d_core_cuda_device_count
++    # TODO(Sameer): Only export PyInit_pybind
  elseif (APPLE)
      file(GENERATE OUTPUT pybind.map CONTENT
          [=[_PyInit_pybind
@@ -29,9 +144,17 @@ index a6c66fdc8..847f86fe8 100644
          ]=])
      target_link_options(pybind PRIVATE $<$<CONFIG:Release>:
          -Wl,-exported_symbols_list
+@@ -60,7 +59,6 @@ elseif (UNIX)   # Linux
+         [=[{
+     global:
+         PyInit_pybind;
+-        open3d_core_cuda_device_count;
+     local:
+         *;
+ };]=])
 diff --git a/patches/ext_poisson/SparseMatrix.inl b/patches/ext_poisson/SparseMatrix.inl
 new file mode 100644
-index 000000000..a2c14d97c
+index 000000000..3a94688d6
 --- /dev/null
 +++ b/patches/ext_poisson/SparseMatrix.inl
 @@ -0,0 +1,660 @@
@@ -695,3 +818,4 @@ index 000000000..a2c14d97c
 +
 +template< class T , class IndexType , size_t MaxRowSize >
 +SparseMatrix< T , IndexType , MaxRowSize > SparseMatrix< T , IndexType , MaxRowSize >::operator / ( T s ) const { return (*this) * ( (T)1. / s ); }
+\ No newline at end of file
