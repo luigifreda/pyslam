@@ -2,6 +2,7 @@
 * This file is part of PYSLAM
 *
 * Copyright (C) 2025-present David Morilla-Cabello <davidmorillacabello at gmail dot com>
+* Copyright (C) 2025-present Luigi Freda <luigi dot freda at gmail dot com>
 *
 * PYSLAM is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -33,6 +34,9 @@ class SemanticFusionMehtods(SerializableEnum):
 
 
 def count_labels(labels):
+    """
+    Count the labels and return the label with the highest count.
+    """
     unique_labels = np.unique(labels)
     label_count = np.zeros(len(unique_labels))
     for i, unique_label in enumerate(unique_labels):
@@ -41,6 +45,17 @@ def count_labels(labels):
 
 
 def bayesian_fusion(probs):
+    """
+    Bayesian fusion of probability vectors.
+    https://en.wikipedia.org/wiki/Bayesian_inference#Bayesian_inference_for_parameter_estimation
+    Uses the following formula:
+    P(θ|D) = P(D|θ) * P(θ) / P(D)
+    where:
+    - P(θ|D) is the posterior probability of the parameter θ given the data D
+    - P(D|θ) is the likelihood of the data D given the parameter θ
+    - P(θ) is the prior probability of the parameter θ
+    - P(D) is the marginal likelihood of the data D
+    """
     num_classes = probs[0].shape[-1]
     prior = np.ones(num_classes) / num_classes
     posterior = prior
@@ -52,4 +67,7 @@ def bayesian_fusion(probs):
 
 
 def average_fusion(features):
+    """
+    Average fusion of features.
+    """
     return np.mean(features, axis=0)

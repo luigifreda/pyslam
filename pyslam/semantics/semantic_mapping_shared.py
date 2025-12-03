@@ -20,7 +20,7 @@
 import numpy as np
 import os
 import sys
-
+from pyslam.utilities.utils_sys import Printer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -51,3 +51,14 @@ class SemanticMappingShared:
         SemanticMappingShared.sem_des_to_rgb = semantic_mapping.sem_des_to_rgb
         SemanticMappingShared.sem_img_to_rgb = semantic_mapping.sem_img_to_rgb
         SemanticMappingShared.get_semantic_weight = semantic_mapping.get_semantic_weight
+        # Initialize the C++ module with the semantic mapping info
+        SemanticMappingShared.init_cpp_module(semantic_mapping)
+
+    @staticmethod
+    def init_cpp_module(semantic_mapping):
+        try:
+            from pyslam.slam.cpp import cpp_core
+
+            cpp_core.MapPoint.semantic_feature_type = semantic_mapping.semantic_feature_type
+        except Exception as e:
+            Printer.orange(f"WARNING: SemanticMappingShared: cannot set cpp_core: {e}")

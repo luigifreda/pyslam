@@ -42,7 +42,12 @@ class MPlotFigure:
     # actually show the figures
     @staticmethod
     def show():
-        plt.show()
+        # Use non-blocking show
+        plt.show(block=False)
+
+        # Wait for user input to close
+        input("Press Enter to close all windows and exit...")
+        plt.close("all")
 
     # make it full screen
     def full_screen(self):

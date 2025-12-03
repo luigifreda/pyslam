@@ -86,27 +86,42 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 add_subdirectory(pybind11)
 
-pybind11_add_module(pyslam_utils utils_module.cpp utils.cpp)
+
+include_directories(casters)
+
+pybind11_add_module(pyslam_utils 
+utils/utils_module.cpp 
+utils/utils.cpp)
 target_link_libraries(pyslam_utils PRIVATE
     ${OpenCV_LIBS}    
 )
 
-pybind11_add_module(sim3solver sim3solver_module.cpp Sim3Solver.cpp Sim3PointRegistrationSolver.cpp Random.cpp)
+pybind11_add_module(sim3solver 
+solvers/sim3solver_module.cpp 
+solvers/Sim3Solver.cpp 
+solvers/Sim3PointRegistrationSolver.cpp 
+solvers/Random.cpp)
 target_link_libraries(sim3solver PRIVATE
     ${OpenCV_LIBS}
 )
 
-pybind11_add_module(pnpsolver pnpsolver_module.cpp PnPsolver.cpp MLPnPsolver.cpp Random.cpp)
+pybind11_add_module(pnpsolver 
+solvers/pnpsolver_module.cpp 
+solvers/PnPsolver.cpp 
+solvers/MLPnPsolver.cpp 
+solvers/Random.cpp)
 target_link_libraries(pnpsolver PRIVATE
     ${OpenCV_LIBS}
 )
 
-pybind11_add_module(glutils glutils_module.cpp)
+pybind11_add_module(glutils 
+glutils/glutils_module.cpp)
 target_link_libraries(glutils PRIVATE
     ${OPENGL_LIBRARIES}    
 )
 
-pybind11_add_module(trajectory_tools trajectory_tools_module.cpp)
+pybind11_add_module(trajectory_tools 
+trajectory/trajectory_tools_module.cpp)
 target_link_libraries(trajectory_tools PRIVATE
 )
 

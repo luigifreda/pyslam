@@ -33,7 +33,7 @@ from pyslam.local_features.feature_types import FeatureInfo
 from pyslam.utilities.timer import TimerFps
 
 from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.slam.frame import Frame
 
 from .loop_detector_base import (
     LoopDetectorTaskType,

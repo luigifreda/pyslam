@@ -126,9 +126,16 @@ def feature_manager_factory(
     sigma_level0=kSigmaLevel0,  # sigma of the keypoint localization at level 0
     detector_type=FeatureDetectorTypes.FAST,
     descriptor_type=FeatureDescriptorTypes.ORB,
+    **kwargs,  # Collect all remaining keyword arguments
 ):
     return FeatureManager(
-        num_features, num_levels, scale_factor, sigma_level0, detector_type, descriptor_type
+        num_features,
+        num_levels,
+        scale_factor,
+        sigma_level0,
+        detector_type,
+        descriptor_type,
+        **kwargs,
     )
 
 
@@ -143,6 +150,7 @@ class FeatureManager:
         sigma_level0=kSigmaLevel0,  # sigma of the keypoint localization at level 0
         detector_type=FeatureDetectorTypes.FAST,
         descriptor_type=FeatureDescriptorTypes.ORB,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         self.detector_type = detector_type
         self._feature_detector = None
@@ -350,8 +358,9 @@ class FeatureManager:
             #
         elif self.detector_type == FeatureDetectorTypes.ORB2:
             orb2_num_levels = self.num_levels
+            deterministic = kwargs.get("deterministic", False)
             self._feature_detector = Orbslam2Feature2D(
-                self.num_features, self.scale_factor, orb2_num_levels
+                self.num_features, self.scale_factor, orb2_num_levels, deterministic
             )
             self.keypoint_filter_type = (
                 KeyPointFilterTypes.NONE

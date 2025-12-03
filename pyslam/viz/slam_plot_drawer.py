@@ -33,7 +33,7 @@ from .viewer3D import Viewer3D
 from .mplot_thread import Mplot2d
 from .qplot_thread import Qplot2d
 
-from pyslam.utilities.utils_geom import Sim3Pose
+from pyslam.slam.sim3_pose import Sim3Pose
 from pyslam.utilities.utils_geom_trajectory import TrajectoryAlignementData
 
 

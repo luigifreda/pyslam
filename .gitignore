@@ -8,8 +8,10 @@ __pycache__
 .vscode 
 !.vscode/settings.json
 
+
 tmp
 build
+roadmap
 debug.txt
 groundtruth.txt
 kitti
@@ -21,6 +23,13 @@ thirdparty/open3d
 thirdparty/gtsam
 thirdparty/gtsam_factors/lib
 thirdparty/contextdesc/pretrained 
+thirdparty/pydbow3/ORBvoc.txt
+thirdparty/protoc 
+thirdparty/g2opy/.cache
+thirdparty/pydbow2/.cache
+thirdparty/pydbow2/modules/dbow2/.cache
+thirdparty/pydbow3/.cache
+
 matches.txt 
 map.png
 .project
@@ -54,9 +63,15 @@ data/skyseg.onnx
 leftover/
 results/
 
-thirdparty/pydbow3/ORBvoc.txt
+cpp/test_opencv_casters/build
+cpp/test_opencv_casters/lib
 
-thirdparty/protoc 
+pyslam/slam/cpp/build
+pyslam/slam/cpp/build_simple
+pyslam/slam/cpp/lib
+pyslam/slam/cpp/.cache
+
+cpp/opencv_type_casters_old.h
 
 logs/*.log
 

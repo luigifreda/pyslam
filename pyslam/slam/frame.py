@@ -36,14 +36,12 @@ from pyslam.config_parameters import Parameters
 
 from pyslam.slam.camera import Camera, PinholeCamera
 from pyslam.slam.camera_pose import CameraPose
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 
 from pyslam.utilities.utils_geom import add_ones, poseRt
 from pyslam.utilities.utils_geom_triangulation import triangulate_normalized_points
 from pyslam.utilities.utils_sys import Printer
 from pyslam.utilities.utils_colors import Colors
-
-from pyslam.local_features.feature_types import FeatureInfo
-from pyslam.local_features.feature_matcher import FeatureMatcherTypes
 
 from pyslam.utilities.utils_draw import draw_feature_matches
 from pyslam.utilities.utils_features import (
@@ -53,9 +51,12 @@ from pyslam.utilities.utils_features import (
     stereo_match_subpixel_correlation,
 )
 from pyslam.utilities.utils_serialization import NumpyJson, NumpyB64Json
+from pyslam.viz.rerun_interface import Rerun
 
 import rerun as rr  # pip install rerun-sdk
-from pyslam.viz.rerun_interface import Rerun
+
+import atexit
+import traceback
 
 
 from typing import TYPE_CHECKING, Any
@@ -71,49 +72,6 @@ if TYPE_CHECKING:
 kMinDepth = 1e-2
 kDrawFeatureRadius = [r * 5 for r in range(1, 100)]
 kDrawOctaveColor = np.linspace(0, 255, 12)
-
-
-# Shared frame stuff. Normally, this information is exclusively used by SLAM.
-class FeatureTrackerShared:
-    feature_tracker: "FeatureTracker | None" = None
-    feature_manager: "FeatureManager | None" = None
-    feature_matcher: "FeatureMatcher | None" = None
-    descriptor_distance = None
-    descriptor_distances = None
-    oriented_features = False
-    feature_tracker_right: "FeatureTracker | None" = None
-
-    @staticmethod
-    def set_feature_tracker(feature_tracker, force=False):
-
-        FrameBase._id = 0  # reset the frame counter
-
-        if not force and FeatureTrackerShared.feature_tracker is not None:
-            raise Exception("FeatureTrackerShared: Tracker is already set!")
-        FeatureTrackerShared.feature_tracker = feature_tracker
-        FeatureTrackerShared.feature_manager = feature_tracker.feature_manager
-        FeatureTrackerShared.feature_matcher = feature_tracker.matcher
-        FeatureTrackerShared.descriptor_distance = (
-            feature_tracker.feature_manager.descriptor_distance
-        )
-        FeatureTrackerShared.descriptor_distances = (
-            feature_tracker.feature_manager.descriptor_distances
-        )
-        FeatureTrackerShared.oriented_features = feature_tracker.feature_manager.oriented_features
-
-        # for the following guys we need to store the images since they need them at each matching step
-        if FeatureTrackerShared.feature_matcher is not None and (
-            FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LIGHTGLUE
-            or FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.XFEAT
-            or FeatureTrackerShared.feature_matcher.matcher_type == FeatureMatcherTypes.LOFTR
-        ):
-            Frame.is_store_imgs = True
-
-    @staticmethod
-    def set_feature_tracker_right(feature_tracker, force=False):
-        if not force and FeatureTrackerShared.feature_tracker_right is not None:
-            raise Exception("FeatureTrackerShared: Tracker-right is already set!")
-        FeatureTrackerShared.feature_tracker_right = feature_tracker
 
 
 # for parallel stereo processing
@@ -133,10 +91,10 @@ def detect_and_compute(img, left=True):
 # - checking points visibility
 class FrameBase(object):
     _id = 0  # shared frame counter
-    _id_lock = RLock()
+    _id_lock = Lock()
 
     def __init__(self, camera: Camera, pose=None, id=None, timestamp=None, img_id=None):
-        self._lock_pose = RLock()
+        self._lock_pose = Lock()
         # frame camera info
         self.camera: Camera = camera
         # self._pose is a CameraPose() representing Tcw (pc = Tcw * pw)
@@ -164,16 +122,16 @@ class FrameBase(object):
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
-        # Remove the RLock from the state (don't pickle it)
+        # Remove the Lock from the state (don't pickle it)
         if "_lock_pose" in state:
             del state["_lock_pose"]
         return state
 
     def __setstate__(self, state):
-        # Restore the state (without 'RLock' initially)
+        # Restore the state (without 'Lock' initially)
         self.__dict__.update(state)
-        # Recreate the RLock after unpickling
-        self._lock_pose = RLock()
+        # Recreate the Lock after unpickling
+        self._lock_pose = Lock()
 
     def __hash__(self):
         return self.id
@@ -200,57 +158,46 @@ class FrameBase(object):
     def height(self):
         return self.camera.height
 
-    @property
     def isometry3d(self):  # pose as g2o.Isometry3d
         with self._lock_pose:
             return self._pose.isometry3d
 
-    @property
     def Tcw(self):
         with self._lock_pose:
-            return self._pose.Tcw
+            return self._pose.Tcw.copy()
 
-    @property
     def Twc(self):
         with self._lock_pose:
-            return self._pose.get_inverse_matrix()
+            return self._pose.get_inverse_matrix().copy()
 
-    @property
     def Rcw(self):
         with self._lock_pose:
-            return self._pose.Rcw
+            return self._pose.Rcw.copy()
 
-    @property
     def Rwc(self):
         with self._lock_pose:
-            return self._pose.Rwc
+            return self._pose.Rwc.copy()
 
-    @property
     def tcw(self):
         with self._lock_pose:
-            return self._pose.tcw
+            return self._pose.tcw.copy()
 
-    @property
     def Ow(self):
         with self._lock_pose:
-            return self._pose.Ow
+            return self._pose.Ow.copy()
 
-    @property
     def pose(self):
         with self._lock_pose:
-            return self._pose.Tcw
+            return self._pose.Tcw.copy()
 
-    @property
     def quaternion(self):  # g2o.Quaternion(),  quaternion_cw
         with self._lock_pose:
             return self._pose.quaternion
 
-    @property
     def orientation(self):  # g2o.Quaternion(),  quaternion_cw
         with self._lock_pose:
             return self._pose.orientation
 
-    @property
     def position(self):  # 3D vector tcw (world origin w.r.t. camera frame)
         with self._lock_pose:
             return self._pose.position
@@ -332,7 +279,7 @@ class FrameBase(object):
     def is_visible(self, map_point):
         # with self._lock_pose:    (no need, project_map_point already locks the pose)
         uv, z = self.project_map_point(map_point)
-        PO = map_point.pt - self.Ow
+        PO = map_point.pt - self.Ow()
 
         if not self.is_in_image(uv, z):
             return False, uv, z
@@ -371,7 +318,7 @@ class FrameBase(object):
         max_dists = np.ascontiguousarray(max_dists)  # shape (N,)
 
         uvs, zs = self.project_points(points, do_stereo_project)
-        POs = points - self.Ow
+        POs = points - self.Ow()
         dists = np.linalg.norm(POs, axis=-1, keepdims=True)
         POs /= dists
         cos_view = np.sum(normals * POs, axis=1)
@@ -391,6 +338,8 @@ class FrameBase(object):
 class Frame(FrameBase):
     is_store_imgs = False  # to store images when needed for debugging or processing purposes
     is_compute_median_depth = False  # to compute median depth when needed
+    feature_detect_and_compute_callback = None  # symmetric to C++
+    feature_detect_and_compute_right_callback = None  # symmetric to C++
 
     def __init__(
         self,
@@ -407,7 +356,7 @@ class Frame(FrameBase):
     ):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)
 
-        self._lock_features = RLock()
+        self._lock_features = Lock()
         self.is_keyframe = False
 
         self._kd = None  # kdtree for fast-search of keypoints
@@ -624,7 +573,7 @@ class Frame(FrameBase):
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
-        # Remove the RLock from the state (don't pickle it)
+        # Remove the Lock from the state (don't pickle it)
         if "_lock_pose" in state:  # from FrameBase
             del state["_lock_pose"]
         if "_lock_features" in state:
@@ -634,16 +583,20 @@ class Frame(FrameBase):
     def __setstate__(self, state):
         # Restore the state (without 'lock' initially)
         self.__dict__.update(state)
-        # Recreate the RLock after unpickling
-        self._lock_pose = RLock()  # from FrameBase
-        self._lock_features = RLock()
+        # Recreate the Lock after unpickling
+        self._lock_pose = Lock()  # from FrameBase
+        self._lock_features = Lock()
 
     def to_json(self):
         ret = {
             "id": int(self.id),
             "timestamp": float(self.timestamp),
             "img_id": int(self.img_id),
-            "pose": json.dumps(self.pose.astype(float).tolist()) if self.pose is not None else None,
+            "pose": (
+                json.dumps(self._pose.Tcw.astype(float).tolist())
+                if self._pose.Tcw is not None
+                else None
+            ),
             "camera": self.camera.to_json(),
             "is_keyframe": bool(self.is_keyframe),
             "median_depth": float(self.median_depth),
@@ -908,12 +861,19 @@ class Frame(FrameBase):
                 pass
 
     def remove_frame_views(self, idxs):
+        if len(idxs) == 0:
+            return
+
+        # Collect frame views to be removed while holding the lock
+        frame_views_to_remove = []
         with self._lock_features:
-            if len(idxs) == 0:
-                return
             for idx, p in zip(idxs, self.points[idxs]):
                 if p is not None:
-                    p.remove_frame_view(self, idx)
+                    frame_views_to_remove.append((p, idx))
+
+        # Make external calls outside of lock context
+        for p, idx in frame_views_to_remove:
+            p.remove_frame_view(self, idx)
 
     def reset_points(self):
         with self._lock_features:
@@ -1000,32 +960,48 @@ class Frame(FrameBase):
     def clean_outlier_map_points(self):
         num_matched_points = 0
         assert len(self.outliers) == len(self.points), "len(self.outliers) == len(self.points)"
+
+        # Collect pairs (point,idx) that define the frame views to be removed outside the lock
+        frame_views_to_remove = []
+
         with self._lock_features:
             for i, p in enumerate(self.points):
                 if p is not None:
                     if self.outliers[i]:
-                        p.remove_frame_view(self, i)
+                        frame_views_to_remove.append((p, i))  # Collect pairs (point,idx)
                         self.points[i] = None
                         self.outliers[i] = False
                         p.last_frame_id_seen = self.id
                     else:
                         if p.num_observations > 0:
                             num_matched_points += 1
+
+        # Do the external calls outside the lock
+        for p, i in frame_views_to_remove:
+            p.remove_frame_view(self, i)
+
         return num_matched_points
 
     # reset bad map points and update visibility count
     def clean_bad_map_points(self):
+        # Collect pairs (point,idx) that define the frame views to be removed outside the lock
+        frame_views_to_remove = []
+
         with self._lock_features:
             for i, p in enumerate(self.points):
                 if p is None:
                     continue
                 if p.is_bad:
-                    p.remove_frame_view(self, i)
+                    frame_views_to_remove.append((p, i))  # Collect pairs (point,idx)
                     self.points[i] = None
                     self.outliers[i] = False
                 else:
                     p.last_frame_id_seen = self.id
                     p.increase_visible()
+
+        # Do the external calls outside the lock
+        for p, i in frame_views_to_remove:
+            p.remove_frame_view(self, i)
 
     # clean VO matches
     def clean_vo_matches(self):
@@ -1208,6 +1184,7 @@ class Frame(FrameBase):
             kpsn_r = self.camera.unproject_points(
                 self.kps_r
             )  # assuming rectified stereo images and so kps_r is undistorted
+
             pts3d, mask_pts3d = triangulate_normalized_points(
                 pose_l, pose_rl, self.kpsn[good_matched_idxs1], kpsn_r[good_matched_idxs2]
             )
@@ -1372,9 +1349,9 @@ class Frame(FrameBase):
                 radius = kDrawFeatureRadius[self.octaves[kp_idx]]  # fake size for visualization
 
                 # color = Colors.myjet[self.octaves[i1]]*255
-                point = self.points[kp_idx]
+                point = self.points[kp_idx]  # MapPoint
                 if point is not None and not point.is_bad:
-                    p_frame_views = point.frame_views()
+                    p_frame_views = point.frame_views()  # list of (Frame, idx)
                     if p_frame_views:
                         # there's a corresponding 3D map point
                         color = (0, 255, 0) if len(p_frame_views) > 2 else (255, 0, 0)
@@ -1390,7 +1367,7 @@ class Frame(FrameBase):
                             if lfid is not None and lfid - 1 != f.id:
                                 # stop when there is a jump in the ids of frame observations
                                 break
-                            pts.append(tuple(map(int, np.round(f.kps[idx]))))
+                            pts.append(tuple(map(int, np.floor(f.kps[idx]))))
                             lfid = f.id
                         if len(pts) > 1:
                             color = Colors.myjet[len(pts)] * 255
@@ -1505,7 +1482,7 @@ def are_map_points_visible(
 
     uvs_2, zs_2 = frame2.camera.project(points_c2)  # project on camera 2
 
-    # PO2s = points_w - frame2.Ow
+    # PO2s = points_w - frame2.Ow()
     # dists_2 = np.linalg.norm(PO2s, axis=-1, keepdims=True)
     dists_2 = np.linalg.norm(points_c2, axis=-1, keepdims=True)
     # PO2s /= dists_2
@@ -1530,10 +1507,6 @@ def match_frames(f1: Frame, f2: Frame, ratio_test=None):
         f1.img, f2.img, f1.des, f2.des, kps1=f1.kps, kps2=f2.kps, ratio_test=ratio_test
     )
     return matching_result
-    # idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
-    # idxs1 = np.asarray(idxs1)
-    # idxs2 = np.asarray(idxs2)
-    # return idxs1, idxs2
 
 
 def compute_frame_matches_threading(

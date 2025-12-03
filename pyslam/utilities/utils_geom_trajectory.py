@@ -32,7 +32,7 @@ import trajectory_tools
 from numba import njit
 
 
-@njit
+@njit(cache=True)
 def set_rotations_from_translations(t_wi):
     num_samples = t_wi.shape[0]
     R_wi = np.zeros((num_samples, 3, 3))
@@ -43,7 +43,7 @@ def set_rotations_from_translations(t_wi):
     return R_wi
 
 
-@njit
+@njit(cache=True)
 def compute_alignment_errors(T_gt_est, filter_associations, gt_associations):
     # Ensure arrays are contiguous for optimal performance
     R = np.ascontiguousarray(T_gt_est[:3, :3])

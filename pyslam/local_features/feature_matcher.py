@@ -77,7 +77,7 @@ def feature_matcher_factory(
     matcher_type=FeatureMatcherTypes.FLANN,
     detector_type=FeatureDetectorTypes.NONE,
     descriptor_type=FeatureDescriptorTypes.NONE,
-    other_data_dict={},
+    **kwargs,  # Collect all remaining keyword arguments
 ):
     if matcher_type == FeatureMatcherTypes.BF:
         return BfFeatureMatcher(
@@ -87,6 +87,7 @@ def feature_matcher_factory(
             matcher_type=matcher_type,
             detector_type=detector_type,
             descriptor_type=descriptor_type,
+            **kwargs,
         )
     elif matcher_type == FeatureMatcherTypes.FLANN:
         return FlannFeatureMatcher(
@@ -96,6 +97,7 @@ def feature_matcher_factory(
             matcher_type=matcher_type,
             detector_type=detector_type,
             descriptor_type=descriptor_type,
+            **kwargs,
         )
     elif matcher_type == FeatureMatcherTypes.XFEAT:
         return XFeatMatcher(
@@ -105,7 +107,7 @@ def feature_matcher_factory(
             matcher_type=matcher_type,
             detector_type=detector_type,
             descriptor_type=descriptor_type,
-            other_data_dict=other_data_dict,
+            **kwargs,
         )
     elif matcher_type == FeatureMatcherTypes.LIGHTGLUE:
         return LightGlueMatcher(
@@ -746,18 +748,10 @@ class FeatureMatcher:
                         max_disparity=max_disparity,
                     )
 
-            # Change suggested here https://github.com/luigifreda/pyslam/issues/125#issuecomment-2555299806
-            if not isinstance(idxs1, np.ndarray):
-                idxs1 = np.array(idxs1, dtype=np.int32)
-            else:
-                idxs1 = idxs1.astype(np.int32)
-            if not isinstance(idxs2, np.ndarray):
-                idxs2 = np.array(idxs2, dtype=np.int32)
-            else:
-                idxs2 = idxs2.astype(np.int32)
+            idxs1 = np.asarray(idxs1, dtype=np.int32)
+            idxs2 = np.asarray(idxs2, dtype=np.int32)
             result.idxs1 = idxs1
             result.idxs2 = idxs2
-
             return result
 
 
@@ -772,6 +766,7 @@ class BfFeatureMatcher(FeatureMatcher):
         matcher_type=FeatureMatcherTypes.BF,
         detector_type=FeatureDetectorTypes.NONE,
         descriptor_type=FeatureDescriptorTypes.NONE,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             norm_type=norm_type,
@@ -799,6 +794,7 @@ class FlannFeatureMatcher(FeatureMatcher):
         matcher_type=FeatureMatcherTypes.FLANN,
         detector_type=FeatureDetectorTypes.NONE,
         descriptor_type=FeatureDescriptorTypes.NONE,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             norm_type=norm_type,
@@ -839,7 +835,7 @@ class XFeatMatcher(FeatureMatcher):
         matcher_type=FeatureMatcherTypes.XFEAT,
         detector_type=FeatureDetectorTypes.NONE,
         descriptor_type=FeatureDescriptorTypes.NONE,
-        other_data_dict={},
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             norm_type=norm_type,
@@ -853,8 +849,8 @@ class XFeatMatcher(FeatureMatcher):
         self.torch_device = device
         self.matcher = XFeat()
         self.submatcher_type = "xfeat"
-        if "submatcher_type" in other_data_dict:
-            self.submatcher_type = other_data_dict["submatcher_type"]
+        if "submatcher_type" in kwargs:
+            self.submatcher_type = kwargs["submatcher_type"]
             print(f"XFeatMatcher: submatcher_type: {self.submatcher_type}")
         self.matcher_name = "XFeatFeatureMatcher"
         Printer.green(f"matcher: {self.matcher_name}")
@@ -870,6 +866,7 @@ class LightGlueMatcher(FeatureMatcher):
         matcher_type=FeatureMatcherTypes.LIGHTGLUE,
         detector_type=FeatureDetectorTypes.SUPERPOINT,
         descriptor_type=FeatureDescriptorTypes.NONE,
+        **kwargs,  # Collect all remaining keyword arguments
     ):
         super().__init__(
             norm_type=norm_type,

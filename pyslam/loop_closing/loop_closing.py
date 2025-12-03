@@ -29,7 +29,7 @@ from pyslam.utilities.utils_mp import MultiprocessingManager
 from pyslam.utilities.utils_img import LoopCandidateImgs
 from pyslam.utilities.utils_features import transform_float_to_binary_descriptor
 from pyslam.utilities.utils_data import empty_queue
-from pyslam.utilities.utils_geom import Sim3Pose
+from pyslam.slam.sim3_pose import Sim3Pose
 from pyslam.utilities.utils_draw import draw_feature_matches
 from pyslam.utilities.timer import TimerFps
 
@@ -38,9 +38,9 @@ from pyslam.viz.qimage_thread import QimageViewer
 from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
 
 from pyslam.slam.keyframe import KeyFrame
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.slam.frame import (
     Frame,
-    FeatureTrackerShared,
     compute_frame_matches,
     prepare_input_data_for_sim3solver,
     prepare_input_data_for_pnpsolver,
@@ -256,12 +256,14 @@ class LoopGeometryChecker:
                 solver_input_data.fix_scale = not self.is_monocular
 
                 solver_input_data.K1 = current_keyframe.camera.K
-                solver_input_data.Rcw1 = current_keyframe.Rcw
-                solver_input_data.tcw1 = current_keyframe.tcw
+                current_keyframe_Tcw = current_keyframe.Tcw()
+                solver_input_data.Rcw1 = current_keyframe_Tcw[:3, :3]
+                solver_input_data.tcw1 = current_keyframe_Tcw[:3, 3]
 
                 solver_input_data.K2 = kf.camera.K
-                solver_input_data.Rcw2 = kf.Rcw
-                solver_input_data.tcw2 = kf.tcw
+                kf_Tcw = kf.Tcw()
+                solver_input_data.Rcw2 = kf_Tcw[:3, :3]
+                solver_input_data.tcw2 = kf_Tcw[:3, 3]
 
                 solver_input_data.points_3d_w1 = points_3d_w1
                 solver_input_data.points_3d_w2 = points_3d_w2
@@ -350,7 +352,7 @@ class LoopGeometryChecker:
                         self.success_loop_kf_sim3_pose = Sim3Pose(
                             R12, t12, scale12
                         ) @ Sim3Pose().from_se3_matrix(
-                            kf.Tcw
+                            kf.Tcw()
                         )  # Sc1w = Sc1c2 * Tc2w
                         self.success_map_point_matches = map_point_matches12  # success_map_point_matches[i] is the i-th map point matched in success_loop_kf or None
                         LoopClosing.print(
@@ -532,13 +534,13 @@ class LoopCorrector:
             )
 
             LoopClosing.print(f"LoopCorrector: updating the map...")
-            Twc = current_keyframe.Twc
+            Twc = current_keyframe.Twc()
             Scw = self.loop_geometry_checker.success_loop_kf_sim3_pose
 
             with self.map.update_lock:
                 # Iterate over all current connected keyframes and propagate the sim3 correction obtained on current keyframe
                 for connected_kfi in current_connected_keyframes:
-                    Tiw = connected_kfi.Tcw
+                    Tiw = connected_kfi.Tcw()
 
                     if connected_kfi != current_keyframe:
                         Tic = Tiw @ Twc
@@ -633,6 +635,11 @@ class LoopCorrector:
                         loop_connections[kfi].remove(other_kf)
                     except:
                         pass  # not found
+
+            # For C++ compatibility
+            loop_connections = {
+                kf: list(connections) for kf, connections in loop_connections.items()
+            }
 
             LoopClosing.print(f"LoopCorrector: optimizing pose graph")
             loop_keyframe = self.loop_geometry_checker.success_loop_kf

@@ -23,7 +23,7 @@ import numpy as np
 from threading import RLock, Lock, Thread
 
 from pyslam.utilities.utils_geom import poseRt, add_ones, normalize_vector, normalize_vector2
-from pyslam.slam.frame import Frame, FeatureTrackerShared
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.utilities.utils_sys import Printer
 from pyslam.config_parameters import Parameters
 
@@ -33,12 +33,14 @@ from pyslam.semantics.semantic_serialization import serialize_semantic_des, dese
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .keyframe import KeyFrame
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.frame import Frame
+    from pyslam.slam.map import Map
 
 
 class MapPointBase(object):
     _id = 0  # shared point counter
-    _id_lock = RLock()  # shared lock for id
+    _id_lock = Lock()  # shared lock for id
 
     def __init__(self, id=None):
         if id is not None:
@@ -48,10 +50,12 @@ class MapPointBase(object):
                 self.id = MapPointBase._id
                 MapPointBase._id += 1
 
-        self._lock_pos = RLock()
-        self._lock_features = RLock()
+        self._lock_pos = Lock()
+        self._lock_features = Lock()
 
-        self.map = None  # this is used by the object for automatically removing itself from the map when it becomes bad (see below)
+        self.map: Map | None = (
+            None  # this is used by the object for automatically removing itself from the map when it becomes bad (see below)
+        )
 
         self._observations = dict()  # keyframe observations (used by mapping methods)
         # for kf, kidx in self._observations.items(): kf.points[kidx] = this point
@@ -146,46 +150,42 @@ class MapPointBase(object):
                 return -1
 
     def add_observation_no_lock_(self, keyframe: "KeyFrame", idx):
+        success = False
         if keyframe not in self._observations:
-            keyframe.set_point_match(self, idx)  # add point association in keyframe
             self._observations[keyframe] = idx
             if keyframe.kps_ur is not None and keyframe.kps_ur[idx] >= 0:
                 self._num_observations += 2
             else:
                 self._num_observations += 1
-            return True
+            success = True
         # elif self._observations[keyframe] != idx:     # if the keyframe is already there but it is incoherent then fix it!
         #    self._observations[keyframe] = idx
-        #    return True
-        else:
-            return False
+        if success:
+            keyframe.set_point_match(self, idx)
+        return success
 
     def add_observation(self, keyframe: "KeyFrame", idx):
         assert keyframe.is_keyframe
         with self._lock_features:
-            return self.add_observation_no_lock_(keyframe, idx)
-
-    # return (was the observation added?, self.is_bad)
-    def add_observation_if_not_bad(self, keyframe: "KeyFrame", idx):
-        assert keyframe.is_keyframe
-        with self._lock_features:
-            if self._is_bad:
-                return (False, self._is_bad)  # we didn't add the observation
-            else:
-                return (self.add_observation_no_lock_(keyframe, idx), self._is_bad)
+            success = self.add_observation_no_lock_(keyframe, idx)
+        return success
 
     def remove_observation(self, keyframe: "KeyFrame", idx=None):
         assert keyframe.is_keyframe
+        map_remove_point = False
+        kf_remove_point_match = False
+        kf_remove_point = False
+
         with self._lock_features:
             # remove point association
             if idx is not None:
                 if __debug__:
                     assert self == keyframe.get_point_match(idx)
-                keyframe.remove_point_match(idx)
+                kf_remove_point_match = True
                 if __debug__:
                     assert not self in keyframe.points  # checking there are no multiple instances
             else:
-                keyframe.remove_point(self)
+                kf_remove_point = True
             try:
                 del self._observations[keyframe]
                 if keyframe.kps_ur is not None and keyframe.kps_ur[idx] >= 0:
@@ -197,9 +197,17 @@ class MapPointBase(object):
                     self.kf_ref = list(self._observations.keys())[0]
                 # if bad remove it from pyslam.slam.map
                 if self._is_bad and self.map is not None:
-                    self.map.remove_point(self)
+                    map_remove_point = True
             except KeyError:
                 pass
+
+        # Make external calls outside of lock context
+        if kf_remove_point_match:
+            keyframe.remove_point_match(idx)
+        if kf_remove_point:
+            keyframe.remove_point(self)
+        if map_remove_point:
+            self.map.remove_point(self)
 
     # return a copy of the dictionary’s list of (key, value) pairs
     def frame_views(self):
@@ -232,33 +240,47 @@ class MapPointBase(object):
             if (
                 frame not in self._frame_views
             ):  # do not allow a point to be matched to diffent keypoints of the same frame
-                frame.set_point_match(self, idx)
                 self._frame_views[frame] = idx
-                return True
+                success = True
             # elif self._frame_views[keyframe] != idx:     # if the frame is already there but it is incoherent then fix it!
             #   self._frame_views[keyframe] = idx
             #   return True
             else:
-                return False
+                success = False
+
+        if success:
+            # Call external method outside of lock context
+            frame.set_point_match(self, idx)
+
+        return success
 
     def remove_frame_view(self, frame: "Frame", idx=None):
         assert not frame.is_keyframe
+        frame_remove_point_match = False
+        frame_remove_point = False
+
         with self._lock_features:
             # remove point from frame
             if idx is not None:
                 if __debug__:
                     assert self == frame.get_point_match(idx)
-                frame.remove_point_match(idx)
+                frame_remove_point_match = True
                 if __debug__:
                     assert (
                         not self in frame.get_points()
                     )  # checking there are no multiple instances
             else:
-                frame.remove_point(self)  # remove all match instances
+                frame_remove_point = True
             try:
                 del self._frame_views[frame]
             except KeyError:
                 pass
+
+        # Make external calls outside of lock context
+        if frame_remove_point_match:
+            frame.remove_point_match(idx)
+        if frame_remove_point:
+            frame.remove_point(self)
 
     @property
     def is_bad(self):
@@ -299,8 +321,12 @@ class MapPointBase(object):
 
 # A Point is a 3-D point in the world
 # Each Point is observed in multiple Frames
+# NOTE: LOCK ORDERING RULE (to prevent deadlocks), always acquire locks in this order!
+# 1. global_lock (if needed)
+# 2. _lock_features
+# 3. _lock_pos
 class MapPoint(MapPointBase):
-    global_lock = RLock()  # shared global lock for blocking point position update
+    global_lock = Lock()  # shared global lock for blocking point position update
 
     def __init__(self, position, color, keyframe=None, idxf=None, id=None):
         super().__init__(id)
@@ -320,7 +346,7 @@ class MapPoint(MapPointBase):
             if keyframe.is_keyframe:
                 self.first_kid = keyframe.kid
             # update normal and depth infos
-            po = self._pt - self.kf_ref.Ow
+            po = self._pt - self.kf_ref.Ow()
             self.normal, dist = normalize_vector(po)
             if idxf is not None:
                 self.des = keyframe.des[idxf]
@@ -358,8 +384,8 @@ class MapPoint(MapPointBase):
     def __setstate__(self, state):
         # Restore the state (without 'RLock' initially)
         self.__dict__.update(state)
-        self._lock_pos = RLock()
-        self._lock_features = RLock()
+        self._lock_pos = Lock()
+        self._lock_features = Lock()
 
     def to_json(self):
         return {
@@ -608,7 +634,7 @@ class MapPoint(MapPointBase):
             return
 
         normals = np.array(
-            [normalize_vector2(position - kf.Ow) for kf, idx in observations]
+            [normalize_vector2(position - kf.Ow()) for kf, idx in observations]
         ).reshape(-1, 3)
         normal = normalize_vector2(np.mean(normals, axis=0))
         # print('normals: ', normals)
@@ -616,7 +642,7 @@ class MapPoint(MapPointBase):
 
         level = kf_ref.octaves[idx_ref]
         level_scale_factor = FeatureTrackerShared.feature_manager.scale_factors[level]
-        dist = np.linalg.norm(position - kf_ref.Ow)
+        dist = np.linalg.norm(position - kf_ref.Ow())
 
         with self._lock_pos:
             self._max_distance = dist * level_scale_factor
@@ -672,7 +698,9 @@ class MapPoint(MapPointBase):
                 skip = True
         if skip or len(observations) == 0:
             return
-        semantics = [kf.kps_sem[idx] for kf, idx in observations if kf.kps_sem is not None]
+        semantics = [
+            kf.kps_sem[idx] for kf, idx in observations if not kf.is_bad and kf.kps_sem is not None
+        ]
         if len(semantics) >= 2:
             fused_semantics = semantic_fusion_method(semantics)
             with self._lock_features:

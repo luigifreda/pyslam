@@ -20,7 +20,7 @@ This page offers a high-level overview of the system, featuring diagrams that il
 You may find an updated version of the paper [here](./docs/tex/document.pdf).
 
 **presentation**: [_"pySLAM and slamplay: Modular, Extensible SLAM Tools for Rapid Prototyping and Integration"_](https://docs.google.com/presentation/d/e/2PACX-1vSHoOR5-oiL7yDkowOe3mCbPvq4-qZzmWWZFswvCEiSMLkyUQoXgoODiG4GZL8pMpKTqqJUZ3auk0T-/pub?start=false&loop=false&delayms=3000), *Luigi Freda*    
-RSS 2025 Workshop: _Unifying Visual SLAM_. The recorded talk is available [here](https://www.youtube.com/watch?v=OsS4XzVDSj4).
+RSS 2025 Workshop: _Unifying Visual SLAM_. The **recorded talk** is available [here](https://www.youtube.com/watch?v=OsS4XzVDSj4).
 
 ---
 

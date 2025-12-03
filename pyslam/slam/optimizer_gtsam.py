@@ -35,10 +35,11 @@ import g2o
 
 from pyslam.config_parameters import Parameters
 from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_geom import poseRt, inv_T, Sim3Pose
+from pyslam.utilities.utils_geom import poseRt, inv_T
+from pyslam.slam.sim3_pose import Sim3Pose
 from pyslam.utilities.utils_mp import MultiprocessingManager
 
-from .frame import FeatureTrackerShared
+from .feature_tracker_shared import FeatureTrackerShared
 from .map_point import MapPoint
 from .keyframe import KeyFrame
 
@@ -91,7 +92,7 @@ def sync_flag_fun(abort_flag, mp_abort_flag, print=print):
 def bundle_adjustment(
     keyframes,
     points,
-    local_window,
+    local_window_size,
     fixed_points=False,
     rounds=10,
     loop_kf_id=0,
@@ -102,10 +103,16 @@ def bundle_adjustment(
     verbose=False,
     print=print,
 ):
-    if local_window is None:
+    """
+    Optimize pixel reprojection error, bundle adjustment.
+    Returns:
+    - mean_squared_error
+    - result_dict: filled dictionary with the updates of the keyframes and points if provided in the input
+    """
+    if local_window_size is None:
         local_frames = keyframes
     else:
-        local_frames = keyframes[-local_window:]
+        local_frames = keyframes[-local_window_size:]
 
     robust_rounds = rounds // 2 if use_robust_kernel else 0
     final_rounds = rounds - robust_rounds
@@ -150,7 +157,8 @@ def bundle_adjustment(
         pose_key = X(kf.kid)
         keyframe_keys[kf] = pose_key
 
-        pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc.copy()), gtsam.Point3(*kf.Ow.copy()))
+        kf_Twc = kf.Twc()
+        pose = gtsam.Pose3(gtsam.Rot3(kf_Twc[:3, :3]), gtsam.Point3(*kf_Twc[:3, 3]))
         initial_estimates.insert(pose_key, pose)
 
         if kf.kid == 0 or kf not in local_frames:
@@ -185,10 +193,10 @@ def bundle_adjustment(
         for kf, idx in p.observations():
             # if kf.is_bad:  # redundant since we check kf is in graph_keyframes (selected as non-bad)
             #     continue
-            if kf not in keyframe_keys:
+            try:
+                pose_key = keyframe_keys[kf]
+            except KeyError:
                 continue
-
-            pose_key = keyframe_keys[kf]
 
             kf_kpsu_idx = kf.kpsu[idx]
             kf_kps_ur_idx = kf.kps_ur[idx] if kf.kps_ur is not None else -1
@@ -385,7 +393,7 @@ def global_bundle_adjustment(
     mean_squared_error, result_dict = bundle_adjustment(
         keyframes,
         points,
-        local_window=None,
+        local_window_size=None,
         fixed_points=fixed_points,
         rounds=rounds,
         loop_kf_id=loop_kf_id,
@@ -638,7 +646,7 @@ class PoseOptimizerGTSAM:
         self.frame = frame
         self.graph = gtsam.NonlinearFactorGraph()
         self.initial = gtsam.Values()
-        self.factor_tuples = {}
+        self.factor_tuples = []
         self.num_factors = 0
         self.use_robust_factors = use_robust_factors
 
@@ -660,9 +668,8 @@ class PoseOptimizerGTSAM:
             self.add_stereo_factor = resectioning_stereo_factor_py
 
     def add_pose_node(self):
-        pose_initial = gtsam.Pose3(
-            gtsam.Rot3(self.frame.Rwc.copy()), gtsam.Point3(*self.frame.Ow.copy())
-        )
+        frame_Twc = self.frame.Twc()
+        pose_initial = gtsam.Pose3(gtsam.Rot3(frame_Twc[:3, :3]), gtsam.Point3(*frame_Twc[:3, 3]))
         self.initial.insert(X(0), pose_initial)
         # NOTE: there is no need to set a prior here
         # noise_prior = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
@@ -715,7 +722,7 @@ class PoseOptimizerGTSAM:
                     noise_model.set_robust_model_active(False)
 
                 self.graph.add(factor)
-                self.factor_tuples[p] = (factor, noise_model, idx, is_stereo_obs, host_factor)
+                self.factor_tuples.append((factor, noise_model, idx, is_stereo_obs, host_factor))
                 self.num_factors += 1
 
     def optimize(self, rounds=10, verbose=False):
@@ -777,13 +784,13 @@ class PoseOptimizerGTSAM:
             # pose_wc = np.array(result.atPose3(X(0)).matrix()) # Twc
             # pose_cw = inv_T(pose_wc)
 
-            for p, (
+            for (
                 factor,
                 noise_model,
                 idx,
                 is_stereo_obs,
                 host_factor,
-            ) in self.factor_tuples.items():
+            ) in self.factor_tuples:
                 host_factor.set_weight(
                     1.0
                 )  # reset weight to enable back the factor and its correct error computation
@@ -860,7 +867,7 @@ class PoseOptimizerGTSAM_Tcw:
         self.frame = frame
         self.graph = gtsam.NonlinearFactorGraph()
         self.initial = gtsam.Values()
-        self.factor_tuples = {}
+        self.factor_tuples = []
         self.num_factors = 0
         self.use_robust_factors = use_robust_factors
 
@@ -882,9 +889,8 @@ class PoseOptimizerGTSAM_Tcw:
         #     self.add_stereo_factor  = resectioning_stereo_factor_py
 
     def add_pose_node(self):
-        pose_initial = gtsam.Pose3(
-            gtsam.Rot3(self.frame.Rcw.copy()), gtsam.Point3(*self.frame.tcw.copy())
-        )
+        frame_Tcw = self.frame.Tcw()
+        pose_initial = gtsam.Pose3(gtsam.Rot3(frame_Tcw[:3, :3]), gtsam.Point3(*frame_Tcw[:3, 3]))
         self.initial.insert(X(0), pose_initial)
         # NOTE: there is no need to set a prior here
         # noise_prior = gtsam.noiseModel.Isotropic.Sigma(6, 0.1)
@@ -937,7 +943,7 @@ class PoseOptimizerGTSAM_Tcw:
                     noise_model.set_robust_model_active(False)
 
                 self.graph.add(factor)
-                self.factor_tuples[p] = (factor, noise_model, idx, is_stereo_obs, host_factor)
+                self.factor_tuples.append((factor, noise_model, idx, is_stereo_obs, host_factor))
                 self.num_factors += 1
 
     def optimize(self, rounds=10, verbose=False):
@@ -999,13 +1005,13 @@ class PoseOptimizerGTSAM_Tcw:
             # pose_wc = np.array(result.atPose3(X(0)).matrix()) # Twc
             # pose_cw = inv_T(pose_wc)
 
-            for p, (
+            for (
                 factor,
                 noise_model,
                 idx,
                 is_stereo_obs,
                 host_factor,
-            ) in self.factor_tuples.items():
+            ) in self.factor_tuples:
                 host_factor.set_weight(
                     1.0
                 )  # reset weight to enable back the factor and its correct error computation
@@ -1121,8 +1127,8 @@ def local_bundle_adjustment(
     for kf in good_keyframes:
         pose_key = X(kf.kid)
         keyframe_keys[kf] = pose_key
-
-        pose = gtsam.Pose3(gtsam.Rot3(kf.Rwc.copy()), gtsam.Point3(*kf.Ow.copy()))
+        kf_Twc = kf.Twc()
+        pose = gtsam.Pose3(gtsam.Rot3(kf_Twc[:3, :3]), gtsam.Point3(*kf_Twc[:3, 3]))
         initial_estimates.insert(pose_key, pose)
 
         if kf.kid == 0 or kf in keyframes_ref:
@@ -1154,14 +1160,14 @@ def local_bundle_adjustment(
                 )
             )
 
-        # add edges
-        good_observations = [
-            (kf, p_idx) for kf, p_idx in p.observations() if not kf.is_bad and kf in keyframe_keys
-        ]
-
         # Add reprojection factors
-        for kf, p_idx in good_observations:
-            pose_key = keyframe_keys[kf]
+        for kf, p_idx in p.observations():
+            if kf.is_bad:
+                continue
+            try:
+                pose_key = keyframe_keys[kf]
+            except KeyError:
+                continue
 
             assert kf.get_point_match(p_idx) is p
 
@@ -1551,8 +1557,10 @@ def optimize_sim3(
     cam2 = kf2.camera
     K2_mono = gtsam.Cal3_S2(cam2.fx, cam2.fy, 0, cam2.cx, cam2.cy)
 
-    R1w, t1w = kf1.Rcw.copy(), kf1.tcw.copy().reshape(3, 1)
-    R2w, t2w = kf2.Rcw.copy(), kf2.tcw.copy().reshape(3, 1)
+    kf1_Tcw = kf1.Tcw()
+    kf2_Tcw = kf2.Tcw()
+    R1w, t1w = kf1_Tcw[:3, :3], kf1_Tcw[:3, 3].reshape(3, 1)
+    R2w, t2w = kf2_Tcw[:3, :3], kf2_Tcw[:3, 3].reshape(3, 1)
 
     graph = gtsam.NonlinearFactorGraph()
     initial_estimate = gtsam.Values()
@@ -1831,7 +1839,8 @@ def optimize_essential_graph(
             corrected_sim3 = corrected_sim3_map[keyframe]
             Siw = Sim3Pose(R=corrected_sim3.R.copy(), t=corrected_sim3.t.copy(), s=corrected_sim3.s)
         except:
-            Siw = Sim3Pose(keyframe.Rcw.copy(), keyframe.tcw.copy(), 1.0)
+            kf_Tcw = keyframe.Tcw()
+            Siw = Sim3Pose(kf_Tcw[:3, :3], kf_Tcw[:3, 3], 1.0)
         vec_Scw[keyframe_id] = Siw
 
         Swi = Siw.inverse()

@@ -74,6 +74,7 @@ class Config:
         self.feature_tracker_config: dict | None = None
         self.loop_detection_config: dict | None = None
         self.semantic_mapping_config: dict | None = None
+        self.global_parameters: dict | None = None
 
         self.trajectory_saving_settings: dict = {}
 

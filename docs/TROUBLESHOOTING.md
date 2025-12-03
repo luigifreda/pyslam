@@ -8,6 +8,7 @@
   - [Bad tracking performances](#bad-tracking-performances)
   - [Errors](#errors)
     - [*Aborted (core dumped)* or *Segmentation fault (core dumped)*](#aborted-core-dumped-or-segmentation-fault-core-dumped)
+      - [Under mac](#under-mac)
     - [RED _ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts_](#red-error-pips-dependency-resolver-does-not-currently-take-into-account-all-the-packages-that-are-installed-this-behaviour-is-the-source-of-the-following-dependency-conflicts)
     - [Cannot import DelfFeature2D from pyslam.local\_features.feature\_delf](#cannot-import-delffeature2d-from-pyslamlocal_featuresfeature_delf)
     - [ModuleNotFoundError: No module named `pyslam_utils`  (`glutils` , `sim3solver`  or `trajectory_tools`) not found](#modulenotfounderror-no-module-named-pyslam_utils--glutils--sim3solver--or-trajectory_tools-not-found)
@@ -94,10 +95,9 @@ In another pySLAM [issue](https://github.com/luigifreda/pyslam/issues/193), the 
 pip install "pyarrow<19"
 ```
 
-If the problem persists, you can gather more details by running your script under gdb:
+If the problem persists, you can gather more details by running your script under `gdb`:
 ```bash
-gdb --args python main_slam.py
-(gdb) run
+gdb -ex run --args python main_slam.py
 # when it aborts:
 (gdb) bt
 ```

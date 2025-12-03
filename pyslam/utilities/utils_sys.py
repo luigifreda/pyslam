@@ -352,21 +352,43 @@ class LoggerQueue(SingletonBase):
         process_name = mp.current_process().name
         # print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopping ...")
         try:
+            # Put a sentinel value to signal shutdown to any remaining loggers
+            if hasattr(self, "log_queue") and self.log_queue:
+                try:
+                    # Try to put a sentinel value, but don't block if queue is full
+                    self.log_queue.put_nowait(None)
+                except:
+                    pass
+
+            # Stop the listener with timeout
             if hasattr(self, "listener") and self.listener:
-                self.listener.stop()  # Stop listener thread
-                self.listener = None
-                # print(f"LoggerQueue[{self.log_file}]: process: {process_name}, listener stopped.")
-            if hasattr(self, "log_queue"):
-                self.log_queue.close()  # Close the queue
-                self.log_queue.join_thread()
-                # print(f"LoggerQueue[{self.log_file}]: process: {process_name}, queue closed.")
-            if hasattr(self, "file_handler"):
-                self.file_handler.close()  # Close the file handler
-                # print(f"LoggerQueue[{self.log_file}]: process: {process_name}, file handler closed.")
+                try:
+                    self.listener.stop()
+                except Exception as e:
+                    print(f"LoggerQueue[{self.log_file}]: Error stopping listener: {e}")
+                finally:
+                    self.listener = None
+
+            # Close the queue properly
+            if hasattr(self, "log_queue") and self.log_queue:
+                try:
+                    self.log_queue.close()
+                    self.log_queue.join_thread()
+                except Exception as e:
+                    print(f"LoggerQueue[{self.log_file}]: Error closing queue: {e}")
+
+            # Close the file handler
+            if hasattr(self, "file_handler") and self.file_handler:
+                try:
+                    self.file_handler.close()
+                except Exception as e:
+                    print(f"LoggerQueue[{self.log_file}]: Error closing file handler: {e}")
+
         except Exception as e:
             print(
                 f"LoggerQueue[{self.log_file}]: process: {process_name}, Exception during stop: {e}"
             )
+
         print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopped.")
 
     def get_logger(self, name=None):
