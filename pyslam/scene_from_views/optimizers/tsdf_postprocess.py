@@ -32,7 +32,7 @@ from typing import List, Optional
 from tqdm import tqdm
 
 
-from .scene_optimizer_helpers import GeometryUtils, PointCloudUtils
+from ..helpers import GeometryUtils, PointCloudUtils
 
 
 class TSDFPostProcess:

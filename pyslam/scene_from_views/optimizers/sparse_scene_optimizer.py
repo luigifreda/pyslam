@@ -22,9 +22,10 @@ import numpy as np
 import scipy.cluster.hierarchy as sch
 
 from .scene_optimizer_base import SceneOptimizerBase
+from .scene_optimizer_config import adapt_config_for_subsample
 
 # Import all helper functions and classes from helpers module
-from .scene_optimizer_helpers import (
+from ..helpers import (
     SparseGA,
     CanonicalViewUtils,
     GraphUtils,
@@ -103,10 +104,36 @@ class SparseSceneOptimizer(SceneOptimizerBase):
 
         # Get optimizer parameters
         subsample = optimizer_kwargs.get("subsample", self.kwargs.get("subsample", 8))
-        lr1 = optimizer_kwargs.get("lr1", self.kwargs.get("lr1", 0.07))
-        niter1 = optimizer_kwargs.get("niter1", self.kwargs.get("niter1", 500))
-        lr2 = optimizer_kwargs.get("lr2", self.kwargs.get("lr2", 0.014))
-        niter2 = optimizer_kwargs.get("niter2", self.kwargs.get("niter2", 200))
+        
+        # Check if adaptive scaling is enabled (default: True)
+        adaptive_scaling = optimizer_kwargs.get(
+            "adaptive_scaling", self.kwargs.get("adaptive_scaling", True)
+        )
+        
+        # Get base parameters from config or kwargs
+        base_config = {
+            "lr1": optimizer_kwargs.get("lr1", self.kwargs.get("lr1", 0.08)),
+            "niter1": optimizer_kwargs.get("niter1", self.kwargs.get("niter1", 600)),
+            "lr2": optimizer_kwargs.get("lr2", self.kwargs.get("lr2", 0.02)),
+            "niter2": optimizer_kwargs.get("niter2", self.kwargs.get("niter2", 300)),
+        }
+        
+        # Apply adaptive scaling if enabled and subsample != 8
+        if adaptive_scaling and subsample != 8:
+            adapted_config = adapt_config_for_subsample(base_config, subsample)
+            if verbose:
+                print(f"[Sparse Scene Optimizer] Adaptive scaling enabled for subsample={subsample}")
+                print(f"  Original: lr1={base_config['lr1']:.4f}, niter1={base_config['niter1']}, "
+                      f"lr2={base_config['lr2']:.4f}, niter2={base_config['niter2']}")
+                print(f"  Adapted:  lr1={adapted_config['lr1']:.4f}, niter1={adapted_config['niter1']}, "
+                      f"lr2={adapted_config['lr2']:.4f}, niter2={adapted_config['niter2']}")
+            base_config = adapted_config
+        
+        lr1 = base_config["lr1"]
+        niter1 = base_config["niter1"]
+        lr2 = base_config["lr2"]
+        niter2 = base_config["niter2"]
+        
         matching_conf_thr = optimizer_kwargs.get(
             "matching_conf_thr", self.kwargs.get("matching_conf_thr", 5.0)
         )

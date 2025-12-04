@@ -192,7 +192,7 @@ def main():
     )
 
     # see the file pyslam/scene_from_views/scene_from_views_types.py for the available methods
-    # NOTE: VGGT requires a lot of GPU memory!
+    # NOTE: VGGT requires a decent amount of GPU memory
     parser.add_argument(
         "--method",
         type=str,
