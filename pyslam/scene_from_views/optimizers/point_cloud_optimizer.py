@@ -34,7 +34,7 @@ import cv2
 from pyslam.utilities.math_utils import signed_log1p, signed_expm1
 from pyslam.utilities.torch import to_numpy, to_cpu
 
-from .scene_optimizer_helpers import (
+from ..helpers import (
     EdgeUtils,
     ParameterUtils,
     ImageUtils,
@@ -490,12 +490,12 @@ class BasePointCloudOptimizer(nn.Module):
             pass
         elif init == "msp" or init == "mst":
             # Import here to avoid circular dependency (helpers imports BasePointCloudOptimizer)
-            from .scene_optimizer_helpers import PoseInitialization
+            from ..helpers import PoseInitialization
 
             PoseInitialization.init_minimum_spanning_tree(self, niter_PnP=niter_PnP)
         elif init == "known_poses":
             # Import here to avoid circular dependency (helpers imports BasePointCloudOptimizer)
-            from .scene_optimizer_helpers import PoseInitialization
+            from ..helpers import PoseInitialization
 
             PoseInitialization.init_from_known_poses(
                 self, min_conf_thr=self.min_conf_thr, niter_PnP=niter_PnP

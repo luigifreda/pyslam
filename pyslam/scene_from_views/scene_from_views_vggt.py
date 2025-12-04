@@ -26,6 +26,7 @@ import trimesh
 from .scene_from_views_base import SceneFromViewsBase, SceneFromViewsResult
 from pyslam.utilities.dust3r import convert_mv_output_to_geometry
 from pyslam.utilities.torch import to_numpy
+from pyslam.utilities.geometry import inv_poseRt
 
 import pyslam.config as config
 
@@ -357,10 +358,17 @@ class SceneFromViewsVggt(SceneFromViewsBase):
             as_pointcloud=as_pointcloud,
         )
 
-        # Camera extrinsics (S, 4, 4)
+        # Camera extrinsics
+        # VGGT extrinsics are in w2c (world-to-camera) format [R|t] where:
+        #   X_cam = R * X_world + t
+        # SceneFromViewsBase expects c2w (camera-to-world) format, so we need to invert
         cams2world = np.zeros((S, 4, 4))
-        cams2world[:, :3, :4] = camera_matrices
-        cams2world[:, 3, 3] = 1.0
+        for i in range(S):
+            # Extract rotation and translation from w2c matrix
+            Rcw = camera_matrices[i][:3, :3]  # world-to-camera rotation
+            tcw = camera_matrices[i][:3, 3]  # world-to-camera translation
+            # Convert to camera-to-world transformation
+            cams2world[i] = inv_poseRt(Rcw, tcw)
 
         # Extract depth maps
         depth_predictions = []

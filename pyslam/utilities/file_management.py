@@ -41,6 +41,21 @@ def create_folder(file):
         os.makedirs(path)
 
 
+def mkdir_for(f):
+    """Create directory for a file path if it doesn't exist.
+
+    Args:
+        f: File path
+
+    Returns:
+        The file path (for chaining)
+    """
+    if not f:
+        return f
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    return f
+
+
 def list_dir(root, prefix=False):
     ### List all directories at a given root
     # root (str): Path to directory whose folders need to be listed
@@ -171,3 +186,15 @@ def load_images_from_directory(image_dir, pattern="*.png", max_num_images=None):
             Printer.red(f"Failed to load image: {img_path}")
 
     return images
+
+
+def hash_md5(s):
+    """Compute MD5 hash of a string.
+
+    Args:
+        s: Input string
+
+    Returns:
+        MD5 hash as hexadecimal string
+    """
+    return hashlib.md5(s.encode("utf-8")).hexdigest()

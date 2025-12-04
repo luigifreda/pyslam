@@ -61,6 +61,6 @@ fi
 print_blue '================================================'
 print_blue "Building and installing pyslam C++ core"
 print_blue '================================================'
-"$SCRIPTS_DIR"/build_cpp.sh
+"$ROOT_DIR"/build_cpp.sh
 
 cd "$STARTING_DIR"
