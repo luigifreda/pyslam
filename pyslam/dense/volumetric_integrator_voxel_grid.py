@@ -35,7 +35,7 @@ from pyslam.config_parameters import Parameters
 from pyslam.utilities.depth import depth2pointcloud, filter_shadow_points
 from pyslam.utilities.geometry import inv_T
 
-from volumetric_grid import VoxelGrid, VoxelBlockGrid, TBBUtils
+from volumetric import VoxelGrid, VoxelBlockGrid, TBBUtils
 
 import traceback
 
@@ -244,11 +244,11 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                         VolumetricIntegratorBase.print(
                             f"VolumetricIntegratorVoxelGrid: saving point cloud to: {save_path}"
                         )
-                        points, colors = self.volume.get_voxel_data(
-                            min_count=Parameters.kVolumetricIntegratorGridMinCount
+                        voxel_grid_data = self.volume.get_voxels(
+                            min_count=Parameters.kVolumetricIntegratorGridMinCount,
                         )
-                        points = np.asarray(points, dtype=np.float64)
-                        colors = np.asarray(colors, dtype=np.float32)
+                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
+                        colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
                         # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
                         # colors = np.clip(colors, 0.0, 1.0)
                         point_cloud_o3d = o3d.geometry.PointCloud()
@@ -266,12 +266,12 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
 
                     if do_output:
                         mesh_out, pc_out = None, None
-                        points, colors = self.volume.get_voxel_data(
+                        voxel_grid_data = self.volume.get_voxels(
                             min_count=Parameters.kVolumetricIntegratorGridMinCount
                         )
                         # Convert C++ vectors to numpy arrays with proper shape and dtype
-                        points = np.asarray(points, dtype=np.float64)
-                        colors = np.asarray(colors, dtype=np.float32)
+                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
+                        colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
                         # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
                         # colors = np.clip(colors, 0.0, 1.0)
                         pc_out = VolumetricIntegrationPointCloud(points=points, colors=colors)

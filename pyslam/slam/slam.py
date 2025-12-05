@@ -418,9 +418,10 @@ class Slam(object):
                 self.init_loop_closing(loop_detector_config)
                 self.init_semantic_mapping(semantic_mapping_config)
             else:
-                SemanticMappingShared.set_semantic_feature_type(
-                    semantic_mapping_config["semantic_feature_type"]
-                )
+                if semantic_mapping_config is not None:
+                    SemanticMappingShared.set_semantic_feature_type(
+                        semantic_mapping_config["semantic_feature_type"]
+                    )
 
             if self.loop_closing is not None:
                 print(f"SLAM: loading the loop closing state from {path}...")

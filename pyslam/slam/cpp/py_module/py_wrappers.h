@@ -275,4 +275,95 @@ using PyRMutexWrapper = PyMutexWrapperT<std::recursive_mutex>;
 using PyTMutexWrapper = PyMutexWrapperT<std::timed_mutex>;
 using PyTRMutexWrapper = PyMutexWrapperT<std::recursive_timed_mutex>;
 
+// ------------------------------------------------------------
+// VectorProxy: Templated gateway wrapper for std::vector containers
+// Provides Python list-like interface with zero-copy access
+// ------------------------------------------------------------
+
+template <typename T> class VectorProxy {
+  public:
+    // Constructor - takes a reference to the std::vector
+    explicit VectorProxy(std::vector<T> &vec) : vec_(vec) {}
+
+    // Get item at index
+    T &getitem(size_t idx) {
+        if (idx >= vec_.size()) {
+            throw py::index_error("VectorProxy index out of range");
+        }
+        return vec_[idx];
+    }
+
+    // Set item at index
+    void setitem(size_t idx, const T &value) {
+        if (idx >= vec_.size()) {
+            throw py::index_error("VectorProxy index out of range");
+        }
+        vec_[idx] = value;
+    }
+
+    // Append an item (zero-copy, directly modifies the C++ vector)
+    void append(const T &value) { vec_.push_back(value); }
+
+    // Extend with multiple items
+    void extend(py::iterable items) {
+        for (auto item : items) {
+            vec_.push_back(py::cast<T>(item));
+        }
+    }
+
+    // Get size
+    size_t size() const { return vec_.size(); }
+
+    // Check if empty
+    bool empty() const { return vec_.size() == 0; }
+
+    // Clear the vector
+    void clear() { vec_.clear(); }
+
+    // Convert to Python list (creates a copy)
+    py::list to_list() {
+        py::list result;
+        for (const auto &item : vec_) {
+            result.append(py::cast(item));
+        }
+        return result;
+    }
+
+    // Iterator support
+    class Iterator {
+      public:
+        Iterator(std::vector<T> &vec, size_t idx) : vec_(vec), idx_(idx) {}
+        T &operator*() { return vec_[idx_]; }
+        Iterator &operator++() {
+            ++idx_;
+            return *this;
+        }
+        bool operator!=(const Iterator &other) const { return idx_ != other.idx_; }
+
+      private:
+        std::vector<T> &vec_;
+        size_t idx_;
+    };
+
+    Iterator begin() { return Iterator(vec_, 0); }
+    Iterator end() { return Iterator(vec_, vec_.size()); }
+
+    // Get reference to underlying vector (for advanced use cases)
+    std::vector<T> &get_vector() { return vec_; }
+    const std::vector<T> &get_vector() const { return vec_; }
+
+    // Pickling support: serialize as a Python list
+    // This allows VectorProxy to be pickled when passed through multiprocessing queues
+    py::tuple __getstate__() const {
+        py::list items;
+        for (const auto &item : vec_) {
+            items.append(py::cast(item));
+        }
+        return py::make_tuple(items);
+    }
+
+  private:
+    std::vector<T> &vec_; // Reference to the C++ vector
+};
+
 } // namespace pyslam

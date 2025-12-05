@@ -36,7 +36,7 @@ from pyslam.utilities.depth import depth2pointcloud, filter_shadow_points
 from pyslam.utilities.geometry import inv_T
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 
-from volumetric_grid import (
+from volumetric import (
     VoxelSemanticGrid,
     VoxelBlockSemanticGrid,
     VoxelBlockSemanticProbabilisticGrid,
@@ -215,131 +215,156 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             self.estimate_depth_if_needed_and_rectify(keyframe_data)
                         )
 
-                        pose = keyframe_data.pose  # Tcw
-                        inv_pose = inv_T(pose)  # Twc
+                        # Skip this keyframe if depth estimation/rectification failed
+                        if color_undistorted is None or depth_undistorted is None:
+                            VolumetricIntegratorBase.print(
+                                f"VolumetricIntegratorVoxelSemanticGrid: skipping keyframe {keyframe_data.id} due to missing depth/color data"
+                            )
+                        else:
+                            pose = keyframe_data.pose  # Tcw
+                            inv_pose = inv_T(pose)  # Twc
 
-                        # print(f"VolumetricIntegratorVoxelSemanticGrid: color_undistorted: shape: {color_undistorted.shape}, type: {color_undistorted.dtype}")
+                            # print(f"VolumetricIntegratorVoxelSemanticGrid: color_undistorted: shape: {color_undistorted.shape}, type: {color_undistorted.dtype}")
 
-                        if kVerbose:
-                            if depth_undistorted is not None:
-                                VolumetricIntegratorBase.print(
-                                    f"\t\tdepth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
-                                )
-                                if depth_undistorted.size > 0:
-                                    min_depth = np.min(depth_undistorted)
-                                    max_depth = np.max(depth_undistorted)
+                            if kVerbose:
+                                if depth_undistorted is not None:
                                     VolumetricIntegratorBase.print(
-                                        f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
+                                        f"\t\tdepth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
                                     )
-                                else:
+                                    if depth_undistorted.size > 0:
+                                        min_depth = np.min(depth_undistorted)
+                                        max_depth = np.max(depth_undistorted)
+                                        VolumetricIntegratorBase.print(
+                                            f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
+                                        )
+                                    else:
+                                        VolumetricIntegratorBase.print(
+                                            f"\t\tdepth_undistorted is empty, skipping min/max computation"
+                                        )
+
+                                if pts3d is not None:
                                     VolumetricIntegratorBase.print(
-                                        f"\t\tdepth_undistorted is empty, skipping min/max computation"
+                                        f"\t\tpts3d: shape: {pts3d.shape}, type: {pts3d.dtype}"
+                                    )
+                                if (
+                                    semantic_undistorted is not None
+                                    and semantic_undistorted.shape[0] > 0
+                                ):
+                                    VolumetricIntegratorBase.print(
+                                        f"\t\tsemantic_undistorted: shape: {semantic_undistorted.shape}, type: {semantic_undistorted.dtype}"
                                     )
 
-                            if pts3d is not None:
-                                VolumetricIntegratorBase.print(
-                                    f"\t\tpts3d: shape: {pts3d.shape}, type: {pts3d.dtype}"
+                            # Filter depth
+                            filter_depth = (
+                                Parameters.kVolumetricIntegratorGridShadowPointsFilter
+                            )  # do you want to filter the depth?
+                            if filter_depth:
+                                depth_filtered = filter_shadow_points(
+                                    depth_undistorted, delta_depth=None
                                 )
-                            if (
-                                semantic_undistorted is not None
-                                and semantic_undistorted.shape[0] > 0
-                            ):
-                                VolumetricIntegratorBase.print(
-                                    f"\t\tsemantic_undistorted: shape: {semantic_undistorted.shape}, type: {semantic_undistorted.dtype}"
+                            else:
+                                depth_filtered = depth_undistorted
+
+                            point_cloud = depth2pointcloud(
+                                depth_filtered,
+                                color_undistorted,
+                                self.camera.fx,
+                                self.camera.fy,
+                                self.camera.cx,
+                                self.camera.cy,
+                                self.volumetric_integration_depth_trunc,
+                                semantic_image=semantic_undistorted,
+                                instance_image=None,  # TODO: at present time, we do not use instance segmentation for volumetric integration
+                            )
+
+                            if Parameters.kVolumetricSemanticProbabilisticIntegrationUseDepth:
+                                # camera depths are used to generate confidence weights for semantics
+                                # if depth is less than kDepthThreshold, the confidence is 1.0
+                                # if depth is greater than kDepthThreshold, the confidence decays exponentially with depth
+                                depths = point_cloud.points[:, 2]
+                                depths = np.ascontiguousarray(depths, dtype=np.float32)
+                            else:
+                                depths = None  # disable the use of depths for computing semantics confidence
+
+                            # transform point cloud from camera coordinate system to world coordinate system
+                            points_world = (
+                                inv_pose[:3, :3] @ point_cloud.points.T
+                                + inv_pose[:3, 3].reshape(3, 1)
+                            ).T
+                            point_cloud.points = points_world
+
+                            # Ensure colors are in the correct format for C++ integration
+                            # Colors from depth2pointcloud are already in [0, 1] range as float
+                            # Convert to contiguous float32 array for C++ binding
+                            if point_cloud.colors is not None and point_cloud.colors.size > 0:
+                                colors = np.ascontiguousarray(point_cloud.colors, dtype=np.float32)
+                                # Ensure colors are in valid [0, 1] range
+                                # colors = np.clip(colors, 0.0, 1.0)
+                            else:
+                                # If no colors, create default black colors
+                                colors = np.zeros(
+                                    (point_cloud.points.shape[0], 3), dtype=np.float32
+                                )
+                            points = np.ascontiguousarray(point_cloud.points, dtype=np.float64)
+
+                            if point_cloud.semantics is not None and point_cloud.semantics.size > 0:
+                                # extract semantics from semantic_undistorted
+                                semantics = np.ascontiguousarray(
+                                    point_cloud.semantics, dtype=np.int32
+                                )
+                            else:
+                                semantics = np.ascontiguousarray(
+                                    np.ones(point_cloud.points.shape[0], dtype=np.int32),
+                                    dtype=np.int32,
                                 )
 
-                        # Filter depth
-                        filter_depth = (
-                            Parameters.kVolumetricIntegratorGridShadowPointsFilter
-                        )  # do you want to filter the depth?
-                        if filter_depth:
-                            depth_filtered = filter_shadow_points(
-                                depth_undistorted, delta_depth=None
-                            )
-                        else:
-                            depth_filtered = depth_undistorted
+                            # if (
+                            #     point_cloud.instance_ids is not None
+                            #     and point_cloud.instance_ids.size > 0
+                            # ):
+                            #     instance_ids = np.ascontiguousarray(
+                            #         point_cloud.instance_ids, dtype=np.int32
+                            #     )
+                            # else:
+                            #     # instance_ids = np.ascontiguousarray(np.ones(point_cloud.points.shape[0], dtype=np.int32), dtype=np.int32)
+                            #     instance_ids = None
 
-                        point_cloud = depth2pointcloud(
-                            depth_filtered,
-                            color_undistorted,
-                            self.camera.fx,
-                            self.camera.fy,
-                            self.camera.cx,
-                            self.camera.cy,
-                            self.volumetric_integration_depth_trunc,
-                            semantic_image=semantic_undistorted,
-                            instance_image=None,  # TODO: at present time, we do not use instance segmentation for volumetric integration
-                        )
-
-                        # camera depths are used to generate confidence weights for semantics
-                        # if depth is less than kDepthThreshold, the confidence is 1.0
-                        # if depth is greater than kDepthThreshold, the confidence decays exponentially with depth
-                        depths = point_cloud.points[:, 2]
-                        depths = np.ascontiguousarray(depths, dtype=np.float32)
-
-                        # transform point cloud from camera coordinate system to world coordinate system
-                        points_world = (
-                            inv_pose[:3, :3] @ point_cloud.points.T + inv_pose[:3, 3].reshape(3, 1)
-                        ).T
-                        point_cloud.points = points_world
-
-                        # Ensure colors are in the correct format for C++ integration
-                        # Colors from depth2pointcloud are already in [0, 1] range as float
-                        # Convert to contiguous float32 array for C++ binding
-                        if point_cloud.colors is not None and point_cloud.colors.size > 0:
-                            colors = np.ascontiguousarray(point_cloud.colors, dtype=np.float32)
-                            # Ensure colors are in valid [0, 1] range
-                            # colors = np.clip(colors, 0.0, 1.0)
-                        else:
-                            # If no colors, create default black colors
-                            colors = np.zeros((point_cloud.points.shape[0], 3), dtype=np.float32)
-                        points = np.ascontiguousarray(point_cloud.points, dtype=np.float64)
-
-                        if point_cloud.semantics is not None and point_cloud.semantics.size > 0:
-                            # extract semantics from semantic_undistorted
-                            semantics = np.ascontiguousarray(point_cloud.semantics, dtype=np.int32)
-                        else:
-                            semantics = np.ascontiguousarray(
-                                np.ones(point_cloud.points.shape[0], dtype=np.int32), dtype=np.int32
-                            )
-
-                        if (
-                            point_cloud.instance_ids is not None
-                            and point_cloud.instance_ids.size > 0
-                        ):
-                            instance_ids = np.ascontiguousarray(
-                                point_cloud.instance_ids, dtype=np.int32
-                            )
-                        else:
-                            # instance_ids = np.ascontiguousarray(np.ones(point_cloud.points.shape[0], dtype=np.int32), dtype=np.int32)
+                            # TODO: We need to implement an instance association mechanism from the new 2d image instances
+                            # to the existing instance ids in the volumetric grid
                             instance_ids = None
 
-                        self.volume.integrate(
-                            points,
-                            colors,
-                            instance_ids=instance_ids,
-                            class_ids=semantics,
-                            depths=depths,  # used to compute confidence weights for semantics
-                        )
+                            self.volume.integrate(
+                                points,
+                                colors,
+                                instance_ids=instance_ids,
+                                class_ids=semantics,
+                                depths=depths,  # used to compute confidence weights for semantics
+                            )
 
-                        self.last_integrated_id = keyframe_data.id
+                            self.last_integrated_id = keyframe_data.id
 
-                        do_output = True
-                        if self.last_output is not None:
-                            elapsed_time = time.perf_counter() - self.last_output.timestamp
-                            if elapsed_time < Parameters.kVolumetricIntegrationOutputTimeInterval:
-                                do_output = False
+                            do_output = True
+                            if self.last_output is not None:
+                                elapsed_time = time.perf_counter() - self.last_output.timestamp
+                                if (
+                                    elapsed_time
+                                    < Parameters.kVolumetricIntegrationOutputTimeInterval
+                                ):
+                                    do_output = False
 
                     elif self.last_input_task.task_type == VolumetricIntegrationTaskType.SAVE:
                         save_path = self.last_input_task.load_save_path
                         VolumetricIntegratorBase.print(
                             f"VolumetricIntegratorVoxelSemanticGrid: saving point cloud to: {save_path}"
                         )
-                        points, colors, semantics, instance_ids = self.volume.get_voxel_data(
-                            min_count=Parameters.kVolumetricIntegratorGridMinCount
+                        voxel_grid_data = self.volume.get_voxels(
+                            min_count=Parameters.kVolumetricIntegratorGridMinCount,
+                            min_confidence=Parameters.kVolumetricIntegratorGridMinConfidence,
                         )
-                        points = np.asarray(points, dtype=np.float64)
-                        colors = np.asarray(colors, dtype=np.float32)
+                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
+                        colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
+                        semantics = np.asarray(voxel_grid_data.class_ids, dtype=np.int32)
+                        instance_ids = np.asarray(voxel_grid_data.instance_ids, dtype=np.int32)
                         # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
                         # colors = np.clip(colors, 0.0, 1.0)
                         point_cloud_o3d = o3d.geometry.PointCloud()
@@ -348,6 +373,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         o3d.io.write_point_cloud(save_path, point_cloud_o3d)
 
                         last_output = VolumetricIntegrationOutput(self.last_input_task.task_type)
+                        self.last_output = last_output
 
                     elif (
                         self.last_input_task.task_type
@@ -357,17 +383,22 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
 
                     if do_output:
                         mesh_out, pc_out = None, None
-                        points, colors, semantics, instance_ids = self.volume.get_voxel_data(
-                            min_count=Parameters.kVolumetricIntegratorGridMinCount
+                        voxel_grid_data = self.volume.get_voxels(
+                            min_count=Parameters.kVolumetricIntegratorGridMinCount,
+                            min_confidence=Parameters.kVolumetricIntegratorGridMinConfidence,
                         )
                         # Convert C++ vectors to numpy arrays with proper shape and dtype
-                        points = np.ascontiguousarray(points, dtype=np.float64)
-                        colors = np.ascontiguousarray(colors, dtype=np.float32)
+                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
+                        colors = np.ascontiguousarray(voxel_grid_data.colors, dtype=np.float32)
                         semantics = (
-                            np.ascontiguousarray(semantics) if semantics is not None else None
+                            np.ascontiguousarray(voxel_grid_data.class_ids, dtype=np.int32)
+                            if len(voxel_grid_data.class_ids) > 0
+                            else None
                         )
                         instance_ids = (
-                            np.ascontiguousarray(instance_ids) if instance_ids is not None else None
+                            np.ascontiguousarray(voxel_grid_data.instance_ids, dtype=np.int32)
+                            if len(voxel_grid_data.instance_ids) > 0
+                            else None
                         )
                         semantic_colors = (
                             np.ascontiguousarray(

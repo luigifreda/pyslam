@@ -350,25 +350,66 @@ class LoggerQueue(SingletonBase):
             return
         self.is_closing = True
         process_name = mp.current_process().name
-        # print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopping ...")
+        print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopping listener...")
         try:
-            # Stop the listener first - this should wait for the listener thread to finish
-            if hasattr(self, "listener") and self.listener:
+            # Stop the listener first - ensure the thread exits before closing the queue
+            if self.listener:
                 try:
-                    # Stop the listener - this waits for the listener thread to finish
+                    # Get reference to the listener thread before stopping
+                    listener_thread = getattr(self.listener, "_thread", None)
+
+                    # Call stop() to set the _stop flag - this tells the thread to exit
                     self.listener.stop()
-                    # Small delay to ensure the listener thread has fully stopped
-                    time.sleep(0.1)
+
+                    # Wait for the listener thread to actually finish
+                    # The thread will exit after it gets the next item from the queue and checks the flag
+                    if listener_thread and listener_thread.is_alive():
+                        # Put a sentinel to wake up the blocked thread if it's waiting
+                        if self.log_queue and not getattr(self.log_queue, "_closed", False):
+                            try:
+                                # Put a sentinel LogRecord to wake up the thread
+                                # The thread will process it, check the _stop flag, and exit cleanly
+                                import logging
+
+                                sentinel_record = logging.LogRecord(
+                                    name="",
+                                    level=0,
+                                    pathname="",
+                                    lineno=0,
+                                    msg="",
+                                    args=(),
+                                    exc_info=None,
+                                )
+                                self.log_queue.put_nowait(sentinel_record)
+                            except Exception as e:
+                                print(
+                                    f"LoggerQueue[{self.log_file}]: Error putting sentinel record: {e}"
+                                )
+                                print(f"\t traceback details: {traceback.format_exc()}")
+
+                        # Wait for thread to finish (with longer timeout to allow clean shutdown)
+                        # The thread should exit after processing the sentinel and checking _stop flag
+                        listener_thread.join(timeout=2.0)
+                        if listener_thread.is_alive():
+                            # Thread didn't exit in time - might be stuck
+                            # We'll close the queue anyway, which may cause an exception in the thread
+                            # but since it's a daemon thread, it won't block shutdown
+                            listener_thread.terminate()
+                    elif listener_thread is None:
+                        # Thread attribute not found - might be using a different QueueListener implementation
+                        # Give some time for the listener to stop
+                        time.sleep(0.5)
                 except Exception as e:
                     print(f"LoggerQueue[{self.log_file}]: Error stopping listener: {e}")
+                    print(f"\t traceback details: {traceback.format_exc()}")
                 finally:
                     self.listener = None
 
             # Close the queue properly - only after listener is stopped
-            if hasattr(self, "log_queue") and self.log_queue:
+            if self.log_queue:
                 try:
                     # Check if queue is already closed
-                    if not self.log_queue._closed:
+                    if not getattr(self.log_queue, "_closed", False):
                         self.log_queue.close()
                     # Wait for the queue's feeder thread to finish
                     # Note: timeout parameter for join_thread() was added in Python 3.9+
@@ -378,40 +419,23 @@ class LoggerQueue(SingletonBase):
                     except TypeError:
                         # Timeout parameter not supported, try without it
                         self.log_queue.join_thread()
-                except (OSError, ValueError) as e:
-                    # Queue might already be closed or in an invalid state
-                    # This is okay during shutdown
-                    pass
-                except TypeError as e:
-                    # Handle case where timeout parameter causes TypeError
-                    # Try without timeout parameter
-                    if "timeout" in str(e) or "unexpected keyword" in str(e):
-                        try:
-                            self.log_queue.join_thread()
-                        except Exception:
-                            # If join_thread() itself fails, that's okay during shutdown
-                            pass
-                    else:
-                        # Re-raise if it's a different TypeError
-                        raise
                 except Exception as e:
-                    # Other exceptions during queue cleanup are okay during shutdown
-                    # Don't print errors about timeout or closed queues
-                    error_msg = str(e).lower()
-                    if "timeout" not in error_msg and "closed" not in error_msg:
-                        print(f"LoggerQueue[{self.log_file}]: Error closing queue: {e}")
+                    print(f"LoggerQueue[{self.log_file}]: Error closing queue: {e}")
+                    print(f"\t traceback details: {traceback.format_exc()}")
 
             # Close the file handler
-            if hasattr(self, "file_handler") and self.file_handler:
+            if self.file_handler:
                 try:
                     self.file_handler.close()
                 except Exception as e:
                     print(f"LoggerQueue[{self.log_file}]: Error closing file handler: {e}")
+                    print(f"\t traceback details: {traceback.format_exc()}")
 
         except Exception as e:
             print(
                 f"LoggerQueue[{self.log_file}]: process: {process_name}, Exception during stop: {e}"
             )
+            print(f"\t traceback details: {traceback.format_exc()}")
 
         print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopped.")
 

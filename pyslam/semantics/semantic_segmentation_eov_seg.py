@@ -45,6 +45,40 @@ kEovSegPath = os.path.join(kRootFolder, "thirdparty", "eov_segmentation")
 kCacheDir = os.path.join(kRootFolder, "results", "cache")
 
 
+def check_open_clip_torch_version():
+    # Check open-clip-torch version
+    open_clip_version = None
+    try:
+        # Try importlib.metadata first (Python 3.8+)
+        try:
+            import importlib.metadata
+
+            open_clip_version = importlib.metadata.version("open-clip-torch")
+        except (ImportError, importlib.metadata.PackageNotFoundError):
+            # Fallback for older Python versions
+            try:
+                import pkg_resources
+
+                open_clip_version = pkg_resources.get_distribution("open-clip-torch").version
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    if open_clip_version != "2.24.0":
+        if open_clip_version is None:
+            Printer.red(
+                "⚠️  WARNING: EOV-Seg requires open-clip-torch==2.24.0, but the package was not found. "
+                "Please install it: pip install open-clip-torch==2.24.0"
+            )
+        else:
+            Printer.red(
+                f"⚠️  WARNING: EOV-Seg requires open-clip-torch==2.24.0, but found version {open_clip_version}. "
+                f"This may cause compatibility issues. Please install the correct version: "
+                f"pip install open-clip-torch==2.24.0"
+            )
+
+
 class SemanticSegmentationEovSeg(SemanticSegmentationBase):
     """
     Semantic segmentation using EOV-Seg (Open Vocabulary Segmentation).
@@ -54,6 +88,7 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
     a similar interface to SemanticSegmentationSegformer.
     """
 
+    check_open_clip_torch_version()
     supported_feature_types = [SemanticFeatureType.LABEL, SemanticFeatureType.PROBABILITY_VECTOR]
 
     def __init__(

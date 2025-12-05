@@ -29,11 +29,6 @@ from pyslam.semantics.semantic_segmentation_types import SemanticSegmentationTyp
 from pyslam.semantics.semantic_color_utils import labels_color_map_factory
 from pyslam.semantics.semantic_types import SemanticFeatureType, SemanticDatasetType
 
-from pyslam.semantics.semantic_segmentation_deep_lab_v3 import SemanticSegmentationDeepLabV3
-from pyslam.semantics.semantic_segmentation_segformer import SemanticSegmentationSegformer
-from pyslam.semantics.semantic_segmentation_clip import SemanticSegmentationCLIP
-
-
 from pyslam.config_parameters import Parameters
 
 Parameters.kLoopClosingDebugAndPrintToFile = False

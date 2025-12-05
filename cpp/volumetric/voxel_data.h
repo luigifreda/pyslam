@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -29,6 +30,14 @@
 #include <vector>
 
 namespace volumetric {
+
+#ifndef NDEBUG
+constexpr bool kCheckZeroCount = true; // Enable the check for zero count (debug)
+                                       // In theory, it is not needed since we only process voxels
+                                       // where  the count is always > 0
+#else
+constexpr bool kCheckZeroCount = false; // Disable the check for zero count (release)
+#endif
 
 // Macro for position-related members
 #define VOXEL_POSITION_MEMBERS()                                                                   \
@@ -42,6 +51,11 @@ namespace volumetric {
         position_sum[2] += static_cast<double>(z);                                                 \
     }                                                                                              \
     std::array<double, 3> get_position() const {                                                   \
+        if constexpr (kCheckZeroCount) {                                                           \
+            if (count == 0) {                                                                      \
+                return {0.0, 0.0, 0.0};                                                            \
+            }                                                                                      \
+        }                                                                                          \
         const double count_d = static_cast<double>(count);                                         \
         std::array<double, 3> avg_coord = {position_sum[0] / count_d, position_sum[1] / count_d,   \
                                            position_sum[2] / count_d};                             \
@@ -74,6 +88,11 @@ namespace volumetric {
         }                                                                                          \
     }                                                                                              \
     std::array<float, 3> get_color() const {                                                       \
+        if constexpr (kCheckZeroCount) {                                                           \
+            if (count == 0) {                                                                      \
+                return {0.0f, 0.0f, 0.0f};                                                         \
+            }                                                                                      \
+        }                                                                                          \
         const float count_f = static_cast<float>(count);                                           \
         std::array<float, 3> avg_color = {color_sum[0] / count_f, color_sum[1] / count_f,          \
                                           color_sum[2] / count_f};                                 \
@@ -124,6 +143,22 @@ struct VoxelSemanticData {
     VOXEL_COLOR_MEMBERS()
 
     int get_confidence_counter() const { return confidence_counter_; }
+    float get_confidence() const {
+        if (count == 0)
+            return 0.0f;
+        // confidence_counter_ represents the "strength" of the current label after voting.
+        // It's incremented for matching observations and decremented for non-matching ones.
+        // When counter <= 0, the label switches and counter resets to 1.
+        // Since counter >= 0, it represents net votes for current label since last reset.
+        //
+        // Confidence is computed as the ratio of counter to total observations.
+        // - Range: [0, 1] (clamped)
+        // - When counter = count: confidence = 1.0 (all observations match current label)
+        // - When counter << count: confidence is low (many conflicting observations)
+        const float count_f = static_cast<float>(count);
+        const float counter_f = static_cast<float>(confidence_counter_);
+        return std::min(1.0f, counter_f / count_f);
+    }
     int get_instance_id() const { return instance_id; }
     int get_class_id() const { return class_id; }
 
@@ -209,7 +244,7 @@ float VoxelSemanticData::kDepthThreshold = 10.0f; // [m] depth threshold for upd
 //  We have a prior distribution p(L|old) after having observed n points in the voxel.
 //  When we get a new observation x_new (one more point measurement in the voxel), Bayes update
 //  says: p(L|x_new, old) = p(x_new|L,old) * p(L|old) / p(x_new|old) Assuming conditional
-//  idependence of the observations given the label (the usual "naive Bayes" assumption), we have:
+//  independence of the observations given the label (the usual "naive Bayes" assumption), we have:
 //  P(x_new|L,old) = P(x_new|L)
 //  Therefore:
 //  p(L|x_new, old) = p(x_new|L) * p(L|old) / sum_i {p(x_new|L_i,old) * p(L_i|old)}
@@ -257,9 +292,9 @@ struct VoxelSemanticDataProbabilistic {
   protected:
     // Direct access members for compatibility (lazy evaluation via getters)
     // Note: These are mutable to allow const access patterns
-    mutable int instance_id = -1;        // cached most likely instance ID
-    mutable int class_id = -1;           // cached most likely class ID
-    mutable int confidence_counter_ = 0; // cached confidence counter
+    mutable int instance_id = -1;     // cached most likely instance ID
+    mutable int class_id = -1;        // cached most likely class ID
+    mutable float confidence_ = 0.0f; // cached confidence
 
   public:
     static constexpr float MIN_CONFIDENCE = 1e-10f;
@@ -279,7 +314,7 @@ struct VoxelSemanticDataProbabilistic {
         // Reset cached members for compatibility
         instance_id = -1;
         class_id = -1;
-        confidence_counter_ = 0;
+        confidence_ = 0.0f;
     }
 
     void initialize_semantics_log_prob(const int instance_id, const int class_id,
@@ -326,32 +361,49 @@ struct VoxelSemanticDataProbabilistic {
         // log(normalization) For efficiency, we accumulate log probabilities and normalize
         // periodically Here we use a simple additive update: log_prob += log(confidence) This
         // approximates Bayesian fusion when we normalize by the total count
-        // Use operator[] for cleaner code - inserts 0.0f if key doesn't exist
-        float &log_prob = log_probabilities[key];
-        log_prob += new_log_prob;
-
-        // Incremental cache maintenance: keep cached values in sync and avoid full recompute
-        if (cache_valid) {
-            if (key == most_likely_pair) {
-                // Still the argmax; value changed (could increase or decrease)
-                const float old_most_likely_log_prob = most_likely_log_prob;
-                most_likely_log_prob = log_prob;
-                if (log_prob < old_most_likely_log_prob) {
-                    // Max decreased; need full recomputation to verify the argmax
-                    update_cache();
-                } else {
-                    update_cached_members();
-                }
-            } else if (log_prob > most_likely_log_prob) {
-                // New argmax found
-                most_likely_log_prob = log_prob;
+        // Use operator[] for cleaner code - inserts 0.0f if key doesn't exist (log(1) = 0)
+        // For a new key, this gives us: 0.0f + new_log_prob = new_log_prob (correct for first
+        // observation)
+        auto it = log_probabilities.find(key);
+        if (it == log_probabilities.end()) {
+            // New label pair: initialize with the observation's log probability
+            log_probabilities[key] = new_log_prob;
+            // Update cache if this new label might be the most likely
+            if (cache_valid && new_log_prob > most_likely_log_prob) {
+                most_likely_log_prob = new_log_prob;
                 most_likely_pair = key;
                 update_cached_members();
+            } else if (!cache_valid) {
+                update_cache();
             }
-            // If this is a new key (was 0.0f) and it's not the new max, cache remains valid
         } else {
-            // Cache invalid; recompute now to keep direct member access consistent
-            update_cache();
+            // Existing label pair: accumulate log probability
+            float &log_prob = it->second;
+            log_prob += new_log_prob;
+
+            // Incremental cache maintenance: keep cached values in sync and avoid full recompute
+            if (cache_valid) {
+                if (key == most_likely_pair) {
+                    // Still the argmax; value changed (could increase or decrease)
+                    const float old_most_likely_log_prob = most_likely_log_prob;
+                    most_likely_log_prob = log_prob;
+                    if (log_prob < old_most_likely_log_prob) {
+                        // Max decreased; need full recomputation to verify the argmax
+                        update_cache();
+                    } else {
+                        update_cached_members();
+                    }
+                } else if (log_prob > most_likely_log_prob) {
+                    // New argmax found
+                    most_likely_log_prob = log_prob;
+                    most_likely_pair = key;
+                    update_cached_members();
+                }
+                // If this label is not the new max, cache remains valid
+            } else {
+                // Cache invalid; recompute now to keep direct member access consistent
+                update_cache();
+            }
         }
     }
 
@@ -413,7 +465,11 @@ struct VoxelSemanticDataProbabilistic {
     }
     void set_confidence_counter(int counter) {
         ensure_cache_updated();
-        confidence_counter_ = counter;
+        if (count == 0) {
+            confidence_ = 0.0f;
+        } else {
+            confidence_ = counter / static_cast<float>(count);
+        }
     }
 
     // Get the probability of the most likely label (in linear space)
@@ -433,8 +489,16 @@ struct VoxelSemanticDataProbabilistic {
         if (!cache_valid) {
             update_cache();
         }
-        // Reuse compute_confidence_counter() to avoid code duplication
-        return compute_confidence_counter();
+        // Reuse confidence_ to avoid code duplication
+        return static_cast<int>(confidence_ * static_cast<float>(count));
+    }
+
+    // Get confidence (compatible interface) - returns the confidence for the most likely label
+    float get_confidence() const {
+        if (!cache_valid) {
+            update_cache();
+        }
+        return confidence_;
     }
 
     // For compatibility with existing interface - these are computed on access
@@ -466,11 +530,11 @@ struct VoxelSemanticDataProbabilistic {
     void update_cached_members() const {
         const_cast<VoxelSemanticDataProbabilistic *>(this)->instance_id = most_likely_pair.first;
         const_cast<VoxelSemanticDataProbabilistic *>(this)->class_id = most_likely_pair.second;
-        const_cast<VoxelSemanticDataProbabilistic *>(this)->confidence_counter_ =
-            compute_confidence_counter();
+        const_cast<VoxelSemanticDataProbabilistic *>(this)->confidence_ = compute_confidence();
     }
 
-    int compute_confidence_counter() const {
+    // Compute the confidence for the most likely label
+    float compute_confidence() const {
         if (most_likely_pair.first == -1 || most_likely_pair.second == -1) {
             return 0;
         }
@@ -478,7 +542,7 @@ struct VoxelSemanticDataProbabilistic {
             return 0;
         }
         const float normalized_prob = std::exp(most_likely_log_prob - get_log_normalization());
-        return static_cast<int>(normalized_prob * count);
+        return normalized_prob;
     }
 
     // Update the cache of most likely label
@@ -537,11 +601,20 @@ struct VoxelSemanticDataProbabilistic {
         if (!cache_valid)
             update_cache();
         const float thresh = most_likely_log_prob - margin;
+        bool pruned_most_likely = false;
         for (auto it = log_probabilities.begin(); it != log_probabilities.end();) {
-            if (it->second < thresh)
+            if (it->second < thresh) {
+                if (it->first == most_likely_pair) {
+                    pruned_most_likely = true;
+                }
                 it = log_probabilities.erase(it);
-            else
+            } else {
                 ++it;
+            }
+        }
+        // Invalidate cache if the most likely pair was pruned or if map is empty
+        if (pruned_most_likely || log_probabilities.empty()) {
+            cache_valid = false;
         }
         // norm_valid = false; // if we cache logZ
     }
@@ -583,6 +656,7 @@ concept SemanticVoxel = Voxel<T> && requires(T v, int instance_id, int class_id)
     v.get_instance_id();
     v.get_class_id();
     v.get_confidence_counter();
+    v.get_confidence();
 
     // Semantic methods
     v.initialize_semantics(instance_id, class_id);
@@ -592,6 +666,7 @@ concept SemanticVoxel = Voxel<T> && requires(T v, int instance_id, int class_id)
     requires std::is_convertible_v<decltype(v.get_instance_id()), int>;
     requires std::is_convertible_v<decltype(v.get_class_id()), int>;
     requires std::is_convertible_v<decltype(v.get_confidence_counter()), int>;
+    requires std::is_convertible_v<decltype(v.get_confidence()), float>;
 };
 
 // Concept for semantic voxel data types with depth-based integration

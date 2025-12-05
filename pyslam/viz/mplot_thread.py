@@ -219,6 +219,7 @@ class Mplot2d:
         empty_queue(queue)  # empty the queue before exiting
         print(mp.current_process().name, f' - Mplot2d "{self.title}": closing fig {self.fig}')
         plt.close(self.fig)
+        print(f"Mplot2d {self.title}: run: closed")
 
     def drawer_refresh(self, queue, lock):
         while not queue.empty():
@@ -428,6 +429,7 @@ class Mplot3d:
         empty_queue(queue)  # empty the queue before exiting
         print(mp.current_process().name, f' - Mplot3d "{self.title}": closing fig ', self.fig)
         plt.close(self.fig)
+        print(f"Mplot3d: run: closed")
 
     def drawer_refresh(self, queue, lock):
         while not queue.empty():

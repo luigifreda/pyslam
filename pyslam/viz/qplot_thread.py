@@ -280,6 +280,7 @@ class Qplot2d:
         print(f'{mp.current_process().name} - Qplot2d "{self.title}": closing plot')
         if self.win:
             self.win.close()  # Close the PyQtGraph window
+        print(f"Qplot2d: run: closed")
 
     def drawer_refresh(self, queue, lock, figure_num):
         while not queue.empty():
@@ -733,6 +734,7 @@ class Qplot3d:
             time.sleep(0.02)
 
         self.win.close()
+        print(f"Qplot3d: run: closed")
 
     def drawer_refresh(self, queue, lock):
         while not queue.empty():

@@ -17,6 +17,8 @@
  * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#pragma once
+
 #include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -421,29 +423,25 @@ namespace py = pybind11;
             "Remove a segment of voxels from the voxel grid", py::arg("instance_id"))              \
         .def(                                                                                      \
             "remove_low_confidence_segments",                                                      \
-            [](CLASS_TYPE &self, const int min_confidence_counter) {                               \
+            [](CLASS_TYPE &self, const int min_confidence) {                                       \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    self.remove_low_confidence_segments(min_confidence_counter);                   \
+                    self.remove_low_confidence_segments(min_confidence);                           \
                 }                                                                                  \
             },                                                                                     \
             "Remove segments of voxels with low confidence counter from the voxel grid",           \
-            py::arg("min_confidence_counter"))                                                     \
+            py::arg("min_confidence"))                                                             \
         .def(                                                                                      \
-            "get_voxel_data",                                                                      \
-            [](CLASS_TYPE &self, int min_count = 1) {                                              \
-                std::tuple<std::vector<std::array<double, 3>>, std::vector<std::array<float, 3>>,  \
-                           std::vector<int>, std::vector<int>>                                     \
-                    result;                                                                        \
+            "get_voxels",                                                                          \
+            [](CLASS_TYPE &self, int min_count = 1, float min_confidence = 0.0) {                  \
+                volumetric::VoxelGridData result;                                                  \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    result = self.get_voxel_data(min_count);                                       \
+                    result = self.get_voxels(min_count, min_confidence);                           \
                 }                                                                                  \
-                auto &[points, colors, class_ids, instance_ids] = result;                          \
-                return py::make_tuple(std::move(points), std::move(colors), std::move(class_ids),  \
-                                      std::move(instance_ids));                                    \
+                return result;                                                                     \
             },                                                                                     \
-            "Returns a tuple (points, colors, class_ids, instance_ids)", py::arg("min_count"))     \
+            "Returns the voxels", py::arg("min_count") = 1, py::arg("min_confidence") = 0.0)       \
         .def(                                                                                      \
             "get_points",                                                                          \
             [](CLASS_TYPE &self) {                                                                 \
@@ -467,16 +465,27 @@ namespace py = pybind11;
             },                                                                                     \
             "Returns the colors")                                                                  \
         .def(                                                                                      \
-            "get_segments",                                                                        \
+            "get_instance_segments",                                                               \
             [](CLASS_TYPE &self) {                                                                 \
                 std::unordered_map<int, std::vector<std::array<double, 3>>> segments;              \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    segments = self.get_segments();                                                \
+                    segments = self.get_instance_segments();                                       \
                 }                                                                                  \
                 return segments;                                                                   \
             },                                                                                     \
-            "Returns a dictionary of segments of voxels")                                          \
+            "Returns a dictionary of segments of voxels based on instance IDs")                    \
+        .def(                                                                                      \
+            "get_class_segments",                                                                  \
+            [](CLASS_TYPE &self) {                                                                 \
+                std::unordered_map<int, std::vector<std::array<double, 3>>> segments;              \
+                {                                                                                  \
+                    py::gil_scoped_release release;                                                \
+                    segments = self.get_class_segments();                                          \
+                }                                                                                  \
+                return segments;                                                                   \
+            },                                                                                     \
+            "Returns a dictionary of segments of voxels based on class IDs")                       \
         .def(                                                                                      \
             "get_ids",                                                                             \
             [](CLASS_TYPE &self) {                                                                 \
@@ -597,18 +606,16 @@ namespace py = pybind11;
             },                                                                                     \
             "Insert a point cloud into the voxel grid", py::arg("points"))                         \
         .def(                                                                                      \
-            "get_voxel_data",                                                                      \
-            [](CLASS_TYPE &self, int min_count = 1) {                                              \
-                std::pair<std::vector<std::array<double, 3>>, std::vector<std::array<float, 3>>>   \
-                    result;                                                                        \
+            "get_voxels",                                                                          \
+            [](CLASS_TYPE &self, int min_count = 1, float min_confidence = 0.0) {                  \
+                volumetric::VoxelGridData result;                                                  \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    result = self.get_voxel_data(min_count);                                       \
+                    result = self.get_voxels(min_count, min_confidence);                           \
                 }                                                                                  \
-                auto &[points, colors] = result;                                                   \
-                return py::make_tuple(std::move(points), std::move(colors));                       \
+                return result;                                                                     \
             },                                                                                     \
-            "Returns a tuple (points, colors)", py::arg("min_count"))                              \
+            "Returns the voxels", py::arg("min_count") = 1, py::arg("min_confidence") = 0.0)       \
         .def(                                                                                      \
             "get_points",                                                                          \
             [](CLASS_TYPE &self) {                                                                 \
@@ -685,81 +692,81 @@ namespace py = pybind11;
                                                 (CLASS_TYPE, std::shared_ptr<CLASS_TYPE>),         \
                                                 py::init<float>(), py::arg("voxel_size"))
 
-// Unified macro to add get_voxels_in_interval bindings for both semantic and non-semantic grids
+// Unified macro to add get_voxels_in_bb bindings for both semantic and non-semantic grids
 // IS_SEMANTIC: true if the grid type supports semantic data
 #define DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(CLASS_TYPE, IS_SEMANTIC)                            \
     .def(                                                                                          \
-        "get_voxels_in_interval",                                                                  \
-        [](CLASS_TYPE &self, double min_x, double min_y, double min_z, double max_x, double max_y, \
-           double max_z, int min_count = 1, bool include_semantics = false) {                      \
+        "get_voxels_in_bb",                                                                        \
+        [](CLASS_TYPE &self, BoundingBox3D bbox, int min_count = 1, float min_confidence = 0.0,    \
+           bool include_semantics = false) {                                                       \
             volumetric::VoxelGridData result;                                                      \
             {                                                                                      \
                 py::gil_scoped_release release;                                                    \
                 if constexpr (IS_SEMANTIC) {                                                       \
                     if (include_semantics) {                                                       \
-                        result = self.template get_voxels_in_interval<double, true>(               \
-                            min_x, min_y, min_z, max_x, max_y, max_z, min_count);                  \
+                        result = self.template get_voxels_in_bb<double, true>(bbox, min_count,     \
+                                                                              min_confidence);     \
                     } else {                                                                       \
-                        result = self.template get_voxels_in_interval<double, false>(              \
-                            min_x, min_y, min_z, max_x, max_y, max_z, min_count);                  \
+                        result = self.template get_voxels_in_bb<double, false>(bbox, min_count,    \
+                                                                               min_confidence);    \
                     }                                                                              \
                 } else {                                                                           \
                     if (include_semantics) {                                                       \
                         throw std::runtime_error(                                                  \
                             "include_semantics=True is not supported for non-semantic grids");     \
                     }                                                                              \
-                    result = self.template get_voxels_in_interval<double, false>(                  \
-                        min_x, min_y, min_z, max_x, max_y, max_z, min_count);                      \
+                    result = self.template get_voxels_in_bb<double, false>(bbox, min_count,        \
+                                                                           min_confidence);        \
                 }                                                                                  \
             }                                                                                      \
             return result;                                                                         \
         },                                                                                         \
-        "Get voxels within a spatial interval (bounding box)", py::arg("min_x"), py::arg("min_y"), \
-        py::arg("min_z"), py::arg("max_x"), py::arg("max_y"), py::arg("max_z"),                    \
-        py::arg("min_count") = 1, py::arg("include_semantics") = false)                            \
+        "Get voxels within a spatial interval (bounding box)", py::arg("bbox"),                    \
+        py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,                                 \
+        py::arg("include_semantics") = false)                                                      \
         .def(                                                                                      \
-            "get_voxels_in_interval",                                                              \
-            [](CLASS_TYPE &self, float min_x, float min_y, float min_z, float max_x, float max_y,  \
-               float max_z, int min_count = 1, bool include_semantics = false) {                   \
+            "get_voxels_in_bb",                                                                    \
+            [](CLASS_TYPE &self, BoundingBox3D bbox, int min_count = 1,                            \
+               float min_confidence = 0.0, bool include_semantics = false) {                       \
                 volumetric::VoxelGridData result;                                                  \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     if constexpr (IS_SEMANTIC) {                                                   \
                         if (include_semantics) {                                                   \
-                            result = self.template get_voxels_in_interval<float, true>(            \
-                                min_x, min_y, min_z, max_x, max_y, max_z, min_count);              \
+                            result = self.template get_voxels_in_bb<float, true>(bbox, min_count,  \
+                                                                                 min_confidence);  \
                         } else {                                                                   \
-                            result = self.template get_voxels_in_interval<float, false>(           \
-                                min_x, min_y, min_z, max_x, max_y, max_z, min_count);              \
+                            result = self.template get_voxels_in_bb<float, false>(bbox, min_count, \
+                                                                                  min_confidence); \
                         }                                                                          \
                     } else {                                                                       \
                         if (include_semantics) {                                                   \
                             throw std::runtime_error(                                              \
                                 "include_semantics=True is not supported for non-semantic grids"); \
                         }                                                                          \
-                        result = self.template get_voxels_in_interval<float, false>(               \
-                            min_x, min_y, min_z, max_x, max_y, max_z, min_count);                  \
+                        result = self.template get_voxels_in_bb<float, false>(bbox, min_count,     \
+                                                                              min_confidence);     \
                     }                                                                              \
                 }                                                                                  \
                 return result;                                                                     \
             },                                                                                     \
-            "Get voxels within a spatial interval (bounding box)", py::arg("min_x"),               \
-            py::arg("min_y"), py::arg("min_z"), py::arg("max_x"), py::arg("max_y"),                \
-            py::arg("max_z"), py::arg("min_count") = 1, py::arg("include_semantics") = false)      \
+            "Get voxels within a spatial interval (bounding box)", py::arg("bbox"),                \
+            py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,                             \
+            py::arg("include_semantics") = false)                                                  \
         .def(                                                                                      \
             "get_voxels_in_interval_array",                                                        \
             [](CLASS_TYPE &self, py::array_t<double> bounds, int min_count = 1,                    \
-               bool include_semantics = false) {                                                   \
+               float min_confidence = 0.0, bool include_semantics = false) {                       \
                 volumetric::VoxelGridData result;                                                  \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     if constexpr (IS_SEMANTIC) {                                                   \
                         if (include_semantics) {                                                   \
                             result = self.template get_voxels_in_interval_array<double, true>(     \
-                                bounds, min_count);                                                \
+                                bounds, min_count, min_confidence);                                \
                         } else {                                                                   \
                             result = self.template get_voxels_in_interval_array<double, false>(    \
-                                bounds, min_count);                                                \
+                                bounds, min_count, min_confidence);                                \
                         }                                                                          \
                     } else {                                                                       \
                         if (include_semantics) {                                                   \
@@ -767,28 +774,29 @@ namespace py = pybind11;
                                 "include_semantics=True is not supported for non-semantic grids"); \
                         }                                                                          \
                         result = self.template get_voxels_in_interval_array<double, false>(        \
-                            bounds, min_count);                                                    \
+                            bounds, min_count, min_confidence);                                    \
                     }                                                                              \
                 }                                                                                  \
                 return result;                                                                     \
             },                                                                                     \
             "Get voxels within a spatial interval using array input [min_x, min_y, min_z, max_x, " \
             "max_y, max_z]",                                                                       \
-            py::arg("bounds"), py::arg("min_count") = 1, py::arg("include_semantics") = false)     \
+            py::arg("bounds"), py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,          \
+            py::arg("include_semantics") = false)                                                  \
         .def(                                                                                      \
             "get_voxels_in_interval_array",                                                        \
             [](CLASS_TYPE &self, py::array_t<float> bounds, int min_count = 1,                     \
-               bool include_semantics = false) {                                                   \
+               float min_confidence = 0.0, bool include_semantics = false) {                       \
                 volumetric::VoxelGridData result;                                                  \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     if constexpr (IS_SEMANTIC) {                                                   \
                         if (include_semantics) {                                                   \
                             result = self.template get_voxels_in_interval_array<float, true>(      \
-                                bounds, min_count);                                                \
+                                bounds, min_count, min_confidence);                                \
                         } else {                                                                   \
                             result = self.template get_voxels_in_interval_array<float, false>(     \
-                                bounds, min_count);                                                \
+                                bounds, min_count, min_confidence);                                \
                         }                                                                          \
                     } else {                                                                       \
                         if (include_semantics) {                                                   \
@@ -796,18 +804,19 @@ namespace py = pybind11;
                                 "include_semantics=True is not supported for non-semantic grids"); \
                         }                                                                          \
                         result = self.template get_voxels_in_interval_array<float, false>(         \
-                            bounds, min_count);                                                    \
+                            bounds, min_count, min_confidence);                                    \
                     }                                                                              \
                 }                                                                                  \
                 return result;                                                                     \
             },                                                                                     \
             "Get voxels within a spatial interval using array input [min_x, min_y, min_z, max_x, " \
             "max_y, max_z]",                                                                       \
-            py::arg("bounds"), py::arg("min_count") = 1, py::arg("include_semantics") = false)
+            py::arg("bounds"), py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,          \
+            py::arg("include_semantics") = false)
 
 // ----------------------------------------
 
-PYBIND11_MODULE(volumetric_grid, m) {
+void bind_volumetric_grid(py::module &m) {
 
     // ----------------------------------------
     // VoxelData
@@ -830,6 +839,8 @@ PYBIND11_MODULE(volumetric_grid, m) {
         .def("get_instance_id", &volumetric::VoxelSemanticData::get_instance_id,
              "Returns the instance ID")
         .def("get_class_id", &volumetric::VoxelSemanticData::get_class_id, "Returns the class ID")
+        .def("get_confidence", &volumetric::VoxelSemanticData::get_confidence,
+             "Returns the confidence")
         .def("get_confidence_counter", &volumetric::VoxelSemanticData::get_confidence_counter,
              "Returns the confidence counter");
 
@@ -844,21 +855,8 @@ PYBIND11_MODULE(volumetric_grid, m) {
         .def_readwrite("instance_ids", &volumetric::VoxelGridData::instance_ids,
                        "Returns the instance IDs")
         .def_readwrite("class_ids", &volumetric::VoxelGridData::class_ids, "Returns the class IDs")
-        .def_readwrite("confidence_counters", &volumetric::VoxelGridData::confidence_counters,
-                       "Returns the confidence counters");
-
-    // ----------------------------------------
-    // TBB Utils
-    // ----------------------------------------
-
-    py::class_<volumetric::TBBUtils>(m, "TBBUtils")
-        .def_static(
-            "set_max_threads", &volumetric::TBBUtils::set_max_threads,
-            "Set the maximum number of threads for TBB parallel operations (global setting)",
-            py::arg("num_threads"))
-        .def_static("get_max_threads", &volumetric::TBBUtils::get_max_threads,
-                    "Get the current maximum number of "
-                    "threads for TBB");
+        .def_readwrite("confidences", &volumetric::VoxelGridData::confidences,
+                       "Returns the confidences");
 
     // ----------------------------------------
     // VoxelGrid

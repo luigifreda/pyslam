@@ -589,14 +589,14 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     }
 
     // Remove all voxels with low confidence counter
-    void remove_low_confidence_segments(const int min_confidence_counter) {
+    void remove_low_confidence_segments(const int min_confidence) {
 #ifdef TBB_FOUND
         // For concurrent_unordered_map, collect keys first, then erase
         std::vector<VoxelKey> keys_to_remove;
         keys_to_remove.reserve(grid_.size());
         for (const auto &[key, v] : grid_) {
             // Use getter method if available (for probabilistic), otherwise direct member access
-            if (v.get_confidence_counter() < min_confidence_counter) {
+            if (v.get_confidence() < min_confidence) {
                 keys_to_remove.push_back(key);
             }
         }
@@ -607,7 +607,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         // Sequential version for std::unordered_map
         for (auto it = grid_.begin(); it != grid_.end();) {
             // Use getter method if available (for probabilistic), otherwise direct member access
-            if (it->second.get_confidence_counter() < min_confidence_counter) {
+            if (it->second.get_confidence() < min_confidence) {
                 // Remove the voxel with low confidence_counter
                 it = grid_.erase(it);
             } else {
@@ -715,64 +715,20 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
         return {class_ids, instance_ids};
     }
 
-    std::tuple<std::vector<std::array<double, 3>>, std::vector<std::array<float, 3>>,
-               std::vector<int>, std::vector<int>>
-    get_voxel_data(int min_count = 1) const {
-#ifdef TBB_FOUND
-        // Parallel version: collect keys first, filter, then process in parallel
-        // Use isolate() to prevent deadlock from nested parallelism
-        std::vector<VoxelKey> keys;
-        keys.reserve(grid_.size());
-        for (const auto &[key, v] : grid_) {
-            if (v.count >= min_count) {
-                keys.push_back(key);
-            }
-        }
-        std::vector<std::array<double, 3>> points(keys.size());
-        std::vector<std::array<float, 3>> colors(keys.size());
-        std::vector<int> class_ids(keys.size());
-        std::vector<int> instance_ids(keys.size());
-        tbb::this_task_arena::isolate([&]() {
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                              [&](const tbb::blocked_range<size_t> &range) {
-                                  for (size_t i = range.begin(); i < range.end(); ++i) {
-                                      const auto &v = grid_.at(keys[i]);
-                                      points[i] = v.get_position();
-                                      colors[i] = v.get_color();
-                                      class_ids[i] = v.get_class_id();
-                                      instance_ids[i] = v.get_instance_id();
-                                  }
-                              });
-        });
-        return {points, colors, class_ids, instance_ids};
-#else
-        // Sequential version
-        std::vector<std::array<double, 3>> points;
-        points.reserve(grid_.size());
-        std::vector<std::array<float, 3>> colors;
-        colors.reserve(grid_.size());
-        std::vector<int> class_ids;
-        class_ids.reserve(grid_.size());
-        std::vector<int> instance_ids;
-        instance_ids.reserve(grid_.size());
-        // Always filter by min_count to exclude reset voxels (count=0) unless explicitly requested
-        for (const auto &[key, v] : grid_) {
-            if (v.count >= min_count) {
-                points.push_back(v.get_position());
-                colors.push_back(v.get_color());
-                class_ids.push_back(v.get_class_id());
-                instance_ids.push_back(v.get_instance_id());
-            }
-        }
-        return {points, colors, class_ids, instance_ids};
-#endif
-    }
-
     // Get clusters of voxels based on instance IDs
-    std::unordered_map<int, std::vector<std::array<double, 3>>> get_segments() const {
+    std::unordered_map<int, std::vector<std::array<double, 3>>> get_instance_segments() const {
         std::unordered_map<int, std::vector<std::array<double, 3>>> segments;
         for (const auto &[key, v] : grid_) {
             segments[v.get_instance_id()].push_back(v.get_position());
+        }
+        return segments;
+    }
+
+    // Get clusters of voxels based on class IDs
+    std::unordered_map<int, std::vector<std::array<double, 3>>> get_class_segments() const {
+        std::unordered_map<int, std::vector<std::array<double, 3>>> segments;
+        for (const auto &[key, v] : grid_) {
+            segments[v.get_class_id()].push_back(v.get_position());
         }
         return segments;
     }

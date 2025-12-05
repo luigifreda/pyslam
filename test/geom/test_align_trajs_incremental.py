@@ -351,7 +351,7 @@ class TestAlignSVD:
                 )
                 # Compute RMS error: apply batch's current transformation to current estimated trajectory
                 # and compare with GT
-                batch_rms_error, _, _ = compute_alignment_errors(
+                batch_rms_error, _, _, _ = compute_alignment_errors(
                     batch_T_gt_est, filter_t_wi_subset, gt_interp_positions
                 )
                 batch_errors.append(batch_rms_error)
@@ -396,7 +396,7 @@ class TestAlignSVD:
                     )
                     # Compute RMS error: apply NoLBA's current transformation to current estimated trajectory
                     # and compare with GT
-                    rms_error, _, _ = compute_alignment_errors(
+                    rms_error, _, _, _ = compute_alignment_errors(
                         T_no_lba, filter_t_wi_subset, gt_interp_positions
                     )
                     incremental_no_lba_errors.append(rms_error)
@@ -434,7 +434,7 @@ class TestAlignSVD:
                     )
                     # Compute RMS error: apply Incremental's current transformation to current estimated trajectory
                     # and compare with GT
-                    rms_error, _, _ = compute_alignment_errors(
+                    rms_error, _, _, _ = compute_alignment_errors(
                         T_inc, filter_t_wi_subset, gt_interp_positions
                     )
                     incremental_errors.append(rms_error)
