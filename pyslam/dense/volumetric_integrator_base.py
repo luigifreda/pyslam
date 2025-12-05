@@ -748,7 +748,7 @@ class VolumetricIntegratorBase:
                 Printer.yellow(
                     "VolumetricIntegratorBase: depth_estimator is None, depth is None, skipping the keyframe..."
                 )
-                return None, None  # skip this keyframe
+                return None, None, None, None  # skip this keyframe
             else:
                 inference_start_time = time.time()
                 if keyframe_data.id in self.img_id_to_depth:

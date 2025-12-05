@@ -21,6 +21,8 @@
 #include <array>
 #include <vector>
 
+#include "bounding_boxes.h"
+
 namespace volumetric {
 
 // Output structure for voxel grid data extraction
@@ -32,7 +34,7 @@ struct VoxelGridData {
     // Semantic data (only populated if IncludeSemantics is true)
     std::vector<int> instance_ids;
     std::vector<int> class_ids;
-    std::vector<int> confidence_counters;
+    std::vector<float> confidences;
 };
 
 } // namespace volumetric

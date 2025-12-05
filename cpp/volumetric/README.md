@@ -48,7 +48,7 @@ Both support:
 
 - **`tbb_utils.h`**: TBB (Threading Building Blocks) thread management utilities
 
-- **`volumetric_grid_module.cpp`**: Python bindings (pybind11) for all grid types
+- **`volumetric_module.cpp`**: Python bindings (pybind11) for all grid types
 
 ## Features
 

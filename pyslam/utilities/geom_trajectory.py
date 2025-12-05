@@ -44,16 +44,28 @@ def set_rotations_from_translations(t_wi):
 
 
 def compute_alignment_errors(T_gt_est, filter_associations, gt_associations):
+    """
+    Compute the alignment errors between the ground truth and aligned estimated trajectories.
+    Inputs:
+        T_gt_est: [4x4] transformation matrix from the estimated trajectory to the ground truth trajectory
+        filter_associations: [Nx3] array of filter associations
+        gt_associations: [Nx3] array of ground truth associations
+    Outputs:
+        rms_error: [float] root mean square error between the estimated and ground truth trajectories
+        max_error: [float] maximum error between the estimated and ground truth trajectories
+        median_error: [float] median error between the estimated and ground truth trajectories
+    """
     # Vectorized computation - no numba needed as numpy operations are already optimized
     R = T_gt_est[:3, :3]
-    F = filter_associations.T
-    errors = (R @ F).T + T_gt_est[:3, 3] - gt_associations
+    t = T_gt_est[:3, 3]
+    F = filter_associations.T  # 3xN
+    errors = gt_associations - ((R @ F).T + t)  # Nx3
     distances = np.linalg.norm(errors, axis=1)
     squared_errors = distances**2
     rms_error = np.sqrt(np.mean(squared_errors))
     max_error = np.sqrt(np.max(squared_errors))
     median_error = np.sqrt(np.median(squared_errors))
-    return rms_error, max_error, median_error
+    return rms_error, max_error, median_error, errors
 
 
 # Align corresponding 3D points in SE(3)/Sime(3) using SVD, we assume the points have been already associated, i.e. gt_points[i] corresponds to est_points[i].
@@ -289,6 +301,7 @@ class TrajectoryAlignementData:
         rms_error=-1.0,
         is_est_aligned=False,
         max_error=-1.0,
+        errors=None,
     ):
         # Here we store associated data between estimated and ground truth trajectories
         # timestamps_associations [Nx1] assumed to be in seconds
@@ -306,6 +319,9 @@ class TrajectoryAlignementData:
         self.rms_error = rms_error  # average alignment error
         self.max_error = max_error  # max alignement error
         self.is_est_aligned = is_est_aligned  # is estimated traj aligned?
+        self.errors = (
+            errors if errors is not None else []
+        )  # vector of 3d errors between gt trajectory and aligned estimated trajectory
         self.num_associations = (
             len(timestamps_associations) if timestamps_associations is not None else 0
         )
@@ -369,9 +385,9 @@ def align_trajectories_with_svd(
 
     # second pass with naive outlier rejection
     if outlier_rejection:
-        errors = (
+        errors = np.array(gt_associations) - (
             (T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]
-        ) - np.array(gt_associations)
+        )
         distances = np.linalg.norm(errors, axis=1)
         median_distance = np.median(distances)
         sigma_mad = 1.4826 * median_distance
@@ -390,14 +406,9 @@ def align_trajectories_with_svd(
     # Compute error
     rms_error = 0
     max_error = float("-inf")
+    errors = None
     if compute_align_error:
-        # errors = ((T_gt_est[:3, :3] @ np.array(filter_associations).T).T + T_gt_est[:3, 3]) - np.array(gt_associations)
-        # distances = np.linalg.norm(errors, axis=1)
-        # squared_errors = np.power(distances,2)
-        # rms_error = np.sqrt(np.mean(squared_errors))
-        # max_error = np.sqrt(np.max(squared_errors))
-        # median_error = np.sqrt(np.median(squared_errors))
-        rms_error, max_error, median_error = compute_alignment_errors(
+        rms_error, max_error, median_error, errors = compute_alignment_errors(
             T_gt_est,
             np.array(filter_associations, dtype=np.float64),
             np.array(gt_associations, dtype=np.float64),
@@ -415,6 +426,7 @@ def align_trajectories_with_svd(
         T_est_gt,
         rms_error,
         max_error=max_error,
+        errors=errors,
     )
 
     return T_gt_est, rms_error, aligned_gt_data
@@ -558,6 +570,20 @@ class TrajectoryAlignerProcessBatch(mp.Process):
 
         self.daemon = True
 
+    def quit(self):
+        print("TrajectoryAlignerProcessBatch: quitting...")
+        self.is_running_flag.value = 0
+        timeout = 5 if mp.get_start_method() != "spawn" else 10
+        self.join(timeout=timeout)
+        if self.is_alive():
+            print(
+                f"Warning: TrajectoryAlignerProcessBatch process did not terminate in time, forcing kill."
+            )
+            self.terminate()
+            # Wait a bit more after terminate
+            self.join(timeout=1.0)
+        print("TrajectoryAlignerProcessBatch: closed")
+
     def run(self):
         self.is_running_flag.value = 1
         self._last_alignment_time = time.time()
@@ -567,17 +593,34 @@ class TrajectoryAlignerProcessBatch(mp.Process):
         while self.is_running_flag.value == 1:
             try:
                 data = get_last_item_from_queue(self.input_queue)
+                # Check if data is a valid tuple/list with 2 elements
                 if data is not None:
-                    pose_timestamps, estimated_trajectory = data
-                    self._process_alignment(pose_timestamps, estimated_trajectory)
+                    try:
+                        if isinstance(data, (tuple, list)) and len(data) == 2:
+                            pose_timestamps, estimated_trajectory = data
+                            self._process_alignment(pose_timestamps, estimated_trajectory)
+                        else:
+                            time.sleep(0.1)
+                    except (ValueError, TypeError) as e:
+                        # Invalid data format - skip this item
+                        Printer.red(f"TrajectoryAlignerProcessBatch: Invalid data format: {e}")
+                        time.sleep(0.1)
                 else:
                     time.sleep(0.1)
+            except (EOFError, OSError, ValueError) as e:
+                # Queue closed or invalid state - exit cleanly
+                break
             except Exception as e:
                 Printer.red(f"TrajectoryAlignerProcessBatch: Error: {e}")
-                continue  # queue empty or bad data
-
-        empty_queue(self.input_queue)
-        print("TrajectoryAlignerProcessBatch: quitting...")
+                # Continue for other errors, but check flag
+                if self.is_running_flag.value == 0:
+                    break
+                time.sleep(0.1)
+        try:
+            empty_queue(self.input_queue)
+        except Exception as e:
+            print(f"TrajectoryAlignerProcessBatch: Error emptying input queue: {e}")
+        print("TrajectoryAlignerProcessBatch: run: closed")
 
     def _process_alignment(self, pose_timestamps, estimated_trajectory):
         align_trajectories_fun = align_trajectories_with_svd
@@ -690,6 +733,30 @@ class TrajectoryAlignerProcessIncremental(mp.Process):
 
         self.daemon = True
 
+    def quit(self):
+        print("TrajectoryAlignerProcessIncremental: quitting...")
+        self.is_running_flag.value = 0
+        # Put a sentinel value in the queue to wake up the process if it's blocked
+        try:
+            if hasattr(self, "input_queue") and self.input_queue:
+                # Put None to signal exit - this will wake up get_last_item_from_queue
+                try:
+                    self.input_queue.put_nowait(None)
+                except:
+                    pass  # Queue might be full or closed, that's okay
+        except Exception as e:
+            print(f"TrajectoryAlignerProcessIncremental: Error signaling queue: {e}")
+        timeout = 5 if mp.get_start_method() != "spawn" else 10
+        self.join(timeout=timeout)
+        if self.is_alive():
+            print(
+                f"Warning: TrajectoryAlignerProcessIncremental process did not terminate in time, forcing kill."
+            )
+            self.terminate()
+            # Wait a bit more after terminate
+            self.join(timeout=1.0)
+        print("TrajectoryAlignerProcessIncremental: closed")
+
     def run(self):
         self.is_running_flag.value = 1
         self._last_alignment_time = time.time()
@@ -699,17 +766,40 @@ class TrajectoryAlignerProcessIncremental(mp.Process):
         while self.is_running_flag.value == 1:
             try:
                 data = get_last_item_from_queue(self.input_queue)
+                # Check if we received a shutdown signal (None)
+                if data is None:
+                    break
+                # Check if data is a valid tuple/list with 2 elements
                 if data is not None:
-                    pose_timestamps, estimated_trajectory = data
-                    self._process_alignment(pose_timestamps, estimated_trajectory)
+                    try:
+                        if isinstance(data, (tuple, list)) and len(data) == 2:
+                            pose_timestamps, estimated_trajectory = data
+                            self._process_alignment(pose_timestamps, estimated_trajectory)
+                        else:
+                            time.sleep(0.1)
+                    except (ValueError, TypeError) as e:
+                        # Invalid data format - skip this item
+                        Printer.red(
+                            f"TrajectoryAlignerProcessIncremental: Invalid data format: {e}"
+                        )
+                        time.sleep(0.1)
                 else:
                     time.sleep(0.1)
+            except (EOFError, OSError, ValueError) as e:
+                # Queue closed or invalid state - exit cleanly
+                break
             except Exception as e:
                 Printer.red(f"TrajectoryAlignerProcessIncremental: Error: {e}")
-                continue  # queue empty or bad data
+                # Continue for other errors, but check flag
+                if self.is_running_flag.value == 0:
+                    break
+                time.sleep(0.1)
 
-        empty_queue(self.input_queue)
-        print("TrajectoryAlignerProcessIncremental: quitting...")
+        try:
+            empty_queue(self.input_queue)
+        except Exception as e:
+            print(f"TrajectoryAlignerProcessIncremental: Error emptying input queue: {e}")
+        print("TrajectoryAlignerProcessIncremental: run: closed")
 
     def _process_alignment(self, pose_timestamps, estimated_trajectory):
         try:
@@ -757,7 +847,7 @@ class TrajectoryAlignerProcessIncremental(mp.Process):
                     gt_interp_positions_array = np.array(gt_interp_positions, dtype=np.float64)
 
                     # Use the same error computation function as batch version
-                    error, max_error, median_error = compute_alignment_errors(
+                    error, max_error, median_error, errors = compute_alignment_errors(
                         T_gt_est, est_positions_array, gt_interp_positions_array
                     )
 

@@ -1,9 +1,9 @@
 diff --git a/compatibility_patches.py b/compatibility_patches.py
 new file mode 100644
-index 0000000..ca3ede2
+index 0000000..909ec05
 --- /dev/null
 +++ b/compatibility_patches.py
-@@ -0,0 +1,548 @@
+@@ -0,0 +1,707 @@
 +# ------------------------------------------------------------------------------
 +# Copyright (c) 2022-2023, NVIDIA Corporation & Affiliates. All rights reserved.
 +#
@@ -104,6 +104,190 @@ index 0000000..ca3ede2
 +
 +# Apply einops/keras patch early
 +_patch_einops_keras_compatibility()
++
++
++_hydra_dataclass_patched = False
++
++
++def _patch_hydra_dataclass():
++    """Patch dataclass decorator to handle mutable defaults for Python 3.11 compatibility.
++
++    This fixes the issue where hydra.conf uses mutable defaults in dataclasses,
++    which Python 3.11 doesn't allow. We patch the dataclass decorator to automatically
++    convert mutable defaults to default_factory.
++    """
++    global _hydra_dataclass_patched
++
++    # Only patch once
++    if _hydra_dataclass_patched:
++        return
++
++    # Store original dataclass decorator and _get_field function
++    original_dataclass = dataclasses.dataclass
++
++    # Patch _get_field to automatically convert mutable defaults to default_factory
++    if hasattr(dataclasses, "_get_field"):
++        original_get_field = dataclasses._get_field
++
++        def patched_get_field(cls, name, type, kw_only):
++            """Patched _get_field that converts mutable defaults to default_factory."""
++            # Get the default value
++            default = getattr(cls, name, dataclasses.MISSING)
++
++            # Check if it's a mutable default
++            # We need to check if default is an actual instance (not a type annotation)
++            is_mutable = False
++            if default != dataclasses.MISSING:
++                try:
++                    # Check for None first (separate to avoid Enum issues)
++                    if default is None:
++                        is_mutable = False
++                    # Check if it's an immutable built-in type
++                    elif isinstance(default, (str, int, float, bool, bytes)):
++                        is_mutable = False
++                    # Check if it's a type itself (use __class__ to avoid triggering __init__)
++                    # Never call type() on default as it may trigger __init__/__post_init__
++                    elif hasattr(default, "__class__"):
++                        default_class = default.__class__
++                        if default_class is type:
++                            # It's a type itself, not an instance - not mutable
++                            is_mutable = False
++                        # Try isinstance check, but catch any errors
++                        else:
++                            try:
++                                if isinstance(default, type):
++                                    # It's a type itself - not mutable
++                                    is_mutable = False
++                            except (TypeError, AttributeError, AssertionError):
++                                # If isinstance fails or triggers __init__, skip this check
++                                pass
++                    else:
++                        # It's likely a mutable instance (list, dict, custom class instance, etc.)
++                        # But exclude typing constructs and Enums
++                        import typing
++                        import enum
++
++                        # Check for typing constructs
++                        if isinstance(
++                            default,
++                            (typing.Union, typing.Generic, typing._GenericAlias),
++                        ):
++                            is_mutable = False
++                        # Check for Enums (they're immutable)
++                        elif isinstance(default, enum.Enum):
++                            is_mutable = False
++                        else:
++                            is_mutable = True
++                except (TypeError, AttributeError, ValueError):
++                    # If check fails (e.g., with typing constructs or Enum issues), it's not a mutable instance
++                    is_mutable = False
++
++            if is_mutable:
++                # It's a mutable default, convert to default_factory
++                val_class = default.__class__
++
++                # Temporarily replace with MISSING so original_get_field doesn't see the mutable default
++                original_value = default
++                setattr(cls, name, dataclasses.MISSING)
++
++                try:
++                    # Call original _get_field with MISSING default
++                    field = original_get_field(cls, name, type, kw_only)
++                    # Now set default_factory
++                    field.default = dataclasses.MISSING
++
++                    def make_factory(val_class=val_class):
++                        def _factory():
++                            return val_class()
++
++                        return _factory
++
++                    field.default_factory = make_factory()
++                    return field
++                finally:
++                    # Restore original value (though it won't be used)
++                    setattr(cls, name, original_value)
++            else:
++                # Not a mutable default, use original function; if it still complains, fall back to factory
++                try:
++                    return original_get_field(cls, name, type, kw_only)
++                except ValueError as e:
++                    # Python 3.11+ raises on mutable defaults; convert to default_factory as a safety net
++                    if default != dataclasses.MISSING and "mutable default" in str(e):
++                        original_value = default
++                        setattr(cls, name, dataclasses.MISSING)
++                        try:
++                            field = original_get_field(cls, name, type, kw_only)
++                            field.default = dataclasses.MISSING
++
++                            def _factory(val=original_value):
++                                try:
++                                    return val.__class__()  # try class constructor
++                                except Exception:
++                                    try:
++                                        import copy
++
++                                        return copy.deepcopy(val)
++                                    except Exception:
++                                        return val
++
++                            field.default_factory = _factory
++                            return field
++                        finally:
++                            setattr(cls, name, original_value)
++                    raise
++
++        dataclasses._get_field = patched_get_field
++
++    def patched_dataclass(_cls=None, **kwargs):
++        """Patched dataclass decorator that converts mutable defaults to default_factory."""
++
++        # Just use the original decorator - _get_field patch handles mutable defaults
++        def wrap(cls):
++            return original_dataclass(cls, **kwargs)
++
++        if _cls is None:
++            return wrap
++        return wrap(_cls)
++
++    # Replace dataclasses.dataclass with our patched version
++    dataclasses.dataclass = patched_dataclass
++    _hydra_dataclass_patched = True
++
++    # Also try to patch hydra.conf if it's already imported
++    if "hydra.conf" in sys.modules:
++        try:
++            import hydra.conf as hydra_conf
++
++            if hasattr(hydra_conf, "JobConf"):
++                JobConf = hydra_conf.JobConf
++                if hasattr(JobConf, "JobConfig"):
++                    JobConfig = JobConf.JobConfig
++                    if hasattr(JobConfig, "__dataclass_fields__"):
++                        fields = JobConfig.__dataclass_fields__
++                        if "override_dirname" in fields:
++                            field = fields["override_dirname"]
++                            if (
++                                hasattr(field, "default")
++                                and field.default != dataclasses.MISSING
++                            ):
++                                default_val = field.default
++                                if not isinstance(
++                                    default_val,
++                                    (type(None), str, int, float, bool, type),
++                                ):
++
++                                    def _override_dirname_factory():
++                                        return default_val.__class__()
++
++                                    field.default = dataclasses.MISSING
++                                    field.default_factory = _override_dirname_factory
++        except Exception:
++            pass
++
++
++# Apply hydra dataclass patch early (before any hydra imports)
++_patch_hydra_dataclass()
 +
 +
 +def _patch_torchmetrics():
@@ -265,30 +449,6 @@ index 0000000..ca3ede2
 +        _patching_torchmetrics = False
 +
 +
-+def _patch_hydra_dataclass():
-+    """Patch hydra-core to fix Python 3.11 dataclass mutable default issue."""
-+    if "hydra.conf" in sys.modules:
-+        try:
-+            import hydra.conf as hydra_conf
-+
-+            # The issue is in JobConf.JobConfig.OverrideDirname being used as a default
-+            # We need to patch it to use default_factory instead
-+            if hasattr(hydra_conf, "JobConf"):
-+                JobConf = hydra_conf.JobConf
-+                if hasattr(JobConf, "JobConfig"):
-+                    JobConfig = JobConf.JobConfig
-+                    # Check if override_dirname field exists and has a mutable default
-+                    if hasattr(JobConfig, "__dataclass_fields__"):
-+                        fields = JobConfig.__dataclass_fields__
-+                        if "override_dirname" in fields:
-+                            field = fields["override_dirname"]
-+                            # If it has a mutable default, we need to recreate the dataclass
-+                            # This is a workaround - we'll monkey-patch the class after import
-+                            pass  # Will be handled after import
-+        except Exception:
-+            pass
-+
-+
 +def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
 +    """Intercept imports to patch torchmetrics when it's first imported."""
 +    # Patch keras backend for einops compatibility before importing
@@ -297,8 +457,8 @@ index 0000000..ca3ede2
 +
 +    # Patch hydra before importing to fix Python 3.11 dataclass issue
 +    if name == "hydra" or name.startswith("hydra."):
-+        # We'll patch after import since we need the module to exist first
-+        pass
++        # Ensure dataclass patch is applied before importing hydra
++        _patch_hydra_dataclass()
 +
 +    # Fast path: only check torchmetrics-related imports
 +    is_torchmetrics_import = name.startswith("torchmetrics") or (
@@ -551,7 +711,6 @@ index 0000000..ca3ede2
 +
 +# Apply the filter before importing torch
 +filter_cudnn_conflicts()
-+
 diff --git a/odise/checkpoint/odise_checkpointer.py b/odise/checkpoint/odise_checkpointer.py
 index cb281c9..dfeee47 100644
 --- a/odise/checkpoint/odise_checkpointer.py

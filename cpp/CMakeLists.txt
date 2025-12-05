@@ -167,12 +167,12 @@ trajectory/trajectory_tools_module.cpp)
 target_link_libraries(trajectory_tools PRIVATE
 )
 
-pybind11_add_module(volumetric_grid 
-volumetric/volumetric_grid_module.cpp)
+pybind11_add_module(volumetric 
+volumetric/volumetric_module.cpp)
 if(TBB_FOUND)
-    target_compile_definitions(volumetric_grid PRIVATE TBB_FOUND)
+    target_compile_definitions(volumetric PRIVATE TBB_FOUND)
 endif()
-target_link_libraries(volumetric_grid PRIVATE
+target_link_libraries(volumetric PRIVATE
     ${Open3D_LIBRARIES}
     ${TBB_LINK_LIBS}
 )

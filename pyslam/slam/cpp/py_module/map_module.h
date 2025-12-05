@@ -26,6 +26,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "eigen_aliases.h"
 #include "map.h"
 #include "optimizer_g2o_bind_helpers.h"
 #include "py_wrappers.h"
@@ -116,11 +117,108 @@ void bind_map(pybind11::module &m) {
         .def_readwrite("max_keyframe_id", &pyslam::ReloadedSessionMapInfo::max_keyframe_id);
 
     // ------------------------------------------------------------
+    // VectorProxy bindings for common types used in MapStateData
+    // Expose VectorProxy<Mat4d> for poses and allows appending and other list-like operations
+    py::class_<pyslam::VectorProxy<pyslam::Mat4d>>(m, "VectorProxyMat4d")
+        .def("__getitem__", &pyslam::VectorProxy<pyslam::Mat4d>::getitem,
+             py::return_value_policy::reference_internal)
+        .def("__setitem__", &pyslam::VectorProxy<pyslam::Mat4d>::setitem)
+        .def("append", &pyslam::VectorProxy<pyslam::Mat4d>::append, "Append an item (zero-copy)")
+        .def("extend", &pyslam::VectorProxy<pyslam::Mat4d>::extend, "Extend with multiple items")
+        .def("__len__", &pyslam::VectorProxy<pyslam::Mat4d>::size)
+        .def("size", &pyslam::VectorProxy<pyslam::Mat4d>::size)
+        .def("empty", &pyslam::VectorProxy<pyslam::Mat4d>::empty)
+        .def("clear", &pyslam::VectorProxy<pyslam::Mat4d>::clear)
+        .def("to_list", &pyslam::VectorProxy<pyslam::Mat4d>::to_list)
+        .def(py::pickle(
+            [](const pyslam::VectorProxy<pyslam::Mat4d> &self) { return self.__getstate__(); },
+            [](py::tuple t) {
+                // Unpickling: create a new vector from the list
+                // Note: This creates a standalone vector, not connected to MapStateData
+                // In practice, VectorProxy should be created from MapStateData properties
+                std::vector<pyslam::Mat4d> vec;
+                py::list items = t[0].cast<py::list>();
+                for (auto item : items) {
+                    vec.push_back(py::cast<pyslam::Mat4d>(item));
+                }
+                // Create a static vector to hold the data (temporary solution)
+                // The unpickled VectorProxy will have its own vector
+                static thread_local std::vector<pyslam::Mat4d> temp_vec;
+                temp_vec = std::move(vec);
+                return pyslam::VectorProxy<pyslam::Mat4d>(temp_vec);
+            }))
+        .def("__getstate__", &pyslam::VectorProxy<pyslam::Mat4d>::__getstate__);
+
+    // Expose VectorProxy<double> for timestamps and allows appending and other list-like operations
+    py::class_<pyslam::VectorProxy<double>>(m, "VectorProxyDouble")
+        .def("__getitem__", &pyslam::VectorProxy<double>::getitem,
+             py::return_value_policy::reference_internal)
+        .def("__setitem__", &pyslam::VectorProxy<double>::setitem)
+        .def("append", &pyslam::VectorProxy<double>::append, "Append an item (zero-copy)")
+        .def("extend", &pyslam::VectorProxy<double>::extend, "Extend with multiple items")
+        .def("__len__", &pyslam::VectorProxy<double>::size)
+        .def("size", &pyslam::VectorProxy<double>::size)
+        .def("empty", &pyslam::VectorProxy<double>::empty)
+        .def("clear", &pyslam::VectorProxy<double>::clear)
+        .def("to_list", &pyslam::VectorProxy<double>::to_list)
+        .def(py::pickle([](const pyslam::VectorProxy<double> &self) { return self.__getstate__(); },
+                        [](py::tuple t) {
+                            // Unpickling: create a new vector from the list
+                            // Note: This creates a standalone vector, not connected to MapStateData
+                            // In practice, VectorProxy should be created from MapStateData
+                            // properties
+                            std::vector<double> vec;
+                            py::list items = t[0].cast<py::list>();
+                            for (auto item : items) {
+                                vec.push_back(py::cast<double>(item));
+                            }
+                            // Create a static vector to hold the data (temporary solution)
+                            // The unpickled VectorProxy will have its own vector
+                            static thread_local std::vector<double> temp_vec;
+                            temp_vec = std::move(vec);
+                            return pyslam::VectorProxy<double>(temp_vec);
+                        }))
+        .def("__getstate__", &pyslam::VectorProxy<double>::__getstate__);
+
+#define USE_VECTOR_PROXY 1
+    // ------------------------------------------------------------
     // MapStateData class - complete interface matching Python MapStateData
+    // Use VectorProxy for vectors to enable .append() with zero-copy access
     py::class_<pyslam::MapStateData, std::shared_ptr<pyslam::MapStateData>>(m, "MapStateData")
         .def(py::init<>())
+#if USE_VECTOR_PROXY
+        // Use VectorProxy for poses to enable .append() with zero-copy
+        // Return by value instead of unique_ptr to avoid heap allocation overhead
+        .def_property(
+            "poses",
+            [](pyslam::MapStateData &self) {
+                return pyslam::VectorProxy<pyslam::Mat4d>(self.poses);
+            },
+            [](pyslam::MapStateData &self, py::object value) {
+                // Allow assignment from list/iterable
+                pyslam::VectorProxy<pyslam::Mat4d> proxy(self.poses);
+                proxy.clear();
+                proxy.extend(value);
+            },
+            py::return_value_policy::reference_internal)
+        // Use VectorProxy for pose_timestamps
+        // Return by value instead of unique_ptr to avoid heap allocation overhead
+        .def_property(
+            "pose_timestamps",
+            [](pyslam::MapStateData &self) {
+                return pyslam::VectorProxy<double>(self.pose_timestamps);
+            },
+            [](pyslam::MapStateData &self, py::object value) {
+                pyslam::VectorProxy<double> proxy(self.pose_timestamps);
+                proxy.clear();
+                proxy.extend(value);
+            },
+            py::return_value_policy::reference_internal)
+    // Keep other vectors as readwrite for now (can be converted to VectorProxy if needed)
+#else
         .def_readwrite("poses", &pyslam::MapStateData::poses)
         .def_readwrite("pose_timestamps", &pyslam::MapStateData::pose_timestamps)
+#endif
         .def_readwrite("fov_centers", &pyslam::MapStateData::fov_centers)
         .def_readwrite("fov_centers_colors", &pyslam::MapStateData::fov_centers_colors)
         .def_readwrite("points", &pyslam::MapStateData::points)

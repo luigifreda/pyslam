@@ -234,7 +234,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
     }
 
     // Remove all voxels with low confidence counter
-    void remove_low_confidence_segments(const int min_confidence_counter) {
+    void remove_low_confidence_segments(const int min_confidence) {
 #ifdef TBB_FOUND
         // Parallel version
         tbb::parallel_for_each(this->blocks_.begin(), this->blocks_.end(), [&](auto &pair) {
@@ -243,7 +243,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
             for (auto &v : block.data) {
                 // Use getter method if available (for probabilistic), otherwise direct member
                 // access
-                if (v.get_confidence_counter() < min_confidence_counter) {
+                if (v.get_confidence() < min_confidence) {
                     v.reset();
                 }
             }
@@ -254,7 +254,7 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
             for (auto &v : block.data) {
                 // Use getter method if available (for probabilistic), otherwise direct member
                 // access
-                if (v.get_confidence_counter() < min_confidence_counter) {
+                if (v.get_confidence() < min_confidence) {
                     v.reset();
                 }
             }
@@ -280,39 +280,26 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
         return {class_ids, instance_ids};
     }
 
-    std::tuple<std::vector<std::array<double, 3>>, std::vector<std::array<float, 3>>,
-               std::vector<int>, std::vector<int>>
-    get_voxel_data(int min_count = 1) const {
-        std::vector<std::array<double, 3>> points;
-        std::vector<std::array<float, 3>> colors;
-        std::vector<int> class_ids;
-        std::vector<int> instance_ids;
-        const size_t upper_bound_num_voxels = this->num_voxels_per_block_ * this->blocks_.size();
-        points.reserve(upper_bound_num_voxels);
-        colors.reserve(upper_bound_num_voxels);
-        class_ids.reserve(upper_bound_num_voxels);
-        instance_ids.reserve(upper_bound_num_voxels);
-
-        for (const auto &[block_key, block] : this->blocks_) {
-            for (const auto &v : block.data) {
-                if (v.count >= min_count) {
-                    points.push_back(v.get_position());
-                    colors.push_back(v.get_color());
-                    class_ids.push_back(v.get_class_id());
-                    instance_ids.push_back(v.get_instance_id());
-                }
-            }
-        }
-        return {points, colors, class_ids, instance_ids};
-    }
-
     // Get clusters of voxels based on instance IDs
-    std::unordered_map<int, std::vector<std::array<double, 3>>> get_segments() const {
+    std::unordered_map<int, std::vector<std::array<double, 3>>> get_instance_segments() const {
         std::unordered_map<int, std::vector<std::array<double, 3>>> segments;
         for (const auto &[block_key, block] : this->blocks_) {
             for (const auto &v : block.data) {
                 if (v.count > 0) {
                     segments[v.get_instance_id()].push_back(v.get_position());
+                }
+            }
+        }
+        return segments;
+    }
+
+    // Get clusters of voxels based on class IDs
+    std::unordered_map<int, std::vector<std::array<double, 3>>> get_class_segments() const {
+        std::unordered_map<int, std::vector<std::array<double, 3>>> segments;
+        for (const auto &[block_key, block] : this->blocks_) {
+            for (const auto &v : block.data) {
+                if (v.count > 0) {
+                    segments[v.get_class_id()].push_back(v.get_position());
                 }
             }
         }

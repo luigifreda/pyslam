@@ -33,21 +33,23 @@ from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
 from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
 
 from pyslam.slam.slam import Slam, SlamState
-from pyslam.slam import PinholeCamera
+from pyslam.slam import PinholeCamera, USE_CPP
 
-from pyslam.viz.slam_plot_drawer import SlamPlotDrawer
+from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
 from pyslam.io.ground_truth import groundtruth_factory
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import SensorType
 from pyslam.io.trajectory_writer import TrajectoryWriter
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.system import getchar, Printer, force_kill_all_and_exit
+from pyslam.utilities.system import Printer, force_kill_all_and_exit
 from pyslam.utilities.img_management import ImgWriter
 from pyslam.utilities.evaluation import eval_ate
 from pyslam.utilities.geom_trajectory import find_poses_associations
 from pyslam.utilities.colors import GlColors
 from pyslam.utilities.serialization import SerializableEnumEncoder
+from pyslam.utilities.timer import TimerFps
+from pyslam.viz.cvimage_thread import CvImageViewer
 
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
@@ -257,10 +259,12 @@ if __name__ == "__main__":
     if args.headless:
         viewer3D = None
         plot_drawer = None
+        cv_image_viewer = None
     else:
         viewer3D = Viewer3D(scale=dataset.scale_viewer_3d)
-        plot_drawer = SlamPlotDrawer(slam, viewer3D)
-        img_writer = ImgWriter(font_scale=0.7)
+        plot_drawer = SlamPlotDrawerThread(slam, viewer3D)
+        img_writer = ImgWriter(font_scale=0.5)
+        cv_image_viewer = CvImageViewer()
         if False:
             cv2.namedWindow("Camera", cv2.WINDOW_NORMAL)  # to make it resizable if needed
 
@@ -276,6 +280,8 @@ if __name__ == "__main__":
         # wait for the viewer3D to be ready
         viewer3D.wait_for_ready()
 
+    timer_main = TimerFps("Main", is_verbose=False)
+
     do_step = False  # proceed step by step on GUI
     do_reset = False  # reset on GUI
     is_paused = False  # pause/resume on GUI
@@ -290,6 +296,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     img_id = 0  # 210, 340, 400, 770   # you can start from a desired frame id if needed
+
     while not is_viewer_closed:
 
         time_start = time.time()
@@ -337,7 +344,8 @@ if __name__ == "__main__":
 
                         if not args.headless:
                             depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
-                            cv2.imshow("depth prediction", depth_img)
+                            # cv2.imshow("depth prediction", depth_img)
+                            cv_image_viewer.draw(depth_img, "depth prediction")
 
                     slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function
 
@@ -352,9 +360,13 @@ if __name__ == "__main__":
                             with_level_radius=is_draw_features_with_radius,
                             trail_max_length=Parameters.kMaxFeatureTrailLength,
                         )
-                        img_writer.write(img_draw, f"id: {img_id}", (30, 30))
+                        timer_main.refresh()
+                        fps = timer_main.get_fps()
+                        fps_text = f" fps: {fps:.1f}" if USE_CPP else ""
+                        img_writer.write(img_draw, f"id: {img_id} {fps_text}", (20, 20))
                         # 2D display (image display)
-                        cv2.imshow("Camera", img_draw)
+                        # cv2.imshow("Camera", img_draw)
+                        cv_image_viewer.draw(img_draw, "Camera")
 
                     # draw 2d plots
                     if plot_drawer:
@@ -368,15 +380,6 @@ if __name__ == "__main__":
                     online_trajectory_writer.write_trajectory(
                         slam.tracking.cur_R, slam.tracking.cur_t, timestamp
                     )
-
-                if img is not None:
-                    processing_duration = time.time() - time_start
-                    delta_time_sleep = (
-                        frame_duration - processing_duration - 1e-3
-                    )  # NOTE: 1e-3 is the cv wait time we use below with cv2.waitKey(1)
-                    if delta_time_sleep > 1e-3:
-                        time.sleep(delta_time_sleep)
-                        # Printer.yellow(f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration")
 
                 img_id += 1
                 num_frames += 1
@@ -401,9 +404,12 @@ if __name__ == "__main__":
             # manage SLAM states
             if slam.tracking.state == SlamState.LOST:
                 # key_cv = cv2.waitKey(0) & 0xFF   # wait key for debugging
-                key_cv = cv2.waitKey(500) & 0xFF
+                # key_cv = cv2.waitKey(500) & 0xFF
+                key_cv = cv_image_viewer.get_key() if cv_image_viewer else None
+                time.sleep(0.1)
             else:
-                key_cv = cv2.waitKey(1) & 0xFF
+                # key_cv = cv2.waitKey(1) & 0xFF
+                key_cv = cv_image_viewer.get_key() if cv_image_viewer else None
 
         if slam.tracking.state == SlamState.LOST:
             num_tracking_lost += 1
@@ -444,6 +450,15 @@ if __name__ == "__main__":
             do_step = viewer3D.do_step() and do_step == False
             do_reset = viewer3D.reset() and do_reset == False
             is_viewer_closed = viewer3D.is_closed()
+
+        if not args.headless and img is not None:
+            processing_duration = time.time() - time_start
+            delta_time_sleep = (
+                frame_duration - processing_duration - 1e-3
+            )  # NOTE: 1e-3 is the cv wait time we use below with cv2.waitKey(1)
+            if delta_time_sleep > 1e-3:
+                time.sleep(delta_time_sleep)
+                # Printer.yellow(f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration")
 
         if key == "q" or (key_cv == ord("q") or key_cv == 27):  # press 'q' or ESC for quitting
             break
@@ -489,15 +504,26 @@ if __name__ == "__main__":
         print("Exception while computing metrics: ", e)
         print(f"traceback: {traceback.format_exc()}")
 
-    # close stuff
+    # close stuff - ensure proper shutdown order
+    # First stop SLAM (which stops all processes)
     slam.quit()
+
+    # Give processes time to clean up before closing viewers
+    time.sleep(0.5)
+
+    # Then close viewers (which may have their own processes/threads)
+    if cv_image_viewer:
+        cv_image_viewer.quit()
     if plot_drawer:
         plot_drawer.quit()
     if viewer3D:
         viewer3D.quit()
 
-    if not args.headless:
-        cv2.destroyAllWindows()
+    # Give viewers time to clean up
+    time.sleep(0.5)
+
+    # if not args.headless:
+    #     cv2.destroyAllWindows()
 
     if args.headless:
         force_kill_all_and_exit(verbose=False)  # just in case

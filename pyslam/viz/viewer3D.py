@@ -22,18 +22,19 @@ import platform
 import pyslam.config as config
 
 import time
-import random
+import traceback
 import torch.multiprocessing as mp
-
-from pyslam.config_parameters import Parameters
+import threading
+import queue
+from enum import Enum
 
 # NOTE: Heavy graphics imports (pypangolin, glutils, OpenGL) are moved to viewer_run()
 # to avoid slow startup when using multiprocessing with 'spawn' method.
 # These are only needed in the child process, not in the main process.
 import numpy as np
 
-# import open3d as o3d # apparently, this generates issues under mac
 
+from pyslam.config_parameters import Parameters
 from pyslam.slam import Map, MapStateData
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
@@ -77,6 +78,126 @@ kAlignGroundTruthMaxEveryNFrames = 20  # maximum number of frames between alignm
 kAlignGroundTruthMaxEveryTimeInterval = 3  # [s] maximum time interval between alignments
 
 kRefreshDurationTime = 0.03  # [s]
+
+
+class SlamDrawingTask(Enum):
+    """Enum for different types of SLAM drawing tasks"""
+
+    DRAW_SLAM_MAP = "draw_slam_map"
+    DRAW_DENSE_MAP = "draw_dense_map"
+
+
+class SlamDrawerThread:
+    """
+    Threaded drawer that processes SLAM drawing requests asynchronously.
+    This allows the main SLAM loop to continue without waiting for expensive
+    data preparation operations like get_data_arrays_for_drawing().
+
+    Uses a thread-safe reference to slam object (no pickling needed since we're using threading).
+    """
+
+    def __init__(self, viewer3D: "Viewer3D"):
+        self.viewer3D = viewer3D
+
+        # Thread-safe queue for drawing requests (only task type, no slam object)
+        # Use maxsize=2 to keep only the latest requests (drop old ones)
+        self.request_queue = queue.Queue(maxsize=2)
+
+        # Thread-safe reference to slam object (updated atomically)
+        self._slam_lock = threading.Lock()
+        self._slam_ref = None
+
+        self.is_running = threading.Event()
+        self.is_running.set()
+
+        # Start drawing thread
+        self.draw_thread = threading.Thread(target=self.run, daemon=True, name="SlamDrawerThread")
+        self.draw_thread.start()
+
+    def __getstate__(self):
+        """Exclude non-picklable objects (locks, threads) from pickling"""
+        state = self.__dict__.copy()
+        # Remove non-picklable objects
+        state.pop("_slam_lock", None)
+        state.pop("draw_thread", None)
+        state.pop("is_running", None)
+        state.pop("request_queue", None)
+        return state
+
+    def __setstate__(self, state):
+        """Restore state and recreate non-picklable objects"""
+        self.__dict__.update(state)
+        # Recreate non-picklable objects
+        self._slam_lock = threading.Lock()
+        self.request_queue = queue.Queue(maxsize=2)
+        self.is_running = threading.Event()
+        self.is_running.set()
+        # Restart the thread if viewer3D is available
+        if hasattr(self, "viewer3D") and self.viewer3D is not None:
+            self.draw_thread = threading.Thread(
+                target=self.run, daemon=True, name="SlamDrawerThread"
+            )
+            self.draw_thread.start()
+
+    def run(self):
+        """Worker thread that processes drawing requests"""
+        while self.is_running.is_set():
+            try:
+                # Get request with timeout to allow checking is_running
+                try:
+                    task_type = self.request_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+
+                # Get current slam reference (thread-safe)
+                with self._slam_lock:
+                    slam = self._slam_ref
+
+                if slam is None:
+                    continue  # Skip if no slam reference set
+
+                # Process the drawing request
+                if task_type == SlamDrawingTask.DRAW_SLAM_MAP:
+                    self.viewer3D._draw_slam_map_impl(slam)
+                elif task_type == SlamDrawingTask.DRAW_DENSE_MAP:
+                    self.viewer3D._draw_dense_map_impl(slam)
+
+                self.request_queue.task_done()
+            except Exception as e:
+                Printer.red(f"SlamDrawerThread: error in draw worker: {e}")
+                traceback.print_exc()
+        print(f"SlamDrawerThread: run: closed")
+
+    def request_draw(self, task_type: SlamDrawingTask, slam: "Slam"):
+        """Request a drawing operation (non-blocking, no pickling)"""
+        if not self.is_running.is_set():
+            return
+
+        # Update slam reference atomically (no pickling needed)
+        with self._slam_lock:
+            self._slam_ref = slam
+
+        try:
+            # Try to put the request, but don't block if queue is full
+            # This drops old requests if the queue is full, keeping only the latest
+            try:
+                self.request_queue.put_nowait(task_type)
+            except queue.Full:
+                # Queue is full, try to get and discard old request, then put new one
+                try:
+                    self.request_queue.get_nowait()
+                    self.request_queue.put_nowait(task_type)
+                except queue.Empty:
+                    pass  # Queue became empty between checks
+        except Exception as e:
+            Printer.red(f"SlamDrawerThread: error requesting draw: {e}")
+
+    def quit(self):
+        """Stop the drawing thread"""
+        self.is_running.clear()
+        if self.draw_thread.is_alive():
+            self.draw_thread.join(timeout=1.0)
+        print(f"SlamDrawerThread: closed")
 
 
 class VizPointCloud:
@@ -246,6 +367,9 @@ class Viewer3D(object):
         self.is_aligner_running = mp.Value("i", 0)
         self.trajectory_aligner = None
 
+        # Create threaded drawer for asynchronous drawing operations
+        self.slam_drawer_thread = SlamDrawerThread(self)
+
         self.vp = mp.Process(
             target=self.viewer_run,
             args=(
@@ -272,6 +396,22 @@ class Viewer3D(object):
         self.vp.daemon = True
         self.vp.start()
 
+    # NOTE: When multiprocessing spawns a new process, it pickles the Viewer3D instance because viewer_run is a bound method.
+    # To avoid pickling problems, we need to exclude the non-picklable objects from the state.
+    def __getstate__(self):
+        """Exclude non-picklable objects from pickling (for multiprocessing)"""
+        state = self.__dict__.copy()
+        # Exclude slam_drawer_thread (contains locks, threads, queues - not picklable)
+        # This is only used in the main process, not in the child process
+        state.pop("slam_drawer_thread", None)
+        return state
+
+    def __setstate__(self, state):
+        """Restore state after unpickling"""
+        self.__dict__.update(state)
+        # slam_drawer_thread will be None after unpickling, but that's OK
+        # since it's only needed in the main process, not the child process
+
     def set_gt_trajectory(self, gt_trajectory, gt_timestamps, align_with_scale=False):
         if gt_trajectory is None or gt_timestamps is None:
             Printer.yellow("Viewer3D: set_gt_trajectory: gt_trajectory or gt_timestamps is None")
@@ -292,23 +432,28 @@ class Viewer3D(object):
                 gt_trajectory=self.gt_trajectory,
                 gt_timestamps=self.gt_timestamps,
                 find_scale=self.align_gt_with_scale,
-                compute_align_error=True,
+                compute_align_error=True,  # we need it for the slam plot drawer to draw the alignment errors
             )
             self.trajectory_aligner.start()
             Printer.blue(f"Viewer3D: set_gt_trajectory - trajectory aligner started")
 
     def quit(self):
         print("Viewer3D: quitting...")
+        # Stop the drawer thread first
+        if hasattr(self, "slam_drawer_thread"):
+            self.slam_drawer_thread.quit()
         if self._is_running.value == 1:
             self._is_running.value = 0
         if self._is_looping.value == 1:
             self._is_looping.value = 0
         if self.vp.is_alive():
             self.vp.join()
-        if self.is_aligner_running.value == 1:
-            self.is_aligner_running.value = 0
-        if self.trajectory_aligner and self.trajectory_aligner.is_alive():
-            self.trajectory_aligner.join()
+        # if self.is_aligner_running.value == 1:
+        #     self.is_aligner_running.value = 0
+        # if self.trajectory_aligner and self.trajectory_aligner.is_alive():
+        #     self.trajectory_aligner.join()
+        if self.trajectory_aligner:
+            self.trajectory_aligner.quit()
         # pangolin.Quit()
         print("Viewer3D: done")
 
@@ -410,25 +555,29 @@ class Viewer3D(object):
         is_looping.value = 1
         while not pangolin.ShouldQuit() and (is_running.value == 1):
             ts = time.time()
-            self.viewer_refresh(
-                qmap,
-                qvo,
-                qdense,
-                qcams,
-                is_paused,
-                is_map_save,
-                is_bundle_adjust,
-                do_step,
-                do_reset,
-                is_draw_features_with_radius,
-                is_gt_set,
-                aligner_input_queue,
-                aligner_output_queue,
-                is_aligner_running,
-            )
-            sleep = (time.time() - ts) - kRefreshDurationTime
-            if sleep > 0:
-                time.sleep(sleep)
+            try:
+                self.viewer_refresh(
+                    qmap,
+                    qvo,
+                    qdense,
+                    qcams,
+                    is_paused,
+                    is_map_save,
+                    is_bundle_adjust,
+                    do_step,
+                    do_reset,
+                    is_draw_features_with_radius,
+                    is_gt_set,
+                    aligner_input_queue,
+                    aligner_output_queue,
+                    is_aligner_running,
+                )
+                sleep = (time.time() - ts) - kRefreshDurationTime
+                if sleep > 0:
+                    time.sleep(sleep)
+            except Exception as e:
+                Printer.red(f"Viewer3D: viewer_run - error: {e}")
+                traceback.print_exc()
 
         empty_queue(qmap)  # empty the queue before exiting
         empty_queue(qvo)  # empty the queue before exiting
@@ -904,21 +1053,23 @@ class Viewer3D(object):
 
         pangolin.FinishFrame()
 
-    def draw_map(self, map_state: Viewer3DMapInput):
+    # draw sparse map (public interface - non-blocking, uses thread)
+    def draw_slam_map(self, slam: "Slam"):
+        """Request drawing of SLAM map (non-blocking, uses background thread)"""
         if self.qmap is None:
             return
+        self.slam_drawer_thread.request_draw(SlamDrawingTask.DRAW_SLAM_MAP, slam)
 
-        if self.gt_trajectory is not None:
-            if not self._is_gt_set.value:
-                map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
-                map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
-                map_state.align_gt_with_scale = self.align_gt_with_scale
+    # draw dense map (public interface - non-blocking, uses thread)
+    def draw_dense_map(self, slam: "Slam"):
+        """Request drawing of dense map (non-blocking, uses background thread)"""
+        if self.qdense is None:
+            return
+        self.slam_drawer_thread.request_draw(SlamDrawingTask.DRAW_DENSE_MAP, slam)
 
-        self.qmap.put(map_state)
-
-    # draw sparse map
-    def draw_slam_map(self, slam: "Slam"):
-
+    # Internal implementation methods (called by the drawer thread)
+    def _draw_slam_map_impl(self, slam: "Slam"):
+        """Internal implementation of draw_slam_map (called by drawer thread)"""
         if self.qmap is None:
             return
         map: Map = slam.map
@@ -954,16 +1105,29 @@ class Viewer3D(object):
 
         self.qmap.put(viewer_map_state)
 
-    def draw_dense_map(self, slam: "Slam"):
+    def _draw_dense_map_impl(self, slam: "Slam"):
+        """Internal implementation of draw_dense_map (called by drawer thread)"""
         if self.qdense is None:
             return
         dense_map_output = slam.get_dense_map()
         if dense_map_output is not None:
             self.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
 
+    def draw_map(self, map_state: Viewer3DMapInput):
+        if self.qmap is None:
+            return
+
+        if self.gt_trajectory is not None:
+            if not self._is_gt_set.value:
+                map_state.gt_trajectory = np.array(self.gt_trajectory, dtype=np.float64)
+                map_state.gt_timestamps = np.array(self.gt_timestamps, dtype=np.float64)
+                map_state.align_gt_with_scale = self.align_gt_with_scale
+
+        self.qmap.put(map_state)
+
     # inputs:
-    #   point_cloud: o3d.geometry.PointCloud or VolumetricIntegrationPointCloud (see the file volumetric_integrator.py)
-    #   mesh: o3d.geometry.TriangleMesh or VolumetricIntegrationMesh (see the file volumetric_integrator.py)
+    #   point_cloud: VolumetricIntegrationPointCloud (see the file volumetric_integrator.py)
+    #   mesh: VolumetricIntegrationMesh (see the file volumetric_integrator.py)
     #   camera_images: list of VizCameraImage objects
     def draw_dense_geometry(self, point_cloud=None, mesh=None, camera_images=None):
         if self.qdense is None:

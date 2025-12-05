@@ -114,4 +114,5 @@ if __name__ == "__main__":
         if is_bundle_adjust:
             slam.bundle_adjust()
 
+    viewer3D.quit()  # NOTE: first quit the viewer3D then the slam
     slam.quit()

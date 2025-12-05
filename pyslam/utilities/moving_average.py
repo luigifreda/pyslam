@@ -44,7 +44,7 @@ class MovingAverage:
         self._sigma2 = 0
         self._is_init = True
 
-    def getAverage(self, new_val=None):
+    def get_average(self, new_val=None):
         if not self._is_init:
             self.init(new_val)
         if new_val is None:
@@ -62,5 +62,8 @@ class MovingAverage:
         self._idx_ring = (self._idx_ring + 1) % self._average_width
         return self._average
 
-    def getSigma(self):
+    def get_sigma(self):
         return math.sqrt(max(self._sigma2, 0.0))
+
+    def get_sigma2(self):
+        return self._sigma2

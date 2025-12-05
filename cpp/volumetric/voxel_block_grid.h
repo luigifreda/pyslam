@@ -569,44 +569,126 @@ template <typename VoxelDataT> class VoxelBlockGridT {
         return colors;
     }
 
-    std::pair<std::vector<std::array<double, 3>>, std::vector<std::array<float, 3>>>
-    get_voxel_data(int min_count = 1) const {
-        std::vector<std::array<double, 3>> points;
-        std::vector<std::array<float, 3>> colors;
-        const size_t upper_bound_num_voxels = num_voxels_per_block_ * blocks_.size();
-        points.reserve(upper_bound_num_voxels);
-        colors.reserve(upper_bound_num_voxels);
+    VoxelGridData get_voxels(int min_count = 1, float min_confidence = 0.0) const {
+#ifdef TBB_FOUND
+        // Parallel version: use thread-local storage to collect data
+        // Each thread processes distinct blocks, so no contention on reads
+        VoxelGridData result;
+        std::mutex merge_mutex; // Single mutex for merging thread-local results
 
+        tbb::parallel_for_each(blocks_.begin(), blocks_.end(), [&](const auto &pair) {
+            // Thread-local storage for collecting data (reduces contention)
+            VoxelGridData local_result;
+            const auto &block = pair.second;
+
+            // Reserve space for all voxels in this block (may be overestimate, but better than
+            // reallocation)
+            local_result.points.reserve(num_voxels_per_block_);
+            local_result.colors.reserve(num_voxels_per_block_);
+            if constexpr (SemanticVoxel<VoxelDataT>) {
+                local_result.instance_ids.reserve(num_voxels_per_block_);
+                local_result.class_ids.reserve(num_voxels_per_block_);
+                local_result.confidences.reserve(num_voxels_per_block_);
+            }
+
+            bool check_point;
+            float confidence;
+            // Process all voxels in this block
+            for (const auto &v : block.data) {
+                if constexpr (SemanticVoxel<VoxelDataT>) {
+                    confidence = v.get_confidence(); // compute confidence only once
+                    check_point = v.count >= min_count && confidence >= min_confidence;
+                } else {
+                    check_point = v.count >= min_count;
+                }
+                if (check_point) {
+                    local_result.points.push_back(v.get_position());
+                    local_result.colors.push_back(v.get_color());
+                    if constexpr (SemanticVoxel<VoxelDataT>) {
+                        local_result.instance_ids.push_back(v.get_instance_id());
+                        local_result.class_ids.push_back(v.get_class_id());
+                        local_result.confidences.push_back(confidence);
+                    }
+                }
+            }
+
+            // Merge local results into global result (protected by mutex)
+            if (!local_result.points.empty()) {
+                std::lock_guard<std::mutex> lock(merge_mutex);
+                result.points.insert(result.points.end(), local_result.points.begin(),
+                                     local_result.points.end());
+                result.colors.insert(result.colors.end(), local_result.colors.begin(),
+                                     local_result.colors.end());
+                if constexpr (SemanticVoxel<VoxelDataT>) {
+                    result.instance_ids.insert(result.instance_ids.end(),
+                                               local_result.instance_ids.begin(),
+                                               local_result.instance_ids.end());
+                    result.class_ids.insert(result.class_ids.end(), local_result.class_ids.begin(),
+                                            local_result.class_ids.end());
+                    result.confidences.insert(result.confidences.end(),
+                                              local_result.confidences.begin(),
+                                              local_result.confidences.end());
+                }
+            }
+        });
+#else
+        // Sequential version
+        VoxelGridData result;
+        const size_t upper_bound_num_voxels = num_voxels_per_block_ * blocks_.size();
+        result.points.reserve(upper_bound_num_voxels);
+        result.colors.reserve(upper_bound_num_voxels);
+        if constexpr (SemanticVoxel<VoxelDataT>) {
+            result.instance_ids.reserve(upper_bound_num_voxels);
+            result.class_ids.reserve(upper_bound_num_voxels);
+            result.confidences.reserve(upper_bound_num_voxels);
+        }
+
+        bool check_point;
+        float confidence;
         for (const auto &[block_key, block] : blocks_) {
             for (const auto &v : block.data) {
-                if (v.count >= min_count) {
-                    points.push_back(v.get_position());
-                    colors.push_back(v.get_color());
+                if constexpr (SemanticVoxel<VoxelDataT>) {
+                    confidence = v.get_confidence(); // compute confidence only once
+                    check_point = v.count >= min_count && confidence >= min_confidence;
+                } else {
+                    check_point = v.count >= min_count;
+                }
+                if (check_point) {
+                    result.points.push_back(v.get_position());
+                    result.colors.push_back(v.get_color());
+                    if constexpr (SemanticVoxel<VoxelDataT>) {
+                        result.instance_ids.push_back(v.get_instance_id());
+                        result.class_ids.push_back(v.get_class_id());
+                        result.confidences.push_back(confidence);
+                    }
                 }
             }
         }
-        return {points, colors};
+#endif
+        return result;
     }
 
     // Get voxels within a spatial interval (bounding box)
     // Returns points and colors for voxels whose centers fall within [min_xyz, max_xyz]
     // If IncludeSemantics is true and VoxelDataT is a SemanticVoxel, also returns semantic data
     template <typename T, bool IncludeSemantics = false>
-    VoxelGridData get_voxels_in_interval(const T min_x, const T min_y, const T min_z, const T max_x,
-                                         const T max_y, const T max_z,
-                                         const int min_count = 1) const {
+    VoxelGridData get_voxels_in_bb(const BoundingBox3D bbox, const int min_count = 1,
+                                   float min_confidence = 0.0) const {
         // Convert spatial bounds to voxel key bounds
-        const VoxelKey min_key = get_voxel_key_inv<T, float>(min_x, min_y, min_z, inv_voxel_size_);
-        const VoxelKey max_key = get_voxel_key_inv<T, float>(max_x, max_y, max_z, inv_voxel_size_);
+        const VoxelKey min_key =
+            get_voxel_key_inv<T, float>(bbox.min_x, bbox.min_y, bbox.min_z, inv_voxel_size_);
+        const VoxelKey max_key =
+            get_voxel_key_inv<T, float>(bbox.max_x, bbox.max_y, bbox.max_z, inv_voxel_size_);
 
         // Convert voxel key bounds to block key bounds
         const BlockKey min_block_key = get_block_key(min_key, block_size_);
         const BlockKey max_block_key = get_block_key(max_key, block_size_);
 
+        VoxelGridData result;
 #ifdef TBB_FOUND
         // Parallel version: use thread-local storage to collect data directly
         // Each thread processes distinct blocks, so no contention on reads
-        VoxelGridData result;
+
         std::mutex merge_mutex; // Single mutex for merging thread-local results
 
         tbb::this_task_arena::isolate([&]() {
@@ -626,11 +708,13 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                     local_result.class_ids.reserve((max_block_key.y - min_block_key.y + 1) *
                                                    (max_block_key.z - min_block_key.z + 1) *
                                                    num_voxels_per_block_);
-                    local_result.confidence_counters.reserve(
-                        (max_block_key.y - min_block_key.y + 1) *
-                        (max_block_key.z - min_block_key.z + 1) * num_voxels_per_block_);
+                    local_result.confidences.reserve((max_block_key.y - min_block_key.y + 1) *
+                                                     (max_block_key.z - min_block_key.z + 1) *
+                                                     num_voxels_per_block_);
                 }
 
+                bool check_point;
+                float confidence;
                 // Iterate over blocks with this x coordinate
                 for (KeyType by = min_block_key.y; by <= max_block_key.y; ++by) {
                     for (KeyType bz = min_block_key.z; bz <= max_block_key.z; ++bz) {
@@ -646,7 +730,15 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                         const size_t idx = block.get_index(local_key);
                                         const auto &v = block.data[idx];
 
-                                        if (v.count >= min_count) {
+                                        if constexpr (SemanticVoxel<VoxelDataT>) {
+                                            confidence =
+                                                v.get_confidence(); // compute confidence only once
+                                            check_point = v.count >= min_count &&
+                                                          confidence >= min_confidence;
+                                        } else {
+                                            check_point = v.count >= min_count;
+                                        }
+                                        if (check_point) {
                                             // Convert local voxel key back to global voxel key
                                             VoxelKey voxel_key(block_key.x * block_size_ + lx,
                                                                block_key.y * block_size_ + ly,
@@ -664,12 +756,12 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                                 // (voxel key bounds may be slightly larger than
                                                 // spatial bounds)
                                                 auto pos = v.get_position();
-                                                if (pos[0] >= static_cast<double>(min_x) &&
-                                                    pos[0] <= static_cast<double>(max_x) &&
-                                                    pos[1] >= static_cast<double>(min_y) &&
-                                                    pos[1] <= static_cast<double>(max_y) &&
-                                                    pos[2] >= static_cast<double>(min_z) &&
-                                                    pos[2] <= static_cast<double>(max_z)) {
+                                                if (pos[0] >= static_cast<double>(bbox.min_x) &&
+                                                    pos[0] <= static_cast<double>(bbox.max_x) &&
+                                                    pos[1] >= static_cast<double>(bbox.min_y) &&
+                                                    pos[1] <= static_cast<double>(bbox.max_y) &&
+                                                    pos[2] >= static_cast<double>(bbox.min_z) &&
+                                                    pos[2] <= static_cast<double>(bbox.max_z)) {
                                                     local_result.points.push_back(pos);
                                                     local_result.colors.push_back(v.get_color());
 
@@ -679,8 +771,8 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                                             v.get_instance_id());
                                                         local_result.class_ids.push_back(
                                                             v.get_class_id());
-                                                        local_result.confidence_counters.push_back(
-                                                            v.get_confidence_counter());
+                                                        local_result.confidences.push_back(
+                                                            confidence);
                                                     }
                                                 }
                                             }
@@ -706,16 +798,15 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                         result.class_ids.insert(result.class_ids.end(),
                                                 local_result.class_ids.begin(),
                                                 local_result.class_ids.end());
-                        result.confidence_counters.insert(result.confidence_counters.end(),
-                                                          local_result.confidence_counters.begin(),
-                                                          local_result.confidence_counters.end());
+                        result.confidences.insert(result.confidences.end(),
+                                                  local_result.confidences.begin(),
+                                                  local_result.confidences.end());
                     }
                 }
             });
         });
 #else
         // Sequential version
-        VoxelGridData result;
         // Estimate number of voxels (may be overestimate, but better than no reserve)
         const size_t max_num_voxels = num_voxels_per_block_ * blocks_.size();
         const size_t estimated_num_voxels =
@@ -727,9 +818,11 @@ template <typename VoxelDataT> class VoxelBlockGridT {
         if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
             result.instance_ids.reserve(estimated_num_voxels);
             result.class_ids.reserve(estimated_num_voxels);
-            result.confidence_counters.reserve(estimated_num_voxels);
+            result.confidences.reserve(estimated_num_voxels);
         }
 
+        bool check_point;
+        float confidence;
         // Iterate over all blocks that might contain voxels in the interval
         for (KeyType bx = min_block_key.x; bx <= max_block_key.x; ++bx) {
             for (KeyType by = min_block_key.y; by <= max_block_key.y; ++by) {
@@ -746,7 +839,15 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                     const size_t idx = block.get_index(local_key);
                                     const auto &v = block.data[idx];
 
-                                    if (v.count >= min_count) {
+                                    if constexpr (SemanticVoxel<VoxelDataT>) {
+                                        confidence =
+                                            v.get_confidence(); // compute confidence only once
+                                        check_point =
+                                            v.count >= min_count && confidence >= min_confidence;
+                                    } else {
+                                        check_point = v.count >= min_count;
+                                    }
+                                    if (check_point) {
                                         // Convert local voxel key back to global voxel key
                                         VoxelKey voxel_key(block_key.x * block_size_ + lx,
                                                            block_key.y * block_size_ + ly,
@@ -760,12 +861,12 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                             // (voxel key bounds may be slightly larger than spatial
                                             // bounds)
                                             auto pos = v.get_position();
-                                            if (pos[0] >= static_cast<double>(min_x) &&
-                                                pos[0] <= static_cast<double>(max_x) &&
-                                                pos[1] >= static_cast<double>(min_y) &&
-                                                pos[1] <= static_cast<double>(max_y) &&
-                                                pos[2] >= static_cast<double>(min_z) &&
-                                                pos[2] <= static_cast<double>(max_z)) {
+                                            if (pos[0] >= static_cast<double>(bbox.min_x) &&
+                                                pos[0] <= static_cast<double>(bbox.max_x) &&
+                                                pos[1] >= static_cast<double>(bbox.min_y) &&
+                                                pos[1] <= static_cast<double>(bbox.max_y) &&
+                                                pos[2] >= static_cast<double>(bbox.min_z) &&
+                                                pos[2] <= static_cast<double>(bbox.max_z)) {
                                                 result.points.push_back(pos);
                                                 result.colors.push_back(v.get_color());
 
@@ -776,8 +877,7 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                                     result.instance_ids.push_back(
                                                         v.get_instance_id());
                                                     result.class_ids.push_back(v.get_class_id());
-                                                    result.confidence_counters.push_back(
-                                                        v.get_confidence_counter());
+                                                    result.confidences.push_back(confidence);
                                                 }
                                             }
                                         }
@@ -797,16 +897,20 @@ template <typename VoxelDataT> class VoxelBlockGridT {
     // Iterate over voxels in a spatial interval with a callback function
     // The callback receives (voxel_key, voxel_data) for each voxel in the interval
     template <typename T, typename Callback>
-    void iterate_voxels_in_interval(T min_x, T min_y, T min_z, T max_x, T max_y, T max_z,
-                                    Callback &&callback, int min_count = 1) const {
+    void iterate_voxels_in_interval(BoundingBox3D bbox, Callback &&callback, int min_count = 1,
+                                    float min_confidence = 0.0) const {
         // Convert spatial bounds to voxel key bounds
-        const VoxelKey min_key = get_voxel_key_inv<T, float>(min_x, min_y, min_z, inv_voxel_size_);
-        const VoxelKey max_key = get_voxel_key_inv<T, float>(max_x, max_y, max_z, inv_voxel_size_);
+        const VoxelKey min_key =
+            get_voxel_key_inv<T, float>(bbox.min_x, bbox.min_y, bbox.min_z, inv_voxel_size_);
+        const VoxelKey max_key =
+            get_voxel_key_inv<T, float>(bbox.max_x, bbox.max_y, bbox.max_z, inv_voxel_size_);
 
         // Convert voxel key bounds to block key bounds
         const BlockKey min_block_key = get_block_key(min_key, block_size_);
         const BlockKey max_block_key = get_block_key(max_key, block_size_);
 
+        bool check_point;
+        float confidence;
         // Iterate over all blocks that might contain voxels in the interval
         for (KeyType bx = min_block_key.x; bx <= max_block_key.x; ++bx) {
             for (KeyType by = min_block_key.y; by <= max_block_key.y; ++by) {
@@ -823,7 +927,15 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                     const size_t idx = block.get_index(local_key);
                                     const auto &v = block.data[idx];
 
-                                    if (v.count >= min_count) {
+                                    if constexpr (SemanticVoxel<VoxelDataT>) {
+                                        confidence =
+                                            v.get_confidence(); // compute confidence only once
+                                        check_point =
+                                            v.count >= min_count && confidence >= min_confidence;
+                                    } else {
+                                        check_point = v.count >= min_count;
+                                    }
+                                    if (check_point) {
                                         // Convert local voxel key back to global voxel key
                                         VoxelKey voxel_key(block_key.x * block_size_ + lx,
                                                            block_key.y * block_size_ + ly,
@@ -837,12 +949,12 @@ template <typename VoxelDataT> class VoxelBlockGridT {
                                             // (voxel key bounds may be slightly larger than spatial
                                             // bounds)
                                             auto pos = v.get_position();
-                                            if (pos[0] >= static_cast<double>(min_x) &&
-                                                pos[0] <= static_cast<double>(max_x) &&
-                                                pos[1] >= static_cast<double>(min_y) &&
-                                                pos[1] <= static_cast<double>(max_y) &&
-                                                pos[2] >= static_cast<double>(min_z) &&
-                                                pos[2] <= static_cast<double>(max_z)) {
+                                            if (pos[0] >= static_cast<double>(bbox.min_x) &&
+                                                pos[0] <= static_cast<double>(bbox.max_x) &&
+                                                pos[1] >= static_cast<double>(bbox.min_y) &&
+                                                pos[1] <= static_cast<double>(bbox.max_y) &&
+                                                pos[2] >= static_cast<double>(bbox.min_z) &&
+                                                pos[2] <= static_cast<double>(bbox.max_z)) {
                                                 callback(voxel_key, v);
                                             }
                                         }
@@ -859,7 +971,8 @@ template <typename VoxelDataT> class VoxelBlockGridT {
     // Get voxels within a spatial interval using array input (for Python interface)
     // bounds should be a 1D array with 6 elements: [min_x, min_y, min_z, max_x, max_y, max_z]
     template <typename T, bool IncludeSemantics = false>
-    auto get_voxels_in_interval_array(py::array_t<T> bounds, int min_count = 1) const {
+    auto get_voxels_in_interval_array(py::array_t<T> bounds, int min_count = 1,
+                                      float min_confidence = 0.0) const {
         auto bounds_info = bounds.request();
 
         // Validate array shape: bounds should be (6,) or have 6 elements
@@ -872,9 +985,9 @@ template <typename VoxelDataT> class VoxelBlockGridT {
         }
 
         const T *bounds_ptr = static_cast<const T *>(bounds_info.ptr);
-        return get_voxels_in_interval<T, IncludeSemantics>(bounds_ptr[0], bounds_ptr[1],
-                                                           bounds_ptr[2], bounds_ptr[3],
-                                                           bounds_ptr[4], bounds_ptr[5], min_count);
+        BoundingBox3D bbox(bounds_ptr[0], bounds_ptr[1], bounds_ptr[2], bounds_ptr[3],
+                           bounds_ptr[4], bounds_ptr[5]);
+        return get_voxels_in_bb<T, IncludeSemantics>(bbox, min_count, min_confidence);
     }
 
     // Clear the voxel grid

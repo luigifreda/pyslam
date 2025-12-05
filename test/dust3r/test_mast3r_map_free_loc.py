@@ -36,7 +36,7 @@ from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import SensorType
 from pyslam.io.ground_truth import groundtruth_factory
 
-from pyslam.viz.slam_plot_drawer import LocalizationPlotDrawer
+from pyslam.viz.localization_plot_drawer import LocalizationPlotDrawer
 
 from pyslam.viz.viewer3D import (
     Viewer3D,
@@ -252,25 +252,44 @@ def update_and_draw_map(
     odometry_state.poses[cur_frame_id] = (odometry_state.cur_pose, cur_timestamp)
 
     viz_mast3r_map_state.cur_pose = odometry_state.cur_pose
-    viz_mast3r_map_state.cur_pose_timestamp = timestamp
+    viz_mast3r_map_state.cur_pose_timestamp = cur_timestamp
     viz_mast3r_map_state.cur_frame_id = cur_frame_id
 
-    if (
-        viz_mast3r_map_state.map_data is None
-        or len(viz_mast3r_map_state.map_data.spanning_tree) == 0
-    ):
+    # Initialize map_data only if it doesn't exist
+    if viz_mast3r_map_state.map_data is None:
         viz_mast3r_map_state.map_data = MapStateData()
-        viz_mast3r_map_state.map_data.spanning_tree.append(
-            [*mast3r_output.cams2world[0][:3, 3], *mast3r_output.cams2world[1][:3, 3]]
-        )
+
+        # Initialize spanning tree with first two poses
+        print(f"Initializing viz map_data with first two poses")
+        if (
+            odometry_state.prev_pose_id is not None
+            and odometry_state.prev_pose_id in odometry_state.poses
+        ):
+            prev_Ow = odometry_state.poses[odometry_state.prev_pose_id][0][:3, 3]
+            cur_Ow = odometry_state.cur_pose[:3, 3]
+            viz_mast3r_map_state.map_data.spanning_tree.append([*prev_Ow, *cur_Ow])
+        else:
+            # First frame - use reference and current pose
+            ref_Ow = mast3r_output.cams2world[0][:3, 3]
+            cur_Ow = mast3r_output.cams2world[1][:3, 3]
+            viz_mast3r_map_state.map_data.spanning_tree.append([*ref_Ow, *cur_Ow])
     else:
-        # last_Ow = viz_mast3r_map_state.poses[-1][:3,3]
-        last_Ow = odometry_state.poses[odometry_state.prev_pose_id][0][:3, 3]
-        cur_Ow = odometry_state.cur_pose[:3, 3]
-        viz_mast3r_map_state.spanning_tree.append([*cur_Ow, *last_Ow])
+        # Append to spanning tree
+        if (
+            odometry_state.prev_pose_id is not None
+            and odometry_state.prev_pose_id in odometry_state.poses
+        ):
+            last_Ow = odometry_state.poses[odometry_state.prev_pose_id][0][:3, 3]
+            cur_Ow = odometry_state.cur_pose[:3, 3]
+            viz_mast3r_map_state.map_data.spanning_tree.append([*last_Ow, *cur_Ow])
 
     viz_mast3r_map_state.map_data.poses.append(odometry_state.cur_pose)
     viz_mast3r_map_state.map_data.pose_timestamps.append(cur_timestamp)
+
+    print(f"Frame {cur_frame_id}: #poses {len(viz_mast3r_map_state.map_data.poses)}")
+
+    if viewer3D.gt_trajectory is None:
+        Printer.yellow(f"You did not set groundtruth in map_state")
 
     viewer3D.draw_map(viz_mast3r_map_state)
 
@@ -325,7 +344,7 @@ def update_and_plot(
 ):
     data_dict = {}
     data_dict["num_matched_kps"] = len(mast3r_output.matches_im0)
-    plot_drawer.draw(img_id, data_dict)
+    plot_drawer.draw(cur_frame_id, data_dict)
 
 
 if __name__ == "__main__":
@@ -360,6 +379,7 @@ if __name__ == "__main__":
         cv2.imshow("reference_img", reference_img_show)
 
     if groundtruth is not None:
+        print(f"groundtruth found, setting GT trajectory")
         gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
         viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=is_monocular)
 

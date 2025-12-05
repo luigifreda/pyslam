@@ -333,6 +333,7 @@ class QimageViewer:
             print(f"QimageViewer: Error emptying queue: {e}")
 
         self.close()
+        print(f"QimageViewer: run: closed")
 
     def draw(self, image, name, format=QImage.Format_BGR888):
         format = check_image_format(image)

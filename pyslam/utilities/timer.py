@@ -76,15 +76,19 @@ class TimerFps(Timer):
     def __init__(self, name="", average_width=10, is_verbose=False):
         super().__init__(name, is_verbose)
         self.moving_average = MovingAverage(average_width)
+        self.last_fps = 0.0
 
     def refresh(self):
         elapsed = self.elapsed()
-        self.moving_average.getAverage(elapsed)
+        dT = self.moving_average.get_average(elapsed)
+        self.last_fps = 1.0 / dT
         self.start()
         if self._is_verbose is True:
-            dT = self.moving_average.getAverage()
             name = self._name
             if self._is_paused:
                 name += " [paused]"
-            message = "Timer::" + name + " - fps: " + str(1.0 / dT) + ", T: " + str(dT)
+            message = "Timer::" + name + " - fps: " + str(self.last_fps) + ", T: " + str(dT)
             timer_print(message)
+
+    def get_fps(self):
+        return self.last_fps

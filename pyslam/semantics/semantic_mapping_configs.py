@@ -287,8 +287,19 @@ class SemanticMappingConfigs:
                 semantic_feature_type=SemanticFeatureType.LABEL,
             )
         else:
-            raise ValueError(
-                f"SemanticMappingConfigs: No configuration found for SLAM dataset '{slam_dataset_name}'"
+            Printer.yellow(
+                f"SemanticMappingConfigs: No configuration found for SLAM dataset '{slam_dataset_name}', using default model DETIC"
+            )
+            semantic_segmentation_type = (
+                # SemanticSegmentationType.SEGFORMER
+                SemanticSegmentationType.DETIC
+            )  # default to DETIC for other datasets
+            return dict(
+                semantic_mapping_type=SemanticMappingType.DENSE,
+                semantic_segmentation_type=semantic_segmentation_type,
+                semantic_dataset_type=SemanticDatasetType.NYU40,
+                # semantic_dataset_type=SemanticDatasetType.ADE20K,
+                semantic_feature_type=SemanticFeatureType.LABEL,
             )
 
     # =====================================
