@@ -577,7 +577,7 @@ class FileLogger:
 # This function check and exec 'from module import name' and directly return the 'name'.'method'.
 # The method is used to directly return a 'method' of 'name' (i.e. 'module'.'name'.'method')
 # N.B.: if a method is needed you CAN'T
-# from module import name.method
+#   from module import name.method
 # since method is an attribute of name!
 def import_from(module, name, method=None, debug=False):
     try:

@@ -36,7 +36,7 @@ import warnings  # to disable tensorflow-numpy warnings: from https://github.com
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-from pyslam.utilities.utils_tf import import_tf_compat_v1
+from pyslam.utilities.tensorflow import import_tf_compat_v1
 
 if False:
     import tensorflow as tf

@@ -37,12 +37,13 @@ import warnings  # to disable tensorflow-numpy warnings: from https://github.com
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 import numpy as np
-from pyslam.utilities.utils_tf import import_tf_compat_v1
+from pyslam.utilities.tensorflow import import_tf_compat_v1
 
 # Import TensorFlow using the unified function
 tf = import_tf_compat_v1()
 
 from google.protobuf import text_format
+
 # # Try to import app from tensorflow, handle import errors gracefully
 # try:
 #     from tensorflow.python.platform import app

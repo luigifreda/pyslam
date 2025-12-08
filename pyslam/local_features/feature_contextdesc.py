@@ -33,7 +33,7 @@ import cv2
 import numpy as np
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.utils_tf import import_tf_compat_v1
+from pyslam.utilities.tensorflow import import_tf_compat_v1
 
 if False:
     import tensorflow as tf

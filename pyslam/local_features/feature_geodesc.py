@@ -29,8 +29,8 @@ from threading import Thread
 from multiprocessing import Queue
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.utils_tf import load_frozen_model, set_tf_logging, import_tf_compat_v1
-from pyslam.utilities.utils_features import (
+from pyslam.utilities.tensorflow import load_frozen_model, set_tf_logging, import_tf_compat_v1
+from pyslam.utilities.features import (
     extract_patches_tensor,
     extract_patches_array,
     extract_patches_array_cpp,
