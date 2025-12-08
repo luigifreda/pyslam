@@ -33,12 +33,12 @@ import cv2
 import numpy as np
 
 from .feature_base import BaseFeature2D
+from pyslam.utilities.utils_tf import import_tf_compat_v1
 
 if False:
     import tensorflow as tf
 else:
-    # from https://stackoverflow.com/questions/56820327/the-name-tf-session-is-deprecated-please-use-tf-compat-v1-session-instead
-    import tensorflow.compat.v1 as tf
+    tf = import_tf_compat_v1()
 
 
 from contextdesc.utils.opencvhelper import MatcherWrapper

@@ -36,11 +36,12 @@ import warnings  # to disable tensorflow-numpy warnings: from https://github.com
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+from pyslam.utilities.utils_tf import import_tf_compat_v1
+
 if False:
     import tensorflow as tf
 else:
-    # from https://stackoverflow.com/questions/56820327/the-name-tf-session-is-deprecated-please-use-tf-compat-v1-session-instead
-    import tensorflow as tf
+    tf = import_tf_compat_v1()
 
     # import tensorflow as tfv2
 

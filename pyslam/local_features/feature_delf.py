@@ -37,11 +37,20 @@ import warnings  # to disable tensorflow-numpy warnings: from https://github.com
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 import numpy as np
+from pyslam.utilities.utils_tf import import_tf_compat_v1
 
-import tensorflow as tf
+# Import TensorFlow using the unified function
+tf = import_tf_compat_v1()
 
 from google.protobuf import text_format
-from tensorflow.python.platform import app
+# # Try to import app from tensorflow, handle import errors gracefully
+# try:
+#     from tensorflow.python.platform import app
+# except (ModuleNotFoundError, ImportError, AttributeError):
+#     # app might not be available in all TensorFlow versions/platforms
+#     # If it's not used, we can safely ignore the import
+#     app = None
+#     print("WARNING: tensorflow.python.platform.app is not available, using None instead")
 
 # from delf import delf_config_pb2
 # from delf import feature_extractor

@@ -29,7 +29,7 @@ from threading import Thread
 from multiprocessing import Queue
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.utils_tf import load_frozen_model, set_tf_logging
+from pyslam.utilities.utils_tf import load_frozen_model, set_tf_logging, import_tf_compat_v1
 from pyslam.utilities.utils_features import (
     extract_patches_tensor,
     extract_patches_array,
@@ -46,8 +46,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 if False:
     import tensorflow as tf
 else:
-    # from https://stackoverflow.com/questions/56820327/the-name-tf-session-is-deprecated-please-use-tf-compat-v1-session-instead
-    import tensorflow.compat.v1 as tf
+    tf = import_tf_compat_v1()
 
 # from https://kobkrit.com/using-allow-growth-memory-option-in-tensorflow-and-keras-dc8c8081bc96 to cope with the following error:
 # "[...tensorflow/stream_executor/cuda/cuda_dnn.cc:329] Could not create cudnn handle: CUDNN_STATUS_INTERNAL_ERROR"

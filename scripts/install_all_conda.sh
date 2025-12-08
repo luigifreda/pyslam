@@ -73,8 +73,7 @@ $SCRIPTS_DIR/install_pip3_semantics.sh  # must use "./"
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # To solve under mac the (crash) issue mentioned in the troubleshoting document
     pip uninstall tensorflow
-    #pip install "tensorflow==2.15.*"
-    pip install tensorflow-macos tensorflow-metal --force-reinstall
+    pip install "tensorflow==2.15.*" --force-reinstall
 fi 
 
 # 9. outliers under conda

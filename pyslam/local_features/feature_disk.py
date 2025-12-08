@@ -33,6 +33,7 @@ import cv2
 from threading import RLock
 
 from pyslam.utilities.utils_sys import Printer, is_opencv_version_greater_equal
+from pyslam.utilities.utils_tf import ensure_tensorflow_stub_for_tensorboard
 from .feature_base import BaseFeature2D
 
 import torch, h5py, imageio, os, argparse
@@ -43,6 +44,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from torch_dimcheck import dimchecked
 
+ensure_tensorflow_stub_for_tensorboard()
 from disk import DISK, Features
 
 
