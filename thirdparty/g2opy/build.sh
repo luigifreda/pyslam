@@ -20,6 +20,15 @@ else
     echo "OS: $version"
 fi
 
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    echo "Conda is installed"
+    CONDA_INSTALLED=true
+else
+    echo "Conda is not installed"
+    CONDA_INSTALLED=false
+fi
+
 # ====================================================
 # check if we have external options
 EXTERNAL_OPTIONS=$@
@@ -31,6 +40,14 @@ fi
 PYTHON_EXE=${Python3_EXECUTABLE:-$(which python3)}
 echo "PYTHON_EXE: $PYTHON_EXE"
 
+if [ "$CONDA_INSTALLED" = true ]; then
+    # NOTE: these are the "system" packages that are needed within conda to build opencv from source
+    conda install -y -c conda-forge suitesparse 
+fi
+
+# Initialize MAC_OPTIONS to empty string (will be set for macOS)
+MAC_OPTIONS=""
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Make sure we don't accidentally use a Linux cross-compiler or Linux sysroot from conda
     unset CC CXX CFLAGS CXXFLAGS LDFLAGS CPPFLAGS SDKROOT CONDA_BUILD_SYSROOT CONDA_BUILD_CROSS_COMPILATION
@@ -41,23 +58,32 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     TARGET_ARCH=${CMAKE_OSX_ARCHITECTURES:-${OSX_ARCH:-${PYTHON_ARCH:-$(uname -m)}}}
     echo "TARGET_ARCH: $TARGET_ARCH"
 
-    export CONDA_PREFIX=/Users/luigi/miniconda/envs/pyslam
-    export CMAKE_PREFIX_PATH=$CONDA_PREFIX
-    export PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig
-    export CMAKE_IGNORE_PATH=/opt/homebrew
-    export CSPARSE_INCLUDE_DIR=$CONDA_PREFIX/include/suitesparse
-    export CSPARSE_LIBRARY=$CONDA_PREFIX/lib/libcxsparse.dylib
-    export CHOLMOD_INCLUDE_DIR=$CONDA_PREFIX/include/suitesparse
-    export CHOLMOD_LIBRARY=$CONDA_PREFIX/lib/libcholmod.dylib
-
     # Respect user-requested architecture (e.g., build x86_64 when running under Rosetta)
     MAC_OPTIONS="\
     -DCMAKE_C_COMPILER=/usr/bin/clang \
     -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
-    -DCMAKE_OSX_ARCHITECTURES=${TARGET_ARCH}\
-    -DCHOLMOD_INCLUDE_DIR=$CHOLMOD_INCLUDE_DIR -DCHOLMOD_LIBRARY=$CHOLMOD_LIBRARY \
-    -DCSPARSE_INCLUDE_DIR=$CSPARSE_INCLUDE_DIR -DCSPARSE_LIBRARY=$CSPARSE_LIBRARY \
+    -DCMAKE_OSX_ARCHITECTURES=${TARGET_ARCH} \
     -DOPENGL_opengl_LIBRARY= -DOPENGL_glx_LIBRARY="
+
+    if [ "$CONDA_INSTALLED" = true ]; then
+        if [ -z "$CONDA_PREFIX" ]; then
+            CONDA_PREFIX=$(conda info --base)
+        fi
+        echo "CONDA_PREFIX: $CONDA_PREFIX"
+
+        export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+        export PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig
+        export CMAKE_IGNORE_PATH=/opt/homebrew
+        export CSPARSE_INCLUDE_DIR=$CONDA_PREFIX/include/suitesparse
+        export CSPARSE_LIBRARY=$CONDA_PREFIX/lib/libcxsparse.dylib
+        export CHOLMOD_INCLUDE_DIR=$CONDA_PREFIX/include/suitesparse
+        export CHOLMOD_LIBRARY=$CONDA_PREFIX/lib/libcholmod.dylib
+
+        MAC_OPTIONS+="\
+        -DCHOLMOD_INCLUDE_DIR=$CHOLMOD_INCLUDE_DIR -DCHOLMOD_LIBRARY=$CHOLMOD_LIBRARY \
+        -DCSPARSE_INCLUDE_DIR=$CSPARSE_INCLUDE_DIR -DCSPARSE_LIBRARY=$CSPARSE_LIBRARY"
+    fi
+
 
     echo "Using MAC_OPTIONS for cpp build: $MAC_OPTIONS"
 fi
