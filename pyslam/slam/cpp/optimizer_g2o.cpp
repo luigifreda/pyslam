@@ -20,7 +20,8 @@
  */
 
 #include "optimizer_g2o.h"
-#include "feature_shared_info.h"
+#include "config_parameters.h"
+#include "feature_shared_resources.h"
 #include "utils/eigen_helpers.h"
 #include "utils/messages.h"
 
@@ -38,6 +39,10 @@
 #include <iostream>
 #include <mutex>
 
+#ifdef USE_PYTHON
+#include "py_module/py_wrappers.h"
+#endif
+
 namespace g2o {
 using BlockSolverSE2 = BlockSolver_3_2;
 using BlockSolverSE3 = BlockSolver_6_3;
@@ -45,13 +50,6 @@ using BlockSolverSim3 = BlockSolver_7_3;
 } // namespace g2o
 
 namespace pyslam {
-
-// Constants
-constexpr double OptimizerG2o::kChi2Mono;
-constexpr double OptimizerG2o::kChi2Stereo;
-constexpr double OptimizerG2o::kThHuberMono;
-constexpr double OptimizerG2o::kThHuberStereo;
-constexpr double OptimizerG2o::kMaxOutliersRatioInPoseOptimization;
 
 // TODO: Add support for semantics in optimization
 
@@ -124,7 +122,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
         graph_keyframes[kf] = vertex_se3;
     }
 
-    const auto &inv_level_sigmas2 = FeatureSharedInfo::inv_level_sigmas2;
+    const auto &inv_level_sigmas2 = FeatureSharedResources::inv_level_sigmas2;
 
     // Add point vertices to graph
     for (auto &p : points) {
@@ -176,7 +174,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
 
                 if (use_robust_kernel) {
                     auto *robust_kernel = new g2o::RobustKernelHuber();
-                    robust_kernel->setDelta(kThHuberStereo);
+                    robust_kernel->setDelta(Parameters::kThHuberStereo);
                     edge->setRobustKernel(robust_kernel);
                 }
 
@@ -197,7 +195,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
 
                 if (use_robust_kernel) {
                     auto *robust_kernel = new g2o::RobustKernelHuber();
-                    robust_kernel->setDelta(kThHuberMono);
+                    robust_kernel->setDelta(Parameters::kThHuberMono);
                     edge->setRobustKernel(robust_kernel);
                 }
 
@@ -215,6 +213,13 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
 
     if (abort_flag && *abort_flag) {
         result.mean_squared_error = -1.0;
+        if (fill_result_dict) {
+            result.keyframe_updates = {};
+            result.point_updates = {};
+        }
+        if (verbose) {
+            MSG_WARN("bundle_adjustment: aborting due to abort_flag");
+        }
         return result;
     }
 
@@ -235,7 +240,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
         for (auto &edge_pair : graph_edges_mono) {
             auto *edge = edge_pair.first;
             double edge_chi2 = edge->chi2();
-            if (edge_chi2 > kChi2Mono || !edge->isDepthPositive()) {
+            if (edge_chi2 > Parameters::kChi2Mono || !edge->isDepthPositive()) {
                 edge->setLevel(1);
                 num_bad_edges++;
             }
@@ -245,7 +250,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
         for (auto &edge_pair : graph_edges_stereo) {
             auto *edge = edge_pair.first;
             double edge_chi2 = edge->chi2();
-            if (edge_chi2 > kChi2Stereo || !edge->isDepthPositive()) {
+            if (edge_chi2 > Parameters::kChi2Stereo || !edge->isDepthPositive()) {
                 edge->setLevel(1);
                 num_bad_edges++;
             }
@@ -255,6 +260,13 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
 
     if (abort_flag && *abort_flag) {
         result.mean_squared_error = -1.0;
+        if (fill_result_dict) {
+            result.keyframe_updates = {};
+            result.point_updates = {};
+        }
+        if (verbose) {
+            MSG_WARN("bundle_adjustment: aborting due to abort_flag");
+        }
         return result;
     }
 
@@ -284,6 +296,7 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
                 // update for loop closure
                 kf->Tcw_GBA = T;
                 kf->GBA_kf_id = loop_kf_id;
+                kf->is_Tcw_GBA_valid = true;
             }
         }
     }
@@ -300,11 +313,12 @@ BundleAdjustmentResult OptimizerG2o::bundle_adjustment(
                 if (loop_kf_id == 0) {
                     // direct update on map
                     p->update_position(new_position);
-                    p->update_normal_and_depth(/*frame=*/nullptr, /*idxf=*/-1, /*force=*/true);
+                    p->update_normal_and_depth(/*force=*/true);
                 } else {
                     // update for loop closure
                     p->pt_GBA = new_position;
                     p->GBA_kf_id = loop_kf_id;
+                    p->is_pt_GBA_valid = true;
                 }
             }
         }
@@ -379,8 +393,9 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
     int num_point_edges = 0;
     const auto &camera = frame->camera;
 
-    const auto &inv_level_sigmas2 = FeatureSharedInfo::inv_level_sigmas2;
+    const auto &inv_level_sigmas2 = FeatureSharedResources::inv_level_sigmas2;
     const auto &kps_ur = frame->kps_ur;
+    const auto &octaves = frame->octaves;
 
     for (size_t idx = 0; idx < frame_points.size(); ++idx) {
         const auto &p = frame_points[idx];
@@ -389,13 +404,12 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
         }
 
         const Eigen::Vector2d kpu = Eigen::Vector2d(frame->kpsu(idx, 0), frame->kpsu(idx, 1));
-        bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
+        const bool is_stereo_obs = (kps_ur.size() > idx && kps_ur[idx] >= 0);
 
         // Reset outlier flag
         frame->outliers[idx] = false;
 
         // Get inverse sigma squared
-        const auto &octaves = frame->octaves;
         const double invSigma2 = inv_level_sigmas2[octaves[idx]];
 
         if (is_stereo_obs) {
@@ -406,7 +420,7 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
             edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
 
             auto *robust_kernel = new g2o::RobustKernelHuber();
-            robust_kernel->setDelta(kThHuberStereo);
+            robust_kernel->setDelta(Parameters::kThHuberStereo);
             edge->setRobustKernel(robust_kernel);
 
             edge->fx = camera->fx;
@@ -425,7 +439,7 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
             edge->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
             auto *robust_kernel = new g2o::RobustKernelHuber();
-            robust_kernel->setDelta(kThHuberMono);
+            robust_kernel->setDelta(Parameters::kThHuberMono);
             edge->setRobustKernel(robust_kernel);
 
             edge->fx = camera->fx;
@@ -441,7 +455,7 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
     }
 
     if (num_point_edges < 3) {
-        std::cerr << "pose_optimization: not enough correspondences!" << std::endl;
+        MSG_WARN("pose_optimization: not enough correspondences!");
         result.is_ok = false;
         return result;
     }
@@ -469,7 +483,7 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
             }
 
             double chi2 = edge->chi2();
-            if (chi2 > kChi2Mono) {
+            if (chi2 > Parameters::kChi2Mono) {
                 frame->outliers[idx] = true;
                 edge->setLevel(1);
                 num_bad_point_edges++;
@@ -493,7 +507,7 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
             }
 
             double chi2 = edge->chi2();
-            if (chi2 > kChi2Stereo) {
+            if (chi2 > Parameters::kChi2Stereo) {
                 frame->outliers[idx] = true;
                 edge->setLevel(1);
                 num_bad_point_edges++;
@@ -513,14 +527,19 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
         }
     }
 
+    std::cout << "pose_optimization: available " << num_point_edges << " points, found "
+              << num_bad_point_edges << " bad points" << std::endl;
+
     result.num_valid_points = num_point_edges - num_bad_point_edges;
     if (result.num_valid_points < 10) {
-        std::cerr << "pose_optimization: not enough edges!" << std::endl;
+        MSG_RED_WARN("pose_optimization: not enough edges!");
         result.is_ok = false;
     }
 
-    const double ratio_bad_points = num_bad_point_edges / std::max(num_point_edges, 1);
-    if (result.num_valid_points > 15 && ratio_bad_points > kMaxOutliersRatioInPoseOptimization) {
+    const double ratio_bad_points =
+        static_cast<double>(num_bad_point_edges) / std::max(1, num_point_edges);
+    if (result.num_valid_points > 15 &&
+        ratio_bad_points > Parameters::kMaxOutliersRatioInPoseOptimization) {
         MSG_RED_WARN_STREAM("pose_optimization: percentage of bad points is too high: "
                             << ratio_bad_points * 100.0 << "%");
         result.is_ok = false;
@@ -540,10 +559,11 @@ PoseOptimizationResult OptimizerG2o::pose_optimization(FramePtr &frame, bool ver
     return result;
 }
 
+template <typename LockType>
 std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
     const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
     const std::vector<KeyFramePtr> &keyframes_ref, bool fixed_points, bool verbose, int rounds,
-    bool *abort_flag, std::mutex *map_lock) {
+    bool *abort_flag, LockType *map_lock) {
 
     // Create g2o optimizer
     g2o::SparseOptimizer optimizer;
@@ -599,7 +619,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
     int num_edges = 0;
     int num_bad_edges = 0;
 
-    const auto &inv_level_sigmas2 = FeatureSharedInfo::inv_level_sigmas2;
+    const auto &inv_level_sigmas2 = FeatureSharedResources::inv_level_sigmas2;
 
     // Add point vertices and edges
     for (const auto &p : points) {
@@ -652,7 +672,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
                 edge->setInformation(Eigen::Matrix3d::Identity() * invSigma2);
 
                 auto *robust_kernel = new g2o::RobustKernelHuber();
-                robust_kernel->setDelta(kThHuberStereo);
+                robust_kernel->setDelta(Parameters::kThHuberStereo);
                 edge->setRobustKernel(robust_kernel);
 
                 edge->fx = camera->fx;
@@ -672,7 +692,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
                 edge->setInformation(Eigen::Matrix2d::Identity() * invSigma2);
 
                 auto *robust_kernel = new g2o::RobustKernelHuber();
-                robust_kernel->setDelta(kThHuberMono);
+                robust_kernel->setDelta(Parameters::kThHuberMono);
                 edge->setRobustKernel(robust_kernel);
 
                 edge->fx = camera->fx;
@@ -714,7 +734,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
             auto [p, kf, p_idx, is_stereo] = edge_data;
 
             double edge_chi2 = edge->chi2();
-            bool chi2_check_failure = (edge_chi2 > kChi2Mono);
+            bool chi2_check_failure = (edge_chi2 > Parameters::kChi2Mono);
             if (chi2_check_failure || !edge->isDepthPositive()) {
                 edge->setLevel(1);
                 num_bad_edges++;
@@ -728,7 +748,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
             auto [p, kf, p_idx, is_stereo] = edge_data;
 
             double edge_chi2 = edge->chi2();
-            bool chi2_check_failure = (edge_chi2 > kChi2Stereo);
+            bool chi2_check_failure = (edge_chi2 > Parameters::kChi2Stereo);
             if (chi2_check_failure || !edge->isDepthPositive()) {
                 edge->setLevel(1);
                 num_bad_edges++;
@@ -750,7 +770,7 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
         auto &edge_data = edge_pair.second;
         auto [p, kf, p_idx, is_stereo] = edge_data;
 
-        if (edge->chi2() > kChi2Mono || !edge->isDepthPositive()) {
+        if (edge->chi2() > Parameters::kChi2Mono || !edge->isDepthPositive()) {
             num_bad_observations++;
             outliers_edge_data.push_back(edge_data);
         }
@@ -761,24 +781,26 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
         auto &edge_data = edge_pair.second;
         auto [p, kf, p_idx, is_stereo] = edge_data;
 
-        if (edge->chi2() > kChi2Stereo || !edge->isDepthPositive()) {
+        if (edge->chi2() > Parameters::kChi2Stereo || !edge->isDepthPositive()) {
             num_bad_observations++;
             outliers_edge_data.push_back(edge_data);
         }
     }
 
     // Apply updates with map lock
-    std::unique_lock<std::mutex> lock;
+    // std::unique_lock<std::mutex> lock;
+    std::unique_ptr<pyslam::PyLockGuard<LockType>> lock;
     if (map_lock) {
-        lock = std::unique_lock<std::mutex>(*map_lock);
+        lock = std::make_unique<pyslam::PyLockGuard<LockType>>(map_lock);
     }
+    const bool map_no_lock = true;
 
     // Remove outlier observations
     for (const auto &outlier_data : outliers_edge_data) {
         auto [p, kf, p_idx, is_stereo] = outlier_data;
         const auto &p_f = kf->get_point_match(p_idx);
         if (p_f && p_f == p) {
-            p->remove_observation(kf, p_idx);
+            p->remove_observation(kf, p_idx, map_no_lock);
         }
     }
 
@@ -801,16 +823,29 @@ std::pair<double, double> OptimizerG2o::local_bundle_adjustment(
             auto *vertex = p_pair.second;
             Eigen::Vector3d new_position = vertex->estimate();
             p->update_position(new_position);
-            p->update_normal_and_depth(nullptr, -1, true);
+            p->update_normal_and_depth(true);
         }
     }
 
     int num_active_edges = num_edges - num_bad_edges;
     double mean_squared_error = optimizer.activeChi2() / std::max(num_active_edges, 1);
-    double outlier_ratio = num_bad_observations / std::max(num_edges, 1);
+    double outlier_ratio = static_cast<double>(num_bad_observations) / std::max(1, num_edges);
 
     return {mean_squared_error, outlier_ratio};
 }
+
+template std::pair<double, double> OptimizerG2o::local_bundle_adjustment<pyslam::MapMutex>(
+    const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
+    const std::vector<KeyFramePtr> &keyframes_ref, bool fixed_points, bool verbose, int rounds,
+    bool *abort_flag, pyslam::MapMutex *map_lock);
+
+#ifdef USE_PYTHON
+
+template std::pair<double, double> OptimizerG2o::local_bundle_adjustment<pyslam::PyLock>(
+    const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
+    const std::vector<KeyFramePtr> &keyframes_ref, bool fixed_points, bool verbose, int rounds,
+    bool *abort_flag, pyslam::PyLock *map_lock);
+#endif
 
 Sim3OptimizationResult OptimizerG2o::optimize_sim3(
     KeyFramePtr &kf1, KeyFramePtr &kf2, const std::vector<MapPointPtr> &map_points1,
@@ -874,7 +909,7 @@ Sim3OptimizationResult OptimizerG2o::optimize_sim3(
     std::vector<g2o::EdgeInverseSim3ProjectXYZ *> edges_21;
     std::vector<int> vertex_indices;
 
-    const auto &inv_level_sigmas2 = FeatureSharedInfo::inv_level_sigmas2;
+    const auto &inv_level_sigmas2 = FeatureSharedResources::inv_level_sigmas2;
 
     double delta_huber = std::sqrt(th2);
     int num_correspondences = 0;

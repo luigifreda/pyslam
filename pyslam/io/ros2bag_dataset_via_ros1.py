@@ -27,7 +27,7 @@ import os
 import signal
 import psutil  # Add this import at the top of your script if not already there
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 import traceback
 
 try:

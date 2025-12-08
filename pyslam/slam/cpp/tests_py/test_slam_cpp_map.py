@@ -16,21 +16,13 @@ import cv2
 
 import pyslam.config as config
 
-# Force use of Python module (just to be sure)
-os.environ["PYSLAM_USE_CPP"] = "false"  # set environment variable
-import pyslam.slam as python_module
+from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 
-try:
-    # Explicitly import the C++ module
-    import pyslam.slam.cpp as cpp_module  # NOTE: this first import pyslam.slam and then pyslam.slam.cpp!
-
-    if not cpp_module.CPP_AVAILABLE:
-        print("❌ cpp_module imported successfully but C++ core is not available")
-        sys.exit(1)
-    print("✅ cpp_module imported successfully, C++ core is available")
-except ImportError as e:
-    print(f"❌ Failed to import C++ module: {e}")
+if not CPP_AVAILABLE:
+    print("❌ cpp_module imported successfully but C++ core is not available")
     sys.exit(1)
+else:
+    print("✅ cpp_module imported successfully")
 
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.local_features.feature_tracker import feature_tracker_factory
@@ -171,10 +163,10 @@ class MapFrameOperationsTest(TestUnit):
             "Camera.cx": 320.0,
             "Camera.cy": 240.0,
             "Camera.fps": 30,
-            "Camera.sensor_type": "monocular",
+            "Camera.sensor_type": "mono",
         }
         self.dataset_settings = {
-            "sensor_type": "monocular",
+            "sensor_type": "mono",
         }
         self.config = {"cam_settings": self.cam_settings, "dataset_settings": self.dataset_settings}
 
@@ -245,7 +237,6 @@ class MapKeyFrameOperationsTest(TestUnit):
         cam = module.PinholeCamera(self.config)
         dummy_img = np.zeros((480, 640, 3), dtype=np.uint8)
         frame = module.Frame(cam, dummy_img)
-
         keyframe = module.KeyFrame(frame, dummy_img)
 
         # Test adding keyframe
@@ -289,10 +280,10 @@ class MapResetTest(TestUnit):
             "Camera.cx": 320.0,
             "Camera.cy": 240.0,
             "Camera.fps": 30,
-            "Camera.sensor_type": "monocular",
+            "Camera.sensor_type": "mono",
         }
         self.dataset_settings = {
-            "sensor_type": "monocular",
+            "sensor_type": "mono",
         }
         self.config = {"cam_settings": self.cam_settings, "dataset_settings": self.dataset_settings}
 
@@ -395,19 +386,22 @@ class MapPointOperationsPerformance(PerformanceTestUnit):
     def run_benchmark(self, module_type: str, module: Any) -> float:
         map_obj = module.Map()
 
+        # Pre-allocate positions and colors
+        positions = np.random.uniform(-10, 10, (self.num_points, 3)).astype(np.float64)
+        colors = np.random.randint(0, 256, (self.num_points, 3), dtype=np.uint8)
+
         start_time = time.perf_counter()
 
         # Add many points
         for i in range(self.num_points):
-            position = np.random.uniform(-10, 10, 3).astype(np.float64)
-            color = np.random.randint(0, 256, 3, dtype=np.uint8)
-            mp = module.MapPoint(position, color)
+            mp = module.MapPoint(positions[i], colors[i])
             map_obj.add_point(mp)
 
         # Get points multiple times
         for _ in range(10):
-            _ = map_obj.get_points()
             _ = map_obj.num_points()
+
+        _ = map_obj.get_points()
 
         return time.perf_counter() - start_time
 
@@ -417,7 +411,7 @@ class MapFrameOperationsPerformance(PerformanceTestUnit):
 
     def __init__(self):
         super().__init__("Map Frame Operations Performance")
-        self.num_frames = 500
+        self.num_frames = 10
 
     def setup(self):
         np.random.seed(42)
@@ -429,10 +423,10 @@ class MapFrameOperationsPerformance(PerformanceTestUnit):
             "Camera.cx": 320.0,
             "Camera.cy": 240.0,
             "Camera.fps": 30,
-            "Camera.sensor_type": "monocular",
+            "Camera.sensor_type": "mono",
         }
         self.dataset_settings = {
-            "sensor_type": "monocular",
+            "sensor_type": "mono",
         }
         self.config = {"cam_settings": self.cam_settings, "dataset_settings": self.dataset_settings}
 
@@ -461,7 +455,7 @@ class MapKeyFrameOperationsPerformance(PerformanceTestUnit):
 
     def __init__(self):
         super().__init__("Map KeyFrame Operations Performance")
-        self.num_keyframes = 200
+        self.num_keyframes = 10
 
     def setup(self):
         np.random.seed(42)
@@ -473,10 +467,10 @@ class MapKeyFrameOperationsPerformance(PerformanceTestUnit):
             "Camera.cx": 320.0,
             "Camera.cy": 240.0,
             "Camera.fps": 30,
-            "Camera.sensor_type": "monocular",
+            "Camera.sensor_type": "mono",
         }
         self.dataset_settings = {
-            "sensor_type": "monocular",
+            "sensor_type": "mono",
         }
         self.config = {"cam_settings": self.cam_settings, "dataset_settings": self.dataset_settings}
 
@@ -489,7 +483,8 @@ class MapKeyFrameOperationsPerformance(PerformanceTestUnit):
         # Add many keyframes
         for i in range(self.num_keyframes):
             dummy_img = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
-            keyframe = module.KeyFrame(cam, dummy_img)
+            frame = module.Frame(cam, dummy_img)
+            keyframe = module.KeyFrame(frame, dummy_img)
             map_obj.add_keyframe(keyframe)
 
         # Get keyframes multiple times

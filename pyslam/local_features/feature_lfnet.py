@@ -62,12 +62,12 @@ from lfnet.utils import embed_breakpoint, print_opt
 
 from lfnet.common.argparse_utils import *
 
-from pyslam.utilities.utils_tf import set_tf_logging
-from pyslam.utilities.utils_img import img_from_floats
-from pyslam.utilities.utils_sys import Printer, print_options
+from pyslam.utilities.tensorflow import set_tf_logging
+from pyslam.utilities.img_management import img_from_floats
+from pyslam.utilities.system import Printer, print_options
 from .feature_base import BaseFeature2D
 
-from pyslam.utilities.utils_sys import Printer, is_opencv_version_greater_equal
+from pyslam.utilities.system import Printer, is_opencv_version_greater_equal
 
 
 kLfNetBasePath = config.cfg.root_folder + "/thirdparty/lfnet"

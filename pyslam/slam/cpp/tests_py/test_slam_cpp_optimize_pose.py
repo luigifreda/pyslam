@@ -8,44 +8,37 @@ from unittest import TestCase
 
 import pyslam.config as config
 
-USE_CPP = True
-if USE_CPP:
-    try:
-        # Explicitly import the C++ module
-        import pyslam.slam.cpp as cpp_module
+from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 
-        if not cpp_module.CPP_AVAILABLE:
-            print("❌ cpp_module imported successfully but C++ core is not available")
-            sys.exit(1)
-        print("✅ cpp_module imported successfully, C++ core is available")
-
-        from pyslam.slam import (
-            optimizer_g2o,
-            Frame,
-            Camera,
-            PinholeCamera,
-            MapPoint,
-            KeyFrame,
-            Sim3Pose,
-            Map,
-        )
-
-    except ImportError as e:
-        print(f"❌ Failed to import C++ module: {e}")
-        sys.exit(1)
+if not CPP_AVAILABLE:
+    print("❌ cpp_module imported successfully but C++ core is not available")
+    sys.exit(1)
 else:
-    from pyslam.slam import (
-        optimizer_g2o,
-        Frame,
-        Camera,
-        PinholeCamera,
-        MapPoint,
-        KeyFrame,
-        Sim3Pose,
-        Map,
-    )
+    print("✅ cpp_module imported successfully")
 
-from pyslam.utilities.utils_geom import (
+USE_CPP = False
+if USE_CPP:
+    Frame = cpp_module.Frame
+    KeyFrame = cpp_module.KeyFrame
+    Map = cpp_module.Map
+    MapPoint = cpp_module.MapPoint
+    Sim3Pose = cpp_module.Sim3Pose
+    Camera = cpp_module.Camera
+    PinholeCamera = cpp_module.PinholeCamera
+    optimizer_g2o = cpp_module.optimizer_g2o
+    print("Using C++ module")
+else:
+    Frame = python_module.Frame
+    KeyFrame = python_module.KeyFrame
+    Map = python_module.Map
+    MapPoint = python_module.MapPoint
+    Sim3Pose = python_module.Sim3Pose
+    Camera = python_module.Camera
+    PinholeCamera = python_module.PinholeCamera
+    optimizer_g2o = python_module.optimizer_g2o
+    print("Using Python module")
+
+from pyslam.utilities.geometry import (
     rotation_matrix_from_yaw_pitch_roll,
     poseRt,
     inv_T,
@@ -178,8 +171,8 @@ class TestPoseOptimizerConvergence(TestCase):
             if p is None:
                 print(f"frame.points[{idx}] is None")
             else:
-                _pt = p.pt
-        points_3d_w = np.array([p.pt for p in points_list if p is not None]).reshape(-1, 3)
+                _pt = p.pt()
+        points_3d_w = np.array([p.pt() for p in points_list if p is not None]).reshape(-1, 3)
         # print(f"points_3d_w: {points_3d_w}")
         print(f"points_3d_w shape: {points_3d_w.shape}")
         frame_Tcw = frame.Tcw()

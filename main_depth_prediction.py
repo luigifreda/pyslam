@@ -25,16 +25,16 @@ import numpy as np
 
 from pyslam.config import Config
 
-from pyslam.utilities.utils_files import gdrive_download_lambda
-from pyslam.utilities.utils_sys import getchar, Printer
-from pyslam.utilities.utils_depth import (
+from pyslam.utilities.system import Printer
+from pyslam.utilities.depth import (
     depth2pointcloud,
     img_from_depth,
     filter_shadow_points,
     PointCloud,
 )
 
-from pyslam.slam.camera import PinholeCamera
+from pyslam.slam import PinholeCamera
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 
 from pyslam.depth_estimation.depth_estimator_factory import (
     depth_estimator_factory,
@@ -43,7 +43,7 @@ from pyslam.depth_estimation.depth_estimator_factory import (
 
 from pyslam.io.dataset_types import DatasetType, SensorType, DatasetEnvironmentType
 from pyslam.io.dataset_factory import dataset_factory
-from pyslam.slam.frame import Frame, FeatureTrackerShared
+
 from pyslam.local_features.feature_tracker import feature_tracker_factory, FeatureTrackerTypes
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 

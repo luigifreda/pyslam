@@ -17,7 +17,7 @@
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
 
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
+from pyslam.utilities.serialization import SerializableEnum, register_class
 
 """
 NOTES:

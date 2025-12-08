@@ -118,12 +118,13 @@ class OptimizerG2o {
     // ------------------------------------------------------------
     // Local bundle adjustment
     // Return the mean squared error and the outlier_ratio
+    template <typename LockType>
     static std::pair<double, double>
     local_bundle_adjustment(const std::vector<KeyFramePtr> &keyframes,
                             const std::vector<MapPointPtr> &points,
                             const std::vector<KeyFramePtr> &keyframes_ref = {},
                             bool fixed_points = false, bool verbose = false, int rounds = 10,
-                            bool *abort_flag = nullptr, std::mutex *map_lock = nullptr);
+                            bool *abort_flag = nullptr, LockType *map_lock = nullptr);
 
     // ------------------------------------------------------------
     // Sim3 optimization
@@ -144,14 +145,6 @@ class OptimizerG2o {
         const std::unordered_map<KeyFramePtr, Sim3Pose> &corrected_sim3_map,
         const std::unordered_map<KeyFramePtr, std::vector<KeyFramePtr>> &loop_connections,
         bool fix_scale, bool verbose = false);
-
-  private:
-    // Constants
-    static constexpr double kChi2Mono = 5.991;      // chi-square 2 DOFs
-    static constexpr double kChi2Stereo = 7.815;    // chi-square 3 DOFs
-    static constexpr double kThHuberMono = 2.447;   // sqrt(5.991)
-    static constexpr double kThHuberStereo = 2.796; // sqrt(7.815)
-    static constexpr double kMaxOutliersRatioInPoseOptimization = 0.9;
 };
 
 } // namespace pyslam

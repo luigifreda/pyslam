@@ -24,17 +24,16 @@ import torch.multiprocessing as mp
 import cv2
 import numpy as np
 
-from pyslam.slam.camera import Camera
-from pyslam.slam.map import Map
+from pyslam.slam import Camera, Map, KeyFrame, Frame, USE_CPP
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
 
-from pyslam.utilities.utils_sys import Printer, set_rlimit, FileLogger, LoggerQueue
-from pyslam.utilities.utils_files import create_folder
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_data import empty_queue, push_to_front, static_fields_to_dict
-from pyslam.utilities.utils_depth import filter_shadow_points
-from pyslam.utilities.utils_mt import SimpleTaskTimer
+from pyslam.utilities.system import Printer, set_rlimit, FileLogger, LoggerQueue
+from pyslam.utilities.file_management import create_folder
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.data_management import empty_queue, push_to_front, static_fields_to_dict
+from pyslam.utilities.depth import filter_shadow_points
+from pyslam.utilities.multi_threading import SimpleTaskTimer
 
 from pyslam.config_parameters import Parameters
 
@@ -42,8 +41,6 @@ import traceback
 
 from collections import deque
 
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
 
 from enum import Enum
 
@@ -54,6 +51,14 @@ from pyslam.depth_estimation.depth_estimator_factory import (
 )
 
 import open3d as o3d
+
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from pyslam.config import Config
+    from pyslam.slam.keyframe import KeyFrame
 
 
 kVerbose = True
@@ -200,7 +205,7 @@ class VolumetricIntegratorBase:
             single_shot=False,
             name="KeyframeQueueTimer",
         )
-        self.keyframe_queue_lock = mp.Lock()
+        # self.keyframe_queue_lock = mp.Lock()
         self.keyframe_queue = (
             deque()
         )  # We use a deque to accumulate keyframes for volumetric integration.
@@ -240,9 +245,13 @@ class VolumetricIntegratorBase:
         self.q_out_condition = mp.Condition()
 
         self.is_running = mp.Value("i", 0)
+        self.is_looping = mp.Value("i", 0)
 
         self.init_print()
         self.start()
+
+    def is_ready(self):
+        return self.is_running.value == 1 and self.is_looping.value == 1
 
     def init_print(self):
         if kVerbose:
@@ -299,7 +308,7 @@ class VolumetricIntegratorBase:
         # self.keyframe_queue_timer = SimpleTaskTimer(interval=1, callback=self.flush_keyframe_queue, single_shot=False)
 
     def start(self):
-        self.is_running.value = 1
+        # self.is_running.value = 1
         self.process = mp.Process(
             target=self.run,
             args=(
@@ -311,6 +320,7 @@ class VolumetricIntegratorBase:
                 self.q_out,
                 self.q_out_condition,
                 self.is_running,
+                self.is_looping,
                 self.reset_mutex,
                 self.reset_requested,
                 self.load_request_completed,
@@ -414,6 +424,19 @@ class VolumetricIntegratorBase:
                 self.is_running.value = 0
                 self.keyframe_queue_timer.stop()
 
+                with self.q_in_condition:
+                    self.q_in.put(None)  # put a None in the queue to signal we have to exit
+                    self.q_in_condition.notify_all()
+                with self.q_out_condition:
+                    self.q_out_condition.notify_all()
+
+                self.process.join(timeout=5)
+                if self.process.is_alive():
+                    Printer.orange(
+                        "Warning: Volumetric integration process did not terminate in time, forced kill."
+                    )
+                    self.process.terminate()
+
                 # Clean up LoggerQueue before terminating process
                 if VolumetricIntegratorBase.logging_manager is not None:
                     try:
@@ -423,17 +446,6 @@ class VolumetricIntegratorBase:
                     except Exception as e:
                         VolumetricIntegratorBase.print(f"Error cleaning up logging manager: {e}")
 
-                with self.q_in_condition:
-                    self.q_in.put(None)  # put a None in the queue to signal we have to exit
-                    self.q_in_condition.notify_all()
-                with self.q_out_condition:
-                    self.q_out_condition.notify_all()
-                self.process.join(timeout=5)
-                if self.process.is_alive():
-                    Printer.orange(
-                        "Warning: Volumetric integration process did not terminate in time, forced kill."
-                    )
-                    self.process.terminate()
                 # Use regular print instead of VolumetricIntegratorBase.print after cleanup
                 print("VolumetricIntegratorBase: done")
         except Exception as e:
@@ -493,7 +505,7 @@ class VolumetricIntegratorBase:
             )
         else:
             VolumetricIntegratorBase.print(
-                f"VolumetricIntegratorBase: init: depth_estimator=None, depth_estimator_type={depth_estimator_type}"
+                f"VolumetricIntegratorBase: init: depth_estimator=None, depth_estimator_type={depth_estimator_type}, depth_factor={self.depth_factor}"
             )
 
         # Prepare maps to undistort color and depth images
@@ -522,6 +534,7 @@ class VolumetricIntegratorBase:
         q_out,
         q_out_condition,
         is_running,
+        is_looping,
         reset_mutex,
         reset_requested,
         load_request_completed,
@@ -531,9 +544,10 @@ class VolumetricIntegratorBase:
         time_volumetric_integration,
         parameters_dict,
     ):
-
+        is_running.value = 1
         VolumetricIntegratorBase.print("VolumetricIntegratorBase: starting...")
         self.init(camera, environment_type, sensor_type, parameters_dict)
+        is_looping.value = 1
 
         # main loop
         while is_running.value == 1:
@@ -576,6 +590,8 @@ class VolumetricIntegratorBase:
                 VolumetricIntegratorBase.print("VolumetricIntegratorBase: Exception: ", e)
                 traceback.print_exc()
 
+        is_looping.value = 0
+
         # Stop the volume integrator: This is expected to be an implementation-specific operation
         self._stop_volume_integrator_implementation()
 
@@ -591,7 +607,6 @@ class VolumetricIntegratorBase:
         depth = keyframe_data.depth
         semantic = keyframe_data.semantic_img
         semantic_undistorted = None
-
         pts3d = None
 
         if depth is None:
@@ -618,8 +633,16 @@ class VolumetricIntegratorBase:
                     ]:
                         depth = filter_shadow_points(depth, delta_depth=None)
 
-        if not depth.dtype in [np.uint8, np.uint16, np.float32]:
-            depth = depth.astype(np.float32)
+        # if not depth.dtype in [np.uint8, np.uint16, np.float32]:
+        if not depth.dtype == np.float32:
+            if USE_CPP:
+                # In C++ mode, the depth conversion is performed inside the C++ Frame code
+                # and not propagated to the Python code, so we need to make it here again
+                # TODO: fix this and uniform depth management between Python and C++
+                depth = depth.astype(np.float32) * self.camera.depth_factor
+            else:
+                depth = depth.astype(np.float32)
+            keyframe_data.depth = depth
 
         if self.calib_map1 is not None and self.calib_map2 is not None:
             color_undistorted = cv2.remap(
@@ -663,23 +686,27 @@ class VolumetricIntegratorBase:
     # called by add_keyframe() and periodically by the keyframe_queue_timer
     def flush_keyframe_queue(self):
         # iterate over the keyframe queue and flush the keyframes into the task queue
-        with self.keyframe_queue_lock:
-            i = 0
-            while i < len(self.keyframe_queue):
-                kf_to_process = self.keyframe_queue[i]
-                # We integrate only the keyframes that have been processed by LBA at least once.
-                if kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes:
-                    VolumetricIntegratorBase.print(
-                        f"VolumetricIntegratorBase: Adding integration task with keyframe id: {kf_to_process.id} (kid: {kf_to_process.kid})"
-                    )
-                    task_type = VolumetricIntegrationTaskType.INTEGRATE
-                    task = VolumetricIntegrationTask(kf_to_process, task_type=task_type)
-                    self.add_task(task)
-                    del self.keyframe_queue[i]  # Safely remove the item
-                else:
-                    i += 1  # Only move forward if no removal to avoid skipping
+        # with self.keyframe_queue_lock:
+        i = 0
+        while i < len(self.keyframe_queue):
+            kf_to_process = self.keyframe_queue[i]
+            # We integrate only the keyframes that have been processed by LBA at least once.
+            if kf_to_process.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes:
+                VolumetricIntegratorBase.print(
+                    f"VolumetricIntegratorBase: Adding integration task with keyframe id: {kf_to_process.id} (kid: {kf_to_process.kid})"
+                )
+                task_type = VolumetricIntegrationTaskType.INTEGRATE
+                task = VolumetricIntegrationTask(kf_to_process, task_type=task_type)
+                self.add_task(task)
+                del self.keyframe_queue[i]  # Safely remove the item
+            else:
+                i += 1  # Only move forward if no removal to avoid skipping
 
     def add_keyframe(self, keyframe: KeyFrame, img, img_right, depth, print=print):
+        VolumetricIntegratorBase.print(
+            f"VolumetricIntegratorBase: add_keyframe: adding frame {keyframe.id}"
+        )
+
         use_depth_estimator = Parameters.kVolumetricIntegrationUseDepthEstimator
         if depth is None and not use_depth_estimator:
             VolumetricIntegratorBase.print(
@@ -727,7 +754,7 @@ class VolumetricIntegratorBase:
             self.keyframe_queue.clear()
             for kf in map.keyframes:
                 if (
-                    not kf.is_bad
+                    not kf.is_bad()
                     and kf.lba_count >= Parameters.kVolumetricIntegrationMinNumLBATimes
                 ):
                     if kf.depth_img is None:

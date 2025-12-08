@@ -27,12 +27,12 @@ config.cfg.set_lib("mast3r")
 
 import torch
 
-from pyslam.slam.camera import Camera
+from pyslam.slam import Camera
 from pyslam.io.dataset_types import DatasetEnvironmentType
-from pyslam.utilities.utils_dust3r import (
+from pyslam.utilities.dust3r import (
     dust3r_preprocess_images,
 )  # , invert_dust3r_preprocess_depth
-from pyslam.utilities.utils_depth import img_from_depth, PointCloud, point_cloud_to_depth
+from pyslam.utilities.depth import img_from_depth, PointCloud, point_cloud_to_depth
 
 from .depth_estimator_base import DepthEstimator
 

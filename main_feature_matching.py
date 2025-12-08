@@ -10,19 +10,19 @@ from pyslam.config import Config
 from pyslam.viz.mplot_figure import MPlotFigure
 from pyslam.local_features.feature_tracker import feature_tracker_factory
 from pyslam.local_features.feature_types import FeatureInfo
-from pyslam.utilities.utils_img import (
+from pyslam.utilities.img_management import (
     rotate_img,
     transform_img,
     add_background,
 )
-from pyslam.utilities.utils_geom import add_ones
-from pyslam.utilities.utils_features import (
+from pyslam.utilities.geometry import add_ones
+from pyslam.utilities.features import (
     descriptor_sigma_mad,
     descriptor_sigma_mad_v2,
     compute_hom_reprojection_error,
 )
-from pyslam.utilities.utils_draw import draw_feature_matches
-from pyslam.utilities.utils_plot import plot_errors_histograms
+from pyslam.utilities.drawing import draw_feature_matches
+from pyslam.utilities.plotting import plot_errors_histograms
 
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 

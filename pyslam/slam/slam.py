@@ -54,10 +54,10 @@ from pyslam.local_features.feature_tracker import (
 
 from pyslam.semantics.semantic_mapping import semantic_mapping_factory
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
-from pyslam.utilities.utils_serialization import SerializableEnum, SerializationJSON, register_class
-from pyslam.utilities.utils_sys import Printer, getchar, Logging
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_geom import inv_T
+from pyslam.utilities.serialization import SerializableEnum, SerializationJSON, register_class
+from pyslam.utilities.system import Printer, getchar, Logging
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.geometry import inv_T
 
 from pyslam.dense.volumetric_integrator_base import VolumetricIntegrationOutput
 from pyslam.dense.volumetric_integrator_factory import (
@@ -68,7 +68,12 @@ from pyslam.dense.volumetric_integrator_factory import (
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
     from pyslam.config import Config
+    from .camera import Camera
+    from .map_point import MapPoint
+    from .keyframe import KeyFrame
+    from .map import Map
 
 
 kVerbose = True
@@ -201,6 +206,8 @@ class Slam(object):
             return
         self.has_quit = True
         print("SLAM: quitting ...")
+
+        # Set stop flags first to prevent new work
         if Parameters.kLocalMappingOnSeparateThread:
             self.local_mapping.quit()
         if self.semantic_mapping is not None:
@@ -209,6 +216,9 @@ class Slam(object):
             self.loop_closing.quit()
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.quit()
+
+        # Give processes time to clean up
+        time.sleep(0.5)
         print("SLAM: done")
 
     def __del__(self):
@@ -268,6 +278,10 @@ class Slam(object):
                 self.environment_type,
                 self.sensor_type,
             )
+            while not self.volumetric_integrator.is_ready():
+                time.sleep(0.1)
+            Printer.green(f"SLAM: volumetric integrator initialized and ready")
+            time.sleep(1)
 
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None):
@@ -432,7 +446,7 @@ class Slam(object):
         # Start an independent global bundle adjustment
         print(f"SLAM: starting global bundle adjustment ...")
 
-        if not self.GBA_on_demand:
+        if self.GBA_on_demand is None:
             # we create a GBA here to allow refining the loaded
             use_multiprocessing = not MultiprocessingManager.is_start_method_spawn()
             self.GBA_on_demand = GlobalBundleAdjustment(
@@ -446,14 +460,21 @@ class Slam(object):
                 )
                 return
             else:
+                print(f"SLAM: quitting existing GBA if needed...")
                 self.GBA_on_demand.quit()
+                print(f"SLAM: starting new GBA process/thread...")
                 self.GBA_on_demand.start(
                     loop_kf_id=0
                 )  # loop_kf_id=0 means that it GBA is run for all keyframes and there is no loop closure involved
-                while not self.GBA_on_demand.is_running():  # wait for GBA to start
+                # while (
+                #     not self.GBA_on_demand.is_running() and not self.GBA_on_demand.has_finished()
+                # ):  # wait for GBA to start
+                #     time.sleep(0.1)
+                # print(f"SLAM: GBA actually started...")
+                while not self.GBA_on_demand.has_finished():  # wait for GBA to finish
+                    print(f"SLAM: waiting for GBA to finish...")
                     time.sleep(0.1)
-                while self.GBA_on_demand.is_running():  # wait for GBA to finish
-                    time.sleep(0.1)
+                print(f"SLAM: correcting after GBA...")
                 self.GBA_on_demand.correct_after_GBA()
                 print(f"SLAM: ...global bundle adjustment finished.")
 
@@ -504,8 +525,8 @@ class Slam(object):
             keyframe = ref_kf
             Tcr = np.eye(4, dtype=np.float32)
             # If the reference keyframe was culled, traverse the spanning tree to get a suitable keyframe.
-            while keyframe.is_bad:
-                Tcr = Tcr @ keyframe.Tcp
+            while keyframe.is_bad():
+                Tcr = Tcr @ keyframe.Tcp()
                 keyframe = keyframe.parent
 
             Trw = Tcr @ keyframe.Tcw() @ Two

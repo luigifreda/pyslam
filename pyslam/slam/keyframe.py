@@ -28,7 +28,7 @@ from scipy.spatial import cKDTree
 from threading import Lock
 
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 from collections import defaultdict, OrderedDict, Counter
 
 from .frame import Frame
@@ -320,15 +320,16 @@ class KeyFrame(Frame, KeyFrameGraph):
         self.g_des = None  # global (image-wise) descriptor for loop closing
         self.loop_query_id = None
         self.num_loop_words = 0
-        self.loop_score = None
+        self.loop_score = 0
 
         # for relocalization
         self.reloc_query_id = None
         self.num_reloc_words = 0
-        self.reloc_score = None
+        self.reloc_score = 0
 
         # for GBA
         self.GBA_kf_id = 0
+        self.is_Tcw_GBA_valid = False  # For easing C++ equivalent code
         self.Tcw_GBA = None
         self.Tcw_before_GBA = None
 
@@ -344,7 +345,7 @@ class KeyFrame(Frame, KeyFrameGraph):
         )  # map points => self.points[idx] is the map point matched with self.kps[idx] (if is not None)
         self.outliers = (
             np.full(self.kpsu.shape[0], False, dtype=bool) if self.kpsu is not None else None
-        )  # used just in propagate_map_point_matches()
+        )  # used just in TrackingUtils.propagate_map_point_matches()
 
     def to_json(self):
         frame_json = Frame.to_json(self)
@@ -403,7 +404,7 @@ class KeyFrame(Frame, KeyFrameGraph):
     def init_observations(self):
         with self._lock_features:
             for idx, p in enumerate(self.points):
-                if p is not None and not p.is_bad:
+                if p is not None and not p.is_bad():
                     if p.add_observation(self, idx):
                         p.update_info()
 
@@ -457,20 +458,18 @@ class KeyFrame(Frame, KeyFrameGraph):
                 and self.kid != 0
                 and kf_max is not None
                 and kf_max != self
-                and not kf_max.is_bad
+                and not kf_max.is_bad()
             ):
                 self.set_parent_no_lock_(kf_max)
                 self.is_first_connection = False
         # print('ordered_keyframes_weights: ', self.ordered_keyframes_weights)
 
-    @property
     def Tcp(self):
         with self._lock_connections:
             return (
                 self._pose_Tcp.get_matrix()
             )  # pose relative to parent: self.Tcw() @ self.parent.Twc() (this is computed when bad flag is activated)
 
-    @property
     def is_bad(self):
         with self._lock_connections:
             return self._is_bad
@@ -483,8 +482,8 @@ class KeyFrame(Frame, KeyFrameGraph):
         with self._lock_connections:
             if len(self.loop_edges) == 0:
                 self.not_to_erase = False
-            if self.to_be_erased:
-                self.set_bad()
+        if self.to_be_erased:
+            self.set_bad()
 
     def set_bad(self):
         with self._lock_connections:
@@ -527,7 +526,7 @@ class KeyFrame(Frame, KeyFrameGraph):
                 max_weight = -1
 
                 for kf_child in remaining_children:
-                    if kf_child.is_bad:
+                    if kf_child.is_bad():
                         continue
 
                     covisibles = kf_child.get_covisible_keyframes_no_lock_()

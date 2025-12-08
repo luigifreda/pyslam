@@ -22,7 +22,7 @@ import os
 import cv2
 import numpy as np
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 from .feature_base import BaseFeature2D
 from orbslam2_features import ORBextractor, ORBextractorDeterministic
 

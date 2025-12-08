@@ -24,17 +24,9 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.utils_files import gdrive_download_lambda
-from pyslam.utilities.utils_sys import getchar, Printer
-from pyslam.utilities.utils_features import transform_float_to_binary_descriptor
+from pyslam.utilities.system import Printer
 
 from pyslam.config_parameters import Parameters
-from pyslam.local_features.feature_types import FeatureInfo
-
-from pyslam.utilities.timer import TimerFps
-
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
 
 from .loop_detector_base import (
     LoopDetectorTaskType,
@@ -90,7 +82,7 @@ class LoopDetectorDBoW3(LoopDetectorBase):
     def save(self, path):
         filepath = path + "/loop_closing.db"
         LoopDetectorBase.print(f"LoopDetectorDBoW3: saving database to {filepath}...")
-        LoopDetectorBase.print(f"\t Dabased size: {self.db.size()}")
+        LoopDetectorBase.print(f"\t Database size: {self.db.size()}")
         self.db.save(filepath, save_voc=False)
 
     def load(self, path):
@@ -142,6 +134,8 @@ class LoopDetectorDBoW3(LoopDetectorBase):
                 keyframe.g_des = dbow3.BowVector(
                     keyframe.g_des
                 )  # transform back from vec to bow vector
+            else:
+                g_des_vec = keyframe.g_des.toVec()
 
         if task.task_type != LoopDetectorTaskType.RELOCALIZATION:
             # add image descriptors to global_des_database

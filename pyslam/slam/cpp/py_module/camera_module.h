@@ -57,10 +57,9 @@ void bind_camera(py::module &m) {
         // Constructors
         .def(py::init<>())
         .def(py::init<const Eigen::Isometry3d &>())
-        .def(py::init([](const Eigen::Matrix4d &Tcw) {
-                 return pyslam::CameraPose(Eigen::Isometry3d(Tcw));
-             }),
-             py::arg("Tcw"))
+        .def(py::init<const Eigen::Matrix4d &>())
+        .def(py::init<const Eigen::Matrix3d &, const Eigen::Vector3d &>())
+        .def(py::init<const Eigen::Quaterniond &, const Eigen::Vector3d &>())
 
         // readonly properties
         // clang-format off
@@ -152,7 +151,7 @@ void bind_camera(py::module &m) {
             py::arg("uvs"), py::arg("depths"), py::arg("Kinv"))
         .def_static(
             "are_in_image",
-            [](const pyslam::MatNx2dRef uvs, const pyslam::VecNdRef zs, double u_min, double u_max,
+            [](const pyslam::MatNxMdRef uvs, const pyslam::VecNdRef zs, double u_min, double u_max,
                double v_min, double v_max) {
                 return pyslam::CameraUtils::are_in_image(uvs, zs, u_min, u_max, v_min, v_max);
             },
@@ -279,13 +278,13 @@ void bind_camera(py::module &m) {
             py::arg("uv"), py::arg("z"))
         .def(
             "are_in_image",
-            [](const pyslam::Camera &self, pyslam::MatNx2fRef uvs, pyslam::VecNfRef zs) {
+            [](const pyslam::Camera &self, pyslam::MatNxMfRef uvs, pyslam::VecNfRef zs) {
                 return self.are_in_image<float>(uvs, zs);
             },
             py::arg("uvs"), py::arg("zs"))
         .def(
             "are_in_image",
-            [](const pyslam::Camera &self, pyslam::MatNx2dRef uvs, pyslam::VecNdRef zs) {
+            [](const pyslam::Camera &self, pyslam::MatNxMdRef uvs, pyslam::VecNdRef zs) {
                 return self.are_in_image<double>(uvs, zs);
             },
             py::arg("uvs"), py::arg("zs"))
@@ -294,7 +293,16 @@ void bind_camera(py::module &m) {
         .def("set_fovx", &pyslam::Camera::set_fovx, py::arg("fovx"))
         .def("set_fovy", &pyslam::Camera::set_fovy, py::arg("fovy"))
         .def("to_json", &pyslam::Camera::to_json)
-        .def("init_from_json", &pyslam::Camera::init_from_json, py::arg("json_str"));
+        .def("init_from_json", &pyslam::Camera::init_from_json, py::arg("json_str"))
+        .def(py::pickle([](const pyslam::Camera &self) { return self.state_tuple(); },
+        [](py::tuple t) {
+            auto camera = std::make_shared<pyslam::Camera>();
+            camera->restore_from_state(t);
+            return camera;
+        }))
+        //.def("__setstate__", [](pyslam::Camera &self, py::tuple t) { self.restore_from_state(t); })
+        .def("__getstate__", &pyslam::Camera::state_tuple);
+    
 
     // PinholeCamera class
     py::class_<pyslam::PinholeCamera, pyslam::Camera, std::shared_ptr<pyslam::PinholeCamera>>(
@@ -381,6 +389,14 @@ void bind_camera(py::module &m) {
             py::arg("uvs"))
         .def("undistort_image_bounds", &pyslam::PinholeCamera::undistort_image_bounds)
         .def("to_json", &pyslam::PinholeCamera::to_json)
-        .def_static("from_json", &pyslam::PinholeCamera::from_json, py::arg("json_str"));
+        .def_static("from_json", &pyslam::PinholeCamera::from_json, py::arg("json_str"))
+        .def(py::pickle([](const pyslam::PinholeCamera &self) { return self.state_tuple(); },
+        [](py::tuple t) {
+            auto pinhole_camera = std::make_shared<pyslam::PinholeCamera>();
+            pinhole_camera->restore_from_state(t);
+            return pinhole_camera;
+        }))
+        //.def("__setstate__", [](pyslam::PinholeCamera &self, py::tuple t) { self.restore_from_state(t); })
+        .def("__getstate__", &pyslam::PinholeCamera::state_tuple);
 
 } // bind_camera

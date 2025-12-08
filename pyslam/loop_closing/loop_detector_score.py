@@ -25,7 +25,7 @@ import cv2
 import sys
 from enum import Enum
 
-from pyslam.utilities.utils_sys import getchar, Printer
+from pyslam.utilities.system import getchar, Printer
 
 from typing import List
 

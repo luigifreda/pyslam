@@ -60,21 +60,21 @@ void bind_optimizer_g2o(py::module &m) {
                     py::arg("points"), py::arg("local_window_size") = std::nullopt,
                     py::arg("fixed_points") = false, py::arg("rounds") = 10,
                     py::arg("loop_kf_id") = 0, py::arg("use_robust_kernel") = false,
-                    py::arg("abort_flag") = nullptr, py::arg("mp_abort_flag") = nullptr,
-                    py::arg("result_dict") = nullptr, py::arg("verbose") = false,
+                    py::arg("abort_flag") = py::none(), py::arg("mp_abort_flag") = py::none(),
+                    py::arg("result_dict") = py::none(), py::arg("verbose") = false,
                     py::arg("print") = py::none()) // print inot used here
 
         .def_static("global_bundle_adjustment", &pyslam::global_bundle_adjustment_wrapper,
                     py::arg("keyframes"), py::arg("points"), py::arg("rounds") = 10,
                     py::arg("loop_kf_id") = 0, py::arg("use_robust_kernel") = false,
-                    py::arg("abort_flag") = nullptr, py::arg("mp_abort_flag") = nullptr,
-                    py::arg("result_dict") = nullptr, py::arg("verbose") = false,
+                    py::arg("abort_flag") = py::none(), py::arg("mp_abort_flag") = py::none(),
+                    py::arg("result_dict") = py::none(), py::arg("verbose") = false,
                     py::arg("print") = py::none()) // print inot used here
 
         .def_static("global_bundle_adjustment_map", &pyslam::global_bundle_adjustment_map_wrapper,
                     py::arg("map"), py::arg("rounds") = 10, py::arg("loop_kf_id") = 0,
-                    py::arg("use_robust_kernel") = false, py::arg("abort_flag") = nullptr,
-                    py::arg("mp_abort_flag") = nullptr, py::arg("result_dict") = nullptr,
+                    py::arg("use_robust_kernel") = false, py::arg("abort_flag") = py::none(),
+                    py::arg("mp_abort_flag") = py::none(), py::arg("result_dict") = py::none(),
                     py::arg("verbose") = false,
                     py::arg("print") = py::none()) // print inot used here
 
@@ -85,8 +85,8 @@ void bind_optimizer_g2o(py::module &m) {
                     py::arg("keyframes"), py::arg("points"),
                     py::arg("keyframes_ref") = std::vector<pyslam::KeyFrame *>{},
                     py::arg("fixed_points") = false, py::arg("verbose") = false,
-                    py::arg("rounds") = 10, py::arg("abort_flag") = nullptr,
-                    py::arg("map_lock") = nullptr)
+                    py::arg("rounds") = 10, py::arg("abort_flag") = py::none(),
+                    py::arg("map_lock") = py::none())
 
         .def_static("optimize_sim3", &pyslam::optimize_sim3_wrapper, py::arg("kf1"), py::arg("kf2"),
                     py::arg("map_points1"), py::arg("map_point_matches12"), py::arg("R12"),
@@ -96,5 +96,6 @@ void bind_optimizer_g2o(py::module &m) {
         .def_static("optimize_essential_graph", &pyslam::optimize_essential_graph_wrapper,
                     py::arg("map_object"), py::arg("loop_keyframe"), py::arg("current_keyframe"),
                     py::arg("non_corrected_sim3_map"), py::arg("corrected_sim3_map"),
-                    py::arg("loop_connections"), py::arg("fix_scale"), py::arg("verbose") = false);
+                    py::arg("loop_connections"), py::arg("fix_scale"),
+                    py::arg("print_fun") = py::none(), py::arg("verbose") = false);
 }

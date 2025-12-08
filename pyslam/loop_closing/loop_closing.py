@@ -24,41 +24,39 @@ from collections import defaultdict
 import os
 import time
 
-from pyslam.utilities.utils_sys import Printer, Logging, locally_configure_qt_environment
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_img import LoopCandidateImgs
-from pyslam.utilities.utils_features import transform_float_to_binary_descriptor
-from pyslam.utilities.utils_data import empty_queue
-from pyslam.slam.sim3_pose import Sim3Pose
-from pyslam.utilities.utils_draw import draw_feature_matches
+from pyslam.utilities.system import Printer, Logging, locally_configure_qt_environment
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.img_management import LoopCandidateImgs
+from pyslam.utilities.features import transform_float_to_binary_descriptor
+from pyslam.utilities.data_management import empty_queue
+from pyslam.utilities.drawing import draw_feature_matches
 from pyslam.utilities.timer import TimerFps
 
 from pyslam.viz.qimage_thread import QimageViewer
 
 from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
 
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
-from pyslam.slam.frame import (
+from pyslam.slam import (
+    Sim3Pose,
+    KeyFrame,
     Frame,
+    Map,
+    optimizer_gtsam,
+    optimizer_g2o,
+    RotationHistogram,
+    ProjectionMatcher,
+)
+from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
+from pyslam.slam.relocalizer import Relocalizer  # to avoid circular import
+from pyslam.slam.global_bundle_adjustment import GlobalBundleAdjustment  # to avoid circular import
+
+from pyslam.slam.frame import (
     compute_frame_matches,
     prepare_input_data_for_sim3solver,
     prepare_input_data_for_pnpsolver,
 )
-from pyslam.slam.map import Map
-from pyslam.slam.global_bundle_adjustment import GlobalBundleAdjustment
+
 from pyslam.io.dataset_types import SensorType
-from pyslam.utilities.rotation_histogram import filter_matches_with_histogram_orientation
-
-from pyslam.slam.search_points import (
-    search_by_sim3,
-    search_more_map_points_by_projection,
-    search_and_fuse_for_loop_correction,
-)
-
-from pyslam.slam import optimizer_gtsam
-from pyslam.slam import optimizer_g2o
-from pyslam.slam.relocalizer import Relocalizer
 
 from .loop_detecting_process import LoopDetectingProcess
 from .loop_detector_base import LoopDetectorTask, LoopDetectorTaskType, LoopDetectorOutput
@@ -75,11 +73,20 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pyslam.slam.slam import Slam  # Only imported when type checking, not at runtime
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.frame import Frame
+    from pyslam.slam.map_point import MapPoint
+    from pyslam.slam.map import Map
+    from pyslam.slam.optimizer_g2o import optimizer_g2o
+    from pyslam.slam.optimizer_gtsam import optimizer_gtsam
+    from pyslam.slam.rotation_histogram import RotationHistogram
 
 
 kVerbose = True
 kTimerVerbose = False  # set this to True if you want to print timings
 kPrintTrackebackDetails = True
+
+kUseCv2ForDrawing = platform.system() != "Darwin"  # under mac we can't use cv2 imshow here
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -98,9 +105,11 @@ class ConsistencyGroup:
 # This checks the consistency of a candidates along loop detections.
 class LoopGroupConsistencyChecker:
     def __init__(self, consistency_threshold=3):
-        self.consistent_groups = []  # type: list[ConsistencyGroup]
+        self.consistent_groups: list[ConsistencyGroup] = []  # type: list[ConsistencyGroup]
         self.consistency_threshold = consistency_threshold
-        self.enough_consistent_candidates = []  # current set of enough consistent loop candidates
+        self.enough_consistent_candidates: list[KeyFrame] = (
+            []
+        )  # current set of enough consistent loop candidates
 
         self.timer = TimerFps("LoopGroupConsistencyChecker", is_verbose=kTimerVerbose)
 
@@ -122,7 +131,7 @@ class LoopGroupConsistencyChecker:
         is_consistent_group_updated = [False] * len(self.consistent_groups)
 
         for candidate_kf in candidate_keyframes:
-            if candidate_kf.is_bad:
+            if candidate_kf.is_bad():
                 continue
             # compute the expanded group of candidate keyframe
             candidate_kf_group = candidate_kf.get_connected_keyframes()
@@ -188,6 +197,7 @@ class LoopGeometryChecker:
         self.success_loop_kf = None
         self.success_loop_kf_sim3_pose = None
         self.success_map_point_matches = None
+        self.success_map_point_matches_idxs = None
         self.success_loop_map_points = set()
         self.map_frame_id_to_img = map_frame_id_to_img
 
@@ -215,7 +225,7 @@ class LoopGeometryChecker:
                 lambda: (None, None)
             )  # dictionary of map point matches  (kf_i, kf_j) -> (idxs_i,idxs_j)
             for i, kf in enumerate(candidate_keyframes):
-                if kf is current_keyframe or kf.is_bad:
+                if kf is current_keyframe or kf.is_bad():
                     continue
 
                 # extract matches from precomputed map
@@ -225,8 +235,8 @@ class LoopGeometryChecker:
                 # if features have descriptors with orientation then let's check the matches with a rotation histogram
                 if FeatureTrackerShared.oriented_features:
                     # num_matches_before = len(idxs_kf_cur)
-                    valid_match_idxs = filter_matches_with_histogram_orientation(
-                        idxs_kf_cur, idxs_kf, current_keyframe, kf
+                    valid_match_idxs = RotationHistogram.filter_matches_with_histogram_orientation(
+                        idxs_kf_cur, idxs_kf, current_keyframe.angles, kf.angles
                     )
                     if len(valid_match_idxs) > 0:
                         idxs_kf_cur = idxs_kf_cur[valid_match_idxs]
@@ -305,7 +315,7 @@ class LoopGeometryChecker:
                     # Now, current_keyframe.points(idxs1[i]) is matched with kf.points(idxs2[i])
 
                     # Perform a guided matching and next optimize with all found correspondences
-                    num_found_matches, matches12, matches21 = search_by_sim3(
+                    num_found_matches, matches12, matches21 = ProjectionMatcher.search_by_sim3(
                         current_keyframe, kf, idxs1, idxs2, scale12, R12, t12, print_fun=print
                     )
 
@@ -313,7 +323,7 @@ class LoopGeometryChecker:
                     # matches12: where kf2.points(matches12[i]) is matched to i-th map point in kf1 if matches12[i]>0    (from 1 to 2)
                     # matches21: where kf1.points(matches21[i]) is matched to i-th map point in kf2 if matches21[i]>0    (from 2 to 1)
                     LoopClosing.print(
-                        f"LoopGeometryChecker: guided matching (search_by_sim3) - found map point matches ({current_keyframe.id},{kf.id}): {np.sum(matches12!=-1)}, starting from {len(idxs1)}"
+                        f"LoopGeometryChecker: guided matching (ProjectionMatcher.search_by_sim3) - found map point matches ({current_keyframe.id},{kf.id}): {np.sum(matches12!=-1)}, starting from {len(idxs1)}"
                     )
 
                     assert len(matches12) == n1
@@ -355,12 +365,13 @@ class LoopGeometryChecker:
                             kf.Tcw()
                         )  # Sc1w = Sc1c2 * Tc2w
                         self.success_map_point_matches = map_point_matches12  # success_map_point_matches[i] is the i-th map point matched in success_loop_kf or None
+                        self.success_map_point_matches_idxs = matches12  # success_map_point_matches_idxs[i] is the index of the i-th map point matched in success_loop_kf or -1
                         LoopClosing.print(
                             f"LoopGeometryChecker: optimize_sim3 success - num_inliers: {num_inliers}, delta_err: {delta_err}"
                         )
 
                         # draw loop image matching for debug
-                        if Parameters.kLoopClosingDebugShowLoopMatchedPoints:
+                        if Parameters.kLoopClosingDebugShowLoopMatchedPoints and kUseCv2ForDrawing:
                             try:
                                 cur_kf_img = (
                                     current_keyframe.img
@@ -413,11 +424,12 @@ class LoopGeometryChecker:
 
                 # Find more matches projecting the above found map points with the updated Sim3 pose
                 num_new_found_points, self.success_map_point_matches = (
-                    search_more_map_points_by_projection(
-                        self.success_loop_map_points,
+                    ProjectionMatcher.search_more_map_points_by_projection(
+                        list(self.success_loop_map_points),  # Convert set to list for C++ binding
                         current_keyframe,
-                        self.success_map_point_matches,
                         self.success_loop_kf_sim3_pose,
+                        self.success_map_point_matches,
+                        self.success_map_point_matches_idxs,
                         max_reproj_distance=Parameters.kLoopClosingMaxReprojectionDistanceMapSearch,
                         print_fun=print,
                     )
@@ -427,7 +439,7 @@ class LoopGeometryChecker:
                 )
 
                 LoopClosing.print(
-                    f"LoopGeometryChecker: num_matched_map_points: {num_matched_map_points}, num_new_found_points by search_more_map_points_by_projection(): {num_new_found_points}"
+                    f"LoopGeometryChecker: num_matched_map_points: {num_matched_map_points}, num_new_found_points by ProjectionMatcher.search_more_map_points_by_projection(): {num_new_found_points}"
                 )
 
                 if num_matched_map_points < Parameters.kLoopClosingMinNumMatchedMapPoints:
@@ -463,7 +475,7 @@ class LoopCorrector:
         GBA: GlobalBundleAdjustment,
     ):
         self.slam = slam
-        self.loop_geometry_checker = loop_geometry_checker  # type: LoopGeometryChecker
+        self.loop_geometry_checker: LoopGeometryChecker = loop_geometry_checker
         self.fix_scale = not is_monocular
 
         self.GBA = GBA
@@ -492,7 +504,7 @@ class LoopCorrector:
         loop_map_points = np.array(list(self.loop_geometry_checker.success_loop_map_points))
         for keyframe, Scw in self.corrected_sim3_map.items():
             replace_points = [None] * len(loop_map_points)
-            replace_points = search_and_fuse_for_loop_correction(
+            replace_points = ProjectionMatcher.search_and_fuse_for_loop_correction(
                 keyframe, Scw, loop_map_points, replace_points
             )
 
@@ -565,22 +577,22 @@ class LoopCorrector:
 
                     correction_Sw = corrected_Swi @ Siw
                     correction_sRw = correction_Sw.R * correction_Sw.s
-                    correction_tw = correction_Sw.t
+                    correction_tw = correction_Sw.t.reshape(3, 1)
 
                     # Correct MapPoints
                     map_points = connected_kfi.get_points()
                     for i, map_point in enumerate(map_points):
                         if (
                             not map_point
-                            or map_point.is_bad
+                            or map_point.is_bad()
                             or map_point.corrected_by_kf == current_keyframe.kid
                         ):  # use kid here
                             continue
 
                         # Project with non-corrected pose and project back with corrected pose
-                        p3dw = map_point.pt
+                        p3dw = map_point.pt().reshape(3, 1)
                         # corrected_p3dw = corrected_Swi @ Siw @ p3dw
-                        corrected_p3dw = correction_sRw @ p3dw.reshape(3, 1) + correction_tw
+                        corrected_p3dw = correction_sRw @ p3dw + correction_tw
                         map_point.update_position(corrected_p3dw.squeeze())
                         map_point.update_normal_and_depth()
                         map_point.corrected_by_kf = current_keyframe.kid  # use kid here
@@ -757,7 +769,7 @@ class LoopClosing:
         self.reset_requested = False
 
         self._is_closing = False
-        self.is_closing_codition = Condition()
+        self.is_closing_condition = Condition()
 
     def init_print(self):
         if kVerbose:
@@ -789,6 +801,9 @@ class LoopClosing:
 
     def is_ready(self):
         return self.is_running and self.loop_detecting_process.is_ready()
+
+    def is_correcting(self):
+        return self.GBA.is_correcting()
 
     @property
     def map(self):
@@ -859,21 +874,21 @@ class LoopClosing:
         self.work_thread.start()
 
     def is_closing(self):
-        with self.is_closing_codition:
+        with self.is_closing_condition:
             return self._is_closing
 
     def set_is_closing(self, flag):
-        with self.is_closing_codition:
+        with self.is_closing_condition:
             self._is_closing = flag
-            self.is_closing_codition.notify_all()
+            self.is_closing_condition.notify_all()
 
     def wait_if_closing(self):
         if self.is_running == False:
             return
-        with self.is_closing_codition:
+        with self.is_closing_condition:
             while self._is_closing and self.is_running:
                 Printer.cyan("LoopClosing: waiting for loop closing to finish...")
-                self.is_closing_codition.wait()
+                self.is_closing_condition.wait()
 
     def quit(self):
         LoopClosing.print("LoopClosing: quitting...")
@@ -993,7 +1008,7 @@ class LoopClosing:
                         if cov_kf_id in self.keyframes_map:
                             cov_kf = self.keyframes_map[cov_kf_id]
                             # update the cov keyframe with the detection output if needed
-                            # if not cov_kf.is_bad and cov_kf.g_des is None:
+                            # if not cov_kf.is_bad() and cov_kf.g_des is None:
                             if cov_kf.g_des is None:
                                 cov_kf.g_des = detection_output.covisible_gdes_vecs[i]
 
@@ -1011,7 +1026,7 @@ class LoopClosing:
                         loop_candidate_kfs = [
                             self.keyframes_map[idx]
                             for idx in detection_output.candidate_idxs
-                            if idx in self.keyframes_map and not self.keyframes_map[idx].is_bad
+                            if idx in self.keyframes_map and not self.keyframes_map[idx].is_bad()
                         ]  # get back the keyframes from their ids
 
                         # verify group-consistency
@@ -1027,7 +1042,7 @@ class LoopClosing:
                             consistent_candidates = [
                                 kf
                                 for kf in self.loop_consistency_checker.enough_consistent_candidates
-                                if not kf.is_bad
+                                if not kf.is_bad()
                             ]
                             for kf in consistent_candidates:
                                 self.update_loop_consistent_candidate_imgs(kf.id)
@@ -1111,19 +1126,16 @@ class LoopClosing:
         if self.headless:
             return
         draw = False
-        use_cv2_for_drawing = (
-            platform.system() != "Darwin"
-        )  # under mac we can't use cv2 imshow here
         if self.loop_consistent_candidate_imgs is not None:
             if not self.draw_loop_consistent_candidate_imgs_init:
-                if use_cv2_for_drawing:
+                if kUseCv2ForDrawing:
                     cv2.namedWindow(
                         "loop closing: consistent candidates", cv2.WINDOW_NORMAL
                     )  # to get a resizable window
                 self.draw_loop_consistent_candidate_imgs_init = True
             if self.loop_consistent_candidate_imgs.candidates is not None:
                 draw = True
-                if use_cv2_for_drawing:
+                if kUseCv2ForDrawing:
                     cv2.imshow(
                         "loop closing: consistent candidates",
                         self.loop_consistent_candidate_imgs.candidates,
@@ -1136,13 +1148,13 @@ class LoopClosing:
 
         if detection_output.similarity_matrix is not None:
             if not self.draw_similarity_matrix_init:
-                if use_cv2_for_drawing:
+                if kUseCv2ForDrawing:
                     cv2.namedWindow(
                         "loop closing: similarity matrix", cv2.WINDOW_NORMAL
                     )  # to get a resizable window
                 self.draw_similarity_matrix_init = True
             draw = True
-            if use_cv2_for_drawing:
+            if kUseCv2ForDrawing:
                 cv2.imshow("loop closing: similarity matrix", detection_output.similarity_matrix)
             else:
                 QimageViewer.get_instance().draw(
@@ -1151,13 +1163,13 @@ class LoopClosing:
 
         if detection_output.loop_detection_img_candidates is not None:
             if not self.draw_loop_detection_imgs_init:
-                if use_cv2_for_drawing:
+                if kUseCv2ForDrawing:
                     cv2.namedWindow(
                         "loop-detection: candidates", cv2.WINDOW_NORMAL
                     )  # to get a resizable window
                 self.draw_loop_detection_imgs_init = True
             draw = True
-            if use_cv2_for_drawing:
+            if kUseCv2ForDrawing:
                 cv2.imshow(
                     "loop-detection: candidates", detection_output.loop_detection_img_candidates
                 )
@@ -1167,7 +1179,7 @@ class LoopClosing:
                 )
 
         if draw:
-            if use_cv2_for_drawing:
+            if kUseCv2ForDrawing:
                 cv2.waitKey(1)
 
     def relocalize(self, frame: Frame, img):

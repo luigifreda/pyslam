@@ -102,14 +102,19 @@ inline int binary_descriptor_distance_orb256(const cv::Mat &a, const cv::Mat &b)
 
 // Generic binary Hamming for any multiple of 64 bits (continuous CV_8UC1).
 inline int binary_descriptor_distance(const cv::Mat &a, const cv::Mat &b) noexcept {
+
+#ifndef NDEBUG
     // Expect same type/size and contiguous memory.
     if (a.type() != CV_8UC1 || b.type() != CV_8UC1 || a.total() != b.total() || !a.isContinuous() ||
-        !b.isContinuous())
-        return INT_MAX;
+        !b.isContinuous()) {
+        std::cerr << "binary_descriptor_distance: invalid descriptors\n";
+        return std::numeric_limits<int>::max();
+    }
 
     // Fast path for common ORB 256-bit
     if (is_orb_256(a) && is_orb_256(b))
         return binary_descriptor_distance_orb256(a, b);
+#endif
 
     const auto nbytes = a.total();
     const auto *pa = reinterpret_cast<const uint64_t *>(a.ptr());
@@ -156,8 +161,12 @@ inline bool is_float_vec(const cv::Mat &m) noexcept {
 }
 
 inline float float_descriptor_distance(const cv::Mat &a, const cv::Mat &b) noexcept {
-    if (!is_float_vec(a) || !is_float_vec(b) || a.total() != b.total())
+#ifndef NDEBUG
+    if (!is_float_vec(a) || !is_float_vec(b) || a.total() != b.total()) {
+        std::cerr << "float_descriptor_distance: invalid descriptors\n";
         return std::numeric_limits<float>::infinity();
+    }
+#endif
 
     const float *pa = a.ptr<float>();
     const float *pb = b.ptr<float>();

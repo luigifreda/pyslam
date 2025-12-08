@@ -28,27 +28,29 @@ import numpy as np
 import cv2
 from enum import Enum
 import traceback
+import g2o
 
 from pyslam.config_parameters import Parameters
 
-from pyslam.slam.map import Map
+from pyslam.slam import Map, optimizer_g2o
+
+from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.data_management import empty_queue, Value
 from pyslam.utilities.timer import TimerFps
-
-import g2o
-from pyslam.slam import optimizer_gtsam
-from pyslam.slam import optimizer_g2o
-
-from pyslam.slam.keyframe_data import KeyFrameData
-from pyslam.utilities.utils_sys import Printer, Logging
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_data import empty_queue, Value
 
 import logging
 
+
+# Type hints for IDE navigation
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pyslam.slam.slam import Slam  # Only imported when type checking, not at runtime
+    # Only imported when type checking, not at runtime
+    from .slam import Slam
+    from .map import Map
+    from . import optimizer_gtsam
+    from . import optimizer_g2o
 
 
 kVerbose = True
@@ -70,7 +72,7 @@ class GlobalBundleAdjustment:
             f"GlobalBundleAdjustment: starting with use_multiprocessing: {use_multiprocessing}"
         )
         # self.slam = slam
-        self.map = slam.map  # type: Map
+        self.map: Map = slam.map
         self.local_mapping = slam.local_mapping
 
         self.use_multiprocessing = use_multiprocessing
@@ -88,6 +90,7 @@ class GlobalBundleAdjustment:
             self.time_GBA = mp.Value("d", -1)
             self.mean_squared_error = mp.Value("d", -1)
             self._is_running = mp.Value("i", 0)  # True if the child process is running
+            self._is_correcting = mp.Value("i", 0)  # True if the GBA is correcting
             # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
             self.mp_manager = MultiprocessingManager()
             self.q_message = self.mp_manager.Queue()
@@ -100,6 +103,7 @@ class GlobalBundleAdjustment:
             self.time_GBA = Value("d", -1)
             self.mean_squared_error = Value("d", -1)
             self._is_running = Value("i", 0)
+            self._is_correcting = Value("i", 0)
             self.q_message = []
             self.result_dict_queue = []
 
@@ -148,6 +152,7 @@ class GlobalBundleAdjustment:
             self.result_dict_queue.clear()
 
         self._is_running.value = 0  # reset it to zero, then it is set to 1 in run()
+        self._is_correcting.value = 0
         self.time_GBA.value = -1
         self.mean_squared_error.value = -1
         self.loop_kf_id = loop_kf_id
@@ -169,6 +174,7 @@ class GlobalBundleAdjustment:
             self.q_message,
             self.result_dict_queue,
             self._is_running,
+            self._is_correcting,
             self.time_GBA,
             self.mean_squared_error,
             self.opt_abort_flag,
@@ -186,9 +192,25 @@ class GlobalBundleAdjustment:
             self.process = threading.Thread(target=self.run, args=args)
 
         self.process.start()
+        GlobalBundleAdjustment.print("GlobalBundleAdjustment: process.start() called")
 
     def is_running(self):
         return self._is_running.value == 1
+
+    def has_finished(self):
+        if self._is_running.value == 1:
+            return False
+        queue_size = self.q_message.qsize() if self.use_multiprocessing else len(self.q_message)
+        has_new_messages = queue_size > 0
+        if queue_size > 1:
+            Printer.red(f"GlobalBundleAdjustment: WARNING: queue_size is {queue_size}!")
+        if has_new_messages:
+            output = self.q_message.get() if self.use_multiprocessing else self.q_message.pop(0)
+            return output == "Finished"
+        return False
+
+    def is_correcting(self):
+        return self._is_correcting.value == 1
 
     def abort(self):
         GlobalBundleAdjustment.print("GlobalBundleAdjustment: interrupting GBA...")
@@ -213,33 +235,82 @@ class GlobalBundleAdjustment:
             else:
                 self.q_message.clear()
             self._is_running.value = 0
+            self._is_correcting.value = 0
             GlobalBundleAdjustment.print("GlobalBundleAdjustment: done")
 
+    # def check_GBA_has_finished_and_correct_if_needed(self):
+    #     if (
+    #         not self.is_running()
+    #         and (self.q_message.qsize() if self.use_multiprocessing else len(self.q_message)) > 0
+    #     ):
+    #         output = self.q_message.get() if self.use_multiprocessing else self.q_message.pop(0)
+    #         try:
+    #             return self.correct_after_GBA()
+    #         except Exception as e:
+    #             GlobalBundleAdjustment.print(
+    #                 f"GlobalBundleAdjustment: check_GBA_has_finished_and_correct_if_needed: encountered exception: {e}"
+    #             )
+    #             if kPrintTrackebackDetails:
+    #                 traceback_details = traceback.format_exc()
+    #                 GlobalBundleAdjustment.print(f"\t traceback details: {traceback_details}")
+    #     return False
+
     def check_GBA_has_finished_and_correct_if_needed(self):
-        if (
-            not self.is_running()
-            and (self.q_message.qsize() if self.use_multiprocessing else len(self.q_message)) > 0
-        ):
-            output = self.q_message.get() if self.use_multiprocessing else self.q_message.pop(0)
-            try:
-                return self.correct_after_GBA()
-            except Exception as e:
-                GlobalBundleAdjustment.print(
-                    f"GlobalBundleAdjustment: check_GBA_has_finished_and_correct_if_needed: encountered exception: {e}"
+        if self.is_running():
+            return False
+        received_message = None
+        queue_size = None
+        try:
+            # check if there is a new message in the queue
+            queue_size = self.q_message.qsize() if self.use_multiprocessing else len(self.q_message)
+            if queue_size > 0:
+                received_message = (
+                    self.q_message.get() if self.use_multiprocessing else self.q_message.pop(0)
                 )
-                if kPrintTrackebackDetails:
-                    traceback_details = traceback.format_exc()
-                    GlobalBundleAdjustment.print(f"\t traceback details: {traceback_details}")
+            else:
+                # no new message, so GBA has not finished
+                return False
+            if queue_size > 1:
+                Printer.red(f"GlobalBundleAdjustment: WARNING: queue_size is {queue_size}!")
+            if received_message != "Finished":
+                Printer.red(
+                    f"GlobalBundleAdjustment: WARNING: received message is {received_message}!"
+                )
+        except Exception as e:
+            GlobalBundleAdjustment.print(
+                f"GlobalBundleAdjustment: check_GBA_has_finished_and_correct_if_needed: encountered exception: {e}"
+            )
+            if kPrintTrackebackDetails:
+                traceback_details = traceback.format_exc()
+                GlobalBundleAdjustment.print(f"\t traceback details: {traceback_details}")
+            return False
+
+        try:
+            return self.correct_after_GBA()
+        except Exception as e:
+            GlobalBundleAdjustment.print(
+                f"GlobalBundleAdjustment: check_GBA_has_finished_and_correct_if_needed: encountered exception: {e}"
+            )
+            if kPrintTrackebackDetails:
+                traceback_details = traceback.format_exc()
+                GlobalBundleAdjustment.print(f"\t traceback details: {traceback_details}")
         return False
 
     def correct_after_GBA(self):
         GlobalBundleAdjustment.print(f"GlobalBundleAdjustment: correct after GBA...")
+
+        self._is_correcting.value = 1
 
         # Send a stop signal to Local Mapping
         # Avoid new keyframes are inserted while correcting the loop
         self.local_mapping.request_stop()
         # wait till local mapping is idle
         self.local_mapping.wait_idle(timeout=1.0, print=print)
+        while self.local_mapping.queue_size() > 0:
+            time.sleep(0.1)
+            Printer.yellow(
+                f"GlobalBundleAdjustment: waiting for local mapping to be idle and queue to be empty..."
+            )
 
         GlobalBundleAdjustment.print("GlobalBundleAdjustment: starting correction ...")
         # get the updates from GBA results and put them in their temporary fields in the map
@@ -274,21 +345,27 @@ class GlobalBundleAdjustment:
             try:
                 T = keyframe_updates[kf.id]
                 kf.Tcw_GBA = T
+                kf.is_Tcw_GBA_valid = True
                 kf.GBA_kf_id = loop_kf_id
                 num_kf_updates += 1
             except:
                 # print(f'GlobalBundleAdjustment: keyframe {kf.id} not in keyframe_updates')
                 num_kf_without_updates += 1
+                kf.is_Tcw_GBA_valid = False
+                kf.GBA_kf_id = -1
 
         # put points back
         for p in points:
             try:
                 p.pt_GBA = point_updates[p.id]
+                p.is_pt_GBA_valid = True
                 p.GBA_kf_id = loop_kf_id
                 num_pt_updates += 1
             except:
                 # print(f'GlobalBundleAdjustment: point {p.id} not in point_updates')
                 num_pt_without_updates += 1
+                p.is_pt_GBA_valid = False
+                p.GBA_kf_id = -1
 
         GlobalBundleAdjustment.print(
             f"GlobalBundleAdjustment: got {num_kf_updates} keyframe updates and {num_pt_updates} point updates after GBA."
@@ -305,6 +382,8 @@ class GlobalBundleAdjustment:
             # Get Map Mutex
             with self.map.update_lock:
 
+                print(f"GlobalBundleAdjustment: correcting keyframes...")
+
                 # Correct keyframes starting at map first keyframe
                 keyframes_to_check = list(self.map.keyframe_origins)
                 while keyframes_to_check:
@@ -312,30 +391,37 @@ class GlobalBundleAdjustment:
                     child_keyframes = keyframe.get_children()
                     Twc = keyframe.Twc()
 
-                    if keyframe.Tcw_GBA is None:
+                    # if keyframe.Tcw_GBA is None:
+                    if not keyframe.is_Tcw_GBA_valid:
                         GlobalBundleAdjustment.print(
-                            f"GlobalBundleAdjustment: WARNING: keyframe {keyframe.id} (is_bad: {keyframe.is_bad}) with empty Tcw_GBA!"
+                            f"GlobalBundleAdjustment: WARNING: keyframe {keyframe.id} (is_bad: {keyframe.is_bad()}) with invalid Tcw_GBA!"
                         )
 
                     # propagate the correction to children
                     for child in child_keyframes:
                         if child.GBA_kf_id != self.loop_kf_id:
-                            if keyframe.Tcw_GBA is not None:
+                            # Only propagate if child was NOT optimized in current GBA
+                            # if keyframe.Tcw_GBA is not None:
+                            if keyframe.is_Tcw_GBA_valid:
                                 T_child_c = child.Tcw() @ Twc
                                 child.Tcw_GBA = T_child_c @ keyframe.Tcw_GBA
+                                child.is_Tcw_GBA_valid = True
                                 child.GBA_kf_id = self.loop_kf_id
                         keyframes_to_check.append(child)
 
                     keyframe.Tcw_before_GBA = keyframe.Tcw()
-                    if keyframe.Tcw_GBA is not None:
+                    # if keyframe.Tcw_GBA is not None:
+                    if keyframe.is_Tcw_GBA_valid:
                         keyframe.update_pose(keyframe.Tcw_GBA)
+
+                print(f"GlobalBundleAdjustment: correcting map points...")
 
                 # Correct MapPoints
                 for map_point in self.map.get_points():
-                    if map_point.is_bad:
+                    if map_point.is_bad():
                         continue
 
-                    if map_point.GBA_kf_id == self.loop_kf_id:
+                    if map_point.GBA_kf_id == self.loop_kf_id and map_point.is_pt_GBA_valid:
                         # If optimized by Global BA, just update
                         map_point.update_position(map_point.pt_GBA)
                     else:
@@ -353,7 +439,7 @@ class GlobalBundleAdjustment:
                         # Map to non-corrected camera
                         Rcw = ref_keyframe.Tcw_before_GBA[0:3, 0:3]
                         tcw = ref_keyframe.Tcw_before_GBA[0:3, 3]
-                        Xc = Rcw @ map_point.pt + tcw
+                        Xc = Rcw @ map_point.pt() + tcw
 
                         # Backproject using corrected camera
                         Twc = ref_keyframe.Twc()
@@ -362,6 +448,8 @@ class GlobalBundleAdjustment:
 
                         map_point.update_position(Rwc @ Xc + twc)
                     map_point.update_normal_and_depth()
+
+                self._is_correcting.value = 0
 
                 self.local_mapping.release()
 
@@ -373,6 +461,9 @@ class GlobalBundleAdjustment:
             if kPrintTrackebackDetails:
                 traceback_details = traceback.format_exc()
                 GlobalBundleAdjustment.print(f"\t traceback details: {traceback_details}")
+
+        self._is_correcting.value = 0
+        self.local_mapping.release()
 
         return False
 
@@ -386,6 +477,7 @@ class GlobalBundleAdjustment:
         q_message,
         result_dict_queue,
         is_running,
+        is_correcting,
         time_GBA,
         mean_squared_error,
         opt_abort_flag,
@@ -395,6 +487,7 @@ class GlobalBundleAdjustment:
             f"GlobalBundleAdjustment: starting global bundle adjustment with loop_kf_id {loop_kf_id}..."
         )
         is_running.value = 1
+        # time.sleep(0.1)
 
         timer = TimerFps("GlobalBundleAdjustment", is_verbose=kTimerVerbose)
         timer.start()
@@ -402,6 +495,12 @@ class GlobalBundleAdjustment:
         task_completed = False
 
         result_dict = {}
+
+        # Ensure containers are lists for pybind
+        if not isinstance(keyframes, list):
+            keyframes = list(keyframes)
+        if not isinstance(points, list):
+            points = list(points)
 
         try:
             if Parameters.kOptimizationBundleAdjustUseGtsam:

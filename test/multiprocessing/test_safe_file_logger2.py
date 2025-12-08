@@ -3,25 +3,32 @@ import os
 from multiprocessing import Lock, Process
 from threading import Lock as ThreadLock, Thread
 
-import sys 
+import sys
 
 from pyslam.config import Config
 
 import time
-from pyslam.utilities.utils_sys import FileLogger, LoggerQueue
+from pyslam.utilities.system import FileLogger, LoggerQueue
 
 if False:
     # NOTE: This seems to fail once in while
     logger = FileLogger("test.log")
+
     def print(*args, **kwargs):
-        message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
+        message = " ".join(
+            str(arg) for arg in args
+        )  # Convert all arguments to strings and join with spaces
         return logger.info(message, **kwargs)
+
 else:
     logging_manager = LoggerQueue.get_instance("test.log")
     logger = logging_manager.get_logger("test")
+
     def print(*args, **kwargs):
-        message = ' '.join(str(arg) for arg in args)  # Convert all arguments to strings and join with spaces                
-        return logger.info(message, **kwargs)    
+        message = " ".join(
+            str(arg) for arg in args
+        )  # Convert all arguments to strings and join with spaces
+        return logger.info(message, **kwargs)
 
 
 # Function to log messages in threads
@@ -29,6 +36,7 @@ def thread_logging(thread_id):
     for i in range(2):
         print(f"Thread {thread_id} - Message {i}")
         time.sleep(1)
+
 
 # Function to log messages in processes
 def process_logging(process_id):
@@ -45,8 +53,8 @@ if __name__ == "__main__":
 
     # Creating processes
     processes = [Process(target=process_logging, args=(i,)) for i in range(5)]
-    
-    print('Start')
+
+    print("Start")
 
     # Starting threads
     for thread in threads:
@@ -65,7 +73,7 @@ if __name__ == "__main__":
         process.join()
 
     # Closing the logger
-    #logger.close()
-    print('Done')
-    
-    #del logger
+    # logger.close()
+    print("Done")
+
+    # del logger

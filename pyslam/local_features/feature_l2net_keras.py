@@ -27,8 +27,8 @@ import numpy as np
 from L2_Net import L2Net
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_features import extract_patches_array, extract_patches_array_cpp
+from pyslam.utilities.system import Printer
+from pyslam.utilities.features import extract_patches_array, extract_patches_array_cpp
 
 
 kVerbose = True

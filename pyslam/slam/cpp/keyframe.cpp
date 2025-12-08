@@ -19,6 +19,7 @@
 
 #include "keyframe.h"
 #include "camera_pose.h"
+#include "config_parameters.h"
 #include "frame.h"
 #include "map.h"
 #include "map_point.h"
@@ -28,20 +29,18 @@
 
 #include <atomic>
 #include <mutex>
-#include <sstream>
 
 namespace pyslam {
-
-// Threshold constant (equivalent to Parameters.kMinNumOfCovisiblePointsForCreatingConnection =
-// 15)
-constexpr int kMinNumOfCovisiblePointsForCreatingConnection = 15;
 
 // Static member definitions
 std::atomic<int> KeyFrame::next_kid_{0};
 std::mutex KeyFrame::kid_mutex_;
 
+// ======================================================
 // KeyFrameGraph implementation
-KeyFrameGraph::KeyFrameGraph() : parent(nullptr), not_to_erase(false), is_first_connection(true) {}
+// ======================================================
+
+KeyFrameGraph::KeyFrameGraph() : parent(nullptr) {}
 
 void KeyFrameGraph::add_child(KeyFramePtr child) {
     std::lock_guard<std::mutex> lock(_lock_connections);
@@ -66,24 +65,27 @@ void KeyFrameGraph::erase_child_no_lock(KeyFramePtr child) {
     }
 }
 
-void KeyFrameGraph::set_parent_no_lock(KeyFramePtr &parent) {
-    // Safely cast this to KeyFrame* for comparison
-    auto this_as_kf = dynamic_cast<KeyFrame *>(this);
-    if (!this_as_kf) {
-        MSG_ERROR("KeyFrameGraph::set_parent called on standalone KeyFrameGraph object");
-        throw std::runtime_error(
-            "KeyFrameGraph::set_parent called on standalone KeyFrameGraph object");
-    }
-    if (parent->id == this_as_kf->id) {
+void KeyFrameGraph::set_parent_no_lock(KeyFramePtr parent) {
+
+    if (parent.get() == this) {
         return;
     }
     // Set the parent
     this->parent = parent;
+    auto this_as_kf = std::dynamic_pointer_cast<KeyFrame>(this->shared_from_this());
+    if (this_as_kf == nullptr) {
+        throw std::runtime_error("KeyFrameGraph is not a KeyFrame");
+    }
+    auto self = this_as_kf->KeyFrameGraph::downcasted_shared_from_this<KeyFrame>();
+    if (!self) {
+        MSG_ERROR("KeyFrameGraph could not be downcasted to KeyFrame");
+        return;
+    }
     // Add this keyframe as a child of the parent
-    parent->add_child(WrapPtr(this_as_kf));
+    parent->add_child(self);
 }
 
-void KeyFrameGraph::set_parent(KeyFramePtr &parent) {
+void KeyFrameGraph::set_parent(KeyFramePtr parent) {
     std::lock_guard<std::mutex> lock(_lock_connections);
     set_parent_no_lock(parent);
 }
@@ -98,12 +100,12 @@ KeyFramePtr KeyFrameGraph::get_parent() const {
     return parent;
 }
 
-bool KeyFrameGraph::has_child(const KeyFramePtr &keyframe) const {
+bool KeyFrameGraph::has_child(const KeyFramePtr keyframe) const {
     std::lock_guard<std::mutex> lock(_lock_connections);
     return std::find(children.begin(), children.end(), keyframe) != children.end();
 }
 
-void KeyFrameGraph::add_loop_edge(KeyFramePtr &kf) {
+void KeyFrameGraph::add_loop_edge(KeyFramePtr kf) {
     std::lock_guard<std::mutex> lock(_lock_connections);
     not_to_erase = true;
     // Add the loop edge only if it is not already in the set
@@ -133,27 +135,21 @@ void KeyFrameGraph::update_best_covisibles_no_lock_() {
     // Convert map to vector for sorting
     std::vector<std::pair<KeyFramePtr, int>> covisibles_vec;
     covisibles_vec.reserve(connected_keyframes_weights.size());
-
     for (const auto &pair : connected_keyframes_weights) {
         covisibles_vec.push_back(pair);
     }
 
     // Sort the vector
     std::sort(covisibles_vec.begin(), covisibles_vec.end(),
-              [](const std::pair<KeyFramePtr, int> &a, const std::pair<KeyFramePtr, int> &b) {
-                  return a.second > b.second;
-              });
+              [](const std::pair<KeyFrameGraphPtr, int> &a,
+                 const std::pair<KeyFrameGraphPtr, int> &b) { return a.second > b.second; });
 
     // Update ordered_keyframes_weights
-    ordered_keyframes_weights.clear();
-    for (const auto &pair : covisibles_vec) {
-        ordered_keyframes_weights.insert(pair);
-    }
+    ordered_keyframes_weights = std::move(covisibles_vec);
 }
 
 // KeyFrameGraph missing methods
 void KeyFrameGraph::reset_covisibility() {
-    std::lock_guard<std::mutex> lock(_lock_connections);
     connected_keyframes_weights.clear();
     ordered_keyframes_weights.clear();
 }
@@ -186,6 +182,7 @@ std::vector<KeyFramePtr> KeyFrameGraph::get_connected_keyframes() const {
 
 std::vector<KeyFramePtr> KeyFrameGraph::get_covisible_keyframes_no_lock() const {
     std::vector<KeyFramePtr> covisible;
+    covisible.reserve(ordered_keyframes_weights.size());
     for (const auto &pair : ordered_keyframes_weights) {
         covisible.push_back(pair.first);
     }
@@ -200,6 +197,7 @@ std::vector<KeyFramePtr> KeyFrameGraph::get_covisible_keyframes() const {
 std::vector<KeyFramePtr> KeyFrameGraph::get_best_covisible_keyframes(int N) const {
     std::lock_guard<std::mutex> lock(_lock_connections);
     std::vector<KeyFramePtr> best_covisible;
+    best_covisible.reserve(std::min(N, static_cast<int>(ordered_keyframes_weights.size())));
     int count = 0;
     for (const auto &pair : ordered_keyframes_weights) {
         if (count >= N)
@@ -231,14 +229,22 @@ int KeyFrameGraph::get_weight(const KeyFramePtr &keyframe) const {
     return get_weight_no_lock(keyframe);
 }
 
+// ======================================================
+// KeyFrame implementation
+// ======================================================
+
 // KeyFrame implementation
 KeyFrame::KeyFrame(const FramePtr &frame, const cv::Mat &img, const cv::Mat &img_right,
                    const cv::Mat &depth, int kid)
     : Frame(frame->camera), kid(kid), _is_bad(false), to_be_erased(false), lba_count(0),
       loop_query_id(-1), num_loop_words(0), loop_score(0.0f), reloc_query_id(-1),
-      num_reloc_words(0), reloc_score(0.0f), GBA_kf_id(-1), map(nullptr) {
+      num_reloc_words(0), reloc_score(0.0f), GBA_kf_id(0), map(nullptr) {
 
-    Frame::copy_from(*frame);
+    if (frame) {
+        Frame::copy_from(*frame);
+    }
+    // We don't preserve KeyFrame outliers and reinitialize all the flags to false
+    outliers = std::vector<bool>(frame->outliers.size(), false);
 
     // Set as keyframe
     is_keyframe = true;
@@ -248,6 +254,7 @@ KeyFrame::KeyFrame(const FramePtr &frame, const cv::Mat &img, const cv::Mat &img
     _pose_Tcp = CameraPose();
 
     // Initialize GBA poses - use default constructor, not make_unique
+    is_Tcw_GBA_valid = false;
     Tcw_GBA = Eigen::Matrix4d::Identity();
     Tcw_before_GBA = Eigen::Matrix4d::Identity();
 
@@ -265,11 +272,17 @@ KeyFrame::KeyFrame(const FramePtr &frame, const cv::Mat &img, const cv::Mat &img
 
 void KeyFrame::init_observations() {
     std::lock_guard<std::mutex> lock(_lock_features);
+    auto self = KeyFrameGraph::downcasted_shared_from_this<KeyFrame>();
+    if (!self) {
+        MSG_ERROR("KeyFrameGraph could not be downcasted to KeyFrame");
+        return;
+    }
     for (size_t idx = 0; idx < points.size(); ++idx) {
         const auto &p = points[idx];
         if (p && !p->is_bad()) {
-            p->add_observation(WrapPtr(this), static_cast<int>(idx));
-            p->update_info();
+            if (p->add_observation(self, static_cast<int>(idx))) {
+                p->update_info();
+            }
         }
     }
 }
@@ -304,7 +317,6 @@ void KeyFrame::update_connections() {
     // Convert to vector for sorting (equivalent to most_common() in Python Counter)
     std::vector<std::pair<KeyFramePtr, int>> covisible_keyframes;
     covisible_keyframes.reserve(viewing_keyframes.size());
-
     for (const auto &pair : viewing_keyframes) {
         covisible_keyframes.push_back(pair);
     }
@@ -321,18 +333,25 @@ void KeyFrame::update_connections() {
 
     std::lock_guard<std::mutex> lock(_lock_connections);
 
-    if (w_max >= kMinNumOfCovisiblePointsForCreatingConnection) {
+    auto self = KeyFrameGraph::downcasted_shared_from_this<KeyFrame>();
+    if (!self) {
+        MSG_ERROR("KeyFrameGraph could not be downcasted to KeyFrame");
+        return;
+    }
+    if (w_max >= Parameters::kMinNumOfCovisiblePointsForCreatingConnection) {
         // Set connected_keyframes_weights to viewing_keyframes
-        connected_keyframes_weights = viewing_keyframes;
+        connected_keyframes_weights = std::move(viewing_keyframes);
         ordered_keyframes_weights.clear();
+        ordered_keyframes_weights.reserve(covisible_keyframes.size());
 
+        // Here we keep the weight-decreasing-order of the covisible_keyframes
         for (const auto &pair : covisible_keyframes) {
             KeyFramePtr kf = pair.first;
             int w = pair.second;
 
-            if (w >= kMinNumOfCovisiblePointsForCreatingConnection) {
-                kf->add_connection_no_lock(WrapPtr(this), w);
-                ordered_keyframes_weights[kf] = w;
+            if (w >= Parameters::kMinNumOfCovisiblePointsForCreatingConnection) {
+                kf->add_connection_no_lock(self, w);
+                ordered_keyframes_weights.push_back({kf, w});
             } else {
                 break; // Since sorted, no more will meet threshold
             }
@@ -343,9 +362,9 @@ void KeyFrame::update_connections() {
         connected_keyframes_weights[kf_max] = w_max;
 
         ordered_keyframes_weights.clear();
-        ordered_keyframes_weights[kf_max] = w_max;
+        ordered_keyframes_weights.push_back({kf_max, w_max});
 
-        kf_max->add_connection_no_lock(WrapPtr(this), w_max);
+        kf_max->add_connection_no_lock(self, w_max);
     }
 
     // Update spanning tree
@@ -373,9 +392,11 @@ void KeyFrame::set_not_erase() {
 }
 
 void KeyFrame::set_erase() {
-    std::lock_guard<std::mutex> lock(_lock_connections);
-    if (loop_edges.empty()) {
-        not_to_erase = false;
+    {
+        std::lock_guard<std::mutex> lock(_lock_connections);
+        if (loop_edges.empty()) {
+            not_to_erase = false;
+        }
     }
     if (to_be_erased) {
         set_bad();
@@ -385,97 +406,104 @@ void KeyFrame::set_erase() {
 void KeyFrame::set_bad() {
     std::lock_guard<std::mutex> lock(_lock_connections);
     if (kid <= 0) {
-        return; // Don't mark the first keyframe as bad
+        return;
     }
 
     if (not_to_erase) {
         to_be_erased = true;
         return;
     }
-
-    // --- 1. Remove covisibility connections ---
-    auto connected_keyframes = get_connected_keyframes_no_lock();
-    for (auto &kf_connected : connected_keyframes) {
-        kf_connected->erase_connection_no_lock(WrapPtr(this));
+    auto self = KeyFrameGraph::downcasted_shared_from_this<KeyFrame>();
+    if (!self) {
+        MSG_ERROR("KeyFrameGraph could not be downcasted to KeyFrame");
+        return;
     }
 
-    // --- 2. Remove feature observations ---
+    // 1) Remove covisibility connections
+    auto connected_keyframes = get_connected_keyframes_no_lock();
+    for (auto &kf_connected : connected_keyframes) {
+        kf_connected->erase_connection_no_lock(self);
+    }
+
+    // 2) Remove feature observations
     for (size_t idx = 0; idx < points.size(); ++idx) {
         const auto &p = points[idx];
         if (p) {
-            p->remove_observation(WrapPtr(this), static_cast<int>(idx));
+            p->remove_observation(self, static_cast<int>(idx));
         }
     }
 
     reset_covisibility();
 
-    // --- 3. Update spanning tree ---
-    // Each children must be connected to a new parent
-
+    // 3) Update spanning tree
     MSG_FORCED_ASSERT(parent, "KeyFrame: set_bad - parent is nullptr");
 
-    std::set<KeyFramePtr> parent_candidates = {parent};
+    std::set<KeyFramePtr> parent_candidates = {std::static_pointer_cast<KeyFrame>(parent)};
 
-    // Prevent infinite loop due to malformed graph
-    int max_iters = children.size() * 100;
-    int iters = 0;
-
-    // Reassign children based on covisibility weights
     std::vector<KeyFramePtr> remaining_children(children.begin(), children.end());
     children.clear();
 
-    while (remaining_children.size() > 0 && iters < max_iters) {
+    // Reassign children via covisibility to any parent candidate; one child per iteration
+    int iters = 0;
+    const int max_iters = static_cast<int>(remaining_children.size()) * 100;
+    while (!remaining_children.empty() && iters < max_iters) {
         iters++;
+
         KeyFramePtr best_child;
         KeyFramePtr best_parent;
         int max_weight = -1;
 
+        // Find best reassignment across all remaining children
         for (auto &child : remaining_children) {
             if (child->is_bad())
                 continue;
 
             auto covisibles = child->get_covisible_keyframes_no_lock();
-            // Intersect with parent candidates
             for (auto &candidate : parent_candidates) {
-                // If the candidate is in the covisible keyframes of the child
                 if (std::find(covisibles.begin(), covisibles.end(), candidate) !=
                     covisibles.end()) {
                     int w = child->get_weight_no_lock(candidate);
                     if (w > max_weight) {
+                        max_weight = w;
                         best_child = child;
                         best_parent = candidate;
-                        max_weight = w;
                     }
                 }
             }
-
-            if (best_parent && best_child) {
-                best_child->set_parent(best_parent);
-                parent_candidates.insert(child);
-                remaining_children.erase(
-                    std::find(remaining_children.begin(), remaining_children.end(), best_child));
-            } else {
-                break;
-            }
-
-            if (iters >= max_iters) {
-                MSG_WARN("KeyFrame: set_bad - max iterations reached");
-            }
         }
 
-        // --- 4. Reassign unconnected children to original parent ---
-        for (auto &child : remaining_children) {
-            child->set_parent_no_lock(parent);
-        }
+        // If no covisible parent candidate found, stop trying to reassign via covisibility
+        if (!best_child || !best_parent)
+            break;
 
-        // --- 5. Cleanup ---
-        parent->erase_child_no_lock(WrapPtr(this));
-        _pose_Tcp.update(this->Tcw() * parent->Twc());
-        _is_bad = true;
+        // Commit the best reassignment found in this iteration
+        best_child->set_parent(best_parent);
+        parent_candidates.insert(best_child);
 
-        if (map) {
-            map->remove_keyframe(WrapPtr(this));
+        // Safely remove the chosen child (no range-iteration here)
+        auto it = std::find(remaining_children.begin(), remaining_children.end(), best_child);
+        if (it != remaining_children.end())
+            remaining_children.erase(it);
+
+        if (iters >= max_iters) {
+            MSG_WARN("KeyFrame: set_bad - max iterations reached");
+            break;
         }
+    }
+
+    // 4) Reassign any still-unconnected children to the original parent
+    for (auto &child : remaining_children) {
+        child->set_parent_no_lock(parent);
+    }
+
+    // 5) Cleanup
+    auto parent_kf = std::static_pointer_cast<KeyFrame>(parent);
+    parent->erase_child_no_lock(self);
+    _pose_Tcp.update(this->Tcw() * parent_kf->Twc());
+    _is_bad = true;
+
+    if (map) {
+        map->remove_keyframe(self);
     }
 }
 

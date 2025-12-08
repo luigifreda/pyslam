@@ -17,8 +17,16 @@ namespace pyslam {
 template <typename T>
 inline py::array_t<T> vector_to_numpy_zero_copy(std::vector<T> &vec,
                                                 py::object owner = py::none()) {
-    return py::array_t<T>({static_cast<py::ssize_t>(vec.size())},
-                          {static_cast<py::ssize_t>(sizeof(T))}, vec.data(), owner);
+    // Special handling for bool - pybind11 doesn't support zero-copy bool arrays
+    if constexpr (std::is_same_v<T, bool>) {
+        py::array_t<bool> result(vec.size());
+        bool *data = result.mutable_data();
+        std::copy(vec.begin(), vec.end(), data);
+        return result;
+    } else {
+        return py::array_t<T>({static_cast<py::ssize_t>(vec.size())},
+                              {static_cast<py::ssize_t>(sizeof(T))}, vec.data(), owner);
+    }
 }
 
 template <typename T>
@@ -94,28 +102,45 @@ inline void numpy_to_eigen_copy(py::object obj, EigenType &matrix, const std::st
 #define DEFINE_VECTOR_PROPERTY_ZERO_COPY(class_type, member_name, value_type, property_name)       \
     .def_property(                                                                                 \
         property_name,                                                                             \
-        [](class_type &self) {                                                                     \
+        [](class_type &self) -> py::object {                                                       \
+            if (self.member_name.empty()) {                                                        \
+                return py::none();                                                                 \
+            }                                                                                      \
             return pyslam::vector_to_numpy_zero_copy(self.member_name, py::cast(&self));           \
         },                                                                                         \
         [](class_type &self, py::object obj) {                                                     \
-            pyslam::numpy_to_vector_copy(obj, self.member_name, property_name);                    \
+            if (obj.is_none()) {                                                                   \
+                self.member_name.clear();                                                          \
+            } else {                                                                               \
+                pyslam::numpy_to_vector_copy(obj, self.member_name, property_name);                \
+            }                                                                                      \
         })
 
 // Define an Eigen property that is a numpy array and is zero-copy
 #define DEFINE_EIGEN_ZERO_COPY_PROPERTY(class_type, member_name, eigen_type, property_name)        \
     .def_property(                                                                                 \
         property_name,                                                                             \
-        [](class_type &self) {                                                                     \
+        [](class_type &self) -> py::object {                                                       \
+            if (self.member_name.rows() == 0) {                                                    \
+                return py::none();                                                                 \
+            }                                                                                      \
             return pyslam::eigen_to_numpy_zero_copy(self.member_name, py::cast(&self));            \
         },                                                                                         \
         [](class_type &self, py::object obj) {                                                     \
-            pyslam::numpy_to_eigen_copy(obj, self.member_name, property_name);                     \
+            if (obj.is_none()) {                                                                   \
+                self.member_name.resize(0, self.member_name.cols());                               \
+            } else {                                                                               \
+                pyslam::numpy_to_eigen_copy(obj, self.member_name, property_name);                 \
+            }                                                                                      \
         })
 
 // Define a Read-Only (RO) Eigen property exposed as a zero-copy NumPy view via a const getter
 #define DEFINE_EIGEN_ZERO_COPY_RO_PROPERTY_FROM_GETTER(class_type, getter_expr, property_name)     \
-    .def_property_readonly(property_name, [](class_type &self) {                                   \
+    .def_property_readonly(property_name, [](class_type &self) -> py::object {                     \
         auto &ref_const = getter_expr;                                                             \
+        if (ref_const.rows() == 0) {                                                               \
+            return py::none();                                                                     \
+        }                                                                                          \
         auto &ref = const_cast<std::remove_reference_t<decltype(ref_const)> &>(ref_const);         \
         auto arr = pyslam::eigen_to_numpy_zero_copy(ref, py::cast(&self));                         \
         arr.attr("setflags")(py::arg("write") = false);                                            \

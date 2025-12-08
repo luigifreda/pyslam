@@ -23,15 +23,21 @@
 
 #include <atomic>
 #include <cmath>
+#include <map>
 #include <memory>
 #include <mutex>
-#include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
 
+#include <opencv2/opencv.hpp>
+
+#ifdef USE_PYTHON
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#endif
 
+#include "eigen_aliases.h"
+#include "frame.h"
 #include "smart_pointers.h"
 
 namespace pyslam {
@@ -41,6 +47,8 @@ class KeyFrame;
 class Frame;
 class MapPoint;
 class Map;
+
+using FrameViews = std::map<FramePtr, int, FrameIdCompare>;
 
 // MapPointBase class - matches Python MapPointBase exactly
 class MapPointBase {
@@ -54,15 +62,15 @@ class MapPointBase {
 
   public:
     // Core data members
-    int id;
-    MapPtr map; // Pointer to Map object
+    int id = -1;
+    Map *map = nullptr; // Pointer to Map object
 
     // Observations
     std::map<KeyFramePtr, int> _observations;
-    std::map<FramePtr, int> _frame_views;
+    FrameViews _frame_views;
 
     // Status flags
-    bool _is_bad = false;
+    std::atomic<bool> _is_bad{false};
     int _num_observations = 0;
     int num_times_visible = 0;
     int num_times_found = 0;
@@ -80,7 +88,10 @@ class MapPointBase {
     MapPointBase(int id = -1);
 
     // Destructor
-    virtual ~MapPointBase() = default;
+    virtual ~MapPointBase() {
+        // Mark as bad to prevent further operations
+        _is_bad = true;
+    }
 
     // Comparison operators
     bool operator==(const MapPointBase &other) const { return id == other.id; }
@@ -104,9 +115,11 @@ class MapPointBase {
     // Observation operations
     bool is_in_keyframe(const KeyFramePtr &keyframe) const;
     int get_observation_idx(const KeyFramePtr &keyframe) const;
+    int get_frame_view_idx(const FramePtr &frame) const;
     bool add_observation_no_lock_(KeyFramePtr &keyframe, int idx);
-    bool add_observation(KeyFramePtr keyframe, int idx);         // no reference passing here!
-    void remove_observation(KeyFramePtr keyframe, int idx = -1); // no reference passing here!
+    bool add_observation(KeyFramePtr keyframe, int idx); // no reference passing here!
+    void remove_observation(KeyFramePtr keyframe, int idx = -1,
+                            bool map_no_lock = false); // no reference passing here!
 
     // Frame view access
     std::vector<std::pair<FramePtr, int>> frame_views() const;
@@ -139,48 +152,54 @@ class MapPoint : public MapPointBase, public std::enable_shared_from_this<MapPoi
     // Global lock for position updates
     static std::mutex global_lock_;
 
+  public:
+    // Core geometric data  (private)
+    Eigen::Vector3d _pt = Eigen::Vector3d::Zero();     // position in world frame
+    Eigen::Vector3d normal = Eigen::Vector3d(0, 0, 1); // Default normal
+    float _min_distance = 0.0f;
+    float _max_distance = std::numeric_limits<float>::infinity();
+
+    // Visual data  (private)
+    Vec3b color = Vec3b::Zero();
+    cv::Mat semantic_des;
+    cv::Mat des; // best descriptor
+
+    // Reference information
+    int first_kid = -1;
+
+    // Update counters
+    int num_observations_on_last_update_des = 1;
+    int num_observations_on_last_update_normals = 1;
+    int num_observations_on_last_update_semantics = 1;
+
+    // GBA support
+    Eigen::Vector3d pt_GBA = Eigen::Vector3d::Zero();
+    bool is_pt_GBA_valid = false;
+    int GBA_kf_id = 0;
+
+  protected:
     // Temporary storage for ID-based data during deserialization
     std::vector<std::pair<int, int>> _observations_id_data;
     std::vector<std::pair<int, int>> _frame_views_id_data;
     int _kf_ref_id = -1;
 
   public:
-    // Core geometric data  (private)
-    Eigen::Vector3d _pt; // position in world frame
-    Eigen::Vector3d normal;
-    float _min_distance, _max_distance;
-
-    // Visual data  (private)
-    Eigen::Matrix<unsigned char, 3, 1> color;
-    cv::Mat semantic_des;
-    cv::Mat des; // best descriptor
-
-    // Reference information
-    int first_kid;
-
-    // Update counters
-    int num_observations_on_last_update_des;
-    int num_observations_on_last_update_normals;
-    int num_observations_on_last_update_semantics;
-
-    // GBA support
-    Eigen::Vector3d pt_GBA;
-    int GBA_kf_id;
-
-  public:
     // Constructor - matches Python: MapPoint(position, color, keyframe=None,
     // idxf=None, id=None)
-    MapPoint(const Eigen::Vector3d &position, const Eigen::Matrix<unsigned char, 3, 1> &color,
-             const KeyFramePtr &keyframe = nullptr, int idxf = -1, int id = -1);
+    MapPoint(const Eigen::Vector3d &position, const Vec3b &color);
+    MapPoint(const Eigen::Vector3d &position, const Vec3b &color, const FramePtr &keyframe,
+             const int idxf = -1, const int id = -1);
+    MapPoint(const Eigen::Vector3d &position, const Vec3b &color, const KeyFramePtr &keyframe,
+             const int idxf = -1, const int id = -1);
 
     explicit MapPoint(int id = -1) : MapPointBase(id) {}
 
     // Destructor
     ~MapPoint() {
         // Clear references to prevent circular dependencies during shutdown
-        _observations.clear();
-        _frame_views.clear();
-        kf_ref = nullptr;
+        clear_references();
+        // Ensure the object is marked as bad to prevent further use
+        _is_bad = true;
     }
 
     // Delete copy constructor
@@ -209,20 +228,19 @@ class MapPoint : public MapPointBase, public std::enable_shared_from_this<MapPoi
 
     // Point lifecycle
     void delete_point();
-    void set_bad();
+    void set_bad(bool map_no_lock = false);
     MapPointPtr get_replacement() const;
     Eigen::Vector3d get_normal() const;
     void replace_with(MapPointPtr &p);
 
     // Update operations
-    void update_normal_and_depth(const FramePtr &frame = nullptr, int idxf = -1,
-                                 bool force = false);
-    void update_best_descriptor(bool force = false);
-    void update_semantics(void *semantic_fusion_method = nullptr, bool force = false);
+    void update_normal_and_depth(const bool force = false);
+    void update_best_descriptor(const bool force = false);
+    void update_semantics(void *semantic_fusion_method = nullptr, const bool force = false);
     void update_info();
 
     // Detection level prediction
-    int predict_detection_level(float dist) const;
+    int predict_detection_level(const float dist) const;
 
     // JSON serialization
     std::string to_json() const;
@@ -230,10 +248,6 @@ class MapPoint : public MapPointBase, public std::enable_shared_from_this<MapPoi
     void replace_ids_with_objects(const std::vector<MapPointPtr> &points,
                                   const std::vector<FramePtr> &frames,
                                   const std::vector<KeyFramePtr> &keyframes);
-
-    // Numpy serialization
-    pybind11::tuple state_tuple() const;              // builds the versioned tuple
-    void restore_from_state(const pybind11::tuple &); // fills this object from the tuple
 
     // GBA operations
     void set_pt_GBA(const Eigen::Vector3d &pt_GBA);
@@ -246,9 +260,21 @@ class MapPoint : public MapPointBase, public std::enable_shared_from_this<MapPoi
         kf_ref = nullptr;
     }
 
+  public:
+    // Detection level prediction
+    static std::vector<int> predict_detection_levels(const std::vector<MapPointPtr> &points,
+                                                     const std::vector<float> &dists);
+
+#ifdef USE_PYTHON
+    // Numpy serialization
+    pybind11::tuple state_tuple(bool need_lock = true) const; // builds the versioned tuple
+    void restore_from_state(const pybind11::tuple &,
+                            bool need_lock = true); // fills this object from the tuple
+#endif
+
   private:
     // Helper methods
-    void update_normal_and_depth_from_keyframe(const KeyFramePtr &kf, int idx);
+    void update_normal_and_depth_from_frame(const FramePtr &kf, int idx);
     void compute_distance_range(int octave_level, float distance);
     void normalize_vector(const Eigen::Vector3d &v, Eigen::Vector3d &result) const;
 };

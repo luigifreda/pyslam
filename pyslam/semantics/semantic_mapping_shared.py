@@ -20,7 +20,7 @@
 import numpy as np
 import os
 import sys
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

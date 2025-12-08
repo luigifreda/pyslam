@@ -19,7 +19,7 @@
 """
 
 
-from pyslam.utilities.utils_sys import getchar, Printer
+from pyslam.utilities.system import getchar, Printer
 
 import platform
 import traceback
@@ -33,8 +33,8 @@ from .viewer3D import Viewer3D
 from .mplot_thread import Mplot2d
 from .qplot_thread import Qplot2d
 
-from pyslam.slam.sim3_pose import Sim3Pose
-from pyslam.utilities.utils_geom_trajectory import TrajectoryAlignementData
+from pyslam.slam import Sim3Pose
+from pyslam.utilities.geom_trajectory import TrajectoryAlignementData
 
 
 kUseQtplot2d = False

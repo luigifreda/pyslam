@@ -25,23 +25,30 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.utils_sys import Logging
-from pyslam.utilities.utils_img import float_to_color, LoopCandidateImgs
-from pyslam.utilities.utils_serialization import NumpyB64Json
+from pyslam.utilities.system import Logging
+from pyslam.utilities.img_management import float_to_color, LoopCandidateImgs
+from pyslam.utilities.serialization import NumpyB64Json
 
 from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_types import FeatureInfo
 
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
+from pyslam.slam import KeyFrame, Frame
 
 import torch.multiprocessing as mp
 import logging
 import sys
-from pyslam.utilities.utils_sys import Printer, getchar, Logging
+from pyslam.utilities.system import Printer, getchar, Logging
 
 # import json
 import ujson as json
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.frame import Frame
 
 
 kVerbose = True
@@ -101,18 +108,18 @@ class LoopDetectorTask:
         self.covisible_keyframes_data = [
             LoopDetectKeyframeData(kf)
             for kf in covisible_keyframes
-            if not kf.is_bad and kf.id != self.keyframe_data.id
+            if not kf.is_bad() and kf.id != self.keyframe_data.id
         ]
         self.connected_keyframes_ids = [kf.id for kf in connected_keyframes]
         self.load_save_path = load_save_path
         # # for loop closing
         # self.loop_query_id = None
         # self.num_loop_words = 0
-        # self.loop_score = None
+        # self.loop_score = 0
         # # for relocalization
         # self.reloc_query_id = None
         # self.num_reloc_words = 0
-        # self.reloc_score = None
+        # self.reloc_score = 0
 
     def __str__(self) -> str:
         return f"LoopDetectorTask: img id = {self.keyframe_data.id}, kid = {self.keyframe_data.kid}, task_type = {self.task_type.name}"
@@ -305,7 +312,7 @@ class LoopDetectorBase:
                 try:
                     if cov_kf.img is None:
                         cov_kf.img = self.map_frame_id_to_img[cov_kf.id]
-                        # print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no img, loaded from pyslam.slam.map: shape: {cov_kf.img.shape}, dtype: {cov_kf.img.dtype}')
+                        # print(f'LoopDetectorBase: covisible keyframe {cov_kf.id} has no img, loaded from map: shape: {cov_kf.img.shape}, dtype: {cov_kf.img.dtype}')
                 except:
                     LoopDetectorBase.print(
                         f"LoopDetectorBase: covisible keyframe {cov_kf.id} has no img"

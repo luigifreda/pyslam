@@ -24,7 +24,7 @@ namespace {
         typedef typename Eigen::Matrix<_Scalar, CLS::Dim, CLS::Dim, CLS::Options> RotationMatrixType;
         typedef typename Eigen::Matrix<_Scalar, CLS::Dim, Eigen::Dynamic> TranslationMatrixType;
 
-        py::class_<CLS>(m, name.c_str())
+        py::class_<CLS>(m, name.c_str(), py::module_local())
             //.def(py::init<>())
             .def(py::init([](){return CLS::Identity();}))
 
@@ -162,7 +162,9 @@ namespace {
 
 void declareEigenTypes(py::module & m) {
 
-    py::class_<Eigen::Quaterniond>(m, "Quaternion")
+    // Mark Quaternion bindings as module-local to avoid conflicts when other
+    // modules register a type with the same Python name (e.g. cpp_core).
+    py::class_<Eigen::Quaterniond>(m, "Quaternion", py::module_local())
         //.def(py::init<>())
         .def(py::init([]() {return Eigen::Quaterniond::Identity();}))
 
@@ -226,7 +228,7 @@ void declareEigenTypes(py::module & m) {
 
     ;
 
-    py::class_<Eigen::Rotation2Dd>(m, "Rotation2d")
+    py::class_<Eigen::Rotation2Dd>(m, "Rotation2d", py::module_local())
         //.def(py::init<>())
 		.def(py::init([]() {return Eigen::Rotation2Dd::Identity();}))
 		.def(py::init<Eigen::Rotation2Dd&>())
@@ -253,7 +255,7 @@ void declareEigenTypes(py::module & m) {
 		.def_static("ientity", &Eigen::Rotation2Dd::Identity)
     ;
 
-	py::class_<Eigen::AngleAxisd>(m, "AngleAxis")
+	py::class_<Eigen::AngleAxisd>(m, "AngleAxis", py::module_local())
 		.def(py::init([](){return Eigen::AngleAxisd::Identity();}))
 		.def(py::init<const double&, const Eigen::Matrix<double, 3, 1>&>())
 		.def(py::init<const Eigen::AngleAxisd&>())
@@ -278,7 +280,7 @@ void declareEigenTypes(py::module & m) {
 
 
 
-    py::enum_<Eigen::TransformTraits>(m, "TransformTraits")
+    py::enum_<Eigen::TransformTraits>(m, "TransformTraits", py::module_local())
         .value("Isometry", Eigen::Isometry)
         .value("Affine", Eigen::Affine)
         .value("AffineCompact", Eigen::AffineCompact)

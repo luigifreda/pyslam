@@ -24,10 +24,11 @@ import sys
 
 import pyslam.config as config
 
-from pyslam.slam.camera import Camera
+from pyslam.slam import Camera
+
 from pyslam.io.dataset_types import DatasetEnvironmentType
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_depth import PointCloud
+from pyslam.utilities.system import Printer
+from pyslam.utilities.depth import PointCloud
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

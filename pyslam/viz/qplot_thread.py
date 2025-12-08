@@ -51,8 +51,8 @@ from pyslam.config import Config
 
 # import multiprocessing as mp
 import torch.multiprocessing as mp
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_sys import Logging, locally_configure_qt_environment
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.system import Logging, locally_configure_qt_environment
 
 from pyslam.config_parameters import Parameters
 
@@ -176,16 +176,40 @@ class Qplot2d:
             self.process.terminate()
         print(f'Qplot2d "{self.title}" closed')
 
+    def get_screen_dimensions(self):
+        def_width = 900
+        def_height = 500
+        try:
+            # Try the modern Qt6 approach first
+            screen = self.app.primaryScreen()
+            if screen is not None:
+                screen_rect = screen.geometry()
+                self.screen_width = screen_rect.width()
+                self.screen_height = screen_rect.height()
+            else:
+                # Fallback to default values
+                self.screen_width = def_width
+                self.screen_height = def_height
+        except AttributeError:
+            # Fallback for older Qt versions or if primaryScreen doesn't exist
+            try:
+                desktop = self.app.desktop()
+                screen_rect = desktop.screenGeometry()
+                self.screen_width = screen_rect.width()
+                self.screen_height = screen_rect.height()
+            except AttributeError:
+                # Final fallback to default values
+                self.screen_width = def_width
+                self.screen_height = def_height
+        return self.screen_width, self.screen_height
+
     def init(self, figure_num, lock):
         lock.acquire()
         locally_configure_qt_environment()
         self.app = pg.mkQApp()  # Create a PyQtGraph application
 
         # Fetch desktop dimensions
-        desktop = self.app.desktop()
-        screen_rect = desktop.screenGeometry()
-        self.screen_width = screen_rect.width()
-        self.screen_height = screen_rect.height()
+        self.screen_width, self.screen_height = self.get_screen_dimensions()
 
         self.win = pg.PlotWidget(title=self.title)  # Create a plot widget
         self.legend = pg.LegendItem()

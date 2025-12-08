@@ -34,7 +34,7 @@ import tfeat_model
 import tfeat_utils
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.utils_features import extract_patches_array, extract_patches_array_cpp
+from pyslam.utilities.features import extract_patches_array, extract_patches_array_cpp
 
 
 kVerbose = True

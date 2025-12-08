@@ -9,45 +9,40 @@ from collections import defaultdict
 import time
 
 import pyslam.config as config
-
+from pyslam.config_parameters import Parameters
 
 USE_CPP = True
+Parameters.USE_CPP_CORE = USE_CPP
+
+from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
+
+if not CPP_AVAILABLE:
+    print("❌ cpp_module imported successfully but C++ core is not available")
+    sys.exit(1)
+
 if USE_CPP:
-    try:
-        # Explicitly import the C++ module
-        import pyslam.slam.cpp as cpp_module
-
-        if not cpp_module.CPP_AVAILABLE:
-            print("❌ cpp_module imported successfully but C++ core is not available")
-            sys.exit(1)
-        print("✅ cpp_module imported successfully, C++ core is available")
-        from pyslam.slam import (
-            optimizer_g2o,
-            Frame,
-            Camera,
-            PinholeCamera,
-            MapPoint,
-            KeyFrame,
-            Sim3Pose,
-            Map,
-        )
-
-    except ImportError as e:
-        print(f"❌ Failed to import C++ module: {e}")
-        sys.exit(1)
+    Frame = cpp_module.Frame
+    KeyFrame = cpp_module.KeyFrame
+    Map = cpp_module.Map
+    MapPoint = cpp_module.MapPoint
+    Sim3Pose = cpp_module.Sim3Pose
+    Camera = cpp_module.Camera
+    PinholeCamera = cpp_module.PinholeCamera
+    optimizer_g2o = cpp_module.optimizer_g2o
+    print("Using C++ module")
 else:
-    from pyslam.slam import (
-        optimizer_g2o,
-        Frame,
-        Camera,
-        PinholeCamera,
-        MapPoint,
-        KeyFrame,
-        Sim3Pose,
-        Map,
-    )
+    Frame = python_module.Frame
+    KeyFrame = python_module.KeyFrame
+    Map = python_module.Map
+    MapPoint = python_module.MapPoint
+    Sim3Pose = python_module.Sim3Pose
+    Camera = python_module.Camera
+    PinholeCamera = python_module.PinholeCamera
+    optimizer_g2o = python_module.optimizer_g2o
+    print("Using Python module")
 
-from pyslam.utilities.utils_geom import (
+
+from pyslam.utilities.geometry import (
     rotation_matrix_from_yaw_pitch_roll,
     pitch_matrix,
     poseRt,
@@ -238,13 +233,13 @@ class DataGenerator:
                 for i, map_point in enumerate(map_points):
                     if (
                         not map_point
-                        or map_point.is_bad
+                        or map_point.is_bad()
                         or map_point.corrected_by_kf == current_keyframe.kid
                     ):  # use kid here
                         continue
 
                     # Project with non-corrected pose and project back with corrected pose
-                    p3dw = map_point.pt
+                    p3dw = map_point.pt()
                     # corrected_p3dw = corrected_Swi @ Siw @ p3dw
                     corrected_p3dw = correction_sRw @ p3dw.reshape(3, 1) + correction_tw
                     map_point.update_position(corrected_p3dw.squeeze())

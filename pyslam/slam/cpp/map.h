@@ -19,9 +19,11 @@
 
 #pragma once
 
+#include "config_parameters.h"
 #include "frame.h"
 #include "keyframe.h"
 #include "map_point.h"
+
 #include <atomic>
 #include <deque>
 #include <memory>
@@ -36,6 +38,9 @@
 #include "smart_pointers.h"
 
 namespace pyslam {
+
+// using MapMutex = std::mutex;
+using MapMutex = std::recursive_mutex;
 
 // Forward declarations
 class LocalCovisibilityMap;
@@ -59,18 +64,14 @@ using KeyFrameIdSet = std::set<KeyFramePtr, KeyFrameIdCompare>;
 class Map : public std::enable_shared_from_this<Map> {
 
   private:
-    mutable std::mutex _lock;
-    mutable std::mutex _update_lock;
-
-  public:
-    constexpr static int kLargeBAWindowSize = 20;
-    constexpr static std::size_t kMaxLenFrameDeque = 20;
+    mutable MapMutex _lock;
+    mutable MapMutex _update_lock;
 
   public:
     // Core data structures
-    std::deque<FramePtr> frames;  // Limited size deque for frames
-    KeyFrameIdSet keyframes;      // OrderedSet equivalent
-    std::set<MapPointPtr> points; // set equivalent
+    std::deque<FramePtr> frames;            // Limited size deque for frames
+    KeyFrameIdSet keyframes;                // OrderedSet equivalent
+    std::unordered_set<MapPointPtr> points; // Python set equivalent
 
     // KeyFrame origins (first keyframes where map is rooted)
     std::set<KeyFramePtr, KeyFrameIdCompare> keyframe_origins; // OrderedSet equivalent
@@ -103,15 +104,16 @@ class Map : public std::enable_shared_from_this<Map> {
     void delete_map();
 
     // Lock properties
-    std::mutex &lock() { return _lock; }
-    std::mutex &update_lock() { return _update_lock; }
+    MapMutex &lock() { return _lock; }
+    MapMutex &update_lock() { return _update_lock; }
 
     // Point operations
-    std::set<MapPointPtr> get_points() const;
+    std::unordered_set<MapPointPtr> get_points() const;
     std::vector<MapPointPtr> get_points_vector() const;
     int num_points() const;
     int add_point(MapPointPtr &point);
-    void remove_point(MapPointPtr point); // no reference passing here!
+    void remove_point(MapPointPtr point);         // no reference passing here!
+    void remove_point_no_lock(MapPointPtr point); // no reference passing here!
 
     // Frame operations
     FramePtr get_frame(int idx) const;
@@ -138,7 +140,8 @@ class Map : public std::enable_shared_from_this<Map> {
     add_points(const std::vector<Eigen::Vector3d> &points3d,
                const std::optional<std::vector<bool>> &mask_pts3d, KeyFramePtr &kf1,
                KeyFramePtr &kf2, const std::vector<int> &idxs1, const std::vector<int> &idxs2,
-               const cv::Mat &img, bool do_check = true, double cos_max_parallax = 0.9998,
+               const cv::Mat &img, bool do_check = true,
+               double cos_max_parallax = Parameters::kCosMaxParallax,
                std::optional<double> far_points_threshold = std::nullopt);
     int add_stereo_points(const std::vector<Eigen::Vector3d> &points3d,
                           const std::optional<std::vector<bool>> &mask_pts3d, FramePtr &f,
@@ -149,7 +152,7 @@ class Map : public std::enable_shared_from_this<Map> {
     float compute_mean_reproj_error(const std::vector<MapPointPtr> &points = {}) const;
 
     // Optimization
-    double optimize(int local_window_size = kLargeBAWindowSize, bool verbose = false,
+    double optimize(int local_window_size = Parameters::kLargeBAWindowSize, bool verbose = false,
                     int rounds = 10, bool use_robust_kernel = false, bool do_cull_points = false,
                     bool *abort_flag = nullptr);
     double locally_optimize(KeyFramePtr &kf_ref, bool verbose = false, int rounds = 5,
@@ -176,18 +179,18 @@ class Map : public std::enable_shared_from_this<Map> {
 // LocalMapBase class - matches Python LocalMapBase exactly
 class LocalMapBase {
   protected:
-    mutable std::mutex _lock;
+    mutable MapMutex _lock;
 
   public:
-    MapPtr map;
+    Map *map = nullptr; // Pointer to Map object
 
     // Core data structures
-    KeyFrameIdSet keyframes;      // OrderedSet equivalent
-    std::set<MapPointPtr> points; // set equivalent
-    KeyFrameIdSet ref_keyframes;  // set equivalent
+    KeyFrameIdSet keyframes;                // OrderedSet equivalent
+    std::unordered_set<MapPointPtr> points; // set equivalent
+    KeyFrameIdSet ref_keyframes;            // set equivalent
 
     // Constructor - matches Python: __init__(self, map=None)
-    LocalMapBase(const MapPtr &map = nullptr);
+    LocalMapBase(Map *map = nullptr);
 
     // Destructor
     virtual ~LocalMapBase() = default;
@@ -198,22 +201,22 @@ class LocalMapBase {
                        const std::vector<MapPointPtr> &points_to_remove = {});
 
     // Lock property
-    std::mutex &lock() { return _lock; }
+    MapMutex &lock() { return _lock; }
 
     // Status
     bool is_empty() const;
 
     // Access methods
-    std::set<MapPointPtr> get_points() const;
+    std::unordered_set<MapPointPtr> get_points() const;
     int num_points() const;
     KeyFrameIdSet get_keyframes() const;
     int num_keyframes() const;
 
     // Update methods
     template <typename Container>
-    std::tuple<KeyFrameIdSet, std::set<MapPointPtr>, KeyFrameIdSet>
+    std::tuple<KeyFrameIdSet, std::unordered_set<MapPointPtr>, KeyFrameIdSet>
     update_from_keyframes(const Container &local_keyframes);
-    std::tuple<KeyFramePtr, std::vector<KeyFramePtr>, std::set<MapPointPtr>>
+    std::tuple<KeyFramePtr, std::vector<KeyFramePtr>, std::vector<MapPointPtr>>
     get_frame_covisibles(const FramePtr &frame);
 };
 
@@ -222,7 +225,7 @@ class LocalWindowMap : public LocalMapBase {
   public:
     // Constructor - matches Python: __init__(self, map=None,
     // local_window_size=Parameters.kLocalBAWindowSize)
-    LocalWindowMap(const MapPtr &map = nullptr, int local_window_size = 5);
+    LocalWindowMap(Map *map = nullptr, int local_window_size = 5);
 
     // Destructor
     ~LocalWindowMap() = default;
@@ -232,7 +235,7 @@ class LocalWindowMap : public LocalMapBase {
     // Update methods
     KeyFrameIdSet update_keyframes(const KeyFramePtr &kf_ref = nullptr);
     std::vector<KeyFramePtr> get_best_neighbors(const KeyFramePtr &kf_ref = nullptr, int N = 20);
-    std::tuple<KeyFrameIdSet, std::set<MapPointPtr>, KeyFrameIdSet>
+    std::tuple<KeyFrameIdSet, std::unordered_set<MapPointPtr>, KeyFrameIdSet>
     update(const KeyFramePtr &kf_ref = nullptr);
 };
 
@@ -240,7 +243,7 @@ class LocalWindowMap : public LocalMapBase {
 class LocalCovisibilityMap : public LocalMapBase {
   public:
     // Constructor - matches Python: __init__(self, map=None)
-    LocalCovisibilityMap(const MapPtr &map = nullptr);
+    LocalCovisibilityMap(Map *map = nullptr);
 
     // Destructor
     ~LocalCovisibilityMap() = default;
@@ -248,7 +251,7 @@ class LocalCovisibilityMap : public LocalMapBase {
     // Update methods
     KeyFrameIdSet update_keyframes(const KeyFramePtr &kf_ref);
     std::vector<KeyFramePtr> get_best_neighbors(const KeyFramePtr &kf_ref, int N = 20);
-    std::tuple<KeyFrameIdSet, std::set<MapPointPtr>, KeyFrameIdSet>
+    std::tuple<KeyFrameIdSet, std::unordered_set<MapPointPtr>, KeyFrameIdSet>
     update(const KeyFramePtr &kf_ref);
 };
 

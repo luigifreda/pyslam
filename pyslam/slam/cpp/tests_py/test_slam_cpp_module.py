@@ -16,21 +16,13 @@ import cv2
 
 import pyslam.config as config
 
-# Force use of Python module (just to be sure)
-os.environ["PYSLAM_USE_CPP"] = "false"  # set environment variable
-import pyslam.slam as python_module
+from pyslam.slam.cpp import cpp_module, python_module, CPP_AVAILABLE
 
-try:
-    # Explicitly import the C++ module
-    import pyslam.slam.cpp as cpp_module  # NOTE: this first import pyslam.slam and then pyslam.slam.cpp!
-
-    if not cpp_module.CPP_AVAILABLE:
-        print("❌ cpp_module imported successfully but C++ core is not available")
-        sys.exit(1)
-    print("✅ cpp_module imported successfully, C++ core is available")
-except ImportError as e:
-    print(f"❌ Failed to import C++ module: {e}")
+if not CPP_AVAILABLE:
+    print("❌ cpp_module imported successfully but C++ core is not available")
     sys.exit(1)
+else:
+    print("✅ cpp_module imported successfully")
 
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.local_features.feature_tracker import feature_tracker_factory
@@ -55,9 +47,9 @@ class MapPointCreationTest(TestUnit):
     def run_test(self, module_type: str, module: Any) -> Dict:
         mp = module.MapPoint(self.position, self.color)
         return {
-            "position": mp.pt,
+            "position": mp.pt(),
             "color": mp.color,
-            "is_bad": mp.is_bad,
+            "is_bad": mp.is_bad(),
             # "id": mp.id,  # Remove ID from comparison as it's module-specific
         }
 
@@ -74,7 +66,7 @@ class MapPointUpdatePositionTest(TestUnit):
     def run_test(self, module_type: str, module: Any) -> np.ndarray:
         mp = module.MapPoint(self.initial_pos, self.color)
         mp.update_position(self.new_pos)
-        return mp.pt
+        return mp.pt()
 
 
 # ============================================================================
@@ -148,10 +140,10 @@ def _make_test_pinhole_camera(module_type: str, module: Any) -> Any:
         "Camera.cx": 320.0,
         "Camera.cy": 240.0,
         "Camera.fps": 30,
-        "Camera.sensor_type": "monocular",
+        "Camera.sensor_type": "mono",
     }
     dataset_settings = {
-        "sensor_type": "monocular",
+        "sensor_type": "mono",
     }
     config = {"cam_settings": cam_settings, "dataset_settings": dataset_settings}
     return module.PinholeCamera(config)

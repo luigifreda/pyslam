@@ -30,9 +30,9 @@ import ujson as json
 
 from multiprocessing import Process, Queue, Value
 from pyslam.semantics.semantic_utils import SemanticDatasetType
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class, SerializationJSON
-from pyslam.utilities.utils_string import levenshtein_distance
+from pyslam.utilities.system import Printer
+from pyslam.utilities.serialization import SerializableEnum, register_class, SerializationJSON
+from pyslam.utilities.strings import levenshtein_distance
 from .dataset_types import DatasetType, SensorType, DatasetEnvironmentType, MinimalDatasetConfig
 
 from typing import TYPE_CHECKING

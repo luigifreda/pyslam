@@ -31,6 +31,9 @@ export PYTHONWARNINGS="ignore:::numpy.core.getlimits"
 # Add pkg_resources deprecation message too
 export PYTHONWARNINGS="$PYTHONWARNINGS,ignore:pkg_resources is deprecated"
 
+# Disable MIT-SHM extension for Qt/PyQt multi-threading
+# export QT_X11_NO_MITSHM=1
+
 # optional:
 # export PYTHONWARNINGS="ignore::UserWarning" # ignore all UserWarning
 # export TF_ENABLE_ONEDNN_OPTS=0

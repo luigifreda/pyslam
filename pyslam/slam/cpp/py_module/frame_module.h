@@ -28,11 +28,110 @@
 
 #include "frame.h"
 #include "map_point.h"
+#include "utils/map_helpers.h"
 
+#include "config_parameters.h"
 #include "smart_pointers.h"
+#include "utils/messages.h"
 #include "utils/numpy_helpers.h"
 
 namespace py = pybind11;
+
+int update_map_points_statistics_wrapper(pyslam::Frame &self, int sensor_type_value) {
+    pyslam::SensorType cpp_sensor_type = static_cast<pyslam::SensorType>(sensor_type_value);
+    return self.update_map_points_statistics(cpp_sensor_type);
+}
+
+pyslam::MapPointPtr cast_to_mappoint(py::handle item) {
+    // Handle None objects gracefully
+    if (item.is_none()) {
+        return nullptr;
+    }
+
+    // First try direct cast to MapPoint
+    try {
+        auto mp = item.cast<pyslam::MapPointPtr>();
+        // Validate the MapPoint if it's not null
+        if (!is_valid_mappoint(mp)) {
+            return nullptr; // Return nullptr for invalid MapPoints
+        }
+        return mp;
+    } catch (const py::cast_error &) {
+        // If that fails, try casting to MapPointBase and then dynamic_pointer_cast
+        try {
+            auto base_ptr = item.cast<std::shared_ptr<pyslam::MapPointBase>>();
+            if (!base_ptr) {
+                return nullptr; // Return nullptr instead of throwing
+            }
+            auto derived_ptr = std::dynamic_pointer_cast<pyslam::MapPoint>(base_ptr);
+            if (derived_ptr && is_valid_mappoint(derived_ptr)) {
+                return derived_ptr;
+            }
+            // If dynamic_cast fails or MapPoint is invalid, return nullptr
+            return nullptr;
+        } catch (const py::cast_error &) {
+            // If all casting fails, return nullptr instead of throwing
+            return nullptr;
+        }
+    }
+}
+
+// Wrapper function for Frame::get_points() which can contain null/invalid MapPoint objects
+// This preserves the original structure but safely handles invalid MapPoint objects
+py::list get_points_wrapper(const pyslam::Frame &self) {
+    auto points = self.get_points();
+    py::list result;
+    for (const auto &point : points) {
+        if (is_valid_mappoint(point)) {
+            result.append(py::cast(point));
+        } else {
+            result.append(py::none());
+        }
+    }
+    return result;
+}
+
+std::vector<pyslam::MapPointPtr> points_vector_wrapper(py::object points_obj) {
+    std::vector<pyslam::MapPointPtr> points_vector;
+    if (py::isinstance<py::list>(points_obj) || py::isinstance<py::tuple>(points_obj)) {
+        points_vector.reserve(py::len(points_obj));
+        for (auto item : points_obj) {
+            auto mp = cast_to_mappoint(item);
+            if (mp) { // Only add non-null points
+                points_vector.push_back(mp);
+            } else {
+                MSG_WARN("points_vector_wrapper() - point is invalid");
+                points_vector.push_back(nullptr);
+            }
+        }
+    } else {
+        try {
+            points_vector = py::cast<std::vector<pyslam::MapPointPtr>>(points_obj);
+        } catch (const py::cast_error &e) {
+            throw std::runtime_error(
+                "points_vector_wrapper() - cannot convert object to MapPoint vector: " +
+                std::string(e.what()));
+        }
+    }
+    return points_vector;
+}
+
+// Wrapper function for Frame::are_visible() which can contain null/invalid MapPoint objects
+// This preserves the original structure but safely handles invalid MapPoint objects
+py::tuple are_visible_wrapper(pyslam::Frame &self, py::object points_obj, bool do_stereo_project) {
+    std::vector<pyslam::MapPointPtr> points_vector = points_vector_wrapper(points_obj);
+
+    // Call the C++ method with valid points only
+    auto [visibility_flags, projections, depths, dists] =
+        self.are_visible<double>(points_vector, do_stereo_project);
+
+    // Return the result directly - let Python handle the size mismatch
+    return py::make_tuple(py::cast(visibility_flags), // visibility flags
+                          py::cast(projections),      // projections
+                          py::cast(depths),           // depths
+                          py::cast(dists)             // distances
+    );
+}
 
 void bind_frame(py::module &m) {
 
@@ -92,30 +191,34 @@ void bind_frame(py::module &m) {
         .def("tcw", &pyslam::FrameBase::tcw)
         .def("Ow", &pyslam::FrameBase::Ow)
         .def("quaternion", &pyslam::FrameBase::quaternion)
-        .def("orientation", &pyslam::FrameBase::orientation,
-             py::call_guard<py::gil_scoped_release>())
+        .def("orientation", &pyslam::FrameBase::orientation)
         .def("position", &pyslam::FrameBase::position)
-        .def("update_pose", [](pyslam::FrameBase &self,
-                               const pyslam::CameraPose &pose) { self.update_pose(pose); })
+        .def("update_pose",
+             [](pyslam::FrameBase &self, pyslam::CameraPose &pose) { self.update_pose(pose); })
         .def("update_pose",
              [](pyslam::FrameBase &self, const Eigen::Matrix4d &Tcw) { self.update_pose(Tcw); })
-        .def("update_translation", &pyslam::FrameBase::update_translation,
-             py::call_guard<py::gil_scoped_release>())
-        .def("update_rotation_and_translation", &pyslam::FrameBase::update_rotation_and_translation,
-             py::call_guard<py::gil_scoped_release>())
-        .def("project_point", &pyslam::FrameBase::project_point<double>,
-             py::call_guard<py::gil_scoped_release>())
+        .def("update_pose",
+             [](pyslam::FrameBase &self, const Eigen::Isometry3d &isometry3d) {
+                 self.update_pose(isometry3d);
+             })
+        .def("update_translation", &pyslam::FrameBase::update_translation)
+        .def("update_rotation_and_translation", &pyslam::FrameBase::update_rotation_and_translation)
+        .def("transform_point", &pyslam::FrameBase::transform_point<double>)
+        .def("transform_points", &pyslam::FrameBase::transform_points<double>)
+        .def("project_point", &pyslam::FrameBase::project_point<double>, py::arg("pw"),
+             py::arg("do_stereo_project") = false)
         .def("project_map_point", &pyslam::FrameBase::project_map_point<double>,
-             py::call_guard<py::gil_scoped_release>())
-        .def("is_visible", &pyslam::FrameBase::is_visible<double>,
-             py::call_guard<py::gil_scoped_release>())
-        .def("are_visible", &pyslam::FrameBase::are_visible<double>,
-             py::call_guard<py::gil_scoped_release>())
+             py::arg("map_point"), py::arg("do_stereo_project") = false)
+        .def("is_in_image", &pyslam::FrameBase::is_in_image<double>)
+        .def("are_in_image", &pyslam::FrameBase::are_in_image<double>)
+        .def("is_visible", &pyslam::FrameBase::is_visible<double>)
+        // In the Frame binding section
+        .def("are_visible", &are_visible_wrapper, py::arg("map_points"),
+             py::arg("do_stereo_project") = false)
         .def("project_points", &pyslam::FrameBase::project_points<double>, py::arg("points"),
              py::arg("do_stereo_project") = false)
         .def("project_map_points", &pyslam::FrameBase::project_map_points<double>,
-             py::arg("map_points"), py::arg("do_stereo_project") = false,
-             py::call_guard<py::gil_scoped_release>())
+             py::arg("map_points"), py::arg("do_stereo_project") = false)
         .def("__eq__", &pyslam::FrameBase::operator==)
         .def("__lt__", &pyslam::FrameBase::operator<)
         .def("__le__", &pyslam::FrameBase::operator<=)
@@ -171,46 +274,62 @@ void bind_frame(py::module &m) {
                  // Ensure cleanup happens before destruction
                  self.clear_references();
              })
+        .def_readwrite_static("is_store_imgs", &pyslam::Frame::is_store_imgs)
+        .def_readwrite_static("is_compute_median_depth", &pyslam::Frame::is_compute_median_depth)
         .def_readwrite("is_keyframe", &pyslam::Frame::is_keyframe)
-        .def_readwrite("kps", &pyslam::Frame::kps)
-        .def_readwrite("kps_r", &pyslam::Frame::kps_r)
+        //.def_readwrite("kps", &pyslam::Frame::kps)
+        DEFINE_EIGEN_ZERO_COPY_PROPERTY(pyslam::Frame, kps, pyslam::MatNx2f, "kps")
+        //.def_readwrite("kps_r", &pyslam::Frame::kps_r)
+        DEFINE_EIGEN_ZERO_COPY_PROPERTY(pyslam::Frame, kps_r, pyslam::MatNx2f, "kps_r")
 
         // Eigen matrix with validation and zero-copy
         DEFINE_EIGEN_ZERO_COPY_PROPERTY(pyslam::Frame, kpsu, pyslam::MatNx2f, "kpsu")
 
-        .def_readwrite("kpsn", &pyslam::Frame::kpsn)
+        //.def_readwrite("kpsn", &pyslam::Frame::kpsn)
+        DEFINE_EIGEN_ZERO_COPY_PROPERTY(pyslam::Frame, kpsn, pyslam::MatNx2f, "kpsn")
+
         .def_readwrite("kps_sem", &pyslam::Frame::kps_sem)
-        .def_readwrite("octaves", &pyslam::Frame::octaves)
-        .def_readwrite("octaves_r", &pyslam::Frame::octaves_r)
-        .def_readwrite("sizes", &pyslam::Frame::sizes)
+        //.def_readwrite("octaves", &pyslam::Frame::octaves)
+        DEFINE_VECTOR_PROPERTY_ZERO_COPY(pyslam::Frame, octaves, int, "octaves")
+        //.def_readwrite("octaves_r", &pyslam::Frame::octaves_r)
+        DEFINE_VECTOR_PROPERTY_ZERO_COPY(pyslam::Frame, octaves_r, int, "octaves_r")
+        //.def_readwrite("sizes", &pyslam::Frame::sizes)
+        DEFINE_VECTOR_PROPERTY_ZERO_COPY(pyslam::Frame, sizes, int, "sizes")
 
         // vector with zero-copy
         DEFINE_VECTOR_PROPERTY_ZERO_COPY(pyslam::Frame, angles, float, "angles")
 
         .def_readwrite("des", &pyslam::Frame::des)
         .def_readwrite("des_r", &pyslam::Frame::des_r)
-        .def_readwrite("depths", &pyslam::Frame::depths)
 
+        //.def_readwrite("depths", &pyslam::Frame::depths)
+        DEFINE_VECTOR_PROPERTY_ZERO_COPY(pyslam::Frame, depths, float, "depths")
         // vector with zero-copy
         DEFINE_VECTOR_PROPERTY_ZERO_COPY(pyslam::Frame, kps_ur, float, "kps_ur")
 
         .def_property(
             "points",
             [](pyslam::Frame &self) {
-                py::list out;
-                for (auto &p : self.points) {
-                    out.append(p ? py::cast(p) : py::none());
+                // Create object array that can handle shared_ptr objects with validation
+                py::list result;
+                for (size_t i = 0; i < self.points.size(); ++i) {
+                    if (self.points[i] && is_valid_mappoint(self.points[i])) {
+                        result.append(py::cast(self.points[i]));
+                    } else {
+                        result.append(py::none());
+                    }
                 }
-                return out;
+                return py::cast<py::array>(result);
             },
             [](pyslam::Frame &self, py::object points_obj) {
                 self.points = points_obj.is_none()
                                   ? std::vector<pyslam::MapPointPtr>()
                                   : py::cast<std::vector<pyslam::MapPointPtr>>(points_obj);
             },
-            py::keep_alive<0, 1>() // keep points_obj alive
-            )
-        .def_readwrite("outliers", &pyslam::Frame::outliers)
+            py::keep_alive<0, 1>())
+        //.def_readwrite("outliers", &pyslam::Frame::outliers)
+        DEFINE_VECTOR_PROPERTY_ZERO_COPY(pyslam::Frame, outliers, bool, "outliers")
+
         .def_readwrite("kf_ref", &pyslam::Frame::kf_ref)
         .def_readwrite("img", &pyslam::Frame::img)
         .def_readwrite("img_right", &pyslam::Frame::img_right)
@@ -220,17 +339,42 @@ void bind_frame(py::module &m) {
         .def_readwrite("laplacian_var", &pyslam::Frame::laplacian_var)
         .def_readwrite("fov_center_c", &pyslam::Frame::fov_center_c)
         .def_readwrite("fov_center_w", &pyslam::Frame::fov_center_w)
+
         .def("unproject_points_3d", &pyslam::Frame::unproject_points_3d<double>, py::arg("idxs"),
              py::arg("transform_in_world") = false)
         .def_property_readonly("kd", &pyslam::Frame::kd)
         .def("get_point_match", &pyslam::Frame::get_point_match)
+        .def("get_matched_inlier_points", &pyslam::Frame::get_matched_inlier_points)
         .def("set_point_match", &pyslam::Frame::set_point_match)
         .def("remove_point_match", &pyslam::Frame::remove_point_match)
         .def("remove_point", &pyslam::Frame::remove_point)
+        .def("remove_frame_views", &pyslam::Frame::remove_frame_views)
         .def("reset_points", &pyslam::Frame::reset_points)
-        .def("get_points", &pyslam::Frame::get_points)
+        .def("get_points", &get_points_wrapper)
         .def("get_matched_points", &pyslam::Frame::get_matched_points)
         .def("get_matched_good_points", &pyslam::Frame::get_matched_good_points)
+        .def("num_tracked_points", &pyslam::Frame::num_tracked_points)
+        .def("num_matched_inlier_map_points", &pyslam::Frame::num_matched_inlier_map_points)
+        .def(
+            "update_map_points_statistics",
+            [](pyslam::Frame &self, py::object sensor_type_obj) {
+                // Try to extract .value attribute first, fallback to direct cast
+                int sensor_type_value;
+                try {
+                    sensor_type_value = sensor_type_obj.attr("value").cast<int>();
+                } catch (const py::cast_error &) {
+                    // Fallback: try direct cast to int
+                    sensor_type_value = sensor_type_obj.cast<int>();
+                }
+                pyslam::SensorType cpp_sensor_type =
+                    static_cast<pyslam::SensorType>(sensor_type_value);
+                return self.update_map_points_statistics(cpp_sensor_type);
+            },
+            py::arg("sensor_type"))
+        .def("clean_outlier_map_points", &pyslam::Frame::clean_outlier_map_points)
+        .def("clean_bad_map_points", &pyslam::Frame::clean_bad_map_points)
+        .def("clean_vo_matches", &pyslam::Frame::clean_vo_matches)
+        .def("check_replaced_map_points", &pyslam::Frame::check_replaced_map_points)
         .def("compute_stereo_from_rgbd", &pyslam::Frame::compute_stereo_from_rgbd)
         .def("compute_stereo_matches", &pyslam::Frame::compute_stereo_matches)
         .def("compute_points_median_depth", &pyslam::Frame::compute_points_median_depth<double>,
@@ -238,6 +382,7 @@ void bind_frame(py::module &m) {
         .def("draw_feature_trails", &pyslam::Frame::draw_feature_trails, py::arg("img"),
              py::arg("kps_idxs"), py::arg("trail_max_length") = 9)
         .def("draw_all_feature_trails", &pyslam::Frame::draw_all_feature_trails)
+        .def("set_img_right", &pyslam::Frame::set_img_right)
         .def("set_depth_img", &pyslam::Frame::set_depth_img)
         .def("ensure_contiguous_arrays", &pyslam::Frame::ensure_contiguous_arrays)
         .def("__eq__", &pyslam::Frame::operator==)

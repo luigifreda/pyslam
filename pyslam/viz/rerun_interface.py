@@ -26,10 +26,10 @@ import time
 import os
 import subprocess
 
-import pyslam.utilities.utils_geom as utils_geom
-from pyslam.slam.camera import Camera
+import pyslam.utilities.geometry as utils_geom
+from pyslam.slam import Camera
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 
 def check_command_start(command):

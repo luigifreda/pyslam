@@ -5,10 +5,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import sys
-from tkinter import image_names 
+from tkinter import image_names
 
 import pyslam.config as config
-config.cfg.set_lib('vggt') 
+
+config.cfg.set_lib("vggt")
 
 import os
 import cv2
@@ -34,11 +35,11 @@ from vggt.utils.load_fn import load_and_preprocess_images
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 from vggt.utils.geometry import unproject_depth_map_to_point_map
 
-from pyslam.utilities.utils_files import select_image_files 
-from pyslam.utilities.utils_download import download_file_from_url
-from pyslam.utilities.utils_dust3r import convert_mv_output_to_geometry
-from pyslam.utilities.utils_img import img_from_floats, ImageTable
-from pyslam.utilities.utils_torch import to_numpy
+from pyslam.utilities.file_management import select_image_files
+from pyslam.utilities.download import download_file_from_url
+from pyslam.utilities.dust3r import convert_mv_output_to_geometry
+from pyslam.utilities.img_management import img_from_floats, ImageTable
+from pyslam.utilities.torch import to_numpy
 
 from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
 
@@ -58,9 +59,9 @@ model = model.to(device)
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
-kRootFolder = kScriptFolder + '/../..'
-kVggtFolder = kRootFolder + '/thirdparty/vggt'
-kResultsFolder = kRootFolder + '/results/vggt'
+kRootFolder = kScriptFolder + "/../.."
+kVggtFolder = kRootFolder + "/thirdparty/vggt"
+kResultsFolder = kRootFolder + "/results/vggt"
 
 
 # Euroc
@@ -74,10 +75,29 @@ kResultsFolder = kRootFolder + '/results/vggt'
 # gl_reverse_rgb = True
 
 # TUM desk long_office_household (no distortion here)
-images_path = '/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb'
-start_frame_name = '1341847980.722988.png'
+images_path = (
+    "/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb"
+)
+start_frame_name = "1341847980.722988.png"
 gl_reverse_rgb = True
 
+
+def _to_numpy_cpu(data):
+    """Recursively move torch tensors to CPU and convert them to numpy arrays."""
+    if isinstance(data, torch.Tensor):
+        tensor = data.detach().cpu()
+        if tensor.dtype == torch.bfloat16:
+            tensor = tensor.to(torch.float32)
+        if tensor.ndim > 0 and tensor.shape[0] == 1:
+            tensor = tensor.squeeze(0)
+        return tensor.numpy()
+    if isinstance(data, dict):
+        return {key: _to_numpy_cpu(value) for key, value in data.items()}
+    if isinstance(data, list):
+        return [_to_numpy_cpu(item) for item in data]
+    if isinstance(data, tuple):
+        return tuple(_to_numpy_cpu(item) for item in data)
+    return data
 
 
 def predictions_to_3D_data(
@@ -103,17 +123,21 @@ def predictions_to_3D_data(
     if "Pointmap" in prediction_mode:
         print("Using Pointmap Branch")
         pred_world_points = predictions["world_points"]
-        pred_world_points_conf = predictions.get("world_points_conf", np.ones_like(pred_world_points[..., 0]))
+        pred_world_points_conf = predictions.get(
+            "world_points_conf", np.ones_like(pred_world_points[..., 0])
+        )
     else:
         print("Using Depthmap Branch")
         pred_world_points = predictions["world_points_from_depth"]
-        pred_world_points_conf = predictions.get("depth_conf", np.ones_like(pred_world_points[..., 0]))
+        pred_world_points_conf = predictions.get(
+            "depth_conf", np.ones_like(pred_world_points[..., 0])
+        )
 
     images = predictions["images"]  # (S, H, W, 3)
     if images.ndim == 4 and images.shape[1] == 3:
         # Convert from (S, 3, H, W) to (S, H, W, 3)
         images = np.transpose(images, (0, 2, 3, 1))
-        
+
     # Convert BGR to RGB
     images = images[..., ::-1]
 
@@ -121,14 +145,15 @@ def predictions_to_3D_data(
     # if images.dtype in [np.float32, np.float64] and images.max() <= 1.0:
     #     images = (images * 255).astype(np.uint8)
     # elif images.dtype != np.uint8:
-    #     images = images.astype(np.uint8)        
-        
+    #     images = images.astype(np.uint8)
+
     camera_matrices = predictions["extrinsic"]  # (S, 3, 4)
     S, H, W = pred_world_points_conf.shape
 
     # Optional sky masking
     if mask_sky and target_dir is not None:
         import onnxruntime
+
         image_dir = os.path.join(target_dir, "images")
         mask_dir = os.path.join(target_dir, "sky_masks")
         os.makedirs(mask_dir, exist_ok=True)
@@ -168,7 +193,9 @@ def predictions_to_3D_data(
         masks = [m & b for m, b in zip(masks, black_mask)]
 
     if mask_white_bg:
-        white_mask = [~((img[..., 0] > 240) & (img[..., 1] > 240) & (img[..., 2] > 240)) for img in images]
+        white_mask = [
+            ~((img[..., 0] > 240) & (img[..., 1] > 240) & (img[..., 2] > 240)) for img in images
+        ]
         masks = [m & w for m, w in zip(masks, white_mask)]
 
     # Normalize mask shapes to (H, W)
@@ -178,7 +205,9 @@ def predictions_to_3D_data(
         m = masks[i]
         if m.ndim == 1:
             if m.size != img_h * img_w:
-                raise ValueError(f"Cannot reshape flat mask of size {m.size} to match image {img_h}x{img_w}")
+                raise ValueError(
+                    f"Cannot reshape flat mask of size {m.size} to match image {img_h}x{img_w}"
+                )
             m = m.reshape((img_h, img_w))
         elif m.shape != (img_h, img_w):
             raise ValueError(f"Mask shape {m.shape} does not match image shape {(img_h, img_w)}")
@@ -186,10 +215,7 @@ def predictions_to_3D_data(
 
     # Convert to point cloud or mesh
     global_pc, global_mesh = convert_mv_output_to_geometry(
-        imgs=images,
-        pts3d=pred_world_points,
-        mask=normalized_masks,
-        as_pointcloud=as_pointcloud
+        imgs=images, pts3d=pred_world_points, mask=normalized_masks, as_pointcloud=as_pointcloud
     )
 
     # Camera extrinsics (S, 4, 4)
@@ -199,10 +225,18 @@ def predictions_to_3D_data(
 
     # Dummy intrinsics if not available
     focals = predictions.get("focals", np.ones((S, 2)))
-    print(f'Focals: {focals}')
+    print(f"Focals: {focals}")
 
-    return global_pc, global_mesh, images, pred_world_points, normalized_masks, cams2world, focals, confs
-
+    return (
+        global_pc,
+        global_mesh,
+        images,
+        pred_world_points,
+        normalized_masks,
+        cams2world,
+        focals,
+        confs,
+    )
 
 
 def load_and_preprocess_images_cv2(image_path_list, mode="crop", target_size=518):
@@ -339,7 +373,7 @@ def run_model_and_build3d(
     try:
         print("Running model...")
         images = load_and_preprocess_images_cv2(image_paths, mode="pad")
-        #images = load_and_preprocess_images(image_names)
+        # images = load_and_preprocess_images(image_names)
         print(f"Preprocessed images shape: {images.shape}")
 
         images = images.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
@@ -351,15 +385,17 @@ def run_model_and_build3d(
     prediction_save_path = os.path.join(target_dir, "predictions.npz")
     np.savez(prediction_save_path, **predictions)
 
-    global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = predictions_to_3D_data(
-        predictions,
-        conf_thres=conf_thres,
-        mask_black_bg=mask_black_bg,
-        mask_white_bg=mask_white_bg,
-        mask_sky=mask_sky,
-        target_dir=target_dir,
-        prediction_mode=prediction_mode,
-        as_pointcloud=True,
+    global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = (
+        predictions_to_3D_data(
+            predictions,
+            conf_thres=conf_thres,
+            mask_black_bg=mask_black_bg,
+            mask_white_bg=mask_white_bg,
+            mask_sky=mask_sky,
+            target_dir=target_dir,
+            prediction_mode=prediction_mode,
+            as_pointcloud=True,
+        )
     )
 
     del predictions
@@ -397,7 +433,7 @@ def run_model(img_paths, model) -> dict:
     if len(image_names) == 0:
         raise ValueError("No images found. Check your upload.")
 
-    #images = load_and_preprocess_images(image_names).to(device)
+    # images = load_and_preprocess_images(image_names).to(device)
     images = load_and_preprocess_images_cv2(image_names, mode="pad", target_size=518).to(device)
     print(f"Preprocessed images shape: {images.shape}")
 
@@ -412,25 +448,34 @@ def run_model(img_paths, model) -> dict:
     # Convert pose encoding to extrinsic and intrinsic matrices
     print("Converting pose encoding to extrinsic and intrinsic matrices...")
     extrinsic, intrinsic = pose_encoding_to_extri_intri(predictions["pose_enc"], images.shape[-2:])
+    # Remove singleton batch dimension if present
+    if extrinsic.dim() == 4 and extrinsic.shape[0] == 1:
+        extrinsic = extrinsic.squeeze(0)
+    if intrinsic is not None and intrinsic.dim() == 4 and intrinsic.shape[0] == 1:
+        intrinsic = intrinsic.squeeze(0)
     predictions["extrinsic"] = extrinsic
     predictions["intrinsic"] = intrinsic
 
-    print(f'Intrinsic: {intrinsic}')
-
-    # Convert tensors to numpy
-    for key in predictions.keys():
-        if isinstance(predictions[key], torch.Tensor):
-            predictions[key] = predictions[key].cpu().numpy().squeeze(0)  # remove batch dimension
+    print(f"Intrinsic: {intrinsic}")
 
     # Generate world points from depth map
     print("Computing world points from depth map...")
-    depth_map = predictions["depth"]  # (S, H, W, 1)
-    world_points = unproject_depth_map_to_point_map(depth_map, predictions["extrinsic"], predictions["intrinsic"])
+    depth_map = predictions["depth"]
+    if depth_map.dim() == 5 and depth_map.shape[0] == 1:
+        depth_map = depth_map.squeeze(0)
+        predictions["depth"] = depth_map
+    world_points = unproject_depth_map_to_point_map(
+        depth_map, predictions["extrinsic"], predictions["intrinsic"]
+    )
     predictions["world_points_from_depth"] = world_points
+
+    # Move outputs to CPU numpy to simplify downstream processing and serialization
+    predictions = {key: _to_numpy_cpu(value) for key, value in predictions.items()}
 
     # Clean up
     torch.cuda.empty_cache()
     return predictions
+
 
 # -------------------------------------------------------------------------
 def get_reconstructed_scene(
@@ -464,8 +509,8 @@ def get_reconstructed_scene(
     start_time = time.time()
     gc.collect()
     torch.cuda.empty_cache()
-    
-    print(f'Starting 3D reconstruction from images in {img_paths}')
+
+    print(f"Starting 3D reconstruction from images in {img_paths}")
 
     print("Running model...")
     try:
@@ -483,15 +528,17 @@ def get_reconstructed_scene(
     frame_filter = frame_filter or "All"
 
     # Convert predictions to 3D structures
-    global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = predictions_to_3D_data(
-        predictions=predictions,
-        conf_thres=conf_thres,
-        mask_black_bg=mask_black_bg,
-        mask_white_bg=mask_white_bg,
-        mask_sky=mask_sky,
-        target_dir=target_dir,
-        prediction_mode=prediction_mode,
-        as_pointcloud=True,
+    global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = (
+        predictions_to_3D_data(
+            predictions=predictions,
+            conf_thres=conf_thres,
+            mask_black_bg=mask_black_bg,
+            mask_white_bg=mask_white_bg,
+            mask_sky=mask_sky,
+            target_dir=target_dir,
+            prediction_mode=prediction_mode,
+            as_pointcloud=True,
+        )
     )
 
     # Cleanup
@@ -506,77 +553,110 @@ def get_reconstructed_scene(
     return global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs
 
 
-
 if __name__ == "__main__":
-    
+
     image_filenames = select_image_files(images_path, start_frame_name, n_frame=2, delta_frame=50)
-    print(f'selected image files: {image_filenames}')
-        
+    print(f"selected image files: {image_filenames}")
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     target_dir = os.path.join(kResultsFolder, f"input_images_{timestamp}")
-            
+
     img_paths = [os.path.join(images_path, x) for x in image_filenames]
-    imgs = [cv2.imread(x) for x in img_paths]   
-    
-    global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = \
-        get_reconstructed_scene(img_paths, target_dir, conf_thres=3.0, frame_filter="All", mask_black_bg=False, mask_white_bg=False, show_cam=True, mask_sky=False, prediction_mode="Pointmap Regression")
-    
-    for i,img in enumerate(rgb_imgs):
-            rgb_imgs[i] = to_numpy(img)
-            confs[i] = img_from_floats(to_numpy(confs[i]))
-            print(f'conf {i}: {confs[i].shape}, {confs[i].dtype}')
-        
-    print(f'done extracting 3d model from inference')      
-    
+    imgs = [cv2.imread(x) for x in img_paths]
+
+    global_pc, global_mesh, rgb_imgs, pts3d, mask, cams2world, focals, confs = (
+        get_reconstructed_scene(
+            img_paths,
+            target_dir,
+            conf_thres=3.0,
+            frame_filter="All",
+            mask_black_bg=False,
+            mask_white_bg=False,
+            show_cam=True,
+            mask_sky=False,
+            prediction_mode="Pointmap Regression",
+        )
+    )
+
+    for i, img in enumerate(rgb_imgs):
+        rgb_imgs[i] = to_numpy(img)
+        confs[i] = img_from_floats(to_numpy(confs[i]))
+        print(f"conf {i}: {confs[i].shape}, {confs[i].dtype}")
+
+    print(f"done extracting 3d model from inference")
+
     viewer3D = Viewer3D()
     time.sleep(1)
-    
-    viz_point_cloud = VizPointCloud(points=global_pc.vertices, colors=global_pc.colors, normalize_colors=True, reverse_colors=True) if global_pc is not None else None
-    viz_mesh = VizMesh(vertices=global_mesh.vertices, triangles=global_mesh.faces, vertex_colors=global_mesh.visual.vertex_colors, normalize_colors=True) if global_mesh is not None else None
+
+    viz_point_cloud = (
+        VizPointCloud(
+            points=global_pc.vertices,
+            colors=global_pc.colors,
+            normalize_colors=True,
+            reverse_colors=True,
+        )
+        if global_pc is not None
+        else None
+    )
+    viz_mesh = (
+        VizMesh(
+            vertices=global_mesh.vertices,
+            triangles=global_mesh.faces,
+            vertex_colors=global_mesh.visual.vertex_colors,
+            normalize_colors=True,
+        )
+        if global_mesh is not None
+        else None
+    )
     viz_camera_images = []
     for i, img in enumerate(rgb_imgs):
-        img_char = (img*255).astype(np.uint8)    
+        img_char = (img * 255).astype(np.uint8)
         if gl_reverse_rgb:
             img_char = cv2.cvtColor(img_char, cv2.COLOR_RGB2BGR)
         # ensure it's contiguous for OpenGL
         img_char = np.ascontiguousarray(img_char)
-        is_contiguous = img_char.flags['C_CONTIGUOUS']
-        h_ratio=img_char.shape[0] / img_char.shape[1]
-        print(f'image {i}, shape {img_char.shape}, h_ratio: {h_ratio}, type: {img_char.dtype}, min {np.min(img_char)}, max {np.max(img_char)}, is contiguous: {is_contiguous}')
-        viz_camera_images.append(VizCameraImage(image=img_char, Twc=cams2world[i], h_ratio=h_ratio, scale=0.1))
-    viewer3D.draw_dense_geometry(point_cloud=viz_point_cloud, mesh=viz_mesh, camera_images=viz_camera_images)
+        is_contiguous = img_char.flags["C_CONTIGUOUS"]
+        h_ratio = img_char.shape[0] / img_char.shape[1]
+        print(
+            f"image {i}, shape {img_char.shape}, h_ratio: {h_ratio}, type: {img_char.dtype}, min {np.min(img_char)}, max {np.max(img_char)}, is contiguous: {is_contiguous}"
+        )
+        viz_camera_images.append(
+            VizCameraImage(image=img_char, Twc=cams2world[i], h_ratio=h_ratio, scale=0.1)
+        )
+    viewer3D.draw_dense_geometry(
+        point_cloud=viz_point_cloud, mesh=viz_mesh, camera_images=viz_camera_images
+    )
 
     show_image_tables = True
-    table_resize_scale=0.8    
+    table_resize_scale = 0.8
     if show_image_tables:
         img_table_originals = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         for i, img in enumerate(imgs):
             img_table_originals.add(img)
         img_table_originals.render()
-        cv2.imshow('Original Images', img_table_originals.image())
-        
+        cv2.imshow("Original Images", img_table_originals.image())
+
         img_table = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         for i, img in enumerate(rgb_imgs):
             img_table.add(img)
         img_table.render()
-        cv2.imshow('VGTT Images', img_table.image())
-        
+        cv2.imshow("VGTT Images", img_table.image())
+
         # img_inverted_table = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         # for i, img in enumerate(inverted_images):
         #     img_inverted_table.add(img)
         # img_inverted_table.render()
         # cv2.imshow('Inverted Images', img_inverted_table.image())
-        
+
         img_table_conf = ImageTable(num_columns=4, resize_scale=table_resize_scale)
         for i, conf in enumerate(confs):
             img_table_conf.add(conf)
         img_table_conf.render()
-        cv2.imshow('Confidence Images', img_table_conf.image())
-
+        cv2.imshow("Confidence Images", img_table_conf.image())
 
     while viewer3D.is_running():
         key = cv2.waitKey(10) & 0xFF
-        if key == ord('q') or key == 27:
-            break    
-        
+        if key == ord("q") or key == 27:
+            break
+
     viewer3D.quit()

@@ -15,14 +15,14 @@ import platform
 from pyslam.config import Config
 
 from pyslam.slam.slam import Slam, SlamState
-from pyslam.slam.camera import PinholeCamera
+from pyslam.slam import PinholeCamera
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import SensorType
 from pyslam.io.ground_truth import groundtruth_factory
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.utils_sys import getchar, Printer
-from pyslam.utilities.utils_geom import inv_T
+from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.geometry import inv_T
 
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 

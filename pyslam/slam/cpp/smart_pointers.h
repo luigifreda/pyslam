@@ -82,12 +82,18 @@ struct SharedPtrWithDeleter : public std::shared_ptr<T> {
 class Camera;
 DECLARE_SMART_POINTERS(Camera)
 
+class PinholeCamera;
+DECLARE_SMART_POINTERS(PinholeCamera)
+
 class CameraPose;
 DECLARE_SMART_POINTERS(CameraPose)
 
 class MapPoint;
 // DECLARE_POINTERS(MapPoint)
 DECLARE_SMART_POINTERS(MapPoint)
+
+class KeyFrameGraph;
+DECLARE_SMART_POINTERS(KeyFrameGraph)
 
 class KeyFrame;
 // DECLARE_POINTERS(KeyFrame)

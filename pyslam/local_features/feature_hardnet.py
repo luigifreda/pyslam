@@ -30,7 +30,7 @@ import time
 import numpy as np
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.utils_features import (
+from pyslam.utilities.features import (
     extract_patches_tensor,
     extract_patches_array,
     extract_patches_array_cpp,

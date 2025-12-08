@@ -18,7 +18,8 @@
  */
 
 #include "camera.h"
-#include "feature_shared_info.h"
+#include "config_parameters.h"
+#include "feature_shared_resources.h"
 #include "map.h"
 #include "utils/cv_ops.h"
 #include "utils/messages.h"
@@ -34,13 +35,6 @@
 namespace pyslam {
 
 namespace {
-
-constexpr double kChi2Mono = 5.991;   // chi-square 2 DOFs (Hartley Zisserman pg 119)
-constexpr double kChi2Stereo = 7.815; // chi-square 3 DOFs (Hartley Zisserman pg 119)
-constexpr double kScaleConsistencyFactor = 1.5;
-constexpr int kSparseImageColorPatchDelta = 1; // centre +- delta
-constexpr double kSigmaLevel0 = 1.0;
-constexpr double kMinDepth = 1e-2;
 
 // compute normalized ray in world coordinates
 inline Eigen::Vector3d normalized_ray_in_world(const KeyFramePtr &kf, int idx) {
@@ -100,8 +94,8 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
     if (do_check) {
         const bool has_stereo1 = !kf1->kps_ur.empty();
         const bool has_stereo2 = !kf2->kps_ur.empty();
-        const double scale_factor = FeatureSharedInfo::scale_factor;
-        const double ratio_scale_consistency = kScaleConsistencyFactor * scale_factor;
+        const double scale_factor = FeatureSharedResources::scale_factor;
+        const double ratio_scale_consistency = Parameters::kScaleConsistencyFactor * scale_factor;
 
         const auto &camera1 = kf1->camera;
         MSG_FORCED_ASSERT(camera1, "Map::add_points: camera1 is nullptr");
@@ -189,7 +183,8 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
             }
 
             const Eigen::Vector2d diff1 = uv1 - kf1->keypoint_undistorted(idx1);
-            const double inv_sigma2_1 = FeatureSharedInfo::inv_level_sigmas2[kf1->octaves[idx1]];
+            const double inv_sigma2_1 =
+                FeatureSharedResources::inv_level_sigmas2[kf1->octaves[idx1]];
 
             bool is_bad_chis2_1 = false;
             if (is_stereo1) {
@@ -198,10 +193,10 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
                 const double u_r_pred = uv1.x() - camera1->bf * inv_depth;
                 const double err_r = u_r_pred - static_cast<double>(kf1->kps_ur[idx1]);
                 const double chi2_stereo = (diff1.squaredNorm() + err_r * err_r) * inv_sigma2_1;
-                is_bad_chis2_1 = chi2_stereo > kChi2Stereo;
+                is_bad_chis2_1 = chi2_stereo > Parameters::kChi2Stereo;
             } else {
                 const double chi2_mono1 = diff1.squaredNorm() * inv_sigma2_1;
-                is_bad_chis2_1 = chi2_mono1 > kChi2Mono;
+                is_bad_chis2_1 = chi2_mono1 > Parameters::kChi2Mono;
             }
 
             if (is_bad_chis2_1) {
@@ -209,7 +204,8 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
             }
 
             const Eigen::Vector2d diff2 = uv2 - kf2->keypoint_undistorted(idx2);
-            const double inv_sigma2_2 = FeatureSharedInfo::inv_level_sigmas2[kf2->octaves[idx2]];
+            const double inv_sigma2_2 =
+                FeatureSharedResources::inv_level_sigmas2[kf2->octaves[idx2]];
 
             bool is_bad_chis2_2 = false;
             if (is_stereo2) {
@@ -218,10 +214,10 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
                 const double u_r_pred = uv2.x() - camera2->bf * inv_depth;
                 const double err_r = u_r_pred - static_cast<double>(kf2->kps_ur[idx2]);
                 const double chi2_stereo = (diff2.squaredNorm() + err_r * err_r) * inv_sigma2_2;
-                is_bad_chis2_2 = chi2_stereo > kChi2Stereo;
+                is_bad_chis2_2 = chi2_stereo > Parameters::kChi2Stereo;
             } else {
                 const double chi2_mono2 = diff2.squaredNorm() * inv_sigma2_2;
-                is_bad_chis2_2 = chi2_mono2 > kChi2Mono;
+                is_bad_chis2_2 = chi2_mono2 > Parameters::kChi2Mono;
             }
 
             if (is_bad_chis2_2) {
@@ -229,9 +225,9 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
             }
 
             const double scale_depth1 =
-                FeatureSharedInfo::scale_factors[kf1->octaves[idx1]] * depth1;
+                FeatureSharedResources::scale_factors[kf1->octaves[idx1]] * depth1;
             const double scale_depth2 =
-                FeatureSharedInfo::scale_factors[kf2->octaves[idx2]] * depth2;
+                FeatureSharedResources::scale_factors[kf2->octaves[idx2]] * depth2;
 
             const double scale_depth1_ratio = scale_depth1 * ratio_scale_consistency;
             const double scale_depth2_ratio = scale_depth2 * ratio_scale_consistency;
@@ -255,7 +251,7 @@ Map::add_points(const std::vector<Eigen::Vector3d> &points3d,
         const int u = static_cast<int>(std::floor(kf1->kps(idx1, 0)));
         const int v = static_cast<int>(std::floor(kf1->kps(idx1, 1)));
         const cv::Vec3f mean_color =
-            compute_patch_mean(img, u, v, kSparseImageColorPatchDelta, default_color);
+            compute_patch_mean(img, u, v, Parameters::kSparseImageColorPatchDelta, default_color);
         const Eigen::Matrix<unsigned char, 3, 1> color = to_color_vector(mean_color);
 
         auto mp = MapPointNewPtr(points_world[i], color, kf2, idx2);
@@ -305,7 +301,7 @@ int Map::add_stereo_points(const std::vector<Eigen::Vector3d> &points3d,
         const int u = static_cast<int>(std::floor(kf->kps(idx, 0)));
         const int v = static_cast<int>(std::floor(kf->kps(idx, 1)));
         const cv::Vec3f mean_color =
-            compute_patch_mean(img, u, v, kSparseImageColorPatchDelta, default_color);
+            compute_patch_mean(img, u, v, Parameters::kSparseImageColorPatchDelta, default_color);
         const auto color = to_color_vector(mean_color);
 
         auto mp = MapPointNewPtr(points3d[i], color, kf, idx);
@@ -324,6 +320,8 @@ int Map::add_stereo_points(const std::vector<Eigen::Vector3d> &points3d,
 }
 
 void Map::remove_points_with_big_reproj_err(const std::vector<MapPointPtr> &points_to_check) {
+    const auto &inv_level_sigmas2 = FeatureSharedResources::inv_level_sigmas2;
+
     std::scoped_lock lock(_update_lock);
 
     std::vector<MapPointPtr> candidates;
@@ -355,7 +353,7 @@ void Map::remove_points_with_big_reproj_err(const std::vector<MapPointPtr> &poin
             const auto [proj, _] = frame->project_map_point<double>(p);
             const Eigen::Vector2d uv = frame->keypoint_undistorted(idx);
             const Eigen::Vector2d err = proj - uv;
-            const double inv_sigma2 = FeatureSharedInfo::inv_level_sigmas2[frame->octaves[idx]];
+            const double inv_sigma2 = inv_level_sigmas2[frame->octaves[idx]];
             chi2_sum += err.squaredNorm() * inv_sigma2;
             ++count;
         }
@@ -365,7 +363,7 @@ void Map::remove_points_with_big_reproj_err(const std::vector<MapPointPtr> &poin
         }
 
         const double chi2_mean = chi2_sum / static_cast<double>(count);
-        if (chi2_mean > kChi2Mono) {
+        if (chi2_mean > Parameters::kChi2Mono) {
             this->remove_point(p);
         }
     }
@@ -391,7 +389,8 @@ float Map::compute_mean_reproj_error(const std::vector<MapPointPtr> &points_subs
             const auto [proj, _] = frame->project_map_point<double>(p);
             const Eigen::Vector2d uv = frame->keypoint_undistorted(idx);
             const Eigen::Vector2d err = proj - uv;
-            const double inv_sigma2 = FeatureSharedInfo::inv_level_sigmas2[frame->octaves[idx]];
+            const double inv_sigma2 =
+                FeatureSharedResources::inv_level_sigmas2[frame->octaves[idx]];
             chi2 += err.squaredNorm() * inv_sigma2;
             ++num_obs;
         }

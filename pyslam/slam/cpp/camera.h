@@ -30,37 +30,30 @@
 #include <vector>
 
 #include "smart_pointers.h"
+
+#ifdef USE_PYTHON
+#include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
+#endif
+
 namespace pyslam {
 
 // Camera types enum
-enum class CameraType { NONE = 0, PINHOLE = 1 };
+enum class CameraType { NONE = 0, PINHOLE = 1 }; // keep it consistent with Python CameraType
 
 // Sensor types enum
-enum class SensorType { MONOCULAR = 0, STEREO = 1, RGBD = 2 };
+enum class SensorType {
+    MONOCULAR = 0,
+    STEREO = 1,
+    RGBD = 2
+}; // keep it consistent with Python SensorType
+
+// Utility function to get sensor type
+SensorType get_sensor_type(const std::string &sensor_type);
 
 // Utility functions
 double fov2focal(double fov, int pixels);
 double focal2fov(double focal, int pixels);
-
-// generic extractor for 2D point types
-template <typename Elem> inline std::pair<double, double> get_xy(const Elem &p) {
-    if constexpr (std::is_same_v<Elem, cv::Point2f> || std::is_same_v<Elem, cv::Point2d>) {
-        return {static_cast<double>(p.x), static_cast<double>(p.y)};
-    } else if constexpr (std::is_same_v<Elem, Eigen::Vector2d>) {
-        return {p.x(), p.y()};
-    } else if constexpr (std::is_same_v<Elem, Eigen::Vector2f>) {
-        return {static_cast<double>(p.x()), static_cast<double>(p.y())};
-    } else if constexpr (std::is_same_v<Elem, Eigen::Matrix<double, 2, 1>>) {
-        return {p(0), p(1)};
-    } else if constexpr (std::is_same_v<Elem, Eigen::Matrix<float, 2, 1>>) {
-        return {static_cast<double>(p(0)), static_cast<double>(p(1))};
-    } else if constexpr (std::is_same_v<Elem, std::array<double, 2>> ||
-                         std::is_same_v<Elem, std::array<float, 2>>) {
-        return {static_cast<double>(p[0]), static_cast<double>(p[1])};
-    } else {
-        static_assert(sizeof(Elem) == 0, "get_xy: unsupported 2D point element type");
-    }
-}
 
 // CameraUtils class
 class CameraUtils {
@@ -113,29 +106,12 @@ class CameraUtils {
         return std::move(result);
     }
 
-    // template <typename Scalar>
-    // static std::vector<Vec3<Scalar>>
-    // unproject_points_3d(MatNx2Ref<Scalar> uvs, VecNRef<Scalar> depths, Mat3Ref<Scalar> Kinv) {
-    //     using Elem = typename Vec3<Scalar>::value_type;
-
-    //     const size_t N = std::min(uvs.size(), depths.size());
-    //     std::vector<Vec3<Scalar>> result;
-    //     result.reserve(N);
-
-    //     for (size_t i = 0; i < N; ++i) {
-    //         auto [u, v] = get_xy(uvs[i]);
-    //         const Vec3<Scalar> uvh(u, v, 1.0);
-    //         result.push_back(depths[i] * (Kinv * uvh));
-    //     }
-    //     return result;
-    // }
-
     // ------------------------------------------------------------------------
 
     // input: [Nx2] array of uvs, [Nx1] of zs
     // output: [Nx1] array of visibility flags
     template <typename Scalar>
-    static std::vector<bool> are_in_image(MatNx2Ref<Scalar> uvs, VecNRef<Scalar> zs,
+    static std::vector<bool> are_in_image(MatNxMRef<Scalar> uvs, VecNRef<Scalar> zs,
                                           const Scalar u_min, const Scalar u_max,
                                           const Scalar v_min, const Scalar v_max) {
 
@@ -157,15 +133,16 @@ class CameraUtils {
 class CameraBase {
   public:
     // Camera parameters
-    CameraType type;
-    int width, height;
-    double fx, fy, cx, cy;
+    CameraType type = CameraType::NONE;
+    int width = -1, height = -1;
+    double fx = 0.0, fy = 0.0, cx = 0.0, cy = 0.0;
     std::vector<double> D; // distortion coefficients [k1, k2, p1, p2, k3]
-    bool is_distorted;
-    int fps;
-    double bf, b;                      // stereo parameters
-    double u_min, u_max, v_min, v_max; // image bounds
-    bool initialized;
+    bool is_distorted = false;
+    int fps = -1;
+    double bf = -1.0;
+    double b = -1.0;                                               // stereo parameters
+    double u_min = -1.0, u_max = -1.0, v_min = -1.0, v_max = -1.0; // image bounds
+    bool initialized = false;
 
     // Constructor
     CameraBase();
@@ -185,24 +162,27 @@ class Camera : public CameraBase {
 
   public:
     // Additional parameters
-    double fovx, fovy;      // field of view in x and y directions
-    SensorType sensor_type; // sensor type (monocular, stereo, RGBD)
-    double depth_factor;    // depth map values factor
-    double depth_threshold; // close/far threshold
+    double fovx = 0.0, fovy = 0.0;                  // field of view in x and y directions
+    SensorType sensor_type = SensorType::MONOCULAR; // sensor type (monocular, stereo, RGBD)
+    double depth_factor = 1.0;                      // depth map values factor
+    double depth_threshold = std::numeric_limits<double>::infinity(); // close/far threshold
 
     // Intrinsic matrices
-    Eigen::Matrix3d K;    // intrinsic matrix
-    Eigen::Matrix3d Kinv; // inverse intrinsic matrix
+    Eigen::Matrix3d K = Eigen::Matrix3d::Zero();    // intrinsic matrix
+    Eigen::Matrix3d Kinv = Eigen::Matrix3d::Zero(); // inverse intrinsic matrix
 
     // Constructor
+    Camera();
     Camera(const ConfigDict &config);
 
     // Destructor
     virtual ~Camera() = default;
 
-    // Copy constructor and assignment
+    // Copy constructor, assignment, move constructor, move assignment
     Camera(const Camera &other);
     Camera &operator=(const Camera &other);
+    Camera(Camera &&other) noexcept;
+    Camera &operator=(Camera &&other) noexcept;
 
     // ------------------------------------------------------------------------
     // - unproject a 2D image point into a 3D point on the z=1 plane
@@ -260,17 +240,20 @@ class Camera : public CameraBase {
     // - stereo-project a 3D point (w.r.t. camera frame) into a 3D image point (stereo)
     //   out: 3D image point
     template <typename Scalar>
-    Vec3<Scalar> project_point_stereo_template(Vec3Ref<Scalar> xcs) const {
-        const Scalar u = fx * xcs.x() / xcs.z() + cx;
-        const Scalar v = fy * xcs.y() / xcs.z() + cy;
-        const Scalar ur = u - bf / xcs.z();
-        return Vec3<Scalar>(u, v, ur);
+    inline std::pair<Vec3<Scalar>, Scalar>
+    project_point_stereo_template(Vec3Ref<Scalar> xcs) const {
+        const Scalar z = xcs.z();
+        const Scalar inv_z = 1.0 / z;
+        const Scalar u = fx * xcs.x() * inv_z + cx;
+        const Scalar v = fy * xcs.y() * inv_z + cy;
+        const Scalar ur = u - bf * inv_z;
+        return std::make_pair(Vec3<Scalar>(u, v, ur), z);
     }
 
-    virtual Vec3<float> project_point_stereo(Vec3Ref<float> xcs) const {
+    virtual std::pair<Vec3<float>, float> project_point_stereo(Vec3Ref<float> xcs) const {
         return project_point_stereo_template<float>(xcs);
     }
-    virtual Vec3<double> project_point_stereo(Vec3Ref<double> xcs) const {
+    virtual std::pair<Vec3<double>, double> project_point_stereo(Vec3Ref<double> xcs) const {
         return project_point_stereo_template<double>(xcs);
     }
 
@@ -300,7 +283,7 @@ class Camera : public CameraBase {
     }
 
     template <typename Scalar>
-    std::vector<bool> are_in_image(MatNx2Ref<Scalar> uvs, VecNRef<Scalar> zs) const {
+    std::vector<bool> are_in_image(MatNxMRef<Scalar> uvs, VecNRef<Scalar> zs) const {
         return CameraUtils::are_in_image(uvs, zs, static_cast<Scalar>(u_min),
                                          static_cast<Scalar>(u_max), static_cast<Scalar>(v_min),
                                          static_cast<Scalar>(v_max));
@@ -329,6 +312,12 @@ class Camera : public CameraBase {
     // Zero-copy friendly overload (NumPy C-contiguous (N,2) float64, (3,3) float64)
     virtual MatNx3d unproject_points_3d(MatNx2dRef uvs, VecNdRef depths) const { return MatNx3d(); }
     virtual MatNx3f unproject_points_3d(MatNx2fRef uvs, VecNfRef depths) const { return MatNx3f(); }
+
+#ifdef USE_PYTHON
+    // Numpy serialization
+    pybind11::tuple state_tuple() const;              // builds the versioned tuple
+    void restore_from_state(const pybind11::tuple &); // fills this object from the tuple
+#endif
 };
 
 // PinholeCamera class - inherits from Camera, matches Python PinholeCamera
@@ -336,14 +325,17 @@ class Camera : public CameraBase {
 class PinholeCamera : public Camera {
   public:
     // Constructor
+    PinholeCamera();
     PinholeCamera(const ConfigDict &config);
 
     // Destructor
     ~PinholeCamera() = default;
 
-    // Copy constructor and assignment
+    // Copy constructor, assignment, move constructor, move assignment
     PinholeCamera(const PinholeCamera &other);
     PinholeCamera &operator=(const PinholeCamera &other);
+    PinholeCamera(PinholeCamera &&other) noexcept;
+    PinholeCamera &operator=(PinholeCamera &&other) noexcept;
 
     // Methods
     void init();
@@ -369,10 +361,10 @@ class PinholeCamera : public Camera {
 
     // ------------------------------------------------------------------------
     // - stereo-project a 3D point (w.r.t. camera frame) into a 2D image point
-    Vec3<float> project_point_stereo(Vec3Ref<float> xcs) const override {
+    std::pair<Vec3<float>, float> project_point_stereo(Vec3Ref<float> xcs) const override {
         return project_point_stereo_template<float>(xcs);
     }
-    Vec3<double> project_point_stereo(Vec3Ref<double> xcs) const override {
+    std::pair<Vec3<double>, double> project_point_stereo(Vec3Ref<double> xcs) const override {
         return project_point_stereo_template<double>(xcs);
     }
 
@@ -431,6 +423,12 @@ class PinholeCamera : public Camera {
     // - convert to JSON
     std::string to_json() const;
     static PinholeCamera from_json(const std::string &json_str);
+
+#ifdef USE_PYTHON
+    // Numpy serialization
+    pybind11::tuple state_tuple() const;              // builds the versioned tuple
+    void restore_from_state(const pybind11::tuple &); // fills this object from the tuple
+#endif
 
   private:
     // Helper methods

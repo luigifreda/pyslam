@@ -38,6 +38,11 @@ std::pair<cv::Mat, SemanticFeatureType> deserialize_semantic_des(const nlohmann:
         return std::make_pair(cv::Mat(), SemanticFeatureType::NONE);
     }
 
+    // Check if type is null before trying to get it as string
+    if (json_data["type"].is_null()) {
+        return std::make_pair(cv::Mat(), SemanticFeatureType::NONE);
+    }
+
     std::string type_str = json_data["type"].get<std::string>();
     SemanticFeatureType semantic_type;
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env -S python3 -O
 
-import sys 
+import sys
 import time
 
 from pyslam.config import Config
 
-from pyslam.utilities.utils_mt import SimpleTaskTimer
+from pyslam.utilities.multi_threading import SimpleTaskTimer
 
 
 class MyCallback:
@@ -21,7 +21,7 @@ class MyCallback:
 if __name__ == "__main__":
 
     my_callback = MyCallback()
-    
+
     # Create a repeating timer that fires every 2 seconds
     timer = SimpleTaskTimer(interval=1, callback=my_callback, single_shot=True)
 
@@ -31,5 +31,5 @@ if __name__ == "__main__":
     # Let the timer run for 10 seconds and then stop it
     time.sleep(10)
     timer.stop()
-    
-    print('Done')
+
+    print("Done")

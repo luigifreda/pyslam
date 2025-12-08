@@ -1,5 +1,5 @@
 import numpy as np
-from pyslam.utilities.utils_geom import poseRt
+from pyslam.utilities.geometry import poseRt
 
 
 class Sim3Pose:

@@ -1,4 +1,11 @@
-from .keyframe import KeyFrame
+from pyslam.slam import KeyFrame
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from .keyframe import KeyFrame
 
 
 # A wrapper with essential data for making a KeyFrame pickable
@@ -22,7 +29,7 @@ class KeyFrameData:
         self.Tcw = kf_Tcw
         self.timestamp = keyframe.timestamp
 
-        self.is_bad = keyframe.is_bad
+        self.is_bad = keyframe.is_bad()
 
         self.kps = keyframe.kps
         self.kps_r = keyframe.kps_r

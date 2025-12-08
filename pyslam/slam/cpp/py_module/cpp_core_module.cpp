@@ -31,13 +31,19 @@
 #include "dictionary.h"
 #include "py_module/camera_module.h"
 #include "py_module/ckdtree_module.h"
-#include "py_module/feature_shared_info_module.h"
+#include "py_module/config_parameters_module.h"
+#include "py_module/eigen_module.h"
+#include "py_module/feature_shared_resources_module.h"
 #include "py_module/frame_module.h"
+#include "py_module/geometry_matchers_module.h"
 #include "py_module/keyframe_module.h"
 #include "py_module/map_module.h"
 #include "py_module/map_point_module.h"
+#include "py_module/mutex_wrapper_module.h"
 #include "py_module/optimizer_g2o_module.h"
+#include "py_module/rotation_histogram_module.h"
 #include "py_module/sim3_pose_module.h"
+#include "py_module/tracking_utils_module.h"
 
 namespace py = pybind11;
 
@@ -62,6 +68,11 @@ PYBIND11_MODULE(cpp_core, m) {
         });
 
     // ------------------------------------------------------------
+    // Eigen
+
+    bind_eigen(m);
+
+    // ------------------------------------------------------------
     // Camera and CameraPose
 
     bind_camera(m);
@@ -72,9 +83,9 @@ PYBIND11_MODULE(cpp_core, m) {
     bind_sim3_pose(m);
 
     // ------------------------------------------------------------
-    // FeatureSharedInfo
+    // FeatureSharedResources
 
-    bind_feature_shared_info(m);
+    bind_feature_shared_resources(m);
 
     // ------------------------------------------------------------
     // Frame class
@@ -99,8 +110,33 @@ PYBIND11_MODULE(cpp_core, m) {
     bind_ckdtree(m);
 
     // ------------------------------------------------------------
+    // MutexWrapper class
+
+    bind_mutex_wrapper(m);
+
+    // ------------------------------------------------------------
     // OptimizerG2o class
 
     bind_optimizer_g2o(m);
+
+    // ------------------------------------------------------------
+    // TrackingUtils class
+
+    bind_tracking_utils(m);
+
+    // ------------------------------------------------------------
+    // Rotation histogram
+
+    bind_rotation_histogram(m);
+
+    // ------------------------------------------------------------
+    // ConfigParameters class
+
+    bind_config_parameters(m);
+
+    // ------------------------------------------------------------
+    // GeometryMatchers class
+
+    bind_geometry_matchers(m);
 
 } // PYBIND11_MODULE

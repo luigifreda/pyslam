@@ -18,7 +18,7 @@
 """
 
 import cv2
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
+from pyslam.utilities.serialization import SerializableEnum, register_class
 
 
 """

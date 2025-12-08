@@ -20,9 +20,17 @@
 import sys
 import os
 
-from pyslam.utilities.utils_sys import Printer
+from pyslam.config_parameters import Parameters
+from pyslam.utilities.system import Printer
 
-USE_CPP = False
+from .cpp import (
+    cpp_module,
+    python_module,
+    CPP_AVAILABLE,
+    core_classes,
+)
+
+USE_CPP = Parameters.USE_CPP_CORE
 try:
     # Try to get from environment variable and fallback to default declared above
     USE_CPP_VAR = os.environ.get("PYSLAM_USE_CPP", str(USE_CPP).lower())
@@ -37,65 +45,33 @@ try:
 except:
     pass
 
+classes_dict = {}
+
 if USE_CPP:
-    try:
-        from .cpp import cpp_module
-
-        if not cpp_module.CPP_AVAILABLE:
-            Printer.orange("❌ cpp_module imported successfully but C++ core is not available")
-            sys.exit(1)
+    if CPP_AVAILABLE:
         print("✅ cpp_module imported successfully, C++ core is available")
-        from .cpp import (
-            Frame,
-            KeyFrame,
-            MapPoint,
-            Map,
-            Camera,
-            PinholeCamera,
-            CameraType,
-            CameraUtils,
-            CameraPose,
-            Sim3Pose,
-            optimizer_g2o,
-            CKDTree2d,
-            CKDTree3d,
-            CKDTreeDyn,
-        )
-
-    except ImportError as e:
-        Printer.red(f"❌ Failed to import C++ module: {e}")
+        # Assign all classes from C++ module to global namespace
+        for name, cls in cpp_module.classes.items():
+            globals()[name] = cls
+            classes_dict[name] = cls
+    else:
+        print("❌ C++ core module not available. Falling back to Python implementations.")
         sys.exit(1)
 else:
-
-    # Fallback to Python implementations
-    from .frame import Frame
-    from .keyframe import KeyFrame
-    from .map_point import MapPoint
-    from .map import Map
-    from .camera import Camera, PinholeCamera, CameraType, CameraUtils
-    from .camera_pose import CameraPose
-    from .sim3_pose import Sim3Pose
-    from . import optimizer_g2o
-    from .ckdtree import CKDTree2d, CKDTree3d, CKDTreeDyn
+    # Assign all classes from fallback to global namespace
+    for name, cls in python_module.classes.items():
+        globals()[name] = cls
+        classes_dict[name] = cls
 
 
-from .feature_tracker_shared import FeatureTrackerShared
+globals()["USE_CPP"] = USE_CPP
 
 __all__ = [
-    "MapPoint",
-    "Frame",
-    "KeyFrame",
-    "Map",
-    "CameraPose",
-    "Camera",
-    "PinholeCamera",
-    "CameraType",
-    "CameraUtils",
-    "Sim3Pose",
-    "FeatureTrackerShared",
-    "optimizer_g2o",
-    "CKDTree2d",
-    "CKDTree3d",
-    "CKDTreeDyn",
+    "CPP_AVAILABLE",
+    "cpp_module",
+    "python_module",
     "USE_CPP",
 ]
+# Add all core classes to the __all__ list
+for cls in core_classes:
+    __all__.append(cls)

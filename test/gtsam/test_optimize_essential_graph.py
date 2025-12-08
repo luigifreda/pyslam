@@ -10,31 +10,33 @@ from unittest import TestCase
 
 import numpy as np
 
-from pyslam.slam.frame import Frame, FeatureTrackerShared
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.map_point import MapPoint
-from pyslam.slam.camera import Camera, PinholeCamera
-from pyslam.utilities.utils_geom import (
+from pyslam.slam import (
+    Frame,
+    KeyFrame,
+    Camera,
+    PinholeCamera,
+    Sim3Pose,
+    MapPoint,
+    Map,
+    optimizer_gtsam,
+    optimizer_g2o,
+)
+from pyslam.utilities.geometry import (
     rotation_matrix_from_yaw_pitch_roll,
     pitch_matrix,
     poseRt,
     inv_T,
     rpy_from_rotation_matrix,
 )
-from pyslam.slam.sim3_pose import Sim3Pose
-from pyslam.utilities.utils_gen_synthetic_data import (
+from pyslam.utilities.synthetic_data import (
     generate_random_points_2d,
     backproject_points,
     project_points,
 )
-from pyslam.slam.map import Map
 from pyslam.viz.viewer3D import Viewer3D
 
 from collections import defaultdict
 import time
-
-from pyslam.slam import optimizer_gtsam
-from pyslam.slam import optimizer_g2o
 
 
 class DataGenerator:
@@ -217,13 +219,13 @@ class DataGenerator:
                 for i, map_point in enumerate(map_points):
                     if (
                         not map_point
-                        or map_point.is_bad
+                        or map_point.is_bad()
                         or map_point.corrected_by_kf == current_keyframe.kid
                     ):  # use kid here
                         continue
 
                     # Project with non-corrected pose and project back with corrected pose
-                    p3dw = map_point.pt
+                    p3dw = map_point.pt()
                     # corrected_p3dw = corrected_Swi @ Siw @ p3dw
                     corrected_p3dw = correction_sRw @ p3dw.reshape(3, 1) + correction_tw
                     map_point.update_position(corrected_p3dw.squeeze())

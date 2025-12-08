@@ -27,7 +27,7 @@ import torch
 import cv2
 from threading import RLock
 
-from pyslam.utilities.utils_sys import Printer, import_from
+from pyslam.utilities.system import Printer, import_from
 
 
 # convert matrix of pts into list of keypoints

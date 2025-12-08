@@ -76,9 +76,18 @@ template <> struct type_caster<pyslam::Value> {
             out.reserve(py::len(seq));
             for (py::handle item : seq) {
                 type_caster<pyslam::Value> sub;
-                if (!sub.load(item, true))
-                    return false;
-                out.emplace_back(std::move(sub.value));
+                if (!sub.load(item, true)) {
+                    // If conversion fails, try string representation
+                    try {
+                        std::string val_str = py::str(item);
+                        out.emplace_back(pyslam::Value(val_str));
+                    } catch (const py::error_already_set &) {
+                        // Skip problematic items
+                        continue;
+                    }
+                } else {
+                    out.emplace_back(std::move(sub.value));
+                }
             }
             value = pyslam::Value(std::move(out));
             return true;
@@ -91,9 +100,19 @@ template <> struct type_caster<pyslam::Value> {
                 // Require string-like keys; change to accept more if desired
                 std::string key = py::cast<std::string>(kv.first);
                 type_caster<pyslam::Value> sub;
-                if (!sub.load(kv.second, true))
-                    return false;
-                out.emplace(std::move(key), std::move(sub.value));
+                if (!sub.load(kv.second, true)) {
+                    // If recursive conversion fails, try to convert to string representation
+                    // This handles complex nested structures that can't be directly converted
+                    try {
+                        std::string val_str = py::str(kv.second);
+                        out.emplace(std::move(key), pyslam::Value(val_str));
+                    } catch (const py::error_already_set &) {
+                        // If even string conversion fails, skip this key-value pair
+                        continue;
+                    }
+                } else {
+                    out.emplace(std::move(key), std::move(sub.value));
+                }
             }
             value = pyslam::Value(std::move(out));
             return true;

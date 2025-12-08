@@ -22,11 +22,15 @@
 #include "sim3_pose.h"
 #include "utils/messages.h"
 
+#include "py_wrappers.h"
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 #include <atomic>
+#include <chrono>
+#include <mutex>
 #include <thread>
 
 namespace py = pybind11;
@@ -34,87 +38,22 @@ namespace py = pybind11;
 // Wrapper functions to match Python signatures
 namespace pyslam {
 
-// Wrapper for the g2o.Flag to be used in the optimizer_g2o.cpp file
-// The g2o.Flag is a Python object that is used to abort the optimization: We cannot access
-// directly to the pointer of its stored boolean value (readonly). We wrap it with this class to
-// and use a thread to sync the boolean value with the Python object.
-class G2oAbortFlag {
-    constexpr static int kMonitorIntervalMs = 5; // milliseconds
-
-  private:
-    py::object abort_flag_obj;
-    bool abort_value;
-    std::atomic<bool> should_stop_monitoring;
-    std::thread monitor_thread;
-
-  public:
-    // Disable copy and move constructors and assignment operators
-    G2oAbortFlag(const G2oAbortFlag &) = delete;
-    G2oAbortFlag &operator=(const G2oAbortFlag &) = delete;
-    G2oAbortFlag(G2oAbortFlag &&) = delete;
-    G2oAbortFlag &operator=(G2oAbortFlag &&) = delete;
-
-    G2oAbortFlag(py::object obj)
-        : abort_flag_obj(obj), abort_value(false), should_stop_monitoring(false) {
-        if (!obj.is_none()) {
-            // Initialize the boolean value with the Python object
-            try {
-                abort_value = obj.attr("value").cast<bool>();
-            } catch (const std::exception &e) {
-                MSG_ERROR_STREAM("Error initializing abort flag: " << e.what());
-                abort_value = false;
-            }
-            // Start monitoring thread to sync the boolean value with the Python object
-            monitor_thread = std::thread(&G2oAbortFlag::monitor_flag, this);
-        }
-    }
-
-    ~G2oAbortFlag() { stop_monitoring(); }
-
-    void stop_monitoring() {
-        if (monitor_thread.joinable()) {
-            should_stop_monitoring = true;
-            monitor_thread.join();
-        }
-    }
-
-    bool *get_value_ptr() { return abort_flag_obj.is_none() ? nullptr : &abort_value; }
-
-    bool get_value() { return abort_value; }
-
-  private:
-    void monitor_flag() {
-        // Monitor the boolean value of the g2o.Flag python object and update the local boolean
-        // value. We must hold the GIL each time we touch the Python object to avoid corrupting the
-        // interpreter state when the monitoring thread runs in the background.
-        while (!should_stop_monitoring) {
-            try {
-                py::gil_scoped_acquire acquire;
-                if (!abort_flag_obj.is_none()) {
-                    abort_value = abort_flag_obj.attr("value").cast<bool>();
-                }
-            } catch (const std::exception &e) {
-                // Handle any Python exceptions (e.g. interpreter shutdown)
-                MSG_ERROR_STREAM("Error monitoring abort flag: " << e.what());
-            }
-            // Sleep for a short interval (e.g., 1ms)
-            std::this_thread::sleep_for(std::chrono::milliseconds(kMonitorIntervalMs));
-        }
-    }
-};
+// ------------------------------------------------------------
+// Wrapper functions to match Python signatures
+// ------------------------------------------------------------
 
 // Wrapper for bundle_adjustment to return tuple (mean_squared_error, result_dict)
 inline std::pair<double, py::dict> bundle_adjustment_wrapper(
     const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
     std::optional<int> local_window_size = std::nullopt, bool fixed_points = false, int rounds = 10,
     int loop_kf_id = 0, bool use_robust_kernel = false, py::object abort_flag = py::none(),
-    py::object mp_abort_flag = py::none(), py::dict *result_dict = nullptr, bool verbose = false,
+    py::object mp_abort_flag = py::none(), py::dict result_dict = py::none(), bool verbose = false,
     py::object print_func = py::none()) {
 
-    const bool fill_result_dict = result_dict != nullptr;
+    const bool fill_result_dict = !result_dict.is_none();
 
     py::object abort_flag_object = abort_flag.is_none() ? mp_abort_flag : abort_flag;
-    G2oAbortFlag abort_flag_wrapper(abort_flag_object);
+    PyG2oAbortFlag abort_flag_wrapper(abort_flag_object);
     bool *abort_flag_value_ptr = abort_flag_wrapper.get_value_ptr();
 
     BundleAdjustmentResult result;
@@ -126,7 +65,7 @@ inline std::pair<double, py::dict> bundle_adjustment_wrapper(
         abort_flag_wrapper.stop_monitoring();
     }
 
-    py::dict out_result_dict = fill_result_dict ? *result_dict : py::dict();
+    py::dict out_result_dict = fill_result_dict ? result_dict : py::dict();
     if (fill_result_dict) {
         out_result_dict["keyframe_updates"] = std::move(result.keyframe_updates);
         out_result_dict["point_updates"] = std::move(result.point_updates);
@@ -140,12 +79,12 @@ inline std::pair<double, py::dict> global_bundle_adjustment_wrapper(
     const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
     int rounds = 10, int loop_kf_id = 0, bool use_robust_kernel = false,
     py::object abort_flag = py::none(), py::object mp_abort_flag = py::none(),
-    py::dict *result_dict = nullptr, bool verbose = false, py::object print_func = py::none()) {
+    py::dict result_dict = py::none(), bool verbose = false, py::object print_func = py::none()) {
 
-    const bool fill_result_dict = result_dict != nullptr;
+    const bool fill_result_dict = !result_dict.is_none();
 
     py::object abort_flag_object = abort_flag.is_none() ? mp_abort_flag : abort_flag;
-    G2oAbortFlag abort_flag_wrapper(abort_flag_object);
+    PyG2oAbortFlag abort_flag_wrapper(abort_flag_object);
     bool *abort_flag_value_ptr = abort_flag_wrapper.get_value_ptr();
 
     BundleAdjustmentResult result;
@@ -157,7 +96,7 @@ inline std::pair<double, py::dict> global_bundle_adjustment_wrapper(
         abort_flag_wrapper.stop_monitoring();
     }
 
-    py::dict out_result_dict = fill_result_dict ? *result_dict : py::dict();
+    py::dict out_result_dict = fill_result_dict ? result_dict : py::dict();
     if (fill_result_dict) {
         out_result_dict["keyframe_updates"] = std::move(result.keyframe_updates);
         out_result_dict["point_updates"] = std::move(result.point_updates);
@@ -170,12 +109,12 @@ inline std::pair<double, py::dict> global_bundle_adjustment_wrapper(
 inline std::pair<double, py::dict> global_bundle_adjustment_map_wrapper(
     MapPtr map, int rounds = 10, int loop_kf_id = 0, bool use_robust_kernel = false,
     py::object abort_flag = py::none(), py::object mp_abort_flag = py::none(),
-    py::dict *result_dict = nullptr, bool verbose = false, py::object print_func = py::none()) {
+    py::dict result_dict = py::none(), bool verbose = false, py::object print_func = py::none()) {
 
-    const bool fill_result_dict = result_dict != nullptr;
+    const bool fill_result_dict = !result_dict.is_none();
 
     py::object abort_flag_object = abort_flag.is_none() ? mp_abort_flag : abort_flag;
-    G2oAbortFlag abort_flag_wrapper(abort_flag_object);
+    PyG2oAbortFlag abort_flag_wrapper(abort_flag_object);
     bool *abort_flag_value_ptr = abort_flag_wrapper.get_value_ptr();
 
     BundleAdjustmentResult result;
@@ -187,7 +126,7 @@ inline std::pair<double, py::dict> global_bundle_adjustment_map_wrapper(
         abort_flag_wrapper.stop_monitoring();
     }
 
-    py::dict out_result_dict = fill_result_dict ? *result_dict : py::dict();
+    py::dict out_result_dict = fill_result_dict ? result_dict : py::dict();
     if (fill_result_dict) {
         out_result_dict["keyframe_updates"] = std::move(result.keyframe_updates);
         out_result_dict["point_updates"] = std::move(result.point_updates);
@@ -207,16 +146,31 @@ inline std::tuple<double, bool, int> pose_optimization_wrapper(FramePtr frame, b
 }
 
 // Wrapper for local_bundle_adjustment to return tuple (mean_squared_error, ratio_bad_observations)
-inline std::pair<double, double>
-local_bundle_adjustment_wrapper(const std::vector<KeyFramePtr> &keyframes,
-                                const std::vector<MapPointPtr> &points,
-                                const std::vector<KeyFramePtr> &keyframes_ref = {},
-                                bool fixed_points = false, bool verbose = false, int rounds = 10,
-                                bool *abort_flag = nullptr, std::mutex *map_lock = nullptr) {
+inline std::pair<double, double> local_bundle_adjustment_wrapper(
+    const std::vector<KeyFramePtr> &keyframes, const std::vector<MapPointPtr> &points,
+    const std::vector<KeyFramePtr> &keyframes_ref = {}, bool fixed_points = false,
+    bool verbose = false, int rounds = 10, py::object abort_flag = py::none(),
+    py::object map_lock = py::none()) {
 
-    py::gil_scoped_release release;
-    return OptimizerG2o::local_bundle_adjustment(keyframes, points, keyframes_ref, fixed_points,
-                                                 verbose, rounds, abort_flag, map_lock);
+    PyG2oAbortFlag abort_flag_wrapper(abort_flag);
+    bool *abort_flag_value_ptr = abort_flag_wrapper.get_value_ptr();
+
+    std::pair<double, double> result;
+    {
+        std::unique_ptr<pyslam::PyLock> lock;
+        if (!map_lock.is_none()) {
+            lock = std::make_unique<pyslam::PyLock>(map_lock);
+        }
+        PyLock *lock_ptr = lock ? lock.get() : nullptr;
+
+        py::gil_scoped_release release;
+        result = OptimizerG2o::local_bundle_adjustment<PyLock>(keyframes, points, keyframes_ref,
+                                                               fixed_points, verbose, rounds,
+                                                               abort_flag_value_ptr, lock_ptr);
+        abort_flag_wrapper.stop_monitoring();
+    }
+
+    return result;
 }
 
 // Wrapper for optimize_sim3 to return tuple (num_inliers, R, t, scale, delta_error)
@@ -240,7 +194,7 @@ inline double optimize_essential_graph_wrapper(
     const std::unordered_map<KeyFramePtr, Sim3Pose> &non_corrected_sim3_map,
     const std::unordered_map<KeyFramePtr, Sim3Pose> &corrected_sim3_map,
     const std::unordered_map<KeyFramePtr, std::vector<KeyFramePtr>> &loop_connections,
-    bool fix_scale, bool verbose = false) {
+    bool fix_scale, py::object print_fun = py::none(), bool verbose = false) {
 
     py::gil_scoped_release release;
     return OptimizerG2o::optimize_essential_graph(map_object, loop_keyframe, current_keyframe,

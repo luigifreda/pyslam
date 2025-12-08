@@ -28,17 +28,16 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.utils_sys import Printer, set_rlimit
-from pyslam.utilities.utils_mp import MultiprocessingManager
-from pyslam.utilities.utils_data import empty_queue
+from pyslam.utilities.system import Printer, set_rlimit
+from pyslam.utilities.multi_processing import MultiprocessingManager
+from pyslam.utilities.data_management import empty_queue
 
 from pyslam.config_parameters import Parameters
 from pyslam.local_features.feature_types import FeatureInfo
 
 from pyslam.utilities.timer import TimerFps
 
-from pyslam.slam.keyframe import KeyFrame
-from pyslam.slam.frame import Frame
+from pyslam.slam import KeyFrame, Frame
 
 from pyslam.loop_closing.loop_detector_configs import (
     LoopDetectorConfigs,
@@ -60,6 +59,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pyslam.slam.slam import Slam  # Only imported when type checking, not at runtime
+    from pyslam.slam.keyframe import KeyFrame
+    from pyslam.slam.frame import Frame
 
 
 kVerbose = True

@@ -33,20 +33,21 @@ from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
 from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
 
 from pyslam.slam.slam import Slam, SlamState
+from pyslam.slam import PinholeCamera
+
 from pyslam.viz.slam_plot_drawer import SlamPlotDrawer
-from pyslam.slam.camera import PinholeCamera
 from pyslam.io.ground_truth import groundtruth_factory
 from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import SensorType
 from pyslam.io.trajectory_writer import TrajectoryWriter
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.utils_sys import getchar, Printer, force_kill_all_and_exit
-from pyslam.utilities.utils_img import ImgWriter
-from pyslam.utilities.utils_eval import eval_ate
-from pyslam.utilities.utils_geom_trajectory import find_poses_associations
-from pyslam.utilities.utils_colors import GlColors
-from pyslam.utilities.utils_serialization import SerializableEnumEncoder
+from pyslam.utilities.system import getchar, Printer, force_kill_all_and_exit
+from pyslam.utilities.img_management import ImgWriter
+from pyslam.utilities.evaluation import eval_ate
+from pyslam.utilities.geom_trajectory import find_poses_associations
+from pyslam.utilities.colors import GlColors
+from pyslam.utilities.serialization import SerializableEnumEncoder
 
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
@@ -56,7 +57,7 @@ from pyslam.depth_estimation.depth_estimator_factory import (
     depth_estimator_factory,
     DepthEstimatorType,
 )
-from pyslam.utilities.utils_depth import img_from_depth, filter_shadow_points
+from pyslam.utilities.depth import img_from_depth, filter_shadow_points
 
 from pyslam.config_parameters import Parameters
 
@@ -64,6 +65,13 @@ from datetime import datetime
 import traceback
 
 import argparse
+
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from pyslam.slam.camera import PinholeCamera
 
 
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -133,6 +141,7 @@ if __name__ == "__main__":
     groundtruth = groundtruth_factory(config.dataset_settings)
 
     camera = PinholeCamera(config)
+    Printer.green(f"Camera: {json.dumps(camera.to_json(), indent=4, cls=SerializableEnumEncoder)}")
 
     # Select your tracker configuration (see the file feature_tracker_configs.py)
     # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
@@ -246,6 +255,9 @@ if __name__ == "__main__":
         img_writer = ImgWriter(font_scale=0.7)
         if False:
             cv2.namedWindow("Camera", cv2.WINDOW_NORMAL)  # to make it resizable if needed
+
+    if viewer3D:
+        print(f"Viewer3D scale: {viewer3D.scale}")
 
     if groundtruth:
         gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()

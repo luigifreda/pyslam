@@ -26,8 +26,8 @@ import cv2
 
 from threading import RLock
 
-from pyslam.utilities.utils_sys import Printer, import_from, is_opencv_version_greater_equal
-from pyslam.utilities.utils_tf import set_tf_logging
+from pyslam.utilities.system import Printer, import_from, is_opencv_version_greater_equal
+from pyslam.utilities.tensorflow import set_tf_logging
 
 
 from .feature_base import BaseFeature2D

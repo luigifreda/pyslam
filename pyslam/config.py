@@ -29,9 +29,10 @@ import numpy as np
 import math
 import ujson as json
 
-from pyslam.utilities.utils_sys import Printer, locally_configure_qt_environment
+from pyslam.utilities.system import Printer, locally_configure_qt_environment
+from pyslam.io.dataset_types import get_sensor_type, SensorType
 
-# from pyslam.utilities.utils_serialization import SerializationJSON
+# from pyslam.utilities.serialization import SerializationJSON
 # import json
 
 # N.B.: this file must stay in the root folder of the repository
@@ -135,7 +136,8 @@ class Config:
     def get_dataset_settings(self):
         self.dataset_type = self.config["DATASET"]["type"]
         self.dataset_settings = self.config[self.dataset_type]
-        self.sensor_type = self.dataset_settings["sensor_type"].lower()
+        sensor_type_str = self.dataset_settings["sensor_type"].lower()
+        self.sensor_type = get_sensor_type(sensor_type_str)
         self.dataset_path = self.dataset_settings["base_path"]
         self.dataset_settings["base_path"] = os.path.join(self.root_folder, self.dataset_path)
         # print('dataset_settings: ', self.dataset_settings)
@@ -151,7 +153,10 @@ class Config:
             input_settings_path = os.path.join(self.root_folder, input_settings_path)
         self.general_settings_filepath = input_settings_path
         # If sensor is stereo and stereo settings exist, use stereo settings
-        if self.sensor_type == "stereo" and "settings_stereo" in self.config[self.dataset_type]:
+        if (
+            self.sensor_type == SensorType.STEREO
+            and "settings_stereo" in self.config[self.dataset_type]
+        ):
             input_stereo_settings_path = self.config[self.dataset_type]["settings_stereo"]
             if not os.path.isabs(input_stereo_settings_path):
                 input_stereo_settings_path = os.path.join(
@@ -256,7 +261,7 @@ class Config:
             if "Camera.k3" in self.cam_settings:
                 k3 = self.cam_settings.get("Camera.k3", 0)
             self._DistCoef = np.array([k1, k2, p1, p2, k3])
-            if self.sensor_type == "stereo":
+            if self.sensor_type == SensorType.STEREO:
                 self._DistCoef = np.array([0, 0, 0, 0, 0])
                 Printer.orange(
                     "[Config] WARNING: Using stereo camera, images are automatically rectified, and DistCoef is set to [0,0,0,0,0]"

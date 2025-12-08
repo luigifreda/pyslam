@@ -23,8 +23,8 @@ import math
 import numpy as np
 import cv2
 
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.serialization import SerializableEnum, register_class
+from pyslam.utilities.system import Printer
 
 from pyslam.config_parameters import Parameters
 

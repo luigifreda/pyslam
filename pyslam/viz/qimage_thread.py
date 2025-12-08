@@ -19,14 +19,15 @@
 
 # import multiprocessing as mp
 import torch.multiprocessing as mp
-from pyslam.utilities.utils_mp import MultiprocessingManager
+from pyslam.utilities.multi_processing import MultiprocessingManager
 
 import numpy as np
 import cv2
 import time
+import traceback
 
-from pyslam.utilities.utils_sys import Logging, locally_configure_qt_environment
-from pyslam.utilities.utils_data import empty_queue
+from pyslam.utilities.system import Logging, locally_configure_qt_environment
+from pyslam.utilities.data_management import empty_queue
 
 try:
     # Prefer the compatibility shim so any installed Qt binding works.
@@ -123,6 +124,25 @@ class Resizer:
         event.accept()
 
 
+def check_image_format(image):
+    """Check if image is grayscale or color and determine appropriate Qt format"""
+    if len(image.shape) == 2:
+        # Grayscale image (height, width)
+        # print(f"Grayscale image: {image.shape}")
+        return QImage.Format_Grayscale8
+    elif len(image.shape) == 3:
+        height, width, channels = image.shape
+        # print(f"Color image: {image.shape}, channels: {channels}")
+        if channels == 1:
+            return QImage.Format_Grayscale8
+        elif channels == 3:
+            # print("Color image")
+            return QImage.Format_BGR888
+        elif channels == 4:
+            return QImage.Format_RGBA8888
+    return QImage.Format_BGR888  # Default fallback
+
+
 class QimageViewer:
     _instance = None
 
@@ -144,6 +164,10 @@ class QimageViewer:
         )
         self.process.start()
 
+    # destructor
+    def __del__(self):
+        self.quit()
+
     @classmethod
     def is_running(cls):
         return (cls._instance is not None) and (cls._instance.is_running.value != 0)
@@ -157,12 +181,45 @@ class QimageViewer:
     def quit(self):
         """Stop the viewer process."""
         print(f"QimageViewer closing...")
+        if self.is_running.value == 0:
+            print(f"QimageViewer already closed")
+            return
         self.is_running.value = 0
+        # Give the process time to finish its current iteration
+        time.sleep(0.1)
+        # Join the process with a timeout
         self.process.join(timeout=5)
         if self.process.is_alive():
             print(f"Warning: QimageViewer process did not terminate in time, forcing kill.")
             self.process.terminate()
         print(f"QimageViewer closed")
+
+    def get_screen_dimensions(self):
+        def_width = 900
+        def_height = 500
+        try:
+            # Try the modern Qt6 approach first
+            screen = self.app.primaryScreen()
+            if screen is not None:
+                screen_rect = screen.geometry()
+                self.screen_width = screen_rect.width()
+                self.screen_height = screen_rect.height()
+            else:
+                # Fallback to default values
+                self.screen_width = def_width
+                self.screen_height = def_height
+        except AttributeError:
+            # Fallback for older Qt versions or if primaryScreen doesn't exist
+            try:
+                desktop = self.app.desktop()
+                screen_rect = desktop.screenGeometry()
+                self.screen_width = screen_rect.width()
+                self.screen_height = screen_rect.height()
+            except AttributeError:
+                # Final fallback to default values
+                self.screen_width = def_width
+                self.screen_height = def_height
+        return self.screen_width, self.screen_height
 
     def init(self):
         locally_configure_qt_environment()
@@ -170,12 +227,7 @@ class QimageViewer:
         self.image_map = {}  # name -> (label,window)
         self.key
         self.offset = 0
-
-        # Fetch desktop dimensions
-        desktop = self.app.desktop()
-        screen_rect = desktop.screenGeometry()
-        self.screen_width = screen_rect.width()
-        self.screen_height = screen_rect.height()
+        self.screen_width, self.screen_height = self.get_screen_dimensions()
 
     def close(self):
         for name, (label, window, resizer) in self.image_map.items():
@@ -249,18 +301,40 @@ class QimageViewer:
     def run(self, queue, key_queue, key, is_running):
         self.key = key
         self.key_queue_thread = key_queue
-        self.init()
+        try:
+            self.init()
+        except Exception as e:
+            print(f"QimageViewer: init: encountered exception: {e}")
+            traceback.print_exc()
+            return
+
         while is_running.value == 1:
-            if not queue.empty():
-                image, name, format = queue.get()
-                if image is not None:
-                    self.update_image(image, name, format)
+            try:
+                if not queue.empty():
+                    image, name, format = queue.get()
+                    if image is not None:
+                        try:
+                            self.update_image(image, name, format)
+                        except Exception as e:
+                            print(f"QimageViewer: update_image: encountered exception: {e}")
+                            traceback.print_exc()
+            except Exception as e:
+                print(f"QimageViewer: Unexpected error: {e}")
+                # traceback.print_exc()
+                break
+
             self.app.processEvents()  # Process PyQt events
             time.sleep(0.01)  # Prevent high CPU usage
-        empty_queue(queue)
+
+        try:
+            empty_queue(queue)
+        except Exception as e:
+            print(f"QimageViewer: Error emptying queue: {e}")
+
         self.close()
 
     def draw(self, image, name, format=QImage.Format_BGR888):
+        format = check_image_format(image)
         if image is not None:
             self.queue.put((image, name, format))
 

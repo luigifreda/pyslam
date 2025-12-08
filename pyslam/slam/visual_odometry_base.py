@@ -22,12 +22,20 @@ import cv2
 import platform
 from enum import Enum
 
-from pyslam.utilities.utils_geom import poseRt, inv_poseRt, xyzq2Tmat
+from pyslam.utilities.geometry import poseRt, inv_poseRt, xyzq2Tmat
 
 from pyslam.utilities.timer import TimerFps
 from pyslam.io.ground_truth import GroundTruth
 from pyslam.io.dataset_types import SensorType
-from pyslam.slam.camera import Camera
+from pyslam.slam import Camera
+
+
+# Type hints for IDE navigation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only imported when type checking, not at runtime
+    from .camera import Camera
 
 
 class VoState(Enum):

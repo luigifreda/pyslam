@@ -23,7 +23,7 @@ from .feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, Feature
 from .feature_matcher import FeatureMatcherTypes
 
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.utils_sys import Printer
+from pyslam.utilities.system import Printer
 
 
 # some default parameters

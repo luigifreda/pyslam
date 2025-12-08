@@ -23,14 +23,14 @@ import math
 import numpy as np
 import platform
 
-from pyslam.utilities.utils_sys import getchar, Printer
+from pyslam.utilities.system import getchar, Printer
 
 from pyslam.config_parameters import Parameters
 
-from pyslam.utilities.utils_files import gdrive_download_lambda
+from pyslam.utilities.file_management import gdrive_download_lambda
 from pyslam.local_features.feature_types import FeatureDetectorTypes, FeatureDescriptorTypes
 
-from pyslam.utilities.utils_serialization import Serializable, register_class
+from pyslam.utilities.serialization import Serializable, register_class
 
 kVerbose = True
 

@@ -18,7 +18,7 @@
 """
 
 from enum import Enum
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class, SerializationJSON
+from pyslam.utilities.serialization import SerializableEnum, register_class, SerializationJSON
 
 from typing import TYPE_CHECKING
 
@@ -49,10 +49,24 @@ class DatasetEnvironmentType(SerializableEnum):
 
 
 @register_class
-class SensorType(SerializableEnum):
+class SensorType(SerializableEnum):  # keep it consistent with C++ SensorType
     MONOCULAR = 0
     STEREO = 1
     RGBD = 2
+
+
+def get_sensor_type(sensor_str: str) -> SensorType:
+    if isinstance(sensor_str, SensorType):
+        return sensor_str
+    sensor_str = sensor_str.lower()
+    if sensor_str == "mono" or sensor_str == "monocular":
+        return SensorType.MONOCULAR
+    elif sensor_str == "stereo":
+        return SensorType.STEREO
+    elif sensor_str == "rgbd":
+        return SensorType.RGBD
+    else:
+        return SensorType.MONOCULAR
 
 
 # A minimal dataset config for serialization

@@ -34,17 +34,17 @@ from gtsam.symbol_shorthand import X, L
 import g2o
 
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.utils_sys import Printer
-from pyslam.utilities.utils_geom import poseRt, inv_T
-from pyslam.slam.sim3_pose import Sim3Pose
-from pyslam.utilities.utils_mp import MultiprocessingManager
+from pyslam.utilities.system import Printer
+from pyslam.utilities.geometry import poseRt, inv_T
+from pyslam.utilities.multi_processing import MultiprocessingManager
 
+from .sim3_pose import Sim3Pose
 from .feature_tracker_shared import FeatureTrackerShared
 from .map_point import MapPoint
 from .keyframe import KeyFrame
 
 
-kMinDepth = 1e-3
+kMinDepth = Parameters.kMinDepth
 kSigmaForFixed = 1e-6
 kWeightForDisabledFactor = 1e-3
 
@@ -152,7 +152,7 @@ def bundle_adjustment(
     for kf in (
         local_frames if fixed_points else keyframes
     ):  # if points are fixed then consider just the local frames, otherwise we need all frames or at least two frames for each point
-        if kf.is_bad:
+        if kf.is_bad():
             continue
         pose_key = X(kf.kid)
         keyframe_keys[kf] = pose_key
@@ -175,11 +175,11 @@ def bundle_adjustment(
 
     # Add points as graph vertices
     for p in points:
-        if p is None or p.is_bad:  # do not consider bad points
+        if p is None or p.is_bad():  # do not consider bad points
             continue
         point_key = L(p.id)
         point_keys[p] = point_key
-        point_position = gtsam.Point3(p.pt[0:3].copy())
+        point_position = gtsam.Point3(p.pt()[0:3].copy())
         initial_estimates.insert(point_key, point_position)
 
         if fixed_points:
@@ -191,7 +191,7 @@ def bundle_adjustment(
 
         # Add measurement factors
         for kf, idx in p.observations():
-            # if kf.is_bad:  # redundant since we check kf is in graph_keyframes (selected as non-bad)
+            # if kf.is_bad():  # redundant since we check kf is in graph_keyframes (selected as non-bad)
             #     continue
             try:
                 pose_key = keyframe_keys[kf]
@@ -340,6 +340,7 @@ def bundle_adjustment(
             else:
                 # update for loop closure
                 kf.Tcw_GBA = Tcw
+                kf.is_Tcw_GBA_valid = True
                 kf.GBA_kf_id = loop_kf_id
 
     # put points back
@@ -358,6 +359,7 @@ def bundle_adjustment(
                 for p, point_key in point_keys.items():
                     # update for loop closure
                     p.pt_GBA = np.asarray(result.atPoint3(point_key))
+                    p.is_pt_GBA_valid = True
                     p.GBA_kf_id = loop_kf_id
 
     num_active_edges = num_edges - num_bad_edges
@@ -707,7 +709,7 @@ class PoseOptimizerGTSAM:
                         X(0),
                         self.K_stereo,
                         gtsam.StereoPoint2(frame_kpsu_idx[0], frame_kps_ur_idx, frame_kpsu_idx[1]),
-                        gtsam.Point3(*p.pt),
+                        gtsam.Point3(*p.pt()),
                     )
                 else:
                     factor, host_factor = self.add_mono_factor(
@@ -715,7 +717,7 @@ class PoseOptimizerGTSAM:
                         X(0),
                         self.K_mono,
                         gtsam.Point2(frame_kpsu_idx[0], frame_kpsu_idx[1]),
-                        gtsam.Point3(*p.pt),
+                        gtsam.Point3(*p.pt()),
                     )
 
                 if not self.use_robust_factors:
@@ -928,7 +930,7 @@ class PoseOptimizerGTSAM_Tcw:
                         X(0),
                         self.K_stereo,
                         gtsam.StereoPoint2(frame_kpsu_idx[0], frame_kps_ur_idx, frame_kpsu_idx[1]),
-                        gtsam.Point3(*p.pt),
+                        gtsam.Point3(*p.pt()),
                     )
                 else:
                     factor, host_factor = self.add_mono_factor(
@@ -936,7 +938,7 @@ class PoseOptimizerGTSAM_Tcw:
                         X(0),
                         self.K_mono,
                         gtsam.Point2(frame_kpsu_idx[0], frame_kpsu_idx[1]),
-                        gtsam.Point3(*p.pt),
+                        gtsam.Point3(*p.pt()),
                     )
 
                 if not self.use_robust_factors:
@@ -1113,11 +1115,11 @@ def local_bundle_adjustment(
     th_huber_mono = np.sqrt(5.991)  # chi-square 2 DOFs
     th_huber_stereo = np.sqrt(7.815)  # chi-square 3 DOFs
 
-    good_keyframes = [kf for kf in keyframes if not kf.is_bad] + [
-        kf for kf in keyframes_ref if not kf.is_bad
+    good_keyframes = [kf for kf in keyframes if not kf.is_bad()] + [
+        kf for kf in keyframes_ref if not kf.is_bad()
     ]
     good_points = [
-        p for p in points if p is not None and not p.is_bad
+        p for p in points if p is not None and not p.is_bad()
     ]  # and any(f in keyframes for f in p.keyframes())]
 
     keyframe_keys = {}
@@ -1148,7 +1150,7 @@ def local_bundle_adjustment(
     for p in good_points:
         point_key = L(p.id)
         point_keys[p] = point_key
-        pt = p.pt[:3].copy()
+        pt = p.pt()[:3].copy()
         initial_estimates.insert(point_key, gtsam.Point3(pt))
 
         if fixed_points:
@@ -1162,7 +1164,7 @@ def local_bundle_adjustment(
 
         # Add reprojection factors
         for kf, p_idx in p.observations():
-            if kf.is_bad:
+            if kf.is_bad():
                 continue
             try:
                 pose_key = keyframe_keys[kf]
@@ -1235,7 +1237,7 @@ def local_bundle_adjustment(
         # check inliers observation
         for (factor, noise_model), (p, kf, p_idx, is_stereo) in graph_factors.items():
 
-            # if p.is_bad: # redundant check since the considered points come from good_points
+            # if p.is_bad(): # redundant check since the considered points come from good_points
             #     continue
 
             factor.set_weight(1.0)  # reset the factor weight to 1.0 to compute a meaningful chi2
@@ -1288,7 +1290,7 @@ def local_bundle_adjustment(
 
     for (factor, noise_model), (p, kf, p_idx, is_stereo) in graph_factors.items():
 
-        # if p.is_bad: # redundant check since the considered points come from good_points
+        # if p.is_bad(): # redundant check since the considered points come from good_points
         #     continue
 
         assert kf.get_point_match(p_idx) is p
@@ -1326,7 +1328,7 @@ def local_bundle_adjustment(
             p_f = kf.get_point_match(p_idx)
             if p_f is not None:
                 assert p_f is p
-                p.remove_observation(kf, p_idx)
+                p.remove_observation(kf, p_idx, map_no_lock=True)
                 # the following instruction is now included in p.remove_observation()
                 # f.remove_point(p)   # it removes multiple point instances (if these are present)
                 # f.remove_point_match(p_idx) # this does not remove multiple point instances, but now there cannot be multiple instances any more
@@ -1596,10 +1598,10 @@ def optimize_sim3(
     num_correspondences = 0
     for i in range(num_matches):
         mp1 = map_points1[i]
-        if mp1 is None or mp1.is_bad:
+        if mp1 is None or mp1.is_bad():
             continue
         mp2 = map_point_matches12[i]  # map point of kf2 matched with i-th map point of kf1
-        if mp2 is None or mp2.is_bad:
+        if mp2 is None or mp2.is_bad():
             continue
 
         index2 = mp2.get_observation_idx(kf2)
@@ -1618,7 +1620,7 @@ def optimize_sim3(
             )
 
             # Create a factor 12 (project mp2_2 on camera 1 by using sim3(R12, t12, s12) to transform mp2_2 in mp2_1)
-            p2_c2 = R2w @ mp2.pt.reshape(3, 1) + t2w
+            p2_c2 = R2w @ mp2.pt().reshape(3, 1) + t2w
             factor_12, host_factor_12 = sim_resectioning_factor_fn(
                 robust_noise_12,
                 X(0),
@@ -1629,7 +1631,7 @@ def optimize_sim3(
             graph.add(factor_12)
 
             # Create a factor 21 (project mp1_1 on camera 2 by using sim3(R21, t21, s21).inverse() to transform mp1_1 in mp1_2)
-            p1_c1 = R1w @ mp1.pt.reshape(3, 1) + t1w
+            p1_c1 = R1w @ mp1.pt().reshape(3, 1) + t1w
             factor_21, host_factor_21 = sim_inv_resectioning_factor_fn(
                 robust_noise_21,
                 X(0),
@@ -1830,7 +1832,7 @@ def optimize_essential_graph(
 
     # Set KeyFrame intial values
     for keyframe in all_keyframes:
-        if keyframe.is_bad:
+        if keyframe.is_bad():
             continue
 
         keyframe_id = keyframe.kid
@@ -1963,7 +1965,7 @@ def optimize_essential_graph(
                 connected_keyframe != parent_keyframe
                 and not keyframe.has_child(connected_keyframe)
                 and connected_keyframe.kid < keyframe_id
-                and not connected_keyframe.is_bad
+                and not connected_keyframe.is_bad()
                 and (
                     min(keyframe_id, connected_keyframe.kid),
                     max(keyframe_id, connected_keyframe.kid),
@@ -2028,7 +2030,7 @@ def optimize_essential_graph(
 
     # Correct points: Transform to "non-optimized" reference keyframe pose and transform back with optimized pose
     for map_point in all_map_points:
-        if map_point.is_bad:
+        if map_point.is_bad():
             continue
 
         if map_point.corrected_by_kf == current_keyframe.kid:
@@ -2042,7 +2044,7 @@ def optimize_essential_graph(
         if Srw is None or corrected_Swr is None:
             continue
 
-        P3Dw = map_point.pt
+        P3Dw = map_point.pt()
         corrected_P3Dw = corrected_Swr.map(Srw.map(P3Dw)).ravel()
         map_point.update_position(corrected_P3Dw)
 

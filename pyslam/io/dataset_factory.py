@@ -28,13 +28,19 @@ import csv
 import re
 
 from multiprocessing import Process, Queue, Value
-from pyslam.utilities.utils_sys import Printer, import_from
-from pyslam.utilities.utils_serialization import SerializableEnum, register_class, SerializationJSON
-from pyslam.utilities.utils_string import levenshtein_distance
+from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.serialization import SerializableEnum, register_class, SerializationJSON
+from pyslam.utilities.strings import levenshtein_distance
 
 import ujson as json
 
-from .dataset_types import DatasetType, SensorType, DatasetEnvironmentType, MinimalDatasetConfig
+from .dataset_types import (
+    DatasetType,
+    SensorType,
+    DatasetEnvironmentType,
+    MinimalDatasetConfig,
+    get_sensor_type,
+)
 from .dataset import (
     Dataset,
     FolderDataset,
@@ -75,12 +81,7 @@ def dataset_factory(config: "Config") -> Dataset:
 
     sensor_type = SensorType.MONOCULAR
     if "sensor_type" in dataset_settings:
-        if dataset_settings["sensor_type"].lower() == "mono":
-            sensor_type = SensorType.MONOCULAR
-        if dataset_settings["sensor_type"].lower() == "stereo":
-            sensor_type = SensorType.STEREO
-        if dataset_settings["sensor_type"].lower() == "rgbd":
-            sensor_type = SensorType.RGBD
+        sensor_type = get_sensor_type(dataset_settings["sensor_type"])
     Printer.green(f"dataset_factory - sensor_type: {sensor_type.name}")
 
     if "environment_type" in dataset_settings:

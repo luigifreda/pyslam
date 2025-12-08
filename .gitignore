@@ -29,6 +29,7 @@ thirdparty/g2opy/.cache
 thirdparty/pydbow2/.cache
 thirdparty/pydbow2/modules/dbow2/.cache
 thirdparty/pydbow3/.cache
+thirdparty/pydbow3/modules/dbow3/.cache
 
 matches.txt 
 map.png
@@ -83,3 +84,4 @@ cpp/lib/
 constraints.txt
 
 pyslam.egg-info
+gmon.out

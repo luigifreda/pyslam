@@ -18,6 +18,9 @@
  */
 #pragma once
 
+// NOTE: The actual path of this file is cpp/casters/opencv_type_casters.h
+//       We actually created a symlink to this file in other places of the project
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>

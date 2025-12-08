@@ -27,6 +27,7 @@
 #include <pybind11/stl.h>
 
 #include "map_point.h"
+#include "utils/map_helpers.h"
 
 namespace py = pybind11;
 
@@ -40,7 +41,9 @@ void bind_map_point(py::module &m) {
         .def_readwrite("map", &pyslam::MapPointBase::map)
         .def_readwrite("_observations", &pyslam::MapPointBase::_observations)
         .def_readwrite("_frame_views", &pyslam::MapPointBase::_frame_views)
-        .def_readwrite("_is_bad", &pyslam::MapPointBase::_is_bad)
+        .def_property(
+            "_is_bad", [](const pyslam::MapPointBase &self) { return self._is_bad.load(); },
+            [](pyslam::MapPointBase &self, bool value) { self._is_bad.store(value); })
         .def_readwrite("_num_observations", &pyslam::MapPointBase::_num_observations)
         .def_readwrite("num_times_visible", &pyslam::MapPointBase::num_times_visible)
         .def_readwrite("num_times_found", &pyslam::MapPointBase::num_times_found)
@@ -57,7 +60,7 @@ void bind_map_point(py::module &m) {
         .def("get_observation_idx", &pyslam::MapPointBase::get_observation_idx)
         .def("add_observation", &pyslam::MapPointBase::add_observation)
         .def("remove_observation", &pyslam::MapPointBase::remove_observation, py::arg("keyframe"),
-             py::arg("idx") = -1)
+             py::arg("idx") = -1, py::arg("map_no_lock") = false)
         .def("frame_views", &pyslam::MapPointBase::frame_views)
         .def("frame_views_iter", &pyslam::MapPointBase::frame_views_iter)
         .def("frames", &pyslam::MapPointBase::frames)
@@ -65,14 +68,15 @@ void bind_map_point(py::module &m) {
         .def("is_in_frame", &pyslam::MapPointBase::is_in_frame)
         .def("add_frame_view", &pyslam::MapPointBase::add_frame_view)
         .def("remove_frame_view", &pyslam::MapPointBase::remove_frame_view)
-        .def_property_readonly("is_bad", &pyslam::MapPointBase::is_bad)
+        //.def("is_bad", &pyslam::MapPointBase::is_bad)
+        .def("is_bad", &pyslam::MapPointBase::is_bad, py::call_guard<py::gil_scoped_release>())
         .def("num_observations", &pyslam::MapPointBase::num_observations)
         .def("is_good_with_min_obs", &pyslam::MapPointBase::is_good_with_min_obs)
         .def("is_bad_and_is_good_with_min_obs",
              &pyslam::MapPointBase::is_bad_and_is_good_with_min_obs)
         .def("is_bad_or_is_in_keyframe", &pyslam::MapPointBase::is_bad_or_is_in_keyframe)
-        .def("increase_visible", &pyslam::MapPointBase::increase_visible)
-        .def("increase_found", &pyslam::MapPointBase::increase_found)
+        .def("increase_visible", &pyslam::MapPointBase::increase_visible, py::arg("num_times") = 1)
+        .def("increase_found", &pyslam::MapPointBase::increase_found, py::arg("num_times") = 1)
         .def("get_found_ratio", &pyslam::MapPointBase::get_found_ratio)
         .def("observations_string", &pyslam::MapPointBase::observations_string)
         .def("frame_views_string", &pyslam::MapPointBase::frame_views_string)
@@ -87,12 +91,24 @@ void bind_map_point(py::module &m) {
     py::class_<pyslam::MapPoint, pyslam::MapPointBase, std::shared_ptr<pyslam::MapPoint>>(
         m, "MapPoint")
         .def(py::init([](const Eigen::Vector3d &position,
+                         const Eigen::Matrix<unsigned char, 3, 1> &color) {
+                 return std::make_shared<pyslam::MapPoint>(position, color);
+             }),
+             py::arg("position"), py::arg("color"))
+        .def(py::init([](const Eigen::Vector3d &position,
                          const Eigen::Matrix<unsigned char, 3, 1> &color,
                          pyslam::KeyFramePtr keyframe, int idxf, int id) {
                  return std::make_shared<pyslam::MapPoint>(position, color, keyframe, idxf, id);
              }),
-             py::arg("position"), py::arg("color"), py::arg("keyframe") = nullptr,
-             py::arg("idxf") = -1, py::arg("id") = -1)
+             py::arg("position"), py::arg("color"), py::arg("keyframe"), py::arg("idxf") = -1,
+             py::arg("id") = -1)
+        .def(py::init([](const Eigen::Vector3d &position,
+                         const Eigen::Matrix<unsigned char, 3, 1> &color, pyslam::FramePtr frame,
+                         int idxf, int id) {
+                 return std::make_shared<pyslam::MapPoint>(position, color, frame, idxf, id);
+             }),
+             py::arg("position"), py::arg("color"), py::arg("keyframe"), py::arg("idxf") = -1,
+             py::arg("id") = -1)
 
         // Safer Eigen exposure: copy out, set explicitly
         .def_property(
@@ -117,9 +133,10 @@ void bind_map_point(py::module &m) {
             "pt_GBA", [](const pyslam::MapPoint &self) { return self.pt_GBA; }, // copy
             [](pyslam::MapPoint &self, const Eigen::Vector3d &v) { self.pt_GBA = v; })
         .def_readwrite("GBA_kf_id", &pyslam::MapPoint::GBA_kf_id)
+        .def_readwrite("is_pt_GBA_valid", &pyslam::MapPoint::is_pt_GBA_valid)
 
         // Derived getters: copy out to avoid dangling refs
-        .def_property_readonly("pt", [](const pyslam::MapPoint &self) { return self.pt(); }) // copy
+        .def("pt", [](const pyslam::MapPoint &self) { return self.pt(); })                   // copy
         .def("homogeneous", [](const pyslam::MapPoint &self) { return self.homogeneous(); }) // copy
 
         // Mutators / queries
@@ -130,14 +147,17 @@ void bind_map_point(py::module &m) {
         .def("get_reference_keyframe", &pyslam::MapPoint::get_reference_keyframe)
         .def("descriptors", &pyslam::MapPoint::descriptors)
         .def("min_des_distance", &pyslam::MapPoint::min_des_distance)
-        .def("delete_point", &pyslam::MapPoint::delete_point)
-        .def("set_bad", &pyslam::MapPoint::set_bad)
+        .def("delete", &pyslam::MapPoint::delete_point)
+        .def("set_bad", &pyslam::MapPoint::set_bad, py::arg("map_no_lock") = false)
         .def("get_replacement", &pyslam::MapPoint::get_replacement)
         .def("get_normal", [](const pyslam::MapPoint &self) { return self.get_normal(); }) // copy
         .def("replace_with", &pyslam::MapPoint::replace_with)
-        .def("update_normal_and_depth", &pyslam::MapPoint::update_normal_and_depth)
-        .def("update_best_descriptor", &pyslam::MapPoint::update_best_descriptor)
-        .def("update_semantics", &pyslam::MapPoint::update_semantics)
+        .def("update_normal_and_depth", &pyslam::MapPoint::update_normal_and_depth,
+             py::arg("force") = false)
+        .def("update_best_descriptor", &pyslam::MapPoint::update_best_descriptor,
+             py::arg("force") = false)
+        .def("update_semantics", &pyslam::MapPoint::update_semantics,
+             py::arg("semantic_fusion_method") = nullptr, py::arg("force") = false)
         .def("update_info", &pyslam::MapPoint::update_info)
         .def("predict_detection_level", &pyslam::MapPoint::predict_detection_level)
         .def("to_json", &pyslam::MapPoint::to_json)
@@ -145,22 +165,27 @@ void bind_map_point(py::module &m) {
         .def("replace_ids_with_objects", &pyslam::MapPoint::replace_ids_with_objects)
         .def("set_pt_GBA", &pyslam::MapPoint::set_pt_GBA)
         .def("set_GBA_kf_id", &pyslam::MapPoint::set_GBA_kf_id)
+        .def_static("predict_detection_levels", &pyslam::MapPoint::predict_detection_levels)
 
         // Pickle
         .def(py::pickle([](const pyslam::MapPoint &self) { return self.state_tuple(); },
                         [](py::tuple t) {
                             const Eigen::Vector3d default_position(0, 0, 0);
                             const Eigen::Matrix<unsigned char, 3, 1> default_color(255, 255, 255);
-                            auto mp = std::make_shared<pyslam::MapPoint>(
-                                default_position, default_color, nullptr, -1, -1);
+                            auto mp =
+                                std::make_shared<pyslam::MapPoint>(default_position, default_color);
                             mp->restore_from_state(t);
                             return mp;
                         }))
         //.def("__setstate__", [](pyslam::MapPoint &self, py::tuple t) { self.restore_from_state(t);
         //})
         .def("__getstate__", &pyslam::MapPoint::state_tuple)
-        .def("__del__", [](pyslam::MapPoint &self) {
-            // Ensure cleanup happens before destruction
-            self.clear_references();
-        });
+        .def("__del__",
+             [](pyslam::MapPoint &self) {
+                 // Ensure cleanup happens before destruction
+                 self.clear_references();
+             })
+        // Add a method to check if the MapPoint is valid for pybind11 operations
+        .def("is_valid_for_python",
+             [](const pyslam::MapPoint &self) { return !self.is_bad() && self.id >= 0; });
 } // bind_map_point

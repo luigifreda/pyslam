@@ -6,6 +6,9 @@ project(cpp_core)
 
 set(PYSLAM_CPP_CORE_VERSION_INFO 0.1.0)
 
+
+OPTION(USE_PYTHON "Use Python" ON)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,6 +29,10 @@ if (CMAKE_BUILD_TYPE MATCHES Release)
 elseif (CMAKE_BUILD_TYPE MATCHES Debug)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -O1 -march=native -fPIC -pg")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -march=native -fPIC -pg")
+endif()
+
+if (USE_PYTHON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_PYTHON=1")
 endif()
 
 
@@ -55,10 +62,12 @@ set(pybind11_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/pybin
 include_directories(${pybind11_INCLUDE_DIRS})
 
 # Add Python development
-find_package(Python COMPONENTS Interpreter Development REQUIRED)
-message(STATUS "Python_INCLUDE_DIRS: ${Python_INCLUDE_DIRS}")
-message(STATUS "Python_LIBRARIES: ${Python_LIBRARIES}")
-include_directories(${Python_INCLUDE_DIRS})
+if (USE_PYTHON)
+    find_package(Python COMPONENTS Interpreter Development REQUIRED)
+    message(STATUS "Python_INCLUDE_DIRS: ${Python_INCLUDE_DIRS}")
+    message(STATUS "Python_LIBRARIES: ${Python_LIBRARIES}")
+    include_directories(${Python_INCLUDE_DIRS})
+endif()
 
 # Add g2o from thirdparty
 set(G2O_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty/g2opy")
@@ -86,20 +95,35 @@ include_directories(${G2O_INCLUDE_DIRS})
 
 set(SLAM_CPP_CORE_SOURCES
     ${PYSLAM_SLAM_SRC}/map_point.cpp
-    ${PYSLAM_SLAM_SRC}/map_point_serialization.cpp
+    ${PYSLAM_SLAM_SRC}/map_point_serialization_json.cpp
     ${PYSLAM_SLAM_SRC}/frame.cpp
-    ${PYSLAM_SLAM_SRC}/frame_serialization.cpp
+    ${PYSLAM_SLAM_SRC}/frame_serialization_json.cpp
     ${PYSLAM_SLAM_SRC}/keyframe.cpp
-    ${PYSLAM_SLAM_SRC}/keyframe_serialization.cpp
+    ${PYSLAM_SLAM_SRC}/keyframe_serialization_json.cpp
     ${PYSLAM_SLAM_SRC}/map.cpp
-    ${PYSLAM_SLAM_SRC}/map_serialization.cpp
+    ${PYSLAM_SLAM_SRC}/map_serialization_json.cpp
     ${PYSLAM_SLAM_SRC}/map_points.cpp
     ${PYSLAM_SLAM_SRC}/camera_pose.cpp
     ${PYSLAM_SLAM_SRC}/camera.cpp
-    ${PYSLAM_SLAM_SRC}/feature_shared_info.cpp
+    ${PYSLAM_SLAM_SRC}/camera_serialization_json.cpp
+    ${PYSLAM_SLAM_SRC}/feature_shared_resources.cpp
     ${PYSLAM_SLAM_SRC}/utils/features.cpp    
+    ${PYSLAM_SLAM_SRC}/utils/geom_2views.cpp
     ${PYSLAM_SLAM_SRC}/optimizer_g2o.cpp
+    ${PYSLAM_SLAM_SRC}/tracking_utils.cpp
+    ${PYSLAM_SLAM_SRC}/config_parameters.cpp
+    ${PYSLAM_SLAM_SRC}/geometry_matchers.cpp
 )
+
+if (USE_PYTHON)
+    set(SLAM_CPP_CORE_SOURCES
+        ${SLAM_CPP_CORE_SOURCES}
+        ${PYSLAM_SLAM_SRC}/camera_serialization_py.cpp
+        ${PYSLAM_SLAM_SRC}/map_point_serialization_py.cpp
+        ${PYSLAM_SLAM_SRC}/frame_serialization_py.cpp
+        ${PYSLAM_SLAM_SRC}/keyframe_serialization_py.cpp
+    )
+endif()
 
 set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/ckdtree_eigen.h
@@ -109,18 +133,33 @@ set(SLAM_CPP_CORE_HEADERS
     ${PYSLAM_SLAM_SRC}/map.h
     ${PYSLAM_SLAM_SRC}/camera_pose.h
     ${PYSLAM_SLAM_SRC}/camera.h
-    ${PYSLAM_SLAM_SRC}/feature_shared_info.h
+    ${PYSLAM_SLAM_SRC}/feature_shared_resources.h
     ${PYSLAM_SLAM_SRC}/dictionary.h
     ${PYSLAM_SLAM_SRC}/optimizer_g2o.h
     ${PYSLAM_SLAM_SRC}/utils/descriptor_helpers.h
     ${PYSLAM_SLAM_SRC}/utils/eigen_helpers.h
-    ${PYSLAM_SLAM_SRC}/utils/numpy_helpers.h  # for serialization
     ${PYSLAM_SLAM_SRC}/utils/features.h
     ${PYSLAM_SLAM_SRC}/utils/messages.h    
-    ${PYSLAM_SLAM_SRC}/utils/serialization.h    
+    ${PYSLAM_SLAM_SRC}/utils/image_processing.h
+    ${PYSLAM_SLAM_SRC}/utils/serialization_json.h    
     ${PYSLAM_SLAM_SRC}/utils/cv_ops.h
+    ${PYSLAM_SLAM_SRC}/utils/accessors.h
+    ${PYSLAM_SLAM_SRC}/utils/geom_2views.h
     ${PYSLAM_SLAM_SRC}/eigen_aliases.h
+    ${PYSLAM_SLAM_SRC}/tracking_utils.h
+    ${PYSLAM_SLAM_SRC}/rotation_histogram.h
+    ${PYSLAM_SLAM_SRC}/config_parameters.h
+    ${PYSLAM_SLAM_SRC}/geometry_matchers.h
 )
+
+if (USE_PYTHON)
+    set(SLAM_CPP_CORE_HEADERS
+        ${SLAM_CPP_CORE_HEADERS}
+        ${PYSLAM_SLAM_SRC}/utils/serialization_numpy.h        
+        ${PYSLAM_SLAM_SRC}/utils/numpy_helpers.h  # for serialization    
+    )
+endif()
+
 
 # cpp core semantics 
 
@@ -142,7 +181,6 @@ set(SLAM_CPP_PYBIND_MODULE_SOURCES
     ${PYSLAM_SLAM_SRC}/py_module/cpp_core_module.cpp
 )
 
-
 set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/casters/dictionary_casters.h
     ${PYSLAM_SLAM_SRC}/casters/opencv_type_casters.h
@@ -150,13 +188,16 @@ set(SLAM_CPP_PYBIND_MODULE_HEADERS
     ${PYSLAM_SLAM_SRC}/py_module/ckdtree_module.h
     ${PYSLAM_SLAM_SRC}/py_module/camera_module.h
     ${PYSLAM_SLAM_SRC}/py_module/map_point_module.h
-    ${PYSLAM_SLAM_SRC}/py_module/feature_shared_info_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/feature_shared_resources_module.h
     ${PYSLAM_SLAM_SRC}/py_module/frame_module.h
     ${PYSLAM_SLAM_SRC}/py_module/keyframe_module.h
     ${PYSLAM_SLAM_SRC}/py_module/optimizer_g2o_module.h
     ${PYSLAM_SLAM_SRC}/py_module/sim3_pose_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/eigen_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/tracking_utils_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/rotation_histogram_module.h
+    ${PYSLAM_SLAM_SRC}/py_module/geometry_matchers_module.h
 )
-
 
 # all source and header files
 
@@ -187,13 +228,15 @@ file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 add_library(cpp_core_lib STATIC ${CPP_CORE_SOURCES} ${CPP_CORE_HEADERS})
 
 # Link libraries
-target_link_libraries(cpp_core_lib PRIVATE
-    ${CPP_CORE_LINK_LIBRARIES}
-    ${Python_LIBRARIES}    
-)
+target_link_libraries(cpp_core_lib PRIVATE ${CPP_CORE_LINK_LIBRARIES})
 
 # Include directories
-target_include_directories(cpp_core_lib SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR} ${Python_INCLUDE_DIRS})
+target_include_directories(cpp_core_lib SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
+
+if (USE_PYTHON)
+target_link_libraries(cpp_core_lib PRIVATE ${Python_LIBRARIES})
+target_include_directories(cpp_core_lib SYSTEM PRIVATE ${Python_INCLUDE_DIRS})
+endif()
 
 # Compiler flags
 target_compile_definitions(cpp_core_lib PRIVATE 
@@ -211,29 +254,33 @@ set_target_properties(cpp_core_lib PROPERTIES
 #=======================================
 # Create the pybind11 module using the static library
 #=======================================
-pybind11_add_module(cpp_core ${SLAM_CPP_PYBIND_MODULE_SOURCES} ${SLAM_CPP_PYBIND_MODULE_HEADERS})
-add_dependencies(cpp_core cpp_core_lib)
+if (USE_PYTHON)
 
-# Link the static library instead of compiling sources again
-target_link_libraries(cpp_core PRIVATE
-    cpp_core_lib  # Link the static library
-    ${CPP_CORE_LINK_LIBRARIES}
-    ${Python_LIBRARIES}
-)
+    pybind11_add_module(cpp_core ${SLAM_CPP_PYBIND_MODULE_SOURCES} ${SLAM_CPP_PYBIND_MODULE_HEADERS})
+    add_dependencies(cpp_core cpp_core_lib)
 
-# Treat Eigen headers as SYSTEM to silence warnings originating from Eigen itself
-target_include_directories(cpp_core SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR} ${Python_INCLUDE_DIRS})
+    # Link the static library instead of compiling sources again
+    target_link_libraries(cpp_core PRIVATE
+        cpp_core_lib  # Link the static library
+        ${CPP_CORE_LINK_LIBRARIES}
+        ${Python_LIBRARIES}
+    )
 
-# Compiler flags
-target_compile_definitions(cpp_core PRIVATE 
-    VERSION_INFO=${PYSLAM_CPP_CORE_VERSION_INFO}
-    PYBIND11_DETAILED_ERROR_MESSAGES
-)
+    # Treat Eigen headers as SYSTEM to silence warnings originating from Eigen itself
+    target_include_directories(cpp_core SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR} ${Python_INCLUDE_DIRS})
 
-# Set output directory
-set_target_properties(cpp_core PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib
-)
+    # Compiler flags
+    target_compile_definitions(cpp_core PRIVATE 
+        VERSION_INFO=${PYSLAM_CPP_CORE_VERSION_INFO}
+        PYBIND11_DETAILED_ERROR_MESSAGES
+    )
+
+    # Set output directory
+    set_target_properties(cpp_core PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib
+    )
+
+endif()
 
 #=======================================
 # Add C++ test examples
@@ -244,7 +291,14 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tests_cpp" tests_cpp)
 #=======================================
 # Install target
 #=======================================
-install(TARGETS cpp_core cpp_core_lib
+
+if (USE_PYTHON)
+    install(TARGETS cpp_core
+        LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/lib
+    )
+endif()
+
+install(TARGETS cpp_core_lib
     LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 
