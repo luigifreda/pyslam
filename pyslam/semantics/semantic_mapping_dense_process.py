@@ -246,6 +246,7 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
 
         # Find the correct keyframe matching the prediction's frame_id
         kf_target = None
+        keyframes = None  # Initialize for use in error message
         if self.kf_cur is not None and self.kf_cur.id == perception_output.frame_id:
             # Current keyframe matches - use it
             kf_target = self.kf_cur
@@ -258,9 +259,27 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
                     break
 
         if kf_target is None:
-            Printer.red(
-                f"semantic mapping: no keyframe found for frame_id {perception_output.frame_id}"
-            )
+            # This can happen when:
+            # 1. The keyframe was removed from the map (e.g., during loop closure or optimization)
+            # 2. The semantic segmentation result arrived after the keyframe was removed
+            # 3. This is expected behavior in async processing - just skip this result
+            if keyframes is None:
+                keyframes = self.map.get_keyframes()
+            keyframes_list = list(keyframes)
+            if len(keyframes_list) > 0:
+                current_kf_ids = [kf.id for kf in keyframes_list[-5:]]  # Last 5 keyframes
+                max_kf_id = max(kf.id for kf in keyframes_list)
+                min_kf_id = min(kf.id for kf in keyframes_list)
+                SemanticMappingBase.print(
+                    f"semantic mapping: skipping frame_id {perception_output.frame_id} "
+                    f"(keyframe was removed from map). "
+                    f"Current keyframe IDs: {min_kf_id}-{max_kf_id}, recent: {current_kf_ids}"
+                )
+            else:
+                SemanticMappingBase.print(
+                    f"semantic mapping: skipping frame_id {perception_output.frame_id} "
+                    f"(no keyframes in map)"
+                )
             return
 
         # Temporarily set kf_cur to the correct keyframe for this prediction

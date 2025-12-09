@@ -8,6 +8,9 @@ ENDIF()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Generate compile_commands.json for clangd and other tools
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
 set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
 
@@ -168,13 +171,16 @@ target_link_libraries(trajectory_tools PRIVATE
 )
 
 pybind11_add_module(volumetric 
-volumetric/volumetric_module.cpp)
+volumetric/volumetric_module.cpp
+volumetric/camera_frustrum.cpp
+volumetric/bounding_boxes.cpp)
 if(TBB_FOUND)
     target_compile_definitions(volumetric PRIVATE TBB_FOUND)
 endif()
 target_link_libraries(volumetric PRIVATE
     ${Open3D_LIBRARIES}
     ${TBB_LINK_LIBS}
+    ${OpenCV_LIBS}
 )
 
 # pybind11_add_module(cv2_pyslam cv2_pyslam_module.cpp)

@@ -41,6 +41,7 @@ from volumetric import (
     VoxelBlockSemanticGrid,
     VoxelBlockSemanticProbabilisticGrid,
     TBBUtils,
+    CameraFrustrum,
 )
 
 import traceback
@@ -120,6 +121,23 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
             )
         else:
             self.volume = VoxelSemanticGrid(voxel_size=Parameters.kVolumetricIntegrationVoxelLength)
+
+        carving_depth_max = (
+            Parameters.kVolumetricIntegrationGridCarvingDepthMaxIndoor
+            if environment_type == DatasetEnvironmentType.INDOOR
+            else Parameters.kVolumetricIntegrationGridCarvingDepthMaxOutdoor
+        )
+        self.camera_frustrum = CameraFrustrum(
+            self.camera.fx,
+            self.camera.fy,
+            self.camera.cx,
+            self.camera.cy,
+            self.camera.width,
+            self.camera.height,
+            np.eye(4),
+            depth_max=carving_depth_max,  # depth_max
+            depth_min=Parameters.kVolumetricIntegrationGridCarvingDepthMin,  # depth_min
+        )
 
         try:
             # Settings for semantic integration:
@@ -256,7 +274,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
 
                             # Filter depth
                             filter_depth = (
-                                Parameters.kVolumetricIntegratorGridShadowPointsFilter
+                                Parameters.kVolumetricIntegrationGridShadowPointsFilter
                             )  # do you want to filter the depth?
                             if filter_depth:
                                 depth_filtered = filter_shadow_points(
@@ -333,11 +351,26 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             # to the existing instance ids in the volumetric grid
                             instance_ids = None
 
+                            if Parameters.kVolumetricIntegrationGridUseCarving:
+                                VolumetricIntegratorBase.print(
+                                    f"VolumetricIntegratorVoxelGrid: using carving with threshold: {Parameters.kVolumetricIntegrationGridCarvingDepthThreshold}"
+                                )
+                                self.camera_frustrum.set_T_cw(pose)
+                                # Ensure depth is in float32 format for C++ binding
+                                depth_for_carving = np.ascontiguousarray(
+                                    depth_undistorted, dtype=np.float32
+                                )
+                                self.volume.carve(
+                                    self.camera_frustrum,
+                                    depth_for_carving,
+                                    Parameters.kVolumetricIntegrationGridCarvingDepthThreshold,
+                                )
+
                             self.volume.integrate(
                                 points,
                                 colors,
+                                class_ids=semantics,  # class_ids (required positional parameter)
                                 instance_ids=instance_ids,
-                                class_ids=semantics,
                                 depths=depths,  # used to compute confidence weights for semantics
                             )
 
@@ -358,8 +391,8 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             f"VolumetricIntegratorVoxelSemanticGrid: saving point cloud to: {save_path}"
                         )
                         voxel_grid_data = self.volume.get_voxels(
-                            min_count=Parameters.kVolumetricIntegratorGridMinCount,
-                            min_confidence=Parameters.kVolumetricIntegratorGridMinConfidence,
+                            min_count=Parameters.kVolumetricIntegrationGridMinCount,
+                            min_confidence=Parameters.kVolumetricIntegrationGridMinConfidence,
                         )
                         points = np.asarray(voxel_grid_data.points, dtype=np.float64)
                         colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
@@ -384,8 +417,8 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                     if do_output:
                         mesh_out, pc_out = None, None
                         voxel_grid_data = self.volume.get_voxels(
-                            min_count=Parameters.kVolumetricIntegratorGridMinCount,
-                            min_confidence=Parameters.kVolumetricIntegratorGridMinConfidence,
+                            min_count=Parameters.kVolumetricIntegrationGridMinCount,
+                            min_confidence=Parameters.kVolumetricIntegrationGridMinConfidence,
                         )
                         # Convert C++ vectors to numpy arrays with proper shape and dtype
                         points = np.asarray(voxel_grid_data.points, dtype=np.float64)

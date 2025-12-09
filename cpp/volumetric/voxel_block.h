@@ -49,8 +49,8 @@ template <typename VoxelDataT> struct VoxelBlockT {
     const int block_size_squared;
 
 #ifdef TBB_FOUND
-    // Mutex for thread-safe access in parallel mode
-    // NOTE: We need it to avoid accessing a voxel data from different threads.
+    // Mutex for thread-safe access in parallel mode, depending on the used approach.
+    // NOTE: When used, it avoids accessing a voxel data from different threads.
     mutable std::unique_ptr<std::mutex> mutex;
 #endif
 

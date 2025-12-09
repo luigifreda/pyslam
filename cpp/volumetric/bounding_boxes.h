@@ -23,6 +23,8 @@
 #include <cmath>
 #include <vector>
 
+namespace volumetric {
+
 // ================================================
 // Bounding boxes in 3D
 // ================================================
@@ -44,46 +46,25 @@ struct BoundingBox3D {
         : min_x(min_point.x()), min_y(min_point.y()), min_z(min_point.z()), max_x(max_point.x()),
           max_y(max_point.y()), max_z(max_point.z()) {}
 
-    Eigen::Vector3d get_min_point() const { return Eigen::Vector3d(min_x, min_y, min_z); }
-    Eigen::Vector3d get_max_point() const { return Eigen::Vector3d(max_x, max_y, max_z); }
+    Eigen::Vector3d get_min_point() const;
+    Eigen::Vector3d get_max_point() const;
 
-    Eigen::Vector3d get_center() const {
-        return Eigen::Vector3d((min_x + max_x) / 2.0, (min_y + max_y) / 2.0, (min_z + max_z) / 2.0);
-    }
-    Eigen::Vector3d get_size() const {
-        return Eigen::Vector3d(max_x - min_x, max_y - min_y, max_z - min_z);
-    }
+    Eigen::Vector3d get_center() const;
+    Eigen::Vector3d get_size() const;
 
-    double get_volume() const { return (max_x - min_x) * (max_y - min_y) * (max_z - min_z); }
+    double get_volume() const;
 
-    double get_surface_area() const {
-        return 2.0 * ((max_x - min_x) * (max_y - min_y) + (max_x - min_x) * (max_z - min_z) +
-                      (max_y - min_y) * (max_z - min_z));
-    }
+    double get_surface_area() const;
 
-    double get_diagonal_length() const {
-        return std::sqrt((max_x - min_x) * (max_x - min_x) + (max_y - min_y) * (max_y - min_y) +
-                         (max_z - min_z) * (max_z - min_z));
-    }
+    double get_diagonal_length() const;
 
-    bool contains(const Eigen::Vector3d &point_w) const {
-        return point_w.x() >= min_x && point_w.x() <= max_x && point_w.y() >= min_y &&
-               point_w.y() <= max_y && point_w.z() >= min_z && point_w.z() <= max_z;
-    }
+    template <typename T> bool contains(const T x_w, const T y_w, const T z_w) const;
+    template <typename T> bool contains(const Eigen::Matrix<T, 3, 1> &point_w) const;
 
-    std::vector<bool> contains(const std::vector<Eigen::Vector3d> &points_w) const {
-        std::vector<bool> contains_mask(points_w.size(), false);
-        for (size_t i = 0; i < points_w.size(); i++) {
-            contains_mask[i] = contains(points_w[i]);
-        }
-        return contains_mask;
-    }
+    template <typename T>
+    std::vector<bool> contains(const std::vector<Eigen::Matrix<T, 3, 1>> &points_w) const;
 
-    bool intersects(const BoundingBox3D &other) const {
-        return (min_x <= other.max_x && max_x >= other.min_x) &&
-               (min_y <= other.max_y && max_y >= other.min_y) &&
-               (min_z <= other.max_z && max_z >= other.min_z);
-    }
+    bool intersects(const BoundingBox3D &other) const;
 };
 
 // Oriented bounding box (OBB) in 3D
@@ -101,99 +82,23 @@ struct OrientedBoundingBox3D {
                           const Eigen::Vector3d &size)
         : center(center), orientation(orientation), size(size) {}
 
-    double get_volume() const { return size.x() * size.y() * size.z(); }
+    double get_volume() const;
 
-    double get_surface_area() const {
-        return 2.0 * ((size.x() * size.y()) + (size.x() * size.z()) + (size.y() * size.z()));
-    }
-    double get_diagonal_length() const {
-        return std::sqrt((size.x() * size.x()) + (size.y() * size.y()) + (size.z() * size.z()));
-    }
+    double get_surface_area() const;
+    double get_diagonal_length() const;
 
     // get the corners of the OBB in world coordinates
-    std::vector<Eigen::Vector3d> get_corners() const {
-        std::vector<Eigen::Vector3d> corners;
-        corners.reserve(8);
-        const Eigen::Quaterniond q_norm = orientation.normalized();
-        const Eigen::Matrix3d R_wo =
-            q_norm.toRotationMatrix(); // from object-attached axes to world coordinates,
-                                       // p_w = R_wo * p_o + center
-        const Eigen::Vector3d half_size = size / 2.0;
+    std::vector<Eigen::Vector3d> get_corners() const;
 
-        // Assuming object-attached axes coordinates are x=right, y=down, z=forward
-        // Near plane corners (z = -1) - object-attached axes coordinates
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(
-                                              Eigen::Vector3d(1.0, 1.0, -1.0)))); // front-left-near
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(Eigen::Vector3d(
-                                              -1.0, 1.0, -1.0)))); // front-right-near
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(Eigen::Vector3d(
-                                              -1.0, -1.0, -1.0)))); // back-right-near
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(
-                                              Eigen::Vector3d(1.0, -1.0, -1.0)))); // back-left-near
+    template <typename T> bool contains(const T x, const T y, const T z) const;
+    template <typename T> bool contains(const Eigen::Matrix<T, 3, 1> &point_w) const;
 
-        // Far plane corners (z = +1)
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(
-                                              Eigen::Vector3d(1.0, 1.0, 1.0)))); // front-left-far
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(
-                                              Eigen::Vector3d(-1.0, 1.0, 1.0)))); // front-right-far
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(
-                                              Eigen::Vector3d(-1.0, -1.0, 1.0)))); // back-right-far
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(
-                                              Eigen::Vector3d(1.0, -1.0, 1.0)))); // back-left-far
+    template <typename T>
+    std::vector<bool> contains(const std::vector<Eigen::Matrix<T, 3, 1>> &points_w) const;
 
-        return corners;
-    }
+    bool intersects(const OrientedBoundingBox3D &other) const;
 
-    bool contains(const Eigen::Vector3d &point_w) const {
-        const Eigen::Quaterniond q_norm = orientation.normalized();
-        const Eigen::Vector3d point_o = q_norm.inverse() * (point_w - center);
-        const Eigen::Vector3d half_size = size / 2.0;
-        return point_o.x() >= -half_size.x() && point_o.x() <= half_size.x() &&
-               point_o.y() >= -half_size.y() && point_o.y() <= half_size.y() &&
-               point_o.z() >= -half_size.z() && point_o.z() <= half_size.z();
-    }
-
-    std::vector<bool> contains(const std::vector<Eigen::Vector3d> &points_w) const {
-        std::vector<bool> contains_mask(points_w.size(), false);
-        const Eigen::Quaterniond q_norm = orientation.normalized();
-        const Eigen::Vector3d half_size = size / 2.0;
-        for (size_t i = 0; i < points_w.size(); i++) {
-            const Eigen::Vector3d point_o = q_norm.inverse() * (points_w[i] - center);
-            contains_mask[i] = point_o.x() >= -half_size.x() && point_o.x() <= half_size.x() &&
-                               point_o.y() >= -half_size.y() && point_o.y() <= half_size.y() &&
-                               point_o.z() >= -half_size.z() && point_o.z() <= half_size.z();
-        }
-        return contains_mask;
-    }
-
-    bool intersects(const OrientedBoundingBox3D &other) const {
-        // Check if any corner of this box is contained in the other box
-        const std::vector<Eigen::Vector3d> corners = get_corners();
-        for (const auto &corner : corners) {
-            if (other.contains(corner)) {
-                return true;
-            }
-        }
-        // Check if any corner of the other box is contained in this box
-        // Not redundant (e.g. other box is completely inside this box)
-        const std::vector<Eigen::Vector3d> other_corners = other.get_corners();
-        for (const auto &corner : other_corners) {
-            if (contains(corner)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool intersects(const BoundingBox3D &other) const {
-        const std::vector<Eigen::Vector3d> corners = get_corners();
-        for (const auto &corner : corners) {
-            if (other.contains(corner)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    bool intersects(const BoundingBox3D &other) const;
 };
 
 // ================================================
@@ -213,35 +118,22 @@ struct BoundingBox2D {
     BoundingBox2D(const Eigen::Vector2d &min_point, const Eigen::Vector2d &max_point)
         : min_x(min_point.x()), min_y(min_point.y()), max_x(max_point.x()), max_y(max_point.y()) {}
 
-    Eigen::Vector2d get_center() const {
-        return Eigen::Vector2d((min_x + max_x) / 2.0, (min_y + max_y) / 2.0);
-    }
-    Eigen::Vector2d get_min_point() const { return Eigen::Vector2d(min_x, min_y); }
-    Eigen::Vector2d get_max_point() const { return Eigen::Vector2d(max_x, max_y); }
+    Eigen::Vector2d get_center() const;
+    Eigen::Vector2d get_min_point() const;
+    Eigen::Vector2d get_max_point() const;
 
-    Eigen::Vector2d get_size() const { return Eigen::Vector2d(max_x - min_x, max_y - min_y); }
+    Eigen::Vector2d get_size() const;
 
-    double get_area() const { return (max_x - min_x) * (max_y - min_y); }
-    double get_perimeter() const { return 2.0 * ((max_x - min_x) + (max_y - min_y)); }
-    double get_diagonal_length() const {
-        return std::sqrt((max_x - min_x) * (max_x - min_x) + (max_y - min_y) * (max_y - min_y));
-    }
+    double get_area() const;
+    double get_perimeter() const;
+    double get_diagonal_length() const;
 
-    bool contains(const Eigen::Vector2d &point_w) const {
-        return point_w.x() >= min_x && point_w.x() <= max_x && point_w.y() >= min_y &&
-               point_w.y() <= max_y;
-    }
-    std::vector<bool> contains(const std::vector<Eigen::Vector2d> &points_w) const {
-        std::vector<bool> contains_mask(points_w.size(), false);
-        for (size_t i = 0; i < points_w.size(); i++) {
-            contains_mask[i] = contains(points_w[i]);
-        }
-        return contains_mask;
-    }
-    bool intersects(const BoundingBox2D &other) const {
-        return (min_x <= other.max_x && max_x >= other.min_x) &&
-               (min_y <= other.max_y && max_y >= other.min_y);
-    }
+    template <typename T> bool contains(const T x_w, const T y_w) const;
+    template <typename T> bool contains(const Eigen::Matrix<T, 2, 1> &point_w) const;
+    template <typename T>
+    std::vector<bool> contains(const std::vector<Eigen::Matrix<T, 2, 1>> &points_w) const;
+
+    bool intersects(const BoundingBox2D &other) const;
 };
 
 // Oriented bounding box (OBB) in 2D
@@ -257,86 +149,22 @@ struct OrientedBoundingBox2D {
 
     // Note: get_volume() doesn't make sense for 2D, but kept for API consistency
     // Returns area instead (volume would be 0 in 2D)
-    double get_volume() const { return size.x() * size.y(); }
-    double get_area() const { return size.x() * size.y(); }
-    double get_perimeter() const { return 2.0 * ((size.x() + size.y())); }
-    double get_diagonal_length() const {
-        return std::sqrt((size.x() * size.x()) + (size.y() * size.y()));
-    }
+    double get_volume() const;
+    double get_area() const;
+    double get_perimeter() const;
+    double get_diagonal_length() const;
 
     // get the corners of the OBB in world coordinates
-    std::vector<Eigen::Vector2d> get_corners() const {
-        std::vector<Eigen::Vector2d> corners;
-        corners.reserve(4);
-        const Eigen::Rotation2Dd R_wo(angle_rad); // from object-attached axes to world coordinates,
-                                                  // p_w = R_wo * p_o + center
-        const Eigen::Vector2d half_size = size / 2.0;
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(Eigen::Vector2d(1.0, 1.0))));
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(Eigen::Vector2d(-1.0, 1.0))));
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(Eigen::Vector2d(-1.0, -1.0))));
-        corners.push_back(center + R_wo * (half_size.cwiseProduct(Eigen::Vector2d(1.0, -1.0))));
-        return corners;
-    }
+    std::vector<Eigen::Vector2d> get_corners() const;
 
-    bool contains(const Eigen::Vector2d &point_w) const {
-        const Eigen::Rotation2Dd R_wo(angle_rad);
-        const Eigen::Vector2d point_o = R_wo.inverse() * (point_w - center);
-        const Eigen::Vector2d half_size = size / 2.0;
-        return point_o.x() >= -half_size.x() && point_o.x() <= half_size.x() &&
-               point_o.y() >= -half_size.y() && point_o.y() <= half_size.y();
-    }
+    template <typename T> bool contains(const T x_w, const T y_w) const;
+    template <typename T> bool contains(const Eigen::Matrix<T, 2, 1> &point_w) const;
+    template <typename T>
+    std::vector<bool> contains(const std::vector<Eigen::Matrix<T, 2, 1>> &points_w) const;
 
-    std::vector<bool> contains(const std::vector<Eigen::Vector2d> &points_w) const {
-        std::vector<bool> contains_mask(points_w.size(), false);
-        const Eigen::Rotation2Dd R_wo(angle_rad);
-        const Eigen::Vector2d half_size = size / 2.0;
-        for (size_t i = 0; i < points_w.size(); i++) {
-            const Eigen::Vector2d point_o = R_wo.inverse() * (points_w[i] - center);
-            contains_mask[i] = point_o.x() >= -half_size.x() && point_o.x() <= half_size.x() &&
-                               point_o.y() >= -half_size.y() && point_o.y() <= half_size.y();
-        }
-        return contains_mask;
-    }
+    bool intersects(const OrientedBoundingBox2D &other) const;
 
-    bool intersects(const OrientedBoundingBox2D &other) const {
-        // Check if any corner of this box is contained in the other box
-        const std::vector<Eigen::Vector2d> corners = get_corners();
-        for (const auto &corner : corners) {
-            if (other.contains(corner)) {
-                return true;
-            }
-        }
-        // Check if any corner of the other box is contained in this box
-        // Not redundant (e.g. other box is completely inside this box)
-        const std::vector<Eigen::Vector2d> other_corners = other.get_corners();
-        for (const auto &corner : other_corners) {
-            if (contains(corner)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool intersects(const BoundingBox2D &other) const {
-        // Check if any corner of this OBB is contained in the AABB
-        const std::vector<Eigen::Vector2d> corners = get_corners();
-        for (const auto &corner : corners) {
-            if (other.contains(corner)) {
-                return true;
-            }
-        }
-        // Check if any corner of the AABB is contained in this OBB
-        const Eigen::Vector2d aabb_corners[4] = {
-            Eigen::Vector2d(other.min_x, other.min_y), // bottom-left
-            Eigen::Vector2d(other.max_x, other.min_y), // bottom-right
-            Eigen::Vector2d(other.max_x, other.max_y), // top-right
-            Eigen::Vector2d(other.min_x, other.max_y)  // top-left
-        };
-        for (const auto &corner : aabb_corners) {
-            if (contains(corner)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    bool intersects(const BoundingBox2D &other) const;
 };
+
+} // namespace volumetric

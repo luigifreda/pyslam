@@ -25,6 +25,7 @@
 #include <pybind11/stl.h>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "tbb_utils.h"
@@ -33,21 +34,422 @@
 #include "voxel_grid.h"
 #include "voxel_semantic_grid.h"
 
+#include "opencv_type_casters.h"
+
 namespace py = pybind11;
+
+// ----------------------------------------
+// Helper functions for pybind11 bindings
+// ----------------------------------------
+namespace detail {
+
+// Helper functions for safe dtype checking
+inline bool is_uint8_dtype(const py::dtype &dt) {
+    if (dt.is(py::dtype::of<uint8_t>())) {
+        return true;
+    }
+    // Fallback: check itemsize and kind for compatibility
+    const ssize_t itemsize = dt.itemsize();
+    const char kind = py::cast<char>(dt.attr("kind"));
+    return (kind == 'u' && itemsize == 1);
+}
+
+inline bool is_float32_dtype(const py::dtype &dt) {
+    if (dt.is(py::dtype::of<float>())) {
+        return true;
+    }
+    // Fallback: check itemsize and kind for compatibility
+    const ssize_t itemsize = dt.itemsize();
+    const char kind = py::cast<char>(dt.attr("kind"));
+    return (kind == 'f' && itemsize == 4);
+}
+
+inline bool is_float64_dtype(const py::dtype &dt) {
+    if (dt.is(py::dtype::of<double>())) {
+        return true;
+    }
+    // Fallback: check itemsize and kind for compatibility
+    const ssize_t itemsize = dt.itemsize();
+    const char kind = py::cast<char>(dt.attr("kind"));
+    return (kind == 'f' && itemsize == 8);
+}
+
+inline bool is_int32_dtype(const py::dtype &dt) {
+    if (dt.is(py::dtype::of<int>())) {
+        return true;
+    }
+    // Fallback: check itemsize and kind for compatibility
+    // int32 is typically 4 bytes with signed integer kind 'i'
+    const ssize_t itemsize = dt.itemsize();
+    const char kind = py::cast<char>(dt.attr("kind"));
+    return (kind == 'i' && itemsize == 4);
+}
+
+// Helper function to get dtype description for error messages
+inline std::string dtype_description(const py::dtype &dt) {
+    const ssize_t itemsize = dt.itemsize();
+    const char kind = py::cast<char>(dt.attr("kind"));
+    return "kind=" + std::string(1, kind) + " itemsize=" + std::to_string(itemsize);
+}
+
+// Unified helper function for integration with py::array inputs
+// Similar to VoxelBlockGridT::integrate but for Python bindings
+// Handles all cases: with/without colors, semantics, instance_ids, depths
+template <typename CLASS_TYPE, typename Tpos>
+inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
+                                  py::object colors = py::none(), py::object class_ids = py::none(),
+                                  py::object instance_ids = py::none(),
+                                  py::object depths = py::none()) {
+    // Force contiguous views to avoid misinterpreting strided arrays
+    py::array_t<Tpos, py::array::c_style | py::array::forcecast> points_c = points;
+    auto pts_info = points_c.request();
+
+    if (pts_info.ndim != 2 || pts_info.shape[1] != 3) {
+        throw std::runtime_error("points must be a contiguous Nx3 array");
+    }
+
+    const size_t num_points = pts_info.shape[0];
+
+    if (num_points == 0) {
+        return;
+    }
+
+    // Check if we have colors
+    const void *colors_ptr = nullptr;
+    bool has_colors = false;
+    bool is_uint8_colors = false;
+    if (!colors.is_none()) {
+        py::array colors_array = py::array::ensure(colors, py::array::c_style);
+        auto cols_info = colors_array.request();
+        py::dtype dt = colors_array.dtype();
+
+        if (cols_info.ndim != 2 || cols_info.shape[1] != 3) {
+            throw std::runtime_error("colors must be a contiguous Nx3 array");
+        }
+
+        if (cols_info.shape[0] != num_points) {
+            throw std::runtime_error("points and colors must have the same size");
+        }
+
+        if (is_uint8_dtype(dt)) {
+            is_uint8_colors = true;
+        } else if (is_float32_dtype(dt)) {
+            is_uint8_colors = false;
+        } else {
+            throw std::runtime_error("Colors must be uint8 or float32, got dtype with " +
+                                     dtype_description(dt));
+        }
+
+        colors_ptr = cols_info.ptr;
+        has_colors = true;
+    }
+
+    // Check if we have depths
+    const void *depths_ptr = nullptr;
+    bool has_depths = false;
+    bool is_float32_depths = false;
+    if (!depths.is_none()) {
+        py::array depths_array = py::array::ensure(depths, py::array::c_style);
+        auto depths_info = depths_array.request();
+        py::dtype dt = depths_array.dtype();
+
+        if (depths_info.ndim != 1) {
+            throw std::runtime_error("depths must be a contiguous 1D array");
+        }
+
+        if (depths_info.shape[0] != num_points) {
+            throw std::runtime_error("points and depths must have the same size");
+        }
+
+        if (is_float32_dtype(dt)) {
+            is_float32_depths = true;
+        } else if (is_float64_dtype(dt)) {
+            is_float32_depths = false;
+        } else {
+            throw std::runtime_error("Depths must be float32 or float64, got dtype with " +
+                                     dtype_description(dt));
+        }
+
+        depths_ptr = depths_info.ptr;
+        has_depths = true;
+    }
+
+    // Check if we have semantic data
+    const void *class_ids_ptr = nullptr;
+    bool has_semantics = false;
+    if (!class_ids.is_none()) {
+        py::array class_ids_array = py::array::ensure(class_ids, py::array::c_style);
+        auto class_ids_info = class_ids_array.request();
+        py::dtype dt = class_ids_array.dtype();
+
+        if (class_ids_info.ndim != 1) {
+            throw std::runtime_error("class_ids must be a contiguous 1D array");
+        }
+
+        if (!is_int32_dtype(dt)) {
+            throw std::runtime_error("class_ids must be int32, got dtype with " +
+                                     dtype_description(dt));
+        }
+
+        if (class_ids_info.shape[0] != num_points) {
+            throw std::runtime_error("points and class_ids must have the same size");
+        }
+
+        class_ids_ptr = class_ids_info.ptr;
+        has_semantics = true;
+    }
+
+    // Check if we have instance_ids
+    const void *instance_ids_ptr = nullptr;
+    bool has_instance_ids = false;
+    if (!instance_ids.is_none()) {
+        if (!has_semantics) {
+            throw std::runtime_error("instance_ids but no class_ids is not supported");
+        }
+
+        py::array instance_ids_array = py::array::ensure(instance_ids, py::array::c_style);
+        auto instance_ids_info = instance_ids_array.request();
+        py::dtype dt = instance_ids_array.dtype();
+
+        if (instance_ids_info.ndim != 1) {
+            throw std::runtime_error("instance_ids must be a contiguous 1D array");
+        }
+
+        if (!is_int32_dtype(dt)) {
+            throw std::runtime_error("instance_ids must be int32, got dtype with " +
+                                     dtype_description(dt));
+        }
+
+        if (instance_ids_info.shape[0] != num_points) {
+            throw std::runtime_error("points and instance_ids must have the same size");
+        }
+
+        instance_ids_ptr = instance_ids_info.ptr;
+        has_instance_ids = true;
+    }
+
+    // Release GIL and call integrate_raw with appropriate template parameters
+    {
+        py::gil_scoped_release release;
+        const Tpos *pts_ptr = static_cast<const Tpos *>(pts_info.ptr);
+
+        if (has_colors) {
+            // we have colors
+            if (has_semantics) {
+                // we have semantics
+                if (has_instance_ids) {
+                    // we have instance ids
+                    if (has_depths) {
+                        if (is_uint8_colors) {
+                            if (is_float32_depths) {
+                                self.template integrate_raw<Tpos, uint8_t, int, int, float>(
+                                    pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr),
+                                    static_cast<const int *>(instance_ids_ptr),
+                                    static_cast<const float *>(depths_ptr));
+                            } else {
+                                self.template integrate_raw<Tpos, uint8_t, int, int, double>(
+                                    pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr),
+                                    static_cast<const int *>(instance_ids_ptr),
+                                    static_cast<const double *>(depths_ptr));
+                            }
+                        } else {
+                            if (is_float32_depths) {
+                                self.template integrate_raw<Tpos, float, int, int, float>(
+                                    pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr),
+                                    static_cast<const int *>(instance_ids_ptr),
+                                    static_cast<const float *>(depths_ptr));
+                            } else {
+                                self.template integrate_raw<Tpos, float, int, int, double>(
+                                    pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr),
+                                    static_cast<const int *>(instance_ids_ptr),
+                                    static_cast<const double *>(depths_ptr));
+                            }
+                        }
+                    } else {
+                        if (is_uint8_colors) {
+                            self.template integrate_raw<Tpos, uint8_t, int, int>(
+                                pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                static_cast<const int *>(class_ids_ptr),
+                                static_cast<const int *>(instance_ids_ptr));
+                        } else {
+                            self.template integrate_raw<Tpos, float, int, int>(
+                                pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                static_cast<const int *>(class_ids_ptr),
+                                static_cast<const int *>(instance_ids_ptr));
+                        }
+                    }
+                } else {
+                    // we do not have instance ids
+                    if (has_depths) {
+                        if (is_uint8_colors) {
+                            if (is_float32_depths) {
+                                self.template integrate_raw<Tpos, uint8_t, std::nullptr_t, int,
+                                                            float>(
+                                    pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr), nullptr,
+                                    static_cast<const float *>(depths_ptr));
+                            } else {
+                                self.template integrate_raw<Tpos, uint8_t, std::nullptr_t, int,
+                                                            double>(
+                                    pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr), nullptr,
+                                    static_cast<const double *>(depths_ptr));
+                            }
+                        } else {
+                            if (is_float32_depths) {
+                                self.template integrate_raw<Tpos, float, std::nullptr_t, int,
+                                                            float>(
+                                    pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr), nullptr,
+                                    static_cast<const float *>(depths_ptr));
+                            } else {
+                                self.template integrate_raw<Tpos, float, std::nullptr_t, int,
+                                                            double>(
+                                    pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                    static_cast<const int *>(class_ids_ptr), nullptr,
+                                    static_cast<const double *>(depths_ptr));
+                            }
+                        }
+                    } else {
+                        if (is_uint8_colors) {
+                            self.template integrate_raw<Tpos, uint8_t, std::nullptr_t, int>(
+                                pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                static_cast<const int *>(class_ids_ptr), nullptr);
+                        } else {
+                            self.template integrate_raw<Tpos, float, std::nullptr_t, int>(
+                                pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                static_cast<const int *>(class_ids_ptr), nullptr);
+                        }
+                    }
+                }
+            } else {
+                // with colors, no semantics
+                if (has_depths) {
+                    if (is_uint8_colors) {
+                        if (is_float32_depths) {
+                            self.template integrate_raw<Tpos, uint8_t, std::nullptr_t,
+                                                        std::nullptr_t, float>(
+                                pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                nullptr, nullptr, static_cast<const float *>(depths_ptr));
+                        } else {
+                            self.template integrate_raw<Tpos, uint8_t, std::nullptr_t,
+                                                        std::nullptr_t, double>(
+                                pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr),
+                                nullptr, nullptr, static_cast<const double *>(depths_ptr));
+                        }
+                    } else {
+                        if (is_float32_depths) {
+                            self.template integrate_raw<Tpos, float, std::nullptr_t, std::nullptr_t,
+                                                        float>(
+                                pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                nullptr, nullptr, static_cast<const float *>(depths_ptr));
+                        } else {
+                            self.template integrate_raw<Tpos, float, std::nullptr_t, std::nullptr_t,
+                                                        double>(
+                                pts_ptr, num_points, static_cast<const float *>(colors_ptr),
+                                nullptr, nullptr, static_cast<const double *>(depths_ptr));
+                        }
+                    }
+                } else {
+                    if (is_uint8_colors) {
+                        self.template integrate_raw<Tpos, uint8_t>(
+                            pts_ptr, num_points, static_cast<const uint8_t *>(colors_ptr));
+                    } else {
+                        self.template integrate_raw<Tpos, float>(
+                            pts_ptr, num_points, static_cast<const float *>(colors_ptr));
+                    }
+                }
+            }
+        } else {
+            // No colors
+            if (has_semantics) {
+                // we have semantics
+                if (has_instance_ids) {
+                    // we have instance ids
+                    if (has_depths) {
+                        if (is_float32_depths) {
+                            self.template integrate_raw<Tpos, std::nullptr_t, int, int, float>(
+                                pts_ptr, num_points, nullptr,
+                                static_cast<const int *>(class_ids_ptr),
+                                static_cast<const int *>(instance_ids_ptr),
+                                static_cast<const float *>(depths_ptr));
+                        } else {
+                            self.template integrate_raw<Tpos, std::nullptr_t, int, int, double>(
+                                pts_ptr, num_points, nullptr,
+                                static_cast<const int *>(class_ids_ptr),
+                                static_cast<const int *>(instance_ids_ptr),
+                                static_cast<const double *>(depths_ptr));
+                        }
+                    } else {
+                        self.template integrate_raw<Tpos, std::nullptr_t, int, int>(
+                            pts_ptr, num_points, nullptr, static_cast<const int *>(class_ids_ptr),
+                            static_cast<const int *>(instance_ids_ptr));
+                    }
+                } else {
+                    // we do not have instance ids
+                    if (has_depths) {
+                        if (is_float32_depths) {
+                            self.template integrate_raw<Tpos, std::nullptr_t, std::nullptr_t, int,
+                                                        float>(
+                                pts_ptr, num_points, nullptr,
+                                static_cast<const int *>(class_ids_ptr), nullptr,
+                                static_cast<const float *>(depths_ptr));
+                        } else {
+                            self.template integrate_raw<Tpos, std::nullptr_t, std::nullptr_t, int,
+                                                        double>(
+                                pts_ptr, num_points, nullptr,
+                                static_cast<const int *>(class_ids_ptr), nullptr,
+                                static_cast<const double *>(depths_ptr));
+                        }
+                    } else {
+                        self.template integrate_raw<Tpos, std::nullptr_t, std::nullptr_t, int>(
+                            pts_ptr, num_points, nullptr, static_cast<const int *>(class_ids_ptr),
+                            nullptr);
+                    }
+                }
+            } else {
+                // no colors, no semantics
+                if (has_depths) {
+                    if (is_float32_depths) {
+                        self.template integrate_raw<Tpos, std::nullptr_t, std::nullptr_t,
+                                                    std::nullptr_t, float>(
+                            pts_ptr, num_points, nullptr, nullptr, nullptr,
+                            static_cast<const float *>(depths_ptr));
+                    } else {
+                        self.template integrate_raw<Tpos, std::nullptr_t, std::nullptr_t,
+                                                    std::nullptr_t, double>(
+                            pts_ptr, num_points, nullptr, nullptr, nullptr,
+                            static_cast<const double *>(depths_ptr));
+                    }
+                } else {
+                    self.template integrate_raw<Tpos>(pts_ptr, num_points);
+                }
+            }
+        }
+    }
+}
+} // namespace detail
 
 // ----------------------------------------
 // Unified macro for VoxelSemanticGrid bindings
 // Parameters:
 //   - CLASS_TYPE: The C++ class type
 //   - PYTHON_NAME: The Python class name
-//   - CLASS_DEF: Class definition (e.g., CLASS_TYPE or CLASS_TYPE, std::shared_ptr<CLASS_TYPE>)
-//   - CONSTRUCTOR: Constructor definition (e.g., py::init<float>() or py::init<float, int>())
-//   - CONSTRUCTOR_ARGS: Constructor arguments (e.g., py::arg("voxel_size") or
-//   py::arg("voxel_size"), py::arg("block_size") = 8)
+//   - CLASS_DEF: Class definition (e.g., CLASS_TYPE or CLASS_TYPE,
+//   std::shared_ptr<CLASS_TYPE>)
+//   - CONSTRUCTOR: Constructor definition (e.g., py::init<float>() or
+//   py::init<float, int>())
+//   - CONSTRUCTOR_ARGS: Constructor arguments (e.g.,
+//   py::arg("voxel_size") or py::arg("voxel_size"),
+//   py::arg("block_size") = 8)
 // ----------------------------------------
 // Helper to remove parentheses from CLASS_DEF if present
 #define REMOVE_PARENS(...) __VA_ARGS__
-// Helper to expand class definition properly
+  // Helper to expand class definition properly
 #define EXPAND_CLASS_DEF(x) REMOVE_PARENS x
 #define DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, CLASS_DEF,            \
                                                     CONSTRUCTOR, ...)                              \
@@ -62,70 +464,11 @@ namespace py = pybind11;
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<uint8_t> colors,          \
                py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
                py::object depths = py::none()) {                                                   \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                auto class_ids_info = class_ids.request();                                         \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    if (depths.is_none()) {                                                        \
-                        if (instance_ids.is_none()) {                                              \
-                            self.integrate_raw<double, uint8_t, std::nullptr_t, int>(              \
-                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
-                                static_cast<const uint8_t *>(cols_info.ptr), nullptr,              \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        } else {                                                                   \
-                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
-                            auto instance_ids_info = instance_ids_arr.request();                   \
-                            self.integrate_raw<double, uint8_t, int, int>(                         \
-                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
-                                static_cast<const uint8_t *>(cols_info.ptr),                       \
-                                static_cast<const int *>(instance_ids_info.ptr),                   \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        }                                                                          \
-                    } else {                                                                       \
-                        try {                                                                      \
-                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<double, uint8_t, std::nullptr_t, int, float>(   \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<double, uint8_t, int, int, float>(              \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            }                                                                      \
-                        } catch (const py::cast_error &) {                                         \
-                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<double, uint8_t, std::nullptr_t, int, double>(  \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<double, uint8_t, int, int, double>(             \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            }                                                                      \
-                        }                                                                          \
-                    }                                                                              \
-                }                                                                                  \
+                detail::integrate_with_arrays<CLASS_TYPE, double>(self, points, colors, class_ids, \
+                                                                  instance_ids, depths);           \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            "Insert a point cloud into the voxel grid (with optional "                             \
+            "instance_ids and depths)",                                                            \
             py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
@@ -133,70 +476,11 @@ namespace py = pybind11;
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<float> colors,            \
                py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
                py::object depths = py::none()) {                                                   \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                auto class_ids_info = class_ids.request();                                         \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    if (depths.is_none()) {                                                        \
-                        if (instance_ids.is_none()) {                                              \
-                            self.integrate_raw<double, float, std::nullptr_t, int>(                \
-                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
-                                static_cast<const float *>(cols_info.ptr), nullptr,                \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        } else {                                                                   \
-                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
-                            auto instance_ids_info = instance_ids_arr.request();                   \
-                            self.integrate_raw<double, float, int, int>(                           \
-                                static_cast<const double *>(pts_info.ptr), pts_info.shape[0],      \
-                                static_cast<const float *>(cols_info.ptr),                         \
-                                static_cast<const int *>(instance_ids_info.ptr),                   \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        }                                                                          \
-                    } else {                                                                       \
-                        try {                                                                      \
-                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<double, float, std::nullptr_t, int, float>(     \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<double, float, int, int, float>(                \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const float *>(cols_info.ptr),                     \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            }                                                                      \
-                        } catch (const py::cast_error &) {                                         \
-                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<double, float, std::nullptr_t, int, double>(    \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<double, float, int, int, double>(               \
-                                    static_cast<const double *>(pts_info.ptr), pts_info.shape[0],  \
-                                    static_cast<const float *>(cols_info.ptr),                     \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            }                                                                      \
-                        }                                                                          \
-                    }                                                                              \
-                }                                                                                  \
+                detail::integrate_with_arrays<CLASS_TYPE, double>(self, points, colors, class_ids, \
+                                                                  instance_ids, depths);           \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            "Insert a point cloud into the voxel grid (with optional "                             \
+            "instance_ids and depths)",                                                            \
             py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
@@ -204,70 +488,11 @@ namespace py = pybind11;
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<uint8_t> colors,           \
                py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
                py::object depths = py::none()) {                                                   \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                auto class_ids_info = class_ids.request();                                         \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    if (depths.is_none()) {                                                        \
-                        if (instance_ids.is_none()) {                                              \
-                            self.integrate_raw<float, uint8_t, std::nullptr_t, int>(               \
-                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
-                                static_cast<const uint8_t *>(cols_info.ptr), nullptr,              \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        } else {                                                                   \
-                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
-                            auto instance_ids_info = instance_ids_arr.request();                   \
-                            self.integrate_raw<float, uint8_t, int, int>(                          \
-                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
-                                static_cast<const uint8_t *>(cols_info.ptr),                       \
-                                static_cast<const int *>(instance_ids_info.ptr),                   \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        }                                                                          \
-                    } else {                                                                       \
-                        try {                                                                      \
-                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<float, uint8_t, std::nullptr_t, int, float>(    \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<float, uint8_t, int, int, float>(               \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            }                                                                      \
-                        } catch (const py::cast_error &) {                                         \
-                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<float, uint8_t, std::nullptr_t, int, double>(   \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const uint8_t *>(cols_info.ptr), nullptr,          \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<float, uint8_t, int, int, double>(              \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const uint8_t *>(cols_info.ptr),                   \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            }                                                                      \
-                        }                                                                          \
-                    }                                                                              \
-                }                                                                                  \
+                detail::integrate_with_arrays<CLASS_TYPE, float>(self, points, colors, class_ids,  \
+                                                                 instance_ids, depths);            \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            "Insert a point cloud into the voxel grid (with optional "                             \
+            "instance_ids and depths)",                                                            \
             py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
@@ -275,132 +500,73 @@ namespace py = pybind11;
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<float> colors,             \
                py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
                py::object depths = py::none()) {                                                   \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                auto class_ids_info = class_ids.request();                                         \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    if (depths.is_none()) {                                                        \
-                        if (instance_ids.is_none()) {                                              \
-                            self.integrate_raw<float, float, std::nullptr_t, int>(                 \
-                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
-                                static_cast<const float *>(cols_info.ptr), nullptr,                \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        } else {                                                                   \
-                            auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();         \
-                            auto instance_ids_info = instance_ids_arr.request();                   \
-                            self.integrate_raw<float, float, int, int>(                            \
-                                static_cast<const float *>(pts_info.ptr), pts_info.shape[0],       \
-                                static_cast<const float *>(cols_info.ptr),                         \
-                                static_cast<const int *>(instance_ids_info.ptr),                   \
-                                static_cast<const int *>(class_ids_info.ptr));                     \
-                        }                                                                          \
-                    } else {                                                                       \
-                        try {                                                                      \
-                            auto depths_arr = depths.cast<py::array_t<float>>();                   \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<float, float, std::nullptr_t, int, float>(      \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<float, float, int, int, float>(                 \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const float *>(cols_info.ptr),                     \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const float *>(depths_info.ptr));                  \
-                            }                                                                      \
-                        } catch (const py::cast_error &) {                                         \
-                            auto depths_arr = depths.cast<py::array_t<double>>();                  \
-                            auto depths_info = depths_arr.request();                               \
-                            if (instance_ids.is_none()) {                                          \
-                                self.integrate_raw<float, float, std::nullptr_t, int, double>(     \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const float *>(cols_info.ptr), nullptr,            \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            } else {                                                               \
-                                auto instance_ids_arr = instance_ids.cast<py::array_t<int>>();     \
-                                auto instance_ids_info = instance_ids_arr.request();               \
-                                self.integrate_raw<float, float, int, int, double>(                \
-                                    static_cast<const float *>(pts_info.ptr), pts_info.shape[0],   \
-                                    static_cast<const float *>(cols_info.ptr),                     \
-                                    static_cast<const int *>(instance_ids_info.ptr),               \
-                                    static_cast<const int *>(class_ids_info.ptr),                  \
-                                    static_cast<const double *>(depths_info.ptr));                 \
-                            }                                                                      \
-                        }                                                                          \
-                    }                                                                              \
-                }                                                                                  \
+                detail::integrate_with_arrays<CLASS_TYPE, float>(self, points, colors, class_ids,  \
+                                                                 instance_ids, depths);            \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid (with optional instance_ids and depths)",    \
+            "Insert a point cloud into the voxel grid (with optional "                             \
+            "instance_ids and depths)",                                                            \
             py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<uint8_t> colors,          \
-               const int instance_id, const int class_id) {                                        \
+               const int class_id, const int object_id) {                                          \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     self.integrate_segment_raw<double, uint8_t>(                                   \
                         static_cast<const double *>(pts_info.ptr), pts_info.shape[0],              \
-                        static_cast<const uint8_t *>(cols_info.ptr), instance_id, class_id);       \
+                        static_cast<const uint8_t *>(cols_info.ptr), class_id, object_id);         \
                 }                                                                                  \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
-            py::arg("colors"), py::arg("instance_id"), py::arg("class_id"))                        \
+            py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \
         .def(                                                                                      \
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<float> colors,            \
-               const int instance_id, const int class_id) {                                        \
+               const int class_id, const int object_id) {                                          \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     self.integrate_segment_raw<double, float>(                                     \
                         static_cast<const double *>(pts_info.ptr), pts_info.shape[0],              \
-                        static_cast<const float *>(cols_info.ptr), instance_id, class_id);         \
+                        static_cast<const float *>(cols_info.ptr), class_id, object_id);           \
                 }                                                                                  \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
-            py::arg("colors"), py::arg("instance_id"), py::arg("class_id"))                        \
+            py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \
         .def(                                                                                      \
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<uint8_t> colors,           \
-               const int instance_id, const int class_id) {                                        \
+               const int class_id, const int object_id) {                                          \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     self.integrate_segment_raw<float, uint8_t>(                                    \
                         static_cast<const float *>(pts_info.ptr), pts_info.shape[0],               \
-                        static_cast<const uint8_t *>(cols_info.ptr), instance_id, class_id);       \
+                        static_cast<const uint8_t *>(cols_info.ptr), class_id, object_id);         \
                 }                                                                                  \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
-            py::arg("colors"), py::arg("instance_id"), py::arg("class_id"))                        \
+            py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \
         .def(                                                                                      \
             "integrate_segment",                                                                   \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<float> colors,             \
-               const int instance_id, const int class_id) {                                        \
+               const int class_id, const int object_id) {                                          \
                 auto pts_info = points.request();                                                  \
                 auto cols_info = colors.request();                                                 \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     self.integrate_segment_raw<float, float>(                                      \
                         static_cast<const float *>(pts_info.ptr), pts_info.shape[0],               \
-                        static_cast<const float *>(cols_info.ptr), instance_id, class_id);         \
+                        static_cast<const float *>(cols_info.ptr), class_id, object_id);           \
                 }                                                                                  \
             },                                                                                     \
             "Insert a segment of points into the voxel grid", py::arg("points"),                   \
-            py::arg("colors"), py::arg("instance_id"), py::arg("class_id"))                        \
+            py::arg("colors"), py::arg("class_id"), py::arg("object_id"))                          \
         .def(                                                                                      \
             "merge_segments",                                                                      \
             [](CLASS_TYPE &self, const int instance_id1, const int instance_id2) {                 \
@@ -409,18 +575,19 @@ namespace py = pybind11;
                     self.merge_segments(instance_id1, instance_id2);                               \
                 }                                                                                  \
             },                                                                                     \
-            "Merge two segments of voxels into a single segment of voxels with the same instance " \
+            "Merge two segments of voxels into a single segment of "                               \
+            "voxels with the same instance "                                                       \
             "ID",                                                                                  \
             py::arg("instance_id1"), py::arg("instance_id2"))                                      \
         .def(                                                                                      \
             "remove_segment",                                                                      \
-            [](CLASS_TYPE &self, const int instance_id) {                                          \
+            [](CLASS_TYPE &self, const int object_id) {                                            \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    self.remove_segment(instance_id);                                              \
+                    self.remove_segment(object_id);                                                \
                 }                                                                                  \
             },                                                                                     \
-            "Remove a segment of voxels from the voxel grid", py::arg("instance_id"))              \
+            "Remove a segment of voxels from the voxel grid", py::arg("object_id"))                \
         .def(                                                                                      \
             "remove_low_confidence_segments",                                                      \
             [](CLASS_TYPE &self, const int min_confidence) {                                       \
@@ -429,7 +596,8 @@ namespace py = pybind11;
                     self.remove_low_confidence_segments(min_confidence);                           \
                 }                                                                                  \
             },                                                                                     \
-            "Remove segments of voxels with low confidence counter from the voxel grid",           \
+            "Remove segments of voxels with low confidence counter "                               \
+            "from the voxel grid",                                                                 \
             py::arg("min_confidence"))                                                             \
         .def(                                                                                      \
             "get_voxels",                                                                          \
@@ -474,7 +642,8 @@ namespace py = pybind11;
                 }                                                                                  \
                 return segments;                                                                   \
             },                                                                                     \
-            "Returns a dictionary of segments of voxels based on instance IDs")                    \
+            "Returns a dictionary of segments of voxels based on "                                 \
+            "instance IDs")                                                                        \
         .def(                                                                                      \
             "get_class_segments",                                                                  \
             [](CLASS_TYPE &self) {                                                                 \
@@ -485,7 +654,8 @@ namespace py = pybind11;
                 }                                                                                  \
                 return segments;                                                                   \
             },                                                                                     \
-            "Returns a dictionary of segments of voxels based on class IDs")                       \
+            "Returns a dictionary of segments of voxels based on "                                 \
+            "class IDs")                                                                           \
         .def(                                                                                      \
             "get_ids",                                                                             \
             [](CLASS_TYPE &self) {                                                                 \
@@ -524,8 +694,10 @@ namespace py = pybind11;
 // Parameters:
 //   - CLASS_TYPE: The C++ class type
 //   - PYTHON_NAME: The Python class name
-//   - CLASS_DEF: Class definition (e.g., CLASS_TYPE or CLASS_TYPE, std::shared_ptr<CLASS_TYPE>)
-//   - CONSTRUCTOR: Constructor definition (e.g., py::init<float>() or py::init<float, int>())
+//   - CLASS_DEF: Class definition (e.g., CLASS_TYPE or CLASS_TYPE,
+//   std::shared_ptr<CLASS_TYPE>)
+//   - CONSTRUCTOR: Constructor definition (e.g., py::init<float>() or
+//   py::init<float, int>())
 //   - CONSTRUCTOR_ARGS: Constructor arguments
 // ----------------------------------------
 #define DEFINE_VOXEL_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, CLASS_DEF, CONSTRUCTOR, ...)   \
@@ -533,78 +705,18 @@ namespace py = pybind11;
         .def(CONSTRUCTOR, __VA_ARGS__)                                                             \
         .def(                                                                                      \
             "integrate",                                                                           \
-            [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<uint8_t> colors) {        \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_raw<double, uint8_t>(                                           \
-                        static_cast<const double *>(pts_info.ptr), pts_info.shape[0],              \
-                        static_cast<const uint8_t *>(cols_info.ptr));                              \
-                }                                                                                  \
+            [](CLASS_TYPE &self, py::array_t<double> points, py::object colors) {                  \
+                detail::integrate_with_arrays<CLASS_TYPE, double>(self, points, colors);           \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"))      \
+            "Insert a point cloud into the voxel grid", py::arg("points"),                         \
+            py::arg("colors") = py::none())                                                        \
         .def(                                                                                      \
             "integrate",                                                                           \
-            [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<float> colors) {          \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_raw<double, float>(static_cast<const double *>(pts_info.ptr),   \
-                                                      pts_info.shape[0],                           \
-                                                      static_cast<const float *>(cols_info.ptr));  \
-                }                                                                                  \
+            [](CLASS_TYPE &self, py::array_t<float> points, py::object colors) {                   \
+                detail::integrate_with_arrays<CLASS_TYPE, float>(self, points, colors);            \
             },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"))      \
-        .def(                                                                                      \
-            "integrate",                                                                           \
-            [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<uint8_t> colors) {         \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_raw<float, uint8_t>(                                            \
-                        static_cast<const float *>(pts_info.ptr), pts_info.shape[0],               \
-                        static_cast<const uint8_t *>(cols_info.ptr));                              \
-                }                                                                                  \
-            },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"))      \
-        .def(                                                                                      \
-            "integrate",                                                                           \
-            [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<float> colors) {           \
-                auto pts_info = points.request();                                                  \
-                auto cols_info = colors.request();                                                 \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_raw<float, float>(static_cast<const float *>(pts_info.ptr),     \
-                                                     pts_info.shape[0],                            \
-                                                     static_cast<const float *>(cols_info.ptr));   \
-                }                                                                                  \
-            },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"), py::arg("colors"))      \
-        .def(                                                                                      \
-            "integrate_points",                                                                    \
-            [](CLASS_TYPE &self, py::array_t<double> points) {                                     \
-                auto pts_info = points.request();                                                  \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_raw<double>(static_cast<const double *>(pts_info.ptr),          \
-                                               pts_info.shape[0]);                                 \
-                }                                                                                  \
-            },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"))                         \
-        .def(                                                                                      \
-            "integrate_points",                                                                    \
-            [](CLASS_TYPE &self, py::array_t<float> points) {                                      \
-                auto pts_info = points.request();                                                  \
-                {                                                                                  \
-                    py::gil_scoped_release release;                                                \
-                    self.integrate_raw<float>(static_cast<const float *>(pts_info.ptr),            \
-                                              pts_info.shape[0]);                                  \
-                }                                                                                  \
-            },                                                                                     \
-            "Insert a point cloud into the voxel grid", py::arg("points"))                         \
+            "Insert a point cloud into the voxel grid", py::arg("points"),                         \
+            py::arg("colors") = py::none())                                                        \
         .def(                                                                                      \
             "get_voxels",                                                                          \
             [](CLASS_TYPE &self, int min_count = 1, float min_confidence = 0.0) {                  \
@@ -678,45 +790,52 @@ namespace py = pybind11;
         .def("get_total_voxel_count", &CLASS_TYPE::get_total_voxel_count,                          \
              "Returns the total voxel count")
 
-// For block-based semantic grids (VoxelBlockSemanticGrid, VoxelBlockSemanticProbabilisticGrid)
+// For block-based semantic grids (VoxelBlockSemanticGrid,
+// VoxelBlockSemanticProbabilisticGrid)
 #define DEFINE_VOXEL_BLOCK_SEMANTIC_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                         \
     DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(                                                   \
         CLASS_TYPE, PYTHON_NAME, (CLASS_TYPE, std::shared_ptr<CLASS_TYPE>),                        \
-        py::init<float, int>(), py::arg("voxel_size"), py::arg("block_size") = 8)
+        py::init<float, int>(), py::arg("voxel_size"), py::arg("block_size") = 8)                  \
+        .def("num_blocks", &CLASS_TYPE::num_blocks, "Returns the number of blocks")                \
+        .def("get_block_size", &CLASS_TYPE::get_block_size, "Returns the block size")              \
+        .def("get_total_voxel_count", &CLASS_TYPE::get_total_voxel_count,                          \
+             "Returns the total voxel count")
 
 // For non-block semantic grids (VoxelSemanticGrid)
-// Note: We need to pass CLASS_TYPE, std::shared_ptr<CLASS_TYPE> as a single parameter
-// We use parentheses to group the comma-separated types
+// Note: We need to pass CLASS_TYPE, std::shared_ptr<CLASS_TYPE> as a
+// single parameter We use parentheses to group the comma-separated
+// types
 #define DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                               \
     DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME,                           \
                                                 (CLASS_TYPE, std::shared_ptr<CLASS_TYPE>),         \
                                                 py::init<float>(), py::arg("voxel_size"))
 
-// Unified macro to add get_voxels_in_bb bindings for both semantic and non-semantic grids
-// IS_SEMANTIC: true if the grid type supports semantic data
-#define DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(CLASS_TYPE, IS_SEMANTIC)                            \
+// Unified macro to add get_voxels_in_bb bindings for both semantic and
+// non-semantic grids IS_SEMANTIC: true if the grid type supports
+// semantic data
+#define DEFINE_MORE_VOXELS_OPS_BINDINGS(CLASS_TYPE, IS_SEMANTIC)                                   \
     .def(                                                                                          \
         "get_voxels_in_bb",                                                                        \
-        [](CLASS_TYPE &self, BoundingBox3D bbox, int min_count = 1, float min_confidence = 0.0,    \
-           bool include_semantics = false) {                                                       \
+        [](CLASS_TYPE &self, const volumetric::BoundingBox3D &bbox, int min_count = 1,             \
+           float min_confidence = 0.0, bool include_semantics = false) {                           \
             volumetric::VoxelGridData result;                                                      \
             {                                                                                      \
                 py::gil_scoped_release release;                                                    \
                 if constexpr (IS_SEMANTIC) {                                                       \
                     if (include_semantics) {                                                       \
-                        result = self.template get_voxels_in_bb<double, true>(bbox, min_count,     \
-                                                                              min_confidence);     \
+                        result =                                                                   \
+                            self.template get_voxels_in_bb<true>(bbox, min_count, min_confidence); \
                     } else {                                                                       \
-                        result = self.template get_voxels_in_bb<double, false>(bbox, min_count,    \
-                                                                               min_confidence);    \
+                        result = self.template get_voxels_in_bb<false>(bbox, min_count,            \
+                                                                       min_confidence);            \
                     }                                                                              \
                 } else {                                                                           \
                     if (include_semantics) {                                                       \
-                        throw std::runtime_error(                                                  \
-                            "include_semantics=True is not supported for non-semantic grids");     \
+                        throw std::runtime_error("include_semantics=True is not supported "        \
+                                                 "for non-semantic grids");                        \
                     }                                                                              \
-                    result = self.template get_voxels_in_bb<double, false>(bbox, min_count,        \
-                                                                           min_confidence);        \
+                    result =                                                                       \
+                        self.template get_voxels_in_bb<false>(bbox, min_count, min_confidence);    \
                 }                                                                                  \
             }                                                                                      \
             return result;                                                                         \
@@ -725,94 +844,64 @@ namespace py = pybind11;
         py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,                                 \
         py::arg("include_semantics") = false)                                                      \
         .def(                                                                                      \
-            "get_voxels_in_bb",                                                                    \
-            [](CLASS_TYPE &self, BoundingBox3D bbox, int min_count = 1,                            \
-               float min_confidence = 0.0, bool include_semantics = false) {                       \
+            "get_voxels_in_camera_frustrum",                                                       \
+            [](CLASS_TYPE &self, const volumetric::CameraFrustrum &camera_frustrum,                \
+               int min_count = 1, float min_confidence = 0.0, bool include_semantics = false) {    \
                 volumetric::VoxelGridData result;                                                  \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     if constexpr (IS_SEMANTIC) {                                                   \
                         if (include_semantics) {                                                   \
-                            result = self.template get_voxels_in_bb<float, true>(bbox, min_count,  \
-                                                                                 min_confidence);  \
+                            result = self.template get_voxels_in_camera_frustrum<true>(            \
+                                camera_frustrum, min_count, min_confidence);                       \
                         } else {                                                                   \
-                            result = self.template get_voxels_in_bb<float, false>(bbox, min_count, \
-                                                                                  min_confidence); \
+                            result = self.template get_voxels_in_camera_frustrum<false>(           \
+                                camera_frustrum, min_count, min_confidence);                       \
                         }                                                                          \
                     } else {                                                                       \
                         if (include_semantics) {                                                   \
-                            throw std::runtime_error(                                              \
-                                "include_semantics=True is not supported for non-semantic grids"); \
+                            throw std::runtime_error("include_semantics=True is not "              \
+                                                     "supported for non-semantic grids");          \
                         }                                                                          \
-                        result = self.template get_voxels_in_bb<float, false>(bbox, min_count,     \
-                                                                              min_confidence);     \
+                        result = self.template get_voxels_in_camera_frustrum<false>(               \
+                            camera_frustrum, min_count, min_confidence);                           \
                     }                                                                              \
                 }                                                                                  \
                 return result;                                                                     \
             },                                                                                     \
-            "Get voxels within a spatial interval (bounding box)", py::arg("bbox"),                \
+            "Get voxels within a camera frustrum", py::arg("camera_frustrum"),                     \
             py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,                             \
             py::arg("include_semantics") = false)                                                  \
         .def(                                                                                      \
-            "get_voxels_in_interval_array",                                                        \
-            [](CLASS_TYPE &self, py::array_t<double> bounds, int min_count = 1,                    \
-               float min_confidence = 0.0, bool include_semantics = false) {                       \
-                volumetric::VoxelGridData result;                                                  \
+            "carve",                                                                               \
+            [](CLASS_TYPE &self, const volumetric::CameraFrustrum &camera_frustrum,                \
+               cv::Mat &depth_image, const float depth_threshold = 1e-2) {                         \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    if constexpr (IS_SEMANTIC) {                                                   \
-                        if (include_semantics) {                                                   \
-                            result = self.template get_voxels_in_interval_array<double, true>(     \
-                                bounds, min_count, min_confidence);                                \
-                        } else {                                                                   \
-                            result = self.template get_voxels_in_interval_array<double, false>(    \
-                                bounds, min_count, min_confidence);                                \
-                        }                                                                          \
-                    } else {                                                                       \
-                        if (include_semantics) {                                                   \
-                            throw std::runtime_error(                                              \
-                                "include_semantics=True is not supported for non-semantic grids"); \
-                        }                                                                          \
-                        result = self.template get_voxels_in_interval_array<double, false>(        \
-                            bounds, min_count, min_confidence);                                    \
-                    }                                                                              \
+                    self.carve(camera_frustrum, depth_image, depth_threshold);                     \
                 }                                                                                  \
-                return result;                                                                     \
             },                                                                                     \
-            "Get voxels within a spatial interval using array input [min_x, min_y, min_z, max_x, " \
-            "max_y, max_z]",                                                                       \
-            py::arg("bounds"), py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,          \
-            py::arg("include_semantics") = false)                                                  \
+            "Carve the voxel grid using the camera frustrum and "                                  \
+            "camera depths",                                                                       \
+            py::arg("camera_frustrum"), py::arg("depth_image"), py::arg("depth_threshold") = 1e-2) \
         .def(                                                                                      \
-            "get_voxels_in_interval_array",                                                        \
-            [](CLASS_TYPE &self, py::array_t<float> bounds, int min_count = 1,                     \
-               float min_confidence = 0.0, bool include_semantics = false) {                       \
-                volumetric::VoxelGridData result;                                                  \
+            "remove_low_count_voxels",                                                             \
+            [](CLASS_TYPE &self, const int min_count) {                                            \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    if constexpr (IS_SEMANTIC) {                                                   \
-                        if (include_semantics) {                                                   \
-                            result = self.template get_voxels_in_interval_array<float, true>(      \
-                                bounds, min_count, min_confidence);                                \
-                        } else {                                                                   \
-                            result = self.template get_voxels_in_interval_array<float, false>(     \
-                                bounds, min_count, min_confidence);                                \
-                        }                                                                          \
-                    } else {                                                                       \
-                        if (include_semantics) {                                                   \
-                            throw std::runtime_error(                                              \
-                                "include_semantics=True is not supported for non-semantic grids"); \
-                        }                                                                          \
-                        result = self.template get_voxels_in_interval_array<float, false>(         \
-                            bounds, min_count, min_confidence);                                    \
-                    }                                                                              \
+                    self.remove_low_count_voxels(min_count);                                       \
                 }                                                                                  \
-                return result;                                                                     \
             },                                                                                     \
-            "Get voxels within a spatial interval using array input [min_x, min_y, min_z, max_x, " \
-            "max_y, max_z]",                                                                       \
-            py::arg("bounds"), py::arg("min_count") = 1, py::arg("min_confidence") = 0.0,          \
-            py::arg("include_semantics") = false)
+            "Remove all voxels with low count", py::arg("min_count"))                              \
+        .def(                                                                                      \
+            "remove_low_confidence_voxels",                                                        \
+            [](CLASS_TYPE &self, const float min_confidence) {                                     \
+                {                                                                                  \
+                    py::gil_scoped_release release;                                                \
+                    self.remove_low_confidence_voxels(min_confidence);                             \
+                }                                                                                  \
+            },                                                                                     \
+            "Remove all voxels with low confidence", py::arg("min_confidence"))
 
 // ----------------------------------------
 
@@ -836,8 +925,8 @@ void bind_volumetric_grid(py::module &m) {
         .def("get_position", &volumetric::VoxelSemanticData::get_position, "Returns the position")
         .def("get_color", &volumetric::VoxelSemanticData::get_color, "Returns the color")
         .def_readwrite("count", &volumetric::VoxelSemanticData::count, "Returns the count")
-        .def("get_instance_id", &volumetric::VoxelSemanticData::get_instance_id,
-             "Returns the instance ID")
+        .def("get_object_id", &volumetric::VoxelSemanticData::get_object_id,
+             "Returns the object ID")
         .def("get_class_id", &volumetric::VoxelSemanticData::get_class_id, "Returns the class ID")
         .def("get_confidence", &volumetric::VoxelSemanticData::get_confidence,
              "Returns the confidence")
@@ -862,38 +951,38 @@ void bind_volumetric_grid(py::module &m) {
     // VoxelGrid
     // ----------------------------------------
     DEFINE_VOXEL_GRID_BINDINGS(volumetric::VoxelGrid, "VoxelGrid")
-    DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(volumetric::VoxelGrid, false);
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelGrid, false);
 
     // ----------------------------------------
     // VoxelBlockGrid
     // ----------------------------------------
     DEFINE_VOXEL_BLOCK_GRID_BINDINGS(volumetric::VoxelBlockGrid, "VoxelBlockGrid")
-    DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(volumetric::VoxelBlockGrid, false);
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelBlockGrid, false);
 
     // ----------------------------------------
     // VoxelSemanticGrid
     // ----------------------------------------
     DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS(volumetric::VoxelSemanticGrid, "VoxelSemanticGrid")
-    DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(volumetric::VoxelSemanticGrid, true);
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelSemanticGrid, true);
 
     // ----------------------------------------
     // VoxelSemanticGridProbabilistic
     // ----------------------------------------
     DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS(volumetric::VoxelSemanticGridProbabilistic,
                                         "VoxelSemanticGridProbabilistic")
-    DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(volumetric::VoxelSemanticGridProbabilistic, true);
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelSemanticGridProbabilistic, true);
 
     // ----------------------------------------
     // VoxelBlockSemanticGrid
     // ----------------------------------------
     DEFINE_VOXEL_BLOCK_SEMANTIC_GRID_BINDINGS(volumetric::VoxelBlockSemanticGrid,
                                               "VoxelBlockSemanticGrid")
-    DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(volumetric::VoxelBlockSemanticGrid, true);
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelBlockSemanticGrid, true);
 
     // ----------------------------------------
     // VoxelBlockSemanticProbabilisticGrid
     // ----------------------------------------
     DEFINE_VOXEL_BLOCK_SEMANTIC_GRID_BINDINGS(volumetric::VoxelBlockSemanticProbabilisticGrid,
                                               "VoxelBlockSemanticProbabilisticGrid")
-    DEFINE_GET_VOXELS_IN_INTERVAL_BINDINGS(volumetric::VoxelBlockSemanticProbabilisticGrid, true);
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelBlockSemanticProbabilisticGrid, true);
 }

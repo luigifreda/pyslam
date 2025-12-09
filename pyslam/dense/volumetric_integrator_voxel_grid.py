@@ -35,7 +35,7 @@ from pyslam.config_parameters import Parameters
 from pyslam.utilities.depth import depth2pointcloud, filter_shadow_points
 from pyslam.utilities.geometry import inv_T
 
-from volumetric import VoxelGrid, VoxelBlockGrid, TBBUtils
+from volumetric import VoxelGrid, VoxelBlockGrid, TBBUtils, CameraFrustrum
 
 import traceback
 
@@ -54,6 +54,7 @@ from pyslam.dense.volumetric_integrator_base import (
     VolumetricIntegrationOutput,
     VolumetricIntegrationPointCloud,
     VolumetricIntegratorBase,
+    VolumetricIntegrationKeyframeData,
 )
 
 
@@ -104,6 +105,23 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
         else:
             self.volume = VoxelGrid(voxel_size=Parameters.kVolumetricIntegrationVoxelLength)
 
+        carving_depth_max = (
+            Parameters.kVolumetricIntegrationGridCarvingDepthMaxIndoor
+            if environment_type == DatasetEnvironmentType.INDOOR
+            else Parameters.kVolumetricIntegrationGridCarvingDepthMaxOutdoor
+        )
+        self.camera_frustrum = CameraFrustrum(
+            self.camera.fx,
+            self.camera.fy,
+            self.camera.cx,
+            self.camera.cy,
+            self.camera.width,
+            self.camera.height,
+            np.eye(4),
+            depth_max=carving_depth_max,  # depth_max
+            depth_min=Parameters.kVolumetricIntegrationGridCarvingDepthMin,  # depth_min
+        )
+
     def volume_integration(
         self,
         q_in,
@@ -148,10 +166,12 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                 else:
 
                     if self.last_input_task.task_type == VolumetricIntegrationTaskType.INTEGRATE:
-                        keyframe_data = self.last_input_task.keyframe_data
+                        keyframe_data: VolumetricIntegrationKeyframeData = (
+                            self.last_input_task.keyframe_data
+                        )
 
                         VolumetricIntegratorBase.print(
-                            f"VolumetricIntegratorVoxelGrid: processing keyframe_data: {keyframe_data}"
+                            f"VolumetricIntegratorVoxelGrid: processing keyframe_data: {keyframe_data.id}"
                         )
 
                         color_undistorted, depth_undistorted, pts3d, semantic_undistorted = (
@@ -193,7 +213,7 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
 
                         # Filter depth
                         filter_depth = (
-                            Parameters.kVolumetricIntegratorGridShadowPointsFilter
+                            Parameters.kVolumetricIntegrationGridShadowPointsFilter
                         )  # do you want to filter the depth?
                         if filter_depth:
                             depth_filtered = filter_shadow_points(
@@ -229,6 +249,22 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                             # If no colors, create default black colors
                             colors = np.zeros((point_cloud.points.shape[0], 3), dtype=np.float32)
                         points = np.ascontiguousarray(point_cloud.points, dtype=np.float64)
+
+                        if Parameters.kVolumetricIntegrationGridUseCarving:
+                            VolumetricIntegratorBase.print(
+                                f"VolumetricIntegratorVoxelGrid: using carving with threshold: {Parameters.kVolumetricIntegrationGridCarvingDepthThreshold}"
+                            )
+                            self.camera_frustrum.set_T_cw(pose)
+                            # Ensure depth is in float32 format for C++ binding
+                            depth_for_carving = np.ascontiguousarray(
+                                depth_undistorted, dtype=np.float32
+                            )
+                            self.volume.carve(
+                                self.camera_frustrum,
+                                depth_for_carving,
+                                Parameters.kVolumetricIntegrationGridCarvingDepthThreshold,
+                            )
+
                         self.volume.integrate(points, colors)
 
                         self.last_integrated_id = keyframe_data.id
@@ -245,7 +281,8 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                             f"VolumetricIntegratorVoxelGrid: saving point cloud to: {save_path}"
                         )
                         voxel_grid_data = self.volume.get_voxels(
-                            min_count=Parameters.kVolumetricIntegratorGridMinCount,
+                            min_count=Parameters.kVolumetricIntegrationGridMinCount,
+                            min_confidence=Parameters.kVolumetricIntegrationGridMinConfidence,
                         )
                         points = np.asarray(voxel_grid_data.points, dtype=np.float64)
                         colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
@@ -267,11 +304,12 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                     if do_output:
                         mesh_out, pc_out = None, None
                         voxel_grid_data = self.volume.get_voxels(
-                            min_count=Parameters.kVolumetricIntegratorGridMinCount
+                            min_count=Parameters.kVolumetricIntegrationGridMinCount,
+                            min_confidence=Parameters.kVolumetricIntegrationGridMinConfidence,
                         )
                         # Convert C++ vectors to numpy arrays with proper shape and dtype
                         points = np.asarray(voxel_grid_data.points, dtype=np.float64)
-                        colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
+                        colors = np.ascontiguousarray(voxel_grid_data.colors, dtype=np.float32)
                         # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
                         # colors = np.clip(colors, 0.0, 1.0)
                         pc_out = VolumetricIntegrationPointCloud(points=points, colors=colors)

@@ -64,6 +64,7 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 BUILD_TYPE="Release"
 #BUILD_TYPE="Debug"
 
+echo "BUILD_TYPE: $BUILD_TYPE"
 
 make_dir build
 cd build

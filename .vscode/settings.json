@@ -10,6 +10,10 @@
   },
   "files.associations": {
     ".fantomasignore": "ignore",
+    "*.c": "cpp",
+    "*.cpp": "cpp",
+    "*.hpp": "cpp",
+    "*.h": "cpp",
     "__nullptr": "cpp",
     "any": "cpp",
     "initializer_list": "cpp",
@@ -105,6 +109,19 @@
   "C_Cpp.clang_format_path": "clang-format",
   "editor.formatOnSave": true,
   "commentTranslate.hover.enabled": false,
-  // Point C/C++ extension to the project compile_commands for precise navigation
-  "C_Cpp.default.compileCommands": "${workspaceFolder}/pyslam/slam/cpp/build/compile_commands.json",
+  // Disable Microsoft C++ IntelliSense - using clangd instead
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.autocomplete": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+  "C_Cpp.suggestSnippets": false,
+  "C_Cpp.enhancedColorization": "disabled",
+  // Enable clangd for better C++ support
+  "clangd.enabled": true,
+  "clangd.arguments": [
+    "--background-index",
+    "--clang-tidy",
+    "--completion-style=detailed",
+    "--header-insertion=iwyu",
+    "--header-insertion-decorators"
+  ]
 }

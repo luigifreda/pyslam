@@ -23,72 +23,104 @@
 
 #if USE_SIMD
 
+namespace volumetric {
+
+// Point information structure for grouping points by voxel key
+// CoordT is the coordinate type (float or double)
+template <typename CoordT> struct PointInfo {
+    CoordT x, y, z;
+    float color_x, color_y, color_z;
+};
+
 // Unified SIMD-optimized version (processes 4 points at a time)
 // Uses pre-partitioning to avoid race conditions when called from parallel code.
 // Groups points by voxel key first, then processes each voxel's points in SIMD batches.
 // Template parameter HasColors controls whether color processing is enabled at compile time
 template <typename VoxelDataT>
 template <bool HasColors>
-inline void VoxelGridT<VoxelDataT>::integrate_raw_simd_impl(const float *pts_ptr,
-                                                            const float *cols_ptr,
-                                                            size_t num_points) {
+void VoxelGridT<VoxelDataT>::integrate_raw_simd_impl(const float *pts_ptr, const float *cols_ptr,
+                                                     size_t num_points) {
 #ifdef TBB_FOUND
-    // Pre-partition points by voxel key to avoid race conditions
-    struct PointInfo {
-        size_t idx;
-        float x, y, z;
-        float color_x, color_y, color_z;
-    };
-    tbb::concurrent_unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> voxel_groups;
+    // Use enumerable_thread_specific to collect thread-local maps without contention
+    // Each thread builds its own map independently, then we merge sequentially after parallel phase
+    using LocalGroupsMap =
+        std::unordered_map<VoxelKey, std::vector<PointInfo<float>>, VoxelKeyHash>;
+    tbb::enumerable_thread_specific<LocalGroupsMap> thread_local_groups([]() {
+        LocalGroupsMap map;
+        map.reserve(64); // Pre-allocate for typical voxel count
+        return map;
+    });
 
-    // Phase 1: Group points by voxel key in parallel (thread-local accumulation)
-    std::mutex merge_mutex;
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, num_points), [&](const tbb::blocked_range<size_t> &range) {
-            // Thread-local map for this range
-            std::unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> local_groups;
-            local_groups.reserve(64); // Pre-allocate
+    // Precompute keys and group points by voxel in parallel
+    // Each thread builds its own local map without any synchronization
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_points), [&](auto r) {
+        // Get thread-local map (created lazily if needed)
+        auto &local_groups = thread_local_groups.local();
 
-            for (size_t i = range.begin(); i < range.end(); ++i) {
-                const size_t idx = i * 3;
-                const float x = pts_ptr[idx + 0];
-                const float y = pts_ptr[idx + 1];
-                const float z = pts_ptr[idx + 2];
+        for (size_t i = r.begin(); i < r.end(); ++i) {
+            const size_t idx = i * 3;
+            const float x = pts_ptr[idx + 0];
+            const float y = pts_ptr[idx + 1];
+            const float z = pts_ptr[idx + 2];
 
-                const VoxelKey key = get_voxel_key_inv<float, float>(x, y, z, inv_voxel_size_);
+            const VoxelKey key = get_voxel_key_inv<float, float>(x, y, z, inv_voxel_size_);
 
-                PointInfo info;
-                info.idx = i;
-                info.x = x;
-                info.y = y;
-                info.z = z;
-                if constexpr (HasColors) {
-                    info.color_x = cols_ptr[idx + 0];
-                    info.color_y = cols_ptr[idx + 1];
-                    info.color_z = cols_ptr[idx + 2];
-                }
-
-                local_groups[key].push_back(info);
+            PointInfo<float> info{x, y, z};
+            if constexpr (HasColors) {
+                info.color_x = cols_ptr[idx + 0];
+                info.color_y = cols_ptr[idx + 1];
+                info.color_z = cols_ptr[idx + 2];
             }
 
-            // Merge local groups into global concurrent map
-            std::lock_guard<std::mutex> lock(merge_mutex);
-            for (auto &[key, points] : local_groups) {
-                auto it = voxel_groups.find(key);
-                if (it == voxel_groups.end()) {
-                    auto result = voxel_groups.insert({key, std::vector<PointInfo>()});
-                    it = result.first;
-                }
+            local_groups[key].push_back(info);
+        }
+    });
+
+    // Merge thread-local maps into final result sequentially (no contention)
+    // Use std::unordered_map since merge is sequential and subsequent parallel processing is
+    // read-only
+    std::unordered_map<VoxelKey, std::vector<PointInfo<float>>, VoxelKeyHash> voxel_groups;
+
+    // First pass: count total points per key to reserve appropriate vector sizes
+    std::unordered_map<VoxelKey, size_t, VoxelKeyHash> key_point_counts;
+    for (const auto &local_groups : thread_local_groups) {
+        for (const auto &[key, points] : local_groups) {
+            key_point_counts[key] += points.size();
+        }
+    }
+
+    // Reserve map capacity based on unique keys (avoids rehashing during insert)
+    voxel_groups.reserve(key_point_counts.size());
+
+    // Second pass: merge with pre-reserved vectors to avoid reallocation
+    for (auto &local_groups : thread_local_groups) {
+        for (auto &[key, points] : local_groups) {
+            auto it = voxel_groups.find(key);
+            if (it == voxel_groups.end()) {
+                // Insert a new entry with reserved capacity based on total points for this key
+                std::vector<PointInfo<float>> vec;
+                vec.reserve(key_point_counts[key]);
+                vec.insert(vec.end(), points.begin(), points.end());
+                voxel_groups.emplace(key, std::move(vec));
+            } else {
+                // Append points to the existing vector (sequential merge, no synchronization
+                // needed)
+                // Ensure vector has enough capacity to avoid reallocation during append
                 auto &global_vec = it->second;
+                const size_t total_capacity_needed = key_point_counts[key];
+                if (global_vec.capacity() < total_capacity_needed) {
+                    global_vec.reserve(total_capacity_needed);
+                }
                 global_vec.insert(global_vec.end(), points.begin(), points.end());
             }
-        });
+        }
+    }
 
     // Phase 2: Process each voxel group in parallel (one thread per voxel)
     // Use SIMD batching within each voxel's points
     tbb::parallel_for_each(voxel_groups.begin(), voxel_groups.end(), [&](const auto &pair) {
         const VoxelKey &key = pair.first;
-        const std::vector<PointInfo> &points = pair.second;
+        const std::vector<PointInfo<float>> &points = pair.second;
 
         // Get or create voxel (concurrent map is thread-safe)
         auto [it, inserted] = grid_.insert({key, VoxelDataT()});
@@ -379,65 +411,90 @@ inline void VoxelGridT<VoxelDataT>::integrate_raw_simd_impl(const float *pts_ptr
 // Template parameter HasColors controls whether color processing is enabled at compile time
 template <typename VoxelDataT>
 template <bool HasColors>
-inline void VoxelGridT<VoxelDataT>::integrate_raw_simd_impl_double(const double *pts_ptr,
-                                                                   const float *cols_ptr,
-                                                                   size_t num_points) {
+void VoxelGridT<VoxelDataT>::integrate_raw_simd_impl_double(const double *pts_ptr,
+                                                            const float *cols_ptr,
+                                                            size_t num_points) {
 #ifdef TBB_FOUND
-    // Pre-partition points by voxel key to avoid race conditions
-    struct PointInfo {
-        size_t idx;
-        double x, y, z;
-        float color_x, color_y, color_z;
-    };
-    tbb::concurrent_unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> voxel_groups;
+    // Use enumerable_thread_specific to collect thread-local maps without contention
+    // Each thread builds its own map independently, then we merge sequentially after parallel phase
+    using LocalGroupsMap =
+        std::unordered_map<VoxelKey, std::vector<PointInfo<double>>, VoxelKeyHash>;
+    tbb::enumerable_thread_specific<LocalGroupsMap> thread_local_groups([]() {
+        LocalGroupsMap map;
+        map.reserve(64); // Pre-allocate for typical voxel count
+        return map;
+    });
 
-    // Phase 1: Group points by voxel key in parallel (thread-local accumulation)
-    std::mutex merge_mutex;
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, num_points), [&](const tbb::blocked_range<size_t> &range) {
-            std::unordered_map<VoxelKey, std::vector<PointInfo>, VoxelKeyHash> local_groups;
-            local_groups.reserve(64);
+    // Precompute keys and group points by voxel in parallel
+    // Each thread builds its own local map without any synchronization
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_points), [&](auto r) {
+        // Get thread-local map (created lazily if needed)
+        auto &local_groups = thread_local_groups.local();
 
-            for (size_t i = range.begin(); i < range.end(); ++i) {
-                const size_t idx = i * 3;
-                const double x = pts_ptr[idx + 0];
-                const double y = pts_ptr[idx + 1];
-                const double z = pts_ptr[idx + 2];
+        for (size_t i = r.begin(); i < r.end(); ++i) {
+            const size_t idx = i * 3;
+            const double x = pts_ptr[idx + 0];
+            const double y = pts_ptr[idx + 1];
+            const double z = pts_ptr[idx + 2];
 
-                const VoxelKey key = get_voxel_key_inv<double, double>(
-                    x, y, z, static_cast<double>(inv_voxel_size_));
+            const VoxelKey key = get_voxel_key_inv<double, double>(x, y, z, inv_voxel_size_);
 
-                PointInfo info;
-                info.idx = i;
-                info.x = x;
-                info.y = y;
-                info.z = z;
-                if constexpr (HasColors) {
-                    info.color_x = cols_ptr[idx + 0];
-                    info.color_y = cols_ptr[idx + 1];
-                    info.color_z = cols_ptr[idx + 2];
-                }
-
-                local_groups[key].push_back(info);
+            PointInfo<double> info{x, y, z};
+            if constexpr (HasColors) {
+                info.color_x = cols_ptr[idx + 0];
+                info.color_y = cols_ptr[idx + 1];
+                info.color_z = cols_ptr[idx + 2];
             }
 
-            std::lock_guard<std::mutex> lock(merge_mutex);
-            for (auto &[key, points] : local_groups) {
-                auto it = voxel_groups.find(key);
-                if (it == voxel_groups.end()) {
-                    auto result = voxel_groups.insert({key, std::vector<PointInfo>()});
-                    it = result.first;
-                }
+            local_groups[key].push_back(info);
+        }
+    });
+
+    // Merge thread-local maps into final result sequentially (no contention)
+    // Use std::unordered_map since merge is sequential and subsequent parallel processing is
+    // read-only
+    std::unordered_map<VoxelKey, std::vector<PointInfo<double>>, VoxelKeyHash> voxel_groups;
+
+    // First pass: count total points per key to reserve appropriate vector sizes
+    std::unordered_map<VoxelKey, size_t, VoxelKeyHash> key_point_counts;
+    for (const auto &local_groups : thread_local_groups) {
+        for (const auto &[key, points] : local_groups) {
+            key_point_counts[key] += points.size();
+        }
+    }
+
+    // Reserve map capacity based on unique keys (avoids rehashing during insert)
+    voxel_groups.reserve(key_point_counts.size());
+
+    // Second pass: merge with pre-reserved vectors to avoid reallocation
+    for (auto &local_groups : thread_local_groups) {
+        for (auto &[key, points] : local_groups) {
+            auto it = voxel_groups.find(key);
+            if (it == voxel_groups.end()) {
+                // Insert a new entry with reserved capacity based on total points for this key
+                std::vector<PointInfo<double>> vec;
+                vec.reserve(key_point_counts[key]);
+                vec.insert(vec.end(), points.begin(), points.end());
+                voxel_groups.emplace(key, std::move(vec));
+            } else {
+                // Append points to the existing vector (sequential merge, no synchronization
+                // needed)
+                // Ensure vector has enough capacity to avoid reallocation during append
                 auto &global_vec = it->second;
+                const size_t total_capacity_needed = key_point_counts[key];
+                if (global_vec.capacity() < total_capacity_needed) {
+                    global_vec.reserve(total_capacity_needed);
+                }
                 global_vec.insert(global_vec.end(), points.begin(), points.end());
             }
-        });
+        }
+    }
 
     // Phase 2: Process each voxel group in parallel (one thread per voxel)
     // Use SIMD batching within each voxel's points
     tbb::parallel_for_each(voxel_groups.begin(), voxel_groups.end(), [&](const auto &pair) {
         const VoxelKey &key = pair.first;
-        const std::vector<PointInfo> &points = pair.second;
+        const std::vector<PointInfo<double>> &points = pair.second;
 
         auto [it, inserted] = grid_.insert({key, VoxelDataT()});
         auto &v = it->second;
@@ -713,8 +770,7 @@ inline void VoxelGridT<VoxelDataT>::integrate_raw_simd_impl_double(const double 
         const double y = pts_ptr[idx + 1];
         const double z = pts_ptr[idx + 2];
 
-        const VoxelKey key =
-            get_voxel_key_inv<double, double>(x, y, z, static_cast<double>(inv_voxel_size_));
+        const VoxelKey key = get_voxel_key_inv<double, double>(x, y, z, inv_voxel_size_);
 
 #ifdef TBB_FOUND
         auto [it, inserted] = grid_.insert({key, VoxelDataT()});
@@ -927,5 +983,7 @@ inline void VoxelGridT<VoxelDataT>::integrate_raw_simd_impl_double(const double 
 #endif // USE_AVX2
 #endif // TBB_FOUND
 }
+
+} // namespace volumetric
 
 #endif

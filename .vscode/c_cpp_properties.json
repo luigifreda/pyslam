@@ -1,0 +1,53 @@
+{
+  "configurations": [
+    {
+      "name": "linux-gcc-x64",
+      "includePath": [
+        "${workspaceFolder}/cpp",
+        "${workspaceFolder}/cpp/**",
+        "${workspaceFolder}/pyslam/slam/cpp",
+        "${workspaceFolder}/pyslam/slam/cpp/**",
+        "/usr/include",
+        "/usr/local/include",
+        "${workspaceFolder}/thirdparty/pybind11/include",
+        "${workspaceFolder}/thirdparty/pybind11/include/pybind11",
+        "${workspaceFolder}/thirdparty/gtsam_local/install/include",
+        "${workspaceFolder}/thirdparty/gtsam_local/gtsam",
+        "${workspaceFolder}/thirdparty/pangolin/include",
+        "${workspaceFolder}/thirdparty/pangolin/build/src/include",
+        "${workspaceFolder}/thirdparty/json/include",
+        "${workspaceFolder}/thirdparty/json/install/include",
+        "${workspaceFolder}/thirdparty/open3d/install/include",
+        "${workspaceFolder}/thirdparty/open3d/install/include/**",
+        "${workspaceFolder}/thirdparty/opencv/install/include",
+        "${workspaceFolder}/thirdparty/opencv/install/include/opencv2",
+        "${workspaceFolder}/thirdparty/g2opy",
+        "${workspaceFolder}/thirdparty/pydbow2",
+        "${workspaceFolder}/thirdparty/pydbow3/modules/dbow3/install/include",
+        "${workspaceFolder}/thirdparty/gtsam_factors/include"
+      ],
+      "defines": [
+        "TBB_FOUND=1"
+      ],
+      "compilerPath": "/usr/bin/g++",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64",
+      "browse": {
+        "path": [
+          "${workspaceFolder}",
+          "${workspaceFolder}/cpp",
+          "${workspaceFolder}/thirdparty"
+        ],
+        "limitSymbolsToIncludedHeaders": false,
+        "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db"
+      },
+      "compilerArgs": [
+        "-std=c++17",
+        "-Wall",
+        "-Wextra"
+      ]
+    }
+  ],
+  "version": 4
+}

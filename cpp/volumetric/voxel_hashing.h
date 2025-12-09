@@ -58,7 +58,7 @@ struct VoxelKeyHash {
 };
 
 template <typename Tp, typename Tv>
-inline VoxelKey get_voxel_key(const Tp &x, const Tp &y, const Tp &z, const Tv &voxel_size) {
+inline VoxelKey get_voxel_key(const Tp x, const Tp y, const Tp z, const Tv voxel_size) {
     const KeyType vx = static_cast<KeyType>(std::floor(x / voxel_size));
     const KeyType vy = static_cast<KeyType>(std::floor(y / voxel_size));
     const KeyType vz = static_cast<KeyType>(std::floor(z / voxel_size));
@@ -67,7 +67,7 @@ inline VoxelKey get_voxel_key(const Tp &x, const Tp &y, const Tp &z, const Tv &v
 
 // Optimized version that uses multiplication instead of division (for inverse voxel size)
 template <typename Tp, typename Tv>
-inline VoxelKey get_voxel_key_inv(const Tp &x, const Tp &y, const Tp &z, const Tv &inv_voxel_size) {
+inline VoxelKey get_voxel_key_inv(const Tp x, const Tp y, const Tp z, const Tv inv_voxel_size) {
     const KeyType vx = static_cast<KeyType>(std::floor(x * inv_voxel_size));
     const KeyType vy = static_cast<KeyType>(std::floor(y * inv_voxel_size));
     const KeyType vz = static_cast<KeyType>(std::floor(z * inv_voxel_size));
@@ -92,10 +92,10 @@ struct BlockKey {
 
 // Local voxel key: identifies a voxel within a block (0 to block_size-1)
 struct LocalVoxelKey {
-    int64_t x, y, z;
+    KeyType x, y, z;
 
     LocalVoxelKey() = default;
-    LocalVoxelKey(int64_t x, int64_t y, int64_t z) : x(x), y(y), z(z) {}
+    LocalVoxelKey(KeyType x, KeyType y, KeyType z) : x(x), y(y), z(z) {}
 
     bool operator==(const LocalVoxelKey &other) const {
         return x == other.x && y == other.y && z == other.z;
@@ -126,28 +126,37 @@ struct LocalVoxelKeyHash {
 // Helper function for floor division (handles negative numbers correctly)
 // The floor_div function ensures integer division rounds toward negative infinity (floor), not
 // toward zero (which is the default behavior of integer division in C++).
-inline KeyType floor_div(const KeyType a, const KeyType b) {
-    if (a >= 0) {
-        return a / b;
-    } else {
-        return (a - b + 1) / b;
-    }
+// World voxels (x):
+// ...  -9  -8  -7  -6  -5  -4  -3  -2  -1  |  0   1   2   3   4   5   6   7   8   9  ...
+// Block size B = 4
+
+// Block index b_x = floor(x / B):
+// ...  -3  -3  -2  -2  -2  -2  -1  -1  -1  |  0   0   0   0   1   1   1   1   2   2  ...
+// Local index l_x = x - b_x * B:
+// ...   3   0   3   2   1   0   3   2   1  |  0   1   2   3   0   1   2   3   0   1  ...
+//            Block -2        Block -1        Block 0         Block 1         Block 2
+//            l_x:0..3        l_x:0..3        l_x:0..3        l_x:0..3        l_x:0..3
+inline int64_t floor_div(const int64_t a, const int64_t b) {
+    // assert(b>0)
+    return (a >= 0) ? (a / b) : ((a - b + 1) / b);
 }
 
 // Compute block coordinates from voxel coordinates
 inline BlockKey get_block_key(const VoxelKey &voxel_key, const size_t block_size) {
-    const int64_t bx = floor_div(voxel_key.x, block_size);
-    const int64_t by = floor_div(voxel_key.y, block_size);
-    const int64_t bz = floor_div(voxel_key.z, block_size);
+    const int64_t bs = static_cast<int64_t>(block_size);
+    const KeyType bx = static_cast<KeyType>(floor_div(voxel_key.x, bs));
+    const KeyType by = static_cast<KeyType>(floor_div(voxel_key.y, bs));
+    const KeyType bz = static_cast<KeyType>(floor_div(voxel_key.z, bs));
     return BlockKey(bx, by, bz);
 }
 
 // Compute local voxel coordinates within a block from voxel and block coordinates
 inline LocalVoxelKey get_local_voxel_key(const VoxelKey &voxel_key, const BlockKey &block_key,
                                          const size_t block_size) {
-    const KeyType lx = voxel_key.x - block_key.x * block_size;
-    const KeyType ly = voxel_key.y - block_key.y * block_size;
-    const KeyType lz = voxel_key.z - block_key.z * block_size;
+    const int64_t bs = static_cast<int64_t>(block_size);
+    const KeyType lx = static_cast<KeyType>(int64_t(voxel_key.x) - int64_t(block_key.x) * bs);
+    const KeyType ly = static_cast<KeyType>(int64_t(voxel_key.y) - int64_t(block_key.y) * bs);
+    const KeyType lz = static_cast<KeyType>(int64_t(voxel_key.z) - int64_t(block_key.z) * bs);
     return LocalVoxelKey(lx, ly, lz);
 }
 
@@ -170,7 +179,7 @@ template <size_t I> constexpr KeyType get(const BlockKey &key) {
         return key.z;
 }
 
-template <size_t I> constexpr int64_t get(const LocalVoxelKey &key) {
+template <size_t I> constexpr KeyType get(const LocalVoxelKey &key) {
     if constexpr (I == 0)
         return key.x;
     if constexpr (I == 1)
@@ -216,10 +225,10 @@ template <size_t I> constexpr volumetric::KeyType get(const volumetric::BlockKey
 template <> struct tuple_size<volumetric::LocalVoxelKey> : integral_constant<size_t, 3> {};
 
 template <size_t I> struct tuple_element<I, volumetric::LocalVoxelKey> {
-    using type = int64_t;
+    using type = volumetric::KeyType;
 };
 
-template <size_t I> constexpr int64_t get(const volumetric::LocalVoxelKey &key) {
+template <size_t I> constexpr volumetric::KeyType get(const volumetric::LocalVoxelKey &key) {
     if constexpr (I == 0)
         return key.x;
     if constexpr (I == 1)

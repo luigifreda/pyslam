@@ -29,6 +29,9 @@
 #include <unordered_map>
 #include <vector>
 
+// NOTE: This file contains the definitions of the voxel data types and the concepts that they must
+// satisfy.
+
 namespace volumetric {
 
 #ifndef NDEBUG
@@ -159,16 +162,16 @@ struct VoxelSemanticData {
         const float counter_f = static_cast<float>(confidence_counter_);
         return std::min(1.0f, counter_f / count_f);
     }
-    int get_instance_id() const { return instance_id; }
+    int get_object_id() const { return object_id; }
     int get_class_id() const { return class_id; }
 
     // Setters for semantic data (needed for operations like merge_segments)
-    void set_instance_id(int id) { instance_id = id; }
+    void set_object_id(int id) { object_id = id; }
     void set_class_id(int id) { class_id = id; }
     void set_confidence_counter(int counter) { confidence_counter_ = counter; }
 
   protected:
-    int instance_id = -1;        // instance ID
+    int object_id = -1;          // object ID
     int class_id = -1;           // class ID
     int confidence_counter_ = 0; // confidence counter for the instance and class IDs
 
@@ -181,28 +184,28 @@ struct VoxelSemanticData {
         position_sum = {0.0, 0.0, 0.0};
         color_sum = {0.0f, 0.0f, 0.0f};
         // reset semantics
-        instance_id = -1;
+        object_id = -1;
         class_id = -1;
         confidence_counter_ = 0;
     }
 
-    void initialize_semantics(const int instance_id, const int class_id) {
-        this->instance_id = instance_id;
+    void initialize_semantics(const int object_id, const int class_id) {
+        this->object_id = object_id;
         this->class_id = class_id;
         this->confidence_counter_ = 1;
     }
 
-    void initialize_semantics_with_depth(const int instance_id, const int class_id,
+    void initialize_semantics_with_depth(const int object_id, const int class_id,
                                          const float depth) {
 
         if (depth < kDepthThreshold) {
-            initialize_semantics(instance_id, class_id);
+            initialize_semantics(object_id, class_id);
         }
     }
 
-    void update_semantics(const int instance_id, const int class_id) {
+    void update_semantics(const int object_id, const int class_id) {
 
-        if (this->instance_id == instance_id && this->class_id == class_id) {
+        if (this->object_id == object_id && this->class_id == class_id) {
             // Update confidence counter if the instance and class IDs are the same
             this->confidence_counter_++;
         } else {
@@ -211,17 +214,17 @@ struct VoxelSemanticData {
             if (this->confidence_counter_ <= 0) {
                 // If the confidence counter is less than or equal to 0, set the instance
                 // and class IDs and reset the confidence counter to 1
-                this->instance_id = instance_id;
+                this->object_id = object_id;
                 this->class_id = class_id;
                 this->confidence_counter_ = 1;
             }
         }
     }
 
-    void update_semantics_with_depth(const int instance_id, const int class_id, const float depth) {
+    void update_semantics_with_depth(const int object_id, const int class_id, const float depth) {
         // if depth < kDepthThreshold, the confidence is 1.0 => confidence_counter = 1
         if (depth < kDepthThreshold) {
-            update_semantics(instance_id, class_id);
+            update_semantics(object_id, class_id);
         }
     }
 };
@@ -240,7 +243,7 @@ float VoxelSemanticData::kDepthThreshold = 10.0f; // [m] depth threshold for upd
 // - Instance IDs and class IDs are used to store the most likely label pair of the voxel.
 //
 // Probabilistic update (ideal Bayesian fusion):
-//  Let L = (i,c) be a label pair (instance_id, class_id)
+//  Let L = (i,c) be a label pair (object_id, class_id)
 //  We have a prior distribution p(L|old) after having observed n points in the voxel.
 //  When we get a new observation x_new (one more point measurement in the voxel), Bayes update
 //  says: p(L|x_new, old) = p(x_new|L,old) * p(L|old) / p(x_new|old) Assuming conditional
@@ -254,7 +257,7 @@ float VoxelSemanticData::kDepthThreshold = 10.0f; // [m] depth threshold for upd
 //  the label L and prior(old) = p(L|old)
 //
 // Efficiency features:
-// - Sparse storage: only stores probabilities for observed (instance_id, class_id) pairs
+// - Sparse storage: only stores probabilities for observed (object_id, class_id) pairs
 // - Log-space arithmetic: avoids numerical underflow, multiplication becomes addition
 // - Lazy evaluation: most likely label is cached and recomputed only when needed
 // - Memory efficient: O(k) storage where k is the number of unique label pairs observed
@@ -265,8 +268,8 @@ float VoxelSemanticData::kDepthThreshold = 10.0f; // [m] depth threshold for upd
 // Usage:
 // - Call initialize_semantics() for the first observation
 // - Call update_semantics() for subsequent observations (optionally with confidence scores)
-// - Access most likely label via get_instance_id(), get_class_id(), or get_most_likely_label()
-// - For direct member access (instance_id, class_id, confidence_counter), call
+// - Access most likely label via get_object_id(), get_class_id(), or get_most_likely_label()
+// - For direct member access (object_id, class_id, confidence_counter), call
 // ensure_cache_updated() first
 //   or use the getter methods which handle this automatically
 struct VoxelSemanticDataProbabilistic {
@@ -278,13 +281,13 @@ struct VoxelSemanticDataProbabilistic {
     VOXEL_POSITION_MEMBERS()
     VOXEL_COLOR_MEMBERS()
 
-    // Sparse probability distribution: (instance_id, class_id) -> log_probability
+    // Sparse probability distribution: (object_id, class_id) -> log_probability
     // Using log probabilities avoids numerical underflow and makes multiplication additive
     // std::map is used instead of std::unordered_map for better performance with few observations
     // (std::pair<int, int> is naturally comparable, so no custom comparator needed)
     std::map<std::pair<int, int>, float> log_probabilities;
 
-    // Cached most likely label pair (updated lazily), (instance_id, class_id) pair
+    // Cached most likely label pair (updated lazily), (object_id, class_id) pair
     mutable std::pair<int, int> most_likely_pair = {-1, -1};
     mutable float most_likely_log_prob = -std::numeric_limits<float>::infinity();
     mutable bool cache_valid = false;
@@ -292,7 +295,7 @@ struct VoxelSemanticDataProbabilistic {
   protected:
     // Direct access members for compatibility (lazy evaluation via getters)
     // Note: These are mutable to allow const access patterns
-    mutable int instance_id = -1;     // cached most likely instance ID
+    mutable int object_id = -1;       // cached most likely object ID
     mutable int class_id = -1;        // cached most likely class ID
     mutable float confidence_ = 0.0f; // cached confidence
 
@@ -312,14 +315,14 @@ struct VoxelSemanticDataProbabilistic {
         most_likely_log_prob = -std::numeric_limits<float>::infinity();
         cache_valid = false;
         // Reset cached members for compatibility
-        instance_id = -1;
+        object_id = -1;
         class_id = -1;
         confidence_ = 0.0f;
     }
 
-    void initialize_semantics_log_prob(const int instance_id, const int class_id,
+    void initialize_semantics_log_prob(const int object_id, const int class_id,
                                        const float log_prob) {
-        const auto key = std::make_pair(instance_id, class_id);
+        const auto key = std::make_pair(object_id, class_id);
         // Initialize with log(confidence), assuming uniform prior
         // Using log(confidence) as initial log probability
         // const float log_prob = std::log(std::max(confidence, MIN_CONFIDENCE));
@@ -331,15 +334,15 @@ struct VoxelSemanticDataProbabilistic {
         update_cached_members();
     }
 
-    void initialize_semantics(const int instance_id, const int class_id,
+    void initialize_semantics(const int object_id, const int class_id,
                               const float confidence = 1.0f) {
         // Initialize with log(confidence), assuming uniform prior
         // Using log(confidence) as initial log probability
         const float log_prob = std::log(std::max(confidence, MIN_CONFIDENCE));
-        initialize_semantics_log_prob(instance_id, class_id, log_prob);
+        initialize_semantics_log_prob(object_id, class_id, log_prob);
     }
 
-    void initialize_semantics_with_depth(const int instance_id, const int class_id,
+    void initialize_semantics_with_depth(const int object_id, const int class_id,
                                          const float depth) {
         // if depth < kDepthThreshold, the confidence is 1.0 => log_prob = 0.0
         // if depth >= kDepthThreshold, the confidence decays exponentially with depth
@@ -348,15 +351,15 @@ struct VoxelSemanticDataProbabilistic {
         // kDepthDecayRate
         const float log_prob =
             depth <= kDepthThreshold ? 0.0f : -(depth - kDepthThreshold) * kDepthDecayRate;
-        initialize_semantics_log_prob(instance_id, class_id, log_prob);
+        initialize_semantics_log_prob(object_id, class_id, log_prob);
     }
 
-    void update_semantics_log_prob(const int instance_id, const int class_id,
+    void update_semantics_log_prob(const int object_id, const int class_id,
                                    const float new_log_prob) {
 
         // const float new_log_prob = std::log(std::max(confidence, MIN_CONFIDENCE));
 
-        const auto key = std::make_pair(instance_id, class_id);
+        const auto key = std::make_pair(object_id, class_id);
         // Bayesian fusion in log space: log(P(new|old)) = log(P(new)) + log(P(old)) -
         // log(normalization) For efficiency, we accumulate log probabilities and normalize
         // periodically Here we use a simple additive update: log_prob += log(confidence) This
@@ -407,13 +410,12 @@ struct VoxelSemanticDataProbabilistic {
         }
     }
 
-    void update_semantics(const int instance_id, const int class_id,
-                          const float confidence = 1.0f) {
+    void update_semantics(const int object_id, const int class_id, const float confidence = 1.0f) {
         const float new_log_prob = std::log(std::max(confidence, MIN_CONFIDENCE));
-        update_semantics_log_prob(instance_id, class_id, new_log_prob);
+        update_semantics_log_prob(object_id, class_id, new_log_prob);
     }
 
-    void update_semantics_with_depth(const int instance_id, const int class_id, const float depth) {
+    void update_semantics_with_depth(const int object_id, const int class_id, const float depth) {
 
         // if depth < kDepthThreshold, the confidence is 1.0 => log_prob = 0.0
         // if depth >= kDepthThreshold, the confidence decays exponentially with depth
@@ -423,10 +425,10 @@ struct VoxelSemanticDataProbabilistic {
         const float new_log_prob =
             depth <= kDepthThreshold ? 0.0f : -(depth - kDepthThreshold) * kDepthDecayRate;
 
-        update_semantics_log_prob(instance_id, class_id, new_log_prob);
+        update_semantics_log_prob(object_id, class_id, new_log_prob);
     }
 
-    // Get the most likely (instance_id, class_id) pair
+    // Get the most likely (object_id, class_id) pair
     std::pair<int, int> get_most_likely_label() const {
         if (!cache_valid) {
             update_cache();
@@ -434,8 +436,8 @@ struct VoxelSemanticDataProbabilistic {
         return most_likely_pair;
     }
 
-    // Get the instance_id of the most likely label
-    int get_instance_id() const {
+    // Get the object_id of the most likely label
+    int get_object_id() const {
         if (!cache_valid) {
             update_cache();
         }
@@ -453,9 +455,9 @@ struct VoxelSemanticDataProbabilistic {
     // Setters for semantic data (needed for operations like merge_segments)
     // Note: For probabilistic voxels, these update the cached values but don't modify
     // the underlying probability distribution. Use with caution.
-    void set_instance_id(int id) {
+    void set_object_id(int id) {
         ensure_cache_updated();
-        instance_id = id;
+        object_id = id;
         most_likely_pair.first = id;
     }
     void set_class_id(int id) {
@@ -528,7 +530,7 @@ struct VoxelSemanticDataProbabilistic {
   private:
     // Helper to compute and store cached members based on current argmax
     void update_cached_members() const {
-        const_cast<VoxelSemanticDataProbabilistic *>(this)->instance_id = most_likely_pair.first;
+        const_cast<VoxelSemanticDataProbabilistic *>(this)->object_id = most_likely_pair.first;
         const_cast<VoxelSemanticDataProbabilistic *>(this)->class_id = most_likely_pair.second;
         const_cast<VoxelSemanticDataProbabilistic *>(this)->confidence_ = compute_confidence();
     }
@@ -651,19 +653,19 @@ concept Voxel = requires(T v, double x, double y, double z, float cx, float cy, 
 // Checks that a type has all the required members and methods for semantic voxel functionality
 // A semantic voxel must satisfy the Voxel concept plus have semantic-specific methods
 template <typename T>
-concept SemanticVoxel = Voxel<T> && requires(T v, int instance_id, int class_id) {
+concept SemanticVoxel = Voxel<T> && requires(T v, int object_id, int class_id) {
     // Semantic getter methods (check they exist and are callable)
-    v.get_instance_id();
+    v.get_object_id();
     v.get_class_id();
     v.get_confidence_counter();
     v.get_confidence();
 
     // Semantic methods
-    v.initialize_semantics(instance_id, class_id);
-    v.update_semantics(instance_id, class_id);
+    v.initialize_semantics(object_id, class_id);
+    v.update_semantics(object_id, class_id);
 
     // Check return types are convertible to int (using nested requires)
-    requires std::is_convertible_v<decltype(v.get_instance_id()), int>;
+    requires std::is_convertible_v<decltype(v.get_object_id()), int>;
     requires std::is_convertible_v<decltype(v.get_class_id()), int>;
     requires std::is_convertible_v<decltype(v.get_confidence_counter()), int>;
     requires std::is_convertible_v<decltype(v.get_confidence()), float>;
@@ -672,9 +674,9 @@ concept SemanticVoxel = Voxel<T> && requires(T v, int instance_id, int class_id)
 // Concept for semantic voxel data types with depth-based integration
 template <typename T>
 concept SemanticVoxelWithDepth =
-    SemanticVoxel<T> && requires(T v, int instance_id, int class_id, float depth) {
-        v.initialize_semantics_with_depth(instance_id, class_id, depth);
-        v.update_semantics_with_depth(instance_id, class_id, depth);
+    SemanticVoxel<T> && requires(T v, int object_id, int class_id, float depth) {
+        v.initialize_semantics_with_depth(object_id, class_id, depth);
+        v.update_semantics_with_depth(object_id, class_id, depth);
     };
 
 // Static assertions to verify the concepts work with the actual types
