@@ -204,21 +204,6 @@ function get_cuda_version(){
     fi
 }
 
-function get_torch_cuda_version() {
-    TORCH_CUDA_VERSION=$(python3 -c "import torch; print(torch.version.cuda)")
-    echo $TORCH_CUDA_VERSION
-}
-
-function brew_install(){
-    if brew ls --versions $1 > /dev/null; then
-        # The package is installed
-        echo $1 is already installed!
-    else
-    # The package is not installed
-        brew install $1
-    fi
-}
-
 # Function to detect CUDA toolkit version (not driver version)
 function detect_cuda_toolkit_version() {
     local cuda_version=""
@@ -251,6 +236,93 @@ function detect_cuda_toolkit_version() {
     echo "$cuda_version"
 }
 
+# Return a list of supported SM codes from nvcc as "50 75 86" etc.
+function get_supported_nvcc_archs() {
+    if ! command -v nvcc &> /dev/null; then
+        return 1
+    fi
+    nvcc --help 2>/dev/null | \
+        grep -o "sm_[0-9][0-9]" | \
+        sed 's/sm_//' | \
+        sort -u
+}
+
+
+function detect_cuda_arch_bin() {
+    local gpu_cap_raw="" gpu_cc=""
+    local supported=()
+
+    # 1) Try to read GPU compute capability via nvidia-smi
+    if command -v nvidia-smi &> /dev/null; then
+        gpu_cap_raw=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1)
+        # gpu_cap_raw like "8.6" or "7.5"
+        if [[ -n "$gpu_cap_raw" ]]; then
+            gpu_cc="${gpu_cap_raw/./}"   # "8.6" -> "86"
+        fi
+    fi
+
+    # 2) Try to get the list of archs supported by this CUDA toolkit (via nvcc)
+    if get_supported_nvcc_archs > /dev/null; then
+        mapfile -t supported < <(get_supported_nvcc_archs)
+    fi
+
+    # 2a) If we know GPU CC and also have nvcc's supported list, cross-check
+    if [[ -n "$gpu_cc" && ${#supported[@]} -gt 0 ]]; then
+        for a in "${supported[@]}"; do
+            if [[ "$a" == "$gpu_cc" ]]; then
+                # GPU is supported by this toolkit; return its exact capability (e.g. "8.6")
+                echo "$gpu_cap_raw"
+                return 0
+            fi
+        done
+        # GPU is NOT in the supported list => typical case: old GPU + very new CUDA
+        # Signal "no valid arch" so the caller can disable CUDA.
+        echo ""
+        return 1
+    fi
+
+    # 2b) If we know GPU CC but nvcc gave us nothing, just trust nvidia-smi
+    if [[ -n "$gpu_cap_raw" ]]; then
+        echo "$gpu_cap_raw"   # e.g. "8.6" on your RTX A3000
+        return 0
+    fi
+
+    # 2c) No GPU info, but we have nvcc-supported archs: build a broad list from those
+    if [[ ${#supported[@]} -gt 0 ]]; then
+        local out=()
+        for a in "${supported[@]}"; do
+            case "$a" in
+                50|52|53|60|61|70|72|75|80|86|89|90)
+                    out+=("${a:0:1}.${a:1:1}")
+                    ;;
+            esac
+        done
+        if [[ ${#out[@]} -gt 0 ]]; then
+            printf "%s " "${out[@]}"
+            echo
+            return 0
+        fi
+    fi
+
+    # 3) Last-resort default if neither nvidia-smi nor nvcc gave anything useful
+    # Architecture |  Example GPUs
+    #  5.0         |  GTX 950M, GTX 960
+    #  6.0         |  Tesla P100
+    #  6.1         |  GTX 1080, 1070, 1060
+    #  7.0         |  Tesla V100
+    #  7.5         |  RTX 2080 / 2070 / 2060
+    #  8.6         |  RTX 3080 / 3070 / 3060    
+    echo "5.0 6.0 6.1 7.0 7.5 8.6"
+    return 0
+} 
+
+# ====================================================
+
+function get_torch_cuda_version() {
+    TORCH_CUDA_VERSION=$(python3 -c "import torch; print(torch.version.cuda)")
+    echo $TORCH_CUDA_VERSION
+}
+
 # Function to verify PyTorch has CUDA support
 function verify_pytorch_cuda() {
     python -c "import torch; from torch.utils import cpp_extension; assert torch.cuda.is_available() or torch.version.cuda is not None, 'PyTorch CUDA not available'" 2>/dev/null
@@ -268,6 +340,19 @@ else:
     import torch
     print(getattr(torch.version, "cuda", "") or "")
 PY
+}
+
+# ====================================================
+
+
+function brew_install(){
+    if brew ls --versions $1 > /dev/null; then
+        # The package is installed
+        echo $1 is already installed!
+    else
+    # The package is not installed
+        brew install $1
+    fi
 }
 
 # ====================================================
