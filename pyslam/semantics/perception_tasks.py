@@ -29,6 +29,8 @@ from pyslam.utilities.system import Logging
 
 from pyslam.slam import KeyFrame
 
+from .semantic_segmentation_output import SemanticSegmentationOutput
+
 kVerbose = True
 
 # Type hints for IDE navigation
@@ -84,7 +86,7 @@ class PerceptionOutput:
     def __init__(
         self,
         task_type,
-        inference_output=None,
+        inference_output: SemanticSegmentationOutput | None = None,
         inference_color_image=None,
         frame_id=None,
         img=None,
@@ -97,7 +99,18 @@ class PerceptionOutput:
 
     def __str__(self) -> str:
         if self.inference_output is not None:
-            inference_output_str = f"inference_output = {self.inference_output.shape}"
+            if (
+                hasattr(self.inference_output, "semantics")
+                and self.inference_output.semantics is not None
+            ):
+                inference_output_str = f"inference_output = {self.inference_output.semantics.shape}"
+            elif (
+                hasattr(self.inference_output, "instances")
+                and self.inference_output.instances is not None
+            ):
+                inference_output_str = f"inference_output = {self.inference_output.instances.shape}"
+            else:
+                inference_output_str = f"inference_output type: {type(self.inference_output)}"
         else:
             inference_output_str = "inference_output = None"
-        return f"SemanticSegmentationOutput: task_type = {self.task_type.name}, {inference_output_str}, frame_id = {self.frame_id}"
+        return f"PerceptionOutput: task_type = {self.task_type.name}, {inference_output_str}, frame_id = {self.frame_id}"

@@ -486,6 +486,7 @@ void bind_frame(py::module &m) {
         .def_readwrite("img_right", &pyslam::Frame::img_right)
         .def_readwrite("depth_img", &pyslam::Frame::depth_img)
         .def_readwrite("semantic_img", &pyslam::Frame::semantic_img)
+        .def_readwrite("semantic_instances_img", &pyslam::Frame::semantic_instances_img)
         .def_readwrite("is_blurry", &pyslam::Frame::is_blurry)
         .def_readwrite("laplacian_var", &pyslam::Frame::laplacian_var)
         .def_readwrite("fov_center_c", &pyslam::Frame::fov_center_c)
@@ -608,6 +609,7 @@ void bind_frame(py::module &m) {
         .def("set_img_right", &pyslam::Frame::set_img_right)
         .def("set_depth_img", &pyslam::Frame::set_depth_img)
         .def("set_semantics", &pyslam::Frame::set_semantics)
+        .def("set_semantic_instances", &pyslam::Frame::set_semantic_instances)
         .def("is_semantics_available", &pyslam::Frame::is_semantics_available)
         .def(
             "update_points_semantics",

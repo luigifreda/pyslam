@@ -240,10 +240,11 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     KeyFramePtr kf_ref; // reference keyframe
 
     // Image data
-    cv::Mat img;          // image (copy of img if available)
-    cv::Mat img_right;    // right image (copy of img_right if available)
-    cv::Mat depth_img;    // depth (copy of depth if available)
-    cv::Mat semantic_img; // semantics (copy of semantic_img if available)
+    cv::Mat img;                    // image (copy of img if available)
+    cv::Mat img_right;              // right image (copy of img_right if available)
+    cv::Mat depth_img;              // depth (copy of depth if available)
+    cv::Mat semantic_img;           // semantics (copy of semantic_img if available)
+    cv::Mat semantic_instances_img; // semantic instances, type CV_32S (int32)
 
     // Statistics
     bool is_blurry = false;
@@ -327,6 +328,7 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     void set_img_right(const cv::Mat &img_right);
     void set_depth_img(const cv::Mat &depth_img);
     void set_semantics(const cv::Mat &semantic_img);
+    void set_semantic_instances(const cv::Mat &semantic_instances_img);
     bool is_semantics_available() const;
     void update_points_semantics(void *semantic_fusion_method = nullptr);
 

@@ -30,6 +30,7 @@ from torchvision import transforms
 
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
+from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_color_utils import labels_color_map_factory, labels_to_image
 
@@ -228,7 +229,7 @@ class SemanticSegmentationSegformer(SemanticSegmentationBase):
             if self.label_mapping is not None:
                 self.semantics = self.aggregate_probabilities(self.semantics, self.label_mapping)
 
-        return self.semantics
+        return SemanticSegmentationOutput(semantics=self.semantics, instances=None)
 
     def aggregate_probabilities(
         self, semantics: np.ndarray, label_mapping: np.ndarray

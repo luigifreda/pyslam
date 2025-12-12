@@ -777,8 +777,8 @@ void VoxelGridT<VoxelDataT>::integrate_raw_simd(const double *pts_ptr, const siz
 #endif
 
 template <typename VoxelDataT>
-void VoxelGridT<VoxelDataT>::carve(const CameraFrustrum &camera_frustrum, cv::Mat &depth_image,
-                                   const float depth_threshold) {
+void VoxelGridT<VoxelDataT>::carve(const CameraFrustrum &camera_frustrum,
+                                   const cv::Mat &depth_image, const float depth_threshold) {
 
     if (depth_image.empty()) {
         std::cout << "VoxelGridT<VoxelDataT>::carve: Depth image is empty" << std::endl;

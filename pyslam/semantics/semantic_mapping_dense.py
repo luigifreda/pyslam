@@ -125,33 +125,64 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         self.draw_semantic_mapping_init = False
         # Cache whether casting predictions from int64 to int32 is value-safe
         self._is_sem_pred_cast_to_int32_safe = None
+        self.curr_semantic_prediction = None  # (H, W) for LABEL, (H, W, num_classes) for PROBABILITY_VECTOR, or (H, W, D) for FEATURE_VECTOR
+        self.curr_semantic_instances = (
+            None  # (H, W) for INSTANCES (optional, None if not available)
+        )
+
+    def _ensure_cpp_compatible_array(self, array, target_dtype, cast_safety_cache=None):
+        """
+        Ensure a numpy array is compatible with C++ pybind11 bindings.
+        The C++ type caster requires exact dtype (e.g., np.int32, np.uint16), not platform-specific int types.
+
+        Args:
+            array: numpy array or None
+            target_dtype: target numpy dtype (e.g., np.int32, np.uint16)
+            cast_safety_cache: optional cache flag for int64->int32 safety check (only used for int32)
+
+        Returns:
+            tuple: (converted_array, updated_cast_safety_cache)
+            - If array is None, returns (None, cast_safety_cache)
+            - Otherwise returns (C-contiguous array with target_dtype, updated_cache)
+        """
+        if array is None or not isinstance(array, np.ndarray):
+            return array, cast_safety_cache
+
+        if not Parameters.USE_CPP_CORE:
+            return array, cast_safety_cache
+
+        # For int32 target dtype, handle int64 safely using the base class method
+        # Check if dtype is integer type (int64, int32, intc, etc.)
+        if target_dtype == np.int32 and np.issubdtype(array.dtype, np.integer):
+            # For int64, use the safe conversion method that checks value ranges
+            if array.dtype == np.int64:
+                array, cast_safety_cache = SemanticMappingBase.ensure_int32_prediction(
+                    array, cast_safety_cache
+                )
+
+        # Ensure the dtype is exactly target_dtype that pybind11 will recognize
+        # Create a fresh array with explicit dtype to ensure pybind11 compatibility
+        # Use np.array() with copy=True and explicit dtype to create a new array
+        # The C++ code now has a fallback to check dtype name, but we still ensure
+        # the dtype is target_dtype for maximum compatibility
+        if array.dtype != target_dtype or not array.flags["C_CONTIGUOUS"]:
+            array = np.array(array, dtype=target_dtype, copy=True)
+
+        return array, cast_safety_cache
 
     def update_kf_cur_semantics(self):
         # Ensure semantics use int32 for C++ compatibility
         # The C++ type caster requires exact np.int32 dtype, not platform-specific int types
         if Parameters.USE_CPP_CORE:
-            if isinstance(self.curr_semantic_prediction, np.ndarray):
-                # Check if dtype is integer type (int64, int32, intc, etc.)
-                if np.issubdtype(self.curr_semantic_prediction.dtype, np.integer):
-                    # For int64, use the safe conversion method that checks value ranges
-                    if self.curr_semantic_prediction.dtype == np.int64:
-                        self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
-                            SemanticMappingBase.ensure_int32_prediction(
-                                self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe
-                            )
-                        )
-                    # Ensure the dtype is exactly np.int32 that pybind11 will recognize
-                    # Create a fresh array with explicit dtype to ensure pybind11 compatibility
-                    # Use np.array() with copy=True and explicit dtype to create a new array
-                    # The C++ code now has a fallback to check dtype name, but we still ensure
-                    # the dtype is np.int32 for maximum compatibility
-                    if (
-                        self.curr_semantic_prediction.dtype != np.int32
-                        or not self.curr_semantic_prediction.flags["C_CONTIGUOUS"]
-                    ):
-                        self.curr_semantic_prediction = np.array(
-                            self.curr_semantic_prediction, dtype=np.int32, copy=True
-                        )
+            self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
+                self._ensure_cpp_compatible_array(
+                    self.curr_semantic_prediction, np.int32, self._is_sem_pred_cast_to_int32_safe
+                )
+            )
+            # Ensure instances use int32 for C++ compatibility (supports large panoptic segment IDs)
+            self.curr_semantic_instances, _ = self._ensure_cpp_compatible_array(
+                self.curr_semantic_instances, np.int32, None  # No safety cache needed for int32
+            )
 
         Printer.green(f"#semantic inference, timing: {self.timer_inference.last_elapsed}")
         # TODO(dvdmc): the prints don't work for some reason. They block the Thread ?
@@ -160,6 +191,7 @@ class SemanticMappingDenseBase(SemanticMappingBase):
         # update keypoints of current keyframe
         self.timer_update_keyframe.start()
         self.kf_cur.set_semantics(self.curr_semantic_prediction)
+        self.kf_cur.set_semantic_instances(self.curr_semantic_instances)
         self.timer_update_keyframe.refresh()
         Printer.green(f"#set KF semantics, timing: {self.timer_update_keyframe.last_elapsed}")
         # SemanticMappingBase.print(f'#keypoints: {self.kf_cur.num_keypoints()}, timing: {self.timer_update_keyframe.last_elapsed}')
@@ -277,7 +309,9 @@ class SemanticMappingDense(SemanticMappingDenseBase):
     def semantic_mapping_impl(self):
         # do dense semantic segmentation inference
         self.timer_inference.start()
-        self.curr_semantic_prediction = self.semantic_segmentation.infer(self.img_cur)
+        inference_output = self.semantic_segmentation.infer(self.img_cur)
+        self.curr_semantic_prediction = inference_output.semantics
+        self.curr_semantic_instances = inference_output.instances
         self.timer_inference.refresh()
 
         self.update_kf_cur_semantics()

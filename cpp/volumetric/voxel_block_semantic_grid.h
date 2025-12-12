@@ -31,10 +31,12 @@
 #include <unordered_map>
 #include <vector>
 
+#include "camera_frustrum.h"
 #include "voxel_block.h"
 #include "voxel_block_grid.h"
 #include "voxel_data.h"
 #include "voxel_hashing.h"
+#include "voxel_semantic_data_association.h"
 
 #ifdef TBB_FOUND
 #include <tbb/blocked_range.h>
@@ -44,9 +46,13 @@
 #include <tbb/parallel_for_each.h>
 #endif
 
+#include <opencv2/opencv.hpp>
+
 namespace py = pybind11;
 
 namespace volumetric {
+
+using MapInstanceIdToObjectId = std::unordered_map<int, int>; // instance ID -> object ID
 
 // VoxelBlockSemanticGrid class with indirect voxel hashing (block-based) and semantic segmentation
 // The space is divided into blocks of contiguous voxels (NxNxN)
@@ -57,6 +63,20 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
 
   public:
     explicit VoxelBlockSemanticGridT(double voxel_size = 0.05, int block_size = 8);
+
+    // Assign object IDs to instance IDs using semantic instances image and depth image
+    // Inputs:
+    // - camera_frustrum: camera frustrum
+    // - semantic_instances_image: semantic instances image
+    // - depth_image: depth image (optional, default is empty)
+    // - depth_threshold: depth threshold (optional, default is 0.1f)
+    // - min_vote_ratio: minimum vote ratio (optional, default is 0.5f)
+    // - min_votes: minimum votes (optional, default is 3)
+    // Returns: map of instance IDs to object IDs
+    MapInstanceIdToObjectId assign_object_ids_to_instance_ids(
+        const CameraFrustrum &camera_frustrum, const cv::Mat &semantic_instances_image,
+        const cv::Mat &depth_image = cv::Mat(), const float depth_threshold = 0.1f,
+        const float min_vote_ratio = 0.5f, const int min_votes = 3);
 
     void set_depth_threshold(float depth_threshold);
 

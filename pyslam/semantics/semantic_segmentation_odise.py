@@ -30,6 +30,7 @@ import cv2
 from torchvision import transforms
 
 from .semantic_segmentation_base import SemanticSegmentationBase
+from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_color_map_factory import semantic_color_map_factory
 
@@ -838,7 +839,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
     # ========================================================================
 
     @torch.no_grad()
-    def infer(self, image: np.ndarray) -> np.ndarray:
+    def infer(self, image: np.ndarray) -> SemanticSegmentationOutput:
         """
         Run semantic segmentation inference on an image.
 
@@ -846,7 +847,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             image: numpy array of shape (H, W, 3) in BGR format (OpenCV format)
 
         Returns:
-            semantics: numpy array of shape (H, W) for LABEL, or (H, W, num_classes) for PROBABILITY_VECTOR
+            SemanticSegmentationOutput: object containing semantics and optionally instances
         """
         # Preprocess image
         rgb_image = self._preprocess_image(image)
@@ -870,9 +871,9 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
         self._last_visualized_output = visualized_output
 
         # Postprocess predictions
-        self.semantics = self._postprocess_predictions(predictions, rgb_image)
+        semantics, instances = self._postprocess_predictions(predictions, rgb_image)
 
-        return self.semantics
+        return SemanticSegmentationOutput(semantics=semantics, instances=instances)
 
     def _preprocess_image(self, image: np.ndarray) -> np.ndarray:
         """
@@ -908,7 +909,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
 
     def _postprocess_predictions(
         self, predictions: Dict[str, Any], original_image: np.ndarray
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """
         Postprocess model predictions into semantic labels or probabilities.
 
@@ -917,18 +918,19 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             original_image: Original RGB image for size reference
 
         Returns:
-            semantics: Processed semantic output
+            (semantics, instances): Tuple of processed semantic output and optional instance IDs
         """
         if "panoptic_seg" in predictions:
             return self._process_panoptic_predictions(predictions, original_image)
         elif "sem_seg" in predictions:
-            return self._process_semantic_predictions(predictions, original_image)
+            semantics = self._process_semantic_predictions(predictions, original_image)
+            return semantics, None
         else:
             raise ValueError("No semantic segmentation found in predictions")
 
     def _process_panoptic_predictions(
         self, predictions: Dict[str, Any], original_image: np.ndarray
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """
         Process panoptic segmentation predictions.
 
@@ -937,10 +939,11 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             original_image: Original RGB image
 
         Returns:
-            semantic_labels: Semantic labels array
+            (semantic_labels, instance_ids): Tuple of semantic labels and instance IDs
         """
         panoptic_seg, segments_info = predictions["panoptic_seg"]
         semantic_labels = self._panoptic_to_semantic_labels(panoptic_seg, segments_info)
+        instance_ids = self._panoptic_to_instances(panoptic_seg, segments_info)
 
         # Store segments_info and original image for color mapping
         self._last_segments_info = copy.deepcopy(segments_info)
@@ -958,7 +961,14 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
                 interpolation=cv2.INTER_NEAREST,
             ).astype(np.int32)
 
-        return semantic_labels
+            if instance_ids is not None:
+                instance_ids = cv2.resize(
+                    instance_ids.astype(np.int32),
+                    (orig_w, orig_h),
+                    interpolation=cv2.INTER_NEAREST,
+                ).astype(np.int32)
+
+        return semantic_labels, instance_ids
 
     def _process_semantic_predictions(
         self, predictions: Dict[str, Any], original_image: np.ndarray
@@ -1043,6 +1053,36 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             semantic_labels[mask] = category_id
 
         return semantic_labels
+
+    def _panoptic_to_instances(
+        self, panoptic_seg: torch.Tensor, segments_info: list
+    ) -> Optional[np.ndarray]:
+        """
+        Extract instance IDs from panoptic segmentation.
+
+        Args:
+            panoptic_seg: Tensor of shape [H, W] with segment IDs
+            segments_info: List of dicts with segment information
+
+        Returns:
+            instance_ids: numpy array of shape [H, W] with instance IDs (0 for background/stuff)
+        """
+        panoptic_np = panoptic_seg.cpu().numpy()
+        instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
+
+        # Map segment IDs to instance IDs
+        # For panoptic segmentation, each segment is a unique instance
+        # We use the segment ID as the instance ID
+        for seg_info in segments_info:
+            seg_id = seg_info["id"]
+            # Only assign instance IDs to "thing" classes (instances)
+            # "stuff" classes (background regions) remain 0
+            is_thing = seg_info.get("isthing", False)
+            if is_thing:
+                mask = panoptic_np == seg_id
+                instance_ids[mask] = seg_id
+
+        return instance_ids
 
     def _softmax_2d(self, x: np.ndarray, axis: int = 0) -> np.ndarray:
         """

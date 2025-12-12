@@ -91,7 +91,8 @@ if __name__ == "__main__":
             print("----------------------------------------")
             print(f"processing img {img_id}, img.shape: {img.shape}")
 
-            curr_semantic_prediction = semantic_segmentation.infer(img)
+            inference_result = semantic_segmentation.infer(img)
+            curr_semantic_prediction = inference_result.semantics
             semantic_color_img = semantic_segmentation.to_rgb(curr_semantic_prediction, bgr=True)
 
             img_writer.write(img, f"id: {img_id}", (30, 30))

@@ -742,7 +742,7 @@ class SemanticSegmentationProcess:
                             )
                             if not headless:
                                 inference_color_image = semantic_segmentation.to_rgb(
-                                    inference_output, bgr=True
+                                    inference_output.semantics, bgr=True
                                 )
                             else:
                                 inference_color_image = None

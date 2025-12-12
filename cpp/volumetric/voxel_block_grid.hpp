@@ -599,8 +599,8 @@ void VoxelBlockGridT<VoxelDataT>::update_voxel_direct(Block &block, const LocalV
 }
 
 template <typename VoxelDataT>
-void VoxelBlockGridT<VoxelDataT>::carve(const CameraFrustrum &camera_frustrum, cv::Mat &depth_image,
-                                        const float depth_threshold) {
+void VoxelBlockGridT<VoxelDataT>::carve(const CameraFrustrum &camera_frustrum,
+                                        const cv::Mat &depth_image, const float depth_threshold) {
 
     if (depth_image.empty()) {
         std::cout << "VoxelBlockGridT<VoxelDataT>::carve: Depth image is empty" << std::endl;

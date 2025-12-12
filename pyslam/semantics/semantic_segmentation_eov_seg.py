@@ -28,6 +28,7 @@ from torchvision import transforms
 
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
+from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_color_utils import (
     labels_color_map_factory,
@@ -346,7 +347,7 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             image: numpy array of shape (H, W, 3) in BGR format (OpenCV format)
 
         Returns:
-            semantics: numpy array of shape (H, W) for LABEL, or (H, W, num_classes) for PROBABILITY_VECTOR
+            SemanticSegmentationOutput: object containing semantics and optionally instances
         """
         # Ensure image is in correct format (BGR, uint8)
         if image.dtype != np.uint8:
@@ -378,11 +379,14 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         # this pre-computed visualization if available, ensuring consistent output across models
         self._last_visualized_output = visualized_output
 
+        instances = None
+
         # Extract semantic segmentation - optimized path for panoptic
         if "panoptic_seg" in predictions:
             # Direct extraction from panoptic (faster, no softmax needed)
             panoptic_seg, segments_info = predictions["panoptic_seg"]
             semantic_labels = self._panoptic_to_semantic_labels(panoptic_seg, segments_info)
+            instances = self._panoptic_to_instances(panoptic_seg, segments_info)
 
             # Store segments_info and original image for color mapping
             # Make a deep copy to ensure segments_info is not modified
@@ -406,6 +410,13 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
                     (orig_w, orig_h),
                     interpolation=cv2.INTER_NEAREST,
                 ).astype(np.int32)
+
+                if instances is not None:
+                    instances = cv2.resize(
+                        instances.astype(np.int32),
+                        (orig_w, orig_h),
+                        interpolation=cv2.INTER_NEAREST,
+                    ).astype(np.int32)
 
             self.semantics = semantic_labels
 
@@ -448,7 +459,7 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
         else:
             raise ValueError("No semantic segmentation found in predictions")
 
-        return self.semantics
+        return SemanticSegmentationOutput(semantics=self.semantics, instances=instances)
 
     def _panoptic_to_semantic_labels(self, panoptic_seg, segments_info):
         """
@@ -486,6 +497,34 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             semantic_labels[mask] = category_id
 
         return semantic_labels
+
+    def _panoptic_to_instances(self, panoptic_seg, segments_info):
+        """
+        Extract instance IDs from panoptic segmentation.
+
+        Args:
+            panoptic_seg: Tensor of shape [H, W] with segment IDs
+            segments_info: List of dicts with segment information
+
+        Returns:
+            instance_ids: numpy array of shape [H, W] with instance IDs (0 for background/stuff)
+        """
+        panoptic_np = panoptic_seg.cpu().numpy()
+        instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
+
+        # Map segment IDs to instance IDs
+        # For panoptic segmentation, each segment is a unique instance
+        # We use the segment ID as the instance ID
+        for seg_info in segments_info:
+            seg_id = seg_info["id"]
+            # Only assign instance IDs to "thing" classes (instances)
+            # "stuff" classes (background regions) remain 0
+            is_thing = seg_info.get("isthing", False)
+            if is_thing:
+                mask = panoptic_np == seg_id
+                instance_ids[mask] = seg_id
+
+        return instance_ids
 
     def _panoptic_to_semantic(self, panoptic_seg, segments_info):
         """

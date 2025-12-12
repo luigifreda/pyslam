@@ -27,6 +27,8 @@ from . import semantic_types
 from pyslam.config_parameters import Parameters
 from pyslam.utilities.system import Logging
 
+from .semantic_segmentation_output import SemanticSegmentationOutput
+
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + "/../.."
@@ -55,10 +57,14 @@ class SemanticSegmentationBase:
         self.semantics = None
         self.init_print()
 
-    def infer(self, image):
+    # Run semantic segmentation inference on an image.
+    # Args:
+    #     image: numpy array of shape (H, W, 3) in BGR format (OpenCV format)
+    # Returns:
+    #     SemanticSegmentationOutput: object containing semantics and optionally instances
+    def infer(self, image) -> SemanticSegmentationOutput:
         raise NotImplementedError
 
-    # TODO(dvdmc): test if this works directly for transforming a single label
     def to_rgb(self, semantics, bgr=False):
         return NotImplementedError
 

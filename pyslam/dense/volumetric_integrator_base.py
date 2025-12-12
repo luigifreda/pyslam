@@ -92,7 +92,15 @@ class VolumetricIntegrationTaskType(Enum):
 
 # keyframe (pickable) data that are needed for volumetric integration
 class VolumetricIntegrationKeyframeData:
-    def __init__(self, keyframe: KeyFrame, img=None, img_right=None, depth=None, semantic_img=None):
+    def __init__(
+        self,
+        keyframe: KeyFrame,
+        img=None,
+        img_right=None,
+        depth=None,
+        semantic_img=None,
+        semantic_instances_img=None,
+    ):
         # keyframe data
         self.id = keyframe.id if keyframe is not None else -1
         self.kid = keyframe.kid if keyframe is not None else -1
@@ -114,6 +122,11 @@ class VolumetricIntegrationKeyframeData:
             semantic_img
             if semantic_img is not None
             else (keyframe.semantic_img if keyframe is not None else None)
+        )
+        self.semantic_instances_img = (
+            semantic_instances_img
+            if semantic_instances_img is not None
+            else (keyframe.semantic_instances_img if keyframe is not None else None)
         )
 
 
@@ -740,8 +753,11 @@ class VolumetricIntegratorBase:
         color_right = keyframe_data.img_right
         depth = keyframe_data.depth
         semantic = keyframe_data.semantic_img
-        semantic_undistorted = None
+        semantic_instances = keyframe_data.semantic_instances_img
+
         pts3d = None
+        semantic_undistorted = None
+        semantic_instances_undistorted = None
 
         if depth is None or depth.size == 0:
             if self.depth_estimator is None:
@@ -789,10 +805,18 @@ class VolumetricIntegratorBase:
                 semantic_undistorted = cv2.remap(
                     semantic, self.calib_map1, self.calib_map2, interpolation=cv2.INTER_NEAREST
                 )
+            if semantic_instances is not None:
+                semantic_instances_undistorted = cv2.remap(
+                    semantic_instances,
+                    self.calib_map1,
+                    self.calib_map2,
+                    interpolation=cv2.INTER_NEAREST,
+                )
         else:
             color_undistorted = color
             depth_undistorted = depth
             semantic_undistorted = semantic
+            semantic_instances_undistorted = semantic_instances
 
         if self.depth_estimator is not None:
             if not keyframe_data.id in self.img_id_to_depth:
@@ -800,7 +824,13 @@ class VolumetricIntegratorBase:
 
         color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
 
-        return color_undistorted, depth_undistorted, pts3d, semantic_undistorted
+        return (
+            color_undistorted,
+            depth_undistorted,
+            pts3d,
+            semantic_undistorted,
+            semantic_instances_undistorted,
+        )
 
     def volume_integration(
         self,

@@ -447,14 +447,32 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
 //   py::arg("voxel_size") or py::arg("voxel_size"),
 //   py::arg("block_size") = 8)
 // ----------------------------------------
-// Helper to remove parentheses from CLASS_DEF if present
-#define REMOVE_PARENS(...) __VA_ARGS__
-  // Helper to expand class definition properly
-#define EXPAND_CLASS_DEF(x) REMOVE_PARENS x
-#define DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, CLASS_DEF,            \
+// Helper to expand class definition properly (handles both parenthesized and non-parenthesized
+// forms)
+#define EXPAND_CLASS_DEF(TYPE, PTR_TYPE) TYPE, PTR_TYPE
+#define DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, TYPE, PTR_TYPE,       \
                                                     CONSTRUCTOR, ...)                              \
-    py::class_<EXPAND_CLASS_DEF(CLASS_DEF)>(m, PYTHON_NAME)                                        \
+    py::class_<EXPAND_CLASS_DEF(TYPE, PTR_TYPE)>(m, PYTHON_NAME)                                   \
         .def(CONSTRUCTOR, __VA_ARGS__)                                                             \
+        .def(                                                                                      \
+            "assign_object_ids_to_instance_ids",                                                   \
+            [](CLASS_TYPE &self, const volumetric::CameraFrustrum &camera_frustrum,                \
+               const cv::Mat &semantic_instances_image, const cv::Mat &depth_image,                \
+               const float depth_threshold = 0.1f, const float min_vote_ratio = 0.5f,              \
+               const int min_votes = 3) {                                                          \
+                volumetric::MapInstanceIdToObjectId result;                                        \
+                {                                                                                  \
+                    py::gil_scoped_release release;                                                \
+                    result = self.assign_object_ids_to_instance_ids(                               \
+                        camera_frustrum, semantic_instances_image, depth_image, depth_threshold,   \
+                        min_vote_ratio, min_votes);                                                \
+                }                                                                                  \
+                return result;                                                                     \
+            },                                                                                     \
+            "Assign object IDs to instance IDs using semantic instances image and depth image",    \
+            py::arg("camera_frustrum"), py::arg("semantic_instances_image"),                       \
+            py::arg("depth_image"), py::arg("depth_threshold") = 0.1f,                             \
+            py::arg("min_vote_ratio") = 0.5f, py::arg("min_votes") = 3)                            \
         .def("set_depth_threshold", &CLASS_TYPE::set_depth_threshold,                              \
              py::arg("depth_threshold") = 5.0)                                                     \
         .def("set_depth_decay_rate", &CLASS_TYPE::set_depth_decay_rate,                            \
@@ -700,8 +718,9 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
 //   py::init<float, int>())
 //   - CONSTRUCTOR_ARGS: Constructor arguments
 // ----------------------------------------
-#define DEFINE_VOXEL_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, CLASS_DEF, CONSTRUCTOR, ...)   \
-    py::class_<EXPAND_CLASS_DEF(CLASS_DEF)>(m, PYTHON_NAME)                                        \
+#define DEFINE_VOXEL_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, TYPE, PTR_TYPE, CONSTRUCTOR,   \
+                                           ...)                                                    \
+    py::class_<EXPAND_CLASS_DEF(TYPE, PTR_TYPE)>(m, PYTHON_NAME)                                   \
         .def(CONSTRUCTOR, __VA_ARGS__)                                                             \
         .def(                                                                                      \
             "integrate",                                                                           \
@@ -774,41 +793,42 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
 // ----------------------------------------
 // Convenience wrapper macros for easier usage
 // ----------------------------------------
-// For VoxelGrid (non-block)
-#define DEFINE_VOXEL_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                                        \
-    DEFINE_VOXEL_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME,                                    \
-                                       (CLASS_TYPE, std::shared_ptr<CLASS_TYPE>),                  \
-                                       py::init<float>(), py::arg("voxel_size"))
-
-// For VoxelBlockGrid (block-based)
-#define DEFINE_VOXEL_BLOCK_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                                  \
-    DEFINE_VOXEL_GRID_BINDINGS_UNIFIED(                                                            \
-        CLASS_TYPE, PYTHON_NAME, (CLASS_TYPE, std::shared_ptr<CLASS_TYPE>),                        \
-        py::init<float, int>(), py::arg("voxel_size"), py::arg("block_size") = 8)                  \
-        .def("num_blocks", &CLASS_TYPE::num_blocks, "Returns the number of blocks")                \
+// Helper macro to add block-specific methods (num_blocks, get_block_size, get_total_voxel_count)
+#define ADD_VOXEL_BLOCK_SPECIFIC_METHODS(CLASS_TYPE)                                               \
+    .def("num_blocks", &CLASS_TYPE::num_blocks, "Returns the number of blocks")                    \
         .def("get_block_size", &CLASS_TYPE::get_block_size, "Returns the block size")              \
         .def("get_total_voxel_count", &CLASS_TYPE::get_total_voxel_count,                          \
              "Returns the total voxel count")
+
+// For VoxelGrid (non-block)
+#define DEFINE_VOXEL_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                                        \
+    DEFINE_VOXEL_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, CLASS_TYPE,                        \
+                                       std::shared_ptr<CLASS_TYPE>, py::init<float>(),             \
+                                       py::arg("voxel_size"))
+
+// For VoxelBlockGrid (block-based)
+#define DEFINE_VOXEL_BLOCK_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                                  \
+    DEFINE_VOXEL_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, CLASS_TYPE,                        \
+                                       std::shared_ptr<CLASS_TYPE>, py::init<float, int>(),        \
+                                       py::arg("voxel_size"), py::arg("block_size") = 8)           \
+    ADD_VOXEL_BLOCK_SPECIFIC_METHODS(CLASS_TYPE)
 
 // For block-based semantic grids (VoxelBlockSemanticGrid,
 // VoxelBlockSemanticProbabilisticGrid)
 #define DEFINE_VOXEL_BLOCK_SEMANTIC_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                         \
     DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(                                                   \
-        CLASS_TYPE, PYTHON_NAME, (CLASS_TYPE, std::shared_ptr<CLASS_TYPE>),                        \
-        py::init<float, int>(), py::arg("voxel_size"), py::arg("block_size") = 8)                  \
-        .def("num_blocks", &CLASS_TYPE::num_blocks, "Returns the number of blocks")                \
-        .def("get_block_size", &CLASS_TYPE::get_block_size, "Returns the block size")              \
-        .def("get_total_voxel_count", &CLASS_TYPE::get_total_voxel_count,                          \
-             "Returns the total voxel count")
+        CLASS_TYPE, PYTHON_NAME, CLASS_TYPE, std::shared_ptr<CLASS_TYPE>, py::init<float, int>(),  \
+        py::arg("voxel_size"), py::arg("block_size") = 8)                                          \
+    ADD_VOXEL_BLOCK_SPECIFIC_METHODS(CLASS_TYPE)
 
 // For non-block semantic grids (VoxelSemanticGrid)
 // Note: We need to pass CLASS_TYPE, std::shared_ptr<CLASS_TYPE> as a
 // single parameter We use parentheses to group the comma-separated
 // types
 #define DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS(CLASS_TYPE, PYTHON_NAME)                               \
-    DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME,                           \
-                                                (CLASS_TYPE, std::shared_ptr<CLASS_TYPE>),         \
-                                                py::init<float>(), py::arg("voxel_size"))
+    DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS_UNIFIED(CLASS_TYPE, PYTHON_NAME, CLASS_TYPE,               \
+                                                std::shared_ptr<CLASS_TYPE>, py::init<float>(),    \
+                                                py::arg("voxel_size"))
 
 // Unified macro to add get_voxels_in_bb bindings for both semantic and
 // non-semantic grids IS_SEMANTIC: true if the grid type supports

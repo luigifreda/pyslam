@@ -307,45 +307,86 @@ class SemanticMappingDenseProcess(SemanticMappingDenseBase):
         self.time_semantic_mapping = elapsed_time
         SemanticMappingBase.print(f"semantic mapping elapsed time: {elapsed_time}")
 
+    def _ensure_cpp_compatible_array_after_multiprocessing(
+        self, array, target_dtype, cast_safety_cache=None
+    ):
+        """
+        Ensure a numpy array is compatible with C++ pybind11 bindings after multiprocessing
+        pickling/unpickling. After multiprocessing, numpy arrays may have platform-specific
+        dtypes (e.g., np.intc instead of np.int32) that pybind11 doesn't recognize.
+        Only convert dtype if necessary for C++ compatibility, preserving the actual values.
+
+        Args:
+            array: numpy array or None
+            target_dtype: target numpy dtype (e.g., np.int32, np.uint16)
+            cast_safety_cache: optional cache flag for int64->int32 safety check (only used for int32)
+
+        Returns:
+            tuple: (converted_array, updated_cast_safety_cache)
+            - If array is None or not a numpy array, returns (array, cast_safety_cache)
+            - Otherwise returns (C-contiguous array with compatible dtype, updated_cache)
+        """
+        if array is None or not isinstance(array, np.ndarray):
+            return array, cast_safety_cache
+
+        if not Parameters.USE_CPP_CORE:
+            return array, cast_safety_cache
+
+        if not np.issubdtype(array.dtype, np.integer):
+            return array, cast_safety_cache
+
+        # For int32 target dtype, handle int64 safely using the base class method
+        if target_dtype == np.int32 and array.dtype == np.int64:
+            array, cast_safety_cache = SemanticMappingBase.ensure_int32_prediction(
+                array, cast_safety_cache
+            )
+
+        # Only convert dtype if necessary for C++ compatibility
+        # Preserve original dtype if it's already compatible (uint8, uint16, int8, int16, int32)
+        # Only convert platform-specific types (like intc) that pybind11 doesn't recognize
+        dtype_name = array.dtype.name
+        is_contiguous = array.flags["C_CONTIGUOUS"]
+
+        # Determine compatible dtype names based on target_dtype
+        if target_dtype == np.int32:
+            compatible_dtype_names = ["int8", "int16", "int32"]
+        elif target_dtype == np.uint16:
+            compatible_dtype_names = ["uint8", "uint16"]
+        else:
+            # For other target dtypes, only allow exact match
+            compatible_dtype_names = [target_dtype.name] if hasattr(target_dtype, "name") else []
+
+        # Check if dtype needs conversion: only convert if it's a platform-specific type
+        # (like 'intc') or if it's not C-contiguous. Preserve compatible dtypes.
+        needs_conversion = dtype_name not in compatible_dtype_names or not is_contiguous
+
+        if needs_conversion:
+            # Use astype() to preserve values while changing dtype to target_dtype
+            # This ensures pybind11 compatibility while preserving semantic label values
+            array = np.ascontiguousarray(array.astype(target_dtype, copy=False))
+
+        return array, cast_safety_cache
+
     @override
     def semantic_mapping_impl(self, perception_output: PerceptionOutput):
         # process the dense semantic segmentation inference output
         self.timer_inference.start()
-        self.curr_semantic_prediction = perception_output.inference_output
+        # inference_output is now a SemanticSegmentationOutput object containing both semantics and instances
+        self.curr_semantic_prediction = perception_output.inference_output.semantics
+        self.curr_semantic_instances = perception_output.inference_output.instances
         self.curr_semantic_prediction_color_image = perception_output.inference_color_image
 
         # CRITICAL: After multiprocessing pickling/unpickling, numpy arrays may have platform-specific
         # dtypes (e.g., np.intc instead of np.int32) that pybind11 doesn't recognize.
         # Only convert dtype if necessary for C++ compatibility, preserving the actual values.
-        if Parameters.USE_CPP_CORE and isinstance(self.curr_semantic_prediction, np.ndarray):
-            if np.issubdtype(self.curr_semantic_prediction.dtype, np.integer):
-                # For int64, use the safe conversion method that checks value ranges
-                if self.curr_semantic_prediction.dtype == np.int64:
-                    self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
-                        SemanticMappingBase.ensure_int32_prediction(
-                            self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe
-                        )
-                    )
-                # Only convert dtype if necessary for C++ compatibility
-                # Preserve original dtype if it's already compatible (uint8, uint16, int8, int16, int32)
-                # Only convert platform-specific types (like intc) that pybind11 doesn't recognize
-                dtype_name = self.curr_semantic_prediction.dtype.name
-                # dtype_obj = self.curr_semantic_prediction.dtype
-                is_contiguous = self.curr_semantic_prediction.flags["C_CONTIGUOUS"]
-
-                # Check if dtype needs conversion: only convert if it's a platform-specific type
-                # (like 'intc') or if it's not C-contiguous. Preserve compatible dtypes.
-                needs_conversion = (
-                    dtype_name not in ["int8", "int16", "int32", "uint8", "uint16"]
-                    or not is_contiguous
-                )
-
-                if needs_conversion:
-                    # Use astype() to preserve values while changing dtype to int32
-                    # This ensures pybind11 compatibility while preserving semantic label values
-                    self.curr_semantic_prediction = np.ascontiguousarray(
-                        self.curr_semantic_prediction.astype(np.int32, copy=False)
-                    )
+        self.curr_semantic_prediction, self._is_sem_pred_cast_to_int32_safe = (
+            self._ensure_cpp_compatible_array_after_multiprocessing(
+                self.curr_semantic_prediction, np.int32, self._is_sem_pred_cast_to_int32_safe
+            )
+        )
+        self.curr_semantic_instances, _ = self._ensure_cpp_compatible_array_after_multiprocessing(
+            self.curr_semantic_instances, np.int32, None  # No safety cache needed for int32
+        )
 
         self.timer_inference.refresh()
 

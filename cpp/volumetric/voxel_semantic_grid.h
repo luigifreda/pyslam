@@ -30,6 +30,7 @@
 #include "voxel_data.h"
 #include "voxel_grid.h"
 #include "voxel_hashing.h"
+#include "voxel_semantic_data_association.h"
 
 #include <cmath>
 #include <memory>
@@ -57,6 +58,20 @@ namespace volumetric {
 template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<VoxelDataT> {
   public:
     explicit VoxelSemanticGridT(double voxel_size = 0.05);
+
+    // Assign object IDs to instance IDs using semantic instances image and depth image
+    // Inputs:
+    // - camera_frustrum: camera frustrum
+    // - semantic_instances_image: semantic instances image
+    // - depth_image: depth image (optional, default is empty)
+    // - depth_threshold: depth threshold (optional, default is 0.1f)
+    // - min_vote_ratio: minimum vote ratio (optional, default is 0.5f)
+    // - min_votes: minimum votes (optional, default is 3)
+    // Returns: map of instance IDs to object IDs
+    MapInstanceIdToObjectId assign_object_ids_to_instance_ids(
+        const CameraFrustrum &camera_frustrum, const cv::Mat &semantic_instances_image,
+        const cv::Mat &depth_image = cv::Mat(), const float depth_threshold = 0.1f,
+        const float min_vote_ratio = 0.5f, const int min_votes = 3);
 
     void set_depth_threshold(float depth_threshold);
 

@@ -87,7 +87,7 @@ py::tuple Frame::state_tuple(bool need_lock) const {
 
         // ---- images ----
         cvmat_to_numpy(img), cvmat_to_numpy(img_right), cvmat_to_numpy(depth_img),
-        cvmat_to_numpy(semantic_img),
+        cvmat_to_numpy(semantic_img), cvmat_to_numpy(semantic_instances_img),
 
         // ---- misc stats ----
         is_keyframe, is_blurry, laplacian_var);
@@ -154,6 +154,7 @@ void Frame::restore_from_state(const py::tuple &t, bool need_lock) {
     img_right = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_8U);
     depth_img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_32F); // if depth is float
     semantic_img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_8U);
+    semantic_instances_img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_32S);
 
     // ---- misc stats ----
     is_keyframe = t[idx++].cast<bool>();

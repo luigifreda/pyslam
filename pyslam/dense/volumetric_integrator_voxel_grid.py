@@ -174,9 +174,13 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                             f"VolumetricIntegratorVoxelGrid: processing keyframe_data: {keyframe_data.id}"
                         )
 
-                        color_undistorted, depth_undistorted, pts3d, semantic_undistorted = (
-                            self.estimate_depth_if_needed_and_rectify(keyframe_data)
-                        )
+                        (
+                            color_undistorted,
+                            depth_undistorted,
+                            pts3d,
+                            semantic_undistorted,
+                            semantic_instances_undistorted,
+                        ) = self.estimate_depth_if_needed_and_rectify(keyframe_data)
 
                         pose = keyframe_data.pose  # Tcw
                         inv_pose = inv_T(pose)  # Twc

@@ -35,6 +35,7 @@ from torchvision.models.segmentation import (
 from torchvision import transforms
 
 from .semantic_segmentation_base import SemanticSegmentationBase
+from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_color_utils import labels_color_map_factory, labels_to_image
 
@@ -178,7 +179,7 @@ class SemanticSegmentationDeepLabV3(SemanticSegmentationBase):
         elif self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             self.semantics = probs.permute(1, 2, 0).cpu().numpy()
 
-        return self.semantics
+        return SemanticSegmentationOutput(semantics=self.semantics, instances=None)
 
     def to_rgb(self, semantics, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:

@@ -223,6 +223,11 @@ std::string Frame::to_json() const {
         } else {
             j["semantic_img"] = nullptr;
         }
+        if (!semantic_instances_img.empty()) {
+            j["semantic_instances_img"] = cv_mat_to_json(semantic_instances_img);
+        } else {
+            j["semantic_instances_img"] = nullptr;
+        }
 
     } catch (const std::exception &e) {
         throw std::runtime_error("Error in Frame::to_json(): " + std::string(e.what()));
@@ -373,6 +378,13 @@ FramePtr Frame::from_json(const std::string &json_str) {
             frame->semantic_img = json_to_cv_mat(j["semantic_img"]);
         } catch (const std::exception &e) {
             frame->semantic_img = cv::Mat();
+        }
+    }
+    if (j.contains("semantic_instances_img") && !j["semantic_instances_img"].is_null()) {
+        try {
+            frame->semantic_instances_img = json_to_cv_mat(j["semantic_instances_img"]);
+        } catch (const std::exception &e) {
+            frame->semantic_instances_img = cv::Mat();
         }
     }
 

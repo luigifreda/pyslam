@@ -229,9 +229,13 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             f"VolumetricIntegratorVoxelSemanticGrid: processing keyframe_data: {keyframe_data}"
                         )
 
-                        color_undistorted, depth_undistorted, pts3d, semantic_undistorted = (
-                            self.estimate_depth_if_needed_and_rectify(keyframe_data)
-                        )
+                        (
+                            color_undistorted,
+                            depth_undistorted,
+                            pts3d,
+                            semantic_undistorted,
+                            semantic_instances_undistorted,
+                        ) = self.estimate_depth_if_needed_and_rectify(keyframe_data)
 
                         # Skip this keyframe if depth estimation/rectification failed
                         if color_undistorted is None or depth_undistorted is None:
@@ -264,12 +268,21 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                     VolumetricIntegratorBase.print(
                                         f"\t\tpts3d: shape: {pts3d.shape}, type: {pts3d.dtype}"
                                     )
+
                                 if (
                                     semantic_undistorted is not None
                                     and semantic_undistorted.shape[0] > 0
                                 ):
                                     VolumetricIntegratorBase.print(
                                         f"\t\tsemantic_undistorted: shape: {semantic_undistorted.shape}, type: {semantic_undistorted.dtype}"
+                                    )
+
+                                if (
+                                    semantic_instances_undistorted is not None
+                                    and semantic_instances_undistorted.shape[0] > 0
+                                ):
+                                    VolumetricIntegratorBase.print(
+                                        f"\t\tsemantic_instances_undistorted: shape: {semantic_instances_undistorted.shape}, type: {semantic_instances_undistorted.dtype}"
                                     )
 
                             # Filter depth

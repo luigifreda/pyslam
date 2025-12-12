@@ -34,6 +34,7 @@ from f3rm.features.clip import tokenize
 
 from .semantic_labels import get_ade20k_to_scannet40_map
 from .semantic_segmentation_base import SemanticSegmentationBase
+from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_color_utils import (
     similarity_heatmap_image,
@@ -251,7 +252,7 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
             self.semantics = (
                 recover_size(embeddings.permute(2, 0, 1)).permute(1, 2, 0).cpu().numpy()
             )
-            return self.semantics
+            return SemanticSegmentationOutput(semantics=self.semantics, instances=None)
 
         # Compute similarities
         sims = embeddings @ self.text_embs.T  # (H, W, D) @ (D, N) -> (H, W, N)
@@ -264,13 +265,13 @@ class SemanticSegmentationCLIP(SemanticSegmentationBase):
 
         if self.semantic_feature_type == SemanticFeatureType.PROBABILITY_VECTOR:
             self.semantics = probs.permute(1, 2, 0).cpu().numpy()
-            return self.semantics
+            return SemanticSegmentationOutput(semantics=self.semantics, instances=None)
 
         # Get the label
         pred = probs.argmax(dim=0)
         # if self.semantic_feature_type == SemanticFeatureType.LABEL: # NOT NECESSARY FOR NOW
         self.semantics = pred.cpu().numpy()
-        return self.semantics
+        return SemanticSegmentationOutput(semantics=self.semantics, instances=None)
 
     def to_rgb(self, semantics, bgr=False):
         if self.semantic_feature_type == SemanticFeatureType.LABEL:

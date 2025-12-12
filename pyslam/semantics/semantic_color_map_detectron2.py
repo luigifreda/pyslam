@@ -780,7 +780,7 @@ class Detectron2ColorMapManager:
             )
             if panoptic_np.shape[:2] != (H, W):
                 panoptic_np = cv2.resize(
-                    panoptic_np.astype(np.uint16),
+                    panoptic_np.astype(np.int32),
                     (W, H),
                     interpolation=cv2.INTER_NEAREST,
                 ).astype(np.int32)

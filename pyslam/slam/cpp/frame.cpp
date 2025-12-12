@@ -473,6 +473,7 @@ void Frame::copy_from(const Frame &other) {
     img_right = other.img_right;
     depth_img = other.depth_img;
     semantic_img = other.semantic_img;
+    semantic_instances_img = other.semantic_instances_img;
 
     kf_ref = other.kf_ref;
 
@@ -517,6 +518,7 @@ void Frame::reset() {
     img_right = cv::Mat();
     depth_img = cv::Mat();
     semantic_img = cv::Mat();
+    semantic_instances_img = cv::Mat();
 
     kps.resize(0, 2);
     kps_r.resize(0, 2);
@@ -1504,6 +1506,17 @@ void Frame::set_semantics(const cv::Mat &semantic_img) {
     }
 }
 
+void Frame::set_semantic_instances(const cv::Mat &semantic_instances_img) {
+    {
+        std::lock_guard<std::mutex> lock(_lock_semantics);
+        this->semantic_instances_img = semantic_instances_img.clone();
+        // convert to 32S if not already (int32 supports large panoptic segment IDs)
+        if (this->semantic_instances_img.depth() != CV_32S) {
+            this->semantic_instances_img.convertTo(this->semantic_instances_img, CV_32S);
+        }
+    }
+}
+
 bool Frame::is_semantics_available() const {
     std::lock_guard<std::mutex> lock(_lock_semantics);
     return !this->semantic_img.empty();
@@ -1537,6 +1550,9 @@ void Frame::ensure_contiguous_arrays() {
     }
     if (!semantic_img.empty() && !semantic_img.isContinuous()) {
         semantic_img = semantic_img.clone();
+    }
+    if (!semantic_instances_img.empty() && !semantic_instances_img.isContinuous()) {
+        semantic_instances_img = semantic_instances_img.clone();
     }
 }
 

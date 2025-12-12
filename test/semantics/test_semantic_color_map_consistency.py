@@ -385,7 +385,8 @@ def test_color_map_visual_consistency(config=None):
             device=device,
         )
 
-        inference_direct = semantic_segmentation_direct.infer(test_image)
+        inference_result = semantic_segmentation_direct.infer(test_image)
+        inference_direct = inference_result.semantics
 
         # Get the color map object from the direct semantic segmentation
         color_map_direct = None

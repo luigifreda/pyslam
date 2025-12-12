@@ -399,6 +399,7 @@ class Frame(FrameBase):
         self.img_right = None  # right image (copy of img_right if available)
         self.depth_img = None  # depth (copy of depth if available)
         self.semantic_img = None  # semantics (copy of semantic_img if available)
+        self.semantic_instances_img = None  # semantic instances
 
         self.is_blurry = False
         self.laplacian_var = None
@@ -459,6 +460,9 @@ class Frame(FrameBase):
 
             if self.semantic_img is None:
                 self.semantic_img = frame_data_dict["semantic_img"]
+
+            if self.semantic_instances_img is None:
+                self.semantic_instances_img = frame_data_dict["semantic_instances_img"]
 
             self.ensure_contiguous_arrays()
             return
@@ -543,6 +547,7 @@ class Frame(FrameBase):
             "img_right",
             "depth_img",
             "semantic_img",
+            "semantic_instances_img",
         ]:
             val = getattr(self, attr, None)
             if isinstance(val, np.ndarray) and not val.flags["C_CONTIGUOUS"]:
@@ -577,7 +582,13 @@ class Frame(FrameBase):
                     np.ascontiguousarray(self.kps_sem) if self.kps_sem is not None else None
                 )
 
-    def is_semantics_available(self):
+    def set_semantic_instances(self, semantic_instances_img):
+        with self._lock_semantics:
+            self.semantic_instances_img = np.ascontiguousarray(
+                semantic_instances_img.copy(), dtype=np.int32
+            )
+
+    def is_semantics_available(self) -> bool:
         with self._lock_semantics:
             return self.semantic_img is not None
 
@@ -687,6 +698,11 @@ class Frame(FrameBase):
                 if self.semantic_img is not None
                 else None
             ),
+            "semantic_instances_img": (
+                json.dumps(NumpyB64Json.numpy_to_json(self.semantic_instances_img))
+                if self.semantic_instances_img is not None
+                else None
+            ),
         }
         return ret
 
@@ -794,6 +810,11 @@ class Frame(FrameBase):
         frame_data_dict["semantic_img"] = (
             NumpyB64Json.json_to_numpy(json.loads(json_str["semantic_img"]))
             if json_str["semantic_img"] is not None
+            else None
+        )
+        frame_data_dict["semantic_instances_img"] = (
+            NumpyB64Json.json_to_numpy(json.loads(json_str["semantic_instances_img"]))
+            if json_str["semantic_instances_img"] is not None
             else None
         )
 

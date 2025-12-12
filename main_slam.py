@@ -297,171 +297,179 @@ if __name__ == "__main__":
 
     img_id = 0  # 210, 340, 400, 770   # you can start from a desired frame id if needed
 
-    while not is_viewer_closed:
+    try:
+        while not is_viewer_closed:
 
-        time_start = time.time()
+            time_start = time.time()
 
-        img, img_right, depth = None, None, None
+            img, img_right, depth = None, None, None
 
-        if do_step:
-            Printer.orange("do step: ", do_step)
+            if do_step:
+                Printer.orange("do step: ", do_step)
 
-        if do_reset:
-            Printer.yellow("do reset: ", do_reset)
-            slam.reset()
+            if do_reset:
+                Printer.yellow("do reset: ", do_reset)
+                slam.reset()
 
-        if not is_paused or do_step:
+            if not is_paused or do_step:
 
-            if dataset.is_ok:
-                print("..................................")
-                img = dataset.getImageColor(img_id)
-                depth = dataset.getDepth(img_id)
-                img_right = (
-                    dataset.getImageColorRight(img_id)
-                    if dataset.sensor_type == SensorType.STEREO
-                    else None
-                )
-
-            if img is not None:
-                timestamp = dataset.getTimestamp()  # get current timestamp
-                next_timestamp = dataset.getNextTimestamp()  # get next timestamp
-                frame_duration = (
-                    next_timestamp - timestamp
-                    if (timestamp is not None and next_timestamp is not None)
-                    else -1
-                )
-
-                print(f"image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}")
-
-                if img is not None:
-
-                    if depth is None and depth_estimator:
-                        depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
-                        if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
-                            depth = filter_shadow_points(depth_prediction)
-                        else:
-                            depth = depth_prediction
-
-                        if not args.headless:
-                            depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
-                            # cv2.imshow("depth prediction", depth_img)
-                            cv_image_viewer.draw(depth_img, "depth prediction")
-
-                    slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function
-
-                    # 3D display (map display)
-                    if viewer3D:
-                        viewer3D.draw_slam_map(slam)
-
-                    if not args.headless:
-                        is_draw_features_with_radius = viewer3D.is_draw_features_with_radius()
-                        img_draw = slam.map.draw_feature_trails(
-                            img,
-                            with_level_radius=is_draw_features_with_radius,
-                            trail_max_length=Parameters.kMaxFeatureTrailLength,
-                        )
-                        timer_main.refresh()
-                        fps = timer_main.get_fps()
-                        fps_text = f" fps: {fps:.1f}" if USE_CPP else ""
-                        img_writer.write(img_draw, f"id: {img_id} {fps_text}", (20, 20))
-                        # 2D display (image display)
-                        # cv2.imshow("Camera", img_draw)
-                        cv_image_viewer.draw(img_draw, "Camera")
-
-                    # draw 2d plots
-                    if plot_drawer:
-                        plot_drawer.draw(img_id)
-
-                if (
-                    online_trajectory_writer is not None
-                    and slam.tracking.cur_R is not None
-                    and slam.tracking.cur_t is not None
-                ):
-                    online_trajectory_writer.write_trajectory(
-                        slam.tracking.cur_R, slam.tracking.cur_t, timestamp
+                if dataset.is_ok:
+                    print("..................................")
+                    img = dataset.getImageColor(img_id)
+                    depth = dataset.getDepth(img_id)
+                    img_right = (
+                        dataset.getImageColorRight(img_id)
+                        if dataset.sensor_type == SensorType.STEREO
+                        else None
                     )
 
-                img_id += 1
-                num_frames += 1
+                if img is not None:
+                    timestamp = dataset.getTimestamp()  # get current timestamp
+                    next_timestamp = dataset.getNextTimestamp()  # get next timestamp
+                    frame_duration = (
+                        next_timestamp - timestamp
+                        if (timestamp is not None and next_timestamp is not None)
+                        else -1
+                    )
+
+                    print(f"image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}")
+
+                    if img is not None:
+
+                        if depth is None and depth_estimator:
+                            depth_prediction, pts3d_prediction = depth_estimator.infer(
+                                img, img_right
+                            )
+                            if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
+                                depth = filter_shadow_points(depth_prediction)
+                            else:
+                                depth = depth_prediction
+
+                            if not args.headless:
+                                depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
+                                # cv2.imshow("depth prediction", depth_img)
+                                cv_image_viewer.draw(depth_img, "depth prediction")
+
+                        slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function
+
+                        # 3D display (map display)
+                        if viewer3D:
+                            viewer3D.draw_slam_map(slam)
+
+                        if not args.headless:
+                            is_draw_features_with_radius = viewer3D.is_draw_features_with_radius()
+                            img_draw = slam.map.draw_feature_trails(
+                                img,
+                                with_level_radius=is_draw_features_with_radius,
+                                trail_max_length=Parameters.kMaxFeatureTrailLength,
+                            )
+                            timer_main.refresh()
+                            fps = timer_main.get_fps()
+                            fps_text = f" fps: {fps:.1f}" if USE_CPP else ""
+                            img_writer.write(img_draw, f"id: {img_id} {fps_text}", (20, 20))
+                            # 2D display (image display)
+                            # cv2.imshow("Camera", img_draw)
+                            cv_image_viewer.draw(img_draw, "Camera")
+
+                        # draw 2d plots
+                        if plot_drawer:
+                            plot_drawer.draw(img_id)
+
+                    if (
+                        online_trajectory_writer is not None
+                        and slam.tracking.cur_R is not None
+                        and slam.tracking.cur_t is not None
+                    ):
+                        online_trajectory_writer.write_trajectory(
+                            slam.tracking.cur_R, slam.tracking.cur_t, timestamp
+                        )
+
+                    img_id += 1
+                    num_frames += 1
+                else:
+                    time.sleep(0.1)  # img is None
+                    # Printer.yellow("sleeping for 0.1 seconds - img is None")
+                    if args.headless:
+                        break  # exit from the loop if headless
+
             else:
-                time.sleep(0.1)  # img is None
-                # Printer.yellow("sleeping for 0.1 seconds - img is None")
-                if args.headless:
-                    break  # exit from the loop if headless
+                time.sleep(0.1)  # pause or do step on GUI
+                # Printer.yellow("sleeping for 0.1 seconds - GUI paused")
 
-        else:
-            time.sleep(0.1)  # pause or do step on GUI
-            # Printer.yellow("sleeping for 0.1 seconds - GUI paused")
+            # 3D display (map display)
+            if viewer3D:
+                viewer3D.draw_dense_map(slam)
 
-        # 3D display (map display)
-        if viewer3D:
-            viewer3D.draw_dense_map(slam)
+            if not args.headless:
+                # get keys
+                key = plot_drawer.get_key() if plot_drawer else None
 
-        if not args.headless:
-            # get keys
-            key = plot_drawer.get_key() if plot_drawer else None
+                # manage SLAM states
+                if slam.tracking.state == SlamState.LOST:
+                    # key_cv = cv2.waitKey(0) & 0xFF   # wait key for debugging
+                    # key_cv = cv2.waitKey(500) & 0xFF
+                    key_cv = cv_image_viewer.get_key() if cv_image_viewer else None
+                    time.sleep(0.1)
+                else:
+                    # key_cv = cv2.waitKey(1) & 0xFF
+                    key_cv = cv_image_viewer.get_key() if cv_image_viewer else None
 
-            # manage SLAM states
             if slam.tracking.state == SlamState.LOST:
-                # key_cv = cv2.waitKey(0) & 0xFF   # wait key for debugging
-                # key_cv = cv2.waitKey(500) & 0xFF
-                key_cv = cv_image_viewer.get_key() if cv_image_viewer else None
-                time.sleep(0.1)
-            else:
-                # key_cv = cv2.waitKey(1) & 0xFF
-                key_cv = cv_image_viewer.get_key() if cv_image_viewer else None
+                num_tracking_lost += 1
 
-        if slam.tracking.state == SlamState.LOST:
-            num_tracking_lost += 1
+            # manage interface infos
+            if is_map_save:
+                slam.save_system_state(config.system_state_folder_path)
+                dataset.save_info(config.system_state_folder_path)
+                groundtruth.save(config.system_state_folder_path)
+                Printer.blue("\nuncheck pause checkbox on GUI to continue...\n")
 
-        # manage interface infos
-        if is_map_save:
-            slam.save_system_state(config.system_state_folder_path)
-            dataset.save_info(config.system_state_folder_path)
-            groundtruth.save(config.system_state_folder_path)
-            Printer.blue("\nuncheck pause checkbox on GUI to continue...\n")
+            if is_bundle_adjust:
+                slam.bundle_adjust()
+                Printer.blue("\nuncheck pause checkbox on GUI to continue...\n")
 
-        if is_bundle_adjust:
-            slam.bundle_adjust()
-            Printer.blue("\nuncheck pause checkbox on GUI to continue...\n")
+            if viewer3D:
 
-        if viewer3D:
+                if not is_paused and viewer3D.is_paused():  # when a pause is triggered
+                    est_poses, timestamps, ids = slam.get_final_trajectory()
+                    assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(
+                        timestamps, est_poses, gt_timestamps, gt_poses
+                    )
+                    ape_stats, T_gt_est = eval_ate(
+                        poses_est=assoc_est_poses,
+                        poses_gt=assoc_gt_poses,
+                        frame_ids=ids,
+                        curr_frame_id=img_id,
+                        is_final=False,
+                        is_monocular=is_monocular,
+                        save_dir=None,
+                    )
+                    Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
+                    # draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
 
-            if not is_paused and viewer3D.is_paused():  # when a pause is triggered
-                est_poses, timestamps, ids = slam.get_final_trajectory()
-                assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(
-                    timestamps, est_poses, gt_timestamps, gt_poses
-                )
-                ape_stats, T_gt_est = eval_ate(
-                    poses_est=assoc_est_poses,
-                    poses_gt=assoc_gt_poses,
-                    frame_ids=ids,
-                    curr_frame_id=img_id,
-                    is_final=False,
-                    is_monocular=is_monocular,
-                    save_dir=None,
-                )
-                Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
-                # draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
+                is_paused = viewer3D.is_paused()
+                is_map_save = viewer3D.is_map_save() and is_map_save == False
+                is_bundle_adjust = viewer3D.is_bundle_adjust() and is_bundle_adjust == False
+                do_step = viewer3D.do_step() and do_step == False
+                do_reset = viewer3D.reset() and do_reset == False
+                is_viewer_closed = viewer3D.is_closed()
 
-            is_paused = viewer3D.is_paused()
-            is_map_save = viewer3D.is_map_save() and is_map_save == False
-            is_bundle_adjust = viewer3D.is_bundle_adjust() and is_bundle_adjust == False
-            do_step = viewer3D.do_step() and do_step == False
-            do_reset = viewer3D.reset() and do_reset == False
-            is_viewer_closed = viewer3D.is_closed()
+            if not args.headless and img is not None:
+                processing_duration = time.time() - time_start
+                delta_time_sleep = (
+                    frame_duration - processing_duration - 1e-3
+                )  # NOTE: 1e-3 is the cv wait time we use below with cv2.waitKey(1)
+                if delta_time_sleep > 1e-3:
+                    time.sleep(delta_time_sleep)
+                    # Printer.yellow(f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration")
 
-        if not args.headless and img is not None:
-            processing_duration = time.time() - time_start
-            delta_time_sleep = (
-                frame_duration - processing_duration - 1e-3
-            )  # NOTE: 1e-3 is the cv wait time we use below with cv2.waitKey(1)
-            if delta_time_sleep > 1e-3:
-                time.sleep(delta_time_sleep)
-                # Printer.yellow(f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration")
+            if key == "q" or (key_cv == ord("q") or key_cv == 27):  # press 'q' or ESC for quitting
+                break
 
-        if key == "q" or (key_cv == ord("q") or key_cv == 27):  # press 'q' or ESC for quitting
-            break
+    except KeyboardInterrupt:
+        Printer.yellow("\nCTRL+C detected. Shutting down ...\n")
+        force_kill_all_and_exit(verbose=False)
+        sys.exit(0)
 
     # exit from the main loop
 

@@ -97,7 +97,7 @@ template <typename VoxelDataT> class VoxelBlockGridT {
     // - camera_frustrum: the camera frustrum
     // - depth_image: the depth image
     // - depth_threshold: the depth threshold for carving (default: 1e-3)
-    void carve(const CameraFrustrum &camera_frustrum, cv::Mat &depth_image,
+    void carve(const CameraFrustrum &camera_frustrum, const cv::Mat &depth_image,
                const float depth_threshold = 1e-2);
 
     // Remove all voxels with low confidence counter
