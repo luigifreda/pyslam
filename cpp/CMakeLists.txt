@@ -14,6 +14,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to be activated when called within virtual python environment 
 set(BUILD_WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
 
+set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/..)
+set(PYSLAM_SLAM_CPP_SRC ${PYSLAM_ROOT}/pyslam/slam/cpp)
+
 # Set base optimization flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -DNDEBUG")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fPIC -DNDEBUG")
@@ -181,6 +184,17 @@ target_link_libraries(volumetric PRIVATE
     ${Open3D_LIBRARIES}
     ${TBB_LINK_LIBS}
     ${OpenCV_LIBS}
+)
+
+pybind11_add_module(color_utils 
+color_utils/color_utils_module.cpp
+color_utils/color_utils.cpp)
+target_link_libraries(color_utils PRIVATE
+    ${OpenCV_LIBS}
+)
+# Include directory for color_helpers.h
+target_include_directories(color_utils PRIVATE
+    ${PYSLAM_SLAM_CPP_SRC}
 )
 
 # pybind11_add_module(cv2_pyslam cv2_pyslam_module.cpp)

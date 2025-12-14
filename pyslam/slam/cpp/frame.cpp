@@ -716,6 +716,18 @@ std::vector<MapPointPtr> Frame::get_matched_points() const {
     return matched_points;
 }
 
+std::vector<int> Frame::get_matched_points_idxs() const {
+    std::lock_guard<std::mutex> lock(_lock_features);
+    std::vector<int> matched_idxs;
+    matched_idxs.reserve(points.size());
+    for (size_t i = 0; i < points.size(); ++i) {
+        if (points[i]) {
+            matched_idxs.push_back(static_cast<int>(i));
+        }
+    }
+    return matched_idxs;
+}
+
 std::vector<int> Frame::get_unmatched_points_idxs() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     std::vector<int> unmatched_idxs;

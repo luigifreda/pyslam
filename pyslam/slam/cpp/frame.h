@@ -294,6 +294,7 @@ class Frame : public FrameBase, public inheritable_enable_shared_from_this<Frame
     void reset_points();
     std::vector<MapPointPtr> get_points() const;
     std::vector<MapPointPtr> get_matched_points() const;
+    std::vector<int> get_matched_points_idxs() const;
     std::vector<int> get_unmatched_points_idxs() const;
     std::pair<std::vector<MapPointPtr>, std::vector<int>> get_matched_inlier_points() const;
     std::vector<MapPointPtr> get_matched_good_points() const;

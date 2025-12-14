@@ -251,7 +251,7 @@ class Parameters:
     # ================================================================
     # Relocatization
     # ================================================================
-    kRelocalizationDebugAndPrintToFile = False
+    kRelocalizationDebugAndPrintToFile = True
     kRelocalizationMinKpsMatches = 15  # o:15
     kRelocalizationParallelKpsMatching = True
     kRelocalizationParallelKpsMatchingNumWorkers = 2
@@ -267,7 +267,7 @@ class Parameters:
     # ================================================================
     # Volumetric Integration
     # ================================================================
-    kDoVolumetricIntegration = True  # To enable/disable volumetric integration (dense mapping)
+    kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
     # kVolumetricIntegrationType: "VOXEL_GRID", "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID",
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py)
     kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
@@ -325,6 +325,11 @@ class Parameters:
         0.1  # [1/m] depth decay rate for updating semantics with depth
     )
     kVolumetricSemanticProbabilisticIntegrationDepthDecayRateOutdoor = 0.05  # [1/m] depth decay rate for updating semantics with depth (less aggressive decay rate than indoor)
+    kVolumetricSemanticIntegrationUseInstanceIds = (
+        True  # Use instance IDs for semantic integration.
+    )
+    kVolumetricSemanticIntegrationMinVoteRatio = 0.5  # Minimum vote ratio for semantic integration.
+    kVolumetricSemanticIntegrationMinVotes = 3  # Minimum votes for semantic integration.
 
     # ================================================================
     # Depth estimator in the front-end (EXPERIMENTAL, WIP)
@@ -340,7 +345,7 @@ class Parameters:
     # Sparse semantic mapping and image segmentation
     # ================================================================
     # NOTE: By activating the sparse semantic mapping, semantics will be used for the whole SLAM pipeline
-    kDoSparseSemanticMappingAndSegmentation = True  # To enable/disable sparse semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
+    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable sparse semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE" (see semantic_segmentation_factory.py)
     kSemanticSegmentationType = ""  # Override the semantic model selected in semantic_mapping_configs.py. If kSemanticSegmentationType = "" or None, a default model will be selected based on the dataset (see semantic_mapping_configs.py)
     kSemanticMappingOnSeparateThread = True

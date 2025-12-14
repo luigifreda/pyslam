@@ -271,6 +271,32 @@ inline void DrawBoxes(const double *poses, const double *sizes, std::size_t box_
     }
 }
 
+inline void DrawPlane(int num_divs = 200, float div_size = 10.0f, float scale = 1.0f) {
+    glLineWidth(0.1f);
+    // Plane parallel to x-z at origin with normal -y
+    const float scaled_div_size = scale * div_size;
+    const float minx = -static_cast<float>(num_divs) * scaled_div_size;
+    const float minz = -static_cast<float>(num_divs) * scaled_div_size;
+    const float maxx = static_cast<float>(num_divs) * scaled_div_size;
+    const float maxz = static_cast<float>(num_divs) * scaled_div_size;
+
+    glColor3f(0.7f, 0.7f, 0.7f);
+    glBegin(GL_LINES);
+    const int line_count = 2 * num_divs;
+    for (int n = 0; n < line_count; ++n) {
+        const float x_pos = minx + scaled_div_size * static_cast<float>(n);
+        const float z_pos = minz + scaled_div_size * static_cast<float>(n);
+        // Vertical lines (parallel to z-axis)
+        glVertex3f(x_pos, 0.0f, minz);
+        glVertex3f(x_pos, 0.0f, maxz);
+        // Horizontal lines (parallel to x-axis)
+        glVertex3f(minx, 0.0f, z_pos);
+        glVertex3f(maxx, 0.0f, z_pos);
+    }
+    glEnd();
+    glLineWidth(1.0f);
+}
+
 } // namespace glutils_detail
 
 template <typename T, int Flags>
@@ -498,6 +524,11 @@ void DrawBoxes(DoubleArray cameras, DoubleArray sizes) {
 
     py::gil_scoped_release release;
     glutils_detail::DrawBoxes(pose_data, size_data, box_count);
+}
+
+void DrawPlane(const int num_divs = 200, const float div_size = 10.0f, const float scale = 1.0f) {
+    py::gil_scoped_release release;
+    glutils_detail::DrawPlane(num_divs, div_size, scale);
 }
 
 class CameraImage {
@@ -772,6 +803,9 @@ PYBIND11_MODULE(glutils, m) {
 
     m.def("DrawBoxes", static_cast<void (*)(DoubleArray, DoubleArray)>(&DrawBoxes), "poses"_a,
           "sizes"_a);
+
+    m.def("DrawPlane", static_cast<void (*)(int, float, float)>(&DrawPlane), "num_divs"_a = 200,
+          "div_size"_a = 10.0f, "scale"_a = 1.0f);
 
     py::class_<CameraImage>(m, "CameraImage")
         .def(py::init([](const UByteArray &image, const DoubleArray &pose, const size_t id,

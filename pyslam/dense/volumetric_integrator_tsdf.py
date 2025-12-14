@@ -171,16 +171,17 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
                                 VolumetricIntegratorBase.print(
                                     f"\t\tdepth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
                                 )
-                                if depth_undistorted.size > 0:
-                                    min_depth = np.min(depth_undistorted)
-                                    max_depth = np.max(depth_undistorted)
-                                    VolumetricIntegratorBase.print(
-                                        f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
-                                    )
-                                else:
-                                    VolumetricIntegratorBase.print(
-                                        f"\t\tdepth_undistorted is empty, skipping min/max computation"
-                                    )
+                                if False:
+                                    if depth_undistorted.size > 0:
+                                        min_depth = np.min(depth_undistorted)
+                                        max_depth = np.max(depth_undistorted)
+                                        VolumetricIntegratorBase.print(
+                                            f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
+                                        )
+                                    else:
+                                        VolumetricIntegratorBase.print(
+                                            f"\t\tdepth_undistorted is empty, skipping min/max computation"
+                                        )
 
                             if pts3d is not None:
                                 VolumetricIntegratorBase.print(

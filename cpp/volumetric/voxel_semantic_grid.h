@@ -69,8 +69,9 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     // - min_votes: minimum votes (optional, default is 3)
     // Returns: map of instance IDs to object IDs
     MapInstanceIdToObjectId assign_object_ids_to_instance_ids(
-        const CameraFrustrum &camera_frustrum, const cv::Mat &semantic_instances_image,
-        const cv::Mat &depth_image = cv::Mat(), const float depth_threshold = 0.1f,
+        const CameraFrustrum &camera_frustrum, const cv::Mat &class_ids_image,
+        const cv::Mat &semantic_instances_image, const cv::Mat &depth_image = cv::Mat(),
+        const float depth_threshold = 0.1f, bool do_carving = false,
         const float min_vote_ratio = 0.5f, const int min_votes = 3);
 
     void set_depth_threshold(float depth_threshold);
@@ -130,7 +131,9 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
 };
 
 using VoxelSemanticGrid = VoxelSemanticGridT<VoxelSemanticData>;
+using VoxelSemanticGrid2 = VoxelSemanticGridT<VoxelSemanticData2>;
 using VoxelSemanticGridProbabilistic = VoxelSemanticGridT<VoxelSemanticDataProbabilistic>;
+using VoxelSemanticGridProbabilistic2 = VoxelSemanticGridT<VoxelSemanticDataProbabilistic2>;
 
 } // namespace volumetric
 

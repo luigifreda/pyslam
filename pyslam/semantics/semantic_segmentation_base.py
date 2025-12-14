@@ -21,11 +21,13 @@
 import numpy as np
 import os
 import sys
+import multiprocessing as mp
 from enum import Enum
 
 from . import semantic_types
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Logging
+from pyslam.utilities.system import Logging, LoggerQueue
+from pyslam.utilities.file_management import create_folder
 
 from .semantic_segmentation_output import SemanticSegmentationOutput
 
@@ -48,6 +50,7 @@ if TYPE_CHECKING:
 # Base class for semantic estimators via inference
 class SemanticSegmentationBase:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
+    logging_manager, logger = None, None
 
     def __init__(self, model, transform, device, semantic_feature_type):
         self.model = model
@@ -85,17 +88,27 @@ class SemanticSegmentationBase:
                 # $ tail -f logs/semantic_segmentation.log
 
                 logging_file = Parameters.kLogsFolder + "/semantic_segmentation.log"
-                SemanticSegmentationBase.local_logger = Logging.setup_file_logger(
-                    "semantic_segmentation_logger",
-                    logging_file,
-                    formatter=Logging.simple_log_formatter,
-                )
+                create_folder(logging_file)
+                if SemanticSegmentationBase.logging_manager is None:
+                    # Note: Each process has its own memory space, so singleton pattern works per-process
+                    SemanticSegmentationBase.logging_manager = LoggerQueue.get_instance(
+                        logging_file
+                    )
+                    SemanticSegmentationBase.logger = (
+                        SemanticSegmentationBase.logging_manager.get_logger(
+                            "semantic_segmentation_logger"
+                        )
+                    )
 
                 def print_file(*args, **kwargs):
-                    message = " ".join(
-                        str(arg) for arg in args
-                    )  # Convert all arguments to strings and join with spaces
-                    return SemanticSegmentationBase.local_logger.info(message, **kwargs)
+                    try:
+                        if SemanticSegmentationBase.logger is not None:
+                            message = " ".join(
+                                str(arg) for arg in args
+                            )  # Convert all arguments to strings and join with spaces
+                            return SemanticSegmentationBase.logger.info(message, **kwargs)
+                    except:
+                        print("Error printing: ", args, kwargs)
 
             else:
 

@@ -170,6 +170,10 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                             self.last_input_task.keyframe_data
                         )
 
+                        # NOTE: we set semantics to None here since we are not using them for volumetric integration
+                        keyframe_data.semantic_img = None
+                        keyframe_data.semantic_instances_img = None
+
                         VolumetricIntegratorBase.print(
                             f"VolumetricIntegratorVoxelGrid: processing keyframe_data: {keyframe_data.id}"
                         )
@@ -192,27 +196,21 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                                 VolumetricIntegratorBase.print(
                                     f"\t\tdepth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
                                 )
-                                if depth_undistorted.size > 0:
-                                    min_depth = np.min(depth_undistorted)
-                                    max_depth = np.max(depth_undistorted)
-                                    VolumetricIntegratorBase.print(
-                                        f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
-                                    )
-                                else:
-                                    VolumetricIntegratorBase.print(
-                                        f"\t\tdepth_undistorted is empty, skipping min/max computation"
-                                    )
+                                if False:
+                                    if depth_undistorted.size > 0:
+                                        min_depth = np.min(depth_undistorted)
+                                        max_depth = np.max(depth_undistorted)
+                                        VolumetricIntegratorBase.print(
+                                            f"\t\tmin_depth: {min_depth}, max_depth: {max_depth}"
+                                        )
+                                    else:
+                                        VolumetricIntegratorBase.print(
+                                            f"\t\tdepth_undistorted is empty, skipping min/max computation"
+                                        )
 
                             if pts3d is not None:
                                 VolumetricIntegratorBase.print(
                                     f"\t\tpts3d: shape: {pts3d.shape}, type: {pts3d.dtype}"
-                                )
-                            if (
-                                semantic_undistorted is not None
-                                and semantic_undistorted.shape[0] > 0
-                            ):
-                                VolumetricIntegratorBase.print(
-                                    f"\t\tsemantic_undistorted: shape: {semantic_undistorted.shape}, type: {semantic_undistorted.dtype}"
                                 )
 
                         # Filter depth
@@ -290,12 +288,15 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                         )
                         points = np.asarray(voxel_grid_data.points, dtype=np.float64)
                         colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
-                        # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
-                        # colors = np.clip(colors, 0.0, 1.0)
-                        point_cloud_o3d = o3d.geometry.PointCloud()
-                        point_cloud_o3d.points = o3d.utility.Vector3dVector(points)
-                        point_cloud_o3d.colors = o3d.utility.Vector3dVector(colors)
-                        o3d.io.write_point_cloud(save_path, point_cloud_o3d)
+                        if len(points) > 0 and len(colors) > 0:
+                            point_cloud_o3d = o3d.geometry.PointCloud()
+                            point_cloud_o3d.points = o3d.utility.Vector3dVector(points)
+                            point_cloud_o3d.colors = o3d.utility.Vector3dVector(colors)
+                            o3d.io.write_point_cloud(save_path, point_cloud_o3d)
+                        else:
+                            VolumetricIntegratorBase.print(
+                                f"VolumetricIntegratorVoxelGrid: no points or colors to save"
+                            )
 
                         last_output = VolumetricIntegrationOutput(self.last_input_task.task_type)
 

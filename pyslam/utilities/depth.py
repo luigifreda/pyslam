@@ -39,7 +39,7 @@ class PointCloud:
         self.points = points  # array Nx3
         self.colors = colors  # array Nx3
         self.semantics = semantics  # array Nx1 (or NxD where D is the semantic dimension)
-        self.instance_ids = instance_ids  # array Nx1
+        self.instance_ids = instance_ids  # array Nx1    (instance or object IDs)
 
 
 def depth2pointcloud(

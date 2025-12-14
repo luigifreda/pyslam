@@ -23,6 +23,7 @@
 #include <pybind11/stl.h>
 
 #include "camera_frustrum_module.h"
+#include "image_utils_module.h"
 #include "volumetric_grid_module.h"
 
 PYBIND11_MODULE(volumetric, m) {
@@ -44,4 +45,6 @@ PYBIND11_MODULE(volumetric, m) {
     bind_camera_frustrum(m);
 
     bind_volumetric_grid(m);
+
+    bind_image_utils(m);
 }

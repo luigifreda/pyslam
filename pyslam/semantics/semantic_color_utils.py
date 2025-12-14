@@ -23,6 +23,7 @@ import cv2
 
 from .semantic_types import SemanticDatasetType
 
+
 from .semantic_labels import (
     get_ade20k_color_map,
     get_cityscapes_color_map,
@@ -149,6 +150,52 @@ def single_label_to_color(label, semantic_color_map, bgr=False):
     if bgr:
         color = color[::-1]
     return color
+
+
+def instance_ids_to_rgb(instance_ids, bgr=False, unlabeled_color=(0, 0, 0)):
+    """
+    Convert instance IDs to RGB colors using hash-based color table.
+
+    This function is designed for instance IDs which can be arbitrary integers
+    (including negative values like -1 for unlabeled). Unlike semantic class IDs,
+    instance IDs don't have a fixed range and need a hash-based color mapping.
+
+    Uses C++ implementation from color_utils module.
+
+    Args:
+        instance_ids: 1D or 2D numpy array of instance IDs (can include -1 for unlabeled)
+        bgr: If True, return BGR format; otherwise RGB
+        unlabeled_color: RGB tuple for unlabeled instances (default: black)
+
+    Returns:
+        RGB/BGR image array of shape (H, W, 3) for 2D input or (N, 3) for 1D input,
+        with dtype uint8 and values in [0, 255]
+    """
+    # Handle None or empty arrays
+    if instance_ids is None:
+        return None
+
+    instance_ids = np.asarray(instance_ids)
+    if instance_ids.size == 0:
+        # Return empty array with correct shape
+        if len(instance_ids.shape) == 1:
+            return np.zeros((0, 3), dtype=np.uint8)
+        else:
+            return np.zeros((*instance_ids.shape, 3), dtype=np.uint8)
+
+    # Try to use C++ implementation from color_utils module
+    try:
+        import color_utils
+
+        # Create an instance of IdsColorTable
+        color_table = color_utils.IdsColorTable()
+        # Convert unlabeled_color to cv::Vec3b format (BGR)
+        unlabeled_bgr = tuple(reversed(unlabeled_color))  # RGB to BGR
+        result = color_table.ids_to_rgb(instance_ids, bgr=bgr, unlabeled_color=unlabeled_bgr)
+        return result
+    except (ImportError, AttributeError):
+        # Fallback: raise error (no Python fallback anymore)
+        raise RuntimeError("color_utils C++ module not available. Please rebuild the C++ modules.")
 
 
 def need_large_color_map(semantic_segmentation_type: SemanticSegmentationType):

@@ -457,21 +457,23 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
         .def(                                                                                      \
             "assign_object_ids_to_instance_ids",                                                   \
             [](CLASS_TYPE &self, const volumetric::CameraFrustrum &camera_frustrum,                \
-               const cv::Mat &semantic_instances_image, const cv::Mat &depth_image,                \
-               const float depth_threshold = 0.1f, const float min_vote_ratio = 0.5f,              \
+               const cv::Mat &class_ids_image, const cv::Mat &semantic_instances_image,            \
+               const cv::Mat &depth_image, const float depth_threshold = 0.1f,                     \
+               bool do_carving = false, const float min_vote_ratio = 0.5f,                         \
                const int min_votes = 3) {                                                          \
                 volumetric::MapInstanceIdToObjectId result;                                        \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
                     result = self.assign_object_ids_to_instance_ids(                               \
-                        camera_frustrum, semantic_instances_image, depth_image, depth_threshold,   \
-                        min_vote_ratio, min_votes);                                                \
+                        camera_frustrum, class_ids_image, semantic_instances_image, depth_image,   \
+                        depth_threshold, do_carving, min_vote_ratio, min_votes);                   \
                 }                                                                                  \
                 return result;                                                                     \
             },                                                                                     \
             "Assign object IDs to instance IDs using semantic instances image and depth image",    \
-            py::arg("camera_frustrum"), py::arg("semantic_instances_image"),                       \
-            py::arg("depth_image"), py::arg("depth_threshold") = 0.1f,                             \
+            py::arg("camera_frustrum"), py::arg("class_ids_image"),                                \
+            py::arg("semantic_instances_image"), py::arg("depth_image"),                           \
+            py::arg("depth_threshold") = 0.1f, py::arg("do_carving") = false,                      \
             py::arg("min_vote_ratio") = 0.5f, py::arg("min_votes") = 3)                            \
         .def("set_depth_threshold", &CLASS_TYPE::set_depth_threshold,                              \
              py::arg("depth_threshold") = 5.0)                                                     \
@@ -480,50 +482,50 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<uint8_t> colors,          \
-               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object class_ids = py::none(), py::object instance_ids = py::none(),            \
                py::object depths = py::none()) {                                                   \
                 detail::integrate_with_arrays<CLASS_TYPE, double>(self, points, colors, class_ids, \
                                                                   instance_ids, depths);           \
             },                                                                                     \
             "Insert a point cloud into the voxel grid (with optional "                             \
-            "instance_ids and depths)",                                                            \
-            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            "class_ids, instance_ids and depths)",                                                 \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids") = py::none(),               \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<double> points, py::array_t<float> colors,            \
-               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object class_ids = py::none(), py::object instance_ids = py::none(),            \
                py::object depths = py::none()) {                                                   \
                 detail::integrate_with_arrays<CLASS_TYPE, double>(self, points, colors, class_ids, \
                                                                   instance_ids, depths);           \
             },                                                                                     \
             "Insert a point cloud into the voxel grid (with optional "                             \
-            "instance_ids and depths)",                                                            \
-            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            "class_ids, instance_ids and depths)",                                                 \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids") = py::none(),               \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<uint8_t> colors,           \
-               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object class_ids = py::none(), py::object instance_ids = py::none(),            \
                py::object depths = py::none()) {                                                   \
                 detail::integrate_with_arrays<CLASS_TYPE, float>(self, points, colors, class_ids,  \
                                                                  instance_ids, depths);            \
             },                                                                                     \
             "Insert a point cloud into the voxel grid (with optional "                             \
-            "instance_ids and depths)",                                                            \
-            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            "class_ids, instance_ids and depths)",                                                 \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids") = py::none(),               \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate",                                                                           \
             [](CLASS_TYPE &self, py::array_t<float> points, py::array_t<float> colors,             \
-               py::array_t<int> class_ids, py::object instance_ids = py::none(),                   \
+               py::object class_ids = py::none(), py::object instance_ids = py::none(),            \
                py::object depths = py::none()) {                                                   \
                 detail::integrate_with_arrays<CLASS_TYPE, float>(self, points, colors, class_ids,  \
                                                                  instance_ids, depths);            \
             },                                                                                     \
             "Insert a point cloud into the voxel grid (with optional "                             \
-            "instance_ids and depths)",                                                            \
-            py::arg("points"), py::arg("colors"), py::arg("class_ids"),                            \
+            "class_ids, instance_ids and depths)",                                                 \
+            py::arg("points"), py::arg("colors"), py::arg("class_ids") = py::none(),               \
             py::arg("instance_ids") = py::none(), py::arg("depths") = py::none())                  \
         .def(                                                                                      \
             "integrate_segment",                                                                   \
@@ -949,9 +951,10 @@ void bind_volumetric_grid(py::module &m) {
              "Returns the object ID")
         .def("get_class_id", &volumetric::VoxelSemanticData::get_class_id, "Returns the class ID")
         .def("get_confidence", &volumetric::VoxelSemanticData::get_confidence,
-             "Returns the confidence")
+             "Returns the confidence (normalized joint probability of the most likely object and "
+             "class IDs)")
         .def("get_confidence_counter", &volumetric::VoxelSemanticData::get_confidence_counter,
-             "Returns the confidence counter");
+             "Returns the confidence counter (count of the most likely object and class IDs)");
 
     // ----------------------------------------
     // VoxelGridData
@@ -986,11 +989,24 @@ void bind_volumetric_grid(py::module &m) {
     DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelSemanticGrid, true);
 
     // ----------------------------------------
+    // VoxelSemanticGrid2
+    // ----------------------------------------
+    DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS(volumetric::VoxelSemanticGrid2, "VoxelSemanticGrid2")
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelSemanticGrid2, true);
+
+    // ----------------------------------------
     // VoxelSemanticGridProbabilistic
     // ----------------------------------------
     DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS(volumetric::VoxelSemanticGridProbabilistic,
                                         "VoxelSemanticGridProbabilistic")
     DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelSemanticGridProbabilistic, true);
+
+    // ----------------------------------------
+    // VoxelSemanticGridProbabilistic2
+    // ----------------------------------------
+    DEFINE_VOXEL_SEMANTIC_GRID_BINDINGS(volumetric::VoxelSemanticGridProbabilistic2,
+                                        "VoxelSemanticGridProbabilistic2")
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelSemanticGridProbabilistic2, true);
 
     // ----------------------------------------
     // VoxelBlockSemanticGrid
@@ -1000,9 +1016,23 @@ void bind_volumetric_grid(py::module &m) {
     DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelBlockSemanticGrid, true);
 
     // ----------------------------------------
+    // VoxelBlockSemanticGrid2
+    // ----------------------------------------
+    DEFINE_VOXEL_BLOCK_SEMANTIC_GRID_BINDINGS(volumetric::VoxelBlockSemanticGrid2,
+                                              "VoxelBlockSemanticGrid2")
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelBlockSemanticGrid2, true);
+
+    // ----------------------------------------
     // VoxelBlockSemanticProbabilisticGrid
     // ----------------------------------------
     DEFINE_VOXEL_BLOCK_SEMANTIC_GRID_BINDINGS(volumetric::VoxelBlockSemanticProbabilisticGrid,
                                               "VoxelBlockSemanticProbabilisticGrid")
     DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelBlockSemanticProbabilisticGrid, true);
+
+    // ----------------------------------------
+    // VoxelBlockSemanticProbabilisticGrid2
+    // ----------------------------------------
+    DEFINE_VOXEL_BLOCK_SEMANTIC_GRID_BINDINGS(volumetric::VoxelBlockSemanticProbabilisticGrid2,
+                                              "VoxelBlockSemanticProbabilisticGrid2")
+    DEFINE_MORE_VOXELS_OPS_BINDINGS(volumetric::VoxelBlockSemanticProbabilisticGrid2, true);
 }

@@ -64,8 +64,8 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
   public:
     explicit VoxelBlockSemanticGridT(double voxel_size = 0.05, int block_size = 8);
 
-    // Assign object IDs to instance IDs using semantic instances image and depth image
-    // Inputs:
+    // Assign object IDs to instance IDs using semantic instances image and depth image and class
+    // IDs image. Inputs:
     // - camera_frustrum: camera frustrum
     // - semantic_instances_image: semantic instances image
     // - depth_image: depth image (optional, default is empty)
@@ -74,8 +74,9 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
     // - min_votes: minimum votes (optional, default is 3)
     // Returns: map of instance IDs to object IDs
     MapInstanceIdToObjectId assign_object_ids_to_instance_ids(
-        const CameraFrustrum &camera_frustrum, const cv::Mat &semantic_instances_image,
-        const cv::Mat &depth_image = cv::Mat(), const float depth_threshold = 0.1f,
+        const CameraFrustrum &camera_frustrum, const cv::Mat &class_ids_image,
+        const cv::Mat &semantic_instances_image, const cv::Mat &depth_image = cv::Mat(),
+        const float depth_threshold = 0.1f, bool do_carving = false,
         const float min_vote_ratio = 0.5f, const int min_votes = 3);
 
     void set_depth_threshold(float depth_threshold);
@@ -114,7 +115,10 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
 };
 
 using VoxelBlockSemanticGrid = VoxelBlockSemanticGridT<VoxelSemanticData>;
+using VoxelBlockSemanticGrid2 = VoxelBlockSemanticGridT<VoxelSemanticData2>;
 using VoxelBlockSemanticProbabilisticGrid = VoxelBlockSemanticGridT<VoxelSemanticDataProbabilistic>;
+using VoxelBlockSemanticProbabilisticGrid2 =
+    VoxelBlockSemanticGridT<VoxelSemanticDataProbabilistic2>;
 
 } // namespace volumetric
 

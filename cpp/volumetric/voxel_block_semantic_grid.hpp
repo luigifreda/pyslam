@@ -9,15 +9,14 @@ VoxelBlockSemanticGridT<VoxelDataT>::VoxelBlockSemanticGridT(double voxel_size, 
 
 template <typename VoxelDataT>
 MapInstanceIdToObjectId VoxelBlockSemanticGridT<VoxelDataT>::assign_object_ids_to_instance_ids(
-    const CameraFrustrum &camera_frustrum, const cv::Mat &semantic_instances_image,
-    const cv::Mat &depth_image, const float depth_threshold, const float min_vote_ratio,
-    const int min_votes) {
-    // Use the template function from voxel_semantic_data_association.h
-    // Use ::volumetric:: to force lookup of the free function template, not the member function
+    const CameraFrustrum &camera_frustrum, const cv::Mat &class_ids_image,
+    const cv::Mat &semantic_instances_image, const cv::Mat &depth_image,
+    const float depth_threshold, bool do_carving, const float min_vote_ratio, const int min_votes) {
+
     using ThisType = VoxelBlockSemanticGridT<VoxelDataT>;
     return ::volumetric::assign_object_ids_to_instance_ids<ThisType, VoxelDataT>(
-        *this, camera_frustrum, semantic_instances_image, depth_image, depth_threshold,
-        min_vote_ratio, min_votes);
+        *this, camera_frustrum, class_ids_image, semantic_instances_image, depth_image,
+        depth_threshold, do_carving, min_vote_ratio, min_votes);
 }
 
 // set_depth_threshold implementation

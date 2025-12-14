@@ -925,6 +925,10 @@ class Frame(FrameBase):
             matched_points = self.points[matched_idxs]
             return matched_points  # , matched_idxs
 
+    def get_matched_points_idxs(self):
+        with self._lock_features:
+            return np.flatnonzero(self.points != None)
+
     def get_unmatched_points_idxs(self):
         with self._lock_features:
             unmatched_idxs = np.flatnonzero(self.points == None)

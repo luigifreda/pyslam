@@ -20,6 +20,7 @@
 import os
 import time
 import threading
+import signal
 import torch.multiprocessing as mp
 
 import cv2
@@ -29,7 +30,7 @@ from pyslam.slam import Camera, Map, KeyFrame, Frame, USE_CPP
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
 
-from pyslam.utilities.system import Printer, set_rlimit, FileLogger, LoggerQueue
+from pyslam.utilities.system import Printer, set_rlimit, LoggerQueue
 from pyslam.utilities.file_management import create_folder
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue, push_to_front, static_fields_to_dict
@@ -158,6 +159,7 @@ class VolumetricIntegrationPointCloud:
         semantics=None,
         instance_ids=None,
         semantic_colors=None,
+        instance_colors=None,
     ):
         if point_cloud is not None:
             self.points = np.asarray(point_cloud.points)
@@ -191,6 +193,9 @@ class VolumetricIntegrationPointCloud:
             self.instance_ids = np.asarray(instance_ids) if instance_ids is not None else None
             self.semantic_colors = (
                 np.asarray(semantic_colors) if semantic_colors is not None else None
+            )
+            self.instance_colors = (
+                np.asarray(instance_colors) if instance_colors is not None else None
             )
 
     def to_o3d(self):
@@ -356,6 +361,7 @@ class VolumetricIntegratorBase:
                     logging_file = Parameters.kLogsFolder + "/volumetric_integrator.log"
                     create_folder(logging_file)
                     if VolumetricIntegratorBase.logging_manager is None:
+                        # Note: Each process has its own memory space, so singleton pattern works per-process
                         VolumetricIntegratorBase.logging_manager = LoggerQueue.get_instance(
                             logging_file
                         )
@@ -678,6 +684,19 @@ class VolumetricIntegratorBase:
                 )
                 traceback.print_exc()
 
+        # Set up signal handler for graceful shutdown
+        def signal_handler(signum, frame):
+            VolumetricIntegratorBase.print(
+                f"VolumetricIntegratorBase: received signal {signum}, setting is_running to 0"
+            )
+            is_running.value = 0
+            # Notify condition to wake up from wait
+            with q_in_condition:
+                q_in_condition.notify_all()
+
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+
         self.init(camera, environment_type, sensor_type, parameters_dict, constructor_kwargs)
         is_looping.value = 1
 
@@ -699,10 +718,18 @@ class VolumetricIntegratorBase:
                         VolumetricIntegratorBase.print(
                             "VolumetricIntegratorBase: waiting for new task..."
                         )
-                        q_in_condition.wait()
+                        # Use timeout to periodically check is_running flag
+                        q_in_condition.wait(timeout=1.0)
                         # Re-check queues after wait
                         has_management_task = not q_management.empty()
                         has_regular_task = not q_in.empty()
+
+                # Check if we should exit before processing
+                if is_running.value == 0:
+                    VolumetricIntegratorBase.print(
+                        "VolumetricIntegratorBase: is_running is 0, exiting..."
+                    )
+                    break
 
                 # Process tasks if available
                 if has_regular_task or has_management_task:

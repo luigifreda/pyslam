@@ -43,6 +43,7 @@ import atexit
 import time
 import signal
 import traceback
+from typing import Optional
 
 
 def getchar():
@@ -272,12 +273,12 @@ class SingletonBase:
     _instances = {}
 
     @classmethod
-    def get_instance(cls, *args):
+    def get_instance(cls, *args, **kwargs):
         # Create a key from the arguments passed to the constructor
-        key = tuple(args)
+        key = (tuple(args), tuple(sorted(kwargs.items())))
         if key not in cls._instances:
             # If no instance exists with these arguments, create one
-            instance = cls(*args)
+            instance = cls(*args, **kwargs)
             cls._instances[key] = instance
         return cls._instances[key]
 
@@ -289,7 +290,12 @@ class LoggerQueue(SingletonBase):
     """
 
     def __init__(
-        self, log_file, level=logging.INFO, formatter=Logging.simple_log_formatter, datefmt=""
+        self,
+        log_file,
+        level=logging.INFO,
+        formatter=Logging.simple_log_formatter,
+        datefmt="",
+        start_listener: bool = True,
     ):
 
         # Reset the log file (clear its contents) before initializing the logger
@@ -337,7 +343,7 @@ class LoggerQueue(SingletonBase):
 
     # def __del__(self):
     #     """
-    #     Destructor to stop the logging listener safely.
+    #     Destructor to stop the logging listener safely. Not needed anymore since we have atexit.register(self.stop_listener)
     #     """
     #     self.stop_listener()
 
@@ -452,6 +458,152 @@ class LoggerQueue(SingletonBase):
         # Attach a QueueHandler to direct logs to the shared queue
         if not any(isinstance(h, QueueHandler) for h in logger.handlers):
             logger.addHandler(QueueHandler(self.log_queue))
+
+        return logger
+
+
+# new experimental logger queue
+# it has some issues with the multiprocessing queue and the QueueListener
+class LoggerQueueEXP(SingletonBase):
+    """
+    Process-safe logging using a multiprocessing queue and a QueueListener.
+
+    IMPORTANT DESIGN:
+      - Create ONE LoggerQueue in the MAIN process with start_listener=True.
+      - Pass logger_queue.log_queue to worker processes and build LoggerQueue there
+        with start_listener=False (worker mode).
+
+    This prevents multiple processes from writing to the same file handler and
+    prevents worker processes from truncating the log file.
+    """
+
+    def __init__(
+        self,
+        log_file: Optional[str] = None,
+        *,
+        log_queue: Optional[mp.Queue] = None,
+        level: int = logging.INFO,
+        formatter: Optional[logging.Formatter] = Logging.simple_log_formatter,
+        datefmt: str = "",
+        truncate: bool = True,
+        start_listener: bool = True,
+    ):
+        self.log_file = log_file
+        self.level = level
+        self.is_closing = False
+
+        self.formatter = formatter or logging.Formatter(
+            "%(asctime)s [%(levelname)s] (%(processName)s) %(message)s",
+            datefmt=datefmt,
+        )
+
+        # Queue: either use provided shared queue or create a new one.
+        # (Workers should receive an existing queue from the main process.)
+        self.log_queue = log_queue if log_queue is not None else mp.Queue()
+
+        # Listener/file handler exist only in "listener mode"
+        self.file_handler: Optional[logging.Handler] = None
+        self.listener: Optional[QueueListener] = None
+
+        self._is_main_process = mp.current_process().name == "MainProcess"
+
+        if start_listener:
+            if not self._is_main_process:
+                # You *can* force a listener in a worker, but it usually breaks shared-file logging.
+                # We prevent it by default because it’s the common footgun.
+                raise RuntimeError(
+                    "start_listener=True in a non-main process. "
+                    "Create/start the listener only in the main process, "
+                    "and pass the queue to workers with start_listener=False."
+                )
+            if not log_file:
+                raise ValueError("log_file must be provided when start_listener=True")
+
+            if truncate:
+                self.reset_log_file(log_file)
+
+            self.file_handler = logging.FileHandler(log_file)
+            self.file_handler.setLevel(level)
+            self.file_handler.setFormatter(self.formatter)
+
+            # respect_handler_level=True means the handler's level is respected for records
+            self.listener = QueueListener(
+                self.log_queue, self.file_handler, respect_handler_level=True
+            )
+
+            try:
+                self.listener.start()
+            except Exception as e:
+                # Avoid using logging here (it might depend on this infrastructure)
+                print(f"LoggerQueue[{log_file}]: Error starting listener: {e}")
+                raise
+
+            atexit.register(self.stop_listener)
+
+    @staticmethod
+    def reset_log_file(log_file: str) -> None:
+        """Truncate the log file safely (main process only)."""
+        try:
+            Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(log_file, "w", encoding="utf-8"):
+                pass
+            print(f"LoggerQueue[{log_file}]: Log file reset.")
+        except Exception as e:
+            print(f"LoggerQueue[{log_file}]: Error resetting log file: {e}")
+            raise
+
+    def stop_listener(self) -> None:
+        """
+        Stop the QueueListener and close the file handler.
+        Idempotent and safe to call multiple times.
+
+        Note: We do NOT force-close the multiprocessing queue here in order to avoid
+        issues if other processes are still alive and logging during shutdown.
+        """
+        if self.is_closing:
+            return
+        self.is_closing = True
+
+        proc = mp.current_process().name
+        lf = self.log_file or "<no-file>"
+        print(f"LoggerQueue[{lf}]: process: {proc}, stopping listener...")
+
+        # Stop listener first
+        if self.listener is not None:
+            try:
+                self.listener.stop()
+            except Exception as e:
+                print(f"LoggerQueue[{lf}]: Error stopping listener: {e}")
+            finally:
+                self.listener = None
+
+        # Close file handler
+        if self.file_handler is not None:
+            try:
+                self.file_handler.close()
+            except Exception as e:
+                print(f"LoggerQueue[{lf}]: Error closing file handler: {e}")
+            finally:
+                self.file_handler = None
+
+        print(f"LoggerQueue[{lf}]: process: {proc}, stopped.")
+
+    def get_logger(self, name: Optional[str] = None, *, propagate: bool = False) -> logging.Logger:
+        """
+        Return a logger configured to send records to the shared queue.
+
+        - Adds exactly one QueueHandler (won’t duplicate on repeated calls).
+        - Sets logger level and propagation policy.
+        """
+        logger = logging.getLogger(name)
+        logger.setLevel(self.level)
+        logger.propagate = propagate
+
+        # Add QueueHandler only once
+        if not any(isinstance(h, QueueHandler) for h in logger.handlers):
+            qh = QueueHandler(self.log_queue)
+            qh.setLevel(self.level)
+            logger.addHandler(qh)
 
         return logger
 

@@ -21,6 +21,7 @@ from collections import defaultdict
 
 import os
 import numpy as np
+import multiprocessing as mp
 
 from pyslam.slam import (
     Frame,
@@ -33,7 +34,8 @@ from .frame import compute_frame_matches, prepare_input_data_for_pnpsolver
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.slam import ProjectionMatcher
 
-from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.system import Printer, Logging, LoggerQueue
+from pyslam.utilities.file_management import create_folder
 from pyslam.loop_closing.loop_detector_base import LoopDetectorOutput
 
 from pyslam.utilities.timer import TimerFps
@@ -72,9 +74,99 @@ pose_optimization = (
 )
 
 
+# Helper functions for relocalization
+def _align_array_lengths(*arrays, print_func=None):
+    """Align multiple arrays to the same length by truncating to minimum length.
+
+    Args:
+        *arrays: Variable number of arrays to align
+        print_func: Optional print function for warnings
+
+    Returns:
+        Tuple of aligned arrays, all with the same length
+    """
+    if not arrays:
+        return arrays
+
+    min_len = min(len(arr) for arr in arrays if arr is not None)
+    lengths = [len(arr) for arr in arrays]
+
+    if all(l == min_len for l in lengths):
+        return arrays
+
+    if print_func:
+        print_func(f"Relocalizer: WARNING - length mismatch: {lengths}. Truncating to {min_len}.")
+
+    return tuple(arr[:min_len] if arr is not None else arr for arr in arrays)
+
+
+def _convert_kf_points_indices_to_matched_indices(kf, kf_point_indices):
+    """Convert indices from kf.points space to kf.get_matched_points() space.
+
+    Args:
+        kf: KeyFrame object
+        kf_point_indices: Indices into kf.points array
+
+    Returns:
+        numpy array of indices into kf.get_matched_points(), or None if empty
+    """
+    if len(kf_point_indices) == 0:
+        return None
+
+    # Use Frame method to safely get matched point indices
+    kf_matched_idxs = kf.get_matched_points_idxs()
+    if len(kf_matched_idxs) == 0:
+        return None
+
+    # Create mapping from kf.points indices to get_matched_points() indices
+    kf_to_matched_idx = {kf_idx: matched_idx for matched_idx, kf_idx in enumerate(kf_matched_idxs)}
+
+    # Convert indices
+    matched_points_indices = [
+        kf_to_matched_idx[kf_idx] for kf_idx in kf_point_indices if kf_idx in kf_to_matched_idx
+    ]
+
+    return np.array(matched_points_indices, dtype=int) if matched_points_indices else None
+
+
+def _validate_and_filter_indices(idxs_frame, idxs_kf, num_points, num_kf_points, print_func=None):
+    """Validate indices are within bounds and create a boolean mask.
+
+    Args:
+        idxs_frame: Frame point indices
+        idxs_kf: Keyframe point indices
+        num_points: Number of frame points
+        num_kf_points: Number of keyframe points
+        print_func: Optional print function for warnings
+
+    Returns:
+        valid_mask: Boolean array indicating valid indices
+    """
+    valid_mask = (
+        (idxs_frame >= 0) & (idxs_frame < num_points) & (idxs_kf >= 0) & (idxs_kf < num_kf_points)
+    )
+
+    if not np.all(valid_mask) and print_func:
+        invalid_frame_count = np.sum((idxs_frame < 0) | (idxs_frame >= num_points))
+        invalid_kf_count = np.sum((idxs_kf < 0) | (idxs_kf >= num_kf_points))
+        if invalid_frame_count > 0:
+            print_func(
+                f"Relocalizer: WARNING - {invalid_frame_count} invalid frame indices "
+                f"(max: {num_points-1}). Skipping."
+            )
+        if invalid_kf_count > 0:
+            print_func(
+                f"Relocalizer: WARNING - {invalid_kf_count} invalid keyframe indices "
+                f"(max: {num_kf_points-1}). Skipping."
+            )
+
+    return valid_mask
+
+
 # Relocalizer working on loop detection output
 class Relocalizer:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
+    logging_manager, logger = None, None
 
     def __init__(self):
         self.timer = TimerFps("Relocalizer", is_verbose=kTimerVerbose)
@@ -88,15 +180,23 @@ class Relocalizer:
                 # $ tail -f logs/relocalization.log
 
                 logging_file = Parameters.kLogsFolder + "/relocalization.log"
-                Relocalizer.local_logger = Logging.setup_file_logger(
-                    "relocalization_logger", logging_file, formatter=Logging.simple_log_formatter
-                )
+                create_folder(logging_file)
+                if Relocalizer.logging_manager is None:
+                    # Note: Each process has its own memory space, so singleton pattern works per-process
+                    Relocalizer.logging_manager = LoggerQueue.get_instance(logging_file)
+                    Relocalizer.logger = Relocalizer.logging_manager.get_logger(
+                        "relocalization_logger"
+                    )
 
                 def print_file(*args, **kwargs):
-                    message = " ".join(
-                        str(arg) for arg in args
-                    )  # Convert all arguments to strings and join with spaces
-                    return Relocalizer.local_logger.info(message, **kwargs)
+                    try:
+                        if Relocalizer.logger is not None:
+                            message = " ".join(
+                                str(arg) for arg in args
+                            )  # Convert all arguments to strings and join with spaces
+                            return Relocalizer.logger.info(message, **kwargs)
+                    except:
+                        print("Error printing: ", args, kwargs)
 
             else:
 
@@ -140,7 +240,7 @@ class Relocalizer:
             )
 
             solvers = []
-            solvers_input = []
+            # solvers_input = []
             considered_candidates = []
             mp_match_idxs = defaultdict(
                 lambda: (None, None)
@@ -201,7 +301,7 @@ class Relocalizer:
                 solver.set_ransac_parameters(0.99, 10, 300, 6, 0.5, 5.991)
 
                 solvers.append(solver)
-                solvers_input.append(solver_input_data)
+                # solvers_input.append(solver_input_data)
                 considered_candidates.append(kf)
 
             discarded = [False] * len(considered_candidates)
@@ -232,18 +332,43 @@ class Relocalizer:
 
                     inlier_flags = np.array(inlier_flags, dtype=bool)  # from from int8 to bool
 
+                    # Capture the original pose before applying RANSAC solution
+                    # This allows us to restore it if RANSAC or pose optimization fails
+                    pose_original = frame.pose()
+
                     # we got a valid pose solution => let's optimize it
                     frame.update_pose(Tcw)
 
                     idxs_frame, idxs_kf = mp_match_idxs[(frame, kf)]
-                    for j, idx in enumerate(idxs_frame):
-                        if inlier_flags[j]:
-                            frame.points[idx] = kf.points[idxs_kf[j]]
-                        else:
-                            frame.points[idx] = None
-                    idxs_kf_inliers = idxs_kf[inlier_flags]
+                    # Convert to numpy arrays for efficient vectorized operations
+                    idxs_frame = np.asarray(idxs_frame)
+                    idxs_kf = np.asarray(idxs_kf)
 
-                    pose_before = frame.pose()
+                    # Align array lengths to prevent indexing errors
+                    idxs_frame, idxs_kf, inlier_flags = _align_array_lengths(
+                        idxs_frame, idxs_kf, inlier_flags, print_func=Relocalizer.print
+                    )
+
+                    # Validate indices are within bounds and create mask
+                    num_points = len(frame.points) if frame.points is not None else 0
+                    num_kf_points = len(kf.points) if kf.points is not None else 0
+                    valid_mask = _validate_and_filter_indices(
+                        idxs_frame, idxs_kf, num_points, num_kf_points, print_func=Relocalizer.print
+                    )
+
+                    # Filter to valid indices
+                    valid_idxs_frame = idxs_frame[valid_mask]
+                    valid_idxs_kf = idxs_kf[valid_mask]
+                    valid_inlier_flags = inlier_flags[valid_mask]
+
+                    # Update frame points (need to iterate for assignment, but only valid ones)
+                    for idx, kf_idx, is_inlier in zip(
+                        valid_idxs_frame, valid_idxs_kf, valid_inlier_flags
+                    ):
+                        frame.points[idx] = kf.points[kf_idx] if is_inlier else None
+
+                    idxs_kf_inliers = valid_idxs_kf[valid_inlier_flags]
+
                     mean_pose_opt_chi2_error, pose_is_ok, num_matched_map_points = (
                         pose_optimization(frame, verbose=False)
                     )
@@ -252,19 +377,35 @@ class Relocalizer:
                     )
 
                     if not pose_is_ok:
-                        # if current pose optimization failed, reset f_cur pose
-                        frame.update_pose(pose_before)
+                        # if current pose optimization failed, reset f_cur pose to original (before RANSAC)
+                        frame.update_pose(pose_original)
                         continue
 
                     if num_matched_map_points < Parameters.kRelocalizationPoseOpt1MinMatches:
                         continue
 
-                    for i in range(len(frame.points)):
-                        if frame.outliers[i]:
+                    # Safety check: ensure outliers array exists and has correct size
+                    if frame.outliers is None or len(frame.outliers) != len(frame.points):
+                        Relocalizer.print(
+                            f"Relocalizer: WARNING - frame.outliers is None or size mismatch "
+                            f"(outliers: {len(frame.outliers) if frame.outliers is not None else None}, "
+                            f"points: {len(frame.points)}). Skipping outlier cleanup."
+                        )
+                    else:
+                        # Use vectorized boolean indexing for efficient outlier cleanup
+                        outliers_array = np.asarray(frame.outliers)
+                        outlier_indices = np.flatnonzero(outliers_array)
+                        for i in outlier_indices:
                             frame.points[i] = None
 
                     # if few inliers, search by projection in a coarse window and optimize again
                     if num_matched_map_points < Parameters.kRelocalizationDoPoseOpt2NumInliers:
+                        # Convert idxs_kf_inliers from indices into kf.points to indices into kf.get_matched_points()
+                        # because search_keyframe_by_projection expects indices into get_matched_points()
+                        already_matched_ref_idxs = _convert_kf_points_indices_to_matched_indices(
+                            kf, idxs_kf_inliers
+                        )
+
                         idxs_kf, idxs_frame, num_new_found_map_points = (
                             ProjectionMatcher.search_keyframe_by_projection(
                                 kf,
@@ -272,7 +413,7 @@ class Relocalizer:
                                 max_reproj_distance=Parameters.kRelocalizationMaxReprojectionDistanceMapSearchCoarse,
                                 max_descriptor_distance=Parameters.kMaxDescriptorDistance,
                                 ratio_test=Parameters.kRelocalizationFeatureMatchRatioTestLarge,
-                                already_matched_ref_idxs=idxs_kf_inliers,
+                                already_matched_ref_idxs=already_matched_ref_idxs,
                             )
                         )
 
@@ -300,7 +441,8 @@ class Relocalizer:
                                 and num_matched_map_points
                                 < Parameters.kRelocalizationDoPoseOpt2NumInliers
                             ):
-                                matched_ref_idxs = np.flatnonzero(frame.points != None)
+                                # Get matched point indices (safe for C++ MapPoint objects)
+                                matched_ref_idxs = frame.get_matched_points_idxs()
 
                                 idxs_kf, idxs_frame, num_new_found_map_points = (
                                     ProjectionMatcher.search_keyframe_by_projection(

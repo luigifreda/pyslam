@@ -21,6 +21,7 @@ import os
 import time
 import math
 import sys
+import signal
 
 # import multiprocessing as mp
 import torch.multiprocessing as mp
@@ -614,6 +615,20 @@ class SemanticSegmentationProcess:
         SemanticSegmentationBase.print(
             f"SemanticSegmentationProcess: initialized with num_classes: {self.num_classes()}"
         )
+
+        # Set up signal handler for graceful shutdown
+        def signal_handler(signum, frame):
+            SemanticSegmentationBase.print(
+                f"SemanticSegmentationProcess: received signal {signum}, setting is_running to 0"
+            )
+            is_running.value = 0
+            # Notify condition to wake up from wait
+            with q_in_condition:
+                q_in_condition.notify_all()
+
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+
         # main loop
         is_looping.value = 1
         while is_running.value == 1:
@@ -622,7 +637,15 @@ class SemanticSegmentationProcess:
                     SemanticSegmentationBase.print(
                         "SemanticSegmentationProcess: waiting for new task..."
                     )
-                    q_in_condition.wait()
+                    # Use timeout to periodically check is_running flag
+                    q_in_condition.wait(timeout=1.0)
+            # Check if we should exit before processing
+            if is_running.value == 0:
+                SemanticSegmentationBase.print(
+                    "SemanticSegmentationProcess: is_running is 0, exiting..."
+                )
+                break
+
             if not q_in.empty():
                 # Get the task and check if it's None (shutdown signal)
                 try:

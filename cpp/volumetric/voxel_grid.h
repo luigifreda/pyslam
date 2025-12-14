@@ -58,6 +58,8 @@
 
 #include "camera_frustrum.h"
 #include "voxel_data.h"
+#include "voxel_data_semantic.h"
+#include "voxel_grid_carving.h"
 #include "voxel_grid_data.h"
 #include "voxel_hashing.h"
 

@@ -509,6 +509,7 @@ void bind_frame(py::module &m) {
         .def("reset_points", &pyslam::Frame::reset_points)
         .def("get_points", &get_points_wrapper)
         .def("get_matched_points", &pyslam::Frame::get_matched_points)
+        .def("get_matched_points_idxs", &pyslam::Frame::get_matched_points_idxs)
         .def("get_matched_good_points", &pyslam::Frame::get_matched_good_points)
         .def("get_matched_good_points_idxs", &pyslam::Frame::get_matched_good_points_idxs)
         .def("get_matched_good_points_and_idxs", &pyslam::Frame::get_matched_good_points_and_idxs)

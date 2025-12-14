@@ -22,6 +22,7 @@ import os
 import time
 import cv2
 import numpy as np
+import multiprocessing as mp
 
 from collections import defaultdict
 
@@ -34,7 +35,8 @@ from .semantic_types import SemanticFeatureType, SemanticEntityType
 
 from pyslam.utilities.timer import TimerFps
 from pyslam.utilities.serialization import SerializableEnum, register_class
-from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.system import Printer, Logging, LoggerQueue
+from pyslam.utilities.file_management import create_folder
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue
 
@@ -64,6 +66,7 @@ class SemanticMappingType(SerializableEnum):
 
 class SemanticMappingBase:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
+    logging_manager, logger = None, None
 
     def __init__(
         self,
@@ -109,23 +112,29 @@ class SemanticMappingBase:
                 if kSemanticMappingDebugAndPrintToFile:
                     # Default log to file: logs/semantic_mapping.log
                     logging_file = os.path.join(Parameters.kLogsFolder, "semantic_mapping.log")
-                    SemanticMappingBase.local_logger = Logging.setup_file_logger(
-                        "semantic_mapping_logger",
-                        logging_file,
-                        formatter=Logging.simple_log_formatter,
-                    )
+                    create_folder(logging_file)
+                    if SemanticMappingBase.logging_manager is None:
+                        # Note: Each process has its own memory space, so singleton pattern works per-process
+                        SemanticMappingBase.logging_manager = LoggerQueue.get_instance(logging_file)
+                        SemanticMappingBase.logger = SemanticMappingBase.logging_manager.get_logger(
+                            "semantic_mapping_logger"
+                        )
 
-                    def file_print(*args, **kwargs):
-                        message = " ".join(str(arg) for arg in args)
-                        SemanticMappingBase.local_logger.info(message, **kwargs)
+                def print_file(*args, **kwargs):
+                    try:
+                        if SemanticMappingBase.logger is not None:
+                            message = " ".join(str(arg) for arg in args)
+                            return SemanticMappingBase.logger.info(message, **kwargs)
+                    except:
+                        print("Error printing: ", args, kwargs)
 
-                else:
+            else:
 
-                    def file_print(*args, **kwargs):
-                        message = " ".join(str(arg) for arg in args)
-                        return print(message, **kwargs)
+                def print_file(*args, **kwargs):
+                    message = " ".join(str(arg) for arg in args)
+                    return print(message, **kwargs)
 
-                SemanticMappingBase.print = staticmethod(file_print)
+            SemanticMappingBase.print = staticmethod(print_file)
 
     @property
     def map(self):

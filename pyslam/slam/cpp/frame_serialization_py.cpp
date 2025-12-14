@@ -153,7 +153,11 @@ void Frame::restore_from_state(const py::tuple &t, bool need_lock) {
     img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_8U);
     img_right = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_8U);
     depth_img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_32F); // if depth is float
-    semantic_img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_8U);
+    // Infer semantic_img dtype from numpy array to support both uint8 (small label sets)
+    // and int32 (large label sets like Detic with category IDs > 255)
+    auto semantic_img_array = t[idx++].cast<py::array>();
+    int semantic_img_dtype = semantic_img_array.dtype().num() == NPY_INT32 ? CV_32S : CV_8U;
+    semantic_img = numpy_to_cvmat(semantic_img_array, semantic_img_dtype);
     semantic_instances_img = numpy_to_cvmat(t[idx++].cast<py::array>(), CV_32S);
 
     // ---- misc stats ----

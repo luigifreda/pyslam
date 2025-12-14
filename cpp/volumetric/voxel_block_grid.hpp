@@ -602,47 +602,8 @@ template <typename VoxelDataT>
 void VoxelBlockGridT<VoxelDataT>::carve(const CameraFrustrum &camera_frustrum,
                                         const cv::Mat &depth_image, const float depth_threshold) {
 
-    if (depth_image.empty()) {
-        std::cout << "VoxelBlockGridT<VoxelDataT>::carve: Depth image is empty" << std::endl;
-        return;
-    }
-    if (depth_image.rows == 0 || depth_image.cols == 0 ||
-        depth_image.rows != camera_frustrum.get_height() ||
-        depth_image.cols != camera_frustrum.get_width()) {
-        std::cout << "VoxelBlockGridT<VoxelDataT>::carve: Depth image size: " << depth_image.rows
-                  << "x" << depth_image.cols << std::endl;
-        std::cout << "\tCamera frustrum height: " << camera_frustrum.get_height() << std::endl;
-        std::cout << "\tCamera frustrum width: " << camera_frustrum.get_width() << std::endl;
-        std::cout << "\tDepth image size does not match camera frustrum size" << std::endl;
-        return;
-    }
-    // Check depth image type
-    if (depth_image.type() != CV_32F) {
-        // Convert depth image to float32
-        std::cout << "VoxelBlockGridT<VoxelDataT>::carve: Depth image type: " << depth_image.type()
-                  << std::endl;
-        std::cout << "\tConverting depth image to float32" << std::endl;
-        depth_image.convertTo(depth_image, CV_32F);
-    }
-
-    const auto callback = [&](VoxelDataT &v, const VoxelKey &key,
-                              const std::array<double, 3> &pos_w, const ImagePoint &image_point) {
-        const float point_depth = image_point.depth;
-        const float image_depth = depth_image.at<float>(image_point.v, image_point.u);
-
-        // Skip invalid depth values (0, NaN, or inf)
-        if (image_depth <= 0.0f || !std::isfinite(image_depth)) {
-            return;
-        }
-
-        // Carve voxels that are inconsistent with the depth image:
-        // Voxels in front of the depth image (point_depth < image_depth - threshold)
-        // These are likely occluded or inconsistent
-        if (point_depth < image_depth - depth_threshold) {
-            v.reset();
-        }
-    };
-    iterate_voxels_in_camera_frustrum(camera_frustrum, callback);
+    using ThisType = VoxelBlockGridT<VoxelDataT>;
+    volumetric::carve<ThisType, VoxelDataT>(*this, camera_frustrum, depth_image, depth_threshold);
 };
 
 // remove_low_count_voxels implementation
