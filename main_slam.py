@@ -281,6 +281,7 @@ if __name__ == "__main__":
         viewer3D.wait_for_ready()
 
     timer_main = TimerFps("Main", is_verbose=False)
+    timer_main.start()
 
     do_step = False  # proceed step by step on GUI
     do_reset = False  # reset on GUI

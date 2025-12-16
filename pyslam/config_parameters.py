@@ -270,7 +270,7 @@ class Parameters:
     kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
     # kVolumetricIntegrationType: "VOXEL_GRID", "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID",
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py)
-    kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
+    kVolumetricIntegrationType = "VOXEL_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
     kVolumetricIntegrationExtractMesh = (
         False  # Extract mesh or point cloud as output; only for TSDF
@@ -279,27 +279,36 @@ class Parameters:
     kVolumetricIntegrationUseVoxelBlocks = True  # Use (or not) the more efficient voxel blocks (indirect hashing to blocks instead of direct voxel hashing) for volumetric integration
     kVolumetricIntegrationBlockSize = 8  # [voxels] Numer of voxels per side of the block
     kVolumetricIntegrationTBBThreads = (
-        4  # Number of threads for TBB parallel operations (global setting)
+        2  # Number of threads for TBB parallel operations (global setting)
     )
-    kVolumetricIntegrationGridMinCount = (
+    kVolumetricIntegrationFpsThrottleEnabled = (
+        True  # Enable FPS-based throttle for volumetric integration (control max FPS allowed)
+    )
+    kVolumetricIntegrationFpsThrottleMinQueueSize = (
+        10  # Minimum queue size for enabling FPS-based throttle
+    )
+    kVolumetricIntegrationFpsMaxThreshold = 10.0  # max FPS allowed
+    kVolumetricIntegrationFpsThrottleBaseDelay = 0.01  # base delay [s]
+    kVolumetricIntegrationFpsThrottleScale = 0.1  # delay scale per FPS over threshold
+    kVolumetricIntegrationVoxelGridMinCount = (
         1  # Minimum number of points per voxel for grid semantic integration
     )
-    kVolumetricIntegrationGridMinConfidence = (
+    kVolumetricIntegrationVoxelGridMinConfidence = (
         0.0  # Minimum confidence for grid semantic integration
     )
-    kVolumetricIntegrationGridUseCarving = False  # Use carving to remove voxels that are inconsistent with the depth image (in front or behind by more than the threshold).
-    kVolumetricIntegrationGridCarvingDepthMin = (
+    kVolumetricIntegrationVoxelGridUseCarving = False  # Use carving to remove voxels that are inconsistent with the depth image (in front or behind by more than the threshold).
+    kVolumetricIntegrationVoxelGridCarvingDepthMin = (
         1e-2  # Minimum depth [m] for carving. Voxels with depth less than this will not be carved.
     )
-    kVolumetricIntegrationGridCarvingDepthMaxIndoor = 8.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
-    kVolumetricIntegrationGridCarvingDepthMaxOutdoor = 15.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
-    kVolumetricIntegrationGridCarvingDepthThreshold = 2e-2  # Depth threshold [m] for carving. Voxels that differ from the depth image by more than this threshold will be removed.
-    kVolumetricIntegrationGridShadowPointsFilter = (
+    kVolumetricIntegrationVoxelGridCarvingDepthMaxIndoor = 8.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
+    kVolumetricIntegrationVoxelGridCarvingDepthMaxOutdoor = 15.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
+    kVolumetricIntegrationVoxelGridCarvingDepthThreshold = 2e-2  # Depth threshold [m] for carving. Voxels that differ from the depth image by more than this threshold will be removed.
+    kVolumetricIntegrationVoxelGridShadowPointsFilter = (
         True  # Filter shadow points in the grid semantic integration
     )
-    kVolumetricIntegrationSdfTrunc = 0.04  # [m]
-    kVolumetricIntegrationDepthTruncIndoor = 4.0  # [m]
-    kVolumetricIntegrationDepthTruncOutdoor = 10.0  # [m]
+    kVolumetricIntegrationTSdfTrunc = 0.04  # [m]
+    kVolumetricIntegrationTsdfDepthTruncIndoor = 4.0  # [m]
+    kVolumetricIntegrationTsdfDepthTruncOutdoor = 10.0  # [m]
     kVolumetricIntegrationMinNumLBATimes = 1  # We integrate only the keyframes that have been processed by LBA at least kVolumetricIntegrationMinNumLBATimes times.
     kVolumetricIntegrationOutputTimeInterval = 1.0  # [s]
     kVolumetricIntegrationUseDepthEstimator = (
@@ -348,14 +357,15 @@ class Parameters:
     kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable sparse semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
     # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE" (see semantic_segmentation_factory.py)
     kSemanticSegmentationType = ""  # Override the semantic model selected in semantic_mapping_configs.py. If kSemanticSegmentationType = "" or None, a default model will be selected based on the dataset (see semantic_mapping_configs.py)
-    kSemanticMappingOnSeparateThread = True
-    kSemanticMappingMoveSemanticSegmentationToSeparateProcess = True
-    kSemanticMappingDebugAndPrintToFile = True
-    kUseSemanticsInOptimization = False
-    kSemanticMappingTimeoutPopKeyframe = 0.5  # [s]
-    kSemanticMappingNumNeighborKeyFrames = (
-        10  #  [# frames]   only used in object-based to decide the best semantic descriptor
+    kSemanticMappingOnSeparateThread = (
+        True  # To enable/disable the use of a separate thread for semantic mapping
     )
+    kSemanticMappingMoveSemanticSegmentationToSeparateProcess = (
+        True  # To enable/disable the use of a separate process for semantic segmentation
+    )
+    kSemanticMappingDebugAndPrintToFile = True
+    kUseSemanticsInOptimization = False  # To enable/disable the use of semantics in optimization (disabled by default, it's still very experimental)
+    kSemanticMappingTimeoutPopKeyframe = 0.5  # [s]
 
     # ================================================================
     # Other parameters

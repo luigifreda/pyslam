@@ -1,0 +1,67 @@
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+# Viewer.on: 1 is ON, 0 is OFF
+Viewer.on: 1
+
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 1
+Viewer.LineSize: 1
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
+
+Viewer.ViewpointYtop: -4.0
+
+   
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+# Cam_Intrinsics:
+#   camera_model: pinhole
+#   distortion_coeffs: [ 0.07561607662577634, -0.2088729975389971, -0.0023347441072184756, 0.004010356017731083 ]
+#   distortion_model: radtan
+#   intrinsics: [ 596.1950425915236, 593.1411835433107, 327.0463454538411, 245.16142133264628 ]
+  
+
+# Camera calibration and distortion parameters (OpenCV) 
+Camera.fx: 596.1950425915236  
+Camera.fy: 593.1411835433107
+Camera.cx: 327.0463454538411
+Camera.cy: 245.16142133264628
+
+Camera.k1: 0.07561607662577634
+Camera.k2: -0.2088729975389971
+Camera.p1: -0.0023347441072184756
+Camera.p2: 0.004010356017731083
+Camera.k3: 0.0
+
+Camera.width: 640
+Camera.height: 480
+
+# Camera frames per second 
+Camera.fps: 30.0
+
+# IR projector baseline times fx (aprox.)
+Camera.bf: 40.0
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# Close/Far threshold. Baseline times.
+ThDepth: 40.0
+
+# Deptmap values factor 
+DepthMapFactor: 1000.0
+
+#--------------------------------------------------------------------------------------------
+# Features extraction 
+#--------------------------------------------------------------------------------------------
+
+FeatureTrackerConfig.nFeatures: 1000
+

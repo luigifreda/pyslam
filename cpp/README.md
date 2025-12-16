@@ -26,6 +26,10 @@ Trajectory alignment and association utilities. Provides functions for finding t
 
 General SLAM utilities including feature matching filters, patch extraction from images, and epipolar constraint filtering. Supports both OpenCV and NumPy array interfaces.
 
+### `color_utils`
+
+Color conversion utilities for ID visualization. Provides `IdsColorTable` class for converting arbitrary integer IDs to RGB colors using a hash-based color table. Supports both 1D and 2D input arrays, handles unlabeled instances, and supports BGR/RGB output formats.
+
 ### `volumetric`
 
 Volumetric mapping and integration. Provides voxel grid data structures for TSDF (Truncated Signed Distance Function) mapping, semantic voxel grids, camera frustum culling, and TBB-based parallel processing utilities.

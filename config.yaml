@@ -9,6 +9,7 @@ DATASET:
   #type: SEVEN_SCENES_DATASET
   #type: NEURAL_RGBD_DATASET
   #type: BONN_RGBD_DYNAMIC_DATASET
+  #type: ROVER_DATASET
   type: VIDEO_DATASET
   #type: SCANNET_DATASET
   #type: ROS1BAG_DATASET
@@ -44,14 +45,14 @@ TUM_DATASET:
   #name: rgbd_dataset_freiburg1_xyz 
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
-  #name: rgbd_dataset_freiburg2_desk
-  #settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
+  name: rgbd_dataset_freiburg2_desk
+  settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
   #
   #name: rgbd_dataset_freiburg1_desk
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file  
   #
-  name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
-  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
+  #name: rgbd_dataset_freiburg1_room  # do not use this for mono, there are some in-place rotations during exploratory phases
+  #settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto
@@ -148,6 +149,21 @@ BONN_RGBD_DYNAMIC_DATASET:
   #
   associations: associations.txt
   groundtruth_file: auto
+
+
+ROVER_DATASET:
+  type: rover
+  sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
+  base_path: /home/luigi/Work/datasets/rgbd_datasets/rover
+  camera_name: realsense_D435i  # name of the camera folder in the base_path/name folder
+  #
+  #name: 'garden_large_2023-08-18/2023-08-18'
+  name: 'garden_small_2023-08-18/2023-08-18'
+  settings: settings/ROVER_d435i.yaml
+  #
+  associations: associations.txt
+  groundtruth_file: auto
+  environment_type: outdoor
 
 
 VIDEO_DATASET:

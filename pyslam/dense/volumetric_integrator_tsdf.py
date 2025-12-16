@@ -83,14 +83,14 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
         self.init_print()
 
         self.volumetric_integration_depth_trunc = (
-            Parameters.kVolumetricIntegrationDepthTruncIndoor
+            Parameters.kVolumetricIntegrationTsdfDepthTruncIndoor
             if environment_type == DatasetEnvironmentType.INDOOR
-            else Parameters.kVolumetricIntegrationDepthTruncOutdoor
+            else Parameters.kVolumetricIntegrationTsdfDepthTruncOutdoor
         )
 
         self.volume = o3d.pipelines.integration.ScalableTSDFVolume(
             voxel_length=Parameters.kVolumetricIntegrationVoxelLength,
-            sdf_trunc=Parameters.kVolumetricIntegrationSdfTrunc,
+            sdf_trunc=Parameters.kVolumetricIntegrationTSdfTrunc,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8,
         )
 

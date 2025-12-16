@@ -92,6 +92,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
       - [Tartanair Datasets](#tartanair-datasets)
       - [7 Scenes dataset](#7-scenes-dataset)
       - [Neural RGBD dataset](#neural-rgbd-dataset)
+      - [Rover dataset](#rover-dataset)
       - [ScanNet Datasets](#scannet-datasets)
       - [ROS1 bags](#ros1-bags)
       - [ROS2 bags](#ros2-bags)
@@ -773,6 +774,7 @@ Dataset | type in `config.yaml`
 [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
 [SEVEN_SCENES dataset](https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/)                                         | `type: SEVEN_SCENES_DATASET` 
 [NEURAL_RGBD dataset](https://github.com/dazinovic/neural-rgbd-surface-reconstruction)                                         | `type: NEURAL_RGBD_DATASET` 
+[ROVER dataset](https://iis-esslingen.github.io/rover/)                                         | `type: NEURAL_RGBD_DATASET` 
 [ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`
 [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
 [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
@@ -816,7 +818,7 @@ pySLAM code expects a file `associations.txt` in each TUM dataset folder (specif
 
 #### ICL-NUIM Datasets 
 
-Follow the same instructions provided for the TUM datasets. 
+You can download the dataset [here](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html). Follow the same instructions provided for the TUM datasets. 
 
 
 #### EuRoC Datasets
@@ -846,7 +848,11 @@ To dowload the dataset follow the instructions at https://www.microsoft.com/en-u
 
 #### Neural RGBD dataset 
 
-To dowload the dataset follow the instructions at https://github.com/dazinovic/neural-rgbd-surface-reconstruction. Select the section `NEURAL_RGBD_DATASET: settings:` in the file `config.yaml`.A calibration file `settings/NEURAL_RGBD.yaml` is already available.
+To dowload the dataset follow the instructions at https://github.com/dazinovic/neural-rgbd-surface-reconstruction. Select the section `NEURAL_RGBD_DATASET: settings:` in the file `config.yaml`. A calibration file `settings/NEURAL_RGBD.yaml` is already available.
+
+#### Rover dataset 
+
+To dowload the dataset follow the instructions at https://iis-esslingen.github.io/rover/. Select the section `ROVER_DATASET: settings:` in the file `config.yaml`. A calibration file for the `d435i` camera is already available: `settings/ROVER_d435i.yaml`. Other camera models will be supported in the future.
 
 #### ScanNet Datasets
 

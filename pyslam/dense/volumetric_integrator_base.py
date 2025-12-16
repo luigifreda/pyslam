@@ -36,6 +36,7 @@ from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue, push_to_front, static_fields_to_dict
 from pyslam.utilities.depth import filter_shadow_points
 from pyslam.utilities.multi_threading import SimpleTaskTimer
+from pyslam.utilities.timer import TimerFps
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 
 from pyslam.config_parameters import Parameters
@@ -513,6 +514,7 @@ class VolumetricIntegratorBase:
                     q_out_condition.notify_all()
                 # Now reset the volume integrator in the launched parallel process
                 try:
+                    VolumetricIntegratorBase.print("VolumetricIntegratorBase: resetting volume...")
                     self.volume.reset()
                 except Exception as e:
                     VolumetricIntegratorBase.print(
@@ -700,6 +702,16 @@ class VolumetricIntegratorBase:
         self.init(camera, environment_type, sensor_type, parameters_dict, constructor_kwargs)
         is_looping.value = 1
 
+        # FPS-based burst control parameters
+        is_fps_throttle_enabled = Parameters.kVolumetricIntegrationFpsThrottleEnabled
+        fps_max_threshold = Parameters.kVolumetricIntegrationFpsMaxThreshold
+        fps_throttle_base_delay = Parameters.kVolumetricIntegrationFpsThrottleBaseDelay
+        fps_throttle_scale = Parameters.kVolumetricIntegrationFpsThrottleScale
+
+        # Initialize FPS timer for measuring integration rate
+        timer_fps = TimerFps("VolumetricIntegratorBase")
+        timer_fps.start()
+
         # main loop
         while is_running.value == 1:
             try:
@@ -752,6 +764,32 @@ class VolumetricIntegratorBase:
                         save_request_condition,
                         time_volumetric_integration,
                     )
+
+                    # check fps after integration
+                    timer_fps.refresh()
+                    current_fps = timer_fps.get_fps()
+
+                    do_fps_throttling = (
+                        is_fps_throttle_enabled
+                        and q_in_size > Parameters.kVolumetricIntegrationFpsThrottleMinQueueSize
+                    )
+
+                    # FPS-based throttling: if FPS exceeds threshold, add adaptive delay
+                    if do_fps_throttling and current_fps > 0.0 and current_fps > fps_max_threshold:
+                        # Calculate how much we're over the threshold
+                        fps_excess = current_fps - fps_max_threshold
+                        # Adaptive delay: base delay + scaled delay based on excess FPS
+                        throttle_delay = fps_throttle_base_delay + fps_excess * fps_throttle_scale
+                        VolumetricIntegratorBase.print(
+                            f"VolumetricIntegratorBase: FPS throttling: current_fps={current_fps:.2f} "
+                            f"(threshold={fps_max_threshold:.2f}), adding delay: {throttle_delay:.3f}s"
+                        )
+                        time.sleep(throttle_delay)
+
+                    VolumetricIntegratorBase.print(
+                        f"VolumetricIntegratorBase: current fps={current_fps:.2f}"
+                    )
+
                 else:
                     VolumetricIntegratorBase.print("VolumetricIntegratorBase: q_in is empty...")
                     time.sleep(0.1)  # sleep for a bit before checking the queue again

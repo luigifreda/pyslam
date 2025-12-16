@@ -56,6 +56,7 @@ from .dataset import (
     LiveDataset,
     SevenScenesDataset,
     NeuralRGBDDataset,
+    RoverDataset,
 )
 from .mcap_dataset import McapDataset
 
@@ -228,6 +229,11 @@ def dataset_factory(config: "Config") -> Dataset:
     if type == "neural_rgbd" or type == "neuralrgbd":
         dataset = NeuralRGBDDataset(
             path, name, sensor_type, associations, start_frame_id, DatasetType.NEURAL_RGBD, config
+        )
+    if type == "rover":
+        camera_name = dataset_settings["camera_name"]
+        dataset = RoverDataset(
+            path, name, camera_name, sensor_type, associations, start_frame_id, DatasetType.ROVER
         )
 
     dataset.minimal_config = MinimalDatasetConfig(config=config)

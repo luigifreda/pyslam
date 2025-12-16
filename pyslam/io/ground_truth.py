@@ -61,6 +61,7 @@ class GroundTruthType(SerializableEnum):
     ICL_NUIM = 9
     SEVEN_SCENES = 10
     NEURAL_RGBD = 11
+    ROVER = 12
 
 
 def groundtruth_factory(settings):
@@ -115,6 +116,12 @@ def groundtruth_factory(settings):
     if type == "neural_rgbd" or type == "neuralrgbd":
         return NeuralRGBDGroundTruth(
             path, name, associations, start_frame_id, type=GroundTruthType.NEURAL_RGBD
+        )
+    if type == "rover":
+        camera_name = settings["camera_name"]
+        associations = settings["associations"]
+        return RoverGroundTruth(
+            path, name, camera_name, associations, start_frame_id, type=GroundTruthType.ROVER
         )
     if type == "video" or type == "folder":
         if "groundtruth_file" in settings:
@@ -383,6 +390,79 @@ class GroundTruth(object):
         print(f"[associate] Number of matches: {len(matches)}")
         return matches
 
+    @staticmethod
+    def associate2(first_list, second_list, offset=0, max_difference=0.08 * 1e9):
+        """
+        Associate two lists of (stamp,data) tuples using a greedy matching algorithm.
+        This method implements the algorithm from scripts/associate.py which creates all
+        potential matches, sorts them by time difference, and then greedily matches them.
+
+        As the time stamps never match exactly, we aim to find the closest match for
+        every input tuple.
+
+        Input:
+        first_list -- first list of (stamp,data) tuples
+        second_list -- second list of (stamp,data) tuples
+        offset -- time offset between both lists (e.g., to model the delay between the sensors)
+        max_difference -- search radius for candidate generation
+
+        Output:
+        matches -- map: index_stamp_first -> (index_stamp_second, diff_stamps, first_timestamp, second_timestamp)
+        """
+        # Extract timestamps from first list
+        t1 = [float(data1[0]) for data1 in first_list]
+        # Extract timestamps from second list and apply offset
+        t2 = [(float(data2[0]) + offset) for data2 in second_list]
+
+        # Create all potential matches with their differences
+        potential_matches = []
+        for i, a in enumerate(t1):
+            for j, b in enumerate(t2):
+                diff = abs(a - b)
+                if diff < max_difference:
+                    potential_matches.append((diff, i, j, a, b))
+
+        # Sort by difference (smallest first), then by first index to ensure deterministic ordering
+        potential_matches.sort(key=lambda x: (x[0], x[1]))
+
+        # Greedily match, keeping track of used indices
+        # Maintain monotonicity: process matches in order of first index to avoid jumps
+        matches = {}
+        first_used = set()
+        second_used = set()
+        last_second_idx = -1  # Track last matched second index to maintain monotonicity
+
+        # Group potential matches by first index, then process in order
+        matches_by_first = {}
+        for diff, i, j, a, b in potential_matches:
+            if i not in matches_by_first:
+                matches_by_first[i] = []
+            matches_by_first[i].append((diff, j, a, b))
+
+        # Sort potential matches for each first index by difference
+        for i in matches_by_first:
+            matches_by_first[i].sort(key=lambda x: x[0])
+
+        # Process first indices in order to maintain monotonicity
+        for i in sorted(matches_by_first.keys()):
+            if i not in first_used:
+                # Find the best available match for this first index that maintains monotonicity
+                for diff, j, a, b in matches_by_first[i]:
+                    if j not in second_used and j >= last_second_idx:
+                        first_used.add(i)
+                        second_used.add(j)
+                        last_second_idx = j
+                        matches[int(i)] = (int(j), diff, a, b)
+                        break
+
+        # Report missing associations
+        missing_associations = [i for i in range(len(first_list)) if i not in first_used]
+        num_missing_associations = len(missing_associations)
+        if num_missing_associations > 0:
+            Printer.red(f"ERROR: {num_missing_associations} missing associations!")
+        print(f"[associate2] Number of matches: {len(matches)}")
+        return matches
+
 
 # Read the ground truth from a simple file containining [timestamp, x,y,z, qx, qy, qz, qw, scale] lines
 # Use the file io/convert_kitti_groundtruth_to_simple.py to convert the ground truth of a dataset into this format.
@@ -583,8 +663,8 @@ class TumGroundTruth(GroundTruth):
                 sys.exit("ERROR [TumGroundTruth] while reading associations file!")
 
         associations_file = base_path + "/gt_associations.json"
-        if True:  # not os.path.exists(associations_file):
-            # Printer.orange('Computing groundtruth associations (one-time operation, results will be saved)...')
+        if not os.path.exists(associations_file):
+            # Printer.orange("Computing groundtruth associations (one-time operation, results will be saved)...")
             if len(self.associations_data) == 0 or len(self.data) == 0:
                 Printer.orange(
                     f"WARNING: you have #associations = {len(self.associations_data)} and #groundtruth samples = {len(self.data)}"
@@ -688,7 +768,7 @@ class IclNuimGroundTruth(GroundTruth):
                 sys.exit("ERROR [IclNuimGroundTruth] while reading associations file!")
 
         associations_file = base_path + "/gt_associations.json"
-        if True:  # not os.path.exists(associations_file):
+        if not os.path.exists(associations_file):
             # Printer.orange('Computing groundtruth associations (one-time operation, results will be saved)...')
             if len(self.associations_data) == 0 or len(self.data) == 0:
                 Printer.orange(
@@ -799,7 +879,7 @@ class EurocGroundTruth(GroundTruth):
         self.image_data = self.read_image_data(self.image_left_csv_path)
 
         associations_file = base_path + "/associations.json"
-        if True:  # not os.path.exists(associations_file):
+        if not os.path.exists(associations_file):
             # Printer.orange('Computing groundtruth associations (one-time operation)...')
             self.association_matches = self.associate(self.image_data, self.data)
             # save associations
@@ -1600,3 +1680,106 @@ class NeuralRGBDGroundTruth(GroundTruth):
         else:
             abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
         return timestamp, x, y, z, q[0], q[1], q[2], q[3], abs_scale
+
+
+class RoverGroundTruth(GroundTruth):
+    def __init__(
+        self, path, name, camera_name, associations=None, start_frame_id=0, type=GroundTruthType.TUM
+    ):
+        super().__init__(path, name, associations, start_frame_id, type)
+        print(
+            f"RoverGroundTruth: path: {path}, name: {name}, camera_name: {camera_name}, associations: {associations}"
+        )
+        self.scale = kScaleTum
+        self.filename = (
+            path + "/" + name + "/groundtruth.txt"
+        )  # N.B.: this may depend on how you deployed the groundtruth files
+        self.associations_path = (
+            path + "/" + name + "/" + camera_name + "/" + associations
+        )  # N.B.: this may depend on how you name the associations file
+
+        if not os.path.isfile(self.filename):
+            error_message = f"ERROR: [TumGroundTruth] Groundtruth file not found: {self.filename}!"
+            Printer.red(error_message)
+            sys.exit(error_message)
+
+        base_path = os.path.dirname(self.filename)
+        print("[TumGroundTruth] base_path: ", base_path)
+
+        with open(self.filename) as f:
+            self.data = f.readlines()[3:]  # skip the first three rows, which are only comments
+            self.data = [line.strip().split() for line in self.data]
+            self.data = np.ascontiguousarray(self.data)
+        if self.data is None:
+            sys.exit("ERROR [TumGroundTruth] while reading groundtruth file!")
+        if self.associations_path is not None:
+            with open(self.associations_path) as f:
+                self.associations_data = f.readlines()
+                self.associations_data = [line.strip().split() for line in self.associations_data]
+            if self.associations_data is None:
+                sys.exit("ERROR [TumGroundTruth] while reading associations file!")
+
+        associations_file = base_path + "/gt_associations.json"
+        if not os.path.exists(associations_file):
+            # Printer.orange("Computing groundtruth associations (one-time operation, results will be saved)...")
+            if len(self.associations_data) == 0 or len(self.data) == 0:
+                Printer.orange(
+                    f"WARNING: you have #associations = {len(self.associations_data)} and #groundtruth samples = {len(self.data)}"
+                )
+            self.association_matches = self.associate(self.associations_data, self.data)
+            # save associations
+            with open(associations_file, "w") as f:
+                json.dump(self.association_matches, f)
+        else:
+            with open(associations_file, "r") as f:
+                data = json.load(f)
+                self.association_matches = {int(k): v for k, v in data.items()}
+
+    def getDataLine(self, frame_id):
+        return self.data[self.association_matches[frame_id][0]]
+
+    # return timestamp,x,y,z,scale
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
+        frame_id += self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id - 1)
+            x_prev = self.scale * float(ss[1])
+            y_prev = self.scale * float(ss[2])
+            z_prev = self.scale * float(ss[3])
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        ss = self.getDataLine(frame_id)
+        timestamp = float(ss[0])
+        x = self.scale * float(ss[1])
+        y = self.scale * float(ss[2])
+        z = self.scale * float(ss[3])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, abs_scale
+
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id += self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id - 1)
+            x_prev = self.scale * float(ss[1])
+            y_prev = self.scale * float(ss[2])
+            z_prev = self.scale * float(ss[3])
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        ss = self.getDataLine(frame_id)
+        timestamp = float(ss[0])
+        x = self.scale * float(ss[1])
+        y = self.scale * float(ss[2])
+        z = self.scale * float(ss[3])
+        qx = float(ss[4])
+        qy = float(ss[5])
+        qz = float(ss[6])
+        qw = float(ss[7])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev) ** 2 + (y - y_prev) ** 2 + (z - z_prev) ** 2)
+        return timestamp, x, y, z, qx, qy, qz, qw, abs_scale
