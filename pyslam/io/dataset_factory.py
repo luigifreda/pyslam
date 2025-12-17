@@ -89,6 +89,7 @@ def dataset_factory(config: "Config") -> Dataset:
         sensor_type = get_sensor_type(dataset_settings["sensor_type"])
     Printer.green(f"dataset_factory - sensor_type: {sensor_type.name}")
 
+    environment_type = DatasetEnvironmentType.OUTDOOR
     if "environment_type" in dataset_settings:
         environment_type = dataset_settings["environment_type"].lower()
         if environment_type == "outdoor":
@@ -233,7 +234,14 @@ def dataset_factory(config: "Config") -> Dataset:
     if type == "rover":
         camera_name = dataset_settings["camera_name"]
         dataset = RoverDataset(
-            path, name, camera_name, sensor_type, associations, start_frame_id, DatasetType.ROVER
+            path,
+            name,
+            camera_name,
+            sensor_type,
+            associations,
+            start_frame_id,
+            type=DatasetType.ROVER,
+            environment_type=environment_type,
         )
 
     dataset.minimal_config = MinimalDatasetConfig(config=config)

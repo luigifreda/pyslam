@@ -93,6 +93,16 @@ def scene_from_views_factory(
             )
         return SceneFromViewsVggt(device=device, **kwargs)
 
+    elif scene_from_views_type == SceneFromViewsType.VGGT_ROBUST:
+        try:
+            from .scene_from_views_vggt_robust import SceneFromViewsVggtRobust
+        except ImportError:
+            SceneFromViewsVggtRobust = import_from(
+                "pyslam.scene_from_views.scene_from_views_vggt_robust",
+                "SceneFromViewsVggtRobust",
+            )
+        return SceneFromViewsVggtRobust(device=device, **kwargs)
+
     elif scene_from_views_type == SceneFromViewsType.DUST3R:
         try:
             from .scene_from_views_dust3r import SceneFromViewsDust3r

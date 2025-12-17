@@ -24,7 +24,9 @@ if [ ! -f "lib/cvcasters_test.cpython-311-x86_64-linux-gnu.so" ]; then
 fi
 
 # Run tests
-python -m pytest test_casters.py -v --tb=short
+# Disable auto-loading external pytest plugins from the user environment to
+# avoid unrelated failures (e.g., torchtyping with incompatible torch).
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest test_casters.py -v --tb=short
 
 echo "=================================="
 echo "Tests completed!"

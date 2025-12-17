@@ -27,7 +27,10 @@ class SceneFromViewsType(SerializableEnum):
     MAST3R = 1  # MASt3R - Grounding Image Matching in 3D with MASt3R
     MVDUST3R = 2  # MVDust3r - multi-view DUSt3R variant
     VGGT = 3  # VGGT - Visual Geometry Grounded Transformer
-    DUST3R = 4  # DUSt3R - Geometric 3D Vision Made Easy
+    VGGT_ROBUST = (
+        4  # VGGT Robust - Emergent Outlier View Rejection in Visual Geometry Grounded Transformers
+    )
+    DUST3R = 5  # DUSt3R - Geometric 3D Vision Made Easy
 
     @staticmethod
     def from_string(name: str):

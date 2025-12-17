@@ -1511,16 +1511,25 @@ class RoverDataset(Dataset):
         associations=None,
         start_frame_id=0,
         type=DatasetType.TUM,
+        environment_type=DatasetEnvironmentType.OUTDOOR,
     ):
-        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
-        self.environment_type = DatasetEnvironmentType.INDOOR
+        super().__init__(
+            path,
+            name,
+            sensor_type,
+            30,
+            associations,
+            start_frame_id,
+            type,
+            environment_type=environment_type,
+        )
         if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
             raise ValueError("Video dataset only supports MONOCULAR and RGBD sensor types")
         self.fps = 30
         self.scale_viewer_3d = 0.1
         if sensor_type == SensorType.MONOCULAR:
             self.scale_viewer_3d = 0.05
-        print("Processing TUM Sequence")
+        print("Processing ROVER Sequence")
         self.base_path = self.path + "/" + self.name + "/" + camera_name + "/"
         self.associations_path = self.base_path + "/" + associations
         with open(self.associations_path) as f:

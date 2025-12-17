@@ -64,7 +64,7 @@ images_path = (
     "/home/luigi/Work/datasets/rgbd_datasets/tum/rgbd_dataset_freiburg3_long_office_household/rgb"
 )
 start_frame_name = "1341847980.722988.png"
-n_frame = 3
+n_frame = 5
 delta_frame = 100
 
 
@@ -90,40 +90,52 @@ def visualize_results(
         # Show original input images if provided
         if original_images is not None and len(original_images) > 0:
             orig_table = ImageTable(num_columns=min(4, len(original_images)), resize_scale=0.8)
+            added = 0
             for img in original_images:
-                orig_table.add(img)
-            orig_table.render()
-            cv2.imshow("Original Input Images", orig_table.image())
+                if orig_table.add(img):
+                    added += 1
+            if added > 0:
+                orig_table.render()
+                cv2.imshow("Original Input Images", orig_table.image() if added > 0 else None)
 
         # Show processed images
         if len(result.processed_images) > 0:
             img_table = ImageTable(
                 num_columns=min(4, len(result.processed_images)), resize_scale=0.8
             )
+            added = 0
             for img in result.processed_images:
-                img_table.add(img)
-            img_table.render()
-            cv2.imshow("Processed Images", img_table.image())
+                if img_table.add(img):
+                    added += 1
+            if added > 0:
+                img_table.render()
+                cv2.imshow("Processed Images", img_table.image())
 
         # Show depth maps if available
         if result.depth_predictions is not None and len(result.depth_predictions) > 0:
             depth_table = ImageTable(
                 num_columns=min(4, len(result.depth_predictions)), resize_scale=0.8
             )
+            added = 0
             for depth in result.depth_predictions:
                 depth_img = img_from_floats(depth)
-                depth_table.add(depth_img)
-            depth_table.render()
-            cv2.imshow("Depth Maps", depth_table.image())
+                if depth_table.add(depth_img):
+                    added += 1
+            if added > 0:
+                depth_table.render()
+                cv2.imshow("Depth Maps", depth_table.image())
 
         # Show confidence maps if available
         if result.confidences is not None and len(result.confidences) > 0:
             conf_table = ImageTable(num_columns=min(4, len(result.confidences)), resize_scale=0.8)
+            added = 0
             for conf in result.confidences:
                 conf_img = img_from_floats(conf)
-                conf_table.add(conf_img)
-            conf_table.render()
-            cv2.imshow("Confidence Maps", conf_table.image())
+                if conf_table.add(conf_img):
+                    added += 1
+            if added > 0:
+                conf_table.render()
+                cv2.imshow("Confidence Maps", conf_table.image())
 
     if show_3d:
         viewer3D = Viewer3D()
@@ -196,8 +208,8 @@ def main():
     parser.add_argument(
         "--method",
         type=str,
-        default="DEPTH_ANYTHING_V3",
-        choices=["DUST3R", "MAST3R", "MVDUST3R", "VGGT", "DEPTH_ANYTHING_V3"],
+        default="VGGT_ROBUST",
+        choices=["DUST3R", "MAST3R", "MVDUST3R", "VGGT", "VGGT_ROBUST", "DEPTH_ANYTHING_V3"],
         help="Reconstruction method to use",
     )
 

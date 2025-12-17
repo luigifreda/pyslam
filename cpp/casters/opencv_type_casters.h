@@ -67,7 +67,7 @@ inline int numpy_to_cv_depth(const py::dtype &dt) {
 
     // Robust fallback: rely on dtype metadata (kind + itemsize) to catch NumPy variants
     const std::string dtype_name = dtype_to_string(dt);
-    const char kind = py::cast<char>(dt.attr("kind"));       // 'b','i','u','f',...
+    const char kind = py::cast<char>(dt.attr("kind"));               // 'b','i','u','f',...
     const ssize_t itemsize = py::cast<ssize_t>(dt.attr("itemsize")); // bytes per element
 
     // int32 variants (e.g., NumPy 2.0 "int32" not matching dtype::of<int32_t>())
@@ -410,17 +410,32 @@ template <> struct type_caster<cv::DMatch> {
     PYBIND11_TYPE_CASTER(cv::DMatch, _("tuple"));
 
     bool load(handle obj, bool) {
-        if (!py::isinstance<py::sequence>(obj))
-            throw py::value_error(
-                "DMatch should be a 4-sequence (queryIdx, trainIdx, imgIdx, distance)");
-        py::sequence tup = py::reinterpret_borrow<py::sequence>(obj);
-        if (py::len(tup) != 4)
-            throw py::value_error("DMatch must have length 4");
-        value.queryIdx = tup[0].cast<int>();
-        value.trainIdx = tup[1].cast<int>();
-        value.imgIdx = tup[2].cast<int>();
-        value.distance = tup[3].cast<float>();
-        return true;
+        // Accept either a 4-tuple (legacy path) or a cv2.DMatch-like object
+        // with attributes queryIdx, trainIdx, imgIdx, distance.
+        if (py::isinstance<py::sequence>(obj)) {
+            py::sequence tup = py::reinterpret_borrow<py::sequence>(obj);
+            if (py::len(tup) != 4)
+                throw py::value_error("DMatch must have length 4");
+            value.queryIdx = tup[0].cast<int>();
+            value.trainIdx = tup[1].cast<int>();
+            value.imgIdx = tup[2].cast<int>();
+            value.distance = tup[3].cast<float>();
+            return true;
+        }
+
+        // Fallback: try to read attributes from a cv2.DMatch instance
+        if (py::hasattr(obj, "queryIdx") && py::hasattr(obj, "trainIdx") &&
+            py::hasattr(obj, "imgIdx") && py::hasattr(obj, "distance")) {
+            auto o = py::reinterpret_borrow<py::object>(obj);
+            value.queryIdx = o.attr("queryIdx").cast<int>();
+            value.trainIdx = o.attr("trainIdx").cast<int>();
+            value.imgIdx = o.attr("imgIdx").cast<int>();
+            value.distance = o.attr("distance").cast<float>();
+            return true;
+        }
+
+        throw py::value_error("DMatch should be a 4-sequence or an object with "
+                              "queryIdx/trainIdx/imgIdx/distance attributes");
     }
 
     static handle cast(const cv::DMatch &m, return_value_policy, handle) {

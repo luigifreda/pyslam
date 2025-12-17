@@ -60,7 +60,11 @@ PYBIND11_MODULE(pnpsolver, m) {
              [](PnPsolver &s) {
                  std::vector<uint8_t> vbInliers;
                  int nInliers;
-                 cv::Mat transformation = s.find(vbInliers, nInliers);
+                 cv::Mat transformation;
+                 {
+                     py::gil_scoped_release release;
+                     transformation = s.find(vbInliers, nInliers);
+                 }
                  return std::make_tuple(transformation, vbInliers, nInliers);
              })
         .def(
@@ -69,7 +73,11 @@ PYBIND11_MODULE(pnpsolver, m) {
                 std::vector<uint8_t> vbInliers;
                 int nInliers;
                 bool bNoMore;
-                cv::Mat Tout = s.iterate(nIterations, bNoMore, vbInliers, nInliers);
+                cv::Mat Tout;
+                {
+                    py::gil_scoped_release release;
+                    Tout = s.iterate(nIterations, bNoMore, vbInliers, nInliers);
+                }
                 bool ok = nInliers > 0;
                 return std::make_tuple(ok, Tout, bNoMore, vbInliers, nInliers);
             },
@@ -87,7 +95,11 @@ PYBIND11_MODULE(pnpsolver, m) {
                 int nInliers;
                 bool bNoMore;
                 Eigen::Matrix4f Tout;
-                bool ok = s.iterate(nIterations, bNoMore, vbInliers, nInliers, Tout);
+                bool ok;
+                {
+                    py::gil_scoped_release release;
+                    ok = s.iterate(nIterations, bNoMore, vbInliers, nInliers, Tout);
+                }
                 return std::make_tuple(ok, Tout, bNoMore, vbInliers, nInliers);
             },
             "nIterations"_a);

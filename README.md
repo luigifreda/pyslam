@@ -14,7 +14,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
-- A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like **Mast3r**, **MV-DUSt3R**, **VGGT**, and **DepthFromAnythingV3**. Further details [here](pyslam/scene_from_views/README.md).
+- A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like **Mast3r**, **MV-DUSt3R**, **VGGT**, **Robust VGGT**, and **DepthFromAnythingV3**. Further details [here](pyslam/scene_from_views/README.md).
 
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
 

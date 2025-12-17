@@ -478,22 +478,30 @@ class ImageTable:
         Args:
             image (np.ndarray): The image to add (as a NumPy array).
         """
-        if not isinstance(image, np.ndarray):
-            raise TypeError("Image must be a NumPy array.")
+        if image is None or not isinstance(image, np.ndarray):
+            print("Error: ImageTable: Image is not a valid numpy array, skipping.")
+            return False
 
         try:
             # Resize the image
             height, width = image.shape[:2]
             if self.resize_scale != 1.0:
                 new_size = (int(width * self.resize_scale), int(height * self.resize_scale))
+                if new_size[0] <= 0 or new_size[1] <= 0:
+                    print(
+                        f"Error: ImageTable: Invalid new size {new_size[0]}x{new_size[1]}, skipping."
+                    )
+                    return False
                 # print(f'ImageTable: Resizing image from {width}x{height} to {new_size[0]}x{new_size[1]}')
                 resized_image = cv2.resize(image, new_size, interpolation=cv2.INTER_AREA)
             else:
                 resized_image = image
             self.images.append(resized_image)
+            return True
         except Exception as e:
             print(f"Error: ImageTable: Failed to add image: {e}")
             print(traceback.format_exc())
+        return False
 
     def reset(self):
         """

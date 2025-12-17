@@ -146,6 +146,10 @@ class MatcherUtils:
 
     @staticmethod
     def convert_matches_to_array_of_tuples(matches):
+        """
+        Convert matches to tuples of tuples.
+        NOTE: This is no longer needed since cv2.DMatch objects are now supported.
+        """
         # If matches contain cv2.DMatch objects, convert to tuples
         if isinstance(matches[0][0], cv2.DMatch):
             matches = [
@@ -201,7 +205,7 @@ class MatcherUtils:
     # N.B.: this returns matches where each trainIdx index is associated to only one queryIdx index
     @staticmethod
     def goodMatchesOneToOne(matches, des1, des2, ratio_test=0.7):
-        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        # matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
         return pyslam_utils.good_matches_one_to_one(matches, ratio_test)
 
     # input: des1 = query-descriptors, des2 = train-descriptors
@@ -222,7 +226,7 @@ class MatcherUtils:
     # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes
     @staticmethod
     def goodMatchesSimple(matches, des1, des2, ratio_test=0.7):
-        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        # matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
         return pyslam_utils.good_matches_simple(matches, ratio_test)
 
     @staticmethod
@@ -262,7 +266,7 @@ class MatcherUtils:
         max_disparity=100,
     ):
         matches = matcher.match(np.array(des1), np.array(des2))
-        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        # matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
         return pyslam_utils.row_matches_np(
             kps1, kps2, matches, max_matching_distance, max_row_distance, max_disparity
         )
@@ -307,7 +311,7 @@ class MatcherUtils:
         ratio_test=0.7,
     ):
         matches = matcher.knnMatch(np.array(des1), np.array(des2), k=2)
-        matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
+        # matches = MatcherUtils.convert_matches_to_array_of_tuples(matches)
         return pyslam_utils.row_matches_with_ratio_test_np(
             kps1, kps2, matches, max_matching_distance, max_row_distance, max_disparity, ratio_test
         )

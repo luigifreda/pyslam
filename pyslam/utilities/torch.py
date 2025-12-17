@@ -71,3 +71,26 @@ def to_cpu(x):
 
 def to_cuda(x):
     return to_device(x, "cuda")
+
+
+def safe_empty_cache() -> None:
+    """Aggressively free CUDA/CPU memory."""
+    import gc
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
+
+def invert_se3(T: torch.Tensor) -> torch.Tensor:
+    """Invert batched SE3 matrices."""
+    R = T[..., :3, :3]
+    t = T[..., :3, 3]
+    Rt = R.transpose(-1, -2)
+    t_inv = -(Rt @ t.unsqueeze(-1)).squeeze(-1)
+    Tin = torch.eye(4, device=T.device, dtype=T.dtype).expand(T.shape)
+    Tin = Tin.clone()
+    Tin[..., :3, :3] = Rt
+    Tin[..., :3, 3] = t_inv
+    return Tin

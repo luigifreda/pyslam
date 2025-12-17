@@ -324,6 +324,25 @@ fi
 cd $ROOT_DIR
 
 print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/vggt_robust ..."
+
+if [ "$CUDA_VERSION" != "0" ]; then
+    # we need CUDA
+
+    cd thirdparty
+    if [ ! -d vggt_robust ]; then
+        git clone https://github.com/cvlab-kaist/RobustVGGT.git vggt_robust
+        cd vggt_robust
+        git checkout 0763ed6484b1e91a2b8bd5072d317745743492cc
+        cd ..
+    fi 
+else
+    print_yellow "VGGT Robust requires CUDA. Skipping..."
+fi 
+
+cd $ROOT_DIR
+
+print_blue "=================================================================="
 
 echo "...done with thirdparty"
 

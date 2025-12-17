@@ -28,7 +28,13 @@ import traceback
 from enum import Enum
 
 from pyslam.utilities.system import Printer
-from pyslam.utilities.geometry import rotmat2qvec, xyzq2Tmat, quaternion_slerp, interpolate_pose
+from pyslam.utilities.geometry import (
+    rotmat2qvec,
+    qvec2rotmat,
+    xyzq2Tmat,
+    quaternion_slerp,
+    interpolate_pose,
+)
 from pyslam.utilities.serialization import (
     SerializableEnum,
     register_class,
@@ -46,6 +52,7 @@ kScaleReplica = 1.0
 kScaleScannet = 1.0
 kScaleSevenScenes = 1.0
 kScaleNeuralRGBD = 1.0
+kScaleRover = 1.0
 
 
 @register_class
@@ -1684,13 +1691,19 @@ class NeuralRGBDGroundTruth(GroundTruth):
 
 class RoverGroundTruth(GroundTruth):
     def __init__(
-        self, path, name, camera_name, associations=None, start_frame_id=0, type=GroundTruthType.TUM
+        self,
+        path,
+        name,
+        camera_name,
+        associations=None,
+        start_frame_id=0,
+        type=GroundTruthType.ROVER,
     ):
         super().__init__(path, name, associations, start_frame_id, type)
         print(
             f"RoverGroundTruth: path: {path}, name: {name}, camera_name: {camera_name}, associations: {associations}"
         )
-        self.scale = kScaleTum
+        self.scale = kScaleRover
         self.filename = (
             path + "/" + name + "/groundtruth.txt"
         )  # N.B.: this may depend on how you deployed the groundtruth files
@@ -1699,25 +1712,32 @@ class RoverGroundTruth(GroundTruth):
         )  # N.B.: this may depend on how you name the associations file
 
         if not os.path.isfile(self.filename):
-            error_message = f"ERROR: [TumGroundTruth] Groundtruth file not found: {self.filename}!"
+            error_message = (
+                f"ERROR: [RoverGroundTruth] Groundtruth file not found: {self.filename}!"
+            )
             Printer.red(error_message)
             sys.exit(error_message)
 
         base_path = os.path.dirname(self.filename)
-        print("[TumGroundTruth] base_path: ", base_path)
+        print("[RoverGroundTruth] base_path: ", base_path)
 
         with open(self.filename) as f:
-            self.data = f.readlines()[3:]  # skip the first three rows, which are only comments
-            self.data = [line.strip().split() for line in self.data]
+            lines = [line.strip() for line in f.readlines()]
+            # Keep comment robustness but do not drop valid samples when no header is present
+            self.data = [line.split() for line in lines if line and not line.startswith("#")]
             self.data = np.ascontiguousarray(self.data)
-        if self.data is None:
-            sys.exit("ERROR [TumGroundTruth] while reading groundtruth file!")
+        if self.data is None or len(self.data) == 0:
+            sys.exit("ERROR [RoverGroundTruth] while reading groundtruth file!")
         if self.associations_path is not None:
+            if not os.path.isfile(self.associations_path):
+                sys.exit(
+                    f"ERROR [RoverGroundTruth] associations file not found: {self.associations_path}"
+                )
             with open(self.associations_path) as f:
                 self.associations_data = f.readlines()
                 self.associations_data = [line.strip().split() for line in self.associations_data]
             if self.associations_data is None:
-                sys.exit("ERROR [TumGroundTruth] while reading associations file!")
+                sys.exit("ERROR [RoverGroundTruth] while reading associations file!")
 
         associations_file = base_path + "/gt_associations.json"
         if not os.path.exists(associations_file):

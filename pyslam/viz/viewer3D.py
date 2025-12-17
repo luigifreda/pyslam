@@ -100,6 +100,8 @@ class SlamDrawerThread:
     Uses a thread-safe reference to slam object (no pickling needed since we're using threading).
     """
 
+    kSleepTime = 0.005  # [s] sleep time between drawing requests
+
     def __init__(self, viewer3D: "Viewer3D"):
         self.viewer3D = viewer3D
 
@@ -165,6 +167,8 @@ class SlamDrawerThread:
                     self.viewer3D._draw_slam_map_impl(slam)
                 elif task_type == SlamDrawingTask.DRAW_DENSE_MAP:
                     self.viewer3D._draw_dense_map_impl(slam)
+                else:
+                    time.sleep(self.kSleepTime)
 
                 self.request_queue.task_done()
             except Exception as e:
@@ -650,6 +654,10 @@ class Viewer3D(object):
 
         self.draw_wireframe = False
 
+        self.draw_gt_changed = False
+        self.draw_gt = False
+        self.draw_gt_associations = False
+
         # self.button = pangolin.VarBool('ui.Button', value=False, toggle=False)
 
         self.checkboxFollow = pangolin.VarBool("ui.Follow", value=True, toggle=True)
@@ -775,6 +783,10 @@ class Viewer3D(object):
         self.is_draw_covisibility = self.checkboxCovisibility.Get()
         self.is_draw_spanning_tree = self.checkboxSpanningTree.Get()
         self.is_draw_loops = self.checkboxLoops.Get()
+        self.draw_gt_changed = (
+            self.draw_gt != self.checkboxGT.Get()
+            or self.draw_gt_associations != self.checkboxGTassociations.Get()
+        )
         self.draw_gt = self.checkboxGT.Get()
         self.draw_gt_associations = self.checkboxGTassociations.Get()
         self.draw_predicted = self.checkboxPredicted.Get()
@@ -892,12 +904,15 @@ class Viewer3D(object):
                     )
 
                     # Here we design if we should align the gt trajectory with the estimated trajectory
-                    if (
-                        self._is_running
-                        and self.is_aligner_running.value == 1
-                        and (num_kfs > kAlignGroundTruthNumMinKeyframes)
-                        and (condition1 or condition2 or condition3)
-                        and condition4
+                    if (self._is_running and self.is_aligner_running.value == 1) and (
+                        (
+                            num_kfs > kAlignGroundTruthNumMinKeyframes
+                            and condition1
+                            or condition2
+                            or condition3
+                            and condition4
+                        )
+                        or self.draw_gt_changed
                     ):
                         try:
 

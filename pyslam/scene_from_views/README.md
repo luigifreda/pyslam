@@ -18,6 +18,7 @@ This directory contains the implementation of the `scene_from_views` factory, wh
     - [2.3. Depth Anything V3](#23-depth-anything-v3)
     - [2.4. MVDust3r (Multi-view DUSt3R)](#24-mvdust3r-multi-view-dust3r)
     - [2.5. VGGT (Visual Geometry Grounded Transformer)](#25-vggt-visual-geometry-grounded-transformer)
+    - [2.6. VGGT Robust (Outlier-Aware VGGT)](#26-vggt-robust-outlier-aware-vggt)
   - [3. Scene Optimization Modules](#3-scene-optimization-modules)
     - [3.1. Overview](#31-overview)
     - [3.2. Available Optimizers](#32-available-optimizers)
@@ -43,6 +44,7 @@ This directory contains the implementation of the `scene_from_views` factory, wh
     - [4.3. Using Sparse Scene Optimizer with MASt3r](#43-using-sparse-scene-optimizer-with-mast3r)
     - [4.4. Using Optimizer as Post-Processing](#44-using-optimizer-as-post-processing)
     - [4.5. Using Optimizer in reconstruct() call](#45-using-optimizer-in-reconstruct-call)
+    - [4.6. Using VGGT Robust with outlier rejection](#46-using-vggt-robust-with-outlier-rejection)
   - [5. Extending the Framework](#5-extending-the-framework)
   - [6. Notes and Best Practices](#6-notes-and-best-practices)
 
@@ -53,14 +55,13 @@ This directory contains the implementation of the `scene_from_views` factory, wh
 ## 1. Architecture
 
 
-
 <p align="center">
-<img src="../../docs/images/scene_from_views.png" alt="3D Scene From Views"  /> 
+<img src="./images/scene_from_views.png" alt="3D Scene From Views"  /> 
 </p>
 
-This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, and `VGGT`.
+This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, `VGGT`, and `VGGT_ROBUST`.
 
-Each type creates a corresponding implementation (e.g., `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsDepthAnythingV3`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`), all inheriting from a common `SceneFromViewsBase`. This base class implements a unified three-step reconstruction pipeline: `preprocess_images()` prepares input images for the specific model, `infer()` runs model inference, and `postprocess_results()` converts raw model output to a standardized `SceneFromViewsResult` format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
+Each type creates a corresponding implementation (e.g., `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsDepthAnythingV3`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`), all inheriting from a common `SceneFromViewsBase`. This base class implements a unified three-step reconstruction pipeline: `preprocess_images()` prepares input images for the specific model, `infer()` runs model inference, and `postprocess_results()` converts raw model output to a standardized `SceneFromViewsResult` format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
 
 The module supports both pairwise models (DUSt3R, MASt3R) that process image pairs and perform global alignment, as well as multi-view models (MV-DUSt3R, VGGT) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
 
@@ -144,9 +145,16 @@ Each derived class extends `SceneFromViewsBase` and implements the three special
    - Supports using the model's pointmap and depthmap predictions
    - Provides joint prediction of camera parameters and dense scene geometry
 
+6. **`SceneFromViewsVggtRobust`** (`scene_from_views_vggt_robust.py`)
+   - Wraps VGGT with anchor-based outlier view rejection (mirrors the `robust_vggt` demo)
+   - Scores each view via global attention maps and cosine similarity to an anchor, then drops low-scoring views before the final forward pass
+   - Supports background masking (black/white/sky flags), percentile-based confidence filtering, and anchor selection (first frame or most central)
+   - Exposes rejected and survivor indices in the returned `SceneFromViewsResult`
+
 ### 1.5. Capability Quick Reference
 
-- **End-to-end multi-view reconstruction** (poses + fused geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`.
+- **End-to-end multi-view reconstruction** (poses + fused geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`.
+- **Robust view filtering / outlier rejection**: `SceneFromViewsVggtRobust` (anchor-based attention + cosine scoring that discards low-confidence views before reconstruction)
 - **Single-view depth-first pipeline with optional poses/intrinsics**: `SceneFromViewsDepthAnythingV3`
 - **Global alignment optimization stage for merging views**: `SceneFromViewsDust3r` (dense alignment) and `SceneFromViewsMast3r` (sparse alignment variant)
 
@@ -159,6 +167,7 @@ The `SceneFromViewsType` enum (`scene_from_views_types.py`) defines all supporte
 - `MAST3R`
 - `MVDUST3R`
 - `VGGT`
+- `VGGT_ROBUST`
 - `DUST3R`
 
 ---
@@ -251,6 +260,19 @@ _"VGGT: Visual Geometry Grounded Transformer"_
 [Paper](https://arxiv.org/abs/2503.11651) | [VGGT repository](https://github.com/facebookresearch/vggt)
 
 **Implementation**: `SceneFromViewsVggt`
+
+### 2.6. VGGT Robust (Outlier-Aware VGGT)
+
+**Description**: A VGGT variant that mirrors the `robust_vggt` demo by scoring each view against an anchor frame and discarding outlier views before the final forward pass. Anchor selection can be the first frame or the most "central" frame based on token similarity, and scores blend global attention responses with cosine similarity.
+
+**Key Features**:
+- Anchor-based view scoring with tunable weights (`attn_a`, `cos_a`) and a rejection threshold (`rej_thresh`); optional anchor-relative normalization via `use_anchor_relative_score`
+- Flexible anchor choice (`use_most_central_as_reference`) and percentile-based confidence filtering of 3D points (`conf_thres`)
+- Optional masking helpers for black/white backgrounds or sky regions, plus padding/resizing to square inputs (`target_size`)
+- Returns metadata about dropped views through `result.rejected_indices` and `result.survivor_indices`
+- Default checkpoint: `facebook/VGGT-1B` (override with `model_id`)
+
+**Implementation**: `SceneFromViewsVggtRobust` (`scene_from_views_vggt_robust.py`, depends on `thirdparty/vggt_robust`)
 
 ---
 
@@ -786,6 +808,30 @@ result = reconstructor.reconstruct(
     optimizer=optimizer,
     optimizer_kwargs={"lr1": 0.1, "niter1": 600}
 )
+```
+
+### 4.6. Using VGGT Robust with outlier rejection
+
+```python
+from pyslam.scene_from_views import SceneFromViewsVggtRobust
+import cv2
+
+# Load images
+images = [cv2.imread(f"image_{i}.jpg") for i in range(6)]
+
+# Create reconstructor with anchor-based view rejection
+reconstructor = SceneFromViewsVggtRobust(
+    rej_thresh=0.25,                  # drop views below this combined score
+    attn_a=0.5,                       # weight for attention-based score
+    cos_a=0.5,                        # weight for cosine similarity score
+    use_most_central_as_reference=True,  # choose anchor automatically
+)
+
+# Reconstruct scene (low-scoring views are skipped automatically)
+result = reconstructor.reconstruct(images, as_pointcloud=True)
+
+print("Rejected view indices:", getattr(result, "rejected_indices", []))
+print("Used view indices:", getattr(result, "survivor_indices", []))
 ```
 
 ---

@@ -82,7 +82,11 @@ PYBIND11_MODULE(sim3solver, m) {
                  std::vector<uint8_t> vbInliers;
                  int nInliers;
                  bool bConverged;
-                 const Eigen::Matrix4f transformation = s.find(vbInliers, nInliers, bConverged);
+                 Eigen::Matrix4f transformation;
+                 {
+                     py::gil_scoped_release release;
+                     transformation = s.find(vbInliers, nInliers, bConverged);
+                 }
                  return std::make_tuple(transformation, vbInliers, nInliers, bConverged);
              })
         .def(
@@ -92,8 +96,12 @@ PYBIND11_MODULE(sim3solver, m) {
                 int nInliers;
                 bool bNoMore;
                 bool bConverged;
-                const Eigen::Matrix4f transformation =
-                    s.iterate(nIterations, bNoMore, vbInliers, nInliers, bConverged);
+                Eigen::Matrix4f transformation;
+                {
+                    py::gil_scoped_release release;
+                    transformation =
+                        s.iterate(nIterations, bNoMore, vbInliers, nInliers, bConverged);
+                }
                 return std::make_tuple(transformation, bNoMore, vbInliers, nInliers, bConverged);
             },
             "nIterations"_a)
@@ -112,7 +120,11 @@ PYBIND11_MODULE(sim3solver, m) {
                  std::vector<uint8_t> vbInliers;
                  int nInliers;
                  bool bConverged;
-                 const Eigen::Matrix4f transformation = s.find(vbInliers, nInliers, bConverged);
+                 Eigen::Matrix4f transformation;
+                 {
+                     py::gil_scoped_release release;
+                     transformation = s.find(vbInliers, nInliers, bConverged);
+                 }
                  return std::make_tuple(transformation, vbInliers, nInliers, bConverged);
              })
         .def(
@@ -122,8 +134,12 @@ PYBIND11_MODULE(sim3solver, m) {
                 int nInliers;
                 bool bNoMore;
                 bool bConverged;
-                const Eigen::Matrix4f transformation =
-                    s.iterate(nIterations, bNoMore, vbInliers, nInliers, bConverged);
+                Eigen::Matrix4f transformation;
+                {
+                    py::gil_scoped_release release;
+                    transformation =
+                        s.iterate(nIterations, bNoMore, vbInliers, nInliers, bConverged);
+                }
                 return std::make_tuple(transformation, bNoMore, vbInliers, nInliers, bConverged);
             },
             "nIterations"_a)

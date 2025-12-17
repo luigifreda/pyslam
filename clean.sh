@@ -139,6 +139,10 @@ if [ -d "thirdparty/vggt" ]; then
     rm -rf thirdparty/vggt
 fi
 
+if [ -d "thirdparty/vggt_robust" ]; then
+    rm -rf thirdparty/vggt_robust
+fi
+
 if [ -d "thirdparty/detectron2" ]; then
     rm -rf thirdparty/detectron2
 fi
