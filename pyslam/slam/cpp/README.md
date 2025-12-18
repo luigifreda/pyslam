@@ -10,11 +10,22 @@
 <!-- /TOC -->
 
 
-This directory contains the **C++ implementations** of the core SLAM classes, exposed to Python via **pybind11** bindings. The system provides a modular **sparse-SLAM core**, implemented in **both Python and C++**, allowing users to switch between high-performance/speed and high-flexibility modes.
+This directory contains the **C++ implementations** of the core SLAM classes, exposed to Python via **pybind11** bindings. The system provides a modular **sparse-SLAM core**, implemented in **both Python and C++**, allowing users to switch between high-performance/speed and high-flexibility modes. 
+The module is currently **under active development**.
 
 The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
 
-To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. The module is currently **under active development**.
+To **enable** the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. 
+
+To **rebuild** the C++ core module, run
+```bash
+. pyenv-activate.sh 
+./build_cpp.sh
+```
+
+While this may be self-evident, it is important to keep in mind that when `USE_CPP_CORE = True`:
+- The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
+- All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp.sh` (as explained above) in order to take effect.
 
 
 ## Code organization and overview

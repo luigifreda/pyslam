@@ -1,6 +1,6 @@
 # Scene From Views
 
-This directory contains the implementation of the `scene_from_views` factory, which provides a **unified interface for 3D scene reconstruction from multiple views**. The factory follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API.
+This directory contains the implementation of the `scene_from_views` factory, which provides a **unified interface for end-to-end 3D scene reconstruction from multiple views**. The factory follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API.
 
 <!-- TOC -->
 

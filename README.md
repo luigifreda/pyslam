@@ -7,14 +7,14 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
  
 **pySLAM** is a hybrid **python/C++** implementation of a *Visual SLAM* pipeline that supports **monocular**, **stereo** and **RGBD** cameras. It provides the following features in a **single python environment**:
 - A wide range of classical and modern **[local features](#supported-local-features)** with a convenient interface for their integration.
-- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (BoW, iBow), Vector of Locally Aggregated Descriptors (VLAD) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
-- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports voxel grids, **TSDF** with voxel hashing and incremental **Gaussian Splatting**. 
-- Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include DepthPro, DepthAnythingV2, DepthAnythingV3, RAFT-Stereo, CREStereo, etc.  
-- A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as DeepLabv3, Segformer, CLIP, DETIC, EOV-SEG, ODISE, etc.
+- Multiple loop closing methods, including **[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** such as visual Bag of Words (*BoW*, *iBow*), Vector of Locally Aggregated Descriptors (*VLAD*) and modern **[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)** (image-wise descriptors).
+- A **[volumetric reconstruction pipeline](#volumetric-reconstruction)** that processes depth and color images using volumetric integration to produce dense reconstructions. It supports different voxel grid models (with semantic support) and **TSDF** with voxel hashing, and incremental **Gaussian Splatting**. 
+- Integration of **[depth prediction models](#depth-prediction)** within the SLAM pipeline. These include *DepthPro*, *DepthAnythingV2*, *DepthAnythingV3*, *RAFT-Stereo*, *CREStereo*, etc.  
+- A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
-- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
-- A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like **Mast3r**, **MV-DUSt3R**, **VGGT**, **Robust VGGT**, and **DepthFromAnythingV3**. Further details [here](pyslam/scene_from_views/README.md).
+- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. Further details [here](pyslam/slam/cpp/README.md)
+- A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, and *DepthFromAnythingV3*. Further details [here](pyslam/scene_from_views/README.md).
 
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
 
@@ -60,6 +60,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
     - [Semantic mapping and Image Segmentation](#semantic-mapping-and-image-segmentation)
       - [Sparse Semantic Mapping](#sparse-semantic-mapping)
       - [Volumetric Semantic mapping](#volumetric-semantic-mapping)
+    - [C++ Core Module](#c-core-module)
     - [Saving and reloading](#saving-and-reloading)
       - [Save the a map](#save-the-a-map)
       - [Reload a saved map and relocalize in it](#reload-a-saved-map-and-relocalize-in-it)
@@ -70,7 +71,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
     - [Evaluating SLAM](#evaluating-slam)
       - [Run a SLAM evaluation](#run-a-slam-evaluation)
       - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
-    - [End-to-end inference of 3D scenes from image views](#end-to-end-inference-of-3d-scenes-from-image-views)
+    - [End-to-end inference of 3D scenes from multiple image views](#end-to-end-inference-of-3d-scenes-from-multiple-image-views)
   - [Supported components and models](#supported-components-and-models)
     - [Supported local features](#supported-local-features)
     - [Supported matchers](#supported-matchers)
@@ -480,6 +481,26 @@ Further information about the **volumetric integration models and SW architectur
 
 ---
 
+### C++ Core Module
+
+The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
+
+To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. The module is currently **under active development**.
+
+To rebuild the C++ core module, run
+```bash
+. pyenv-activate.sh 
+./build_cpp.sh
+```
+
+While this may be self-evident, it is important to keep in mind that when `USE_CPP_CORE = True`:
+- The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
+- All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp.sh` (as explained above) in order to take effect.
+
+See [here](pyslam/slam/cpp/README.md) for further details.
+
+---
+
 ### Saving and reloading
 
 #### Save the a map
@@ -585,16 +606,16 @@ When you click the `Draw Ground Truth` button in the GUI (see [here](#slam-gui))
 
 ---
 
-### End-to-end inference of 3D scenes from image views
+### End-to-end inference of 3D scenes from multiple image views
 
 A unified interface for end-to-end 3D scene reconstruction from multiple views, following a modular factory pattern architecture. The pipeline provides a consistent API across different reconstruction models while maintaining model-specific optimizations. See the main script `main_scene_from_views.py`.
 
-**Supported Models**:
-- **DUSt3R**: Joint depth and pose estimation with global alignment optimization
-- **MASt3R**: Sparse global alignment with optional TSDF post-processing
-- **Depth Anything V3**: Monocular depth estimation with optional pose and intrinsic estimation
-- **MVDust3r**: Multi-view variant processing multiple views simultaneously
-- **VGGT**: Transformer-based model for pointmap or depthmap regression
+- End-to-end multi-view reconstruction (poses + fused 3D geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`.
+- Single-view depth-first pipeline with optional poses/intrinsics: `SceneFromViewsDepthAnythingV3`
+- Global alignment optimization stage for merging views: `SceneFromViewsDust3r` (dense alignment) and `SceneFromViewsMast3r` (sparse alignment variant)
+- Robust view filtering / outlier rejection: `SceneFromViewsVggtRobust` (anchor-based attention + cosine scoring that discards low-confidence views before reconstruction)
+
+Note that `DUSt3R` and `MASt3R` are pairwise models: they take two images at a time. Multi-view end-to-end reconstruction is achieved by running them on many image pairs and performing a global alignment / optimization over all pairwise pointmaps.
 
 All models return standardized `SceneFromViewsResult` output containing point clouds, meshes, camera poses, depth maps, and intrinsics in a consistent format. The factory pattern allows easy switching between models while maintaining the same interface.
 
@@ -687,10 +708,10 @@ See the file `local_features/feature_matcher.py` for further details.
 
 ##### Local descriptor aggregation methods
 
-* Bag of Words (BoW): [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3).  [[paper](https://doi.org/10.1109/TRO.2012.2197158)]
-* Vector of Locally Aggregated Descriptors: [VLAD](https://www.vlfeat.org/api/vlad.html).  [[paper](https://doi.org/10.1109/CVPR.2010.5540039)] 
-* Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: [iBoW](https://github.com/emiliofidalgo/ibow-lcd), [OBIndex2](https://github.com/emiliofidalgo/obindex2).  [[paper](https://doi.org/10.1109/LRA.2018.2849609)]
-* Hyperdimensional Computing: [HDC](https://www.tu-chemnitz.de/etit/proaut/hdc_desc).  [[paper](https://openaccess.thecvf.com/content/CVPR2021/html/Neubert_Hyperdimensional_Computing_as_a_Framework_for_Systematic_Aggregation_of_Image_CVPR_2021_paper.html)]
+* Bag of Words (BoW): [DBoW2](https://github.com/dorian3d/DBoW2), [DBoW3](https://github.com/rmsalinas/DBow3)  [[paper](https://doi.org/10.1109/TRO.2012.2197158)]
+* Vector of Locally Aggregated Descriptors: [VLAD](https://www.vlfeat.org/api/vlad.html)  [[paper](https://doi.org/10.1109/CVPR.2010.5540039)] 
+* Incremental Bags of Binary Words ([iBoW](https://github.com/emiliofidalgo/ibow-lcd)) via Online Binary Image Index ([OBIndex2](https://github.com/emiliofidalgo/obindex2))  [[paper](https://doi.org/10.1109/LRA.2018.2849609)]
+* Hyperdimensional Computing: [HDC](https://www.tu-chemnitz.de/etit/proaut/hdc_desc)  [[paper](https://openaccess.thecvf.com/content/CVPR2021/html/Neubert_Hyperdimensional_Computing_as_a_Framework_for_Systematic_Aggregation_of_Image_CVPR_2021_paper.html)]
 
 
 **NOTE**: *iBoW* and *OBIndex2* incrementally build a binary image index and do not need a prebuilt vocabulary. In the implemented classes, when needed, the input non-binary local descriptors are transparently transformed into binary descriptors.
@@ -719,6 +740,7 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 * [SGBM](https://ieeexplore.ieee.org/document/4359315): Depth SGBM from OpenCV (Stereo, classic approach)
 * [Depth-Pro](https://arxiv.org/abs/2410.02073) (Monocular)
 * [DepthAnythingV2](https://arxiv.org/abs/2406.09414) (Monocular)
+* [DepthAnythingV3](https://arxiv.org/abs/2511.10647) (Monocular)
 * [RAFT-Stereo](https://arxiv.org/abs/2109.07547) (Stereo)
 * [CREStereo](https://arxiv.org/abs/2203.11483) (Stereo)
 * [MASt3R](https://arxiv.org/abs/2406.09756) (Stereo/Monocular)
@@ -744,13 +766,14 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 
 ### Supported models for end-to-end inference of 3D scenes from multiple images
 
-* [DUSt3R](https://arxiv.org/abs/2312.14132): Geometric 3D Vision Made Easy (CVPR 2024)
-* [MASt3R](https://arxiv.org/abs/2406.09756): Grounding Image Matching in 3D with MASt3R (ECCV 2024)
+* [DUSt3R](https://arxiv.org/abs/2312.14132): Geometric 3D Vision Made Easy 
+* [MASt3R](https://arxiv.org/abs/2406.09756): Grounding Image Matching in 3D with MASt3R 
 * [Depth Anything V3](https://arxiv.org/abs/2511.10647): Recovering the Visual Space from Any Views
 * [MVDust3r](https://github.com/naver/mvdust3r): Multi-view DUSt3R variant
 * [VGGT](https://github.com/facebookresearch/vggt): Visual Geometry Grounded Transformer
+* [Robust VGGT](https://github.com/cvlab-kaist/RobustVGGT.git): Emergent Outlier View Rejection in Visual Geometry Grounded Transformers
 
-For further details, refer to [pyslam/scene_from_views/README.md](pyslam/scene_from_views/README.md).
+See [here](./docs/scene_from_views.md) for further details about `SceneFromViews` architecture. 
 
 --- 
 
@@ -769,7 +792,7 @@ Dataset | type in `config.yaml`
 [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)  | `type: KITTI_DATASET` 
 [TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                           | `type: TUM_DATASET` 
 [ICL-NUIM dataset](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)                              | `type: ICL_NUIM_DATASET` 
-[EUROC dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)          | `type: EUROC_DATASET` 
+[EUROC dataset](https://projects.asl.ethz.ch/datasets/euroc-mav/)          | `type: EUROC_DATASET` 
 [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
 [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
 [SEVEN_SCENES dataset](https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/)                                         | `type: SEVEN_SCENES_DATASET` 
@@ -962,6 +985,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [MonoVO](https://github.com/uoip/monoVO-python)
 * [VPR_Tutorial](https://github.com/stschubert/VPR_Tutorial.git)
 * [DepthAnythingV2](https://github.com/DepthAnything/Depth-Anything-V2)
+* [DepthAnythingV3](https://github.com/ByteDance-Seed/Depth-Anything-3)
 * [DepthPro](https://github.com/apple/ml-depth-pro)
 * [RAFT-Stereo](https://github.com/princeton-vl/RAFT-Stereo)
 * [CREStereo](https://github.com/megvii-research/CREStereo) and [CREStereo-Pytorch](https://github.com/ibaiGorordo/CREStereo-Pytorch)
@@ -969,6 +993,12 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [mast3r](https://github.com/naver/mast3r)
 * [mvdust3r](https://github.com/facebookresearch/mvdust3r)
 * [MegaLoc](https://github.com/gmberton/MegaLoc)
+* [VGGT](https://github.com/facebookresearch/vggt.git) and [Robust VGGT](https://github.com/cvlab-kaist/RobustVGGT.git)
+* [MAST3R](https://github.com/naver/mast3r) 
+* [EOV-Seg](https://github.com/nhw649/EOV-Seg.git)
+* [ODISE](https://github.com/NVlabs/ODISE.git)
+* [Detic](https://github.com/facebookresearch/Detic.git)
+* [Detectron2](https://github.com/facebookresearch/detectron2.git)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the first version of the trajectory-saving feature and for the nice comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 * Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for creating the first version of [sparse semantic mapping](./docs/semantics.md) in pySLAM.
 
@@ -979,7 +1009,7 @@ pySLAM is released under [GPLv3 license](./LICENSE). pySLAM contains some modifi
 
 If you use pySLAM in your projects, please cite this document:
 ["pySLAM: An Open-Source, Modular, and Extensible Framework for SLAM"](https://arxiv.org/abs/2502.11955), *Luigi Freda*      
-You may find an updated version of this document [here](./docs/tex/document.pdf).
+You may find an **updated version** of this document [here](./docs/tex/document.pdf).
 
 --- 
 ## Contributing to pySLAM

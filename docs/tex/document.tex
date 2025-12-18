@@ -163,21 +163,21 @@ This document\footnote{You may find an updated version of this document at:\\ \h
 
 \section{Introduction}
 
-\textbf{pySLAM} is an open-source framework designed to accelerate research and development in Visual SLAM (Simultaneous Localization and Mapping) and Spatial AI. It originated from a practical need identified during the development of a SLAM/Spatial AI course: The  absence of a unified, accessible, and extensible SLAM ecosystem in C++ and Python. The project was driven by several foundational motivations, including the desire to rapidly prototype and evaluate both \textit{classical} and \textit{learning-based} features within complete VO/SLAM pipelines, ensure reproducibility across a wide range of datasets, and significantly lower the entry barrier for newcomers to the field.
+\textbf{pySLAM} is an open-source framework designed to accelerate research and development in Visual SLAM (Simultaneous Localization and Mapping)\cite{cadena2017past} and Spatial AI\cite{davison2018futuremapping}. It originated from a practical need identified during the development of a SLAM/Spatial AI course: The  absence of a unified, accessible, and extensible SLAM ecosystem in C++ and Python. The project was driven by several foundational motivations, including the desire to rapidly prototype and evaluate both \textit{classical} and \textit{learning-based} features within complete VO/SLAM pipelines, ensure reproducibility across a wide range of datasets, and significantly lower the entry barrier for newcomers to the field.
 
 A key decision behind pySLAM development was the choice of \textit{Python} as its primary language. Compared to C++, Python enables faster experimentation and benefits from a mature and expanding ecosystem of deep learning tools and research-oriented APIs. This choice aligns with current trends in computer vision and robotics research, where rapid prototyping and flexible experimentation are essential.
 
 However, designing a modern SLAM framework in Python presents several challenges. The SLAM landscape is highly fragmented -- across feature types, datasets, programming languages (Python vs. C++), and development environments (virtual environments, Docker, versioning issues). Deep learning integration further complicates matters due to backend fragmentation (e.g., PyTorch vs. TensorFlow). These inconsistencies often lead to reproducibility bottlenecks and high barriers to experimental research, where setting up a functional baseline can become more laborious than the research itself.
 
-To address these issues, pySLAM is built on several key design principles. \textit{Modularity} is central: components such as local/global features, loop closure mechanisms, semantic mapping, and volumetric integration can be easily swapped or extended. This architecture supports the use of interchangeable baselines, enabling researchers to plug-and-play with different configurations depending on their goals. \textit{Extensibility} is facilitated through a base-class architecture that allows new components to be integrated with minimal friction, making pySLAM a flexible platform for benchmarking and algorithm development.
+To address these issues, pySLAM is built on several key design principles. \textit{Modularity} is central: components such as local/global features\cite{tuytelaars2008local,joshi2020recent,ma2021image}, loop closure mechanisms\cite{schubert2023visual}, semantic mapping\cite{georgevichsemantic,chen2025semantic,schmid2024khronos}, and volumetric integration\cite{dong2022ash,freda2023plvs} can be easily swapped or extended. This architecture supports the use of interchangeable baselines, enabling researchers to plug-and-play with different configurations depending on their goals. \textit{Extensibility} is facilitated through a base-class architecture that allows new components to be integrated with minimal friction, making pySLAM a flexible platform for benchmarking and algorithm development.
 
 In terms of usability, pySLAM emphasizes simplicity in the build and deployment process.. It supports a unified Python environment compatible with \textit{conda}, \textit{pyenv}, and \textit{pixi}, and offers a one-command installation process that covers setup and dataset acquisition. Cross-platform compatibility (Linux, macOS, Windows with WSL2) and full source accessibility further enhance its utility for both academic and industrial use.
 
 Another cornerstone of the framework is standardized dataset handling. By providing a unified interface to multiple datasets, pySLAM encourages \textit{reproducibility} and \textit{reusability}. It supports consistent data loading, map state saving/loading, and automatic generation of evaluation metrics -- including final and online trajectory estimation -- thus enabling robust comparison between algorithms.
 
-Functionally, pySLAM supports the full visual SLAM pipeline with monocular, stereo, and RGB-D configurations. It accommodates both traditional local features and deep-learning-based methods, and includes loop closure detection integrated with optimization backends like g2o and GTSAM. The framework also supports 3D reconstruction via TSDF and emerging techniques like Gaussian Splatting, and integrates deep learning models for depth prediction and semantic scene understanding.
+Functionally, pySLAM supports the full visual SLAM pipeline with monocular, stereo, and RGB-D configurations. It accommodates both traditional local features and deep-learning-based methods, and includes loop closure detection integrated with optimization backends like g2o\cite{g2o_kummerle} and GTSAM\cite{factor_graphs_for_robot_perception}. The framework also supports 3D reconstruction via different voxel grid models, TSDF\cite{dong2022ash} and emerging techniques like Gaussian Splatting\cite{bao20253d}, and integrates deep learning models for depth prediction and semantic scene understanding.
 
-Beyond SLAM, pySLAM also provides a unified \textit{ScenefromViews} architecture for modern multi-view 3D reconstruction starting from a collection of images.
+Beyond SLAM, pySLAM also provides a unified \textit{ScenefromViews} architecture for modern end-to-end inference of 3D scenes from multiple views. The module supports both pairwise models (DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}) that process image pairs and perform global alignment, as well as multi-view models (Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, VGGT\cite{wang2025vggt}, robust VGGT\cite{vggt_robust}) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
 
 Together, these capabilities position pySLAM as a powerful research toolkit -- aiming to be a ``Swiss army knife`` for SLAM development, evaluation, and education. By streamlining reproducibility, supporting modular experimentation, and lowering the technical threshold for entry, pySLAM addresses some of the most persistent challenges in contemporary SLAM research.
 
@@ -196,8 +196,8 @@ The objective of this document is to present the pySLAM framework, its main feat
     
     \item Various loop closing methods, including
     \textbf{\protect\hyperlink{supported-global-descriptors-and-local-descriptor-aggregation-methods}{descriptor
-    aggregators}} such as visual Bag of Words (BoW, iBow), Vector of Locally
-    Aggregated Descriptors (VLAD), and modern
+    aggregators}} such as visual Bag of Words (BoW\cite{galvez2012bags}, iBow\cite{garcia2018ibow}), Vector of Locally
+    Aggregated Descriptors (VLAD\cite{jegou2010aggregating}), and modern
     \textbf{\protect\hyperlink{supported-global-descriptors-and-local-descriptor-aggregation-methods}{global
     descriptors}} (image-wise descriptors).
     
@@ -205,24 +205,24 @@ The objective of this document is to present the pySLAM framework, its main feat
     \textbf{\protect\hyperlink{volumetric-reconstruction}{volumetric
     reconstruction pipeline}} that processes available depth and color
     images with volumetric integration and provides an output dense
-    reconstruction. This can use \textbf{TSDF} with voxel hashing or
-    incremental \textbf{Gaussian Splatting}.
+    reconstruction. This can use \textbf{TSDF}\cite{dong2022ash} with voxel hashing or
+    incremental \textbf{Gaussian Splatting}\cite{matsuki2023gaussian,kerbl20233d}.
     
     \item Integration of
     \textbf{\protect\hyperlink{depth-prediction}{depth prediction models}}
-    within the SLAM pipeline. These include DepthPro, DepthAnythingV2,
-    RAFT-Stereo, CREStereo, MASt3R, MVDUSt3R, etc.
+    within the SLAM pipeline. These include DepthPro\cite{depthpro2023}, DepthAnythingV2\cite{depthanythingv2_2024},
+    RAFT-Stereo\cite{teed2021raft}, CREStereo\cite{li2022cres}, MASt3R\cite{master}, MVDUSt3R\cite{mvduster}, etc.
 
     \item A suite of segmentation models for
     \textbf{\protect\hyperlink{semantic-mapping}{semantic understanding}} of
-    the scene, such as DeepLabv3, Segformer, CLIP, EOV-Seg, Detic, and ODISE.
+    the scene, such as DeepLabv3\cite{chen2017rethinking}, Segformer\cite{xie2021segformer}, CLIP\cite{lin2023clip}, EOV-Seg\cite{eov_seg}, DETIC\cite{detic}, and ODISE\cite{odise}.
     
-    \item A \textbf{\protect\hyperlink{scene-from-views}{Scene from Views}} module providing a unified interface for 3D scene reconstruction from multiple views, supporting models such as DUSt3R, MASt3R, Depth Anything V3, MV-DUSt3R, and VGGT.
+    \item A \textbf{\protect\hyperlink{scene-from-views}{Scene from Views}} module providing a unified interface for end-to-end inference of 3D scenes from multiple views, supporting models such as DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}, Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, and VGGT\cite{wang2025vggt}.
     
-    \item A \textbf{\protect\hyperlink{cpp-core}{C++ Core}} module for high-performance sparse SLAM, with pybind11 bindings enabling zero-copy data exchange between Python and C++.
+    \item A modular sparse SLAM \textbf{\protect\hyperlink{cpp-core}{Core}}, implemented both in Python and C++ (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
     
     \item Additional tools for VO (Visual Odometry) and SLAM, with built-in
-    support for both \textbf{g2o} and \textbf{GTSAM}, along with custom
+    support for both \textbf{g2o}\cite{g2o_kummerle} and \textbf{GTSAM}\cite{factor_graphs_for_robot_perception}, along with custom
     Python bindings for features not available in the original libraries
 
     \item Built-in support for over \textbf{\protect\hyperlink{datasets}{10 dataset
@@ -294,9 +294,8 @@ camera pose estimation.
   and configuration presets (see
   \protect\hyperlink{evaluating-slam}{here}).
   \item
-  \texttt{main\_scene\_from\_views.py} demonstrates how to use the Scene from Views
-  factory for 3D scene reconstruction from multiple views using various
-  reconstruction models (see
+  \texttt{main\_scene\_from\_views.py} infers 3D scenes from multiple
+  images using models like Mast3r, VGGT, and DepthFromAnythingV3 (see
   \protect\hyperlink{scene-from-views}{here}).
 \end{itemize}
 
@@ -376,7 +375,7 @@ The \textit{Feature Tracker} consists of the following key sub-components:
 
 Sect.~\ref{supported-local-features} lists the supported local feature extractors and detectors.
 
-The diagram in Fig.~\ref{Fig:FeatureTracker} presents the architecture of the \textit{Feature Tracker} system. It is structured around a \texttt{feature\_tracker\_factory}, which instantiates specific tracker types such as \texttt{LK}, \texttt{DES\_BF}, \texttt{DES\_FLANN}, \texttt{XFEAT}, \texttt{LIGHTGLUE}, and \texttt{LOFTR}. Each tracker type creates a corresponding implementation (e.g., \texttt{LKFeatureTracker}, \texttt{DescriptorFeatureTracker}, etc.), all of which inherit from a common \texttt{FeatureTracker} interface.
+The diagram in Fig.~\ref{Fig:FeatureTracker} presents the architecture of the \textit{Feature Tracker} system. It is structured around a \texttt{feature\_tracker\_factory}, which instantiates specific tracker types such as \texttt{LK}, \texttt{DES\_BF}, \texttt{DES\_FLANN}, \texttt{XFEAT}\cite{barroso2024xfeat}, \texttt{LIGHTGLUE}\cite{lindenberger2023lightglue}, and \texttt{LOFTR}\cite{sun2021loftr}. Each tracker type creates a corresponding implementation (e.g., \texttt{LKFeatureTracker}, \texttt{DescriptorFeatureTracker}, etc.), all of which inherit from a common \texttt{FeatureTracker} interface.
 
 The \texttt{FeatureTracker} class is composed of several key sub-components, including a \texttt{FeatureManager}, \texttt{FeatureDetector}, \texttt{FeatureDescriptor}, \texttt{PyramidAdaptor}, \texttt{BlockAdaptor}, and \texttt{FeatureMatcher}. The \texttt{FeatureManager} also encapsulates instances of the detector, descriptor, and adaptors, highlighting the modular and reusable design of the tracking pipeline.
 
@@ -400,7 +399,7 @@ The \texttt{FeatureTracker} class is composed of several key sub-components, inc
 
 \subsubsection{Feature Matcher}\label{Sect:FeatureMatcher}
 
-The diagram in Fig.~\ref{Fig:FeatureMatcher} illustrates the architecture of the \textit{Feature Matcher} module. At its core is the \texttt{feature\_matcher\_factory}, which instantiates matchers based on a specified \texttt{matcher\_type}, such as \texttt{BF}, \texttt{FLANN}, \texttt{XFEAT}, \texttt{LIGHTGLUE}, and \texttt{LOFTR}. Each of these creates a corresponding matcher implementation (e.g., \texttt{BfFeatureMatcher}, \texttt{FlannFeatureMatcher}, etc.), all inheriting from a common \texttt{FeatureMatcher} interface.
+The diagram in Fig.~\ref{Fig:FeatureMatcher} illustrates the architecture of the \textit{Feature Matcher} module. At its core is the \texttt{feature\_matcher\_factory}, which instantiates matchers based on a specified \texttt{matcher\_type}, such as \texttt{BF}, \texttt{FLANN}, \texttt{XFEAT}\cite{barroso2024xfeat}, \texttt{LIGHTGLUE}\cite{lindenberger2023lightglue}, and \texttt{LOFTR}\cite{sun2021loftr}. Each of these creates a corresponding matcher implementation (e.g., \texttt{BfFeatureMatcher}, \texttt{FlannFeatureMatcher}, etc.), all inheriting from a common \texttt{FeatureMatcher} interface.
 
 The \texttt{FeatureMatcher} class encapsulates several configuration parameters and components, including the matcher engine (\texttt{cv2.BFMatcher}, \texttt{FlannBasedMatcher}, \texttt{xfeat.XFeat}, etc.), as well as the \texttt{matcher\_type}, \texttt{detector\_type}, \texttt{descriptor\_type}, \texttt{norm\_type}, and \texttt{ratio\_test} fields. This modular structure supports extensibility and facilitates switching between traditional and learning-based feature matching backends.
 
@@ -418,7 +417,7 @@ The Section~\ref{supported-matchers} reports a list of supported feature matcher
 
 \subsubsection{Loop Detector}
 
-The diagram in Fig.~\ref{Fig:LoopDetector} shows the architecture of the \textit{Loop Detector} component. A central \texttt{loop\_detector\_factory} instantiates loop detectors based on the selected \texttt{global\_descriptor\_type}, which may include traditional descriptors (e.g., \texttt{DBOW2}, \texttt{VLAD}, \texttt{IBOW}) or deep learning-based embeddings (e.g., \texttt{NetVLAD}, \texttt{CosPlace}, \texttt{EigenPlaces}).
+The diagram in Fig.~\ref{Fig:LoopDetector} shows the architecture of the \textit{Loop Detector} component. A central \texttt{loop\_detector\_factory} instantiates loop detectors based on the selected \texttt{global\_descriptor\_type}, which may include traditional descriptors (e.g., \texttt{DBOW2}\cite{galvez2012bags}, \texttt{VLAD}\cite{jegou2010aggregating}, \texttt{IBOW}\cite{garcia2018ibow}) or deep learning-based embeddings (e.g., \texttt{NetVLAD}\cite{arandjelovic2016netvlad}, \texttt{CosPlace}\cite{berton2023cosplace}, \texttt{EigenPlaces}\cite{berton2023eigenplaces}).
 
 Each descriptor type creates a corresponding loop detector implementation (e.g., \texttt{LoopDetectorDBoW2}, \texttt{LoopDetectorNetVLAD}), all of which inherit from a base class hierarchy. Traditional methods inherit directly from \texttt{LoopDetectorBase}, while deep learning-based approaches inherit from \texttt{LoopDetectorVprBase}, which itself extends \texttt{LoopDetectorBase}. This design supports modular integration of diverse place recognition techniques within a unified loop closure framework.
 
@@ -427,7 +426,7 @@ The Section~\ref{supported-global-descriptors-and-local-descriptor-aggregation-m
 
 \subsubsection{Depth Estimator}
 
-The diagram in Fig.~\ref{Fig:DepthEstimator} illustrates the architecture of the \textit{Depth Estimator} module. A central \texttt{depth\_estimator\_factory} creates instances of various depth estimation backends based on the selected \texttt{depth\_estimator\_type}, including both traditional and learning-based methods such as \texttt{DEPTH\_SGBM}, \texttt{DEPTH\_RAFT\_STEREO}, \texttt{DEPTH\_ANYTHING\_V2}, \texttt{DEPTH\_MAST3R}, and \texttt{DEPTH\_MVDUST3R}.
+The diagram in Fig.~\ref{Fig:DepthEstimator} illustrates the architecture of the \textit{Depth Estimator} module. A central \texttt{depth\_estimator\_factory} creates instances of various depth estimation backends based on the selected \texttt{depth\_estimator\_type}, including both traditional and learning-based methods such as \texttt{DEPTH\_SGBM}\cite{hirschmuller2007stereo}, \texttt{DEPTH\_RAFT\_STEREO}\cite{teed2021raft}, \texttt{DEPTH\_ANYTHING\_V2}\cite{depthanythingv2_2024}, \texttt{DEPTH\_MAST3R}\cite{master}, and \texttt{DEPTH\_MVDUST3R}\cite{mvduster}.
 
 Each estimator type instantiates a corresponding implementation (e.g., \texttt{DepthEstimatorSgbm}, \texttt{DepthEstimator\-Crestereo\-Megengine}, etc.), all inheriting from a common \texttt{DepthEstimator} interface. This base class encapsulates shared dependencies such as the \texttt{camera}, \texttt{device}, and \texttt{model} components, allowing for modular integration of heterogeneous depth estimation techniques across stereo, monocular, and multi-view pipelines.
 
@@ -443,7 +442,7 @@ The Section~\ref{supported-depth-prediction-models} reports a list of supported 
 
 \subsubsection{Volumetric Integrator}
 
-The diagram in Fig.~\ref{Fig:VolumetricIntegrator} illustrates the structure of the \textit{Volumetric Integrator} module. At its core, the \texttt{volumetric\_integrator\_factory} generates specific volumetric integrator instances based on the selected \texttt{volumetric\_integrator\_type}, such as \texttt{VOXEL\_GRID}, \texttt{VOXEL\_SEMANTIC\_GRID}, \texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID}, \texttt{TSDF}, and \texttt{GAUSSIAN\_SPLATTING}.
+The diagram in Fig.~\ref{Fig:VolumetricIntegrator} illustrates the structure of the \textit{Volumetric Integrator} module. At its core, the \texttt{volumetric\_integrator\_factory} generates specific volumetric integrator instances based on the selected \texttt{volumetric\_integrator\_type}, such as \texttt{VOXEL\_GRID}, \texttt{VOXEL\_SEMANTIC\_GRID}, \texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID}, \texttt{TSDF}\cite{dong2022ash}, and \texttt{GAUSSIAN\_SPLATTING}\cite{matsuki2023gaussian,kerbl20233d}.
 
 Each type instantiates a dedicated implementation (e.g., \texttt{VolumetricIntegratorVoxelGrid}, \texttt{VolumetricIntegrator\-Voxel\-Semantic\-Grid}, \texttt{VolumetricIntegratorTSDF}, \texttt{VolumetricIntegrator\-Gaussian\-Splatting}), which inherits from a common \texttt{VolumetricIntegratorBase}. This base class encapsulates key components including the \texttt{camera}, a \texttt{keyframe\_queue}, and the \texttt{volume}, enabling flexible integration of various 3D reconstruction methods within a unified pipeline.
 
@@ -472,13 +471,13 @@ The diagram in Fig.~\ref{Fig:SemanticMapping} outlines the architecture of the \
 \end{scriptsize}
 Both these classes extend \texttt{SemanticMappingDenseBase} and runs asynchronously in a dedicated thread to process keyframes as they become available. In particular, the \texttt{SemanticMappingDenseProcess} class offloads semantic segmentation inference to a separate process, thereby making better use of CPU core parallelism.
 
-Both \texttt{SemanticMappingDense} and \texttt{SemanticMappingDenseProcess} integrate semantic information into the SLAM map by leveraging per-frame predictions from a semantic segmentation model. The segmentation model is instantiated via the \texttt{semantic\_segmentation\_factory}, based on the selected \texttt{semantic\_segmentation\_type}. Supported segmentation backends include \texttt{DEEPLABV3}, \texttt{SEGFORMER}, \texttt{CLIP}, \texttt{EOV\_SEG}, \texttt{DETIC}, and \texttt{ODISE}, each of which corresponds to a dedicated class (\texttt{SemanticSegmentationDeepLabV3}, \texttt{SemanticSegmentationSegformer}, \texttt{SemanticSegmentationCLIP}, \texttt{SemanticSegmentationEovSeg}, \texttt{SemanticSegmentationDetic}, \texttt{SemanticSegmentationOdise}) inheriting from the shared \texttt{SemanticSegmentationBase}.
+Both \texttt{SemanticMappingDense} and \texttt{SemanticMappingDenseProcess} integrate semantic information into the SLAM map by leveraging per-frame predictions from a semantic segmentation model. The segmentation model is instantiated via the \texttt{semantic\_segmentation\_factory}, based on the selected \texttt{semantic\_segmentation\_type}. Supported segmentation backends include \texttt{DEEPLABV3}\cite{chen2017rethinking}, \texttt{SEGFORMER}\cite{xie2021segformer}, \texttt{CLIP}\cite{lin2023clip}, \texttt{EOV\_SEG}\cite{eov_seg}, \texttt{DETIC}\cite{detic}, and \texttt{ODISE}\cite{odise}, each of which corresponds to a dedicated class (\texttt{SemanticSegmentationDeepLabV3}, \texttt{SemanticSegmentationSegformer}, \texttt{SemanticSegmentationCLIP}, \texttt{SemanticSegmentationEovSeg}, \texttt{Semantic\-Segmentation\-Detic}, \texttt{Semantic\-Segmentation\-Odise}) inheriting from the shared \texttt{SemanticSegmentationBase}.
 
 The system supports multiple semantic feature representations~--~such as categorical labels, probability vectors, and high-dimensional feature embeddings~--~and fuses them into the map using configurable methods like count-based fusion, Bayesian fusion, or feature averaging.
 
-This modular design decouples semantic segmentation from mapping logic, enabling flexible combinations of segmentation models, datasets (e.g., \texttt{NYU40}, \texttt{Cityscapes}), and fusion strategies. It also supports customization via configuration files or programmatic APIs for dataset-specific tuning or deployment.
+This modular design decouples semantic segmentation from mapping logic, enabling flexible combinations of segmentation models, datasets (e.g., \texttt{NYU40}\cite{Silberman:ECCV12}, \texttt{Cityscapes}\cite{Cityscapes}), and fusion strategies. It also supports customization via configuration files or programmatic APIs for dataset-specific tuning or deployment.
 
-The Section~\ref{semantic-mapping} provides a list of supported semantic segmentation methods.
+The Section~\ref{semantic-mapping-and-image-segmentation} provides a list of supported semantic segmentation methods.
 A more in-depth presentation of the semantic mapping module is provided in~\cite{pyslamSemantic2025}.
 
 \hypertarget{scene-from-views}{%
@@ -492,11 +491,11 @@ A more in-depth presentation of the semantic mapping module is provided in~\cite
 \label{Fig:SceneFromViews}
 \end{figure}
 
-The diagram in Fig.~\ref{Fig:SceneFromViews} illustrates the architecture of the \textit{Scene from Views} module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the \texttt{scene\_from\_views\_factory} instantiates specific reconstruction models based on the selected \texttt{SceneFromViewsType}, such as \texttt{DUST3R}, \texttt{MAST3R}, \texttt{DEPTH\_ANYTHING\_V3}, \texttt{MVDUST3R}, \texttt{VGGT}, and \texttt{VGGT\_ROBUST}.
+The diagram in Fig.~\ref{Fig:SceneFromViews} illustrates the architecture of the \textit{Scene from Views} module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the \texttt{scene\_from\_views\_factory} instantiates specific reconstruction models based on the selected \texttt{SceneFromViewsType}, such as \texttt{DUST3R}\cite{wang2023dust3r}, \texttt{MAST3R}\cite{leroy2024grounding}, \texttt{DEPTH\_ANYTHING\_V3}\cite{depthanything3}, \texttt{MVDUST3R}\cite{tang2025mv}, \texttt{VGGT}\cite{wang2025vggt}, and \texttt{VGGT\_ROBUST}\cite{vggt_robust}.
 
 Each type creates a corresponding implementation (e.g., \texttt{SceneFromViewsDust3r}, \texttt{SceneFromViewsMast3r}, \texttt{SceneFromViewsDepthAnythingV3}, \texttt{SceneFromViewsMvdust3r}, \texttt{SceneFromViewsVggt}, \texttt{SceneFromViewsVggtRobust}), all inheriting from a common \texttt{SceneFromViewsBase}. This base class implements a unified three-step reconstruction pipeline: \texttt{preprocess\_images()} prepares input images for the specific model, \texttt{infer()} runs model inference, and \texttt{postprocess\_results()} converts raw model output to a standardized \texttt{SceneFromViewsResult} format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
 
-The module supports both pairwise models (DUSt3R, MASt3R) that process image pairs and perform global alignment, as well as multi-view models (MV-DUSt3R, VGGT) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
+The module supports both pairwise models (\texttt{DUSt3R}\cite{wang2023dust3r}, \texttt{MASt3R}\cite{leroy2024grounding}) that process image pairs and perform global alignment, as well as multi-view models (\texttt{DEPTH\_ANYTHING\_V3}\cite{depthanything3}, \texttt{MV-DUSt3R}\cite{tang2025mv}, \texttt{VGGT}\cite{wang2025vggt}, \texttt{Robust VGGT}\cite{vggt_robust}) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
 
 %\clearpage
 \FloatBarrier
@@ -511,15 +510,22 @@ new terminal you are supposed to start with this command:
 \begin{scriptsize}
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{$ }\BuiltInTok{.} \ExtensionTok{pyenv-activate.sh}   \CommentTok{#  Activate pyslam python virtual environment. This is only needed once in a new terminal.}
+\CommentTok{#pixi shell           # If you use pixi, this activates the pyslam environment. }
+\NormalTok{ }\BuiltInTok{.} \ExtensionTok{pyenv-activate.sh}   \CommentTok{#  Activate pyslam python virtual environment. This is only needed once in a new terminal.}
 \end{Highlighting}
 \end{Shaded}
 \end{scriptsize}
 
-The file \href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml} can be used as a unique
+If you are using \texttt{pixi} then just run \texttt{pixi\ shell} to
+activate the \texttt{pyslam} environment. The file \href{https://github.com/luigifreda/pyslam/blob/master/config.yaml}{config.yaml} can be used as a unique
 entry-point to configure the system and its global configuration
 parameters contained in
-\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{pyslam/config\_parameters.py}. Further
+\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/config_parameters.py}{pyslam/config\_parameters.py}. 
+\begin{itemize}
+\item To \textbf{enable the C++ sparse-SLAM core}, set \texttt{USE\_CPP\_CORE\ =\ True} in the file \texttt{config\_parameters.py}.
+\item Further information on how to configure pySLAM are provided \protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{here}.
+\end{itemize}
+Further
 information on how to configure pySLAM are provided
 \protect\hyperlink{selecting-a-dataset-and-different-configuration-parameters}{here}.
 
@@ -533,6 +539,7 @@ commands:
 \begin{scriptsize}
 \begin{Shaded}
 \begin{Highlighting}[]
+\CommentTok{#pixi shell           # If you use pixi, this activates the pyslam environment. }
 \NormalTok{$ }\BuiltInTok{.} \ExtensionTok{pyenv-activate.sh}   \CommentTok{#  Activate pyslam python virtual environment. This is only needed once in a new terminal.}
 \NormalTok{$ }\ExtensionTok{./main_vo.py}
 \end{Highlighting}
@@ -562,6 +569,7 @@ Similarly, you can test the \textbf{full SLAM} by running
 \begin{scriptsize}
 \begin{Shaded}
 \begin{Highlighting}[]
+\CommentTok{#pixi shell           # If you use pixi, this activates the pyslam environment. }
 \NormalTok{$ }\BuiltInTok{.} \ExtensionTok{pyenv-activate.sh}   \CommentTok{#  Activate pyslam python virtual environment. This is only needed once in a new terminal.}
 \NormalTok{$ }\ExtensionTok{./main_slam.py}
 \end{Highlighting}
@@ -617,6 +625,7 @@ matcher}) and get a taste of the different available local features, run \\
 \begin{scriptsize}
 \begin{Shaded}
 \begin{Highlighting}[]
+\CommentTok{#pixi shell           # If you use pixi, this activates the pyslam environment. }
 \NormalTok{$ }\BuiltInTok{.} \ExtensionTok{pyenv-activate.sh}   \CommentTok{#  Activate pyslam python virtual environment. This is only needed once in a new terminal.}
 \NormalTok{$}\ExtensionTok{./main_feature_matching.py}
 \end{Highlighting}
@@ -699,7 +708,7 @@ bags of binary words and, if needed, convert (front-end) non-binary
 descriptors into binary ones. 
 \item Others: Methods like \texttt{HDC\_DELF},
 \texttt{SAD}, \texttt{AlexNet}, \texttt{NetVLAD}, \texttt{CosPlace}, and
-\texttt{EigenPlaces} directly extract their specific \textbf{global
+\texttt{EigenPlaces}, and \texttt{Megaloc} directly extract their specific \textbf{global
 descriptors} and process them using dedicated aggregators, independently
 from the used front-end descriptors.
 \end{itemize}
@@ -757,10 +766,23 @@ The SLAM back-end hosts a volumetric reconstruction pipeline. This is
 disabled by default. You can enable it by setting
 \texttt{kDoVolumetricIntegration=True} and selecting your preferred
 method \texttt{kVolumetricIntegrationType} in
-\texttt{pyslam/config\_parameters.py}. At present, the following methods are available:
-\texttt{VOXEL\_GRID}, \texttt{VOXEL\_SEMANTIC\_GRID}, \texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID}, \texttt{TSDF}, and \texttt{GAUSSIAN\_SPLATTING} (see
-\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/dense/volumetric_integrator_factory.py}{pyslam/dense/volumetric\_integrator\_factory.py}). Note that you need CUDA
-in order to run \texttt{GAUSSIAN\_SPLATTING} method.
+\texttt{pyslam/config\_parameters.py}. At present, the following methods
+are available: 
+\begin{itemize}
+\item \texttt{VOXEL\_GRID}, \texttt{VOXEL\_SEMANTIC\_GRID},
+\texttt{VOXEL\_SEMANTIC\_PROBABILISTIC\_GRID}: Voxel grid
+implementations that leverage parallel spatial hashing, supporting both
+direct voxel hashing and indirect voxel-block hashing strategies.
+Parallel execution is managed using TBB, and the design accommodates
+both simple and semantic voxels. 
+\item \texttt{TSDF} (Truncated Signed
+Distance Function): It is able to return in output either a pointcloud
+or a mesh. 
+\item  \texttt{GAUSSIAN\_SPLATTING} (Incremental Gaussian
+splatting)\href{https://github.com/luigifreda/pyslam/blob/master/pyslam/dense/volumetric_integrator_factory.py}{pyslam/dense/volumetric\_integrator\_factory.py}). 
+\end{itemize}
+
+Note that you need CUDA in order to run \texttt{GAUSSIAN\_SPLATTING} method.
 
 The volumetric reconstruction pipeline works with:
 \begin{itemize}
@@ -852,12 +874,12 @@ centers}\label{controlling-the-spatial-distribution-of-keyframe-fov-centers}}
 If you are targeting volumetric reconstruction while running SLAM, you
 can enable a \textbf{keyframe generation policy} designed to manage the
 spatial distribution of keyframe field-of-view (FOV) centers. The
-\emph{FOV center} of a camera is defined as the backprojection of its
-image center, computed using the median depth of the frame. With this
-policy, a new keyframe is generated only if its FOV center lies beyond
-a predefined distance from the nearest existing keyframe's FOV
-center. You can enable this policy by setting the following parameters
-in the yaml setting:\\
+\emph{FOV center of a camera} is defined as the backprojection of its
+image center, calculated using the median depth of the frame. With this
+policy, a new keyframe is generated only if its FOV center lies beyond a
+predefined distance from the nearest existing keyframe's FOV center. You
+can enable this policy by setting the following parameters in the yaml
+setting:\\
 
 \begin{scriptsize}
 \begin{Shaded}
@@ -869,6 +891,21 @@ in the yaml setting:\\
 \end{Shaded}
 \end{scriptsize}
 
+or by setting the following parameters in
+\texttt{config\_parameters.py}:
+
+\begin{scriptsize}
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{kUseFovCentersBasedKfGeneration }\OperatorTok{=} \VariableTok{False}  \CommentTok{# Use FOV centers based keyframe generation;}
+\FunctionTok{}\AttributeTok{ }\DecValTok{}\AttributeTok{  }\CommentTok{                                       # not considered if KeyFrame.useFovCentersBasedGeneration is set in yaml}
+\NormalTok{kMaxFovCentersDistanceForKfGeneration }\OperatorTok{=} \FloatTok{0.2}  \CommentTok{# [m] Maximum distance between FOV centers for keyframe generation;}
+\FunctionTok{}\AttributeTok{ }\DecValTok{}\AttributeTok{  }\CommentTok{                                       # not considered if not considered if KeyFrame.maxFovCentersDistance is set in yaml}
+\end{Highlighting}
+\end{Shaded}
+\end{scriptsize}
+
+%\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
 \hypertarget{depth-prediction}{%
 \subsubsection{Depth prediction}\label{depth-prediction}}
@@ -887,7 +924,7 @@ can be enabled in the front-end by setting the parameter
 \texttt{kUseDepthEstimator\allowbreak InFrontEnd} in \texttt{pyslam/config\_parameters.py}.
 This feature estimates depth images from input color images to emulate a
 RGBD camera. Please, note this functionality is still
-\emph{experimental} at present time {[}WIP{]}.
+\emph{experimental} at present time.
 \end{itemize}
 
 \textbf{Notes}: 
@@ -911,16 +948,24 @@ You can test depth prediction/estimation by using the script
 
 %\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\hypertarget{semantic-mapping}{%
-\subsubsection{Semantic mapping}\label{semantic-mapping}}
+\hypertarget{semantic-mapping-and-image-segmentation}{%
+\subsubsection{Semantic mapping and Image
+Segmentation}\label{semantic-mapping-and-image-segmentation}}
 
-The semantic mapping pipeline can be enabled by setting the parameter
-\texttt{kDoSparseSemanticMappingAndSegmentation=True} in \texttt{config\_parameters.py}. The
-best way of configuring the semantic mapping module used is to modify it
-in \texttt{semantic\_mapping\_configs.py}.
+The sparse semantic mapping pipeline can be enabled by setting the
+parameter \texttt{kDoSparseSemanticMappingAndSegmentation=True} in
+\texttt{pyslam/config\_parameters.py}. You can configure the semantic
+mapping module by mofifying the default segmentation models assigned to
+each dataset in \texttt{pyslam/semantics/semantic\_mapping\_configs.py}.
+Otherwise, you can override the used segmentation model by setting
+\texttt{kSemanticSegmentationType} in \texttt{config\_parameters.py}.
 
-Different semantic mapping methods are available Currently, we support semantic mapping using dense
-semantic segmenetation. 
+\hypertarget{sparse-semantic-mapping}{%
+\paragraph{Sparse Semantic Mapping}\label{sparse-semantic-mapping}}
+
+Different semantic mapping methods are available (see
+\href{https://github.com/luigifreda/pyslam/blob/master/docs/semantics.md}{here} for further details). Currently, we
+support semantic mapping using \textbf{dense semantic segmentation}. 
 \begin{itemize}
 \item \texttt{DEEPLABV3}: from \texttt{torchvision}, pre-trained on COCO/VOC.
 \item \texttt{SEGFORMER}: from \texttt{transformers}, pre-trained on Cityscapes or ADE20k.
@@ -929,8 +974,9 @@ semantic segmenetation.
 \item \texttt{DETIC}: open-vocabulary object detection and segmentation model.
 \item \texttt{ODISE}: open-vocabulary diffusion-based panoptic segmentation model.
 \end{itemize}
-Semantic features are assigned to keypoints on
-the image and fused into map points. The semantic features can be: 
+
+\textbf{Semantic features} are assigned to \textbf{keypoints} on the
+image and fused into map points. The semantic features can be:
 \begin{itemize}
 \item \textit{Labels}: categorical labels as numbers.
 \item \textit{Probability vectors}: probability vectors for each class.
@@ -938,6 +984,26 @@ the image and fused into map points. The semantic features can be:
 obtained from an encoder. This is generally used for open vocabulary
 mapping.
 \end{itemize}
+
+\hypertarget{volumetric-semantic-mapping}{%
+\paragraph{Volumetric Semantic
+mapping}\label{volumetric-semantic-mapping}}
+
+Volumetric semantic mapping can be enabled by setting:
+
+\begin{scriptsize}
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{kDoSparseSemanticMappingAndSegmentation}\OperatorTok{=}\VariableTok{True} \CommentTok{#  enable sparse mapping and segmentation}
+\NormalTok{kDoVolumetricIntegration }\OperatorTok{=} \VariableTok{True} \CommentTok{# enable volumetric integration}
+\NormalTok{kVolumetricIntegrationType }\OperatorTok{=} \StringTok{"VOXEL_SEMANTIC_PROBABILISTIC_GRID"} \CommentTok{# use semantic volumetric models }
+\FunctionTok{}\AttributeTok{ }\DecValTok{}\AttributeTok{  }\CommentTok{                                                      # like VOXEL_SEMANTIC_PROBABILISTIC_GRID and VOXEL_SEMANTIC_GRID}
+\end{Highlighting}
+\end{Shaded}
+\end{scriptsize}
+
+Further information about the \textbf{volumetric integration models and
+SW architecture} are available \href{https://github.com/luigifreda/pyslam/blob/mastercpp/volumetric/README.md}{here}.
 
 %\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
@@ -952,20 +1018,20 @@ To enable the C++ sparse-SLAM core, set \texttt{USE\_CPP\_CORE = True} in \textt
 
 The codebase is organized into the following categories:
 \begin{itemize}
-\item \textbf{Core SLAM Classes}: Main C++ implementations (\texttt{frame.cpp/h}, \texttt{keyframe.cpp/h}, \texttt{map\_point.cpp/h}, \texttt{map.cpp/h}, \texttt{camera.cpp/h}, \texttt{camera\_pose.cpp/h}, \texttt{optimizer\_g2o.cpp/h}, \texttt{tracking\_core.cpp/h}, \texttt{local\_mapping\_core.cpp/h})
-\item \textbf{Serialization}: JSON and NumPy serialization modules for data persistence and Python interop
-\item \textbf{Python Bindings}: pybind11 module definitions that expose C++ classes to Python
-\item \textbf{Type Casters}: pybind11 type casters for custom type conversions (OpenCV, Eigen, JSON, dictionary types)
-\item \textbf{Utilities}: Helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization
-\item \textbf{Tests}: C++ unit tests and Python integration tests
+\item \textbf{Core SLAM Classes}: Main C++ implementations (\texttt{frame.cpp/h}, \texttt{keyframe.cpp/h}, \texttt{map\_point.cpp/h}, \texttt{map.cpp/h}, \texttt{camera.cpp/h}, \texttt{camera\_pose.cpp/h}, \texttt{optimizer\_g2o.cpp/h}, \texttt{tracking\_core.cpp/h}, \texttt{local\_mapping\_core.cpp/h}).
+\item \textbf{Serialization}: JSON and NumPy serialization modules for data persistence and Python interop.
+\item \textbf{Python Bindings}: pybind11 module definitions that expose C++ classes to Python.
+\item \textbf{Type Casters}: pybind11 type casters for custom type conversions (OpenCV, Eigen, JSON, dictionary types).
+\item \textbf{Utilities}: Helper functions for geometry, features, descriptors, image processing, NumPy/Eigen operations, and serialization.
+\item \textbf{Tests}: C++ unit tests and Python integration tests.
 \end{itemize}
 
 The C++ core adopts a streamlined design philosophy:
 \begin{itemize}
-\item \textbf{All core data resides in C++}: Python serves purely as an interface layer
-\item \textbf{Direct pybind11 exposure}: Python objects are lightweight views of underlying C++ objects
-\item \textbf{Automatic zero-copy}: pybind11 automatically shares NumPy array memory with C++ when possible
-\item \textbf{RAII-based ownership}: C++ smart pointers manage object lifetimes safely and efficiently
+\item \textbf{All core data resides in C++}: Python serves purely as an interface layer.
+\item \textbf{Direct pybind11 exposure}: Python objects are lightweight views of underlying C++ objects.
+\item \textbf{Automatic zero-copy}: pybind11 automatically shares NumPy array memory with C++ when possible.
+\item \textbf{RAII-based ownership}: C++ smart pointers manage object lifetimes safely and efficiently.
 \end{itemize}
 
 \hypertarget{saving-and-reloading}{%
@@ -1484,41 +1550,43 @@ evaluate both online and final errors up to the current time.
 \hypertarget{scene-from-views-usage}{%
 \subsection{Scene from Views}\label{scene-from-views-usage}}
 
-The \textit{Scene from Views} module provides a unified interface for 3D scene reconstruction from multiple views. It follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API.
-
-The module is built around a factory pattern with a base class \texttt{SceneFromViewsBase} that implements a unified three-step reconstruction pipeline:
-\begin{enumerate}
-\item \texttt{preprocess\_images()}: Preprocesses input images for the specific model
-\item \texttt{infer()}: Runs model inference on preprocessed images
-\item \texttt{postprocess\_results()}: Converts raw model output to standardized \texttt{SceneFromViewsResult}
-\end{enumerate}
-
-The \texttt{SceneFromViewsResult} structure standardizes the output format across all models, containing:
-\begin{itemize}
-\item \texttt{global\_point\_cloud}: Merged point cloud in world coordinates
-\item \texttt{global\_mesh}: Merged mesh in world coordinates
-\item \texttt{camera\_poses}: List of camera-to-world transformation matrices (4x4)
-\item \texttt{processed\_images}: List of processed images used by the model
-\item \texttt{depth\_predictions}: List of depth maps if available
-\item \texttt{point\_clouds}: List of per-view point clouds
-\item \texttt{intrinsics}: List of camera intrinsic matrices if available
-\item \texttt{confidences}: List of confidence maps if available
-\end{itemize}
-
-The following reconstruction models are currently supported:
+The \textit{Scene from Views} module provides a unified interface for end-to-end 3D scene reconstruction from multiple
+views, following a modular factory pattern architecture. The pipeline
+provides a consistent API across different reconstruction models while
+maintaining model-specific optimizations. See the main script
+\texttt{main\_scene\_from\_views.py}.
 
 \begin{itemize}
-\item \texttt{DUST3R}: Dense 3D reconstruction from arbitrary image collections without requiring known camera intrinsics or poses. Predicts dense 3D pointmaps for image pairs, from which depth maps and camera parameters can be recovered. Supports global alignment optimization to merge pairwise reconstructions.
-\item \texttt{MAST3R}: Builds on DUSt3R by adding a 3D-aware dense matching head. Produces both dense 3D pointmaps and dense local features for highly accurate matching, with sparse global alignment and optional TSDF-based fusion.
-\item \texttt{DEPTH\_ANYTHING\_V3}: Monocular depth estimation model that can produce both relative and metric depth. Supports optional camera pose and intrinsic parameter estimation for reconstruction pipelines.
-\item \texttt{MVDUST3R}: Multi-view variant of DUSt3R that processes multiple unposed RGB views in a single feed-forward pass, using multi-view decoder blocks to jointly reason about all input views.
-\item \texttt{VGGT}: Large feed-forward transformer for 3D reconstruction that directly predicts camera parameters, pointmaps, depth maps, and 3D point tracks from one or many input views in a single forward pass.
-\item \texttt{VGGT\_ROBUST}: VGGT variant mirroring the \texttt{robust\_vggt} demo. It scores each view against an anchor frame using global attention maps and cosine similarity, rejects low-scoring views before the final forward pass, and returns metadata about dropped/kept views (\texttt{rejected\_indices}, \texttt{survivor\_indices}). Configurable knobs include anchor weighting (\texttt{attn\_a}, \texttt{cos\_a}), rejection threshold (\texttt{rej\_thresh}), anchor choice (\texttt{use\_most\_central\_as\_reference}), and masking/confidence filters. Default checkpoint: \texttt{facebook/VGGT-1B}.
+\tightlist
+\item
+  End-to-end multi-view reconstruction (poses + fused 3D geometry
+  directly from images): \texttt{SceneFromViewsDust3r},
+  \texttt{SceneFromViewsMast3r}, \texttt{SceneFromViewsMvdust3r},
+  \texttt{SceneFromViewsVggt}, \texttt{SceneFromViewsVggtRobust}.
+\item
+  Single-view depth-first pipeline with optional poses/intrinsics:
+  \texttt{SceneFromViewsDepthAnythingV3}
+\item
+  Global alignment optimization stage for merging views:
+  \texttt{SceneFromViewsDust3r} (dense alignment) and
+  \texttt{SceneFromViewsMast3r} (sparse alignment variant)
+\item
+  Robust view filtering / outlier rejection:
+  \texttt{SceneFromViewsVggtRobust} (anchor-based attention + cosine
+  scoring that discards low-confidence views before reconstruction)
 \end{itemize}
 
-The module supports both pairwise models (DUSt3R, MASt3R) that process image pairs and perform global alignment, as well as multi-view models (MV-DUSt3R, VGGT) that process multiple views simultaneously. Usage examples are available in the script \texttt{main\_scene\_from\_views.py}.
+Note that \texttt{DUSt3R} and \texttt{MASt3R} are pairwise models: they
+take two images at a time. Multi-view end-to-end reconstruction is
+achieved by running them on many image pairs and performing a global
+alignment / optimization over all pairwise pointmaps.
 
+All models return standardized \texttt{SceneFromViewsResult} output
+containing point clouds, meshes, camera poses, depth maps, and
+intrinsics in a consistent format. The factory pattern allows easy
+switching between models while maintaining the same interface.
 
+Further details \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/scene_from_views/README.md}{here}.
 
 
 \hypertarget{supported-components-and-models}{%
@@ -1543,17 +1611,17 @@ Fig.~\ref{Fig_TimelineLocalFeatures} shows a timeline with some of the most famo
     \item \href{https://www.edwardrosten.com/work/fast.html}{FAST} \cite{rosten2006machine}
     \item \href{https://ieeexplore.ieee.org/document/323794}{Good features to track} \cite{shi1994good}
     \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
-    \item \href{https://github.com/raulmur/ORB_SLAM2}{ORB2} (improvements of ORB-SLAM2 to ORB detector)
+    \item \href{https://github.com/raulmur/ORB_SLAM2}{ORB2} (improvements of ORB-SLAM2\cite{ORB_SLAM2} to ORB detector)
     \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
     \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
     \item \href{https://www.doc.ic.ac.uk/~ajd/Publications/alcantarilla_etal_eccv2012.pdf}{KAZE} \cite{alcantarilla2012kaze}
     \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
     \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
-    \item \href{http://www.i6.in.tum.de/Main/ResearchAgast}{AGAST}
+    \item \href{chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://archive.air.in.tum.de/Main/Publications/Mair2010c.pdf}{AGAST} \cite{mair2010adaptive}
     \item \href{http://cmp.felk.cvut.cz/~matas/papers/matas-bmvc02.pdf}{MSER} \cite{matas2002robust}
-    \item \href{https://link.springer.com/content/pdf/10.1007%2F978-3-540-88693-8_8.pdf}{StarDector/CenSurE}
-    \item \href{https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf}{Harris-Laplace}
-    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint}
+    \item \href{https://link.springer.com/chapter/10.1007/978-3-540-88693-8_8}{StarDector/CenSurE} \cite{censure}
+    \item \href{https://www.robots.ox.ac.uk/~vgg/research/affine/det_eval_files/mikolajczyk_ijcv2004.pdf}{Harris-Laplace} \cite{mikolajczyk_inria00548554}
+    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint}\cite{detone18superpoint}
     \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
     \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
     \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
@@ -1563,7 +1631,7 @@ Fig.~\ref{Fig_TimelineLocalFeatures} shows a timeline with some of the most famo
     \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
     \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
     \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
-    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector + AffNet + HardNet descriptor)
+    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
 \end{itemize}
 
 The following feature \textbf{descriptors} are supported: 
@@ -1571,33 +1639,33 @@ The following feature \textbf{descriptors} are supported:
 \begin{itemize}
     \item \href{http://www.willowgarage.com/sites/default/files/orb_final.pdf}{ORB} \cite{rublee2011orb}
     \item \href{https://www.cs.ubc.ca/~lowe/papers/iccv99.pdf}{SIFT} \cite{lowe1999object}
-    \item \href{https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf}{ROOT SIFT}
+    \item \href{https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf}{ROOT SIFT} \cite{arandjelovic2012three}
     \item \href{http://people.ee.ethz.ch/~surf/eccv06.pdf}{SURF} \cite{bay2006surf}
     \item \href{http://www.bmva.org/bmvc/2013/Papers/paper0013/paper0013.pdf}{AKAZE} \cite{alcantarilla2013fast}
     \item \href{http://www.margaritachli.com/papers/ICCV2011paper.pdf}{BRISK} \cite{leutenegger2011brisk}
-    \item \href{https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint}{FREAK}
-    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint}
-    \item \href{https://github.com/vbalnt/tfeat}{Tfeat}
+    \item \href{https://www.researchgate.net/publication/258848394_FREAK_Fast_retina_keypoint}{FREAK} \cite{alahi2012freak}
+    \item \href{https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork}{SuperPoint} \cite{detone18superpoint}
+    \item \href{https://github.com/vbalnt/tfeat}{Tfeat} \cite{balntas2016learning}
     \item \href{https://www.labri.fr/perso/vlepetit/pubs/trzcinski_pami15.pdf}{BOOST-DESC} \cite{trzcinski2013boosting}
     \item \href{https://ieeexplore.ieee.org/document/4815264}{DAISY} \cite{tola2010daisy}
     \item \href{https://arxiv.org/abs/1501.03719}{LATCH} \cite{levi2006latch}
-    \item \href{https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf}{LUCID}
+    \item \href{https://pdfs.semanticscholar.org/85bd/560cdcbd4f3c24a43678284f485eb2d712d7.pdf}{LUCID} \cite{lucid2015}
     \item \href{https://www.robots.ox.ac.uk/~vedaldi/assets/pubs/simonyan14learning.pdf}{VGG} \cite{simonyan2014learning}
     \item \href{https://github.com/DagnyT/hardnet.git}{Hardnet} \cite{mishchuk2017working}
     \item \href{https://github.com/lzx551402/geodesc.git}{GeoDesc} \cite{verdie2018tilde}
-    \item \href{https://github.com/yuruntian/SOSNet.git}{SOSNet}
-    \item \href{https://github.com/yuruntian/L2-Net}{L2Net}
-    \item \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor}
+    \item \href{https://github.com/yuruntian/SOSNet.git}{SOSNet} \cite{SOSNet}
+    \item \href{https://github.com/yuruntian/L2-Net}{L2Net} \cite{L2Net}
+    \item \href{https://github.com/cvlab-epfl/log-polar-descriptors}{Log-polar descriptor} \cite{LogPolarDescriptor}
     \item \href{https://github.com/mihaidusmanu/d2-net}{D2-Net} \cite{dusmanu2019d2}
     \item \href{https://github.com/tensorflow/models/tree/master/research/delf}{DELF} \cite{noh2017large}
     \item \href{https://github.com/lzx551402/contextdesc}{Contextdesc} \cite{luo2020contextdesc}
     \item \href{https://github.com/vcg-uvic/lf-net-release}{LFNet} \cite{ono2018lf}
     \item \href{https://github.com/naver/r2d2}{R2D2} \cite{revaud2019r2d2}
-    \item \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID}
+    \item \href{https://raw.githubusercontent.com/iago-suarez/BEBLID/master/BEBLID_Boosted_Efficient_Binary_Local_Image_Descriptor.pdf}{BEBLID} \cite{BEBLID}
     \item \href{https://arxiv.org/abs/2006.13566}{DISK} \cite{tyszkiewicz2020disk}
     \item \href{https://arxiv.org/abs/2304.03608}{ALIKED} \cite{barroso2023alike}
     \item \href{https://arxiv.org/abs/2404.19174}{Xfeat} \cite{barroso2024xfeat}
-    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector + AffNet + HardNet descriptor)
+    \item \href{https://github.com/axelBarroso/Key.Net}{KeyNetAffNetHardNet} (KeyNet detector \cite{barroso2020key} + AffNet + HardNet descriptor \cite{mishchuk2017working})
 \end{itemize}
 
 For more information, refer to \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/local_features/feature_types.py}{pyslam/local\_features/feature\_types.py}
@@ -1627,8 +1695,9 @@ able to work with all the
     \item \texttt{BF}: Brute force matcher on descriptors (with KNN).
     \item \href{https://www.semanticscholar.org/paper/Fast-Approximate-Nearest-Neighbors-with-Automatic-Muja-Lowe/35d81066cb1369acf4b6c5117fcbb862be2af350}{FLANN} \cite{muja2009fast}
     \item \href{https://arxiv.org/abs/2404.19174}{XFeat} \cite{barroso2024xfeat}
-    \item \href{https://arxiv.org/abs/2306.13643}{LightGlue}
-    \item \href{https://arxiv.org/abs/2104.00680}{LoFTR}
+    \item \href{https://arxiv.org/abs/2306.13643}{LightGlue} \cite{lindenberger2023lightglue}
+    \item \href{https://arxiv.org/abs/2104.00680}{LoFTR} \cite{sun2021loftr}
+    \item \href{https://arxiv.org/abs/2406.09756}{MASt3R} \cite{master}
 \end{itemize}
 
 See the file \texttt{pyslam/local\_features/feature\_matcher.py} for further
@@ -1644,9 +1713,9 @@ methods}\label{supported-global-descriptors-and-local-descriptor-aggregation-met
 methods}\label{local-descriptor-aggregation-methods}}
 
 \begin{itemize}
-    \item Bag of Words (BoW): \href{https://github.com/dorian3d/DBoW2}{DBoW2} \cite{galvez2012bags}, \href{https://github.com/rmsalinas/DBow3}{DBoW3}.  \href{https://doi.org/10.1109/TRO.2012.2197158}{[paper]}
-    \item Vector of Locally Aggregated Descriptors: \href{https://www.vlfeat.org/api/vlad.html}{VLAD} \cite{arandjelovic2016netvlad}.  \href{https://doi.org/10.1109/CVPR.2010.5540039}{[paper]}
-    \item Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: \href{https://github.com/emiliofidalgo/ibow-lcd}{iBoW}, \href{https://github.com/emiliofidalgo/obindex2}{OBIndex2}.  \href{https://doi.org/10.1109/LRA.2018.2849609}{[paper]}
+    \item Bag of Words (BoW): \href{https://github.com/dorian3d/DBoW2}{DBoW2} \cite{galvez2012bags}, \href{https://github.com/rmsalinas/DBow3}{DBoW3} \cite{galvez2012bags}.  \href{https://doi.org/10.1109/TRO.2012.2197158}{[paper]}
+    \item Vector of Locally Aggregated Descriptors: \href{https://www.vlfeat.org/api/vlad.html}{VLAD} \cite{jegou2010aggregating}.  \href{https://doi.org/10.1109/CVPR.2010.5540039}{[paper]}
+    \item Incremental Bags of Binary Words (iBoW) via Online Binary Image Index: \href{https://github.com/emiliofidalgo/ibow-lcd}{iBoW} \cite{garcia2018ibow}, \href{https://github.com/emiliofidalgo/obindex2}{OBIndex2} \cite{garcia2018ibow}.  \href{https://doi.org/10.1109/LRA.2018.2849609}{[paper]}
     \item Hyperdimensional Computing: \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC} \cite{neubert2021hyperdimensional}.  \href{https://openaccess.thecvf.com/content/CVPR2021/html/Neubert_Hyperdimensional_Computing_as_a_Framework_for_Systematic_Aggregation_of_Image_CVPR_2021_paper.html}{[paper]}
 \end{itemize}
 
@@ -1663,13 +1732,13 @@ Also referred to as \emph{holistic descriptors}:
 \begin{itemize}
 \tightlist
 \item
-  \href{https://ieeexplore.ieee.org/document/6224623}{SAD}
+  \href{https://ieeexplore.ieee.org/document/6224623}{SAD} \cite{milford2012seqslam}
 \item
-  \href{https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet}{AlexNet}
+  \href{https://github.com/BVLC/caffe/tree/master/models/bvlc_alexnet}{AlexNet} \cite{krizhevsky2012imagenet}
 \item
   \href{https://www.di.ens.fr/willow/research/netvlad/}{NetVLAD} \cite{arandjelovic2016netvlad}
 \item
-  \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC-DELF}
+  \href{https://www.tu-chemnitz.de/etit/proaut/hdc_desc}{HDC-DELF} \cite{schlegel2022comparison}
 \item
   \href{https://github.com/gmberton/CosPlace}{CosPlace} \cite{berton2023cosplace}
 \item
@@ -1693,8 +1762,8 @@ algorithm has been included as a classic reference approach.
 \begin{itemize}
 \tightlist
 \item
-  \href{https://ieeexplore.ieee.org/document/4359315}{SGBM}: Depth SGBM
-  from OpenCV (Stereo, classic approach) \cite{hirschmuller2007stereo}
+  \href{https://ieeexplore.ieee.org/document/4359315}{SGBM}\cite{hirschmuller2007stereo}: Depth SGBM
+  from OpenCV (Stereo, classic approach) 
 \item
   \href{https://arxiv.org/abs/2410.02073}{Depth-Pro} (Monocular) \cite{depthpro2023}
 \item
@@ -1715,8 +1784,14 @@ methods}\label{supported-volumetric-mapping-methods}}
 
 \begin{itemize}
 \tightlist
-\item A C++ template-based voxel grid implementation leverages parallel spatial hashing, supporting both direct voxel hashing and indirect voxel-block hashing strategies. Parallel execution is managed using TBB, and the design accommodates both simple and semantic voxels. Further information about the volumetric grid models is available \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/cpp/volumetric/README.md}{here}.
 \item
+  A C++ template-based voxel grid implementation leverages parallel
+  spatial hashing, supporting both direct voxel hashing and indirect
+  voxel-block hashing strategies. Parallel execution is managed using
+  TBB, and the design accommodates both simple and semantic voxels.
+  Further information about the volumetric grid models is available
+  \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/cpp/volumetric/README.md}{here}.
+\item    
   \href{https://arxiv.org/pdf/2110.00511}{TSDF} with voxel block grid
   (parallel spatial hashing)~\cite{dong2022ash}
 \item
@@ -1745,8 +1820,38 @@ methods}\label{supported-semantic-segmentation-methods}}
 \item
   \href{https://arxiv.org/abs/2303.04803}{ODISE}~\cite{odise}: Open-Vocabulary Panoptic Segmentation with Text-to-Image Diffusion Models.
 \end{itemize}
+\hypertarget{supported-models-for-end-to-end-inference-of-3d-scenes-from-multiple-images}{%
+\subsubsection{Supported models for end-to-end inference of 3D scenes
+from multiple
+images}\label{supported-models-for-end-to-end-inference-of-3d-scenes-from-multiple-images}}
 
-\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+\begin{itemize}
+\tightlist
+\item
+  \href{https://arxiv.org/abs/2312.14132}{DUSt3R}\cite{wang2023dust3r}: Geometric 3D Vision
+  Made Easy
+\item
+  \href{https://arxiv.org/abs/2406.09756}{MASt3R}\cite{master}: Grounding Image
+  Matching in 3D with MASt3R 
+\item
+  \href{https://arxiv.org/abs/2511.10647}{Depth Anything V3}\cite{depthanything3}: Recovering
+  the Visual Space from Any Views
+\item
+  \href{https://github.com/naver/mvdust3r}{MVDust3r}\cite{mvduster}: Multi-view DUSt3R
+  variant
+\item
+  \href{https://github.com/facebookresearch/vggt}{VGGT}\cite{wang2025vggt}: Visual Geometry
+  Grounded Transformer
+\item
+  \href{https://github.com/cvlab-kaist/RobustVGGT.git}{Robust VGGT}\cite{vggt_robust}:
+  Emergent Outlier View Rejection in Visual Geometry Grounded
+  Transformers
+\end{itemize}
+
+See \href{https://github.com/luigifreda/pyslam/blob/master/pyslam/scene_from_views/README.md}{here} for further details about
+\texttt{SceneFromViews} architecture.
+
+%\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
 \hypertarget{configuration}{%
 \subsection{Configuration}\label{configuration}}
@@ -1771,19 +1876,25 @@ Dataset & type in \texttt{config.yaml}\tabularnewline
 \midrule
 \endhead
 \href{http://www.cvlibs.net/datasets/kitti/eval_odometry.php}{KITTI
-odometry data set (grayscale, 22 GB)} &
-\texttt{type:\ KITTI\_DATASET}\tabularnewline
+odometry data set} \cite{Geiger2012CVPR} &
+\texttt{type:\ KITTI\_DATASET} \tabularnewline
 \href{https://vision.in.tum.de/data/datasets/rgbd-dataset/download}{TUM
-dataset} & \texttt{type:\ TUM\_DATASET}\tabularnewline
+dataset} \cite{sturm12iros} & \texttt{type:\ TUM\_DATASET} \tabularnewline
 \href{https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html}{ICL-NUIM
-dataset} & \texttt{type:\ ICL\_NUIM\_DATASET}\tabularnewline
-\href{http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets}{EUROC
-dataset} & \texttt{type:\ EUROC\_DATASET}\tabularnewline
+dataset} \cite{handa:etal:ICRA2014} & \texttt{type:\ ICL\_NUIM\_DATASET}\tabularnewline
+\href{https://projects.asl.ethz.ch/datasets/euroc-mav/}{EUROC
+dataset} \cite{Burri25012016} & \texttt{type:\ EUROC\_DATASET}\tabularnewline
 \href{https://github.com/facebookresearch/Replica-Dataset}{REPLICA
-dataset} & \texttt{type:\ REPLICA\_DATASET}\tabularnewline
-\href{https://theairlab.org/tartanair-dataset/}{TARTANAIR dataset} &
+dataset} \cite{replica19arxiv} & \texttt{type:\ REPLICA\_DATASET}\tabularnewline
+\href{https://theairlab.org/tartanair-dataset/}{TARTANAIR dataset} \cite{tartanair2020iros} &
 \texttt{type:\ TARTANAIR\_DATASET}\tabularnewline
-\href{http://www.scan-net.org/}{ScanNet dataset} &
+\href{https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/}{Seven Scenes dataset} \cite{seven_scenes} &
+\texttt{type:\ SEVEN\_SCENES\_DATASET}\tabularnewline
+\href{https://github.com/dazinovic/neural-rgbd-surface-reconstruction}{Neural RGBD dataset} \cite{Azinovic_2022_CVPR} &
+\texttt{type:\ NEURAL\_RGBD}\tabularnewline
+\href{https://iis-esslingen.github.io/rover/}{Rover dataset} \cite{schmidt2025rover} &
+\texttt{type:\ ROVER\_DATASET}\tabularnewline
+\href{http://www.scan-net.org/}{ScanNet dataset} \cite{dai2017scannet} &
 \texttt{type:\ SCANNET\_DATASET}\tabularnewline
 \href{https://wiki.ros.org/Bags}{ROS1 bags} &
 \texttt{type:\ ROS1BAG\_DATASET}\tabularnewline
@@ -1916,6 +2027,34 @@ Follow the same instructions provided for the TUM datasets.
   \texttt{TARTANAIR\_DATASET:\ settings:} in the file
   \texttt{config.yaml}).
 \end{enumerate}
+
+\hypertarget{scenes-dataset}{%
+\paragraph{7 Scenes dataset}\label{scenes-dataset}}
+
+To dowload the dataset follow the instructions at
+https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/.
+Select the section \texttt{SEVEN\_SCENES\_DATASET:\ settings:} in the
+file \texttt{config.yaml}.A calibration file
+\texttt{settings/SEVEN\_SCENES.yaml} is already available.
+
+\hypertarget{neural-rgbd-dataset}{%
+\paragraph{Neural RGBD dataset}\label{neural-rgbd-dataset}}
+
+To dowload the dataset follow the instructions at
+https://github.com/dazinovic/neural-rgbd-surface-reconstruction. Select
+the section \texttt{NEURAL\_RGBD\_DATASET:\ settings:} in the file
+\texttt{config.yaml}. A calibration file
+\texttt{settings/NEURAL\_RGBD.yaml} is already available.
+
+\hypertarget{rover-dataset}{%
+\paragraph{Rover dataset}\label{rover-dataset}}
+
+To dowload the dataset follow the instructions at
+https://iis-esslingen.github.io/rover/. Select the section
+\texttt{ROVER\_DATASET:\ settings:} in the file \texttt{config.yaml}. A
+calibration file for the \texttt{d435i} camera is already available:
+\texttt{settings/ROVER\_d435i.yaml}. Other camera models will be
+supported in the future.
 
 \hypertarget{scannet-datasets}{%
 \paragraph{ScanNet Datasets}\label{scannet-datasets}}
