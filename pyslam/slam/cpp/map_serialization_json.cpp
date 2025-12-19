@@ -39,9 +39,9 @@ std::string Map::to_json(const std::string &out_json) const {
 
     try {
         // Static stuff - these are global counters in Python
-        // In C++, we'll store them as part of the map state
-        json_obj["FrameBase._id"] = max_frame_id;    // Use max_frame_id as equivalent
-        json_obj["MapPointBase._id"] = max_point_id; // Use max_point_id as equivalent
+        // In C++, we access them via static methods to match Python behavior
+        json_obj["FrameBase._id"] = FrameBase::next_id();
+        json_obj["MapPointBase._id"] = MapPointBase::next_id();
 
         // Non-static stuff
         // Serialize frames
@@ -110,9 +110,14 @@ void Map::from_json(const std::string &loaded_json) {
     std::lock_guard<MapMutex> update_lock(_update_lock);
 
     try {
-        // Static stuff - restore global counters
-        max_frame_id = safe_json_get(json_obj, "FrameBase._id", 0);
-        max_point_id = safe_json_get(json_obj, "MapPointBase._id", 0);
+        // Static stuff - restore global counters (match Python behavior)
+        int frame_base_id = safe_json_get(json_obj, "FrameBase._id", 0);
+        int mappoint_base_id = safe_json_get(json_obj, "MapPointBase._id", 0);
+        FrameBase::set_id(frame_base_id);
+        MapPointBase::set_id(mappoint_base_id);
+        // Also update instance variables for consistency
+        max_frame_id = frame_base_id;
+        max_point_id = mappoint_base_id;
 
         // Clear existing data
         frames.clear();
@@ -241,6 +246,13 @@ void Map::from_json(const std::string &loaded_json) {
         reloaded_session_map_info = std::make_unique<ReloadedSessionMapInfo>(
             static_cast<int>(keyframes.size()), static_cast<int>(points.size()), max_point_id,
             max_frame_id, max_keyframe_id);
+
+        std::cout << "Map: from_json - FrameBase._id: " << FrameBase::next_id() << std::endl;
+        std::cout << "Map: from_json - MapPointBase._id: " << MapPointBase::next_id() << std::endl;
+
+        // Sync static ID counters with max IDs so new objects continue from the correct ID
+        FrameBase::set_id(max_frame_id);
+        MapPointBase::set_id(max_point_id);
 
     } catch (const std::exception &e) {
         throw std::runtime_error("Error in Map::from_json(): " + std::string(e.what()));

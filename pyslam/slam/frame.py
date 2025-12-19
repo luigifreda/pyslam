@@ -51,10 +51,13 @@ from pyslam.utilities.features import (
     stereo_match_subpixel_correlation,
 )
 from pyslam.utilities.serialization import (
+    deserialize_array_flexible,
+    deserialize_b64_array_flexible,
     NumpyJson,
     NumpyB64Json,
     vector3_serialize,
     vector3_deserialize,
+    cv_mat_to_json_raw,
 )
 
 import atexit
@@ -153,6 +156,11 @@ class FrameBase(object):
     def next_id():
         with FrameBase._id_lock:
             return FrameBase._id
+
+    @staticmethod
+    def set_id(id):
+        with FrameBase._id_lock:
+            FrameBase._id = id
 
     @property
     def width(self):
@@ -620,11 +628,7 @@ class Frame(FrameBase):
             "id": int(self.id),
             "timestamp": float(self.timestamp),
             "img_id": int(self.img_id),
-            "pose": (
-                json.dumps(self._pose.Tcw.astype(float).tolist())
-                if self._pose.Tcw is not None
-                else None
-            ),
+            "pose": (self._pose.Tcw.astype(float).tolist() if self._pose.Tcw is not None else None),
             "camera": self.camera.to_json(),
             "is_keyframe": bool(self.is_keyframe),
             "median_depth": float(self.median_depth),
@@ -632,74 +636,55 @@ class Frame(FrameBase):
             "fov_center_w": vector3_serialize(self.fov_center_w),
             "is_blurry": bool(self.is_blurry),
             "laplacian_var": float(self.laplacian_var) if self.laplacian_var is not None else None,
-            "kps": json.dumps(self.kps.astype(float).tolist()) if self.kps is not None else None,
-            "kps_r": json.dumps(
-                self.kps_r.astype(float).tolist() if self.kps_r is not None else None
-            ),
-            "kpsu": json.dumps(self.kpsu.astype(float).tolist()) if self.kpsu is not None else None,
-            "kpsn": json.dumps(self.kpsn.astype(float).tolist()) if self.kpsn is not None else None,
+            "kps": (self.kps.astype(float).tolist() if self.kps is not None else None),
+            "kps_r": (self.kps_r.astype(float).tolist() if self.kps_r is not None else None),
+            "kpsu": (self.kpsu.astype(float).tolist() if self.kpsu is not None else None),
+            "kpsn": (self.kpsn.astype(float).tolist() if self.kpsn is not None else None),
             "kps_sem": (
-                json.dumps(self.kps_sem.astype(float).tolist())
-                if self.kps_sem is not None
+                cv_mat_to_json_raw(self.kps_sem)
+                if self.kps_sem is not None and len(self.kps_sem) > 0
                 else None
             ),
-            "octaves": json.dumps(self.octaves.tolist()) if self.octaves is not None else None,
-            "octaves_r": json.dumps(
-                self.octaves_r.tolist() if self.octaves_r is not None else None
-            ),
-            "sizes": json.dumps(self.sizes.tolist()) if self.sizes is not None else None,
-            "angles": (
-                json.dumps(self.angles.astype(float).tolist()) if self.angles is not None else None
-            ),
-            "des": (
-                json.dumps(NumpyB64Json.numpy_to_json(self.des)) if self.des is not None else None
-            ),
-            "des_r": (
-                json.dumps(NumpyB64Json.numpy_to_json(self.des_r))
-                if self.des_r is not None
-                else None
-            ),
+            "octaves": (self.octaves.tolist() if self.octaves is not None else None),
+            "octaves_r": (self.octaves_r.tolist() if self.octaves_r is not None else None),
+            "sizes": (self.sizes.tolist() if self.sizes is not None else None),
+            "angles": (self.angles.astype(float).tolist() if self.angles is not None else None),
+            "des": (NumpyB64Json.numpy_to_json(self.des) if self.des is not None else None),
+            "des_r": (NumpyB64Json.numpy_to_json(self.des_r) if self.des_r is not None else None),
             "depths": (
-                json.dumps(self.depths.astype(float).tolist())
+                self.depths.astype(float).tolist()
                 if self.depths is not None and len(self.depths) > 0
                 else None
             ),
             "kps_ur": (
-                json.dumps(self.kps_ur.astype(float).tolist())
+                self.kps_ur.astype(float).tolist()
                 if self.kps_ur is not None and len(self.kps_ur) > 0
                 else None
             ),
             "points": (
-                json.dumps([p.id if p is not None else None for p in self.points])
+                [p.id if p is not None else -1 for p in self.points]
                 if self.points is not None
                 else None
             ),
+            # "points": serialize_points_array(self),
             "outliers": (
-                json.dumps(self.outliers.astype(bool).tolist())
-                if self.outliers is not None
-                else None
+                self.outliers.astype(bool).tolist() if self.outliers is not None else None
             ),
-            "kf_ref": self.kf_ref.id if self.kf_ref is not None else None,
-            "img": (
-                json.dumps(NumpyB64Json.numpy_to_json(self.img)) if self.img is not None else None
-            ),
+            "kf_ref": self.kf_ref.id if self.kf_ref is not None else -1,
+            "img": (NumpyB64Json.numpy_to_json(self.img) if self.img is not None else None),
             "depth_img": (
-                json.dumps(NumpyB64Json.numpy_to_json(self.depth_img))
-                if self.depth_img is not None
-                else None
+                NumpyB64Json.numpy_to_json(self.depth_img) if self.depth_img is not None else None
             ),
             "img_right": (
-                json.dumps(NumpyB64Json.numpy_to_json(self.img_right))
-                if self.img_right is not None
-                else None
+                NumpyB64Json.numpy_to_json(self.img_right) if self.img_right is not None else None
             ),
             "semantic_img": (
-                json.dumps(NumpyB64Json.numpy_to_json(self.semantic_img))
+                NumpyB64Json.numpy_to_json(self.semantic_img)
                 if self.semantic_img is not None
                 else None
             ),
             "semantic_instances_img": (
-                json.dumps(NumpyB64Json.numpy_to_json(self.semantic_instances_img))
+                NumpyB64Json.numpy_to_json(self.semantic_instances_img)
                 if self.semantic_instances_img is not None
                 else None
             ),
@@ -709,16 +694,11 @@ class Frame(FrameBase):
     @staticmethod
     def from_json(json_str):
         camera = PinholeCamera.from_json(json_str["camera"])
-        pose = (
-            np.array(json.loads(json_str["pose"]), dtype=np.float64)
-            if json_str["pose"] is not None
-            else None
-        )
+        pose = deserialize_array_flexible(json_str["pose"], dtype=np.float64)
 
         frame_data_dict = {}
         frame_data_dict["is_keyframe"] = json_str["is_keyframe"]
         frame_data_dict["median_depth"] = json_str["median_depth"]
-        # fov centers: accept array (preferred) or legacy JSON-encoded string
         frame_data_dict["fov_center_c"] = vector3_deserialize(json_str.get("fov_center_c", None))
         frame_data_dict["fov_center_w"] = vector3_deserialize(json_str.get("fov_center_w", None))
 
@@ -731,95 +711,79 @@ class Frame(FrameBase):
         except:
             frame_data_dict["laplacian_var"] = None
 
-        frame_data_dict["kps"] = (
-            np.array(json.loads(json_str["kps"])) if json_str["kps"] is not None else None
+        frame_data_dict["kps"] = deserialize_array_flexible(json_str["kps"], dtype=np.float32)
+        frame_data_dict["kps_r"] = deserialize_array_flexible(json_str["kps_r"], dtype=np.float32)
+        frame_data_dict["kpsu"] = deserialize_array_flexible(json_str["kpsu"], dtype=np.float32)
+        frame_data_dict["kpsn"] = deserialize_array_flexible(json_str["kpsn"], dtype=np.float32)
+        frame_data_dict["kps_sem"] = deserialize_array_flexible(
+            json_str["kps_sem"], dtype=np.float32
         )
-        frame_data_dict["kps_r"] = (
-            np.array(json.loads(json_str["kps_r"])) if json_str["kps_r"] is not None else None
+        frame_data_dict["octaves"] = deserialize_array_flexible(json_str["octaves"], dtype=np.uint8)
+        frame_data_dict["octaves_r"] = deserialize_array_flexible(
+            json_str["octaves_r"], dtype=np.uint8
         )
-        frame_data_dict["kpsu"] = (
-            np.array(json.loads(json_str["kpsu"])) if json_str["kpsu"] is not None else None
-        )
-        frame_data_dict["kpsn"] = (
-            np.array(json.loads(json_str["kpsn"])) if json_str["kpsn"] is not None else None
-        )
-        frame_data_dict["kps_sem"] = (
-            np.array(json.loads(json_str["kps_sem"])) if json_str["kps_sem"] is not None else None
-        )
-        frame_data_dict["octaves"] = (
-            np.array(json.loads(json_str["octaves"])) if json_str["octaves"] is not None else None
-        )
-        frame_data_dict["octaves_r"] = (
-            np.array(json.loads(json_str["octaves_r"]))
-            if json_str["octaves_r"] is not None
-            else None
-        )
-        frame_data_dict["sizes"] = (
-            np.array(json.loads(json_str["sizes"])) if json_str["sizes"] is not None else None
-        )
-        frame_data_dict["angles"] = (
-            np.array(json.loads(json_str["angles"])) if json_str["angles"] is not None else None
-        )
+        frame_data_dict["sizes"] = deserialize_array_flexible(json_str["sizes"], dtype=np.float32)
+        frame_data_dict["angles"] = deserialize_array_flexible(json_str["angles"], dtype=np.float32)
 
+        # Descriptors - direct dict format (NumpyB64Json)
         frame_data_dict["des"] = (
-            NumpyB64Json.json_to_numpy(json.loads(json_str["des"]))
-            if json_str["des"] is not None
-            else None
+            NumpyB64Json.json_to_numpy(json_str["des"]) if json_str["des"] is not None else None
         )
         frame_data_dict["des_r"] = (
-            NumpyB64Json.json_to_numpy(json.loads(json_str["des_r"]))
-            if json_str["des_r"] is not None
-            else None
+            NumpyB64Json.json_to_numpy(json_str["des_r"]) if json_str["des_r"] is not None else None
         )
 
-        frame_data_dict["depths"] = (
-            np.array(json.loads(json_str["depths"])) if json_str["depths"] is not None else None
-        )
-        frame_data_dict["kps_ur"] = (
-            np.array(json.loads(json_str["kps_ur"])) if json_str["kps_ur"] is not None else None
-        )
+        frame_data_dict["depths"] = deserialize_array_flexible(json_str["depths"], dtype=np.float32)
+        frame_data_dict["kps_ur"] = deserialize_array_flexible(json_str["kps_ur"], dtype=np.float32)
 
         pts_val = json_str["points"]
         if pts_val is None:
             frame_data_dict["points"] = None
         else:
-            if isinstance(pts_val, str):
-                pts_val = json.loads(pts_val)
-            frame_data_dict["points"] = np.array(pts_val)
+            # Convert -1 to None for compatibility with C++ serialization
+            # C++ uses -1 for null map points, Python uses None
+            pts_converted = [None if (p is None or p == -1) else p for p in pts_val]
+            # Convert to numpy array with object dtype to preserve None values
+            frame_data_dict["points"] = np.array(pts_converted, dtype=object)
 
         frame_data_dict["outliers"] = (
-            np.array(json.loads(json_str["outliers"])) if json_str["outliers"] is not None else None
+            np.array(json_str["outliers"], dtype=bool) if json_str["outliers"] is not None else None
         )
-        frame_data_dict["kf_ref"] = json_str["kf_ref"] if json_str["kf_ref"] is not None else None
+        # Handle kf_ref: C++ uses -1 for null, Python uses None
+        kf_ref_val = json_str.get("kf_ref", None)
+        frame_data_dict["kf_ref"] = None if (kf_ref_val is None or kf_ref_val == -1) else kf_ref_val
 
+        # Images - direct dict format (NumpyB64Json)
         frame_data_dict["img"] = (
-            NumpyB64Json.json_to_numpy(json.loads(json_str["img"]))
-            if json_str["img"] is not None
-            else None
+            NumpyB64Json.json_to_numpy(json_str["img"]) if json_str["img"] is not None else None
         )
         frame_data_dict["depth_img"] = (
-            NumpyB64Json.json_to_numpy(json.loads(json_str["depth_img"]))
+            NumpyB64Json.json_to_numpy(json_str["depth_img"])
             if json_str["depth_img"] is not None
             else None
         )
         frame_data_dict["img_right"] = (
-            NumpyB64Json.json_to_numpy(json.loads(json_str["img_right"]))
+            NumpyB64Json.json_to_numpy(json_str["img_right"])
             if json_str["img_right"] is not None
             else None
         )
         frame_data_dict["semantic_img"] = (
-            NumpyB64Json.json_to_numpy(json.loads(json_str["semantic_img"]))
+            NumpyB64Json.json_to_numpy(json_str["semantic_img"])
             if json_str["semantic_img"] is not None
             else None
         )
         frame_data_dict["semantic_instances_img"] = (
-            NumpyB64Json.json_to_numpy(json.loads(json_str["semantic_instances_img"]))
+            NumpyB64Json.json_to_numpy(json_str["semantic_instances_img"])
             if json_str["semantic_instances_img"] is not None
             else None
         )
 
         if "kps" in frame_data_dict and "points" in frame_data_dict:
-            assert len(frame_data_dict["kps"]) == len(frame_data_dict["points"])
+            if len(frame_data_dict["kps"]) != len(frame_data_dict["points"]):
+                Printer.red(
+                    f"Frame.from_json: kps: {frame_data_dict['kps']}, points: {frame_data_dict['points']}"
+                )
+                assert False
 
         f = Frame(
             camera=camera,
@@ -843,16 +807,22 @@ class Frame(FrameBase):
         keyframes_dict = {obj.id: obj for obj in keyframes if obj is not None}
 
         def get_object_with_id(id, lookup_dict):
-            if id is None:
+            if id is None or id == -1:  # Handle -1 from C++ serialization
                 return None
             return lookup_dict.get(id, None)
 
-        # Get actual points
+        # Get actual points - ensure points array is properly initialized
         if self.points is not None and len(self.points) > 0:
-            self.points = np.array([get_object_with_id(id, points_dict) for id in self.points])
-        # Get actual kf_ref
-        if self.kf_ref is not None:
+            # Replace IDs with actual map point objects, preserving None values
+            self.points = np.array(
+                [get_object_with_id(id, points_dict) for id in self.points], dtype=object
+            )
+
+        # Get actual kf_ref (handle -1 from C++ serialization)
+        if self.kf_ref is not None and self.kf_ref != -1:
             self.kf_ref = get_object_with_id(self.kf_ref, keyframes_dict)
+        else:
+            self.kf_ref = None
 
     # KD tree of undistorted keypoints
     @property

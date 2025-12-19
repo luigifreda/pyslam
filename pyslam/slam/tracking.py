@@ -985,7 +985,9 @@ class Tracking:
     # N.B.: this function must be called outside 'with self.map.update_lock' blocks,
     #       since both self.track() and the local-mapping optimization use the RLock 'map.update_lock'
     #       => they cannot wait for each other once map.update_lock is locked (deadlock)
-    def wait_for_local_mapping(self, timeout=Parameters.kWaitForLocalMappingTimeout):
+    def wait_for_local_mapping(
+        self, timeout=Parameters.kWaitForLocalMappingTimeout, check_on_exit=False
+    ):
         if not Parameters.kLocalMappingOnSeparateThread:
             return
 
@@ -1028,9 +1030,15 @@ class Tracking:
                 self.local_mapping.wait_idle(print=print, timeout=timeout)
 
         # check again for debug
-        # is_local_mapping_idle = self.local_mapping.is_idle()
-        # local_mapping_queue_size = self.local_mapping.queue_size()
-        # print('is_local_mapping_idle: ', is_local_mapping_idle,', local_mapping_queue_size: ', local_mapping_queue_size)
+        if check_on_exit:
+            is_local_mapping_idle = self.local_mapping.is_idle()
+            local_mapping_queue_size = self.local_mapping.queue_size()
+            Printer.green(
+                "wait_for_local_mapping - is_local_mapping_idle: ",
+                is_local_mapping_idle,
+                ", local_mapping_queue_size: ",
+                local_mapping_queue_size,
+            )
 
     # Here, pose estimates are saved online: At each frame, the current pose estimate is saved.
     # Note that in other frameworks, pose estimates may be saved at the end of the dataset playback
@@ -1239,7 +1247,7 @@ class Tracking:
                     self.predicted_pose, _ = self.motion_model.predict_pose(
                         timestamp, self.f_ref.position(), self.f_ref.orientation()
                     )
-                    f_cur.update_pose(self.predicted_pose)
+                    f_cur.update_pose(self.predicted_pose.matrix().copy())
                 else:
                     print("setting f_cur.pose <-- f_ref.pose")
                     # use reference frame pose as initial guess

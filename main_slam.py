@@ -130,6 +130,7 @@ if __name__ == "__main__":
 
     online_trajectory_writer = None
     final_trajectory_writer = None
+    trajectory_saving_base_path = None
     if config.trajectory_saving_settings["save_trajectory"]:
         (
             trajectory_online_file_path,

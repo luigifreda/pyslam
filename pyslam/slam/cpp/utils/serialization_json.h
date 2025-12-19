@@ -32,6 +32,7 @@ namespace pyslam {
 // Forward declarations for reusable parsing functions
 cv::Mat json_array_to_cv_mat(const nlohmann::json &json_data);
 cv::Mat json_to_cv_mat(const nlohmann::json &json_data);
+cv::Mat json_to_cv_mat_raw(const nlohmann::json &json_data);
 
 // ===============================
 // JSON helpers
@@ -212,18 +213,43 @@ inline cv::Mat safe_parse_cv_mat_flexible(const nlohmann::json &j, const std::st
 
         nlohmann::json mat_data = j[key];
 
-        // Handle case where Python sends JSON-encoded string (raw array)
+        // Handle case where Python sends JSON-encoded string (double-encoded)
         if (mat_data.is_string()) {
             try {
-                // Try to parse as JSON-encoded array first
+                // Parse the string to get the inner JSON object
                 auto parsed = nlohmann::json::parse(mat_data.get<std::string>());
+
+                // Check format type
+                if (parsed.is_object() && parsed.contains("type")) {
+                    std::string type = parsed["type"].get<std::string>();
+                    if (type == "npB64") {
+                        // Base64-encoded format
+                        return json_to_cv_mat(parsed);
+                    } else if (type == "npRaw") {
+                        // Raw numeric array format
+                        return json_to_cv_mat_raw(parsed);
+                    }
+                }
+                // Fallback: try as raw array
                 return json_array_to_cv_mat(parsed);
             } catch (const std::exception &e) {
-                // If parsing fails, try as base64 encoded cv::Mat
-                return json_to_cv_mat(mat_data);
+                // If parsing fails, return empty matrix
+                return cv::Mat();
             }
+        } else if (mat_data.is_object()) {
+            // Direct object - check format type
+            if (mat_data.contains("type")) {
+                std::string type = mat_data["type"].get<std::string>();
+                if (type == "npB64") {
+                    return json_to_cv_mat(mat_data);
+                } else if (type == "npRaw") {
+                    return json_to_cv_mat_raw(mat_data);
+                }
+            }
+            // Try as array format (fallback for unstructured objects)
+            return json_array_to_cv_mat(mat_data);
         } else {
-            // Direct array or base64 encoded cv::Mat
+            // Direct array
             return json_array_to_cv_mat(mat_data);
         }
     } catch (const std::exception &e) {
@@ -392,6 +418,8 @@ inline nlohmann::json cv_mat_to_json_array(const cv::Mat &mat) {
 }
 
 // Convert simple JSON array back to cv::Mat
+// Handles both 1D and 2D arrays, and tries to infer appropriate data type (uint8 for descriptors,
+// float32 otherwise)
 inline cv::Mat json_array_to_cv_mat(const nlohmann::json &json_data) {
     if (json_data.is_null()) {
         return cv::Mat();
@@ -409,24 +437,88 @@ inline cv::Mat json_array_to_cv_mat(const nlohmann::json &json_data) {
     int rows = json_data.size();
     int cols = 1;
     int channels = 1;
+    bool is_2d = false;
 
     if (rows > 0 && json_data[0].is_array()) {
+        is_2d = true;
         cols = json_data[0].size();
         if (cols > 0 && json_data[0][0].is_array()) {
             channels = json_data[0][0].size();
         }
     }
 
+    // Try to infer data type: if all values are integers in [0, 255], use uint8 (for descriptors)
+    // Otherwise use float32
+    bool use_uint8 = true;
+    if (is_2d && rows > 0 && cols > 0) {
+        try {
+            for (int r = 0; r < std::min(rows, 10) && use_uint8; ++r) { // Sample first 10 rows
+                if (channels == 1) {
+                    for (int c = 0; c < std::min(cols, 10) && use_uint8; ++c) {
+                        double val = json_data[r][c].get<double>();
+                        if (val < 0 || val > 255 || val != std::floor(val)) {
+                            use_uint8 = false;
+                        }
+                    }
+                } else {
+                    for (int c = 0; c < std::min(cols, 10) && use_uint8; ++c) {
+                        for (int ch = 0; ch < channels && use_uint8; ++ch) {
+                            double val = json_data[r][c][ch].get<double>();
+                            if (val < 0 || val > 255 || val != std::floor(val)) {
+                                use_uint8 = false;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (...) {
+            use_uint8 = false;
+        }
+    } else if (rows > 0) {
+        // 1D array
+        try {
+            for (int i = 0; i < std::min(rows, 10) && use_uint8; ++i) {
+                double val = json_data[i].get<double>();
+                if (val < 0 || val > 255 || val != std::floor(val)) {
+                    use_uint8 = false;
+                }
+            }
+        } catch (...) {
+            use_uint8 = false;
+        }
+    } else {
+        use_uint8 = false;
+    }
+
     // Create appropriate cv::Mat
     cv::Mat result;
     if (channels == 1) {
-        result = cv::Mat::zeros(rows, cols, CV_32F);
-        for (int r = 0; r < rows; ++r) {
-            if (cols == 1) {
-                result.at<float>(r) = json_data[r].get<float>();
+        if (use_uint8) {
+            result = cv::Mat::zeros(rows, cols, CV_8U);
+            if (is_2d) {
+                for (int r = 0; r < rows; ++r) {
+                    for (int c = 0; c < cols; ++c) {
+                        result.at<uint8_t>(r, c) = static_cast<uint8_t>(json_data[r][c].get<int>());
+                    }
+                }
             } else {
-                for (int c = 0; c < cols; ++c) {
-                    result.at<float>(r, c) = json_data[r][c].get<float>();
+                // 1D array
+                for (int r = 0; r < rows; ++r) {
+                    result.at<uint8_t>(r) = static_cast<uint8_t>(json_data[r].get<int>());
+                }
+            }
+        } else {
+            result = cv::Mat::zeros(rows, cols, CV_32F);
+            if (is_2d) {
+                for (int r = 0; r < rows; ++r) {
+                    for (int c = 0; c < cols; ++c) {
+                        result.at<float>(r, c) = json_data[r][c].get<float>();
+                    }
+                }
+            } else {
+                // 1D array
+                for (int r = 0; r < rows; ++r) {
+                    result.at<float>(r) = json_data[r].get<float>();
                 }
             }
         }

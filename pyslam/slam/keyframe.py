@@ -29,6 +29,8 @@ from threading import Lock
 
 from pyslam.config_parameters import Parameters
 from pyslam.utilities.system import Printer
+from pyslam.utilities.serialization import extract_tcw_matrix_from_pose_data
+
 from collections import defaultdict, OrderedDict, Counter
 
 from .frame import Frame
@@ -73,6 +75,9 @@ class KeyFrameGraph(object):
                 "parent": self.parent.id if self.parent is not None else None,
                 "children": [k.id for k in self.children],
                 "loop_edges": [k.id for k in self.loop_edges],
+                "init_parent": bool(
+                    self.init_parent
+                ),  # Missing field - critical for proper keyframe hierarchy
                 "not_to_erase": bool(self.not_to_erase),
                 "connected_keyframes_weights": [
                     (k.id, w) for k, w in self.connected_keyframes_weights.items() if k is not None
@@ -90,6 +95,7 @@ class KeyFrameGraph(object):
             self.loop_edges = json_str[
                 "loop_edges"
             ]  # converted to set in replace_ids_with_objects()
+            self.init_parent = bool(json_str.get("init_parent", False))  # Restore init_parent flag
             self.not_to_erase = json_str["not_to_erase"]
             self.connected_keyframes_weights = json_str[
                 "connected_keyframes_weights"
@@ -355,7 +361,27 @@ class KeyFrame(Frame, KeyFrameGraph):
         frame_json["_is_bad"] = self._is_bad
         frame_json["lba_count"] = self.lba_count
         frame_json["to_be_erased"] = self.to_be_erased
-        frame_json["_pose_Tcp"] = json.dumps(self._pose_Tcp.Tcw.astype(float).tolist())
+        frame_json["_pose_Tcp"] = (
+            self._pose_Tcp.Tcw.astype(float).tolist() if self._pose_Tcp.Tcw is not None else None
+        )
+        frame_json["is_Tcw_GBA_valid"] = self.is_Tcw_GBA_valid
+
+        # Loop closing and relocalization fields
+        frame_json["loop_query_id"] = self.loop_query_id
+        frame_json["num_loop_words"] = self.num_loop_words
+        frame_json["loop_score"] = self.loop_score
+        frame_json["reloc_query_id"] = self.reloc_query_id
+        frame_json["num_reloc_words"] = self.num_reloc_words
+        frame_json["reloc_score"] = self.reloc_score
+
+        # GBA fields
+        frame_json["GBA_kf_id"] = self.GBA_kf_id
+        frame_json["Tcw_GBA"] = (
+            self.Tcw_GBA.astype(float).tolist() if self.Tcw_GBA is not None else None
+        )
+        frame_json["Tcw_before_GBA"] = (
+            self.Tcw_before_GBA.astype(float).tolist() if self.Tcw_before_GBA is not None else None
+        )
 
         keyframe_graph_json = KeyFrameGraph.to_json(self)
         return {**frame_json, **keyframe_graph_json}
@@ -370,7 +396,34 @@ class KeyFrame(Frame, KeyFrameGraph):
         kf._is_bad = bool(json_str["_is_bad"])
         kf.lba_count = int(json_str["lba_count"])
         kf.to_be_erased = bool(json_str["to_be_erased"])
-        kf._pose_Tcp = CameraPose(json.loads(json_str["_pose_Tcp"]))
+        # Handle _pose_Tcp - extract Tcw matrix, then instantiate CameraPose
+        tcw_matrix = extract_tcw_matrix_from_pose_data(json_str.get("_pose_Tcp"))
+        if tcw_matrix is not None:
+            kf._pose_Tcp = CameraPose(tcw_matrix)
+        else:
+            kf._pose_Tcp = CameraPose()
+        kf.is_Tcw_GBA_valid = bool(json_str.get("is_Tcw_GBA_valid", False))
+
+        # Loop closing and relocalization fields
+        kf.loop_query_id = json_str.get("loop_query_id", None)
+        kf.num_loop_words = int(json_str.get("num_loop_words", 0))
+        kf.loop_score = float(json_str.get("loop_score", 0.0))
+        kf.reloc_query_id = json_str.get("reloc_query_id", None)
+        kf.num_reloc_words = int(json_str.get("num_reloc_words", 0))
+        kf.reloc_score = float(json_str.get("reloc_score", 0.0))
+
+        # GBA fields
+        kf.GBA_kf_id = int(json_str.get("GBA_kf_id", 0))
+        tcw_gba_matrix = extract_tcw_matrix_from_pose_data(json_str.get("Tcw_GBA"))
+        if tcw_gba_matrix is not None:
+            kf.Tcw_GBA = tcw_gba_matrix
+        else:
+            kf.Tcw_GBA = None
+        tcw_before_gba_matrix = extract_tcw_matrix_from_pose_data(json_str.get("Tcw_before_GBA"))
+        if tcw_before_gba_matrix is not None:
+            kf.Tcw_before_GBA = tcw_before_gba_matrix
+        else:
+            kf.Tcw_before_GBA = None
 
         kf.init_from_json(json_str)
         return kf

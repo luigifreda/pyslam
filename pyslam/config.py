@@ -457,7 +457,7 @@ class Config:
         # print(f'[config] stereo settings: {self._cam_stereo_settings}')
         return self._cam_stereo_settings
 
-    def from_json(self, json_str: dict | str):
+    def from_json(self, json_str):
         """
         Update the config from a JSON string or dict.
         The payload may contain any of the following optional fields; missing fields

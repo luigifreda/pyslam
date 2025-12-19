@@ -296,6 +296,7 @@ void bind_frame(py::module &m) {
              })
         .def_readwrite("id", &pyslam::FrameBase::id)
         .def_static("next_id", &pyslam::FrameBase::next_id)
+        .def_static("set_id", &pyslam::FrameBase::set_id)
         .def_readwrite("timestamp", &pyslam::FrameBase::timestamp)
         .def_readwrite("img_id", &pyslam::FrameBase::img_id)
         .def_property(

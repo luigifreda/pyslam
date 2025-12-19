@@ -63,11 +63,14 @@ data/slam_state
 data/kitti_trajectory.txt
 data/skyseg.onnx
 
+pyslam/slam/cpp/tests_py/test_data
+
 leftover/
 results/
 
 cpp/test_opencv_casters/build
 cpp/test_opencv_casters/lib
+cpp/.cache/clangd
 
 pyslam/slam/cpp/build
 pyslam/slam/cpp/build_simple

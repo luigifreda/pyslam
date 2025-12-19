@@ -18,6 +18,7 @@
 """
 
 import numpy as np
+import ujson as json
 from .semantic_types import (
     SemanticFeatureType,
 )
@@ -34,13 +35,38 @@ def serialize_semantic_des(semantic_des, semantic_type: SemanticFeatureType):
     }
 
 
-def deserialize_semantic_des(data: dict):
-    data_type = data["type"]
-    semantic_type = SemanticFeatureType[data_type] if data_type is not None else None
-    value = data["value"]
-    if semantic_type is None or value is None:
+def deserialize_semantic_des(data):
+    """
+    Deserialize semantic descriptor data.
+
+    Args:
+        data: Can be None, dict, or string (JSON-encoded dict)
+
+    Returns:
+        tuple: (semantic_des, semantic_type) where both can be None
+    """
+    # Handle None values
+    if data is None:
         return None, None
-    if semantic_type == SemanticFeatureType.LABEL:
-        return int(value), semantic_type
-    else:
-        return np.array(value), semantic_type
+
+    # Handle stringified JSON (Python serialization)
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except (json.JSONDecodeError, ValueError):
+            return None, None
+
+    # Handle dict (C++ serialization or parsed Python serialization)
+    if isinstance(data, dict):
+        data_type = data.get("type")
+        semantic_type = SemanticFeatureType[data_type] if data_type is not None else None
+        value = data.get("value")
+        if semantic_type is None or value is None:
+            return None, None
+        if semantic_type == SemanticFeatureType.LABEL:
+            return int(value), semantic_type
+        else:
+            return np.array(value), semantic_type
+
+    # Unknown format
+    return None, None

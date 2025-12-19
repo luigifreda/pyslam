@@ -105,7 +105,65 @@ class SerializableEnum(Enum):
         return value
 
 
-class SerializableEnumEncoder(json_.JSONEncoder):
+def format_floats_for_json(obj):
+    """
+    Recursively format floats in a data structure to ensure consistent JSON representation.
+    This helps avoid floating point differences when saving and reloading maps.
+
+    Uses a consistent formatting approach:
+    - For regular floats: uses repr() which gives the shortest representation that round-trips correctly
+    - This ensures the same float value always produces the same string representation
+    - Preserves full precision for IEEE 754 double precision (53 bits of precision)
+    """
+    if isinstance(obj, dict):
+        return {k: format_floats_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [format_floats_for_json(item) for item in obj]
+    elif isinstance(obj, float):
+        # Use repr() which gives the shortest representation that round-trips correctly
+        # This ensures consistent formatting: the same float value always produces the same string
+        # Example: 1.0 -> "1.0", 0.1 -> "0.1", 1.2345678901234567 -> "1.2345678901234567"
+        # This is better than fixed precision which might add unnecessary zeros
+        return float(repr(obj))
+    elif isinstance(obj, np.floating):
+        # Handle numpy float types (float32, float64, etc.)
+        # Convert to Python float first, then use repr() for consistent formatting
+        return float(repr(float(obj)))
+    elif isinstance(obj, np.integer):
+        # Handle numpy integer types
+        return int(obj)
+    elif isinstance(obj, np.ndarray):
+        # For numpy arrays, convert to list and format recursively
+        return format_floats_for_json(obj.tolist())
+    return obj
+
+
+class PreciseFloatEncoder(json_.JSONEncoder):
+    """
+    Custom JSON encoder that ensures consistent float formatting with maximum precision.
+    This helps avoid floating point differences when saving and reloading maps.
+
+    Note: Works with standard json module. For ujson, use format_floats_for_json()
+    to pre-process the data before serialization.
+    """
+
+    def encode(self, obj):
+        # Recursively process the object to format floats consistently
+        formatted_obj = format_floats_for_json(obj)
+        return super().encode(formatted_obj)
+
+    def default(self, obj):
+        # Handle numpy types
+        if isinstance(obj, np.ndarray):
+            return format_floats_for_json(obj.tolist())
+        elif isinstance(obj, np.floating):
+            return float(repr(float(obj)))
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        return super().default(obj)
+
+
+class SerializableEnumEncoder(PreciseFloatEncoder):
     def default(self, obj):
         if isinstance(obj, SerializableEnum):
             return obj.to_json()
@@ -325,6 +383,20 @@ class NumpyJson:
 
     @staticmethod
     def json_to_numpy(data):
+        # Handle None input
+        if data is None:
+            return None
+
+        # Handle string input (from C++ serialization) - parse as JSON first
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+                # After parsing, data might be None (if JSON string was "null")
+                if data is None:
+                    return None
+            except (json.JSONDecodeError, TypeError):
+                raise TypeError(f"json_to_numpy: Failed to parse string as JSON: {data}")
+
         if NumpyJson.is_encoded(data):
             try:
                 dtype = np.dtype(data["dtype"])
@@ -372,6 +444,20 @@ class NumpyB64Json:
 
     @staticmethod
     def json_to_numpy(data):
+        # Handle None input
+        if data is None:
+            return None
+
+        # Handle string input (from C++ serialization) - parse as JSON first
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+                # After parsing, data might be None (if JSON string was "null")
+                if data is None:
+                    return None
+            except (json.JSONDecodeError, TypeError):
+                raise TypeError(f"json_to_numpy: Failed to parse string as JSON: {data}")
+
         if NumpyB64Json.is_encoded(data):
             try:
                 buffer = base64.b64decode(data["data"])
@@ -409,6 +495,118 @@ class NumpyB64Json:
 # ------------------------------
 
 
+def cv_mat_to_json_raw(mat):
+    """Convert numpy array (cv::Mat equivalent) to JSON raw format matching C++ cv_mat_to_json_raw.
+    Returns dict with format: {"type": "npRaw", "dtype": "...", "shape": [...], "data": [...]}
+    """
+    if mat is None or (isinstance(mat, np.ndarray) and mat.size == 0):
+        return None
+
+    arr = np.ascontiguousarray(mat)
+
+    # Map numpy dtype to C++ dtype string
+    dtype_map = {
+        np.uint8: "uint8",
+        np.int8: "int8",
+        np.uint16: "uint16",
+        np.int16: "int16",
+        np.int32: "int32",
+        np.float32: "float32",
+        np.float64: "float64",
+    }
+    base_dtype = dtype_map.get(arr.dtype.type, "uint8")
+
+    # Determine shape: [rows, cols] or [rows, cols, channels]
+    # C++ format: [rows, cols] for 2D, [rows, cols, channels] for 3D
+    if arr.ndim == 2:
+        shape = [int(arr.shape[0]), int(arr.shape[1])]
+    elif arr.ndim == 1:
+        shape = [int(arr.shape[0]), 1]
+    elif arr.ndim == 3:
+        shape = [int(arr.shape[0]), int(arr.shape[1]), int(arr.shape[2])]
+    else:
+        shape = [int(s) for s in arr.shape]
+
+    # Flatten data
+    data = arr.flatten().tolist()
+
+    return {"type": "npRaw", "dtype": base_dtype, "shape": shape, "data": data}
+
+
+def json_to_cv_mat_raw(json_data):
+    """Convert JSON raw format (from cv_mat_to_json_raw) back to numpy array.
+    Handles format: {"type": "npRaw", "dtype": "...", "shape": [...], "data": [...]}
+
+    Args:
+        json_data: Dict with keys "type", "dtype", "shape", "data" or None
+
+    Returns:
+        numpy.ndarray or None
+    """
+    if json_data is None:
+        return None
+
+    if not isinstance(json_data, dict) or json_data.get("type") != "npRaw":
+        return None
+
+    try:
+        dtype_str = json_data["dtype"]
+        shape = tuple(json_data["shape"])
+        data = json_data["data"]
+        dtype_map = {
+            "uint8": np.uint8,
+            "int8": np.int8,
+            "uint16": np.uint16,
+            "int16": np.int16,
+            "int32": np.int32,
+            "float32": np.float32,
+            "float64": np.float64,
+        }
+        dtype = dtype_map.get(dtype_str, np.uint8)
+        return np.array(data, dtype=dtype).reshape(shape)
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def extract_tcw_matrix_from_pose_data(pose_data):
+    """Extract Tcw matrix from various pose data formats.
+
+    Handles:
+    - None: returns None
+    - List/Array: direct Tcw matrix (Python/C++ aligned format)
+    - Dict with "Tcw" key: extract Tcw from dict (legacy C++ CameraPose format)
+    - String: parse JSON string and extract Tcw (legacy C++ CameraPose format)
+
+    Args:
+        pose_data: Can be None, list, tuple, np.ndarray, dict, or str
+
+    Returns:
+        numpy.ndarray of shape (4, 4) or None
+    """
+    if pose_data is None:
+        return None
+
+    # Direct array format (aligned Python and C++ serialization)
+    if isinstance(pose_data, (list, tuple, np.ndarray)):
+        return np.array(pose_data, dtype=np.float64)
+
+    # Handle string format (legacy C++ CameraPose::to_json() returns JSON string)
+    if isinstance(pose_data, str):
+        try:
+            pose_data = json.loads(pose_data)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+    # Handle dict format (legacy C++ format with Tcw and covariance)
+    if isinstance(pose_data, dict):
+        if "Tcw" in pose_data:
+            return np.array(pose_data["Tcw"], dtype=np.float64)
+        # If it's a dict but no Tcw key, try to use it as array directly
+        return None
+
+    return None
+
+
 def vector3_serialize(value):
     """Serialize a 3D vector as a JSON array [x, y, z] or None.
     Accepts numpy arrays of shape (3,), (3,1), or (1,3). Returns a Python list or None.
@@ -424,22 +622,224 @@ def vector3_serialize(value):
 
 
 def vector3_deserialize(val):
-    """Deserialize a vector that might be:
-    - None
-    - a JSON-encoded string of a NumpyJson payload (legacy)
-    - a plain list/array of 3 numbers
+    """Deserialize a vector from direct JSON array format.
+    - None: returns None
+    - a plain list/array of 3 numbers: returns numpy array of shape (3,1)
 
     Returns a numpy array of shape (3,1) or None.
     """
     if val is None:
         return None
-    if isinstance(val, str):
-        try:
-            return NumpyJson.json_to_numpy(json.loads(val))
-        except Exception:
-            return None
     try:
         arr = np.asarray(val, dtype=np.float64).reshape(3, 1)
         return arr
     except Exception:
         return None
+
+
+# ------------------------------
+# JSON helpers
+# ------------------------------
+
+
+# Convert inf/nan to None for JSON compatibility
+def convert_inf_nan(obj):
+    """Recursively convert inf and nan to None for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: convert_inf_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_inf_nan(item) for item in obj]
+    elif isinstance(obj, float):
+        if np.isinf(obj) or np.isnan(obj):
+            return None
+        return obj
+    return obj
+
+
+# ------------------------------
+# Flexible array deserialization
+# ------------------------------
+
+
+def deserialize_array_flexible(value, dtype=None):
+    """
+    Deserialize an array value from direct JSON array format.
+    - None: returns None
+    - String: parses as JSON (handles Python json.dumps format)
+    - List/Array: directly converts to numpy array
+    - Already a numpy array: returns as-is (optionally converts dtype)
+
+    Args:
+        value: The value to deserialize (can be None, str, list, tuple, or np.ndarray)
+        dtype: Optional numpy dtype to convert to (e.g., np.float64, np.uint8)
+
+    Returns:
+        numpy.ndarray or None
+    """
+    if value is None:
+        return None
+
+    # Handle string input (Python json.dumps format) - parse as JSON
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+            # After parsing, value might be None (if JSON string was "null")
+            if value is None:
+                return None
+        except (json.JSONDecodeError, TypeError):
+            raise TypeError(f"deserialize_array_flexible: Failed to parse string as JSON: {value}")
+
+    if isinstance(value, (list, tuple)):
+        # Direct array/list format (aligned Python and C++ serialization)
+        arr = np.array(value, dtype=dtype)
+        return arr
+    elif isinstance(value, np.ndarray):
+        # Already a numpy array
+        if dtype is not None and value.dtype != dtype:
+            return value.astype(dtype)
+        return value
+    else:
+        raise TypeError(
+            f"deserialize_array_flexible: Expected None, str, list, tuple, or np.ndarray, got {type(value)}"
+        )
+
+
+def deserialize_b64_array_flexible(value):
+    """
+    Deserialize a base64-encoded numpy array value from direct JSON dict format.
+    - None: returns None
+    - Dict: directly converts to numpy array using NumpyB64Json
+
+    Args:
+        value: The value to deserialize (can be None or dict)
+
+    Returns:
+        numpy.ndarray or None (ensures at least 1D array for numba compatibility)
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, dict):
+        # Direct dict/object format (aligned Python and C++ serialization)
+        try:
+            result = NumpyB64Json.json_to_numpy(value)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Failed to convert dict to base64 array: {e}")
+    else:
+        raise TypeError(f"deserialize_b64_array_flexible: Expected None or dict, got {type(value)}")
+
+    # Ensure at least 1-dimensional array (numba requires arrays, not scalars)
+    if result is not None and isinstance(result, np.ndarray):
+        if result.ndim == 0:
+            # 0-dimensional array (scalar) - reshape to 1D
+            result = result.reshape(1)
+        elif result.size == 0:
+            # Empty array - return None
+            return None
+        # Ensure contiguous for numba
+        if not result.flags["C_CONTIGUOUS"]:
+            result = np.ascontiguousarray(result)
+
+    return result
+
+
+def _validate_and_fix_numba_compatibility(result, dtype, ensure_contiguous):
+    """Validate and fix numpy array for numba compatibility.
+
+    Args:
+        result: numpy array to validate
+        dtype: Target numpy dtype
+        ensure_contiguous: If True, ensure the array is C-contiguous
+
+    Returns:
+        numpy.ndarray or None if invalid
+    """
+    if result is None or not isinstance(result, np.ndarray):
+        return None
+
+    # Reject object dtype arrays (numba cannot handle them)
+    if result.dtype == np.object_ or result.dtype == object:
+        return None
+
+    # Convert to target dtype if needed
+    if result.dtype != dtype:
+        try:
+            result = result.astype(dtype)
+        except (ValueError, TypeError):
+            return None
+
+    # Ensure at least 1-dimensional array (numba requires arrays, not scalars)
+    if result.ndim == 0:
+        result = result.reshape(1)
+
+    # Check for empty arrays after ensuring 1D+
+    if result.size == 0:
+        return None
+
+    # Ensure contiguous memory for numba
+    if ensure_contiguous and not result.flags["C_CONTIGUOUS"]:
+        result = np.ascontiguousarray(result)
+
+    return result
+
+
+def deserialize_descriptor_flexible(value, dtype=np.uint8, ensure_contiguous=True):
+    """
+    Deserialize a descriptor value from direct JSON dict format and ensure numba compatibility.
+
+    Handles:
+    - None: returns None
+    - Dict (structured format): handles NumpyB64Json, NumpyJson, cv_mat_to_json_raw, or generic formats
+    - List/Array: directly converts to numpy array (fallback for backward compatibility)
+
+    Args:
+        value: The value to deserialize (can be None, dict, list, tuple, or np.ndarray)
+        dtype: Target numpy dtype (default: np.uint8 for ORB descriptors)
+        ensure_contiguous: If True, ensure the array is C-contiguous for numba (default: True)
+
+    Returns:
+        numpy.ndarray or None (returns None if deserialization fails or array is invalid)
+    """
+    if value is None:
+        return None
+
+    result = None
+
+    # Handle dict input (structured format - aligned Python and C++ serialization)
+    if isinstance(value, dict):
+        # Try structured formats in order of preference
+        if NumpyB64Json.is_encoded(value):
+            result = NumpyB64Json.json_to_numpy(value)
+        elif NumpyJson.is_encoded(value):
+            result = NumpyJson.json_to_numpy(value)
+        elif value.get("type") == "npRaw":
+            # Use the dedicated function for cv_mat_to_json_raw format
+            result = json_to_cv_mat_raw(value)
+        elif "dtype" in value and "shape" in value and "data" in value:
+            # Generic format with dtype, shape, data
+            try:
+                dtype_str = value["dtype"]
+                shape = tuple(value["shape"])
+                array_data = value["data"]
+                result = np.array(array_data, dtype=np.dtype(dtype_str)).reshape(shape)
+            except (TypeError, ValueError, KeyError):
+                pass
+
+        # Fallback: try as simple array if structured formats failed
+        if result is None:
+            try:
+                result = np.array(value, dtype=dtype)
+            except (TypeError, ValueError):
+                return None
+
+    # Handle list/tuple/array input (simple array format - backward compatibility)
+    elif isinstance(value, (list, tuple, np.ndarray)):
+        try:
+            result = np.array(value, dtype=dtype)
+        except (TypeError, ValueError):
+            return None
+    else:
+        return None
+
+    # Validate and fix for numba compatibility
+    return _validate_and_fix_numba_compatibility(result, dtype, ensure_contiguous)

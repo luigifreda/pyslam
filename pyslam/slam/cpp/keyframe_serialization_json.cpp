@@ -236,7 +236,8 @@ std::string KeyFrame::to_json() const {
     frame_json["_is_bad"] = _is_bad;
     frame_json["lba_count"] = lba_count;
     frame_json["to_be_erased"] = to_be_erased;
-    frame_json["_pose_Tcp"] = _pose_Tcp.to_json();
+    // Serialize _pose_Tcp as direct array (aligned with Frame::pose serialization)
+    frame_json["_pose_Tcp"] = eigen_matrix_to_json_array(_pose_Tcp.Tcw());
     frame_json["is_Tcw_GBA_valid"] = is_Tcw_GBA_valid;
 
     // Add loop closing and relocalization fields

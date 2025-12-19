@@ -145,6 +145,10 @@ class MapPointBase {
     void increase_visible(int num_times = 1);
     void increase_found(int num_times = 1);
     float get_found_ratio() const;
+
+    // Static methods
+    static int next_id();
+    static void set_id(int id);
 };
 
 // MapPoint class - matches Python MapPoint exactly

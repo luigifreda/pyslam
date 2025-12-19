@@ -90,7 +90,8 @@ std::string MapPoint::to_json() const {
         json_obj["last_frame_id_seen"] = last_frame_id_seen;
     }
 
-    // Descriptor
+    // Descriptor - use raw format (npRaw) to match Python's cv_mat_to_json_raw format
+    // The flexible deserialization will handle both npRaw and npB64 formats when loading
     if (!des.empty()) {
         json_obj["des"] = cv_mat_to_json_raw(des);
     } else {
@@ -184,9 +185,15 @@ MapPointPtr MapPoint::from_json(const std::string &json_str) {
     p->num_times_found = safe_json_get(json_obj, "num_times_found", 1);
     p->last_frame_id_seen = safe_json_get(json_obj, "last_frame_id_seen", -1);
 
-    // Parse descriptor
+    // Parse descriptor - use flexible parser to handle both base64 (npB64) and raw (npRaw) formats
+    // This matches how frames handle descriptors for consistency
     if (json_obj.contains("des") && !json_obj["des"].is_null()) {
-        p->des = json_to_cv_mat_raw(json_obj["des"]);
+        try {
+            p->des = safe_parse_cv_mat_flexible(json_obj, "des");
+        } catch (const std::exception &e) {
+            // If parsing fails, leave as empty matrix
+            p->des = cv::Mat();
+        }
     }
 
     // Parse distance fields

@@ -54,6 +54,16 @@ MapPointBase::MapPointBase(int id)
     }
 }
 
+int MapPointBase::next_id() {
+    std::lock_guard<std::mutex> lock(_id_lock);
+    return _id;
+}
+
+void MapPointBase::set_id(int id) {
+    std::lock_guard<std::mutex> lock(_id_lock);
+    _id = id;
+}
+
 std::vector<std::pair<KeyFramePtr, int>> MapPointBase::observations() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     return std::vector<std::pair<KeyFramePtr, int>>(_observations.begin(), _observations.end());

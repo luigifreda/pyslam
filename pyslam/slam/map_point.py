@@ -22,6 +22,9 @@ import time
 import numpy as np
 from threading import RLock, Lock, Thread
 
+# import json
+import ujson as json
+
 from pyslam.utilities.geometry import poseRt, add_ones, normalize_vector, normalize_vector2
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.utilities.system import Printer
@@ -29,6 +32,11 @@ from pyslam.config_parameters import Parameters
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 from pyslam.semantics.semantic_serialization import serialize_semantic_des, deserialize_semantic_des
+from pyslam.utilities.serialization import (
+    deserialize_descriptor_flexible,
+    cv_mat_to_json_raw,
+    json_to_cv_mat_raw,
+)
 
 from typing import TYPE_CHECKING
 
@@ -77,6 +85,16 @@ class MapPointBase(object):
         self.corrected_by_kf = 0  # use kf.kid here!
         self.corrected_reference = 0  # use kf.kid here!
         self.kf_ref = None  # reference keyframe
+
+    @staticmethod
+    def next_id():
+        with MapPointBase._id_lock:
+            return MapPointBase._id
+
+    @staticmethod
+    def set_id(id):
+        with MapPointBase._id_lock:
+            MapPointBase._id = id
 
     def __hash__(self):
         return self.id
@@ -417,17 +435,25 @@ class MapPoint(MapPointBase):
                 if self.semantic_color is not None and isinstance(self.semantic_color, np.ndarray)
                 else self.semantic_color
             ),
-            "des": self.des.tolist() if self.des is not None else None,
+            "des": (
+                cv_mat_to_json_raw(self.des) if self.des is not None and len(self.des) > 0 else None
+            ),
             "_min_distance": self._min_distance,
             "_max_distance": self._max_distance,
             "normal": self.normal.tolist(),
             "first_kid": int(self.first_kid),
-            "kf_ref": int(self.kf_ref.id) if self.kf_ref is not None else None,
+            "kf_ref": int(self.kf_ref.id) if self.kf_ref is not None else -1,
         }
 
     @staticmethod
     def from_json(json_str):
-        p = MapPoint(json_str["pt"], json_str["color"], keyframe=None, idxf=None, id=json_str["id"])
+        # Handle pt position - can be a list or string (from C++ round-trip)
+        pt_data = json_str["pt"]
+        if isinstance(pt_data, str):
+            pt_data = json.loads(pt_data)
+        pt = np.asarray(pt_data, dtype=np.float64)
+
+        p = MapPoint(pt, json_str["color"], keyframe=None, idxf=None, id=json_str["id"])
 
         p._observations = json_str["_observations"]
         p._frame_views = json_str["_frame_views"]
@@ -437,12 +463,24 @@ class MapPoint(MapPointBase):
         p.num_times_found = json_str["num_times_found"]
         p.last_frame_id_seen = json_str["last_frame_id_seen"]
 
-        p.des = np.array(json_str["des"])
+        # Handle descriptor - direct dict format (cv_mat_to_json_raw)
+        if json_str["des"] is not None:
+            # Try cv_mat_to_json_raw format first (aligned with C++)
+            p.des = json_to_cv_mat_raw(json_str["des"])
+            if p.des is None:
+                # Fallback to flexible deserialization for backward compatibility
+                p.des = deserialize_descriptor_flexible(
+                    json_str["des"], dtype=np.uint8, ensure_contiguous=True
+                )
+        else:
+            p.des = None
         p._min_distance = json_str["_min_distance"]
         p._max_distance = json_str["_max_distance"]
         p.normal = np.array(json_str["normal"])
         p.first_kid = json_str["first_kid"]
-        p.kf_ref = json_str["kf_ref"]
+        # Handle kf_ref: C++ uses -1 for null, Python uses None
+        kf_ref_val = json_str.get("kf_ref", None)
+        p.kf_ref = None if (kf_ref_val is None or kf_ref_val == -1) else kf_ref_val
 
         p.semantic_des, semantic_type = deserialize_semantic_des(json_str["semantic_des"])
         semantic_color = json_str["semantic_color"]
@@ -469,9 +507,11 @@ class MapPoint(MapPointBase):
             self._frame_views = {
                 get_object_with_id(fid, frames_dict): idx for fid, idx in self._frame_views
             }
-        # Replace kf_ref
-        if self.kf_ref is not None:
+        # Replace kf_ref (handle -1 from C++ serialization)
+        if self.kf_ref is not None and self.kf_ref != -1:
             self.kf_ref = get_object_with_id(self.kf_ref, keyframes_dict)
+        else:
+            self.kf_ref = None
 
     def pt(self):
         with self._lock_pos:

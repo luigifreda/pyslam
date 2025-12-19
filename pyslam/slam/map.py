@@ -289,10 +289,10 @@ class Map(object):
             pass
         point.delete()
 
-    def add_frame(self, frame: Frame, ovverride_id=False):
+    def add_frame(self, frame: Frame, override_id=False):
         with self._lock:
             ret = frame.id
-            if ovverride_id:
+            if override_id:
                 ret = self.max_frame_id
                 frame.id = ret  # override original id
                 self.max_frame_id += 1
@@ -948,8 +948,8 @@ class Map(object):
         with self._lock:
             with self.update_lock:
                 # static stuff
-                out_json["FrameBase._id"] = FrameBase._id
-                out_json["MapPointBase._id"] = MapPointBase._id
+                out_json["FrameBase._id"] = FrameBase.next_id()
+                out_json["MapPointBase._id"] = MapPointBase.next_id()
 
                 # non-static stuff
                 out_json["frames"] = [f.to_json() for f in self.frames]
@@ -971,6 +971,16 @@ class Map(object):
 
     # NOTE: keep this updated according to new data structure changes
     def from_json(self, loaded_json):
+        # Handle both string (C++ serialization) and dict (Python serialization) inputs
+        if isinstance(loaded_json, str):
+            # C++ serialization: JSON string needs to be parsed
+            try:
+                loaded_json = json.loads(loaded_json)
+            except (json.JSONDecodeError, ValueError) as e:
+                raise ValueError(f"Failed to parse JSON string for map: {e}")
+        elif not isinstance(loaded_json, dict):
+            raise TypeError(f"Map.from_json expects str or dict, got {type(loaded_json)}")
+
         # static stuff
         FrameBase._id = loaded_json["FrameBase._id"]
         MapPointBase._id = loaded_json["MapPointBase._id"]
@@ -1031,6 +1041,17 @@ class Map(object):
                     self.max_frame_id,
                     self.max_keyframe_id,
                 )
+
+        print(
+            f"Map: from_json - FrameBase._id: {FrameBase._id} - max_frame_id: {self.max_frame_id}"
+        )
+        print(
+            f"Map: from_json - MapPointBase._id: {MapPointBase._id} - max_point_id: {self.max_point_id}"
+        )
+
+        # Sync static ID counters with max IDs so new objects continue from the correct ID
+        FrameBase.set_id(self.max_frame_id)
+        MapPointBase.set_id(self.max_point_id)
 
     def deserialize(self, s):
         ret = json.loads(s)

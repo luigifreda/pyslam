@@ -114,6 +114,11 @@ int FrameBase::next_id() {
     return _id;
 }
 
+void FrameBase::set_id(int id) {
+    std::lock_guard<std::mutex> lock(_id_lock);
+    _id = id;
+}
+
 const Eigen::Isometry3d &FrameBase::isometry3d() const {
     pose_lock_guard_type lock(_lock_pose);
     return _pose.isometry3d();

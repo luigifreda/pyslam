@@ -367,6 +367,11 @@ class Parameters:
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
 
     # ================================================================
+    # Viewer
+    # ================================================================
+    kViewerDrawSlamMapOnSeparateThread = True
+
+    # ================================================================
     # Other parameters
     # ================================================================
     kChi2Mono = 5.991  # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)

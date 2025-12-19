@@ -106,8 +106,9 @@ class FrameBase {
     void reset_camera() { camera = nullptr; }
     friend void bind_frame(pybind11::module &m);
 
-    // Static method
+    // Static methods
     static int next_id();
+    static void set_id(int id);
 
     // Properties - matches Python @property methods exactly
     const int &width() const { return camera ? camera->width : _invalid_size; }

@@ -215,8 +215,15 @@ class Relocalizer:
                 Relocalizer.print(f"Relocalizer: {msg} with frame {frame.id}")
                 return False
 
+            top_score = (
+                detection_output.candidate_scores[0]
+                if detection_output.candidate_scores is not None
+                and len(detection_output.candidate_scores) > 0
+                else None
+            )
             Relocalizer.print(
-                f"Relocalizer: Detected candidates: {frame.id} with {detection_output.candidate_idxs}"
+                f"Relocalizer: Detected candidates for frame {frame.id}: {detection_output.candidate_idxs}"
+                + (f", top score: {top_score}" if top_score is not None else "")
             )
             reloc_candidate_kfs = [
                 keyframes_map[idx]
@@ -251,6 +258,19 @@ class Relocalizer:
 
                 # extract matches from precomputed map
                 idxs_frame, idxs_kf = kp_match_idxs[(frame, kf)]
+
+                # Skip if no matches were found (None or empty)
+                if (
+                    idxs_frame is None
+                    or idxs_kf is None
+                    or len(idxs_frame) == 0
+                    or len(idxs_kf) == 0
+                ):
+                    Relocalizer.print(
+                        f"Relocalizer: no matches found between frame {frame.id} and keyframe {kf.id}"
+                    )
+                    continue
+
                 assert len(idxs_frame) == len(idxs_kf)
 
                 # if features have descriptors with orientation then let's check the matches with a rotation histogram

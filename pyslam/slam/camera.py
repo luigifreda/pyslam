@@ -29,6 +29,7 @@ import ujson as json
 
 from pyslam.config import Config
 from pyslam.utilities.geometry import add_ones, add_ones_numba
+from pyslam.utilities.serialization import deserialize_array_flexible
 from pyslam.utilities.system import Printer
 from pyslam.io.dataset_types import SensorType, get_sensor_type
 
@@ -344,9 +345,17 @@ class Camera(CameraBase):
             "initialized": bool(self.initialized if self.initialized is not None else None),
             "K": json.dumps(self.K.astype(float).tolist() if self.K is not None else None),
             "Kinv": json.dumps(self.Kinv.astype(float).tolist() if self.Kinv is not None else None),
+            "sensor_type": (
+                self.sensor_type.to_json()
+                if hasattr(self, "sensor_type") and self.sensor_type is not None
+                else None
+            ),
         }
 
     def init_from_json(self, json_str):
+        # Handle both string and dict inputs (C++ saves as dict, Python saves as string)
+        if isinstance(json_str, str):
+            json_str = json.loads(json_str)
         self.type = CameraType(int(json_str["type"]))
         self.width = int(json_str["width"])
         self.height = int(json_str["height"])
@@ -354,14 +363,19 @@ class Camera(CameraBase):
         self.fy = float(json_str["fy"])
         self.cx = float(json_str["cx"])
         self.cy = float(json_str["cy"])
-        self.D = np.array(json.loads(json_str["D"])) if json_str["D"] is not None else None
+        # Handle D (distortion coefficients) - can be a string (Python) or array (C++)
+        self.D = deserialize_array_flexible(json_str["D"])
         self.fps = int(json_str["fps"])
         bf_str = json_str["bf"]
         b_str = json_str["b"]
         self.bf = float(bf_str) if bf_str is not None else None
         self.b = float(b_str) if b_str is not None else None
-        self.depth_factor = float(json_str["depth_factor"])
-        self.depth_threshold = float(json_str["depth_threshold"])
+        self.depth_factor = (
+            float(json_str["depth_factor"]) if json_str["depth_factor"] is not None else None
+        )
+        self.depth_threshold = (
+            float(json_str["depth_threshold"]) if json_str["depth_threshold"] is not None else None
+        )
         self.is_distorted = bool(json_str["is_distorted"])
         self.u_min = float(json_str["u_min"])
         self.u_max = float(json_str["u_max"])
@@ -372,8 +386,26 @@ class Camera(CameraBase):
             self.fovx = focal2fov(self.fx, self.width)
         if not hasattr(self, "fovy"):
             self.fovy = focal2fov(self.fy, self.height)
-        self.K = np.array(json.loads(json_str["K"]))
-        self.Kinv = np.array(json.loads(json_str["Kinv"]))
+        # Handle K and Kinv - can be strings (Python) or arrays (C++)
+        self.K = deserialize_array_flexible(json_str["K"])
+        self.Kinv = deserialize_array_flexible(json_str["Kinv"])
+
+        self.sensor_type = SensorType.MONOCULAR
+        if "sensor_type" in json_str and json_str["sensor_type"] is not None:
+            try:
+                self.sensor_type = SensorType.from_json(json_str["sensor_type"])
+            except (ValueError, KeyError, AttributeError):
+                # If deserialization fails, default to MONOCULAR with warning
+                Printer.red(
+                    "Camera: sensor_type not found or invalid in JSON, defaulting to MONOCULAR. "
+                    "Please ensure sensor_type is explicitly saved in future maps."
+                )
+        else:
+            # Backward compatibility: default to MONOCULAR with warning
+            Printer.red(
+                "Camera: sensor_type not found in JSON, defaulting to MONOCULAR. "
+                "Please ensure sensor_type is explicitly saved in future maps."
+            )
 
     def is_in_image(self, uv, z):
         return (

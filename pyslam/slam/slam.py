@@ -54,7 +54,13 @@ from pyslam.local_features.feature_tracker import (
 
 from pyslam.semantics.semantic_mapping_factory import semantic_mapping_factory
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
-from pyslam.utilities.serialization import SerializableEnum, SerializationJSON, register_class
+from pyslam.utilities.serialization import (
+    SerializableEnum,
+    SerializationJSON,
+    register_class,
+    convert_inf_nan,
+    format_floats_for_json,
+)
 from pyslam.utilities.system import Printer, getchar, Logging
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.geometry import inv_T
@@ -63,6 +69,8 @@ from pyslam.utilities.waiting import wait_for_ready
 from pyslam.dense.volumetric_integrator_base import VolumetricIntegrationOutput
 from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
 from pyslam.dense.volumetric_integrator_factory import volumetric_integrator_factory
+
+from .map_reload_tester import MapReloadTester
 
 from typing import TYPE_CHECKING
 
@@ -260,15 +268,20 @@ class Slam(object):
             wait_for_ready(self.semantic_mapping.is_ready, "SemanticMapping")
             Printer.green(f"SLAM: Semantic mapping initialized and ready")
 
-    def init_loop_closing(self, loop_detector_config, headless=False):
+    def init_loop_closing(self, loop_detector_config, headless=False, do_start_loop_closing=True):
         if Parameters.kUseLoopClosing and loop_detector_config is not None:
             if self.loop_closing is not None:
                 self.loop_closing.quit()
             self.loop_closing = LoopClosing(self, loop_detector_config, headless=headless)
             self.GBA = self.loop_closing.GBA
-            self.loop_closing.start()
-            wait_for_ready(self.loop_closing.is_ready, "LoopClosing")
-            Printer.green(f"SLAM: Loop closing initialized and ready")
+            if do_start_loop_closing:
+                self.loop_closing.start()
+                wait_for_ready(self.loop_closing.is_ready, "LoopClosing")
+                Printer.green(f"SLAM: Loop closing initialized and ready")
+            else:
+                Printer.orange(
+                    f"SLAM: Loop closing initialized but not started (check if for debugging purposes)"
+                )
 
     def init_volumetric_integrator(self):
         if Parameters.kDoVolumetricIntegration:
@@ -304,6 +317,10 @@ class Slam(object):
         if not os.path.exists(path):
             os.mkdir(path)
 
+        # wait for local mapping to finish
+        self.tracking.wait_for_local_mapping(timeout=1, check_on_exit=True)
+        time.sleep(1)  # conservative wait to ensure local mapping is finished
+
         map_out_json = {}  # single output map state json: map + frontend config + backend config
         config_out_json = {}  # let's put redundant human readable config info here
 
@@ -329,7 +346,11 @@ class Slam(object):
         map_file_path = path + "/map.json"
         with open(map_file_path, "w") as f:
             try:
-                f.write(json.dumps(map_out_json))
+                # Format floats consistently before JSON serialization
+                # This ensures reproducible float representation and reduces precision issues
+                # Note: ujson doesn't support custom encoders, so we pre-process the data
+                map_out_json_formatted = format_floats_for_json(map_out_json)
+                f.write(json.dumps(map_out_json_formatted))
             except Exception as e:
                 Printer.red(f"SLAM: Failed to save map state to {map_file_path}: {e}")
                 print(f"traceback: {traceback.format_exc()}")
@@ -348,9 +369,14 @@ class Slam(object):
         if self.volumetric_integrator is not None:
             self.volumetric_integrator.save(path)
 
-        # TODO: missing save for semantic mapping?
-
         Printer.green(f"SLAM: ...system state successfully saved to: {path}")
+
+        # DEBUG: Test map saving by reloading the map and comparing the two maps.
+        # If enabled, this is a sanity check to ensure that the map is saved and loaded correctly.
+        kDebugMapSavingAndLoading = False
+        if kDebugMapSavingAndLoading:
+            tester = MapReloadTester()
+            tester.test_map_reload(self, path)
 
     def load_system_state(self, path):
         Printer.green(f"\nSLAM: loading the system state from {path}...")
@@ -366,7 +392,11 @@ class Slam(object):
             loaded_json = json.loads(f.read())
             print()
             loaded_use_cpp_core = loaded_json.get("USE_CPP_CORE", None)
-            if loaded_use_cpp_core is not None and loaded_use_cpp_core != Parameters.USE_CPP_CORE:
+            if (
+                False
+                and loaded_use_cpp_core is not None
+                and loaded_use_cpp_core != Parameters.USE_CPP_CORE
+            ):
                 Printer.red(
                     f"SLAM: USE_CPP_CORE mismatch on load_system_state(): {loaded_use_cpp_core} != Parameters.USE_CPP_CORE: {Parameters.USE_CPP_CORE}"
                 )
@@ -418,6 +448,7 @@ class Slam(object):
                 self.init_loop_closing(loop_detector_config)
                 self.init_semantic_mapping(semantic_mapping_config)
             else:
+                self.init_loop_closing(loop_detector_config, do_start_loop_closing=False)
                 if semantic_mapping_config is not None:
                     SemanticMappingShared.set_semantic_feature_type(
                         semantic_mapping_config["semantic_feature_type"]
@@ -431,12 +462,34 @@ class Slam(object):
             print()
             print(f"SLAM: loading map...")
             map_json = loaded_json["map"]
-            self.map.from_json(map_json)
+
+            # C++ Map::from_json expects a JSON string, Python Map expects a dict
+            if Parameters.USE_CPP_CORE:
+                map_json_clean = convert_inf_nan(map_json)
+                map_json_str = (
+                    json.dumps(map_json_clean)
+                    if isinstance(map_json_clean, dict)
+                    else map_json_clean
+                )
+                try:
+                    self.map.from_json(map_json_str)
+                except Exception as e:
+                    Printer.red(f"SLAM: Error loading map from C++: {e}")
+                    import traceback
+
+                    traceback.print_exc()
+                    raise
+            else:
+                self.map.from_json(map_json)
             print(f"SLAM: map loaded")
             self.local_mapping.start()
 
         # check if current set camera is the same as the one stored in the map
-        if self.map is not None and len(self.map.keyframes) > 0:
+        num_keyframes = len(self.map.keyframes) if self.map is not None else 0
+        num_points = len(self.map.points) if self.map is not None else 0
+        if self.map is not None and num_keyframes > 0:
+            print(f"SLAM: reloaded map has {num_keyframes} keyframes")
+            print(f"SLAM: reloaded map has {num_points} points")
             first_keyframe = self.map.get_first_keyframe()
             camera0 = first_keyframe.camera
             if camera0.width != self.camera.width or camera0.height != self.camera.height:
@@ -448,7 +501,9 @@ class Slam(object):
                 self.camera = camera0
                 if self.volumetric_integrator is not None:
                     self.volumetric_integrator.camera = camera0
-        Printer.green(f"SLAM: ...system state successfully loaded from: {path}")
+            Printer.green(f"SLAM: ...system state successfully loaded from: {path}")
+        else:
+            Printer.red(f"SLAM: no map or empty map found in the system state: {path}")
 
     def save_map(self, path):
         Printer.green(f"\nSLAM: saving the map into {path}...")

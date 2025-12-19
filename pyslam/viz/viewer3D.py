@@ -79,137 +79,9 @@ kAlignGroundTruthMaxEveryTimeInterval = 3  # [s] maximum time interval between a
 
 kRefreshDurationTime = 0.03  # [s]
 
-# ========================================================
-# SlamDrawerThread class
-# ========================================================
-
-
-class SlamDrawingTask(Enum):
-    """Enum for different types of SLAM drawing tasks"""
-
-    DRAW_SLAM_MAP = "draw_slam_map"
-    DRAW_DENSE_MAP = "draw_dense_map"
-
-
-class SlamDrawerThread:
-    """
-    Threaded drawer that processes SLAM drawing requests asynchronously.
-    This allows the main SLAM loop to continue without waiting for expensive
-    data preparation operations like get_data_arrays_for_drawing().
-
-    Uses a thread-safe reference to slam object (no pickling needed since we're using threading).
-    """
-
-    kSleepTime = 0.005  # [s] sleep time between drawing requests
-
-    def __init__(self, viewer3D: "Viewer3D"):
-        self.viewer3D = viewer3D
-
-        # Thread-safe queue for drawing requests (only task type, no slam object)
-        # Use maxsize=2 to keep only the latest requests (drop old ones)
-        self.request_queue = queue.Queue(maxsize=2)
-
-        # Thread-safe reference to slam object (updated atomically)
-        self._slam_lock = threading.Lock()
-        self._slam_ref = None
-
-        self.is_running = threading.Event()
-        self.is_running.set()
-
-        # Start drawing thread
-        self.draw_thread = threading.Thread(target=self.run, daemon=True, name="SlamDrawerThread")
-        self.draw_thread.start()
-
-    def __getstate__(self):
-        """Exclude non-picklable objects (locks, threads) from pickling"""
-        state = self.__dict__.copy()
-        # Remove non-picklable objects
-        state.pop("_slam_lock", None)
-        state.pop("draw_thread", None)
-        state.pop("is_running", None)
-        state.pop("request_queue", None)
-        return state
-
-    def __setstate__(self, state):
-        """Restore state and recreate non-picklable objects"""
-        self.__dict__.update(state)
-        # Recreate non-picklable objects
-        self._slam_lock = threading.Lock()
-        self.request_queue = queue.Queue(maxsize=2)
-        self.is_running = threading.Event()
-        self.is_running.set()
-        # Restart the thread if viewer3D is available
-        if hasattr(self, "viewer3D") and self.viewer3D is not None:
-            self.draw_thread = threading.Thread(
-                target=self.run, daemon=True, name="SlamDrawerThread"
-            )
-            self.draw_thread.start()
-
-    def run(self):
-        """Worker thread that processes drawing requests"""
-        while self.is_running.is_set():
-            try:
-                # Get request with timeout to allow checking is_running
-                try:
-                    task_type = self.request_queue.get(timeout=0.1)
-                except queue.Empty:
-                    continue
-
-                # Get current slam reference (thread-safe)
-                with self._slam_lock:
-                    slam = self._slam_ref
-
-                if slam is None:
-                    continue  # Skip if no slam reference set
-
-                # Process the drawing request
-                if task_type == SlamDrawingTask.DRAW_SLAM_MAP:
-                    self.viewer3D._draw_slam_map_impl(slam)
-                elif task_type == SlamDrawingTask.DRAW_DENSE_MAP:
-                    self.viewer3D._draw_dense_map_impl(slam)
-                else:
-                    time.sleep(self.kSleepTime)
-
-                self.request_queue.task_done()
-            except Exception as e:
-                Printer.red(f"SlamDrawerThread: error in draw worker: {e}")
-                traceback.print_exc()
-        print(f"SlamDrawerThread: run: closed")
-
-    def request_draw(self, task_type: SlamDrawingTask, slam: "Slam"):
-        """Request a drawing operation (non-blocking, no pickling)"""
-        if not self.is_running.is_set():
-            return
-
-        # Update slam reference atomically (no pickling needed)
-        with self._slam_lock:
-            self._slam_ref = slam
-
-        try:
-            # Try to put the request, but don't block if queue is full
-            # This drops old requests if the queue is full, keeping only the latest
-            try:
-                self.request_queue.put_nowait(task_type)
-            except queue.Full:
-                # Queue is full, try to get and discard old request, then put new one
-                try:
-                    self.request_queue.get_nowait()
-                    self.request_queue.put_nowait(task_type)
-                except queue.Empty:
-                    pass  # Queue became empty between checks
-        except Exception as e:
-            Printer.red(f"SlamDrawerThread: error requesting draw: {e}")
-
-    def quit(self):
-        """Stop the drawing thread"""
-        self.is_running.clear()
-        if self.draw_thread.is_alive():
-            self.draw_thread.join(timeout=1.0)
-        print(f"SlamDrawerThread: closed")
-
 
 # ========================================================
-# Viz classes
+# Viz base classes
 # ========================================================
 
 
@@ -271,13 +143,18 @@ class VizCameraImage:
             VizCameraImage.id_ += 1
 
 
-class Viewer3DMapInput:
+class ViewerCurrentFrameData:
     def __init__(self):
         self.cur_frame_id = None
         self.cur_pose = None
         self.cur_pose_timestamp = None
         self.predicted_pose = None
         self.reference_pose = None
+
+
+class Viewer3DMapInput:
+    def __init__(self):
+        self.cur_frame_data = ViewerCurrentFrameData()
         self.map_data: "MapStateData" | None = (
             None  # map state data in the form of a set of data arrays for the viewer
         )
@@ -336,6 +213,151 @@ class Viewer3DCameraTrajectoriesInput:
 
 
 # ========================================================
+# SlamDrawerThread class
+# ========================================================
+
+
+class SlamDrawingTaskType(Enum):
+    """Enum for different types of SLAM drawing tasks"""
+
+    DRAW_SLAM_MAP = "draw_slam_map"
+    DRAW_DENSE_MAP = "draw_dense_map"
+
+
+class SlamDrawingTask:
+    def __init__(
+        self,
+        task_type: SlamDrawingTaskType,
+        slam: "Slam",
+        viewer_cur_frame_data: ViewerCurrentFrameData | None = None,
+    ):
+        self.task_type = task_type
+        self.slam = slam
+        self.viewer_cur_frame_data = viewer_cur_frame_data
+
+
+class SlamDrawerThread:
+    """
+    Threaded drawer that processes SLAM drawing requests asynchronously.
+    This allows the main SLAM loop to continue without waiting for expensive
+    data preparation operations like get_data_arrays_for_drawing().
+
+    Uses a thread-safe reference to slam object (no pickling needed since we're using threading).
+    """
+
+    kSleepTime = 0.005  # [s] sleep time between drawing requests
+
+    def __init__(self, viewer3D: "Viewer3D"):
+        self.viewer3D = viewer3D
+
+        # Thread-safe queue for drawing requests (only task type, no slam object)
+        # Use maxsize=2 to keep only the latest requests (drop old ones)
+        self.request_queue = queue.Queue(maxsize=2)
+
+        # Thread-safe reference to slam object (updated atomically)
+        self._slam_lock = threading.Lock()
+        self._slam_ref = None
+
+        self.is_running = threading.Event()
+        self.is_running.set()
+
+        # Start drawing thread
+        self.draw_thread = threading.Thread(target=self.run, daemon=True, name="SlamDrawerThread")
+        self.draw_thread.start()
+
+    def __getstate__(self):
+        """Exclude non-picklable objects (locks, threads) from pickling"""
+        state = self.__dict__.copy()
+        # Remove non-picklable objects
+        state.pop("_slam_lock", None)
+        state.pop("draw_thread", None)
+        state.pop("is_running", None)
+        state.pop("request_queue", None)
+        return state
+
+    def __setstate__(self, state):
+        """Restore state and recreate non-picklable objects"""
+        self.__dict__.update(state)
+        # Recreate non-picklable objects
+        self._slam_lock = threading.Lock()
+        self.request_queue = queue.Queue(maxsize=2)
+        self.is_running = threading.Event()
+        self.is_running.set()
+        # Restart the thread if viewer3D is available
+        if hasattr(self, "viewer3D") and self.viewer3D is not None:
+            self.draw_thread = (
+                threading.Thread(target=self.run, daemon=True, name="SlamDrawerThread")
+                if self.draw_thread is None
+                else None
+            )
+            self.draw_thread.start()
+
+    def run(self):
+        """Worker thread that processes drawing requests"""
+        while self.is_running.is_set():
+            try:
+                # Get request with timeout to allow checking is_running
+                try:
+                    task = self.request_queue.get(timeout=0.1)
+                    task_type = task.task_type
+                except queue.Empty:
+                    continue
+
+                # Get current slam reference (thread-safe)
+                with self._slam_lock:
+                    slam = self._slam_ref
+
+                if slam is None:
+                    continue  # Skip if no slam reference set
+
+                # Process the drawing request
+                if task_type == SlamDrawingTaskType.DRAW_SLAM_MAP:
+                    viewer_cur_frame_data = task.viewer_cur_frame_data
+                    self.viewer3D._draw_slam_map_impl(slam, viewer_cur_frame_data)
+                elif task_type == SlamDrawingTaskType.DRAW_DENSE_MAP:
+                    self.viewer3D._draw_dense_map_impl(slam)
+                else:
+                    time.sleep(self.kSleepTime)
+
+                self.request_queue.task_done()
+            except Exception as e:
+                Printer.red(f"SlamDrawerThread: error in draw worker: {e}")
+                traceback.print_exc()
+        print(f"SlamDrawerThread: run: closed")
+
+    def request_draw(self, task: SlamDrawingTask):
+        """Request a drawing operation (non-blocking, no pickling)"""
+        if not self.is_running.is_set():
+            return
+
+        # Update slam reference atomically (no pickling needed)
+        with self._slam_lock:
+            self._slam_ref = task.slam
+
+        try:
+            # Try to put the request, but don't block if queue is full
+            # This drops old requests if the queue is full, keeping only the latest
+            try:
+                self.request_queue.put_nowait(task)
+            except queue.Full:
+                # Queue is full, try to get and discard old request, then put new one
+                try:
+                    self.request_queue.get_nowait()
+                    self.request_queue.put_nowait(task)
+                except queue.Empty:
+                    pass  # Queue became empty between checks
+        except Exception as e:
+            Printer.red(f"SlamDrawerThread: error requesting draw: {e}")
+
+    def quit(self):
+        """Stop the drawing thread"""
+        self.is_running.clear()
+        if self.draw_thread.is_alive():
+            self.draw_thread.join(timeout=1.0)
+        print(f"SlamDrawerThread: closed")
+
+
+# ========================================================
 # Viewer3D class
 # ========================================================
 
@@ -387,7 +409,9 @@ class Viewer3D(object):
         self.trajectory_aligner = None
 
         # Create threaded drawer for asynchronous drawing operations
-        self.slam_drawer_thread = SlamDrawerThread(self)
+        self.slam_drawer_thread = None
+        if Parameters.kViewerDrawSlamMapOnSeparateThread:
+            self.slam_drawer_thread = SlamDrawerThread(self)
 
         self.vp = mp.Process(
             target=self.viewer_run,
@@ -423,7 +447,8 @@ class Viewer3D(object):
         state = self.__dict__.copy()
         # Exclude slam_drawer_thread (contains locks, threads, queues - not picklable)
         # This is only used in the main process, not in the child process
-        state.pop("slam_drawer_thread", None)
+        if self.slam_drawer_thread is not None:
+            state.pop("slam_drawer_thread", None)
         return state
 
     def __setstate__(self, state):
@@ -460,7 +485,7 @@ class Viewer3D(object):
     def quit(self):
         print("Viewer3D: quitting...")
         # Stop the drawer thread first
-        if hasattr(self, "slam_drawer_thread"):
+        if hasattr(self, "slam_drawer_thread") and self.slam_drawer_thread is not None:
             self.slam_drawer_thread.quit()
         if self._is_running.value == 1:
             self._is_running.value = 0
@@ -853,6 +878,7 @@ class Viewer3D(object):
         # draw map
         if self.map_state is not None:
             map_data = self.map_state.map_data
+            cur_frame_data = self.map_state.cur_frame_data
 
             if not is_gt_set.value and self.map_state.gt_trajectory is not None:
                 self.thread_gt_trajectory = np.asarray(self.map_state.gt_trajectory)
@@ -861,18 +887,19 @@ class Viewer3D(object):
                 self.thread_align_gt_with_scale = self.map_state.align_gt_with_scale
                 is_gt_set.value = 1
 
-            if self.map_state.cur_pose is not None:
+            if cur_frame_data.cur_pose is not None:
                 # draw current pose in blue
+                cur_pose = cur_frame_data.cur_pose.copy()
                 gl.glColor3f(0.0, 0.0, 1.0)
                 gl.glLineWidth(2)
-                glutils.DrawCamera(self.map_state.cur_pose, self.scale)
+                glutils.DrawCamera(cur_pose, self.scale)
                 gl.glLineWidth(1)
-                self.updateTwc(self.map_state.cur_pose)
+                self.updateTwc(cur_pose)
 
-            if self.draw_predicted and self.map_state.predicted_pose is not None:
+            if self.draw_predicted and cur_frame_data.predicted_pose is not None:
                 # draw predicted pose in red
                 gl.glColor3f(1.0, 0.0, 0.0)
-                glutils.DrawCamera(self.map_state.predicted_pose, self.scale)
+                glutils.DrawCamera(cur_frame_data.predicted_pose, self.scale)
 
             if self.draw_fov_centers and len(map_data.fov_centers) > 0:
                 # draw keypoints with their color
@@ -894,12 +921,12 @@ class Viewer3D(object):
                         + self.thread_last_num_poses_gt_was_aligned
                     )
                     condition3 = (
-                        self.map_state.cur_frame_id
+                        cur_frame_data.cur_frame_id
                         > kAlignGroundTruthMaxEveryNFrames
                         + self.thread_last_frame_id_gt_was_aligned
                     )
                     condition4 = (
-                        self.map_state.cur_frame_id - self.thread_last_frame_id_gt_was_aligned
+                        cur_frame_data.cur_frame_id - self.thread_last_frame_id_gt_was_aligned
                         > kAlignGroundTruthMinNumFramesPassed
                     )
 
@@ -922,7 +949,7 @@ class Viewer3D(object):
 
                             self.thread_last_time_gt_was_aligned = time.time()
                             self.thread_last_num_poses_gt_was_aligned = len(map_data.poses)
-                            self.thread_last_frame_id_gt_was_aligned = self.map_state.cur_frame_id
+                            self.thread_last_frame_id_gt_was_aligned = cur_frame_data.cur_frame_id
 
                             estimated_trajectory = np.asarray(
                                 [pose[0:3, 3] for i, pose in enumerate(map_data.poses)],
@@ -998,11 +1025,11 @@ class Viewer3D(object):
                     colors = map_data.colors
                 glutils.DrawPoints(map_data.points, colors)
 
-            if self.map_state.reference_pose is not None and kDrawReferenceCamera:
+            if cur_frame_data.reference_pose is not None and kDrawReferenceCamera:
                 # draw predicted pose in purple
                 gl.glColor3f(0.5, 0.0, 0.5)
                 gl.glLineWidth(2)
-                glutils.DrawCamera(self.map_state.reference_pose, self.scale)
+                glutils.DrawCamera(cur_frame_data.reference_pose, self.scale)
                 gl.glLineWidth(1)
 
             if len(map_data.covisibility_graph) > 0:
@@ -1100,38 +1127,63 @@ class Viewer3D(object):
         """Request drawing of SLAM map (non-blocking, uses background thread)"""
         if self.qmap is None:
             return
-        self.slam_drawer_thread.request_draw(SlamDrawingTask.DRAW_SLAM_MAP, slam)
+
+        map: Map = slam.map
+        viewer_cur_frame_data = ViewerCurrentFrameData()
+
+        # We need to crete a snapshot of current frame data in the main slam thread, here, to avoid race conditions
+        # or grabbing the frame current pose when the tracking is updating it.
+        # On the other hand, we can grab a map snapshot in the drawer thread or main slam thread.
+        f_cur_ref = slam.tracking.f_cur
+        last_f = map.get_frame(-1)
+        if last_f is not None:
+            viewer_cur_frame_data.cur_frame_id = (
+                f_cur_ref.id if f_cur_ref is not None else last_f.id
+            )
+            viewer_cur_frame_data.cur_pose = last_f.Twc()
+            viewer_cur_frame_data.cur_pose_timestamp = last_f.timestamp
+        elif f_cur_ref is not None:
+            # Fallback to f_cur only if no frames in map yet (during initialization)
+            viewer_cur_frame_data.cur_frame_id = f_cur_ref.id
+            viewer_cur_frame_data.cur_pose = f_cur_ref.Twc()
+            viewer_cur_frame_data.cur_pose_timestamp = f_cur_ref.timestamp
+        else:
+            viewer_cur_frame_data.cur_frame_id = -1
+
+        if slam.tracking.predicted_pose is not None:
+            viewer_cur_frame_data.predicted_pose = (
+                slam.tracking.predicted_pose.inverse().matrix().copy()
+            )
+
+        if False:
+            if slam.tracking.kf_ref is not None:
+                viewer_cur_frame_data.reference_pose = slam.tracking.kf_ref.Twc()
+
+        if self.slam_drawer_thread is not None:
+            task = SlamDrawingTask(SlamDrawingTaskType.DRAW_SLAM_MAP, slam, viewer_cur_frame_data)
+            self.slam_drawer_thread.request_draw(task)
+        else:
+            self._draw_slam_map_impl(slam, viewer_cur_frame_data)
 
     # draw dense map (public interface - non-blocking, uses thread)
     def draw_dense_map(self, slam: "Slam"):
         """Request drawing of dense map (non-blocking, uses background thread)"""
         if self.qdense is None:
             return
-        self.slam_drawer_thread.request_draw(SlamDrawingTask.DRAW_DENSE_MAP, slam)
+        if self.slam_drawer_thread is not None:
+            task = SlamDrawingTask(SlamDrawingTaskType.DRAW_DENSE_MAP, slam)
+            self.slam_drawer_thread.request_draw(task)
+        else:
+            self._draw_dense_map_impl(slam)
 
     # Internal implementation methods (called by the drawer thread)
-    def _draw_slam_map_impl(self, slam: "Slam"):
+    def _draw_slam_map_impl(self, slam: "Slam", viewer_cur_frame_data: ViewerCurrentFrameData):
         """Internal implementation of draw_slam_map (called by drawer thread)"""
         if self.qmap is None:
             return
-        map: Map = slam.map
+
         viewer_map_state = Viewer3DMapInput()
-
-        viewer_map_state.cur_frame_id = (
-            slam.tracking.f_cur.id if slam.tracking.f_cur is not None else -1
-        )
-
-        if map.num_frames() > 0:
-            last_f = map.get_frame(-1)
-            viewer_map_state.cur_pose = last_f.Twc().copy()
-            viewer_map_state.cur_pose_timestamp = last_f.timestamp
-
-        if slam.tracking.predicted_pose is not None:
-            viewer_map_state.predicted_pose = slam.tracking.predicted_pose.inverse().matrix().copy()
-
-        if False:
-            if slam.tracking.kf_ref is not None:
-                viewer_map_state.reference_pose = slam.tracking.kf_ref.Twc()
+        viewer_map_state.cur_frame_data = viewer_cur_frame_data
 
         # get the map state data in the form of a set of data arrays for the viewer
         viewer_map_state.map_data = slam.map.get_data_arrays_for_drawing(

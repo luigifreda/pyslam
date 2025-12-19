@@ -19,6 +19,7 @@
 
 #include "camera.h"
 
+#include "utils/messages.h"
 #include "utils/serialization_json.h"
 #include <nlohmann/json.hpp>
 
@@ -31,6 +32,34 @@
 #include <string>
 
 namespace pyslam {
+
+// Helper function to convert SensorType to Python serialization format
+static std::string sensor_type_to_json_string(SensorType sensor_type) {
+    switch (sensor_type) {
+    case SensorType::MONOCULAR:
+        return "SensorType.MONOCULAR";
+    case SensorType::STEREO:
+        return "SensorType.STEREO";
+    case SensorType::RGBD:
+        return "SensorType.RGBD";
+    default:
+        return "SensorType.MONOCULAR";
+    }
+}
+
+// Helper function to parse SensorType from Python serialization format
+static SensorType sensor_type_from_json_string(const std::string &sensor_str) {
+    if (sensor_str == "SensorType.MONOCULAR" || sensor_str == "MONOCULAR") {
+        return SensorType::MONOCULAR;
+    } else if (sensor_str == "SensorType.STEREO" || sensor_str == "STEREO") {
+        return SensorType::STEREO;
+    } else if (sensor_str == "SensorType.RGBD" || sensor_str == "RGBD") {
+        return SensorType::RGBD;
+    } else {
+        // Fallback: try to parse as lowercase string
+        return get_sensor_type(sensor_str);
+    }
+}
 
 std::string Camera::to_json() const {
     std::ostringstream oss;
@@ -49,10 +78,11 @@ std::string Camera::to_json() const {
         oss << D[i];
     }
     oss << "], ";
-    oss << "\"fps\": " << fps << ", ";
-    oss << "\"bf\": " << bf << ", ";
-    oss << "\"b\": " << b << ", ";
-    oss << "\"depth_factor\": " << depth_factor << ", ";
+    oss << "\"fps\": " << (fps >= 0 ? std::to_string(fps) : "null") << ", ";
+    oss << "\"bf\": " << (bf >= 0 ? std::to_string(bf) : "null") << ", ";
+    oss << "\"b\": " << (b >= 0 ? std::to_string(b) : "null") << ", ";
+    oss << "\"depth_factor\": " << (depth_factor > 0 ? std::to_string(depth_factor) : "null")
+        << ", ";
     if (std::isinf(depth_threshold)) {
         oss << "\"depth_threshold\": null, ";
     } else {
@@ -63,10 +93,10 @@ std::string Camera::to_json() const {
     oss << "\"u_max\": " << u_max << ", ";
     oss << "\"v_min\": " << v_min << ", ";
     oss << "\"v_max\": " << v_max << ", ";
-
     oss << "\"initialized\": " << (initialized ? "true" : "false") << ", ";
     oss << "\"K\": " << eigen_matrix_to_json_array(K).dump() << ", ";
-    oss << "\"Kinv\": " << eigen_matrix_to_json_array(Kinv).dump();
+    oss << "\"Kinv\": " << eigen_matrix_to_json_array(Kinv).dump() << ", ";
+    oss << "\"sensor_type\": \"" << sensor_type_to_json_string(sensor_type) << "\"";
 
     oss << "}";
     return oss.str();
@@ -87,10 +117,28 @@ void Camera::init_from_json(const std::string &json_str) {
     // Parse distortion coefficients using safe array helper
     D = safe_json_get_array<double>(json_data, "D");
 
-    fps = safe_json_get(json_data, "fps", 30);
-    bf = safe_json_get(json_data, "bf", 0.0);
-    b = safe_json_get(json_data, "b", 0.0);
-    depth_factor = safe_json_get(json_data, "depth_factor", 1.0);
+    // Handle fps - can be null
+    if (json_data.contains("fps") && !json_data["fps"].is_null()) {
+        fps = safe_json_get(json_data, "fps", 30);
+    } else {
+        fps = -1; // Use -1 as sentinel for "not set"
+    }
+    // Handle bf, b, depth_factor - can be null
+    if (json_data.contains("bf") && !json_data["bf"].is_null()) {
+        bf = safe_json_get(json_data, "bf", -1.0);
+    } else {
+        bf = -1.0; // Use -1.0 as sentinel for "not set"
+    }
+    if (json_data.contains("b") && !json_data["b"].is_null()) {
+        b = safe_json_get(json_data, "b", -1.0);
+    } else {
+        b = -1.0; // Use -1.0 as sentinel for "not set"
+    }
+    if (json_data.contains("depth_factor") && !json_data["depth_factor"].is_null()) {
+        depth_factor = safe_json_get(json_data, "depth_factor", 1.0);
+    } else {
+        depth_factor = 1.0;
+    }
 
     if (json_data["depth_threshold"].is_null()) {
         depth_threshold = std::numeric_limits<double>::infinity();
@@ -114,12 +162,30 @@ void Camera::init_from_json(const std::string &json_str) {
         fovy = focal2fov(fy, height);
     }
 
-    // Parse intrinsic matrices using helper
-    if (!json_array_to_eigen_matrix<double, 3, 3>(json_data["K"], K)) {
+    // Parse intrinsic matrices using flexible helper (handles both arrays and stringified arrays)
+    if (!flexible_json_to_eigen_matrix<double, 3, 3>(json_data["K"], K)) {
         throw std::runtime_error("Failed to parse K matrix from JSON");
     }
-    if (!json_array_to_eigen_matrix<double, 3, 3>(json_data["Kinv"], Kinv)) {
+    if (!flexible_json_to_eigen_matrix<double, 3, 3>(json_data["Kinv"], Kinv)) {
         throw std::runtime_error("Failed to parse Kinv matrix from JSON");
+    }
+
+    // Handle sensor_type - if present, deserialize it; otherwise default to MONOCULAR with warning
+    sensor_type = SensorType::MONOCULAR;
+    if (json_data.contains("sensor_type") && !json_data["sensor_type"].is_null()) {
+        try {
+            std::string sensor_str = json_data["sensor_type"].get<std::string>();
+            sensor_type = sensor_type_from_json_string(sensor_str);
+        } catch (const std::exception &) {
+            // If deserialization fails, default to MONOCULAR with warning
+            MSG_RED_WARN(
+                "Camera: sensor_type not found or invalid in JSON, defaulting to MONOCULAR. "
+                "Please ensure sensor_type is explicitly saved in future maps.");
+        }
+    } else {
+        // Backward compatibility: default to MONOCULAR with warning
+        MSG_RED_WARN("Camera: sensor_type not found in JSON, defaulting to MONOCULAR. "
+                     "Please ensure sensor_type is explicitly saved in future maps.");
     }
 }
 
@@ -147,8 +213,9 @@ PinholeCamera PinholeCamera::from_json(const std::string &json_str) {
 
     // Handle distortion coefficients array by unpacking into individual parameters
     // This matches how the Camera constructor reads them (k1, k2, p1, p2, k3)
+    // Handle both direct arrays and stringified arrays (from Python)
     if (json_data.contains("D") && !json_data["D"].is_null()) {
-        std::vector<double> D = json_data["D"].get<std::vector<double>>();
+        std::vector<double> D = safe_json_get_array<double>(json_data, "D");
         if (D.size() >= 1)
             cam_settings["Camera.k1"] = D[0];
         if (D.size() >= 2)

@@ -84,7 +84,9 @@ void bind_map_point(py::module &m) {
         .def("__eq__", &pyslam::MapPointBase::operator==)
         .def("__lt__", &pyslam::MapPointBase::operator<)
         .def("__le__", &pyslam::MapPointBase::operator<=)
-        .def("__hash__", &pyslam::MapPointBase::hash);
+        .def("__hash__", &pyslam::MapPointBase::hash)
+        .def_static("next_id", &pyslam::MapPointBase::next_id)
+        .def_static("set_id", &pyslam::MapPointBase::set_id);
 
     // ------------------------------------------------------------
     // MapPoint

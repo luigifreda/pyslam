@@ -18,6 +18,9 @@ set(TESTS
     test_json_map
     test_json_camera
     test_image_management
+    test_python_to_cpp_map
+    test_cpp_to_python_map
+    test_python_to_cpp_to_python_map
 )
 
 # add cycle for ${TESTS}

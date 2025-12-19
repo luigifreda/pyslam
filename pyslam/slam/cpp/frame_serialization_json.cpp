@@ -319,9 +319,10 @@ FramePtr Frame::from_json(const std::string &json_str) {
     frame->angles = safe_json_get_array<float>(j, "angles");
 
     // Parse descriptors (cv::Mat) with error handling
+    // Use flexible parser to handle both structured format and stringified JSON (from Python)
     if (j.contains("des") && !j["des"].is_null()) {
         try {
-            frame->des = json_to_cv_mat(j["des"]);
+            frame->des = safe_parse_cv_mat_flexible(j, "des");
         } catch (const std::exception &e) {
             frame->des = cv::Mat();
         }
@@ -329,7 +330,7 @@ FramePtr Frame::from_json(const std::string &json_str) {
 
     if (j.contains("des_r") && !j["des_r"].is_null()) {
         try {
-            frame->des_r = json_to_cv_mat(j["des_r"]);
+            frame->des_r = safe_parse_cv_mat_flexible(j, "des_r");
         } catch (const std::exception &e) {
             frame->des_r = cv::Mat();
         }
@@ -340,7 +341,8 @@ FramePtr Frame::from_json(const std::string &json_str) {
     frame->kps_ur = safe_json_get_array<float>(j, "kps_ur");
 
     // Parse points (map point IDs) with error handling; accept stringified arrays and nulls
-    frame->_points_id_data = safe_json_get_array<int>(j, "points");
+    // Use nullable int array parser to handle None/null values in the array
+    frame->_points_id_data = safe_json_get_array_nullable_int(j, "points", -1);
 
     // Parse outliers with error handling
     frame->outliers = safe_json_get_array<bool>(j, "outliers");
@@ -349,9 +351,10 @@ FramePtr Frame::from_json(const std::string &json_str) {
     frame->_kf_ref_id = safe_json_get(j, "kf_ref", -1);
 
     // Parse images (cv::Mat) with error handling
+    // Use flexible parser to handle both structured format and stringified JSON (from Python)
     if (j.contains("img") && !j["img"].is_null()) {
         try {
-            frame->img = json_to_cv_mat(j["img"]);
+            frame->img = safe_parse_cv_mat_flexible(j, "img");
         } catch (const std::exception &e) {
             frame->img = cv::Mat();
         }
@@ -359,7 +362,7 @@ FramePtr Frame::from_json(const std::string &json_str) {
 
     if (j.contains("depth_img") && !j["depth_img"].is_null()) {
         try {
-            frame->depth_img = json_to_cv_mat(j["depth_img"]);
+            frame->depth_img = safe_parse_cv_mat_flexible(j, "depth_img");
         } catch (const std::exception &e) {
             frame->depth_img = cv::Mat();
         }
@@ -367,7 +370,7 @@ FramePtr Frame::from_json(const std::string &json_str) {
 
     if (j.contains("img_right") && !j["img_right"].is_null()) {
         try {
-            frame->img_right = json_to_cv_mat(j["img_right"]);
+            frame->img_right = safe_parse_cv_mat_flexible(j, "img_right");
         } catch (const std::exception &e) {
             frame->img_right = cv::Mat();
         }
@@ -375,14 +378,14 @@ FramePtr Frame::from_json(const std::string &json_str) {
 
     if (j.contains("semantic_img") && !j["semantic_img"].is_null()) {
         try {
-            frame->semantic_img = json_to_cv_mat(j["semantic_img"]);
+            frame->semantic_img = safe_parse_cv_mat_flexible(j, "semantic_img");
         } catch (const std::exception &e) {
             frame->semantic_img = cv::Mat();
         }
     }
     if (j.contains("semantic_instances_img") && !j["semantic_instances_img"].is_null()) {
         try {
-            frame->semantic_instances_img = json_to_cv_mat(j["semantic_instances_img"]);
+            frame->semantic_instances_img = safe_parse_cv_mat_flexible(j, "semantic_instances_img");
         } catch (const std::exception &e) {
             frame->semantic_instances_img = cv::Mat();
         }
@@ -435,13 +438,25 @@ void Frame::replace_ids_with_objects(const std::vector<MapPointPtr> &points,
     if (!_points_id_data.empty()) {
         std::lock_guard<std::mutex> lock(_lock_features);
         this->points.resize(_points_id_data.size(), nullptr);
+        int num_restored = 0;
         for (size_t i = 0; i < _points_id_data.size(); ++i) {
             if (_points_id_data[i] != -1) {
                 // Extract the ID that was stored during deserialization
                 int point_id = _points_id_data[i];
                 this->points[i] = get_object_with_id(point_id, points_dict);
+                if (this->points[i]) {
+                    num_restored++;
+                }
             }
         }
+        // Debug: Log if no points were restored (might indicate ID mismatch)
+        if (num_restored == 0 && _points_id_data.size() > 0) {
+            // This is a warning - we had point IDs but couldn't restore any
+            // This could mean the points haven't been loaded yet, or IDs don't match
+        }
+    } else {
+        // Debug: _points_id_data is empty - points array won't be populated
+        // This could be normal if the frame has no associated map points
     }
 
     // Replace kf_ref with actual KeyFrame object
