@@ -61,7 +61,9 @@ void bind_keyframe(py::module &m) {
         .def("add_connection", &pyslam::KeyFrameGraph::add_connection)
         .def("erase_connection", &pyslam::KeyFrameGraph::erase_connection)
         .def("add_loop_edge", &pyslam::KeyFrameGraph::add_loop_edge)
-        .def("get_weight", &pyslam::KeyFrameGraph::get_weight);
+        .def("get_weight", &pyslam::KeyFrameGraph::get_weight)
+        .def("get_connected_keyframes_weights",
+             &pyslam::KeyFrameGraph::get_connected_keyframes_weights);
 
     // KeyFrame class - matches Python KeyFrame
     py::class_<pyslam::KeyFrame, pyslam::Frame, pyslam::KeyFrameGraph,

@@ -229,6 +229,17 @@ int KeyFrameGraph::get_weight(const KeyFramePtr &keyframe) const {
     return get_weight_no_lock(keyframe);
 }
 
+std::unordered_map<int, int> KeyFrameGraph::get_connected_keyframes_weights() const {
+    std::lock_guard<std::mutex> lock(_lock_connections);
+    std::unordered_map<int, int> weights_map;
+    for (const auto &[kf, weight] : connected_keyframes_weights) {
+        if (kf) {
+            weights_map[kf->id] = weight;
+        }
+    }
+    return weights_map;
+}
+
 // ======================================================
 // KeyFrame implementation
 // ======================================================

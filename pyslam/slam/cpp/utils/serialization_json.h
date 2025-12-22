@@ -347,6 +347,45 @@ inline const char *cv_depth_to_numpy_dtype(int depth) {
     }
 }
 
+// Helper function to normalize numpy dtype string to simple format
+// Handles formats like "<u1", "|u1", ">u1", "u1", "uint8" -> "uint8"
+inline std::string normalize_numpy_dtype(const std::string &dtype) {
+    // If already in simple format, return as-is
+    if (dtype == "uint8" || dtype == "int8" || dtype == "uint16" || dtype == "int16" ||
+        dtype == "int32" || dtype == "float32" || dtype == "float64" || dtype == "float16") {
+        return dtype;
+    }
+
+    // Remove endianness prefix (<, >, |, =)
+    std::string normalized = dtype;
+    if (!normalized.empty() && (normalized[0] == '<' || normalized[0] == '>' ||
+                                normalized[0] == '|' || normalized[0] == '=')) {
+        normalized = normalized.substr(1);
+    }
+
+    // Map numpy dtype codes to standard names
+    if (normalized == "u1" || normalized == "uint8") {
+        return "uint8";
+    } else if (normalized == "i1" || normalized == "int8") {
+        return "int8";
+    } else if (normalized == "u2" || normalized == "uint16") {
+        return "uint16";
+    } else if (normalized == "i2" || normalized == "int16") {
+        return "int16";
+    } else if (normalized == "i4" || normalized == "int32") {
+        return "int32";
+    } else if (normalized == "f4" || normalized == "float32") {
+        return "float32";
+    } else if (normalized == "f8" || normalized == "float64") {
+        return "float64";
+    } else if (normalized == "f2" || normalized == "float16") {
+        return "float16";
+    }
+
+    // If we can't normalize it, return original (will throw error later)
+    return dtype;
+}
+
 // ===============================
 // Raw encoding-decoding
 // ===============================
@@ -817,31 +856,35 @@ inline cv::Mat json_to_cv_mat(const nlohmann::json &json_data) {
     std::string dtype = json_data["dtype"].get<std::string>();
     std::string b64_data = json_data["data"].get<std::string>();
 
+    // Normalize numpy dtype string (handles formats like "<u1", "|u1", etc.)
+    std::string normalized_dtype = normalize_numpy_dtype(dtype);
+
     // Convert base64 back to binary
     std::string binary_data = base64_decode(b64_data);
 
     // Determine OpenCV data type
     int cv_depth;
-    if (dtype == "uint8") {
+    if (normalized_dtype == "uint8") {
         cv_depth = CV_8U;
-    } else if (dtype == "int8") {
+    } else if (normalized_dtype == "int8") {
         cv_depth = CV_8S;
-    } else if (dtype == "uint16") {
+    } else if (normalized_dtype == "uint16") {
         cv_depth = CV_16U;
-    } else if (dtype == "int16") {
+    } else if (normalized_dtype == "int16") {
         cv_depth = CV_16S;
-    } else if (dtype == "int32") {
+    } else if (normalized_dtype == "int32") {
         cv_depth = CV_32S;
-    } else if (dtype == "float32") {
+    } else if (normalized_dtype == "float32") {
         cv_depth = CV_32F;
-    } else if (dtype == "float64") {
+    } else if (normalized_dtype == "float64") {
         cv_depth = CV_64F;
 #if CV_VERSION_MAJOR >= 4 && defined(CV_16F)
-    } else if (dtype == "float16") {
+    } else if (normalized_dtype == "float16") {
         cv_depth = CV_16F;
 #endif
     } else {
-        throw std::runtime_error("Unsupported data type: " + dtype);
+        throw std::runtime_error("Unsupported data type: " + dtype +
+                                 " (normalized: " + normalized_dtype + ")");
     }
 
     // Determine channels

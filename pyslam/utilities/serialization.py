@@ -22,7 +22,7 @@ import numpy as np
 from enum import Enum
 
 import base64
-
+import binascii
 import json as json_
 import ujson as json
 
@@ -431,63 +431,111 @@ class NumpyB64Json:
         )
 
     @staticmethod
-    def numpy_to_json(data):
-        if isinstance(data, np.ndarray):
-            return {
-                "data": base64.b64encode(data.tobytes()).decode("utf-8"),
-                "dtype": str(data.dtype),
-                "shape": data.shape,
-                "type": "npB64",
-            }
-        else:
-            raise TypeError(f"numpy_to_json: Expected np.ndarray, got {type(data)}")
+    def numpy_to_json(arr, *, order=None):
+        if not isinstance(arr, np.ndarray):
+            raise TypeError(f"numpy_to_json: Expected np.ndarray, got {type(arr)}")
+
+        if arr.dtype.hasobject:
+            raise TypeError("numpy_to_json: object dtype arrays are not supported")
+
+        # Pick a stable order (preserve if possible)
+        if order is None:
+            order = "F" if arr.flags["F_CONTIGUOUS"] and not arr.flags["C_CONTIGUOUS"] else "C"
+
+        raw = arr.tobytes(order=order)
+        return {
+            "data": base64.b64encode(raw).decode("utf-8"),
+            "dtype": arr.dtype.str,  # dtype string includes endianness, more precise than str(dtype)
+            "shape": list(arr.shape),  # explicit JSON-friendly type
+            "order": order,
+            "type": "npB64",
+        }
 
     @staticmethod
-    def json_to_numpy(data):
-        # Handle None input
+    def json_to_numpy(data, *, writable=False):
         if data is None:
             return None
 
-        # Handle string input (from C++ serialization) - parse as JSON first
         if isinstance(data, str):
             try:
                 data = json.loads(data)
-                # After parsing, data might be None (if JSON string was "null")
                 if data is None:
                     return None
-            except (json.JSONDecodeError, TypeError):
-                raise TypeError(f"json_to_numpy: Failed to parse string as JSON: {data}")
+            except (json.JSONDecodeError, TypeError) as e:
+                raise TypeError(f"json_to_numpy: Failed to parse string as JSON: {e}")
 
-        if NumpyB64Json.is_encoded(data):
-            try:
-                buffer = base64.b64decode(data["data"])
-                shape = tuple(data["shape"])
-                dtype = np.dtype(data["dtype"])
-                return np.frombuffer(buffer, dtype=dtype).reshape(shape)
-            except (TypeError, ValueError) as e:
-                raise TypeError(f"json_to_numpy: Error converting data to numpy array: {e}")
-        else:
+        if not NumpyB64Json.is_encoded(data):
             raise TypeError(
-                f"json_to_numpy: Invalid input data format, expected dict with keys 'dtype', 'shape', 'data', 'type'='npB64'"
+                "json_to_numpy: Invalid input data format, expected dict with keys "
+                "'dtype', 'shape', 'data', 'type'='npB64'"
             )
 
-    # Serialize map id -> dense numpy array
+        try:
+            buf = base64.b64decode(data["data"])
+            dtype = np.dtype(data["dtype"])
+            shape = tuple(int(x) for x in data["shape"])
+            order = data.get("order", "C")
+
+            arr = np.frombuffer(buf, dtype=dtype)
+            arr = arr.reshape(shape, order=order)
+
+            return arr.copy() if writable else arr
+        except (TypeError, ValueError, binascii.Error) as e:
+            raise TypeError(f"json_to_numpy: Error converting data to numpy array: {e}")
+
     @staticmethod
     def map_id2img_to_json(map_obj, output=None):
         if output is None:
             output = {}
         for k, v in map_obj.items():
-            output[k] = NumpyB64Json.numpy_to_json(v)
+            output[str(k)] = NumpyB64Json.numpy_to_json(v)  # normalize keys to str for JSON
         return output
 
-    # Deserialize map id -> dense numpy array
     @staticmethod
-    def map_id2img_from_json(map_data, output_obj=None):
+    def map_id2img_from_json(map_data, output_obj=None, *, writable=False):
         if output_obj is None:
             output_obj = {}
         for k, v in map_data.items():
-            output_obj[int(k)] = NumpyB64Json.json_to_numpy(v)
+            output_obj[int(k)] = NumpyB64Json.json_to_numpy(v, writable=writable)
         return output_obj
+
+    @staticmethod
+    def json_to_numpy_descriptor(data, *, expected_ndim=2, writable=False):
+        """
+        Deserialize a descriptor array from JSON and normalize its shape.
+
+        Args:
+            data: JSON data to deserialize
+            expected_ndim: Expected number of dimensions (1 for map points, 2 for frames)
+            writable: Whether to return a writable copy
+
+        Returns:
+            Normalized numpy array with the expected number of dimensions
+        """
+        arr = NumpyB64Json.json_to_numpy(data, writable=writable)
+        if arr is None:
+            return None
+
+        # Normalize shape based on expected dimensions
+        if expected_ndim == 1:
+            # For map point descriptors: ensure 1D (D,)
+            arr = arr.flatten()
+        elif expected_ndim == 2:
+            # For frame descriptors: ensure 2D (N, D)
+            if arr.ndim == 1:
+                arr = arr.reshape(1, -1)
+            elif arr.ndim > 2:
+                arr = arr.squeeze()
+                if arr.ndim == 1:
+                    arr = arr.reshape(1, -1)
+            if arr.ndim != 2:
+                raise ValueError(
+                    f"Descriptor must be 2D after normalization, got shape {arr.shape}"
+                )
+        else:
+            raise ValueError(f"Unsupported expected_ndim: {expected_ndim}")
+
+        return arr
 
 
 # ------------------------------
@@ -702,144 +750,3 @@ def deserialize_array_flexible(value, dtype=None):
         raise TypeError(
             f"deserialize_array_flexible: Expected None, str, list, tuple, or np.ndarray, got {type(value)}"
         )
-
-
-def deserialize_b64_array_flexible(value):
-    """
-    Deserialize a base64-encoded numpy array value from direct JSON dict format.
-    - None: returns None
-    - Dict: directly converts to numpy array using NumpyB64Json
-
-    Args:
-        value: The value to deserialize (can be None or dict)
-
-    Returns:
-        numpy.ndarray or None (ensures at least 1D array for numba compatibility)
-    """
-    if value is None:
-        return None
-
-    if isinstance(value, dict):
-        # Direct dict/object format (aligned Python and C++ serialization)
-        try:
-            result = NumpyB64Json.json_to_numpy(value)
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"Failed to convert dict to base64 array: {e}")
-    else:
-        raise TypeError(f"deserialize_b64_array_flexible: Expected None or dict, got {type(value)}")
-
-    # Ensure at least 1-dimensional array (numba requires arrays, not scalars)
-    if result is not None and isinstance(result, np.ndarray):
-        if result.ndim == 0:
-            # 0-dimensional array (scalar) - reshape to 1D
-            result = result.reshape(1)
-        elif result.size == 0:
-            # Empty array - return None
-            return None
-        # Ensure contiguous for numba
-        if not result.flags["C_CONTIGUOUS"]:
-            result = np.ascontiguousarray(result)
-
-    return result
-
-
-def _validate_and_fix_numba_compatibility(result, dtype, ensure_contiguous):
-    """Validate and fix numpy array for numba compatibility.
-
-    Args:
-        result: numpy array to validate
-        dtype: Target numpy dtype
-        ensure_contiguous: If True, ensure the array is C-contiguous
-
-    Returns:
-        numpy.ndarray or None if invalid
-    """
-    if result is None or not isinstance(result, np.ndarray):
-        return None
-
-    # Reject object dtype arrays (numba cannot handle them)
-    if result.dtype == np.object_ or result.dtype == object:
-        return None
-
-    # Convert to target dtype if needed
-    if result.dtype != dtype:
-        try:
-            result = result.astype(dtype)
-        except (ValueError, TypeError):
-            return None
-
-    # Ensure at least 1-dimensional array (numba requires arrays, not scalars)
-    if result.ndim == 0:
-        result = result.reshape(1)
-
-    # Check for empty arrays after ensuring 1D+
-    if result.size == 0:
-        return None
-
-    # Ensure contiguous memory for numba
-    if ensure_contiguous and not result.flags["C_CONTIGUOUS"]:
-        result = np.ascontiguousarray(result)
-
-    return result
-
-
-def deserialize_descriptor_flexible(value, dtype=np.uint8, ensure_contiguous=True):
-    """
-    Deserialize a descriptor value from direct JSON dict format and ensure numba compatibility.
-
-    Handles:
-    - None: returns None
-    - Dict (structured format): handles NumpyB64Json, NumpyJson, cv_mat_to_json_raw, or generic formats
-    - List/Array: directly converts to numpy array (fallback for backward compatibility)
-
-    Args:
-        value: The value to deserialize (can be None, dict, list, tuple, or np.ndarray)
-        dtype: Target numpy dtype (default: np.uint8 for ORB descriptors)
-        ensure_contiguous: If True, ensure the array is C-contiguous for numba (default: True)
-
-    Returns:
-        numpy.ndarray or None (returns None if deserialization fails or array is invalid)
-    """
-    if value is None:
-        return None
-
-    result = None
-
-    # Handle dict input (structured format - aligned Python and C++ serialization)
-    if isinstance(value, dict):
-        # Try structured formats in order of preference
-        if NumpyB64Json.is_encoded(value):
-            result = NumpyB64Json.json_to_numpy(value)
-        elif NumpyJson.is_encoded(value):
-            result = NumpyJson.json_to_numpy(value)
-        elif value.get("type") == "npRaw":
-            # Use the dedicated function for cv_mat_to_json_raw format
-            result = json_to_cv_mat_raw(value)
-        elif "dtype" in value and "shape" in value and "data" in value:
-            # Generic format with dtype, shape, data
-            try:
-                dtype_str = value["dtype"]
-                shape = tuple(value["shape"])
-                array_data = value["data"]
-                result = np.array(array_data, dtype=np.dtype(dtype_str)).reshape(shape)
-            except (TypeError, ValueError, KeyError):
-                pass
-
-        # Fallback: try as simple array if structured formats failed
-        if result is None:
-            try:
-                result = np.array(value, dtype=dtype)
-            except (TypeError, ValueError):
-                return None
-
-    # Handle list/tuple/array input (simple array format - backward compatibility)
-    elif isinstance(value, (list, tuple, np.ndarray)):
-        try:
-            result = np.array(value, dtype=dtype)
-        except (TypeError, ValueError):
-            return None
-    else:
-        return None
-
-    # Validate and fix for numba compatibility
-    return _validate_and_fix_numba_compatibility(result, dtype, ensure_contiguous)

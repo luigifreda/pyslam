@@ -38,7 +38,6 @@ from pyslam.utilities.geometry import (
 from pyslam.utilities.serialization import (
     SerializableEnum,
     register_class,
-    NumpyJson,
     NumpyB64Json,
     SerializationJSON,
 )

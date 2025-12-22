@@ -34,7 +34,7 @@ class Parameters:
     # ================================================================
     # C++ core
     # ================================================================
-    USE_CPP_CORE = True  # True: use the C++ core; False: use the Python core
+    USE_CPP_CORE = False  # True: use the C++ core; False: use the Python core
 
     # ================================================================
     # Logs
@@ -83,7 +83,9 @@ class Parameters:
     #
     kKdtNmsRadius = 3  # pixels  #3            # Radius for kd-tree based Non-Maxima Suppression
     #
-    kCheckFeaturesOrientation = True
+    kCheckFeaturesOrientation = (
+        True  # Check the consistency of matched features orientations with RotationHistogram
+    )
 
     # Initializer
     kInitializerDesiredMedianDepth = 1  # When initializing, the initial median depth is computed and forced to this value (for better visualization is > 1)

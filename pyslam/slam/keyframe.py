@@ -254,6 +254,17 @@ class KeyFrameGraph(object):
         with self._lock_connections:
             return self.get_weight_no_lock_(keyframe)
 
+    def get_connected_keyframes_weights(self):
+        """Get all connected keyframes with their weights in a thread-safe way.
+
+        Returns:
+            dict: Dictionary mapping keyframe_id to weight for all connected keyframes.
+        """
+        with self._lock_connections:
+            return {
+                kf.id: w for kf, w in self.connected_keyframes_weights.items() if kf is not None
+            }
+
 
 class KeyFrame(Frame, KeyFrameGraph):
     def __init__(self, frame: Frame, img=None, img_right=None, depth=None, kid=None):

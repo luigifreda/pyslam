@@ -892,6 +892,10 @@ class Tracking:
 
         # print(f'KF conditions: 1a: {cond1a}, 1b: {cond1b}, 1c: {cond1c}, 1d: {cond1d}, 2: {cond2}, 3: {cond3}')
         condition_checks = ((cond1a or cond1b or cond1c or cond1d) and cond2) or cond3
+        if condition_checks:
+            print(
+                f"KF conditions: ( (1a:{cond1a} or 1b:{cond1b} or 1c:{cond1c} or 1d:{cond1d}) and 2: {cond2} ) or 3: {cond3}"
+            )
 
         if condition_checks:
             if is_local_mapping_idle:
@@ -1190,6 +1194,15 @@ class Tracking:
                     self.descriptor_distance_sigma = self.dyn_config.update_descriptor_stats(
                         kf_ref, kf_cur, initializer_output.idxs_ref, initializer_output.idxs_cur
                     )
+
+                # push new keyframes to loop closing to create and store global descriptors into loop detection database
+                if self.slam.loop_closing is not None:
+                    print(f"pushing new keyframe {kf_ref.id} to loop closing...")
+                    self.slam.loop_closing.add_keyframe(kf_ref, kf_ref.img)
+
+                    print(f"pushing new keyframe {kf_cur.id} to loop closing...")
+                    self.slam.loop_closing.add_keyframe(kf_cur, kf_cur.img)
+
             return  # EXIT (jump to next frame)
 
         # get previous frame in map as reference
@@ -1270,13 +1283,29 @@ class Tracking:
                 if self.state != SlamState.INIT_RELOCALIZE:
                     self.state = SlamState.RELOCALIZE
                 if self.relocalize(f_cur, img):
+                    # Always set last_reloc_frame_id after successful relocalization
+                    self.last_reloc_frame_id = f_cur.id
                     if self.state != SlamState.INIT_RELOCALIZE:
-                        self.last_reloc_frame_id = f_cur.id
+                        pass  # Already set above
                     self.state = SlamState.OK
                     self.pose_is_ok = True
                     self.kf_ref = f_cur.kf_ref  # right side updated by self.relocalize()
                     self.kf_last = self.kf_ref
-                    Printer.green(f"Relocalization successful, last reloc frame id: {f_cur.id}")
+                    Printer.green(
+                        f"Relocalization successful, img id: {img_id}, last reloc frame id: {f_cur.id} reconnected to keyframe id {f_cur.kf_ref.id}"
+                    )
+                    # Update local map immediately after relocalization to ensure it's based on the new reference keyframe
+                    # This ensures that track_local_map can find the correct local map points
+                    self.map.local_map.update(self.kf_ref)
+                    # Reset motion model after relocalization
+                    # After relocalization, the coordinate frame changes completely, so we need to reset
+                    # the motion model (not just update it) to clear old velocity/delta information
+                    # The motion model's delta_position and delta_orientation are based on the old trajectory
+                    # and will be completely wrong after relocalization
+                    self.motion_model.reset()
+                    self.motion_model.update_pose(timestamp, f_cur.position(), f_cur.quaternion())
+                    # After relocalization, motion model is not reliable for next frame (it has no history),
+                    # so it will remain disabled (is_ok=False from reset) until we have at least 2 frames
                 else:
                     self.pose_is_ok = False
                     Printer.red("Relocalization failed")
@@ -1299,7 +1328,12 @@ class Tracking:
                     Printer.red("tracking failure")
 
             # update motion model state
-            self.motion_model.is_ok = self.pose_is_ok
+            # Don't re-enable motion model if we just relocalized (no history yet)
+            # After reset, motion model needs at least 2 frames to compute delta/velocity
+            if f_cur.id <= self.last_reloc_frame_id + 1:
+                self.motion_model.is_ok = False
+            else:
+                self.motion_model.is_ok = self.pose_is_ok
 
             if self.pose_is_ok:  # if tracking was successful
 
@@ -1321,7 +1355,7 @@ class Tracking:
                 # else:
                 #     Printer.yellow('NOT KF')
 
-                # From ORBSLAM2:
+                # Similar to ORBSLAM2:
                 # Clean outliers once keyframe generation has been managed:
                 # we allow points with high innovation (considered outliers by the Huber Function)
                 # pass to the new keyframe, so that bundle adjustment will finally decide

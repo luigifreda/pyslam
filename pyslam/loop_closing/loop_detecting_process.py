@@ -129,11 +129,11 @@ class LoopDetectingProcess:
         self.q_out_reloc_condition = mp.Condition()
 
         self.is_running = mp.Value("i", 0)
+        self.is_looping = mp.Value("i", 0)
 
         self.start()
 
     def start(self):
-        self.is_running.value = 1
         self.process = mp.Process(
             target=self.run,
             args=(
@@ -146,6 +146,7 @@ class LoopDetectingProcess:
                 self.q_out_reloc,
                 self.q_out_reloc_condition,
                 self.is_running,
+                self.is_looping,
                 self.reset_mutex,
                 self.reset_requested,
                 self.load_request_completed,
@@ -163,7 +164,7 @@ class LoopDetectingProcess:
             time.sleep(3)  # give a bit of time for the process to start and initialize
 
     def is_ready(self):
-        return self.is_running.value == 1
+        return self.is_running.value == 1 and self.is_looping.value == 1
 
     def save(self, path):
         task_type = LoopDetectorTaskType.SAVE
@@ -237,6 +238,7 @@ class LoopDetectingProcess:
         if self.is_running.value == 1:
             LoopDetectorBase.print("LoopDetectingProcess: quitting...")
             self.is_running.value = 0
+            self.is_looping.value = 0
             with self.q_in_condition:
                 self.q_in.put(None)  # put a None in the queue to signal we have to exit
                 self.q_in_condition.notify_all()
@@ -277,6 +279,7 @@ class LoopDetectingProcess:
         q_out_reloc,
         q_out_reloc_condition,
         is_running,
+        is_looping,
         reset_mutex,
         reset_requested,
         load_request_completed,
@@ -285,9 +288,11 @@ class LoopDetectingProcess:
         save_request_condition,
         time_loop_detection,
     ):
+        is_running.value = 1
         LoopDetectorBase.print("LoopDetectingProcess: starting...")
         self.init(loop_detector_config, slam_info)
         # main loop
+        is_looping.value = 1
         while is_running.value == 1:
             with q_in_condition:
                 while q_in.empty() and is_running.value == 1 and reset_requested.value != 1:
@@ -324,6 +329,7 @@ class LoopDetectingProcess:
             )
 
         empty_queue(q_in)  # empty the queue before exiting
+        is_looping.value = 0
         LoopDetectorBase.print("LoopDetectingProcess: loop exit...")
 
     def loop_detecting(

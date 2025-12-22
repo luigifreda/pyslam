@@ -52,8 +52,6 @@ from pyslam.utilities.features import (
 )
 from pyslam.utilities.serialization import (
     deserialize_array_flexible,
-    deserialize_b64_array_flexible,
-    NumpyJson,
     NumpyB64Json,
     vector3_serialize,
     vector3_deserialize,
@@ -726,11 +724,16 @@ class Frame(FrameBase):
         frame_data_dict["angles"] = deserialize_array_flexible(json_str["angles"], dtype=np.float32)
 
         # Descriptors - direct dict format (NumpyB64Json)
+        # Normalize to 2D shape (N, D) for frames to prevent shape mismatches
         frame_data_dict["des"] = (
-            NumpyB64Json.json_to_numpy(json_str["des"]) if json_str["des"] is not None else None
+            NumpyB64Json.json_to_numpy_descriptor(json_str["des"], expected_ndim=2)
+            if json_str["des"] is not None
+            else None
         )
         frame_data_dict["des_r"] = (
-            NumpyB64Json.json_to_numpy(json_str["des_r"]) if json_str["des_r"] is not None else None
+            NumpyB64Json.json_to_numpy_descriptor(json_str["des_r"], expected_ndim=2)
+            if json_str["des_r"] is not None
+            else None
         )
 
         frame_data_dict["depths"] = deserialize_array_flexible(json_str["depths"], dtype=np.float32)
@@ -811,7 +814,7 @@ class Frame(FrameBase):
                 return None
             return lookup_dict.get(id, None)
 
-        # Get actual points - ensure points array is properly initialized
+        # Get actual points - replace IDs with actual map point objects
         if self.points is not None and len(self.points) > 0:
             # Replace IDs with actual map point objects, preserving None values
             self.points = np.array(

@@ -352,6 +352,8 @@ void bind_frame(py::module &m) {
              py::arg("do_stereo_project") = false)
         .def("project_map_points", &pyslam::FrameBase::project_map_points<double>,
              py::arg("map_points"), py::arg("do_stereo_project") = false)
+        // Statistics shared with Python FrameBase
+        .def_readwrite("median_depth", &pyslam::FrameBase::median_depth)
         .def("__eq__", &pyslam::FrameBase::operator==)
         .def("__lt__", &pyslam::FrameBase::operator<)
         .def("__le__", &pyslam::FrameBase::operator<=)

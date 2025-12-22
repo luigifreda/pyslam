@@ -33,9 +33,9 @@ from pyslam.config_parameters import Parameters
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 from pyslam.semantics.semantic_serialization import serialize_semantic_des, deserialize_semantic_des
 from pyslam.utilities.serialization import (
-    deserialize_descriptor_flexible,
     cv_mat_to_json_raw,
     json_to_cv_mat_raw,
+    NumpyB64Json,
 )
 
 from typing import TYPE_CHECKING
@@ -364,7 +364,8 @@ class MapPoint(MapPointBase):
             po = self._pt - self.kf_ref.Ow()
             self.normal, dist = normalize_vector(po)
             if idxf is not None:
-                self.des = keyframe.des[idxf]
+                # Ensure descriptor is flattened to 1D for consistent shape
+                self.des = keyframe.des[idxf].flatten()
                 level = keyframe.octaves[idxf]
                 if keyframe.kps_sem is not None:
                     self.semantic_des = keyframe.kps_sem[idxf]
@@ -463,17 +464,19 @@ class MapPoint(MapPointBase):
         p.num_times_found = json_str["num_times_found"]
         p.last_frame_id_seen = json_str["last_frame_id_seen"]
 
-        # Handle descriptor - direct dict format (cv_mat_to_json_raw)
+        # Handle descriptor - normalize to 1D shape (D,) for map points
+        # Use NumpyB64Json if available, otherwise fall back to json_to_cv_mat_raw
         if json_str["des"] is not None:
-            # Try cv_mat_to_json_raw format first (aligned with C++)
-            p.des = json_to_cv_mat_raw(json_str["des"])
-            if p.des is None:
-                # Fallback to flexible deserialization for backward compatibility
-                p.des = deserialize_descriptor_flexible(
-                    json_str["des"], dtype=np.uint8, ensure_contiguous=True
-                )
+            try:
+                p.des = NumpyB64Json.json_to_numpy_descriptor(json_str["des"], expected_ndim=1)
+            except (TypeError, ImportError):
+                # Fall back to cv_mat format if not in NumpyB64Json format
+                p.des = json_to_cv_mat_raw(json_str["des"])
+                if p.des is not None:
+                    p.des = p.des.flatten()
         else:
             p.des = None
+
         p._min_distance = json_str["_min_distance"]
         p._max_distance = json_str["_max_distance"]
         p.normal = np.array(json_str["normal"])

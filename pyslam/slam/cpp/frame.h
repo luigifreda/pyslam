@@ -78,7 +78,7 @@ class FrameBase {
     int img_id = -1;
 
     // Frame statistics
-    float median_depth = std::numeric_limits<float>::quiet_NaN(); // median depth of the frame
+    float median_depth = -1.0f;                             // median depth of the frame
     Eigen::Vector3d fov_center_c = Eigen::Vector3d::Zero(); // fov center 3D position w.r.t. camera
     Eigen::Vector3d fov_center_w = Eigen::Vector3d::Zero(); // fov center 3D position w.r.t world
 

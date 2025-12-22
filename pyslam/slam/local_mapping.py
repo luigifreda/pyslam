@@ -491,7 +491,7 @@ class LocalMapping:
                 self.slam.semantic_mapping.step()
 
         if self.slam.loop_closing is not None and self.kf_cur is not None:
-            LocalMapping.print("pushing new keyframe to loop closing...")
+            LocalMapping.print(f"pushing new keyframe {self.kf_cur.id} to loop closing...")
             self.slam.loop_closing.add_keyframe(self.kf_cur, self.img_cur)
 
         if self.slam.volumetric_integrator is not None:

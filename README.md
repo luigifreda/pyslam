@@ -13,7 +13,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - Built-in support for over [10 dataset types](#datasets).
-- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. Further details [here](pyslam/slam/cpp/README.md)
+- A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](pyslam/slam/cpp/README.md)
 - A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, and *DepthFromAnythingV3*. Further details [here](pyslam/scene_from_views/README.md).
 
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
@@ -175,7 +175,7 @@ cd pyslam
 
 Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
-#pixi shell      # If you want to use pixi, this is the first step that prepares the installation. 
+# pixi shell      # If you want to use pixi, run this commented command as a first step to prepare the installation. 
 ./install_all.sh   # Unified install procedure 
 ```
 
@@ -377,7 +377,7 @@ See the file [pyslam/loop_closing/loop_detector_configs.py](./pyslam/loop_closin
 The SLAM back-end hosts a volumetric reconstruction pipeline. This is disabled by default. You can enable it by setting `kDoVolumetricIntegration=True` and selecting your preferred method `kVolumetricIntegrationType` in `pyslam/config_parameters.py`. At present, the following methods are available:
 - `VOXEL_GRID`, `VOXEL_SEMANTIC_GRID`, `VOXEL_SEMANTIC_PROBABILISTIC_GRID`: Voxel grid implementations that leverage parallel spatial hashing, supporting both direct voxel hashing and indirect voxel-block hashing strategies. Parallel execution is managed using TBB, and the design accommodates both simple and semantic voxels. 
 - `TSDF` (Truncated Signed Distance Function): It is able to return in output either a pointcloud or a mesh. 
-- `GAUSSIAN_SPLATTING` (Incremental Gaussian splatting)
+- `GAUSSIAN_SPLATTING` (Incremental Gaussian splatting).
  
 See [pyslam/dense/volumetric_integrator_types.py](pyslam/dense/volumetric_integrator_types.py). Note that you need CUDA in order to run `GAUSSIAN_SPLATTING` method. Further information about the volumetric grid models is available [here](./cpp/volumetric/README.md).
 
@@ -528,7 +528,9 @@ When you run the script `main_slam.py` (`main_map_dense_reconstruction.py`):
     folder_path: results/slam_state   # Default folder path (relative to repository root) where the system state is saved or reloaded
   ```
 
-Note that pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map replaces the current system configurations to ensure descriptor compatibility.  
+A couple of important notes:
+- Pressing the `Save` button saves the current map, front-end, and backend configurations. Reloading a saved map replaces the current system configurations to ensure descriptor compatibility.  
+- The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other.
 
 
 #### Trajectory saving

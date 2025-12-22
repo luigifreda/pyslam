@@ -121,6 +121,9 @@ class KeyFrameGraph : public inheritable_enable_shared_from_this<KeyFrameGraph> 
     int get_weight(const KeyFramePtr &keyframe) const;
     int get_weight_no_lock(const KeyFramePtr &keyframe) const;
 
+    // Get all connected keyframes with their weights (thread-safe)
+    std::unordered_map<int, int> get_connected_keyframes_weights() const;
+
   protected:
     // Temporary storage for deserialization (IDs before object replacement)
     int _parent_id_temp;
