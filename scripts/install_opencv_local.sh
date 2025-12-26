@@ -16,6 +16,18 @@ function print_red(){
 	printf "\033[0m"
 }
 
+function print_yellow(){
+	printf "\033[33;1m"
+	printf "$@ \n"
+	printf "\033[0m"
+}
+
+function print_green(){
+	printf "\033[32;1m"
+	printf "$@ \n"
+	printf "\033[0m"
+}
+
 function check_package(){
     package_name=$1
     PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $package_name |grep "install ok installed")
@@ -54,6 +66,18 @@ function get_usable_cuda_version(){
         fi     
     fi    
     echo $version
+}
+
+# Helper function to find library in a directory (handles versioned .so files)
+find_lib_in_dir() {
+    local libname=$1
+    local lib_dir=$2
+    local found=$(find "$lib_dir" -maxdepth 1 -name "${libname}.so*" -type f 2>/dev/null | head -n 1)
+    if [ -n "$found" ]; then
+        echo "$found"
+    else
+        echo ""
+    fi
 }
 
 # ====================================================
@@ -99,6 +123,17 @@ else
     CONDA_INSTALLED=false
 fi
 
+# Check if pixi is activated
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+    echo "Pixi environment detected: $PIXI_PROJECT_NAME"
+
+    source "$SCRIPT_DIR_/pixi_cuda_config.sh"
+    source "$SCRIPT_DIR_/pixi_python_config.sh"
+else
+    PIXI_ACTIVATED=false
+fi
+
 if [ ! -d $TARGET_FOLDER ]; then 
     mkdir -p $TARGET_FOLDER
 fi 
@@ -123,9 +158,11 @@ else
         CUDA_ON=OFF
     fi 
 fi 
+
+
+
 echo CUDA_ON: $CUDA_ON
-export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}   # this is for having the right nvcc in the path
-export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs 
+
 
 WITH_DNN=ON                # this can be used to turn off the DNN module
 WITH_PROTOBUF=ON           # this can be used to turn off the protobuf module (it is required for DNN)
@@ -145,6 +182,7 @@ fi
 
 WITH_QT=OFF  # it seems to interfere with python packages that use Qt
 WITH_GTK=ON
+WITH_OPENGL=ON
 if [ "$CONDA_INSTALLED" = true ]; then
     WITH_QT=OFF
     WITH_GTK=ON
@@ -250,6 +288,7 @@ fi
 
 export CONDA_OPTIONS=""
 export MAC_OPTIONS=""
+export PIXI_OPTIONS=""
 
 if [ "$CONDA_INSTALLED" = true ]; then
 
@@ -265,6 +304,112 @@ if [ "$CONDA_INSTALLED" = true ]; then
     -DOPENCV_FFMPEG_SKIP_BUILD_CHECK=ON"
 
     echo "Using CONDA_OPTIONS for opencv build: $CONDA_OPTIONS"
+fi
+
+# When using pixi with CUDA, explicitly set CUDA library paths to help CMake find them
+if [ "$PIXI_ACTIVATED" = true ]; then 
+
+    # Configure pixi CUDA if CUDA is enabled
+    # The pixi_cuda_config.sh script should have been sourced earlier
+    # and set up all the necessary environment variables
+    if [ "$CUDA_ON" = "ON" ] && [ "$PIXI_ACTIVATED" = true ]; then
+        # Use the function from pixi_cuda_config.sh to get CMake options
+        if command -v get_pixi_cuda_cmake_options &> /dev/null; then
+            PIXI_CUDA_CMAKE_OPTS=$(get_pixi_cuda_cmake_options)
+            PIXI_OPTIONS="$PIXI_OPTIONS $PIXI_CUDA_CMAKE_OPTS"
+            echo "Added pixi CUDA CMake options: $PIXI_CUDA_CMAKE_OPTS"
+        else
+            echo "Warning: get_pixi_cuda_cmake_options not found. CUDA CMake options may not be set correctly."
+        fi
+    fi
+
+    # OpenGL is disabled by default in pixi to avoid linking issues
+    # Skip OpenGL configuration if it's disabled
+    WITH_OPENGL=OFF
+    if [ "$WITH_OPENGL" = "OFF" ]; then
+        echo "OpenGL is disabled in pixi - skipping OpenGL library detection"
+    fi
+
+    # Fix compiler issues in pixi: unset conda-style compiler variables and use system compilers
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Unset any conda-style compiler variables that pixi might have set
+        unset CC CXX CFLAGS CXXFLAGS LDFLAGS CPPFLAGS CONDA_BUILD_SYSROOT CONDA_BUILD_CROSS_COMPILATION
+        
+        # Find system compilers
+        SYSTEM_CC=$(which gcc 2>/dev/null || echo "/usr/bin/gcc")
+        SYSTEM_CXX=$(which g++ 2>/dev/null || echo "/usr/bin/g++")
+        
+        # Verify compilers exist
+        if [ ! -f "$SYSTEM_CC" ]; then
+            print_red "Warning: System gcc not found at $SYSTEM_CC. Trying to find alternative..."
+            SYSTEM_CC=$(find /usr/bin /usr/local/bin -name gcc 2>/dev/null | head -n 1)
+        fi
+        if [ ! -f "$SYSTEM_CXX" ]; then
+            print_red "Warning: System g++ not found at $SYSTEM_CXX. Trying to find alternative..."
+            SYSTEM_CXX=$(find /usr/bin /usr/local/bin -name g++ 2>/dev/null | head -n 1)
+        fi
+        
+        if [ -f "$SYSTEM_CC" ] && [ -f "$SYSTEM_CXX" ]; then
+            PIXI_OPTIONS="$PIXI_OPTIONS -DCMAKE_C_COMPILER=$SYSTEM_CC -DCMAKE_CXX_COMPILER=$SYSTEM_CXX"
+            echo "Using system compilers for pixi: CC=$SYSTEM_CC, CXX=$SYSTEM_CXX"
+        else
+            print_red "Error: Could not find system compilers (gcc/g++). Please install build-essential."
+            exit 1
+        fi
+    fi
+
+    # Fix Python detection in pixi: use pixi's Python instead of system Python
+    # The pixi_python_config.sh script should have been sourced earlier
+    if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
+        # Use the function from pixi_python_config.sh to get CMake options
+        if command -v get_pixi_python_cmake_options &> /dev/null; then
+            PIXI_PYTHON_CMAKE_OPTS=$(get_pixi_python_cmake_options)
+            PIXI_OPTIONS="$PIXI_OPTIONS $PIXI_PYTHON_CMAKE_OPTS"
+            if [ -n "$PIXI_PYTHON" ]; then
+                echo "Using pixi Python for OpenCV build: $PIXI_PYTHON"
+                if [ -f "$PIXI_PYTHON" ]; then
+                    echo "Python version: $($PIXI_PYTHON --version 2>&1)"
+                fi
+            fi
+        else
+            print_yellow "Warning: get_pixi_python_cmake_options not found. CMake will try to auto-detect Python."
+        fi
+    fi
+
+    # Fix protobuf conflicts in pixi: force OpenCV to build its own protobuf
+    # Pixi's protobuf headers can conflict with OpenCV's bundled protobuf
+    if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
+        PIXI_OPTIONS="$PIXI_OPTIONS -DBUILD_PROTOBUF=ON -DProtobuf_FOUND=OFF"
+        
+        # Temporarily hide pixi's protobuf headers to prevent conflicts
+        PIXI_PROTOBUF_INCLUDE=""
+        if [ -d "$ROOT_DIR/.pixi/envs/default/include/google/protobuf" ]; then
+            PIXI_PROTOBUF_INCLUDE="$ROOT_DIR/.pixi/envs/default/include/google/protobuf"
+        elif [ -d ".pixi/envs/default/include/google/protobuf" ]; then
+            PIXI_PROTOBUF_INCLUDE=".pixi/envs/default/include/google/protobuf"
+        fi
+        
+        if [ -n "$PIXI_PROTOBUF_INCLUDE" ] && [ -d "$PIXI_PROTOBUF_INCLUDE" ]; then
+            PIXI_PROTOBUF_BACKUP="${PIXI_PROTOBUF_INCLUDE}.backup"
+            if [ ! -d "$PIXI_PROTOBUF_BACKUP" ]; then
+                echo "Temporarily hiding pixi protobuf headers to avoid conflicts with OpenCV's bundled protobuf"
+                mv "$PIXI_PROTOBUF_INCLUDE" "$PIXI_PROTOBUF_BACKUP" 2>/dev/null || true
+                # Create a marker file to track that we hid it
+                touch "${PIXI_PROTOBUF_INCLUDE}.hidden_by_opencv_build" 2>/dev/null || true
+            fi
+        fi
+    fi
+    
+    # Export PIXI_OPTIONS so it's available in the cmake command
+    export PIXI_OPTIONS
+
+fi # end of PIXI_ACTIVATED = true
+
+# For non-pixi environments, set up Python options
+if [ "$PIXI_ACTIVATED" != true ]; then
+    PYTHON_OPTIONS="-DPYTHON_INCLUDE_DIR=$(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])") -DPYTHON_LIBRARY=$(python3 -c "import sysconfig; import os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY')))") -DPYTHON_EXECUTABLE=$(which python3) -DPYTHON3_EXECUTABLE=$(which python3)"
+else
+    PYTHON_OPTIONS=""
 fi
 
 if [[ $version == *"24.04"* ]] ; then
@@ -343,7 +488,7 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -DWITH_FFMPEG=ON \
           -DWITH_QT=$WITH_QT \
           -DWITH_GTK=$WITH_GTK \
-          -DWITH_OPENGL=ON \
+          -DWITH_OPENGL=$WITH_OPENGL \
           -DWITH_TBB=ON \
           -DWITH_V4L=ON \
           -DWITH_CUDA=$CUDA_ON \
@@ -371,11 +516,7 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -Wno-deprecated-gpu-targets \
           -DBUILD_PROTOBUF=${WITH_PROTOBUF:-OFF} \
           -DAPPLE_FRAMEWORK=${WITH_APPLE_FRAMEWORK:-OFF} \
-          -DPYTHON_INCLUDE_DIR=$(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])") \
-          -DPYTHON_LIBRARY=$(python3 -c "import sysconfig; import os; print(os.path.join(sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY')))") \
-          -DPYTHON_EXECUTABLE=$(which python3) \
-          -DPYTHON3_EXECUTABLE=$(which python3) \
-          $CONDA_OPTIONS $MAC_OPTIONS ..
+          $CONDA_OPTIONS $MAC_OPTIONS $PIXI_OPTIONS $PYTHON_OPTIONS ..
     else
         # Nvidia Jetson aarch64
         echo "building NVIDIA Jetson config"
@@ -386,7 +527,7 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -DOPENCV_EXTRA_MODULES_PATH="`pwd`/../opencv_contrib-$OPENCV_VERSION/modules" \
           -DWITH_QT=$WITH_QT \
           -DWITH_GTK=$WITH_GTK \
-          -DWITH_OPENGL=ON \
+          -DWITH_OPENGL=$WITH_OPENGL \
           -DWITH_TBB=ON \
           -DWITH_V4L=ON \
           -DWITH_CUDA=ON \
@@ -409,20 +550,90 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
     fi
     make -j$(nproc)  # use nproc to get the number of available cores
     make install -j$(nproc)
+    
+    # Restore pixi's protobuf headers if we hid them
+    if [ "$PIXI_ACTIVATED" = true ]; then
+        PIXI_PROTOBUF_INCLUDE=""
+        if [ -d "$ROOT_DIR/.pixi/envs/default/include/google/protobuf.backup" ]; then
+            PIXI_PROTOBUF_INCLUDE="$ROOT_DIR/.pixi/envs/default/include/google"
+        elif [ -d ".pixi/envs/default/include/google/protobuf.backup" ]; then
+            PIXI_PROTOBUF_INCLUDE=".pixi/envs/default/include/google"
+        fi
+        
+        if [ -n "$PIXI_PROTOBUF_INCLUDE" ] && [ -f "${PIXI_PROTOBUF_INCLUDE}/protobuf.hidden_by_opencv_build" ]; then
+            echo "Restoring pixi protobuf headers"
+            rm -rf "${PIXI_PROTOBUF_INCLUDE}/protobuf" 2>/dev/null || true
+            mv "${PIXI_PROTOBUF_INCLUDE}/protobuf.backup" "${PIXI_PROTOBUF_INCLUDE}/protobuf" 2>/dev/null || true
+            rm -f "${PIXI_PROTOBUF_INCLUDE}/protobuf.hidden_by_opencv_build" 2>/dev/null || true
+        fi
+    fi
 fi
 
 cd $TARGET_FOLDER
 if [[ -d opencv/install ]]; then
     cd opencv
     echo "deploying built cv2 python module"
-    PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")    
-    PYTHON_SITE_PACKAGES=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-    PYTHON_SOURCE_FOLDER=$(pwd)/install/lib/python$PYTHON_VERSION/site-packages/cv2
-    if [[ -d "$PYTHON_SITE_PACKAGES" && -d "$PYTHON_SOURCE_FOLDER" ]]; then
-        echo "copying built python cv2 module from $PYTHON_SOURCE_FOLDER to $PYTHON_SITE_PACKAGES"
-        cp -r $PYTHON_SOURCE_FOLDER $PYTHON_SITE_PACKAGES
+    
+    # For pixi environments, use pixi's Python directly to avoid pyenv interference
+    # The pixi_python_config.sh script should have been sourced earlier
+    if [ "$PIXI_ACTIVATED" = true ]; then
+        # Use variables from pixi_python_config.sh
+        if [ -n "$PIXI_PYTHON_VERSION" ]; then
+            PYTHON_VERSION="$PIXI_PYTHON_VERSION"
+        fi
+        if [ -n "$PIXI_PYTHON_SITE_PACKAGES" ]; then
+            PYTHON_SITE_PACKAGES="$PIXI_PYTHON_SITE_PACKAGES"
+        fi
+        if [ -n "$PIXI_PYTHON" ]; then
+            PYTHON_EXECUTABLE="$PIXI_PYTHON"
+        fi
+        
+        if [ -n "$PIXI_PYTHON" ]; then
+            echo "Pixi environment detected - using pixi Python: $PIXI_PYTHON"
+            if [ -n "$PYTHON_VERSION" ]; then
+                echo "Python version: $PYTHON_VERSION"
+            fi
+            if [ -n "$PYTHON_SITE_PACKAGES" ]; then
+                echo "Pixi site-packages: $PYTHON_SITE_PACKAGES"
+            fi
+        fi
     else
-        echo "ERROR: failed to copy build python cv2 module from $PYTHON_SOURCE_FOLDER to $PYTHON_SITE_PACKAGES"  
+        # For non-pixi environments, use regular python
+        PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")" 2>/dev/null || echo "")
+        PYTHON_SITE_PACKAGES=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())" 2>/dev/null || python -c "import site; print(site.getsitepackages()[0])" 2>/dev/null || echo "")
+    fi
+    
+    PYTHON_SOURCE_FOLDER=$(pwd)/install/lib/python$PYTHON_VERSION/site-packages/cv2
+    
+    echo "PYTHON_SITE_PACKAGES: $PYTHON_SITE_PACKAGES"
+    echo "PYTHON_SOURCE_FOLDER: $PYTHON_SOURCE_FOLDER"
+    
+    if [[ -d "$PYTHON_SOURCE_FOLDER" ]]; then
+        if [[ -n "$PYTHON_SITE_PACKAGES" ]] && [[ -d "$PYTHON_SITE_PACKAGES" ]] && [[ -w "$PYTHON_SITE_PACKAGES" ]]; then
+            echo "copying built python cv2 module from $PYTHON_SOURCE_FOLDER to $PYTHON_SITE_PACKAGES"
+            cp -r $PYTHON_SOURCE_FOLDER $PYTHON_SITE_PACKAGES
+            if [[ $? -eq 0 ]]; then
+                print_green "Successfully deployed cv2 module to $PYTHON_SITE_PACKAGES"
+            else
+                print_yellow "WARNING: Failed to copy cv2 module. Using PYTHONPATH method instead."
+                PYTHON_SITE_PACKAGES=""  # Trigger fallback
+            fi
+        fi
+        
+        # If site-packages copy failed or wasn't attempted, use PYTHONPATH method
+        if [[ -z "$PYTHON_SITE_PACKAGES" ]] || [[ ! -d "$PYTHON_SITE_PACKAGES" ]] || [[ ! -w "$PYTHON_SITE_PACKAGES" ]]; then
+            PYTHONPATH_DIR=$(dirname $PYTHON_SOURCE_FOLDER)
+            print_yellow "NOTE: cv2 module will be available via PYTHONPATH."
+            print_green "The cv2 module is available at: $PYTHON_SOURCE_FOLDER"
+            echo ""
+            echo "To use it, add to your environment:"
+            echo "  export PYTHONPATH=$PYTHONPATH_DIR:\$PYTHONPATH"
+            echo ""
+            echo "Or add this line to your ~/.bashrc or pixi environment setup:"
+            echo "  export PYTHONPATH=$PYTHONPATH_DIR:\$PYTHONPATH"
+        fi
+    else
+        print_red "ERROR: Built cv2 module not found at $PYTHON_SOURCE_FOLDER"  
     fi 
 fi
 

@@ -3,7 +3,8 @@
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir (this should be the main folder directory of PLVS)
 SCRIPT_DIR=$(readlink -f $SCRIPT_DIR)  # this reads the actual path if a symbolic directory is used
-
+ROOT_DIR="$SCRIPT_DIR/.."
+SCRIPTS_DIR="$ROOT_DIR/scripts"
 
 function make_dir(){
 if [ ! -d $1 ]; then
@@ -19,6 +20,21 @@ else
     echo "Conda is not installed"
     CONDA_INSTALLED=false
 fi
+
+# Check if pixi is activated
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+    echo "Pixi environment detected: $PIXI_PROJECT_NAME"
+
+    source "$SCRIPTS_DIR/pixi_cuda_config.sh"
+    source "$SCRIPTS_DIR/pixi_python_config.sh"
+else
+    PIXI_ACTIVATED=false
+fi
+
+if [ ! -d $TARGET_FOLDER ]; then 
+    mkdir -p $TARGET_FOLDER
+fi 
 
 
 # ====================================================
@@ -68,7 +84,7 @@ echo "BUILD_TYPE: $BUILD_TYPE"
 
 make_dir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE="$BUILD_TYPE" $EXTERNAL_OPTIONS $CONDA_OPTIONS $MAC_OPTIONS
+cmake .. -DCMAKE_BUILD_TYPE="$BUILD_TYPE" $EXTERNAL_OPTIONS $CONDA_OPTIONS $MAC_OPTIONS 
 make -j 4
 
 cd ..

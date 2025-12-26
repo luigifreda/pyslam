@@ -89,8 +89,16 @@ libgl-devel = "*"
 libopengl-devel = "*"
 libegl-devel = "*"
 libglx-devel = "*"
+libgl = ">=1.7.0,<2"
+libopengl = ">=1.7.0,<2"
+libglu = ">=9.0.3,<10"
+#
 cython = "0.29.*"
-cuda-compiler = "12.1.*"
+#
+cuda-compiler = "12.8.*"
+cuda-toolkit = "12.8.*"
+cudnn = "9.*"
+#
 metis = "*"
 rerun-sdk = "*"
 rattler-build = "*"
@@ -132,5 +140,6 @@ kornia_moons = "==0.2.9"
 #tensorflow-hub = "*"      # conflict 
 #protobuf = ">=3.20"       # conflict 
 
+
 [system-requirements]
-cuda = "12.1"
+cuda = "12.8"
