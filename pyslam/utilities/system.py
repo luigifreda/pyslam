@@ -59,6 +59,34 @@ def str2bool(v):
         return False
 
 
+# This function check and exec 'from module import name' and directly return the 'name'.'method'.
+# The method is used to directly return a 'method' of 'name' (i.e. 'module'.'name'.'method')
+# N.B.: if a method is needed you CAN'T
+#   from module import name.method
+# since method is an attribute of name!
+def import_from(module, name, method=None, debug=False):
+    try:
+        imported_module = __import__(module, fromlist=[name])
+        imported_name = getattr(imported_module, name)
+        if method is None:
+            return imported_name
+        else:
+            return getattr(imported_name, method)
+    except:
+        if method is not None:
+            name = name + "." + method
+        Printer.orange(
+            "WARNING: cannot import "
+            + name
+            + " from "
+            + module
+            + ", check the file docs/TROUBLESHOOTING.md"
+        )
+        if debug:
+            Printer.orange(traceback.format_exc())
+        return None
+
+
 # Class to print
 # colored text and background
 # from https://www.geeksforgeeks.org/print-colors-python-terminal/
@@ -724,34 +752,6 @@ class FileLogger:
     def critical(self, message):
         """Logs a critical message."""
         self.log(logging.CRITICAL, message)
-
-
-# This function check and exec 'from module import name' and directly return the 'name'.'method'.
-# The method is used to directly return a 'method' of 'name' (i.e. 'module'.'name'.'method')
-# N.B.: if a method is needed you CAN'T
-#   from module import name.method
-# since method is an attribute of name!
-def import_from(module, name, method=None, debug=False):
-    try:
-        imported_module = __import__(module, fromlist=[name])
-        imported_name = getattr(imported_module, name)
-        if method is None:
-            return imported_name
-        else:
-            return getattr(imported_name, method)
-    except:
-        if method is not None:
-            name = name + "." + method
-        Printer.orange(
-            "WARNING: cannot import "
-            + name
-            + " from "
-            + module
-            + ", check the file docs/TROUBLESHOOTING.md"
-        )
-        if debug:
-            Printer.orange(traceback.format_exc())
-        return None
 
 
 def print_options(opt, opt_name="OPTIONS"):

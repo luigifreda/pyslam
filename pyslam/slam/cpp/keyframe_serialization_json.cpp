@@ -304,14 +304,10 @@ KeyFramePtr KeyFrame::from_json(const std::string &json_str) {
     safe_parse_pose_matrix(json_obj, "Tcw_GBA", kf->Tcw_GBA);
     safe_parse_pose_matrix(json_obj, "Tcw_before_GBA", kf->Tcw_before_GBA);
 
-    // Parse pose relative to parent
-    std::string pose_str = safe_json_get(json_obj, "_pose_Tcp", std::string(""));
-    if (!pose_str.empty()) {
-        try {
-            kf->_pose_Tcp = CameraPose::from_json(pose_str);
-        } catch (const std::exception &e) {
-            // If parsing fails, leave as default CameraPose
-        }
+    // Parse pose relative to parent - deserialize as matrix array (same format as serialization)
+    Eigen::Matrix4d Tcp_matrix = Eigen::Matrix4d::Identity();
+    if (safe_parse_pose_matrix(json_obj, "_pose_Tcp", Tcp_matrix)) {
+        kf->_pose_Tcp.set_from_matrix(Tcp_matrix);
     }
 
     // Initialize KeyFrameGraph from JSON

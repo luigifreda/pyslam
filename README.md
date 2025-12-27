@@ -175,7 +175,7 @@ cd pyslam
 
 Then, under **Ubuntu** and **MacOs** you can simply run:
 ```bash
-# pixi shell      # If you want to use pixi, run this commented command as a first step to prepare the installation. 
+# pixi shell      # If you want to use pixi (experimental), run this commented command as a first step to prepare the installation. 
 ./install_all.sh   # Unified install procedure 
 ```
 
@@ -216,7 +216,7 @@ The install procedure was tested under *Ubuntu 20.04*, *22.04* and *24.04*.
 
 - With **venv**: Follow the instructions reported [here](./docs/PYTHON-VIRTUAL-ENVS.md).  
 - With **conda**: Run the procedure described in this other [file](./docs/CONDA.md).
-- With **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh` (see this [file](./docs/PIXI.md) for further details).
+- With **pixi**: Run `pixi shell` in the root folder of the repo before launching `./install_all.sh` (see this [file](./docs/PIXI.md) for further details). Currently, pixi support is experimental and may encounter issues with building and linking.
 
 The install process creates a new python virtual environment `pyslam`.
 

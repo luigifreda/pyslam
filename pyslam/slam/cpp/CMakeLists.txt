@@ -91,6 +91,22 @@ if (USE_PYTHON)
     message(STATUS "Python_INCLUDE_DIRS: ${Python_INCLUDE_DIRS}")
     message(STATUS "Python_LIBRARIES: ${Python_LIBRARIES}")
     include_directories(${Python_INCLUDE_DIRS})
+    
+    # Find NumPy include directory
+    execute_process(
+        COMMAND "${Python_EXECUTABLE}" -c "import numpy; print(numpy.get_include())"
+        OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE NUMPY_FOUND_RESULT
+    )
+    if(NUMPY_FOUND_RESULT EQUAL 0 AND EXISTS "${NUMPY_INCLUDE_DIR}")
+        message(STATUS "NumPy_INCLUDE_DIR: ${NUMPY_INCLUDE_DIR}")
+        include_directories(${NUMPY_INCLUDE_DIR})
+    else()
+        message(WARNING "NumPy not found. Some features may not work correctly.")
+        set(NUMPY_INCLUDE_DIR "")
+    endif()
 endif()
 
 # Add g2o from thirdparty
@@ -302,8 +318,11 @@ target_link_libraries(cpp_core_lib PRIVATE ${CPP_CORE_LINK_LIBRARIES})
 target_include_directories(cpp_core_lib SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
 
 if (USE_PYTHON)
-target_link_libraries(cpp_core_lib PRIVATE ${Python_LIBRARIES})
-target_include_directories(cpp_core_lib SYSTEM PRIVATE ${Python_INCLUDE_DIRS})
+    target_link_libraries(cpp_core_lib PRIVATE ${Python_LIBRARIES})
+    target_include_directories(cpp_core_lib SYSTEM PRIVATE ${Python_INCLUDE_DIRS})
+    if(NUMPY_INCLUDE_DIR)
+        target_include_directories(cpp_core_lib SYSTEM PRIVATE ${NUMPY_INCLUDE_DIR})
+    endif()
 endif()
 
 # Compiler flags
@@ -336,6 +355,9 @@ if (USE_PYTHON)
 
     # Treat Eigen headers as SYSTEM to silence warnings originating from Eigen itself
     target_include_directories(cpp_core SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR} ${Python_INCLUDE_DIRS})
+    if(NUMPY_INCLUDE_DIR)
+        target_include_directories(cpp_core SYSTEM PRIVATE ${NUMPY_INCLUDE_DIR})
+    endif()
 
     # Compiler flags
     target_compile_definitions(cpp_core PRIVATE 

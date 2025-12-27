@@ -324,7 +324,8 @@ class DataGenerator:
 
 
 def main():
-    use_optimizer_gtsam = True
+    use_optimizer_gtsam = False
+    print(f"use_optimizer_gtsam: {use_optimizer_gtsam}")
     if use_optimizer_gtsam:
         optimize_essential_graph = optimizer_gtsam.optimize_essential_graph
     else:

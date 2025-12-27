@@ -10,6 +10,29 @@ fi
 }
 
 # ====================================================
+
+# NOTE: ROS2 libraries are built with system libstdc++, 
+# so they may have ABI compatibility issues in pixi or conda environments 
+# (which use their own libstdc++). Building is disabled in these environments.
+
+# Check if pixi is activated
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+    echo "Pixi environment detected: $PIXI_PROJECT_NAME"
+    echo "Pixi environment is not supported for building ros2_pybindings"
+
+    exit 1
+fi
+
+# Check if conda is installed
+if command -v conda &> /dev/null; then
+    CONDA_INSTALLED=true
+    echo "Conda is installed"
+    echo "Conda is not supported for building ros2_pybindings"
+    exit 1
+fi
+
+# ====================================================
 # check if we have external options
 EXTERNAL_OPTIONS=$@
 if [[ -n "$EXTERNAL_OPTIONS" ]]; then

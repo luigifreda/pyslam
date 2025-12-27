@@ -79,4 +79,19 @@ export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python inte
 # HACK: Moved the install of the semantic tools at the end of the install process to avoid some conflict issues among the deps
 $SCRIPTS_DIR/install_pip3_semantics.sh    # must use "$SCRIPTS_DIR/"
 
+# 9. outliers under macos
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # To solve under mac the (crash) issue mentioned in the troubleshoting document
+    pip uninstall tensorflow
+    pip install "tensorflow==2.15.*" --force-reinstall
+fi 
+
+# 10. outliers under conda
+pip install "pyarrow<19"  # See https://github.com/luigifreda/pyslam/issues/193
+pip install -U "protobuf>=5,<6" # For solving final issues with contextdesc
+# NOTE: There can be possible issues with delf and protobuf too. To solve them, run the following command:
+# cd <pyslam_root>/thirdparty/tensorflow_models/research/delf
+# protoc -I=. --python_out=. delf/protos/*.proto
+pip install "numpy<2"  
+
 cd "$STARTING_DIR"

@@ -16,6 +16,16 @@ else
     echo "OS: $version"
 fi
 
+# Check if pixi is activated
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+    echo "Pixi environment detected: $PIXI_PROJECT_NAME"
+
+    source "$SCRIPTS_DIR/pixi_python_config.sh"
+else
+    PIXI_ACTIVATED=false
+fi
+
 # ====================================================
 # check if we have external options
 EXTERNAL_OPTIONS=$@

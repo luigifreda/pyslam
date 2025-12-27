@@ -223,7 +223,8 @@ class TestPoseOptimizerConvergence(TestCase):
         # frame.ensure_contiguous_arrays()
         # return
 
-        use_optimizer_gtsam = True
+        use_optimizer_gtsam = False
+        print(f"use_optimizer_gtsam: {use_optimizer_gtsam}")
         if use_optimizer_gtsam:
             pose_optimization = optimizer_gtsam.pose_optimization
         else:

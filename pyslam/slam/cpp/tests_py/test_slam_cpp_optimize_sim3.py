@@ -476,7 +476,8 @@ class TestOptimizeSim3(TestCase):
 
         print(f"starting optimize_sim3... ")
 
-        use_optimizer_gtsam = True
+        use_optimizer_gtsam = False
+        print(f"use_optimizer_gtsam: {use_optimizer_gtsam}")
         if use_optimizer_gtsam:
             optimize_sim3 = optimizer_gtsam.optimize_sim3
         else:

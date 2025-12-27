@@ -147,10 +147,11 @@ int main() {
 
         // Test 6: Verify sensor type and depth parameters
         std::cout << "Test 6: Verifying sensor type and depth parameters..." << std::endl;
-        // Note: sensor_type is not serialized/deserialized in JSON, so it defaults to MONOCULAR
-        // We verify it has the default value rather than matching the original
-        if (camera2->sensor_type != SensorType::MONOCULAR) {
-            throw std::runtime_error("sensor_type should default to MONOCULAR when not serialized");
+        // Verify sensor_type is correctly serialized and deserialized
+        if (camera2->sensor_type != camera->sensor_type) {
+            throw std::runtime_error(
+                "sensor_type mismatch: " + std::to_string(static_cast<int>(camera2->sensor_type)) +
+                " vs " + std::to_string(static_cast<int>(camera->sensor_type)));
         }
         if (std::abs(camera2->depth_factor - camera->depth_factor) > 1e-12) {
             throw std::runtime_error("depth_factor mismatch");
@@ -158,8 +159,7 @@ int main() {
         if (std::abs(camera2->depth_threshold - camera->depth_threshold) > 1e-12) {
             throw std::runtime_error("depth_threshold mismatch");
         }
-        std::cout << "Sensor type and depth parameters verified (sensor_type defaults to MONOCULAR)"
-                  << std::endl;
+        std::cout << "Sensor type and depth parameters verified" << std::endl;
 
         // Test 7: Verify distortion parameters
         std::cout << "Test 7: Verifying distortion parameters..." << std::endl;

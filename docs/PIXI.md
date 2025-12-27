@@ -26,6 +26,8 @@ Here you can find the instructions to install `pyslam` under `pixi` and a very c
 
 ## Install `pyslam` with pixi
 
+Currently, pixi support is experimental and may encounter issues with building and linking.
+
 Follow the steps reported below: 
 
 ### Install pixi 

@@ -9,6 +9,7 @@ SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
 ROOT_DIR="$SCRIPT_DIR_/.."
+SCRIPTS_DIR="$ROOT_DIR/scripts"
 
 # ====================================================
 # import the bash utils 
@@ -44,6 +45,17 @@ else
     CONDA_INSTALLED=false
 fi
 
+# Check if pixi is activated
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+    echo "Pixi environment detected: $PIXI_PROJECT_NAME"
+
+    source "$SCRIPTS_DIR/pixi_python_config.sh"
+else
+    PIXI_ACTIVATED=false
+fi
+
+# ====================================================
 
 ubuntu_version=$(lsb_release -rs | cut -d. -f1)
 
@@ -87,6 +99,10 @@ WITH_MARCH_NATIVE=ON
 if [[ "$OSTYPE" == darwin* ]]; then
     WITH_MARCH_NATIVE=OFF
 fi
+if [[ "$PIXI_ACTIVATED" == true ]]; then
+    WITH_MARCH_NATIVE=OFF
+fi
+echo "WITH_MARCH_NATIVE: $WITH_MARCH_NATIVE"
 
 cd thirdparty
 if [ ! -d gtsam_local ]; then

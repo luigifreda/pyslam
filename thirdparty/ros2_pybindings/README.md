@@ -4,6 +4,8 @@
 
 This package provides **Python bindings** for synchronized reading of ROS 2 bag files using C++ and pybind11. It enables fast and flexible access to `rosbag2` data from Python, **without relying on ROS 2's native Python interface**, which is strictly tied to Python 3.8 in ROS 2.
 
+**Note**: ROS2 libraries are built with system `libstdc++`,  so they may have ABI compatibility issues in `pixi` or `conda` environments (which use their own `libstdc++`). Building is disabled in these environments.
+
 ## 🔧 Problem Solved
 
 One of the major limitations of ROS 2 (Foxy and others) is its **strict dependency on Python 3.8**, due to precompiled rclpy binaries and message types.

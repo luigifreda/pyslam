@@ -35,6 +35,66 @@ cv::Mat json_to_cv_mat(const nlohmann::json &json_data);
 cv::Mat json_to_cv_mat_raw(const nlohmann::json &json_data);
 
 // ===============================
+// Eigen helpers
+// ===============================
+
+// Convert a fixed-size Eigen matrix to nested JSON array [[...], ...]
+template <typename Derived>
+inline nlohmann::json eigen_matrix_to_json_array(const Eigen::MatrixBase<Derived> &mat) {
+    using nlohmann::json;
+    json rows = json::array();
+    for (int i = 0; i < mat.rows(); ++i) {
+        json row = json::array();
+        for (int j = 0; j < mat.cols(); ++j) {
+            row.push_back(mat(i, j));
+        }
+        rows.push_back(row);
+    }
+    return rows;
+}
+
+// Parse nested JSON array into a fixed-size Eigen matrix. Returns false on failure
+template <typename Scalar, int Rows, int Cols>
+inline bool json_array_to_eigen_matrix(const nlohmann::json &jarr,
+                                       Eigen::Matrix<Scalar, Rows, Cols> &out) {
+    try {
+        if (!jarr.is_array() || static_cast<int>(jarr.size()) != Rows)
+            return false;
+        for (int i = 0; i < Rows; ++i) {
+            const auto &row = jarr[i];
+            if (!row.is_array() || static_cast<int>(row.size()) != Cols)
+                return false;
+            for (int j = 0; j < Cols; ++j) {
+                out(i, j) = static_cast<Scalar>(row[j].get<double>());
+            }
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// Parse either a nested array or a JSON-encoded string of nested array into Eigen matrix
+// This gracefully handles Python's double-encoded pose string case
+template <typename Scalar, int Rows, int Cols>
+inline bool flexible_json_to_eigen_matrix(const nlohmann::json &jval,
+                                          Eigen::Matrix<Scalar, Rows, Cols> &out) {
+    if (jval.is_null())
+        return false;
+    if (jval.is_string()) {
+        // Double-encoded: first parse the string into JSON, then parse array
+        try {
+            auto inner = nlohmann::json::parse(jval.get<std::string>());
+            return json_array_to_eigen_matrix<Scalar, Rows, Cols>(inner, out);
+        } catch (...) {
+            return false;
+        }
+    }
+    // Regular nested array
+    return json_array_to_eigen_matrix<Scalar, Rows, Cols>(jval, out);
+}
+
+// ===============================
 // JSON helpers
 // ===============================
 
@@ -256,66 +316,6 @@ inline cv::Mat safe_parse_cv_mat_flexible(const nlohmann::json &j, const std::st
         // Return empty matrix on error
         return cv::Mat();
     }
-}
-
-// ===============================
-// Eigen helpers
-// ===============================
-
-// Convert a fixed-size Eigen matrix to nested JSON array [[...], ...]
-template <typename Derived>
-inline nlohmann::json eigen_matrix_to_json_array(const Eigen::MatrixBase<Derived> &mat) {
-    using nlohmann::json;
-    json rows = json::array();
-    for (int i = 0; i < mat.rows(); ++i) {
-        json row = json::array();
-        for (int j = 0; j < mat.cols(); ++j) {
-            row.push_back(mat(i, j));
-        }
-        rows.push_back(row);
-    }
-    return rows;
-}
-
-// Parse nested JSON array into a fixed-size Eigen matrix. Returns false on failure
-template <typename Scalar, int Rows, int Cols>
-inline bool json_array_to_eigen_matrix(const nlohmann::json &jarr,
-                                       Eigen::Matrix<Scalar, Rows, Cols> &out) {
-    try {
-        if (!jarr.is_array() || static_cast<int>(jarr.size()) != Rows)
-            return false;
-        for (int i = 0; i < Rows; ++i) {
-            const auto &row = jarr[i];
-            if (!row.is_array() || static_cast<int>(row.size()) != Cols)
-                return false;
-            for (int j = 0; j < Cols; ++j) {
-                out(i, j) = static_cast<Scalar>(row[j].get<double>());
-            }
-        }
-        return true;
-    } catch (...) {
-        return false;
-    }
-}
-
-// Parse either a nested array or a JSON-encoded string of nested array into Eigen matrix
-// This gracefully handles Python's double-encoded pose string case
-template <typename Scalar, int Rows, int Cols>
-inline bool flexible_json_to_eigen_matrix(const nlohmann::json &jval,
-                                          Eigen::Matrix<Scalar, Rows, Cols> &out) {
-    if (jval.is_null())
-        return false;
-    if (jval.is_string()) {
-        // Double-encoded: first parse the string into JSON, then parse array
-        try {
-            auto inner = nlohmann::json::parse(jval.get<std::string>());
-            return json_array_to_eigen_matrix<Scalar, Rows, Cols>(inner, out);
-        } catch (...) {
-            return false;
-        }
-    }
-    // Regular nested array
-    return json_array_to_eigen_matrix<Scalar, Rows, Cols>(jval, out);
 }
 
 // ===============================

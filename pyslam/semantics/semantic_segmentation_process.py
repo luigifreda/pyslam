@@ -43,10 +43,8 @@ from pyslam.slam import KeyFrame, Frame
 from pyslam.slam.feature_tracker_shared import SlamFeatureManagerInfo
 
 from .semantic_mapping_configs import SemanticMappingConfig
-from .semantic_segmentation_factory import SemanticSegmentationType, semantic_segmentation_factory
-from .semantic_types import SemanticFeatureType, SemanticEntityType
+from .semantic_segmentation_factory import semantic_segmentation_factory
 from .semantic_segmentation_base import SemanticSegmentationBase
-from .semantic_segmentation_clip import SemanticSegmentationCLIP
 from .perception_tasks import PerceptionTaskType, PerceptionTask, PerceptionOutput
 from .semantic_color_map_factory import semantic_color_map_factory
 

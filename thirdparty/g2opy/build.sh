@@ -29,6 +29,16 @@ else
     CONDA_INSTALLED=false
 fi
 
+# Check if pixi is activated
+if [[ -n "$PIXI_PROJECT_NAME" ]]; then
+    PIXI_ACTIVATED=true
+    echo "Pixi environment detected: $PIXI_PROJECT_NAME"
+
+    source "$SCRIPTS_DIR/pixi_python_config.sh"
+else
+    PIXI_ACTIVATED=false
+fi
+
 # ====================================================
 # check if we have external options
 EXTERNAL_OPTIONS=$@
@@ -40,13 +50,23 @@ fi
 PYTHON_EXE=${Python3_EXECUTABLE:-$(which python3)}
 echo "PYTHON_EXE: $PYTHON_EXE"
 
+# Check if we're in a pixi environment
+PIXI_ENV_PREFIX=""
+if [[ "$PYTHON_EXE" == *".pixi"* ]]; then
+    # Extract pixi environment prefix from Python path
+    # e.g., /path/to/project/.pixi/envs/default/bin/python3 -> /path/to/project/.pixi/envs/default
+    PIXI_ENV_PREFIX=$(dirname $(dirname $(dirname "$PYTHON_EXE")))
+    echo "Detected pixi environment at: $PIXI_ENV_PREFIX"
+fi
+
 if [ "$CONDA_INSTALLED" = true ]; then
     # NOTE: these are the "system" packages that are needed within conda to build opencv from source
     conda install -y -c conda-forge suitesparse 
 fi
 
-# Initialize MAC_OPTIONS to empty string (will be set for macOS)
+# Initialize MAC_OPTIONS and LINUX_OPTIONS to empty strings
 MAC_OPTIONS=""
+LINUX_OPTIONS=""
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Make sure we don't accidentally use a Linux cross-compiler or Linux sysroot from conda
@@ -88,6 +108,57 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "Using MAC_OPTIONS for cpp build: $MAC_OPTIONS"
 fi
 
+# Handle Linux pixi/conda environments
+if [[ "$OSTYPE" == "linux-gnu"* ]] && [[ -n "$PIXI_ENV_PREFIX" ]]; then
+    # Check if CSPARSE exists in pixi environment
+    if [ -d "$PIXI_ENV_PREFIX/include/suitesparse" ] && ([ -f "$PIXI_ENV_PREFIX/lib/libcxsparse.so" ] || [ -f "$PIXI_ENV_PREFIX/lib/libcxsparse.a" ]); then
+        export CSPARSE_INCLUDE_DIR=$PIXI_ENV_PREFIX/include/suitesparse
+        # Try to find the library (could be .so or .a)
+        if [ -f "$PIXI_ENV_PREFIX/lib/libcxsparse.so" ]; then
+            export CSPARSE_LIBRARY=$PIXI_ENV_PREFIX/lib/libcxsparse.so
+        elif [ -f "$PIXI_ENV_PREFIX/lib/libcxsparse.a" ]; then
+            export CSPARSE_LIBRARY=$PIXI_ENV_PREFIX/lib/libcxsparse.a
+        fi
+        
+        LINUX_OPTIONS+=" -DCSPARSE_INCLUDE_DIR=$CSPARSE_INCLUDE_DIR -DCSPARSE_LIBRARY=$CSPARSE_LIBRARY"
+        echo "Using pixi CSPARSE: $CSPARSE_INCLUDE_DIR, $CSPARSE_LIBRARY"
+    fi
+    
+    # Also set CHOLMOD if needed (though it seems to be found correctly already)
+    if [ -d "$PIXI_ENV_PREFIX/include/suitesparse" ] && ([ -f "$PIXI_ENV_PREFIX/lib/libcholmod.so" ] || [ -f "$PIXI_ENV_PREFIX/lib/libcholmod.a" ]); then
+        export CHOLMOD_INCLUDE_DIR=$PIXI_ENV_PREFIX/include/suitesparse
+        if [ -f "$PIXI_ENV_PREFIX/lib/libcholmod.so" ]; then
+            export CHOLMOD_LIBRARY=$PIXI_ENV_PREFIX/lib/libcholmod.so
+        elif [ -f "$PIXI_ENV_PREFIX/lib/libcholmod.a" ]; then
+            export CHOLMOD_LIBRARY=$PIXI_ENV_PREFIX/lib/libcholmod.a
+        fi
+        
+        LINUX_OPTIONS+=" -DCHOLMOD_INCLUDE_DIR=$CHOLMOD_INCLUDE_DIR -DCHOLMOD_LIBRARY=$CHOLMOD_LIBRARY"
+        echo "Using pixi CHOLMOD: $CHOLMOD_INCLUDE_DIR, $CHOLMOD_LIBRARY"
+    fi
+fi
+
+# Handle Linux conda environments
+if [[ "$OSTYPE" == "linux-gnu"* ]] && [ "$CONDA_INSTALLED" = true ] && [[ -z "$PIXI_ENV_PREFIX" ]]; then
+    if [ -n "$CONDA_PREFIX" ]; then
+        if [ -d "$CONDA_PREFIX/include/suitesparse" ] && ([ -f "$CONDA_PREFIX/lib/libcxsparse.so" ] || [ -f "$CONDA_PREFIX/lib/libcxsparse.a" ]); then
+            export CSPARSE_INCLUDE_DIR=$CONDA_PREFIX/include/suitesparse
+            if [ -f "$CONDA_PREFIX/lib/libcxsparse.so" ]; then
+                export CSPARSE_LIBRARY=$CONDA_PREFIX/lib/libcxsparse.so
+            elif [ -f "$CONDA_PREFIX/lib/libcxsparse.a" ]; then
+                export CSPARSE_LIBRARY=$CONDA_PREFIX/lib/libcxsparse.a
+            fi
+            
+            LINUX_OPTIONS+=" -DCSPARSE_INCLUDE_DIR=$CSPARSE_INCLUDE_DIR -DCSPARSE_LIBRARY=$CSPARSE_LIBRARY"
+            echo "Using conda CSPARSE: $CSPARSE_INCLUDE_DIR, $CSPARSE_LIBRARY"
+        fi
+    fi
+fi
+
+if [[ -n "$LINUX_OPTIONS" ]]; then
+    echo "Using LINUX_OPTIONS for cpp build: $LINUX_OPTIONS"
+fi
+
 EXTERNAL_OPTIONS+=" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DPython3_EXECUTABLE=${PYTHON_EXE}" 
 
 echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
@@ -99,7 +170,7 @@ echo "BUILD_TYPE: $BUILD_TYPE"
 
 make_dir build
 cd build
-cmake .. $EXTERNAL_OPTIONS $MAC_OPTIONS -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+cmake .. $EXTERNAL_OPTIONS $MAC_OPTIONS $LINUX_OPTIONS -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 make -j 8
 
 cd ..

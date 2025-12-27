@@ -12,6 +12,8 @@ if [ ! -d $1 ]; then
 fi
 }
 
+# ====================================================
+
 # Check if conda is installed
 if command -v conda &> /dev/null; then
     echo "Conda is installed"
@@ -31,11 +33,6 @@ if [[ -n "$PIXI_PROJECT_NAME" ]]; then
 else
     PIXI_ACTIVATED=false
 fi
-
-if [ ! -d $TARGET_FOLDER ]; then 
-    mkdir -p $TARGET_FOLDER
-fi 
-
 
 # ====================================================
 # check if we have external options

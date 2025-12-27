@@ -10,7 +10,7 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
-from pyslam.slam import Frame, PinholeCamera, optimizer_gtsam, optimizer_g2o
+from pyslam.slam import Frame, PinholeCamera, MapPoint, optimizer_gtsam, optimizer_g2o
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.utilities.geometry import rotation_matrix_from_yaw_pitch_roll, poseRt, inv_T
 

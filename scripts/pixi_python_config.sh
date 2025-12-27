@@ -25,9 +25,9 @@
 #   fi
 
 # Get the script directory
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-SCRIPT_DIR=$(readlink -f "$SCRIPT_DIR")  # this reads the actual path if a symbolic directory is used
-ROOT_DIR="$SCRIPT_DIR/.."
+SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR_=$(readlink -f "$SCRIPT_DIR_")  # this reads the actual path if a symbolic directory is used
+ROOT_DIR="$SCRIPT_DIR_/.."
 
 # Check if we're in a pixi environment
 if [ -z "$PIXI_ACTIVATED" ]; then
