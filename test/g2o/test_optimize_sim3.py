@@ -9,6 +9,12 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
+from pyslam.config_parameters import Parameters
+from pyslam.utilities.system import Printer
+
+Parameters.USE_CPP_CORE = False
+Printer.info("Using Python core - see the tests in pyslam/slam/cpp/tests_py for C++ core tests")
+
 from pyslam.slam import (
     Frame,
     Sim3Pose,

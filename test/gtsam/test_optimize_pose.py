@@ -10,6 +10,12 @@ import numpy as np
 import unittest
 from unittest import TestCase
 
+from pyslam.config_parameters import Parameters
+from pyslam.utilities.system import Printer
+
+Parameters.USE_CPP_CORE = False
+Printer.info("Using Python core - see the tests in pyslam/slam/cpp/tests_py for C++ core tests")
+
 from pyslam.slam import Frame, Camera, PinholeCamera, MapPoint
 from pyslam.slam import optimizer_gtsam, optimizer_g2o
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
@@ -130,7 +136,8 @@ class TestPoseOptimizerConvergence(TestCase):
         )  # introduce a shift that shoud be removed by the optimizer
         frame.update_pose(initial_Tcw)
 
-        frame.outliers = {i: False for i in range(num_keypoints)}  # Initially no outliers
+        # frame.outliers = {i: False for i in range(num_keypoints)}  # Initially no outliers
+        frame.outliers = np.array([False for i in range(num_keypoints)])  # Initially no outliers
 
         return frame
 

@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     # Select your semantic segmentation configuration (see the file semantics/semantic_segmentation_factory.py)
 
-    semantic_segmentation_type = SemanticSegmentationType.ODISE
+    semantic_segmentation_type = SemanticSegmentationType.EOV_SEG
     semantic_feature_type = SemanticFeatureType.LABEL
     semantic_dataset_type = SemanticDatasetType.ADE20K
     image_size = (512, 512)
