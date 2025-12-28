@@ -1,4 +1,5 @@
 import sys
+import platform
 
 sys.path.append("../../")
 from pyslam.config import Config
@@ -125,6 +126,21 @@ class ImageDisplayCv2:
 
     def display_images(self):
         """Display images in a separate thread"""
+        # On macOS, OpenCV GUI functions must be called from the main thread
+        # Check if we're in a worker thread on macOS
+        is_main_thread = threading.current_thread() is threading.main_thread()
+        is_macos = platform.system() == "Darwin"
+
+        if is_macos and not is_main_thread:
+            print(f"Warning: OpenCV GUI functions cannot be called from worker threads on macOS.")
+            print(f"Skipping OpenCV display for '{self.name if self.name else 'worker thread'}'.")
+            print(f"Use the main thread display or PyQtGraph viewer instead.")
+            # Just wait and exit gracefully
+            while self.running:
+                time.sleep(0.1)
+            print(f"Image display 2 thread finished (skipped on macOS)")
+            return
+
         window_name1 = f'random image 1 - Opencv {self.name if self.name else ""}'
         window_name2 = f'random image 2 - Opencv {self.name if self.name else ""}'
         cv2.namedWindow(window_name1)

@@ -26,7 +26,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts")
 endif()
 
-
 # Add -march=native if requested and not on macOS
 # (macOS system clang doesn't properly support -march=native on Apple Silicon)
 if(BUILD_WITH_MARCH_NATIVE AND NOT APPLE)

@@ -533,8 +533,10 @@ if __name__ == "__main__":
     # Give viewers time to clean up
     time.sleep(0.5)
 
-    # if not args.headless:
-    #     cv2.destroyAllWindows()
-
     if args.headless:
-        force_kill_all_and_exit(verbose=False)  # just in case
+        force_kill_all_and_exit(verbose=False)  # just in case when running an evaluation
+
+    if platform.system() == "Darwin":
+        # HACK
+        time.sleep(5)
+        force_kill_all_and_exit(verbose=True)  # debug

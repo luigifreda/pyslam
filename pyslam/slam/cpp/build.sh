@@ -98,10 +98,20 @@ fi
 
 # Configure with CMake
 echo "Configuring with CMake..."
+
+# Ensure we use the correct Python executable from the current environment
+PYTHON_EXEC=$(which python)
+if [[ -n "$PYTHON_EXEC" ]]; then
+    PYTHON_CMAKE_OPTS="-DPython_EXECUTABLE=$PYTHON_EXEC"
+    echo "Using Python executable: $PYTHON_EXEC"
+else
+    PYTHON_CMAKE_OPTS=""
+fi
+
 cmake .. \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
     -Dpybind11_DIR="$PROJECT_ROOT/thirdparty/pybind11/share/cmake/pybind11" \
-    -DWITH_MARCH_NATIVE="$WITH_MARCH_NATIVE" $PIXI_PYTHON_CMAKE_OPTS $EXTERNAL_OPTIONS
+    -DWITH_MARCH_NATIVE="$WITH_MARCH_NATIVE" $PYTHON_CMAKE_OPTS $PIXI_PYTHON_CMAKE_OPTS $EXTERNAL_OPTIONS
 
 # Build the module
 echo "Building the module..."

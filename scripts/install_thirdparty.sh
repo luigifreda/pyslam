@@ -87,8 +87,6 @@ $SCRIPTS_DIR/install_json_nlohmann.sh $EXTERNAL_OPTIONS
 
 cd "$ROOT_DIR"
 
-exit 0
-
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features

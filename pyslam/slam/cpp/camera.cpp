@@ -554,4 +554,11 @@ void PinholeCamera::update_distortion_flag() {
     }
 }
 
+//===============================================================================================
+// Explicit template instantiations for CameraUtils methods used in Python bindings
+//===============================================================================================
+
+template MatNx2<float> pyslam::CameraUtils::unproject_points<float>(MatNx2Ref<float> uvs, Mat3Ref<float> Kinv);
+template MatNx2<double> pyslam::CameraUtils::unproject_points<double>(MatNx2Ref<double> uvs, Mat3Ref<double> Kinv);
+
 } // namespace pyslam

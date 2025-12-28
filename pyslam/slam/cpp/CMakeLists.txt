@@ -37,9 +37,14 @@ elseif (CMAKE_BUILD_TYPE MATCHES Debug)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fPIC -pg")
 endif()
 
-if (WITH_MARCH_NATIVE)
+# Add -march=native if requested and not on macOS
+# (macOS system clang doesn't properly support -march=native on Apple Silicon)
+if(WITH_MARCH_NATIVE AND NOT APPLE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+    message(STATUS "Using -march=native for optimization")
+elseif(WITH_MARCH_NATIVE)
+    message(STATUS "Skipping -march=native on macOS (system clang limitation)")
 endif()
 
 if (USE_PYTHON)
@@ -64,10 +69,31 @@ find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
 
 find_package(Eigen3 REQUIRED)
+# Modern CMake provides Eigen3::Eigen target, older versions use variables
+if(TARGET Eigen3::Eigen)
+    # Use the modern CMake target
+    get_target_property(EIGEN3_INCLUDE_DIR Eigen3::Eigen INTERFACE_INCLUDE_DIRECTORIES)
+    if(EIGEN3_INCLUDE_DIR)
+        # If it's a list, get the first element
+        if(EIGEN3_INCLUDE_DIR MATCHES ";")
+            list(GET EIGEN3_INCLUDE_DIR 0 EIGEN3_INCLUDE_DIR)
+        endif()
+    endif()
+elseif(Eigen3_INCLUDE_DIR)
+    # Fallback to variable-based approach for older CMake
+    set(EIGEN3_INCLUDE_DIR ${Eigen3_INCLUDE_DIR})
+elseif(Eigen3_INCLUDE_DIRS)
+    list(GET Eigen3_INCLUDE_DIRS 0 EIGEN3_INCLUDE_DIR)
+endif()
+
+if(NOT EIGEN3_INCLUDE_DIR)
+    message(FATAL_ERROR "Eigen3 include directory not found. Please install Eigen3 or ensure it's in your system paths.")
+endif()
+message(STATUS "EIGEN3_INCLUDE_DIR: ${EIGEN3_INCLUDE_DIR}")
 find_package(TBB REQUIRED)
 
 # boost 
-find_package(Boost REQUIRED COMPONENTS thread system filesystem)
+find_package(Boost REQUIRED COMPONENTS thread filesystem)
 
 
 include_directories(${PYSLAM_SLAM_SRC})
@@ -87,25 +113,62 @@ include_directories(${pybind11_INCLUDE_DIRS})
 
 # Add Python development
 if (USE_PYTHON)
+    # On macOS, prefer the Python executable from PATH to ensure we use the correct version
+    # This is especially important when using virtual environments
+    if(APPLE AND NOT Python_EXECUTABLE)
+        find_program(PYTHON_EXECUTABLE_FROM_PATH python python3)
+        if(PYTHON_EXECUTABLE_FROM_PATH)
+            message(STATUS "Using Python executable from PATH: ${PYTHON_EXECUTABLE_FROM_PATH}")
+            set(Python_EXECUTABLE ${PYTHON_EXECUTABLE_FROM_PATH} CACHE PATH "Python executable")
+        endif()
+    endif()
+    
     find_package(Python COMPONENTS Interpreter Development REQUIRED)
+    message(STATUS "Python_EXECUTABLE: ${Python_EXECUTABLE}")
     message(STATUS "Python_INCLUDE_DIRS: ${Python_INCLUDE_DIRS}")
     message(STATUS "Python_LIBRARIES: ${Python_LIBRARIES}")
     include_directories(${Python_INCLUDE_DIRS})
     
     # Find NumPy include directory
-    execute_process(
-        COMMAND "${Python_EXECUTABLE}" -c "import numpy; print(numpy.get_include())"
-        OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-        RESULT_VARIABLE NUMPY_FOUND_RESULT
-    )
-    if(NUMPY_FOUND_RESULT EQUAL 0 AND EXISTS "${NUMPY_INCLUDE_DIR}")
-        message(STATUS "NumPy_INCLUDE_DIR: ${NUMPY_INCLUDE_DIR}")
+    # Try multiple Python executables in order of preference
+    set(PYTHON_CANDIDATES)
+    if(Python_EXECUTABLE)
+        list(APPEND PYTHON_CANDIDATES "${Python_EXECUTABLE}")
+    endif()
+    if(Python3_EXECUTABLE)
+        list(APPEND PYTHON_CANDIDATES "${Python3_EXECUTABLE}")
+    endif()
+    # Try python3 from PATH as fallback
+    find_program(PYTHON3_FROM_PATH python3)
+    if(PYTHON3_FROM_PATH)
+        list(APPEND PYTHON_CANDIDATES "${PYTHON3_FROM_PATH}")
+    endif()
+    
+    set(NUMPY_FOUND FALSE)
+    set(NUMPY_INCLUDE_DIR "")
+    
+    foreach(PYTHON_FOR_NUMPY IN LISTS PYTHON_CANDIDATES)
+        execute_process(
+            COMMAND "${PYTHON_FOR_NUMPY}" -c "import numpy; print(numpy.get_include())"
+            OUTPUT_VARIABLE NUMPY_INCLUDE_DIR_TMP
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE NUMPY_FOUND_RESULT
+        )
+        if(NUMPY_FOUND_RESULT EQUAL 0 AND EXISTS "${NUMPY_INCLUDE_DIR_TMP}")
+            set(NUMPY_INCLUDE_DIR "${NUMPY_INCLUDE_DIR_TMP}")
+            set(NUMPY_FOUND TRUE)
+            message(STATUS "NumPy_INCLUDE_DIR: ${NUMPY_INCLUDE_DIR} (found via ${PYTHON_FOR_NUMPY})")
+            break()
+        endif()
+    endforeach()
+    
+    if(NUMPY_FOUND)
         include_directories(${NUMPY_INCLUDE_DIR})
     else()
         message(WARNING "NumPy not found. Some features may not work correctly.")
-        set(NUMPY_INCLUDE_DIR "")
+        message(WARNING "Tried Python executables: ${PYTHON_CANDIDATES}")
+        message(FATAL_ERROR "Please install NumPy in your Python environment: pip install numpy")
     endif()
 endif()
 
@@ -315,7 +378,13 @@ add_library(cpp_core_lib STATIC ${CPP_CORE_SOURCES} ${CPP_CORE_HEADERS})
 target_link_libraries(cpp_core_lib PRIVATE ${CPP_CORE_LINK_LIBRARIES})
 
 # Include directories
-target_include_directories(cpp_core_lib SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
+if(TARGET Eigen3::Eigen)
+    # Use modern CMake target if available
+    target_link_libraries(cpp_core_lib PRIVATE Eigen3::Eigen)
+else()
+    # Fallback to include directory for older CMake
+    target_include_directories(cpp_core_lib SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
+endif()
 
 if (USE_PYTHON)
     target_link_libraries(cpp_core_lib PRIVATE ${Python_LIBRARIES})
@@ -346,15 +415,25 @@ if (USE_PYTHON)
     pybind11_add_module(cpp_core ${SLAM_CPP_PYBIND_MODULE_SOURCES} ${SLAM_CPP_PYBIND_MODULE_HEADERS})
     add_dependencies(cpp_core cpp_core_lib)
 
-    # Link the static library instead of compiling sources again
+    # Link the static library and dependencies
+    # On macOS, force-load to include all symbols (macOS linker is more aggressive about removing unused symbols)
+    if(APPLE)
+        target_link_options(cpp_core PRIVATE "-Wl,-force_load,$<TARGET_FILE:cpp_core_lib>")
+    else()
+        target_link_libraries(cpp_core PRIVATE cpp_core_lib)
+    endif()
     target_link_libraries(cpp_core PRIVATE
-        cpp_core_lib  # Link the static library
         ${CPP_CORE_LINK_LIBRARIES}
         ${Python_LIBRARIES}
     )
 
     # Treat Eigen headers as SYSTEM to silence warnings originating from Eigen itself
-    target_include_directories(cpp_core SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR} ${Python_INCLUDE_DIRS})
+    if(TARGET Eigen3::Eigen)
+        target_link_libraries(cpp_core PRIVATE Eigen3::Eigen)
+    else()
+        target_include_directories(cpp_core SYSTEM PRIVATE ${EIGEN3_INCLUDE_DIR})
+    endif()
+    target_include_directories(cpp_core SYSTEM PRIVATE ${Python_INCLUDE_DIRS})
     if(NUMPY_INCLUDE_DIR)
         target_include_directories(cpp_core SYSTEM PRIVATE ${NUMPY_INCLUDE_DIR})
     endif()
@@ -391,7 +470,6 @@ endif()
 install(TARGETS cpp_core_lib
     LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
-
 
 # Print configuration info
 message(STATUS "Building PYSLAM C++ Core Module")

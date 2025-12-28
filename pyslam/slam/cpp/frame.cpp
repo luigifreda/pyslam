@@ -1478,10 +1478,20 @@ void extract_semantic_at_keypoints(const cv::Mat &semantic_img, MatNx2fRef kps, 
         break;
 #ifdef CV_16F
     case CV_16F:
-        // if we actually use float16 semantics:
+#ifdef __APPLE__
+        // macOS: cv::float16_t is not available, convert to CV_32F first
+        {
+            cv::Mat semantic_img_32f;
+            semantic_img.convertTo(semantic_img_32f, CV_32F);
+            single ? extract_semantic_at_keypoints_impl<true, float>(semantic_img_32f, kps, kps_sem)
+                   : extract_semantic_at_keypoints_impl<false, float>(semantic_img_32f, kps, kps_sem);
+        }
+#else
+        // Linux and other platforms: use cv::float16_t directly if available
         single
             ? extract_semantic_at_keypoints_impl<true, cv::float16_t>(semantic_img, kps, kps_sem)
             : extract_semantic_at_keypoints_impl<false, cv::float16_t>(semantic_img, kps, kps_sem);
+#endif
         break;
 #endif
     default:
@@ -1833,6 +1843,7 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
         {
 #ifdef USE_PYTHON
             // Release the GIL in the calling thread so worker threads can acquire it.
+            // Only do this if Python is initialized (required for gil_scoped_release).
             std::unique_ptr<pybind11::gil_scoped_release> release_guard;
             if (Py_IsInitialized() && PyGILState_Check()) {
                 release_guard = std::make_unique<pybind11::gil_scoped_release>();
@@ -1896,6 +1907,11 @@ Frame::detect_and_compute_features_parallel(const cv::Mat &img, const cv::Mat &i
 //===============================================================================================
 // Explicit template instantiations for FrameBase methods used in Python bindings
 //===============================================================================================
+
+template Vec3<float> pyslam::FrameBase::transform_point<float>(Vec3Ref<float> pw) const;
+template Vec3<double> pyslam::FrameBase::transform_point<double>(Vec3Ref<double> pw) const;
+template MatNx3<float> pyslam::FrameBase::transform_points<float>(MatNx3Ref<float> points) const;
+template MatNx3<double> pyslam::FrameBase::transform_points<double>(MatNx3Ref<double> points) const;
 
 template std::pair<MatNxM<float>, VecN<float>>
 pyslam::FrameBase::project_points<float>(const MatNx3Ref<float> points,

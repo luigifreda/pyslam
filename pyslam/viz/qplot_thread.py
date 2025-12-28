@@ -620,7 +620,7 @@ class Qplot3d:
         default_width = 800
         default_height = 600
         self.main_widget.resize(default_width, default_height)
-        self.overlay.setMaximumHeight(default_height / 50)
+        self.overlay.setMaximumHeight(int(default_height / 50))
 
         self.create_axis()
 

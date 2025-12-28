@@ -64,7 +64,7 @@ def str2bool(v):
 # N.B.: if a method is needed you CAN'T
 #   from module import name.method
 # since method is an attribute of name!
-def import_from(module, name, method=None, debug=True):
+def import_from(module, name, method=None, debug=False):
     from .logging import Printer
 
     try:
@@ -148,6 +148,9 @@ def locally_configure_qt_environment():
 
 
 def force_kill_all_and_exit(code=0, verbose=True):
+    """
+    Force kill all remaining processes and exit the program.
+    """
     # print("[!] Force shutdown initiated.")
 
     # Log active threads (excluding main)
@@ -186,4 +189,10 @@ def force_kill_all_and_exit(code=0, verbose=True):
 
     if verbose:
         print("[✓] All processes attempted to terminate. Exiting.")
+        print("[!] Note: Remaining threads (if any) will be terminated with the process.")
+
+    # Force exit immediately - this bypasses all Python cleanup and thread cleanup
+    # Note: The threads reported above are just warnings - os._exit() will terminate
+    # the entire process regardless of any remaining threads. The process will exit
+    # immediately even if QueueFeederThread or other threads are still running.
     os._exit(code)  # Bypass cleanup and exit immediately

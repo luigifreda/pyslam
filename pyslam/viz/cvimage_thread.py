@@ -24,6 +24,8 @@ import traceback
 import cv2
 import numpy as np
 import queue
+from queue import Empty as QueueEmpty
+import platform
 
 from pyslam.utilities.data_management import empty_queue
 
@@ -48,6 +50,7 @@ class CvImageViewer:
             self.is_running,
         )
         self.process = mp.Process(target=self.run, args=args)
+        self.process.daemon = False  # Don't make it a daemon - we want to clean it up properly
         self.process.start()
 
     # # destructor
@@ -88,6 +91,9 @@ class CvImageViewer:
             print(f"Warning: CvImageViewer process did not terminate in time, forcing kill.")
             try:
                 self.process.terminate()
+                # Wait a bit for terminate to take effect, then join again
+                time.sleep(0.5)
+                self.process.join(timeout=5)
             except Exception as e:
                 print(f"CvImageViewer: Error during process termination: {e}")
 
@@ -99,12 +105,46 @@ class CvImageViewer:
             except Exception as e:
                 print(f"CvImageViewer: Warning: Error shutting down manager: {e}")
 
+        # Close queues explicitly to ensure cleanup (only if not managed by manager)
+        # Manager queues are closed when the manager shuts down
+        # IMPORTANT: On macOS with spawn, we must cancel_join_thread BEFORE close to prevent hanging
+        if hasattr(self, "mp_manager") and self.mp_manager.manager is None:
+            # Queues are not from manager, so we need to close them manually
+            # On macOS with spawn, queues need explicit cleanup in the right order
+            def close_queue(queue, name):
+                """Helper to close a queue with proper cleanup order."""
+                try:
+                    if hasattr(queue, "cancel_join_thread"):
+                        queue.cancel_join_thread()
+                    elif hasattr(queue, "queue") and hasattr(queue.queue, "cancel_join_thread"):
+                        # For SafeQueue, cancel on the underlying queue
+                        queue.queue.cancel_join_thread()
+                    if hasattr(queue, "close"):
+                        queue.close()
+                except Exception as e:
+                    print(f"CvImageViewer: Warning: Error closing {name}: {e}")
+
+            if hasattr(self, "queue"):
+                close_queue(self.queue, "queue")
+            if hasattr(self, "key_queue"):
+                close_queue(self.key_queue, "key_queue")
+
+        # Reset the singleton instance so it can be recreated if needed
+        CvImageViewer._instance = None
+
+        # Small delay to allow Python's atexit handlers and multiprocessing cleanup to run
+        time.sleep(0.2)
+
         print(f"CvImageViewer closed")
 
     def run(self, queue, key_queue, is_running):
         """Run in a separate process to display images using cv2.imshow."""
         image_map = {}  # name -> window_name
         is_running.value = 1
+
+        # On macOS, give OpenCV a moment to initialize windows
+        if platform.system() == "Darwin":
+            time.sleep(0.1)
 
         try:
             while is_running.value == 1:
@@ -135,7 +175,7 @@ class CvImageViewer:
                             except Exception as e:
                                 print(f"CvImageViewer: update_image: encountered exception: {e}")
                                 traceback.print_exc()
-                        except queue.Empty:
+                        except QueueEmpty:
                             # Queue is empty, break inner loop
                             break
                         except Exception as e:
@@ -202,8 +242,14 @@ class CvImageViewer:
             self.queue.put((image, name))
 
     def get_key(self):
-        """Get the next key from the queue."""
+        """Get the next key from the queue.
+
+        Returns:
+            str: The character corresponding to the key pressed, or empty string if no key.
+        """
         if not self.key_queue.empty():
-            return self.key_queue.get()
-        else:
-            return ""
+            key_code = self.key_queue.get()
+            # Convert integer key code to character
+            if key_code > 0:
+                return chr(key_code)
+        return ""

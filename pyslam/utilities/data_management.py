@@ -20,6 +20,7 @@
 import torch.multiprocessing as mp
 import threading as th
 import queue as queue_module
+from queue import Empty as QueueEmpty
 
 import traceback
 import platform
@@ -119,6 +120,9 @@ def empty_queue(queue, verbose=True):
     try:
         while not queue.empty():
             queue.get_nowait()
+    except QueueEmpty:
+        # Queue is empty, which is expected - just return silently
+        pass
     except Exception as e:
         if verbose:
             Printer.red(f"EXCEPTION in empty_queue: {e}")

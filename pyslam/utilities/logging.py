@@ -300,6 +300,34 @@ class LoggerQueue(SingletonBase):
         # Register stop_listener to be called at program exit
         atexit.register(self.stop_listener)
 
+        # Register a global cleanup function to stop all LoggerQueue instances
+        # This ensures all instances are cleaned up even if atexit handlers
+        # are called in an unexpected order
+        if not hasattr(LoggerQueue, "_global_cleanup_registered"):
+            atexit.register(LoggerQueue.stop_all_instances)
+            LoggerQueue._global_cleanup_registered = True
+
+    @classmethod
+    def stop_all_instances(cls):
+        """
+        Stop all LoggerQueue instances. This is useful for ensuring clean shutdown
+        of all logging threads before program exit. Called automatically at exit.
+        """
+        # Stop all instances, even if some are already closing
+        # This ensures we clean up all queues and threads
+        for instance in cls._instances.values():
+            if isinstance(instance, cls) and hasattr(instance, "stop_listener"):
+                try:
+                    # Call stop_listener even if already closing - it's idempotent
+                    # This ensures queues are properly closed and feeder threads are cancelled
+                    instance.stop_listener()
+                except Exception as e:
+                    print(f"Warning: Error stopping LoggerQueue instance: {e}")
+
+        # Give a small moment for threads to exit after cleanup
+        # This is especially important for QueueFeederThread threads
+        time.sleep(0.1)
+
     def reset_log_file(self, log_file):
         """
         Clears the contents of the log file to reset it at the beginning.
@@ -328,7 +356,30 @@ class LoggerQueue(SingletonBase):
         process_name = mp.current_process().name
         print(f"LoggerQueue[{self.log_file}]: process: {process_name}, stopping listener...")
         try:
-            # Stop the listener first - ensure the thread exits before closing the queue
+            # First, prevent new log records from being added to the queue
+            # by removing QueueHandlers from all loggers that use this queue
+            # This ensures no new items are put into the queue during shutdown
+            import logging
+
+            root_logger = logging.getLogger()
+            for logger in [root_logger] + list(logging.Logger.manager.loggerDict.values()):
+                if isinstance(logger, logging.Logger):
+                    # Remove QueueHandlers that use our queue
+                    handlers_to_remove = []
+                    for handler in logger.handlers[
+                        :
+                    ]:  # Copy list to avoid modification during iteration
+                        if isinstance(handler, QueueHandler):
+                            # Check if this handler uses our queue
+                            if hasattr(handler, "queue") and handler.queue is self.log_queue:
+                                handlers_to_remove.append(handler)
+                    for handler in handlers_to_remove:
+                        try:
+                            logger.removeHandler(handler)
+                        except Exception:
+                            pass
+
+            # Stop the listener - ensure the thread exits before closing the queue
             if self.listener:
                 try:
                     # Get reference to the listener thread before stopping
@@ -382,19 +433,58 @@ class LoggerQueue(SingletonBase):
                     self.listener = None
 
             # Close the queue properly - only after listener is stopped
+            # The proper order is:
+            # 1. Close the queue (signals no more data will be put)
+            # 2. Join the feeder thread (waits for it to finish processing)
+            # 3. Only cancel if join times out
             if self.log_queue:
                 try:
                     # Check if queue is already closed
                     if not getattr(self.log_queue, "_closed", False):
+                        # Step 1: Close the queue first
+                        # This signals that no more items will be put into the queue
+                        # and allows the feeder thread to finish processing buffered items
                         self.log_queue.close()
-                    # Wait for the queue's feeder thread to finish
-                    # Note: timeout parameter for join_thread() was added in Python 3.9+
-                    # Some queue implementations may not support timeout, so handle gracefully
-                    try:
-                        self.log_queue.join_thread(timeout=2.0)
-                    except TypeError:
-                        # Timeout parameter not supported, try without it
-                        self.log_queue.join_thread()
+
+                        # Step 2: Wait for the feeder thread to finish
+                        # This ensures all buffered items are flushed to the underlying pipe
+                        # The feeder thread should exit after processing all items
+                        try:
+                            # Use timeout to avoid hanging indefinitely
+                            # timeout parameter was added in Python 3.9+
+                            if hasattr(self.log_queue, "join_thread"):
+                                try:
+                                    # Wait up to 2 seconds for feeder thread to finish
+                                    self.log_queue.join_thread(timeout=2.0)
+                                except TypeError:
+                                    # Timeout parameter not supported (Python < 3.9)
+                                    # Try without timeout - this may block, so we'll cancel if needed
+                                    self.log_queue.join_thread()
+                        except Exception as join_error:
+                            # If join fails or times out, cancel the join
+                            # This tells the queue not to wait for the feeder thread
+                            try:
+                                if hasattr(self.log_queue, "cancel_join_thread"):
+                                    self.log_queue.cancel_join_thread()
+                                    print(
+                                        f"LoggerQueue[{self.log_file}]: Feeder thread join timed out or failed, cancelled join"
+                                    )
+                            except Exception:
+                                pass  # cancel_join_thread may not be available
+                    else:
+                        # Queue already closed, but we may still need to join or cancel
+                        try:
+                            if hasattr(self.log_queue, "join_thread"):
+                                try:
+                                    # Try to join with timeout
+                                    self.log_queue.join_thread(timeout=1.0)
+                                except (TypeError, Exception):
+                                    # If join fails, cancel it
+                                    if hasattr(self.log_queue, "cancel_join_thread"):
+                                        self.log_queue.cancel_join_thread()
+                        except Exception:
+                            pass
+
                 except Exception as e:
                     print(f"LoggerQueue[{self.log_file}]: Error closing queue: {e}")
                     print(f"\t traceback details: {traceback.format_exc()}")

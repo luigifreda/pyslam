@@ -9,12 +9,21 @@ SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SCRIPT_DIR_=$(readlink -f $SCRIPT_DIR_)  # this reads the actual path if a symbolic directory is used
 
 ROOT_DIR="$SCRIPT_DIR_/.."
+SCRIPTS_DIR="$SCRIPT_DIR_"
 
 # ====================================================
 # import the bash utils 
 . "$ROOT_DIR"/bash_utils.sh 
 
 # ====================================================
+
+. "$ROOT_DIR"/cuda_config.sh
+if [ "$CUDA_VERSION" != "0" ]; then
+    echo "CUDA_VERSION: $CUDA_VERSION, installing depth_anything_v3"
+else 
+    echo "CUDA_VERSION is 0, skipping depth_anything_v3 installation"
+    exit 0
+fi
 
 # Setup environment for detectron2 installation
 $SCRIPT_DIR_/install_detectron2.sh
