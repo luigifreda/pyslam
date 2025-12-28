@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 
 from pyslam.utilities.img_management import img_blocks, img_mask_blocks
 from pyslam.utilities.features import sat_num_features
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.pyramid import Pyramid, PyramidType
 
 

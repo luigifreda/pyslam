@@ -24,7 +24,8 @@ from collections import defaultdict
 import os
 import time
 
-from pyslam.utilities.system import Printer, Logging, locally_configure_qt_environment
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.logging import Logging
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.img_management import LoopCandidateImgs
 from pyslam.utilities.features import transform_float_to_binary_descriptor

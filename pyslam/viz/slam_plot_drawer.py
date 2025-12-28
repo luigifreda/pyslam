@@ -19,7 +19,7 @@
 """
 
 
-from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.logging import Printer
 
 import platform
 import queue

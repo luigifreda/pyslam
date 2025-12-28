@@ -26,7 +26,8 @@ import cv2
 import time
 import traceback
 
-from pyslam.utilities.system import Logging, locally_configure_qt_environment
+from pyslam.utilities.logging import Logging
+from pyslam.utilities.system import locally_configure_qt_environment
 from pyslam.utilities.data_management import empty_queue
 
 try:

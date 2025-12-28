@@ -26,7 +26,7 @@ import binascii
 import json as json_
 import ujson as json
 
-from .system import Printer
+from .logging import Printer
 
 
 kVerbose = False

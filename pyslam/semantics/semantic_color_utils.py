@@ -40,7 +40,7 @@ from .semantic_labels import (
 )
 from .semantic_segmentation_types import SemanticSegmentationType
 from pyslam.utilities.serialization import SerializableEnum, register_class
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 def similarity_heatmap_image(sim_map, colormap=cv2.COLORMAP_JET, sim_scale=1.0, bgr=False):
@@ -264,7 +264,7 @@ def labels_color_map_factory(
     if needs_large_color_map:
         # Debug: show what we received
         try:
-            from pyslam.utilities.system import Printer
+            from pyslam.utilities.logging import Printer
 
             if semantic_segmentation_type is not None:
                 seg_type_str = (
@@ -287,7 +287,7 @@ def labels_color_map_factory(
         color_map = get_open_vocab_color_map(num_classes=num_classes)
         # Debug output
         try:
-            from pyslam.utilities.system import Printer
+            from pyslam.utilities.logging import Printer
 
             display_name = model_name if model_name else "Open-vocabulary model"
             Printer.green(

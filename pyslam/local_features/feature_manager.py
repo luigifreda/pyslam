@@ -29,7 +29,8 @@ from pyslam.config_parameters import Parameters
 
 from .feature_types import FeatureDetectorTypes, FeatureDescriptorTypes, FeatureInfo
 
-from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import import_from
 from pyslam.utilities.features import (
     unpackSiftOctaveKps,
     UnpackOctaveMethod,

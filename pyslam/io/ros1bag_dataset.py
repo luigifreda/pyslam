@@ -23,7 +23,7 @@ import sys
 import numpy as np
 import os
 import cv2
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 import traceback
 
 try:

@@ -26,7 +26,7 @@ from .semantic_mapping_base import SemanticMappingType
 from .semantic_segmentation_types import SemanticSegmentationType
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from pyslam.io.dataset_types import DatasetType
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 class SemanticMappingConfig:

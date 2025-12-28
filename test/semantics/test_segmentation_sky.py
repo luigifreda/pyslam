@@ -7,7 +7,8 @@ from pyslam.config import Config
 config = Config()
 
 from pyslam.utilities.file_management import gdrive_download_lambda
-from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.system import getchar
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.img_management import (
     float_to_color,
     convert_float_to_colored_uint8_image,

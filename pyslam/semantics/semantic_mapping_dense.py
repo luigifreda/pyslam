@@ -48,7 +48,7 @@ from .semantic_information_weights_factory import (
 
 from pyslam.utilities.timer import TimerFps
 from pyslam.utilities.serialization import SerializableEnum, register_class
-from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.logging import Printer, Logging
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue
 

@@ -34,7 +34,7 @@ from .map_point import MapPoint
 from .rotation_histogram import RotationHistogram
 
 from pyslam.utilities.geom_2views import computeF12, check_dist_epipolar_line
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.timer import Timer
 
 from pyslam.config_parameters import Parameters

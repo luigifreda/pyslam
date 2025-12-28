@@ -24,7 +24,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.features import transform_float_to_binary_descriptor
 
 from pyslam.config_parameters import Parameters

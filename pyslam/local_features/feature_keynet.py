@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 import math
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 import kornia as K
 import kornia.feature as KF

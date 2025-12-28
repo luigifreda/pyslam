@@ -29,7 +29,7 @@ from pyslam.slam.frame import match_frames
 from pyslam.slam import Frame, KeyFrame, Map, RotationHistogram
 from pyslam.utilities.geometry import poseRt, inv_T
 from pyslam.utilities.geom_triangulation import triangulate_normalized_points
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.features import ImageGrid
 from pyslam.config_parameters import Parameters
 from pyslam.io.dataset_types import SensorType

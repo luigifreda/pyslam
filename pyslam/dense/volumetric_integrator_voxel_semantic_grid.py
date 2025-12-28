@@ -31,7 +31,7 @@ from pyslam.slam import Camera, Map, KeyFrame, Frame, USE_CPP
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.timer import TimerFps
 from pyslam.config_parameters import Parameters
 from pyslam.utilities.depth import depth2pointcloud, filter_shadow_points

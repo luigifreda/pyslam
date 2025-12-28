@@ -24,7 +24,7 @@ import sys
 import traceback
 import pickle
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

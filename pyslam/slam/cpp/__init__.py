@@ -45,7 +45,7 @@ import warnings
 import traceback
 
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 USE_PYTHON_FALLBACK = False
 USE_CPP_CORE = Parameters.USE_CPP_CORE

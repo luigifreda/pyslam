@@ -28,7 +28,7 @@ from pyslam.utilities.dust3r import (
     calibrate_camera_pnpransac,
 )
 from pyslam.utilities.depth import point_cloud_to_depth
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.img_management import ImgWriter
 from pyslam.utilities.geom_lie import so3_log_angle
 

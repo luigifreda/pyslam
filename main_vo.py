@@ -48,7 +48,7 @@ from pyslam.local_features.feature_tracker import (
 )
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 kScriptPath = os.path.realpath(__file__)

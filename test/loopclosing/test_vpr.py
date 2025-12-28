@@ -13,7 +13,8 @@ config = Config()
 import numpy as np
 import cv2
 
-from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.system import getchar
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.img_management import (
     float_to_color,
     float_to_color_array,

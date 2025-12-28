@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 def evaluate_semantic_mapping(slam, dataset, metrics_save_dir):

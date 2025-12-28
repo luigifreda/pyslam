@@ -21,7 +21,7 @@ import sys
 import os
 
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from .cpp import (
     python_module,

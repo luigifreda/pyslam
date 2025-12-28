@@ -45,7 +45,7 @@ import argparse
 import glob
 import time
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.scene_from_views import (
     SceneFromViewsType,
     scene_from_views_factory,

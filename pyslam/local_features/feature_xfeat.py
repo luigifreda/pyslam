@@ -11,7 +11,7 @@ from modules.xfeat import XFeat
 from threading import RLock
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 kVerbose = True

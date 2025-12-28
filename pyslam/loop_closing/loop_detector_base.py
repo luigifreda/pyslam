@@ -25,7 +25,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.system import Logging
+from pyslam.utilities.logging import Logging, Printer
 from pyslam.utilities.img_management import float_to_color, LoopCandidateImgs
 from pyslam.utilities.serialization import NumpyB64Json
 
@@ -37,7 +37,6 @@ from pyslam.slam import KeyFrame, Frame
 import torch.multiprocessing as mp
 import logging
 import sys
-from pyslam.utilities.system import Printer, getchar, Logging
 
 # import json
 import ujson as json

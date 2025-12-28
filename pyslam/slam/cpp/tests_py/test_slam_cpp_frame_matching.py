@@ -50,7 +50,7 @@ from pyslam.slam.slam import Slam
 from pyslam.slam.initializer import Initializer
 from pyslam.utilities.timer import TimerFps
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from pyslam.local_features.feature_tracker import FeatureTrackerTypes
 

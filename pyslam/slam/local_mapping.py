@@ -49,7 +49,7 @@ else:
 from pyslam.io.dataset_types import SensorType
 from pyslam.utilities.timer import TimerFps
 
-from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.logging import Printer, Logging
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.geom_triangulation import triangulate_normalized_points
 from pyslam.utilities.data_management import empty_queue

@@ -8,7 +8,7 @@ import sys
 from pyslam.config import Config
 
 import time
-from pyslam.utilities.system import FileLogger, LoggerQueue
+from pyslam.utilities.logging import FileLogger, LoggerQueue
 
 if False:
     # NOTE: This seems to fail once in while

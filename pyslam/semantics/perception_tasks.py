@@ -25,7 +25,7 @@ from enum import Enum
 
 from . import semantic_types
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Logging
+from pyslam.utilities.logging import Logging
 
 from pyslam.slam import KeyFrame
 

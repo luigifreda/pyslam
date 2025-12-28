@@ -37,10 +37,6 @@ import json
 import concurrent.futures
 from pathlib import Path
 
-from pyslam.utilities.data_management import merge_dicts
-from pyslam.utilities.system import Printer
-from pyslam.utilities.run_command import run_command_async, run_command_sync
-
 from pyslam.evaluation.slam_evaluation_manager import SlamEvaluationManager
 
 try:

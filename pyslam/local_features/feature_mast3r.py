@@ -29,7 +29,8 @@ import torch
 
 import cv2
 from threading import RLock
-from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import import_from
 from pyslam.utilities.dust3r import Dust3rImagePreprocessor
 
 

@@ -61,7 +61,7 @@ from pyslam.utilities.serialization import (
     convert_inf_nan,
     format_floats_for_json,
 )
-from pyslam.utilities.system import Printer, getchar, Logging
+from pyslam.utilities.logging import Printer, Logging
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.geometry import inv_T
 from pyslam.utilities.waiting import wait_for_ready

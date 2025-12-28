@@ -28,7 +28,8 @@ import csv
 import re
 
 from multiprocessing import Process, Queue, Value
-from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import import_from
 from pyslam.utilities.serialization import SerializableEnum, register_class, SerializationJSON
 from pyslam.utilities.strings import levenshtein_distance
 

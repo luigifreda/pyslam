@@ -27,7 +27,7 @@ import ujson as json
 
 from pyslam.utilities.geometry import poseRt, add_ones, normalize_vector, normalize_vector2
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.config_parameters import Parameters
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared

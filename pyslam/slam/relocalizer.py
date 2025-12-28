@@ -34,7 +34,7 @@ from .frame import compute_frame_matches, prepare_input_data_for_pnpsolver
 from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.slam import ProjectionMatcher
 
-from pyslam.utilities.system import Printer, Logging, LoggerQueue
+from pyslam.utilities.logging import Printer, Logging, LoggerQueue
 from pyslam.utilities.file_management import create_folder
 from pyslam.loop_closing.loop_detector_base import LoopDetectorOutput
 

@@ -23,7 +23,7 @@ import open3d.core as o3c
 import cv2
 
 from pyslam.utilities.timer import TimerFps
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.geometry import poseRt, inv_poseRt
 
 from pyslam.io.ground_truth import GroundTruth

@@ -33,7 +33,7 @@ from matplotlib import pyplot as plt
 from errno import EEXIST
 import traceback
 
-from .system import Printer
+from .logging import Printer
 from .geometry import poseRt
 
 

@@ -29,8 +29,8 @@ import platform
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_segmentation_types import SemanticSegmentationType
 
-from pyslam.utilities.system import Printer, import_from
-from pyslam.utilities.serialization import SerializableEnum, register_class
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import import_from
 
 try:
     from .semantic_segmentation_base import SemanticSegmentationBase

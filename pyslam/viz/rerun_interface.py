@@ -29,7 +29,7 @@ import subprocess
 import pyslam.utilities.geometry as utils_geom
 from pyslam.slam import Camera
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 def check_command_start(command):

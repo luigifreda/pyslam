@@ -26,7 +26,7 @@ from enum import Enum
 
 from . import semantic_types
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Logging, LoggerQueue
+from pyslam.utilities.logging import Logging, LoggerQueue
 from pyslam.utilities.file_management import create_folder
 
 from .semantic_segmentation_output import SemanticSegmentationOutput

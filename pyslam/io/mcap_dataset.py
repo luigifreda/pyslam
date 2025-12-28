@@ -24,7 +24,7 @@ import cv2
 import traceback
 from datetime import datetime
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from .mcap.mcap_reader import McapReader
 from .mcap.ros2_decoder import Ros2Decoder

@@ -33,7 +33,7 @@ from pyslam.slam import Camera, Map, KeyFrame, Frame
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
 from pyslam.utilities.geometry import inv_T
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.timer import TimerFps
 from pyslam.config_parameters import Parameters
 

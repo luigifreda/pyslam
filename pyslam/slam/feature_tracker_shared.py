@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.local_features.feature_matcher import FeatureMatcherTypes
 from pyslam.config_parameters import Parameters
 

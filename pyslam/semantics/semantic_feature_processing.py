@@ -21,7 +21,7 @@ import numpy as np
 import torch
 
 from pyslam.semantics.semantic_types import SemanticFeatureType
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 class SemanticFeatureProcessing:

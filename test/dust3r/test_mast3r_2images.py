@@ -30,7 +30,7 @@ from pyslam.utilities.dust3r import (
     calibrate_camera_pnpransac,
 )
 from pyslam.utilities.depth import point_cloud_to_depth
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from pyslam.viz.viewer3D import Viewer3D, VizPointCloud, VizMesh, VizCameraImage
 from pyslam.utilities.img_management import ImageTable

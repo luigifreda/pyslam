@@ -27,7 +27,7 @@ import traceback
 
 from enum import Enum
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.geometry import (
     rotmat2qvec,
     qvec2rotmat,

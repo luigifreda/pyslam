@@ -22,7 +22,7 @@ import traceback
 import os
 import json
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from typing import TYPE_CHECKING
 

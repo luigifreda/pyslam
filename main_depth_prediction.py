@@ -25,7 +25,7 @@ import numpy as np
 
 from pyslam.config import Config
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.depth import (
     depth2pointcloud,
     img_from_depth,

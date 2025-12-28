@@ -42,7 +42,6 @@ from pyslam.io.dataset_types import DatasetType, SensorType
 from pyslam.io.ground_truth import groundtruth_factory, GroundTruth
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.system import getchar, Printer
 from pyslam.utilities.geometry import inv_T
 
 from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs

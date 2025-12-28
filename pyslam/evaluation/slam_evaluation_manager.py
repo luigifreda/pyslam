@@ -31,7 +31,7 @@ import json
 import concurrent.futures
 
 from pyslam.utilities.data_management import merge_dicts
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.run_command import run_command_async, run_command_sync
 import traceback
 from pathlib import Path

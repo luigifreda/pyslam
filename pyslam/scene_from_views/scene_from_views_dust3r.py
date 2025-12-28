@@ -26,6 +26,8 @@ import copy
 import os
 
 from .scene_from_views_base import SceneFromViewsBase, SceneFromViewsResult
+
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.dust3r import (
     Dust3rImagePreprocessor,
     convert_mv_output_to_geometry,
@@ -462,8 +464,6 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
 
             # Debug: check camera poses and point clouds
             if verbose:
-                from pyslam.utilities.system import Printer
-
                 # Check camera poses
                 cam2w = scene.cam2w
                 Printer.blue("\n[Debug] Camera poses after optimization:")
@@ -561,7 +561,7 @@ class SceneFromViewsDust3r(SceneFromViewsBase):
 
             # Debug: verify images are different
             if verbose and len(rgb_imgs) > 1:
-                from pyslam.utilities.system import Printer
+                from pyslam.utilities.logging import Printer
 
                 for i in range(len(rgb_imgs)):
                     for j in range(i + 1, len(rgb_imgs)):

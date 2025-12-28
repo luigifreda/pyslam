@@ -36,7 +36,7 @@ from r2d2.tools.dataloader import norm_RGB
 from r2d2.nets.patchnet import *
 import argparse
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from .feature_base import BaseFeature2D
 
 kVerbose = True

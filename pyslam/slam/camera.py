@@ -30,7 +30,7 @@ import ujson as json
 from pyslam.config import Config
 from pyslam.utilities.geometry import add_ones, add_ones_numba
 from pyslam.utilities.serialization import deserialize_array_flexible
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.io.dataset_types import SensorType, get_sensor_type
 
 from typing import TYPE_CHECKING

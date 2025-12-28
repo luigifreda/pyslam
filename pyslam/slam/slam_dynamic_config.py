@@ -21,7 +21,7 @@ import math
 import numpy as np
 
 from pyslam.utilities.features import descriptor_sigma_mad, descriptor_sigma_mad_v2
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from .feature_tracker_shared import FeatureTrackerShared
 

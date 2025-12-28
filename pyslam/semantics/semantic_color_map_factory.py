@@ -29,10 +29,8 @@ from .semantic_color_map_detectron2 import SemanticColorMapDetectron2
 from .semantic_color_map_standard import SemanticColorMapStandard
 from .semantic_color_utils import labels_color_map_factory, labels_to_image
 
-try:
-    from pyslam.utilities.system import Printer
-except ImportError:
-    Printer = None
+
+from pyslam.utilities.logging import Printer
 
 kVerbose = True
 kTimerVerbose = False
@@ -86,11 +84,10 @@ def semantic_color_map_factory(
             )
         except Exception as e:
             # Fallback to standard color map on error
-            if Printer:
-                Printer.yellow(
-                    f"semantic_color_map_factory: Failed to create Detectron2ColorMap: {e}, "
-                    f"falling back to StandardColorMap"
-                )
+            Printer.yellow(
+                f"semantic_color_map_factory: Failed to create Detectron2ColorMap: {e}, "
+                f"falling back to StandardColorMap"
+            )
             # Fall through to standard implementation
 
     # Use standard factory-based color map

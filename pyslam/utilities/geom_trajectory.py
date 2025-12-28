@@ -22,7 +22,7 @@ import numpy as np
 import torch.multiprocessing as mp
 
 from .geometry import *
-from .system import Printer
+from .logging import Printer
 from .multi_processing import MultiprocessingManager
 from .data_management import empty_queue, get_last_item_from_queue
 

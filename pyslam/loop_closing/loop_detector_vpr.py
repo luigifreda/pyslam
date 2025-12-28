@@ -24,7 +24,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.system import getchar, Printer, check_if_main_thread
+from pyslam.utilities.logging import Printer
 
 from typing import List
 

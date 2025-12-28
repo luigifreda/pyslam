@@ -8,7 +8,7 @@ import sys
 from pyslam.config import Config
 
 import time
-from pyslam.utilities.system import FileLogger, LoggerQueue
+from pyslam.utilities.logging import FileLogger, LoggerQueue
 
 
 # Function to log messages in threads

@@ -42,7 +42,8 @@ from pyslam.io.dataset_types import SensorType
 from pyslam.io.trajectory_writer import TrajectoryWriter
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.system import Printer, force_kill_all_and_exit
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import force_kill_all_and_exit
 from pyslam.utilities.img_management import ImgWriter
 from pyslam.utilities.evaluation import eval_ate
 from pyslam.utilities.geom_trajectory import find_poses_associations

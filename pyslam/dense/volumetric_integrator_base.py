@@ -30,7 +30,9 @@ from pyslam.slam import Camera, Map, KeyFrame, Frame, USE_CPP
 
 from pyslam.io.dataset_types import DatasetEnvironmentType, SensorType
 
-from pyslam.utilities.system import Printer, set_rlimit, LoggerQueue
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import set_rlimit
+from pyslam.utilities.logging import LoggerQueue
 from pyslam.utilities.file_management import create_folder
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue, push_to_front, static_fields_to_dict

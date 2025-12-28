@@ -64,10 +64,9 @@ from lfnet.common.argparse_utils import *
 
 from pyslam.utilities.tensorflow import set_tf_logging
 from pyslam.utilities.img_management import img_from_floats
-from pyslam.utilities.system import Printer, print_options
+from pyslam.utilities.logging import Printer, print_options
+from pyslam.utilities.system import is_opencv_version_greater_equal
 from .feature_base import BaseFeature2D
-
-from pyslam.utilities.system import Printer, is_opencv_version_greater_equal
 
 
 kLfNetBasePath = config.cfg.root_folder + "/thirdparty/lfnet"

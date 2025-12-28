@@ -15,7 +15,7 @@ from pyslam.slam.geometry_matchers_test import EpipolarMatcherTest
 from pyslam.slam.slam import Slam
 from pyslam.slam import Camera, PinholeCamera
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from pyslam.local_features.feature_tracker import FeatureTrackerTypes
 

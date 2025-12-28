@@ -35,7 +35,8 @@ import logging
 
 # import multiprocessing as mp
 import torch.multiprocessing as mp
-from pyslam.utilities.system import Logging, locally_configure_qt_environment
+from pyslam.utilities.logging import Logging
+from pyslam.utilities.system import locally_configure_qt_environment
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.config_parameters import Parameters
 

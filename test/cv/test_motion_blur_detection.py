@@ -18,7 +18,7 @@ from pyslam.io.dataset_factory import dataset_factory
 from pyslam.io.dataset_types import SensorType
 
 from pyslam.utilities.img_processing import detect_blur_laplacian
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 # ==================================================================================================
 # N.B.: here we test feature manager detectAndCompute()

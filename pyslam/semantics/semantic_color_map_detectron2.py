@@ -34,10 +34,7 @@ try:
 except ImportError:
     torch = None
 
-try:
-    from pyslam.utilities.system import Printer
-except ImportError:
-    Printer = None
+from pyslam.utilities.logging import Printer
 
 
 class SemanticColorMapDetectron2(SemanticColorMapBase):
@@ -125,11 +122,9 @@ class SemanticColorMapDetectron2(SemanticColorMapBase):
                 else:
                     # thing_colors not available - use detectron2's colormap
                     self.color_map = self._detectron2_manager.create_fallback(num_classes=3000)
-                    if Printer:
-                        Printer.green(
-                            f"Detic: Using detectron2 colormap (3000 classes) - thing_colors not available"
-                        )
-                if Printer:
+                    Printer.green(
+                        f"Detic: Using detectron2 colormap (3000 classes) - thing_colors not available"
+                    )
                     Printer.green(f"Detic: Using color map with {len(self.color_map)} classes")
             elif semantic_segmentation_type == SemanticSegmentationType.EOV_SEG:
                 # EOV-Seg uses stuff_colors
@@ -141,14 +136,12 @@ class SemanticColorMapDetectron2(SemanticColorMapBase):
                         use_detectron2_padding=True,
                         verbose=True,
                     )
-                    if Printer:
-                        Printer.green(
-                            f"EOV-Seg: Extracted color map from metadata with {len(self.color_map)} classes"
-                        )
+                    Printer.green(
+                        f"EOV-Seg: Extracted color map from metadata with {len(self.color_map)} classes"
+                    )
                 else:
                     self.color_map = self._detectron2_manager.create_fallback()
-                    if Printer:
-                        Printer.yellow("EOV-Seg: Using fallback color map (metadata not available)")
+                    Printer.yellow("EOV-Seg: Using fallback color map (metadata not available)")
             elif semantic_segmentation_type == SemanticSegmentationType.ODISE:
                 # ODISE uses stuff_colors
                 if hasattr(metadata, "stuff_colors"):
@@ -159,14 +152,12 @@ class SemanticColorMapDetectron2(SemanticColorMapBase):
                         use_detectron2_padding=True,
                         verbose=True,
                     )
-                    if Printer:
-                        Printer.green(
-                            f"ODISE: Extracted color map from metadata with {len(self.color_map)} classes"
-                        )
+                    Printer.green(
+                        f"ODISE: Extracted color map from metadata with {len(self.color_map)} classes"
+                    )
                 else:
                     self.color_map = self._detectron2_manager.create_fallback()
-                    if Printer:
-                        Printer.yellow("ODISE: Using fallback color map (metadata not available)")
+                    Printer.yellow("ODISE: Using fallback color map (metadata not available)")
             else:
                 # Generic detectron2 model - try stuff_colors first, then thing_colors
                 if hasattr(metadata, "stuff_colors"):
@@ -191,11 +182,10 @@ class SemanticColorMapDetectron2(SemanticColorMapBase):
                     )
         except Exception as e:
             # Fallback to standard color map on error
-            if Printer:
-                Printer.yellow(
-                    f"SemanticColorMapDetectron2: Failed to extract color map from metadata: {e}, "
-                    f"using fallback"
-                )
+            Printer.yellow(
+                f"SemanticColorMapDetectron2: Failed to extract color map from metadata: {e}, "
+                f"using fallback"
+            )
             # Re-raise to let factory handle fallback
             raise
 
@@ -532,7 +522,7 @@ class Detectron2ColorMapManager:
         # Pad if needed
         if num_classes > num_available_colors:
             padding_size = num_classes - num_available_colors
-            if verbose and Printer:
+            if verbose:
                 Printer.yellow(
                     f"Color map has only {num_available_colors} classes, "
                     f"padding to {num_classes} to handle large category IDs"
@@ -542,13 +532,13 @@ class Detectron2ColorMapManager:
                 try:
                     padding_colors = self.get_detectron2_colormap(padding_size)
                     colors = np.vstack([colors, padding_colors])
-                    if verbose and Printer:
+                    if verbose:
                         Printer.green(
                             f"Padded color map using detectron2's colormap (now {len(colors)} classes)"
                         )
                 except ImportError:
                     # Fallback to generic colors
-                    if verbose and Printer:
+                    if verbose:
                         Printer.yellow("detectron2 colormap not available, using generic colors")
                     from .semantic_labels import get_generic_color_map
 
@@ -576,8 +566,7 @@ class Detectron2ColorMapManager:
         # Try to use detectron2's colormap first
         try:
             colors = self.get_detectron2_colormap(num_classes)
-            if Printer:
-                Printer.yellow(f"Using detectron2 colormap ({num_classes} classes)")
+            Printer.yellow(f"Using detectron2 colormap ({num_classes} classes)")
             self.color_map = colors
             return self.color_map
         except ImportError:
@@ -701,8 +690,7 @@ class Detectron2ColorMapManager:
 
             return vis_output
         except Exception as e:
-            if Printer:
-                Printer.yellow(f"Detectron2ColorMapManager: Failed to generate visualization: {e}")
+            Printer.yellow(f"Detectron2ColorMapManager: Failed to generate visualization: {e}")
             return None
 
     def visualize_panoptic(

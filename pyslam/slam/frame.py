@@ -40,7 +40,7 @@ from .feature_tracker_shared import FeatureTrackerShared
 
 from pyslam.utilities.geometry import add_ones, poseRt
 from pyslam.utilities.geom_triangulation import triangulate_normalized_points
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.colors import Colors, ColorTableGenerator
 
 from pyslam.utilities.drawing import draw_feature_matches

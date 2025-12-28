@@ -58,7 +58,7 @@ from .motion_model import MotionModel, MotionModelDamping
 
 from pyslam.io.dataset_types import SensorType
 
-from pyslam.utilities.system import Printer, Logging
+from pyslam.utilities.logging import Printer, Logging
 from pyslam.utilities.drawing import draw_feature_matches
 from pyslam.utilities.geometry import poseRt, inv_T
 

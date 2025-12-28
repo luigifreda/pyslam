@@ -27,7 +27,7 @@ from pyslam.slam.frame import Frame
 from pyslam.slam.keyframe import KeyFrame
 from pyslam.slam.map import Map
 from pyslam.io.dataset_types import SensorType
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.geom_2views import estimate_pose_ess_mat
 from pyslam.utilities.geometry import inv_T
 

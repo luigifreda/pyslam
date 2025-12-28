@@ -36,7 +36,7 @@ from .semantic_color_utils import (
 )
 from .semantic_color_map_factory import semantic_color_map_factory
 from .semantic_segmentation_types import SemanticSegmentationType
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

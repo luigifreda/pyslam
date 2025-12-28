@@ -34,7 +34,7 @@ from .feature_tracker_shared import FeatureTrackerShared
 from .keyframe import KeyFrame
 from .map_point import MapPoint, MapPointBase
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from pyslam.config_parameters import Parameters
 

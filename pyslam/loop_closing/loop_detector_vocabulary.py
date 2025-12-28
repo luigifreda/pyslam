@@ -23,7 +23,7 @@ import math
 import numpy as np
 import platform
 
-from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.logging import Printer
 
 from pyslam.config_parameters import Parameters
 

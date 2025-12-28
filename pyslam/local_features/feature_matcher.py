@@ -24,7 +24,8 @@ import cv2
 import platform
 import torch
 
-from pyslam.utilities.system import Printer, import_from
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import import_from
 from pyslam.utilities.data_management import AtomicCounter
 from pyslam.utilities.serialization import SerializableEnum, register_class
 from pyslam.utilities.dust3r import Dust3rImagePreprocessor

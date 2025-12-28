@@ -97,3 +97,5 @@ pip install "numpy<2"
 
 # for EOV-Seg
 pip install open-clip-torch==2.24.0
+# for depth-anything-3
+pip install "einops>=0.7.0"

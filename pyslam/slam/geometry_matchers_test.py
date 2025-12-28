@@ -31,7 +31,7 @@ from pyslam.slam.feature_tracker_shared import FeatureTrackerShared
 from pyslam.utilities.geometry import add_ones
 from pyslam.utilities.geom_2views import computeF12
 from pyslam.utilities.drawing import draw_lines, draw_points
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 from pyslam.utilities.timer import Timer
 

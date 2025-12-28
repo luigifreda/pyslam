@@ -23,6 +23,12 @@ import numpy as np
 from typing import NamedTuple, Tuple
 
 
+# return a random RGB color tuple
+def random_color():
+    color = tuple(np.random.randint(0, 255, 3).tolist())
+    return color
+
+
 class Colors:
     # colors from https://github.com/MagicLeapResearch/SuperPointPretrainedNetwork/blob/master/demo_superpoint.py
     myjet = np.array(

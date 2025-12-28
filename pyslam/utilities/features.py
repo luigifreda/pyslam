@@ -30,7 +30,8 @@ from scipy.spatial import cKDTree
 
 # from pykdtree.kdtree import KDTree # slower!
 
-from .system import Printer, import_from, is_opencv_version_greater_equal
+from .logging import Printer
+from .system import import_from, is_opencv_version_greater_equal
 from .geometry import add_ones, s1_diff_deg, s1_dist_deg, l2_distances
 
 ORBextractor = import_from("orbslam2_features", "ORBextractor")

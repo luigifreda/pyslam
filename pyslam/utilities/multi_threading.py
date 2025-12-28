@@ -22,7 +22,7 @@ import platform
 import traceback
 
 from .data_management import SafeQueue
-from .system import Printer
+from .logging import Printer
 
 
 # Utilities for multithreading

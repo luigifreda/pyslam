@@ -27,7 +27,7 @@ import platform
 
 from enum import Enum
 
-from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.logging import Printer
 
 from typing import List
 

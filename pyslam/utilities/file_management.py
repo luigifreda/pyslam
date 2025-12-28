@@ -25,7 +25,7 @@ import os
 import gdown
 import glob
 import cv2
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 def check_dir(dir):

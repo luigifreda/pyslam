@@ -41,7 +41,8 @@ import matplotlib.colors as mcolors
 
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.system import getchar, Printer
+from pyslam.utilities.system import getchar
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.img_management import ImgWriter
 from pyslam.utilities.geometry import inv_T
 

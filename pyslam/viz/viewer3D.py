@@ -43,7 +43,7 @@ from pyslam.utilities.geom_trajectory import (
     TrajectoryAlignerProcessBatch,
     TrajectoryAlignerProcessIncremental,
 )
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue, get_last_item_from_queue
 from pyslam.utilities.colors import GlColors

@@ -22,16 +22,13 @@ from .semantic_segmentation_types import SemanticSegmentationType
 from .semantic_color_map_base import SemanticColorMapBase
 from .semantic_color_utils import labels_color_map_factory, need_large_color_map
 
-try:
-    from pyslam.utilities.system import Printer
-except ImportError:
-    Printer = None
+from pyslam.utilities.logging import Printer
 
 
 class SemanticColorMapStandard(SemanticColorMapBase):
     """
     Standard semantic color map implementation using factory-based color map creation.
-    
+
     This class creates color maps using the labels_color_map_factory function,
     suitable for standard semantic segmentation models.
     """
@@ -101,11 +98,10 @@ class SemanticColorMapStandard(SemanticColorMapBase):
             # If the model outputs more classes than the dataset color map provides,
             # expand the color map to avoid index errors
             if num_classes is not None and num_classes > len(base_color_map):
-                if Printer:
-                    Printer.yellow(
-                        f"SemanticColorMapStandard: expanding color map to {num_classes} classes "
-                        f"(dataset map size: {len(base_color_map)})"
-                    )
+                Printer.yellow(
+                    f"SemanticColorMapStandard: expanding color map to {num_classes} classes "
+                    f"(dataset map size: {len(base_color_map)})"
+                )
                 self.color_map = labels_color_map_factory(
                     semantic_dataset_type,
                     semantic_segmentation_type=semantic_segmentation_type,
@@ -117,4 +113,3 @@ class SemanticColorMapStandard(SemanticColorMapBase):
                 self.color_map = (
                     base_color_map if num_classes is None else base_color_map[:num_classes]
                 )
-

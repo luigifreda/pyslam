@@ -24,7 +24,7 @@ import numpy as np
 import cv2
 
 from .img_management import img_blocks
-from .system import Printer
+from .logging import Printer
 
 
 kVerbose = True

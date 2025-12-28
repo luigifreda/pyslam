@@ -28,7 +28,8 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.system import Printer, set_rlimit
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import set_rlimit
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue
 

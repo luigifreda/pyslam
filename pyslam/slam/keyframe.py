@@ -28,7 +28,7 @@ from scipy.spatial import cKDTree
 from threading import Lock
 
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.serialization import extract_tcw_matrix_from_pose_data
 
 from collections import defaultdict, OrderedDict, Counter

@@ -38,7 +38,8 @@ from lib.utils import preprocess_image
 from lib.pyramid import process_multiscale
 
 from .feature_base import BaseFeature2D
-from pyslam.utilities.system import Printer, is_opencv_version_greater_equal
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import is_opencv_version_greater_equal
 
 
 kVerbose = True

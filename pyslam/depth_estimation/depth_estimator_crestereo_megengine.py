@@ -31,7 +31,8 @@ config.cfg.set_lib("crestereo")
 from pyslam.slam import Camera
 from pyslam.io.dataset_types import DatasetEnvironmentType
 from pyslam.utilities.depth import img_from_depth
-from pyslam.utilities.system import Printer, set_rlimit
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import set_rlimit
 
 from .depth_estimator_base import DepthEstimator
 

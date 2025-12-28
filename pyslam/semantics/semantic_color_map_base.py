@@ -30,16 +30,11 @@ from .semantic_color_utils import (
     labels_to_image,
 )
 
-try:
-    from pyslam.utilities.system import Printer
-except ImportError:
-    Printer = None
-
 
 class SemanticColorMapBase:
     """
     Base class for semantic color map implementations.
-    
+
     This class provides common functionality for converting semantic data to RGB visualizations.
     Derived classes should implement color map initialization logic.
     """
@@ -73,7 +68,7 @@ class SemanticColorMapBase:
         self.device = device
         self.sim_scale = sim_scale
         self.semantic_segmentation_type = semantic_segmentation_type
-        
+
         # Color map will be set by derived classes
         self.color_map = None
 
@@ -204,4 +199,3 @@ class SemanticColorMapBase:
             else:
                 pred = sims.argmax(dim=-1)
                 return labels_to_image(pred.cpu().detach().numpy(), self.color_map, bgr=bgr)
-

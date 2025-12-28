@@ -29,7 +29,8 @@ import numpy as np
 import math
 import ujson as json
 
-from pyslam.utilities.system import Printer, locally_configure_qt_environment
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import locally_configure_qt_environment
 from pyslam.io.dataset_types import get_sensor_type, SensorType
 from pyslam.config_parameters import Parameters
 

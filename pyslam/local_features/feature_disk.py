@@ -32,7 +32,8 @@ config.cfg.set_lib("unets")
 import cv2
 from threading import RLock
 
-from pyslam.utilities.system import Printer, is_opencv_version_greater_equal
+from pyslam.utilities.logging import Printer
+from pyslam.utilities.system import is_opencv_version_greater_equal
 from pyslam.utilities.tensorflow import ensure_tensorflow_stub_for_tensorboard
 from .feature_base import BaseFeature2D
 

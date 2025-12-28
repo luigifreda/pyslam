@@ -25,7 +25,7 @@ import traceback
 import platform
 import copy
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 kPrintTrackebackDetails = True

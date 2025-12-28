@@ -43,7 +43,7 @@ from .semantic_color_utils import (
 )
 from .semantic_labels_factory import semantic_labels_factory
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 kScriptPath = os.path.realpath(__file__)

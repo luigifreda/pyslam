@@ -34,7 +34,7 @@ from .semantic_segmentation_output import SemanticSegmentationOutput
 from .semantic_types import SemanticFeatureType, SemanticDatasetType
 from .semantic_color_map_factory import semantic_color_map_factory
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)

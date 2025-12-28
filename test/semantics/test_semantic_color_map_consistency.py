@@ -28,7 +28,7 @@ from pyslam.semantics.perception_tasks import (
     PerceptionTaskType,
     PerceptionKeyframeData,
 )
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 # ============================================================================

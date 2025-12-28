@@ -22,7 +22,7 @@ import numpy as np
 import cv2
 import math
 
-from .system import Printer
+from .logging import Printer
 from .geom_lie import so3_exp, so3_log, is_so3
 from scipy.spatial.transform import Rotation
 

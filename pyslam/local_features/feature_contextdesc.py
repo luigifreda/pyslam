@@ -49,7 +49,7 @@ from contextdesc.models.loc_model import LocModel
 from contextdesc.models.aug_model import AugModel
 
 from pyslam.utilities.tensorflow import set_tf_logging
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 
 
 kVerbose = True

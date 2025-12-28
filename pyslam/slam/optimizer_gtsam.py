@@ -34,7 +34,7 @@ from gtsam.symbol_shorthand import X, L
 import g2o
 
 from pyslam.config_parameters import Parameters
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.geometry import poseRt, inv_T
 
 from .sim3_pose import Sim3Pose

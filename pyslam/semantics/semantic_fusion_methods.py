@@ -20,7 +20,7 @@
 
 import numpy as np
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.serialization import SerializableEnum, register_class
 from pyslam.semantics.semantic_types import SemanticFeatureType
 

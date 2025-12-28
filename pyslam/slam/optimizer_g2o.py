@@ -37,7 +37,7 @@ from pyslam.semantics.semantic_mapping_shared import (
 )  # TODO(dvdmc): do we want semnatics to be used in this file?
 from pyslam.utilities.geometry import poseRt
 
-from pyslam.utilities.system import Printer
+from pyslam.utilities.logging import Printer
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.drawing import draw_histogram
 
