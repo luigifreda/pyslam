@@ -79,6 +79,16 @@ echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 CURRENT_USED_PYENV=$(get_virtualenv_name)
 print_blue "Currently used python virtual environment: $CURRENT_USED_PYENV"
 
+
+print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/json ..."
+# Must be installed before building slam cpp
+$SCRIPTS_DIR/install_json_nlohmann.sh $EXTERNAL_OPTIONS
+
+cd "$ROOT_DIR"
+
+exit 0
+
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features
@@ -135,21 +145,21 @@ if [[ "$OSTYPE" == darwin* ]]; then
 
     # NOTE: Under mac I got segmentation faults when trying to use open3d python bindings
     #       This happends when trying to load the open3d dynamic library.
-    $SCRIPTS_DIR/install_open3d_python.sh
+    $SCRIPTS_DIR/install_open3d_python.sh $EXTERNAL_OPTIONS
 
     cd $ROOT_DIR
 fi 
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/gtsam ..."
-$SCRIPTS_DIR/install_gtsam.sh
+$SCRIPTS_DIR/install_gtsam.sh $EXTERNAL_OPTIONS
 
 cd $ROOT_DIR
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/ros2_pybindings ..."
 cd thirdparty/ros2_pybindings
-./build.sh
+./build.sh $EXTERNAL_OPTIONS
 
 cd $ROOT_DIR
 

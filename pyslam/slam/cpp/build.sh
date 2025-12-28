@@ -41,6 +41,45 @@ else
 fi
 
 # ====================================================
+# check if we have external options
+EXTERNAL_OPTIONS=$@
+if [[ -n "$EXTERNAL_OPTIONS" ]]; then
+    echo "external option: $EXTERNAL_OPTIONS" 
+fi
+
+OpenCV_DIR="$PROJECT_ROOT/thirdparty/opencv/install/lib/cmake/opencv4"
+echo "OpenCV_DIR: $OpenCV_DIR"
+if [[ -d "$OpenCV_DIR" ]]; then
+    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
+fi 
+
+export CONDA_OPTIONS=""
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    if [ "$CONDA_INSTALLED" = true ]; then
+        CONDA_OPTIONS="-DOPENGL_opengl_LIBRARY=/usr/lib/x86_64-linux-gnu/libOpenGL.so \
+            -DOPENGL_glx_LIBRARY=/usr/lib/x86_64-linux-gnu/libGLX.so"
+        echo "Using CONDA_OPTIONS for build: $CONDA_OPTIONS"
+    fi
+fi
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Make sure we don't accidentally use a Linux cross-compiler or Linux sysroot from conda
+    unset CC CXX CFLAGS CXXFLAGS LDFLAGS CPPFLAGS SDKROOT CONDA_BUILD_SYSROOT CONDA_BUILD_CROSS_COMPILATION
+
+    # Ask Xcode for the proper macOS SDK path (fallback to default if unavailable)
+    MAC_SYSROOT=$(xcrun --show-sdk-path 2>/dev/null || echo "")
+
+    MAC_OPTIONS="-DCMAKE_C_COMPILER=/usr/bin/clang \
+    -DCMAKE_CXX_COMPILER=/usr/bin/clang++"
+
+    echo "Using MAC_OPTIONS for cpp build: $MAC_OPTIONS"
+fi
+
+EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
+echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
+
+# ====================================================
 
 # Create build directory
 BUILD_DIR="$SCRIPT_DIR/build"
@@ -61,11 +100,8 @@ fi
 echo "Configuring with CMake..."
 cmake .. \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
-    -DCMAKE_CXX_STANDARD=17 \
-    -DCMAKE_CXX_STANDARD_REQUIRED=ON \
     -Dpybind11_DIR="$PROJECT_ROOT/thirdparty/pybind11/share/cmake/pybind11" \
-    -DOpenCV_DIR="$PROJECT_ROOT/thirdparty/opencv/install/lib/cmake/opencv4"  \
-    -DWITH_MARCH_NATIVE="$WITH_MARCH_NATIVE" $PIXI_PYTHON_CMAKE_OPTS
+    -DWITH_MARCH_NATIVE="$WITH_MARCH_NATIVE" $PIXI_PYTHON_CMAKE_OPTS $EXTERNAL_OPTIONS
 
 # Build the module
 echo "Building the module..."

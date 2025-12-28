@@ -135,28 +135,4 @@ git apply ../lightglue.patch
 cd "$ROOT_DIR"
 
 
-print_blue '================================================'
-print_blue "Configuring and building thirdparty/json ..."
-# Must be installed before building slam cpp
-
-cd thirdparty
-if [ ! -d json ]; then
-    git clone https://github.com/nlohmann/json.git json
-    #git fetch --all --tags # to fetch tags 
-    cd json
-    git checkout bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d   # release/3.11.2' 
-    cd .. 
-fi
-cd json
-make_buid_dir
-if [[ ! -d install ]]; then
-	cd build
-    JSON_OPTIONS="-DJSON_BuildTests=OFF"
-    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $JSON_OPTIONS $EXTERNAL_OPTION
-	make -j 8
-    make install 
-fi
-cd $SCRIPT_DIR
-
-
 cd "$STARTING_DIR"
