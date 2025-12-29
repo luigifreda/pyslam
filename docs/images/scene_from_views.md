@@ -15,6 +15,7 @@ graph LR;
     scene_from_views_factory -->|*SceneFromViewsType.VGGT*| SceneFromViewsVggt;
     scene_from_views_factory -->|*SceneFromViewsType.VGGT_ROBUST*| SceneFromViewsVggtRobust;
     scene_from_views_factory -->|*SceneFromViewsType.DUST3R*| SceneFromViewsDust3r;
+    scene_from_views_factory -->|*SceneFromViewsType.FAST3R*| SceneFromViewsFast3r
 
     %% Factory uses enum
     scene_from_views_factory -->|*uses*| SceneFromViewsType;
@@ -26,6 +27,7 @@ graph LR;
     SceneFromViewsVggt -->|*_is-a_*| SceneFromViewsBase;
     SceneFromViewsVggtRobust -->|*_is-a_*| SceneFromViewsBase;
     SceneFromViewsDust3r -->|*_is-a_*| SceneFromViewsBase;
+    SceneFromViewsFast3r -->|*_is-a_*| SceneFromViewsBase;
 
     %% Base class returns result
     SceneFromViewsBase -->|*returns*| SceneFromViewsResult;
@@ -47,6 +49,7 @@ graph LR;
     class SceneFromViewsVggt implementation;
     class SceneFromViewsVggtRobust implementation;
     class SceneFromViewsDust3r implementation;
+    class SceneFromViewsFast3r implementation;
 
     %% Result structure
     class SceneFromViewsResult result;

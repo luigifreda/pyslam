@@ -1,71 +1,73 @@
 # Scene From Views
 
-This directory contains the implementation of the `scene_from_views` factory, which provides a **unified interface for end-to-end 3D scene reconstruction from multiple views**. The factory follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API.
+This directory contains the implementation of the `scene_from_views` factory, which provides a **unified interface for end-to-end 3D scene reconstruction from multiple views**. The factory follows a modular architecture that allows easy integration of different reconstruction models while maintaining a consistent API. This document is a work in progress.
 
 <!-- TOC -->
 
 - [Scene From Views](#scene-from-views)
-  - [1. Architecture](#1-architecture)
-    - [1.1. Base Class: `SceneFromViewsBase`](#11-base-class-scenefromviewsbase)
-    - [1.2. Result Structure: `SceneFromViewsResult`](#12-result-structure-scenefromviewsresult)
-    - [1.3. Factory Pattern: `scene_from_views_factory`](#13-factory-pattern-scene_from_views_factory)
-    - [1.4. Derived Implementations](#14-derived-implementations)
-    - [1.5. Capability Quick Reference](#15-capability-quick-reference)
-    - [1.6. Type Enumeration: `SceneFromViewsType`](#16-type-enumeration-scenefromviewstype)
-  - [2. Supported Models and Reference Papers](#2-supported-models-and-reference-papers)
-    - [2.1. DUSt3R (Geometric 3D Vision Made Easy)](#21-dust3r-geometric-3d-vision-made-easy)
-    - [2.2. MASt3R (Grounding Image Matching in 3D with MASt3R)](#22-mast3r-grounding-image-matching-in-3d-with-mast3r)
-    - [2.3. Depth Anything V3](#23-depth-anything-v3)
-    - [2.4. MVDust3r (Multi-view DUSt3R)](#24-mvdust3r-multi-view-dust3r)
-    - [2.5. VGGT (Visual Geometry Grounded Transformer)](#25-vggt-visual-geometry-grounded-transformer)
-    - [2.6. VGGT Robust (Outlier-Aware VGGT)](#26-vggt-robust-outlier-aware-vggt)
-  - [3. Scene Optimization Modules](#3-scene-optimization-modules)
-    - [3.1. Overview](#31-overview)
-    - [3.2. Available Optimizers](#32-available-optimizers)
-      - [3.2.1. DenseSceneOptimizer](#321-densesceneoptimizer)
+  - [Architecture](#architecture)
+    - [Base Class: `SceneFromViewsBase`](#base-class-scenefromviewsbase)
+    - [Result Structure: `SceneFromViewsResult`](#result-structure-scenefromviewsresult)
+    - [Factory Pattern: `scene_from_views_factory`](#factory-pattern-scene_from_views_factory)
+    - [Derived Implementations](#derived-implementations)
+    - [Capability Quick Reference](#capability-quick-reference)
+    - [Type Enumeration: `SceneFromViewsType`](#type-enumeration-scenefromviewstype)
+  - [Supported Models and Reference Papers](#supported-models-and-reference-papers)
+    - [DUSt3R (Geometric 3D Vision Made Easy)](#dust3r-geometric-3d-vision-made-easy)
+    - [MASt3R (Grounding Image Matching in 3D with MASt3R)](#mast3r-grounding-image-matching-in-3d-with-mast3r)
+    - [Depth Anything V3](#depth-anything-v3)
+    - [MVDust3r (Multi-view DUSt3R)](#mvdust3r-multi-view-dust3r)
+    - [VGGT (Visual Geometry Grounded Transformer)](#vggt-visual-geometry-grounded-transformer)
+    - [VGGT Robust (Outlier-Aware VGGT)](#vggt-robust-outlier-aware-vggt)
+    - [FAST3R](#fast3r)
+  - [Scene Optimization Modules](#scene-optimization-modules)
+    - [Overview](#overview)
+    - [Available Optimizers](#available-optimizers)
+      - [DenseSceneOptimizer](#densesceneoptimizer)
       - [3.2.2. SparseSceneOptimizer](#322-sparsesceneoptimizer)
-    - [3.3. Configuration Dictionary](#33-configuration-dictionary)
+    - [Configuration Dictionary](#configuration-dictionary)
       - [DenseSceneOptimizer Parameters](#densesceneoptimizer-parameters)
       - [SparseSceneOptimizer Parameters](#sparsesceneoptimizer-parameters)
-    - [3.4. Global Scene Optimization Details](#34-global-scene-optimization-details)
-      - [3.4.1. Dense Scene Optimization (global\_aligner)](#341-dense-scene-optimization-global_aligner)
+    - [Global Scene Optimization Details](#global-scene-optimization-details)
+      - [Dense Scene Optimization (global\_aligner)](#dense-scene-optimization-global_aligner)
       - [3.4.2. Sparse Scene Optimization (sparse\_scene\_optimizer)](#342-sparse-scene-optimization-sparse_scene_optimizer)
-      - [3.4.3. Key Differences Summary](#343-key-differences-summary)
-    - [3.5. TSDF Post-Processing](#35-tsdf-post-processing)
-    - [3.6. Unified Optimizer Interface](#36-unified-optimizer-interface)
-      - [3.6.1. Key Components](#361-key-components)
+      - [Key Differences Summary](#key-differences-summary)
+    - [TSDF Post-Processing](#tsdf-post-processing)
+    - [Unified Optimizer Interface](#unified-optimizer-interface)
+      - [Key Components](#key-components)
       - [3.6.2. Usage Examples](#362-usage-examples)
-      - [3.6.3. Benefits](#363-benefits)
+      - [Benefits](#benefits)
       - [3.6.4. Architecture](#364-architecture)
-      - [3.6.5. Implementation Details](#365-implementation-details)
-  - [4. Usage Examples](#4-usage-examples)
-    - [4.1. Basic Usage](#41-basic-usage)
-    - [4.2. Using Dense Scene Optimizer with Dust3r](#42-using-dense-scene-optimizer-with-dust3r)
-    - [4.3. Using Sparse Scene Optimizer with MASt3r](#43-using-sparse-scene-optimizer-with-mast3r)
-    - [4.4. Using Optimizer as Post-Processing](#44-using-optimizer-as-post-processing)
-    - [4.5. Using Optimizer in reconstruct() call](#45-using-optimizer-in-reconstruct-call)
-    - [4.6. Using VGGT Robust with outlier rejection](#46-using-vggt-robust-with-outlier-rejection)
-  - [5. Extending the Framework](#5-extending-the-framework)
-  - [6. Notes and Best Practices](#6-notes-and-best-practices)
+      - [Implementation Details](#implementation-details)
+  - [Usage Examples](#usage-examples)
+    - [Basic Usage](#basic-usage)
+    - [Using Dense Scene Optimizer with Dust3r](#using-dense-scene-optimizer-with-dust3r)
+    - [Using Sparse Scene Optimizer with MASt3r](#using-sparse-scene-optimizer-with-mast3r)
+    - [Using Optimizer as Post-Processing](#using-optimizer-as-post-processing)
+    - [Using Optimizer in reconstruct() call](#using-optimizer-in-reconstruct-call)
+    - [Using VGGT Robust with outlier rejection](#using-vggt-robust-with-outlier-rejection)
+    - [Using FAST3R for large-scale reconstruction](#using-fast3r-for-large-scale-reconstruction)
+  - [Extending the Framework](#extending-the-framework)
+  - [Notes and Best Practices](#notes-and-best-practices)
 
 <!-- /TOC -->
 
 ---
 
-## 1. Architecture
+## Architecture
 
 
 <p align="center">
 <img src="./images/scene_from_views.png" alt="3D Scene From Views"  /> 
 </p>
 
-This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, `VGGT`, and `VGGT_ROBUST`.
+This diagram illustrates the architecture of the *Scene from Views* module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the `scene_from_views_factory` instantiates specific reconstruction models based on the selected `SceneFromViewsType`, such as `DUST3R`, `MAST3R`, `DEPTH_ANYTHING_V3`, `MVDUST3R`, `VGGT`, `VGGT_ROBUST`, and `FAST3R`.
 
-Each type creates a corresponding implementation (e.g., `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsDepthAnythingV3`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`), all inheriting from a common `SceneFromViewsBase`. This base class implements a unified three-step reconstruction pipeline: `preprocess_images()` prepares input images for the specific model, `infer()` runs model inference, and `postprocess_results()` converts raw model output to a standardized `SceneFromViewsResult` format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
+Each type creates a corresponding implementation (e.g., `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsDepthAnythingV3`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`), all inheriting from a common `SceneFromViewsBase`. This base class implements a unified three-step reconstruction pipeline: `preprocess_images()` prepares input images for the specific model, `infer()` runs model inference, and `postprocess_results()` converts raw model output to a standardized `SceneFromViewsResult` format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
 
-The module supports both pairwise models (DUSt3R, MASt3R) that process image pairs and perform global alignment, as well as multi-view models (MV-DUSt3R, VGGT) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
+The module supports both pairwise models (DUSt3R, MASt3R) that process image pairs and perform global alignment, as well as multi-view models (MV-DUSt3R, VGGT, FAST3R) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
 
-### 1.1. Base Class: `SceneFromViewsBase`
+### Base Class: `SceneFromViewsBase`
 
 The `SceneFromViewsBase` class (`scene_from_views_base.py`) serves as the abstract base class that defines the common interface for all scene reconstruction implementations. It provides:
 
@@ -81,7 +83,7 @@ The `SceneFromViewsBase` class (`scene_from_views_base.py`) serves as the abstra
 
 - **Optimizer Post-Processing**: Supports optional scene optimizer post-processing via the `optimizer` parameter in `reconstruct()` or the `apply_optimizer_postprocessing()` method.
 
-### 1.2. Result Structure: `SceneFromViewsResult`
+### Result Structure: `SceneFromViewsResult`
 
 `SceneFromViewsResult` is the class that standardizes the output format across all models, containing:
 - `global_point_cloud`: Merged point cloud in world coordinates
@@ -93,7 +95,7 @@ The `SceneFromViewsBase` class (`scene_from_views_base.py`) serves as the abstra
 - `intrinsics`: List of camera intrinsic matrices (3x3) if available
 - `confidences`: List of confidence maps (H, W) if available
 
-### 1.3. Factory Pattern: `scene_from_views_factory`
+### Factory Pattern: `scene_from_views_factory`
 
 The factory function (`scene_from_views_factory.py`) provides a centralized way to instantiate different reconstruction models:
 
@@ -114,7 +116,7 @@ The factory handles:
 - Parameter passing to model constructors
 - Error handling for missing dependencies
 
-### 1.4. Derived Implementations
+### Derived Implementations
 
 Each derived class extends `SceneFromViewsBase` and implements the three specialized methods (`preprocess_images()`, `infer()`, and `postprocess_results()`). The shared `reconstruct()` method in the base class orchestrates these steps, ensuring a consistent reconstruction pipeline across all models:
 
@@ -151,16 +153,25 @@ Each derived class extends `SceneFromViewsBase` and implements the three special
    - Supports background masking (black/white/sky flags), percentile-based confidence filtering, and anchor selection (first frame or most central)
    - Exposes rejected and survivor indices in the returned `SceneFromViewsResult`
 
-### 1.5. Capability Quick Reference
+7. **`SceneFromViewsFast3r`** (`scene_from_views_fast3r.py`)
+   - Wraps Fast3R (Fast3R: Towards 3D Reconstruction of 1000+ Images in One Forward Pass)
+   - Processes 1000+ images in a single forward pass for large-scale reconstruction
+   - Performs multi-view reconstruction with pose estimation using PnP
+   - Uses global alignment to merge local point clouds into a unified coordinate frame
+   - Supports confidence-based filtering and automatic camera pose estimation
+   - **Note**: Requires significant GPU memory for large image sets
 
-- **End-to-end multi-view reconstruction** (poses + fused geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`.
+### Capability Quick Reference
+
+- **End-to-end multi-view reconstruction** (poses + fused geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`.
+- **Large-scale reconstruction** (1000+ images in one pass): `SceneFromViewsFast3r` (designed for processing very large image collections efficiently)
 - **Robust view filtering / outlier rejection**: `SceneFromViewsVggtRobust` (anchor-based attention + cosine scoring that discards low-confidence views before reconstruction)
 - **Single-view depth-first pipeline with optional poses/intrinsics**: `SceneFromViewsDepthAnythingV3`
 - **Global alignment optimization stage for merging views**: `SceneFromViewsDust3r` (dense alignment) and `SceneFromViewsMast3r` (sparse alignment variant)
 
-Note that DUSt3R and MASt3R are **pairwise models**: they take two images at a time. Multi-view end-to-end reconstruction is achieved by running them on many image pairs and performing a global alignment / optimization over all pairwise pointmaps.
+Note that DUSt3R and MASt3R are **pairwise models**: they take two images at a time. Multi-view end-to-end reconstruction is achieved by running them on many image pairs and performing a global alignment / optimization over all pairwise pointmaps. Fast3R, MV-DUSt3R, and VGGT are **multi-view models** that process all images simultaneously in a single forward pass.
 
-### 1.6. Type Enumeration: `SceneFromViewsType`
+### Type Enumeration: `SceneFromViewsType`
 
 The `SceneFromViewsType` enum (`scene_from_views_types.py`) defines all supported model types:
 - `DEPTH_ANYTHING_V3`
@@ -169,12 +180,13 @@ The `SceneFromViewsType` enum (`scene_from_views_types.py`) defines all supporte
 - `VGGT`
 - `VGGT_ROBUST`
 - `DUST3R`
+- `FAST3R`
 
 ---
 
-## 2. Supported Models and Reference Papers
+## Supported Models and Reference Papers
 
-### 2.1. DUSt3R (Geometric 3D Vision Made Easy)
+### DUSt3R (Geometric 3D Vision Made Easy)
 
 **Description**: DUSt3R is a framework for dense 3D reconstruction from arbitrary image collections without requiring known camera intrinsics or poses. It predicts dense 3D pointmaps for image pairs; from these pointmaps, depth maps and relative/absolute camera parameters can be recovered.
 
@@ -192,7 +204,7 @@ Shuzhe Wang, Vincent Leroy, Yohann Cabon, Boris Chidlovskii, Jerome Revaud. _"DU
 
 
 
-### 2.2. MASt3R (Grounding Image Matching in 3D with MASt3R)
+### MASt3R (Grounding Image Matching in 3D with MASt3R)
 
 **Description**: MASt3R builds on DUSt3R by adding a 3D-aware dense matching head on top of the pointmap-based reconstruction. It produces both dense 3D pointmaps and dense local features for highly accurate matching, and the reference implementation provides tools for multi-view reconstruction and alignment.
 
@@ -209,7 +221,7 @@ Vincent Leroy, Yohann Cabon, Jerome Revaud. _"Grounding Image Matching in 3D wit
 **Implementation**: `SceneFromViewsMast3r`
 
 
-### 2.3. Depth Anything V3
+### Depth Anything V3
 
 **Description**: Depth Anything 3 is a monocular depth estimation model family that can produce both relative and metric depth. The official implementation also supports estimating camera parameters (extrinsics and intrinsics) from one or more images, which can be used for reconstruction pipelines.
 
@@ -227,7 +239,7 @@ Haotong Lin, Sili Chen, Jun Hao Liew, Donny Y. Chen, Zhenyu Li, Guang Shi, Jiash
 
 
 
-### 2.4. MVDust3r (Multi-view DUSt3R)
+### MVDust3r (Multi-view DUSt3R)
 
 **Description**: MV-DUSt3R and its enhanced variant MV-DUSt3R+ extend DUSt3R to the multi-view setting. They process multiple unposed RGB views in a single feed-forward pass, using multi-view decoder blocks (and cross-reference-view blocks in MV-DUSt3R+) to jointly reason about all input views and reconstruct the scene.
 
@@ -245,7 +257,7 @@ Zhenggang Tang, Yuchen Fan, Dilin Wang, Hongyu Xu, Rakesh Ranjan, Alexander Schw
 
 
 
-### 2.5. VGGT (Visual Geometry Grounded Transformer)
+### VGGT (Visual Geometry Grounded Transformer)
 
 **Description**: VGGT is a large feed-forward transformer for 3D reconstruction that directly predicts camera parameters, pointmaps, depth maps, and 3D point tracks from one or many input views. It performs multi-view reconstruction in a single forward pass and achieves state-of-the-art results on several 3D tasks.
 
@@ -261,7 +273,7 @@ _"VGGT: Visual Geometry Grounded Transformer"_
 
 **Implementation**: `SceneFromViewsVggt`
 
-### 2.6. VGGT Robust (Outlier-Aware VGGT)
+### VGGT Robust (Outlier-Aware VGGT)
 
 **Description**: A VGGT variant that mirrors the `robust_vggt` demo by scoring each view against an anchor frame and discarding outlier views before the final forward pass. Anchor selection can be the first frame or the most "central" frame based on token similarity, and scores blend global attention responses with cosine similarity.
 
@@ -272,21 +284,54 @@ _"VGGT: Visual Geometry Grounded Transformer"_
 - Returns metadata about dropped views through `result.rejected_indices` and `result.survivor_indices`
 - Default checkpoint: `facebook/VGGT-1B` (override with `model_id`)
 
+**Reference Paper**:
+"Emergent Outlier View Rejection in Visual Geometry Grounded Transformers"
+[Paper](https://arxiv.org/abs/2512.04012) | [VGGT Robust repository](https://github.com/cvlab-kaist/RobustVGGT)
+
 **Implementation**: `SceneFromViewsVggtRobust` (`scene_from_views_vggt_robust.py`, depends on `thirdparty/vggt_robust`)
+
+### FAST3R
+
+**Description**: Fast3R is a transformer-based model that can process 1000+ images in a single forward pass for large-scale 3D reconstruction. It extends DUSt3R's architecture to handle massive image collections efficiently, making it ideal for reconstructing scenes from video sequences or large photo collections.
+
+**Key Features**:
+- Single forward pass processing of 1000+ images simultaneously
+- Multi-view transformer architecture that jointly reasons over all input views
+- Automatic camera pose estimation using PnP (Perspective-n-Point) algorithm
+- Global alignment of local point clouds into a unified coordinate frame
+- Confidence-aware point cloud filtering and depth estimation
+- Support for images with different aspect ratios and resolutions
+- Efficient memory management for large-scale reconstruction
+
+**Key Features** (as used in this framework):
+- Processes all input images in a single forward pass (no pairwise processing needed)
+- Estimates camera-to-world poses using PnP with configurable iterations
+- Aligns local 3D points to global coordinate frame using confidence-based filtering
+- Extracts dense point clouds, depth maps, and confidence maps per view
+- Supports both Hugging Face model loading and local checkpoint loading
+- Configurable image size (224 or 512), confidence thresholds, and focal length estimation methods
+
+**Reference Paper**:  
+"Fast3R: Towards 3D Reconstruction of 1000+ Images in One Forward Pass." 
+[Paper](https://arxiv.org/abs/2503.11651) | [Repository](https://github.com/facebookresearch/fast3r) | [Project page](https://fast3r-3d.github.io/)
+
+**Implementation**: `SceneFromViewsFast3r`
+
+**Note**: Fast3R requires significant GPU memory, especially when processing large numbers of images. The model automatically downloads pre-trained weights from Hugging Face (default: `jedyang97/Fast3R_ViT_Large_512`) or can load from a local checkpoint directory.
 
 ---
 
-## 3. Scene Optimization Modules
+## Scene Optimization Modules
 
-### 3.1. Overview
+### Overview
 
 The scene optimization modules (`optimizers/` directory) provide wrapper classes for different scene optimization methods that can be used with `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, and optionally as post-processing with other `SceneFromViews` classes.
 
 All optimizers inherit from `SceneOptimizerBase`, making them interchangeable and ensuring a consistent interface.
 
-### 3.2. Available Optimizers
+### Available Optimizers
 
-#### 3.2.1. DenseSceneOptimizer
+#### DenseSceneOptimizer
 
 Wrapper for Dust3r's `global_aligner` optimizer. Performs dense optimization on full depth maps and point clouds using a single-stage approach.
 
@@ -361,7 +406,7 @@ reconstructor = SceneFromViewsMast3r(
 )
 ```
 
-### 3.3. Configuration Dictionary
+### Configuration Dictionary
 
 The `optimizer_config` parameter accepts a dictionary with the following structure:
 
@@ -393,11 +438,11 @@ optimizer_config = {
 - `optim_level` (str, default: "refine+depth"): Optimization level ('coarse', 'refine', 'refine+depth')
 - `kinematic_mode` (str, default: "hclust-ward"): Kinematic chain mode ('mst', 'hclust-ward', 'hclust-complete', etc.)
 
-### 3.4. Global Scene Optimization Details
+### Global Scene Optimization Details
 
 Both `global_aligner()` (Dust3r) and `sparse_scene_optimizer()` (MASt3r) are methods for aligning multiple camera views into a consistent 3D scene, but they use fundamentally different approaches.
 
-#### 3.4.1. Dense Scene Optimization (global_aligner)
+#### Dense Scene Optimization (global_aligner)
 
 **Location**: `pyslam.scene_from_views.optimizers.dense_scene_optimizer` (consolidates code from `dust3r.cloud_opt.global_aligner`)
 
@@ -458,7 +503,7 @@ Both `global_aligner()` (Dust3r) and `sparse_scene_optimizer()` (MASt3r) are met
 - When feature correspondences are reliable
 - Can handle more complex camera configurations
 
-#### 3.4.3. Key Differences Summary
+#### Key Differences Summary
 
 | Aspect | DenseSceneOptimizer (global_aligner) | SparseSceneOptimizer (sparse_scene_optimizer) |
 |--------|-------------------------------------|-----------------------------------------------|
@@ -471,7 +516,7 @@ Both `global_aligner()` (Dust3r) and `sparse_scene_optimizer()` (MASt3r) are met
 | **Accuracy** | Good | Potentially better |
 | **Complexity** | Simpler | More sophisticated |
 
-### 3.5. TSDF Post-Processing
+### TSDF Post-Processing
 
 **Purpose**: Post-processing step that refines depth maps using TSDF (Truncated Signed Distance Function) fusion
 
@@ -488,11 +533,11 @@ Both `global_aligner()` (Dust3r) and `sparse_scene_optimizer()` (MASt3r) are met
 
 **Note**: TSDFPostProcess is located in `pyslam.scene_from_views.optimizers.tsdf_postprocess` and is optional. It can be disabled by setting `TSDF_thresh=0` or `use_tsdf=False` in `SceneFromViewsMast3r`. The TSDF post-processing code was originally from MASt3r's `tsdf_optimizer` module.
 
-### 3.6. Unified Optimizer Interface
+### Unified Optimizer Interface
 
 The unified optimizer interface allows you to use any optimizer (dense or sparse) with any model output format (Dust3r, MASt3r, etc.). Format conversion from model-specific outputs to the unified `SceneOptimizerInput` format is handled by the `create_optimizer_input()` methods in each `SceneFromViews` class.
 
-#### 3.6.1. Key Components
+#### Key Components
 
 **SceneOptimizerInput**
 
@@ -663,7 +708,7 @@ optimizer_output = optimizer.optimize(
 )
 ```
 
-#### 3.6.3. Benefits
+#### Benefits
 
 1. **Unified Interface**: All optimizers use the same `optimize()` method that accepts `SceneOptimizerInput`
 2. **Standardized Format**: Both optimizers work on `pair_predictions` (list of `PairPrediction` objects), eliminating format-specific code
@@ -678,7 +723,7 @@ The unified interface is built into `SceneOptimizerBase`:
 - `optimize()`: Accepts `SceneOptimizerInput`, returns `SceneOptimizerOutput`
 - `extract_results()`: Accepts `SceneOptimizerOutput`, returns updated `SceneOptimizerOutput`
 
-#### 3.6.5. Implementation Details
+#### Implementation Details
 
 Both `DenseSceneOptimizer` and `SparseSceneOptimizer` operate directly on `SceneOptimizerInput` with `pair_predictions`. The format conversion is handled by the `create_optimizer_input()` methods in each `SceneFromViews` class, which convert model-specific outputs into the unified `PairPrediction` format.
 
@@ -690,9 +735,9 @@ Both `DenseSceneOptimizer` and `SparseSceneOptimizer` operate directly on `Scene
 
 ---
 
-## 4. Usage Examples
+## Usage Examples
 
-### 4.1. Basic Usage
+### Basic Usage
 
 ```python
 from pyslam.scene_from_views import scene_from_views_factory, SceneFromViewsType
@@ -717,7 +762,7 @@ print(f"Point cloud has {len(result.global_point_cloud.vertices)} points")
 print(f"Estimated {len(result.camera_poses)} camera poses")
 ```
 
-### 4.2. Using Dense Scene Optimizer with Dust3r
+### Using Dense Scene Optimizer with Dust3r
 
 ```python
 from pyslam.scene_from_views import SceneFromViewsDust3r
@@ -740,7 +785,7 @@ reconstructor = SceneFromViewsDust3r(
 result = reconstructor.reconstruct(images)
 ```
 
-### 4.3. Using Sparse Scene Optimizer with MASt3r
+### Using Sparse Scene Optimizer with MASt3r
 
 ```python
 from pyslam.scene_from_views import SceneFromViewsMast3r
@@ -765,7 +810,7 @@ reconstructor = SceneFromViewsMast3r(
 result = reconstructor.reconstruct(images)
 ```
 
-### 4.4. Using Optimizer as Post-Processing
+### Using Optimizer as Post-Processing
 
 ```python
 from pyslam.scene_from_views import SceneFromViewsDepthAnythingV3
@@ -788,7 +833,7 @@ optimized_result = reconstructor.apply_optimizer_postprocessing(
 )
 ```
 
-### 4.5. Using Optimizer in reconstruct() call
+### Using Optimizer in reconstruct() call
 
 ```python
 from pyslam.scene_from_views import SceneFromViewsDepthAnythingV3
@@ -810,7 +855,7 @@ result = reconstructor.reconstruct(
 )
 ```
 
-### 4.6. Using VGGT Robust with outlier rejection
+### Using VGGT Robust with outlier rejection
 
 ```python
 from pyslam.scene_from_views import SceneFromViewsVggtRobust
@@ -834,9 +879,51 @@ print("Rejected view indices:", getattr(result, "rejected_indices", []))
 print("Used view indices:", getattr(result, "survivor_indices", []))
 ```
 
+### Using FAST3R for large-scale reconstruction
+
+```python
+from pyslam.scene_from_views import SceneFromViewsFast3r
+import cv2
+
+# Load many images (Fast3R can handle 1000+ images in one pass)
+images = [cv2.imread(f"image_{i}.jpg") for i in range(100)]
+
+# Create reconstructor with custom settings
+reconstructor = SceneFromViewsFast3r(
+    device='cuda',
+    checkpoint_dir="jedyang97/Fast3R_ViT_Large_512",  # or path to local checkpoint
+    image_size=512,                                    # 224 or 512
+    min_conf_thr_percentile=10,                       # confidence threshold percentile
+    niter_PnP=100,                                     # PnP iterations for pose estimation
+    focal_length_estimation_method="first_view_from_global_head",
+)
+
+# Reconstruct scene (all images processed in one forward pass)
+result = reconstructor.reconstruct(images, as_pointcloud=True)
+
+# Access results
+print(f"Point cloud has {len(result.global_point_cloud.vertices)} points")
+print(f"Estimated {len(result.camera_poses)} camera poses")
+print(f"Processed {len(result.processed_images)} images")
+
+# Using with factory pattern
+from pyslam.scene_from_views import scene_from_views_factory, SceneFromViewsType
+
+reconstructor = scene_from_views_factory(
+    scene_from_views_type=SceneFromViewsType.FAST3R,
+    device='cuda',
+    image_size=512,
+    min_conf_thr_percentile=10,
+)
+
+result = reconstructor.reconstruct(images)
+```
+
+**Note**: Fast3R requires significant GPU memory. For very large image sets (1000+ images), ensure you have sufficient GPU memory or process images in batches.
+
 ---
 
-## 5. Extending the Framework
+## Extending the Framework
 
 To add a new reconstruction model:
 
@@ -916,7 +1003,7 @@ To add a new reconstruction model:
 
 ---
 
-## 6. Notes and Best Practices
+## Notes and Best Practices
 
 - **Base Class**: All optimizers inherit from `SceneOptimizerBase`, ensuring a consistent interface and making them interchangeable.
 

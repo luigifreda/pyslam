@@ -31,6 +31,7 @@ class SceneFromViewsType(SerializableEnum):
         4  # VGGT Robust - Emergent Outlier View Rejection in Visual Geometry Grounded Transformers
     )
     DUST3R = 5  # DUSt3R - Geometric 3D Vision Made Easy
+    FAST3R = 6  # Fast3R - Fast3R: Towards 3D Reconstruction of 1000+ Images in One Forward Pass
 
     @staticmethod
     def from_string(name: str):

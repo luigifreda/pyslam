@@ -179,6 +179,11 @@ if [ -d "thirdparty/json" ]; then
     sudo rm -rf thirdparty/json
 fi
 
+if [ -d "thirdparty/fast3r" ]; then
+    echo "Removing thirdparty/fast3r directory"
+    sudo rm -rf thirdparty/fast3r
+fi
+
 # clean downloaded models, reset submodules and clean repo itself
 if [ $HARD_CLEAN -eq 1 ]; then
     print_blue "Resetting git submodules"

@@ -351,6 +351,17 @@ fi
 cd $ROOT_DIR
 
 print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/fast3r ..."
+
+if [ "$CUDA_VERSION" != "0" ]; then
+    # we need CUDA
+
+    $SCRIPTS_DIR/install_fast3r.sh
+else
+    print_yellow "Fast3R requires CUDA. Skipping..."
+fi 
+
+print_blue "=================================================================="
 
 echo "...done with thirdparty"
 

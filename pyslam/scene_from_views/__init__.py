@@ -47,6 +47,11 @@ try:
 except ImportError:
     SceneFromViewsDust3r = None
 
+try:
+    from .scene_from_views_fast3r import SceneFromViewsFast3r
+except ImportError:
+    SceneFromViewsFast3r = None
+
 __all__ = [
     "SceneFromViewsBase",
     "SceneFromViewsResult",
@@ -57,5 +62,5 @@ __all__ = [
     "SceneFromViewsMvdust3r",
     "SceneFromViewsVggt",
     "SceneFromViewsDust3r",
+    "SceneFromViewsFast3r",
 ]
-

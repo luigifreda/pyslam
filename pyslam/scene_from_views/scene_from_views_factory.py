@@ -118,5 +118,15 @@ def scene_from_views_factory(
             **kwargs,
         )
 
+    elif scene_from_views_type == SceneFromViewsType.FAST3R:
+        try:
+            from .scene_from_views_fast3r import SceneFromViewsFast3r
+        except ImportError:
+            SceneFromViewsFast3r = import_from(
+                "pyslam.scene_from_views.scene_from_views_fast3r",
+                "SceneFromViewsFast3r",
+            )
+        return SceneFromViewsFast3r(device=device, **kwargs)
+
     else:
         raise ValueError(f"Invalid scene_from_views_type: {scene_from_views_type}")

@@ -110,6 +110,7 @@ def visualize_results(
             if added > 0:
                 img_table.render()
                 cv2.imshow("Processed Images", img_table.image())
+                cv2.waitKey(1)
 
         # Show depth maps if available
         if result.depth_predictions is not None and len(result.depth_predictions) > 0:
@@ -124,6 +125,7 @@ def visualize_results(
             if added > 0:
                 depth_table.render()
                 cv2.imshow("Depth Maps", depth_table.image())
+                cv2.waitKey(1)
 
         # Show confidence maps if available
         if result.confidences is not None and len(result.confidences) > 0:
@@ -136,6 +138,10 @@ def visualize_results(
             if added > 0:
                 conf_table.render()
                 cv2.imshow("Confidence Maps", conf_table.image())
+                cv2.waitKey(1)
+
+        # Pump the OpenCV event loop to make sure the above windows become visible
+        cv2.waitKey(1)
 
     if show_3d:
         viewer3D = Viewer3D()
@@ -168,8 +174,8 @@ def visualize_results(
         # Visualize camera poses if available
         viz_camera_images = []
         cam_scale = 0.1
-        if method == SceneFromViewsType.DUST3R:
-            cam_scale = 0.05
+        if method == SceneFromViewsType.DUST3R or method == SceneFromViewsType.FAST3R:
+            cam_scale = 0.03
         if result.camera_poses is not None and len(result.camera_poses) > 0:
             for i, (pose, img) in enumerate(zip(result.camera_poses, result.processed_images)):
                 if pose is not None:
@@ -209,7 +215,15 @@ def main():
         "--method",
         type=str,
         default="VGGT_ROBUST",
-        choices=["DUST3R", "MAST3R", "MVDUST3R", "VGGT", "VGGT_ROBUST", "DEPTH_ANYTHING_V3"],
+        choices=[
+            "DUST3R",
+            "MAST3R",
+            "MVDUST3R",
+            "VGGT",
+            "VGGT_ROBUST",
+            "DEPTH_ANYTHING_V3",
+            "FAST3R",
+        ],
         help="Reconstruction method to use",
     )
 
