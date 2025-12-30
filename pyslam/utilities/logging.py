@@ -253,6 +253,56 @@ class SingletonBase:
         return cls._instances[key]
 
 
+class SafeQueueListener(QueueListener):
+    """QueueListener variant that ignores errors raised while the queue/pipe closes."""
+
+    verbose = False
+
+    def _monitor(self):
+        q = self.queue
+        has_task_done = hasattr(q, "task_done")
+        while True:
+            try:
+                record = self.dequeue(True)
+            except Exception as e:
+                # During shutdown the multiprocessing pipe can be torn down; just exit quietly.
+                if isinstance(e, (EOFError, OSError, ValueError, TypeError)):
+                    if self.verbose:
+                        print(f"SafeQueueListener: _monitor: Exception: {e}")
+                    break
+                err = str(e).lower()
+                if any(
+                    msg in err for msg in ["handle is closed", "bad file descriptor", "nonetype"]
+                ):
+                    if self.verbose:
+                        print(f"SafeQueueListener: _monitor: Exception: {e}")
+                    break
+                continue
+            if record is self._sentinel:
+                if has_task_done:
+                    try:
+                        q.task_done()
+                    except Exception as e:
+                        if self.verbose:
+                            print(f"SafeQueueListener: _monitor: Exception: {e}")
+                        pass
+                break
+            try:
+                self.handle(record)
+            except Exception as e:
+                # Never let logging errors surface during shutdown.
+                if self.verbose:
+                    print(f"SafeQueueListener: _monitor: Exception: {e}")
+                pass
+            if has_task_done:
+                try:
+                    q.task_done()
+                except Exception as e:
+                    if self.verbose:
+                        print(f"SafeQueueListener: _monitor: Exception: {e}")
+                    pass
+
+
 class LoggerQueue(SingletonBase):
     """
     A class to manage process-safe logging using a shared Queue and QueueListener.
@@ -286,7 +336,7 @@ class LoggerQueue(SingletonBase):
         self.file_handler.setFormatter(self.formatter)
 
         # Queue listener
-        self.listener = QueueListener(self.log_queue, self.file_handler)
+        self.listener = SafeQueueListener(self.log_queue, self.file_handler)
 
         # Start the listener
         try:
@@ -313,20 +363,31 @@ class LoggerQueue(SingletonBase):
         Stop all LoggerQueue instances. This is useful for ensuring clean shutdown
         of all logging threads before program exit. Called automatically at exit.
         """
-        # Stop all instances, even if some are already closing
-        # This ensures we clean up all queues and threads
-        for instance in cls._instances.values():
-            if isinstance(instance, cls) and hasattr(instance, "stop_listener"):
-                try:
-                    # Call stop_listener even if already closing - it's idempotent
-                    # This ensures queues are properly closed and feeder threads are cancelled
-                    instance.stop_listener()
-                except Exception as e:
-                    print(f"Warning: Error stopping LoggerQueue instance: {e}")
+        try:
+            # Stop all instances, even if some are already closing
+            # This ensures we clean up all queues and threads
+            for instance in cls._instances.values():
+                if isinstance(instance, cls) and hasattr(instance, "stop_listener"):
+                    try:
+                        # Call stop_listener even if already closing - it's idempotent
+                        # This ensures queues are properly closed and feeder threads are cancelled
+                        instance.stop_listener()
+                    except Exception as e:
+                        # Suppress expected errors during shutdown
+                        # These errors occur when queues are closed while listener threads are still reading
+                        error_str = str(e).lower()
+                        if not any(
+                            err in error_str
+                            for err in ["handle is closed", "bad file descriptor", "nonetype"]
+                        ):
+                            print(f"Warning: Error stopping LoggerQueue instance: {e}")
 
-        # Give a small moment for threads to exit after cleanup
-        # This is especially important for QueueFeederThread threads
-        time.sleep(0.1)
+            # Give a small moment for threads to exit after cleanup
+            # This is especially important for QueueFeederThread threads and listener threads
+            # The listener threads are daemon threads, so they won't block process exit
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"Warning: Error stopping LoggerQueue instances: {e}")
 
     def reset_log_file(self, log_file):
         """
@@ -385,6 +446,12 @@ class LoggerQueue(SingletonBase):
                     # Get reference to the listener thread before stopping
                     listener_thread = getattr(self.listener, "_thread", None)
 
+                    # Wake the listener before stopping to avoid blocked reads on a dead pipe
+                    try:
+                        self.listener.enqueue_sentinel()
+                    except Exception:
+                        pass
+
                     # Call stop() to set the _stop flag - this tells the thread to exit
                     self.listener.stop()
 
@@ -409,34 +476,44 @@ class LoggerQueue(SingletonBase):
                                 )
                                 self.log_queue.put_nowait(sentinel_record)
                             except Exception as e:
-                                print(
-                                    f"LoggerQueue[{self.log_file}]: Error putting sentinel record: {e}"
-                                )
-                                print(f"\t traceback details: {traceback.format_exc()}")
+                                # Queue might be closed or full - that's okay during shutdown
+                                pass
 
                         # Wait for thread to finish (with longer timeout to allow clean shutdown)
                         # The thread should exit after processing the sentinel and checking _stop flag
                         listener_thread.join(timeout=2.0)
                         if listener_thread.is_alive():
                             # Thread didn't exit in time - might be stuck
-                            # We'll close the queue anyway, which may cause an exception in the thread
-                            # but since it's a daemon thread, it won't block shutdown
-                            listener_thread.terminate()
+                            # Mark it as daemon so it won't block process exit
+                            # Note: We can't terminate threads, only processes
+                            if not listener_thread.daemon:
+                                try:
+                                    listener_thread.daemon = True
+                                except Exception:
+                                    pass  # Some Python versions don't allow changing daemon after start
                     elif listener_thread is None:
                         # Thread attribute not found - might be using a different QueueListener implementation
                         # Give some time for the listener to stop
                         time.sleep(0.5)
                 except Exception as e:
-                    print(f"LoggerQueue[{self.log_file}]: Error stopping listener: {e}")
-                    print(f"\t traceback details: {traceback.format_exc()}")
+                    # Suppress exceptions during shutdown - they're expected when processes are closing
+                    # The OSError "handle is closed" and "Bad file descriptor" are normal when queues are closed during shutdown
+                    error_str = str(e).lower()
+                    if (
+                        "handle is closed" not in error_str
+                        and "bad file descriptor" not in error_str
+                        and "nonetype" not in error_str
+                    ):
+                        print(f"LoggerQueue[{self.log_file}]: Error stopping listener: {e}")
                 finally:
                     self.listener = None
 
             # Close the queue properly - only after listener is stopped
             # The proper order is:
-            # 1. Close the queue (signals no more data will be put)
-            # 2. Join the feeder thread (waits for it to finish processing)
-            # 3. Only cancel if join times out
+            # 1. Wait for listener thread to finish
+            # 2. Close the queue (signals no more data will be put)
+            # 3. Join the feeder thread (waits for it to finish processing)
+            # 4. Only cancel if join times out
             if self.log_queue:
                 try:
                     # Check if queue is already closed
@@ -444,7 +521,12 @@ class LoggerQueue(SingletonBase):
                         # Step 1: Close the queue first
                         # This signals that no more items will be put into the queue
                         # and allows the feeder thread to finish processing buffered items
-                        self.log_queue.close()
+                        try:
+                            self.log_queue.close()
+                        except Exception as e:
+                            # Queue might already be closed - that's okay
+                            if "handle is closed" not in str(e).lower():
+                                pass
 
                         # Step 2: Wait for the feeder thread to finish
                         # This ensures all buffered items are flushed to the underlying pipe
@@ -486,8 +568,14 @@ class LoggerQueue(SingletonBase):
                             pass
 
                 except Exception as e:
-                    print(f"LoggerQueue[{self.log_file}]: Error closing queue: {e}")
-                    print(f"\t traceback details: {traceback.format_exc()}")
+                    # Suppress "handle is closed" and "Bad file descriptor" errors during shutdown - they're expected
+                    error_str = str(e).lower()
+                    if (
+                        "handle is closed" not in error_str
+                        and "bad file descriptor" not in error_str
+                        and "nonetype" not in error_str
+                    ):
+                        print(f"LoggerQueue[{self.log_file}]: Error closing queue: {e}")
 
             # Close the file handler
             if self.file_handler:
@@ -518,152 +606,6 @@ class LoggerQueue(SingletonBase):
         # Attach a QueueHandler to direct logs to the shared queue
         if not any(isinstance(h, QueueHandler) for h in logger.handlers):
             logger.addHandler(QueueHandler(self.log_queue))
-
-        return logger
-
-
-# new experimental logger queue
-# it has some issues with the multiprocessing queue and the QueueListener
-class LoggerQueueEXP(SingletonBase):
-    """
-    Process-safe logging using a multiprocessing queue and a QueueListener.
-
-    IMPORTANT DESIGN:
-      - Create ONE LoggerQueue in the MAIN process with start_listener=True.
-      - Pass logger_queue.log_queue to worker processes and build LoggerQueue there
-        with start_listener=False (worker mode).
-
-    This prevents multiple processes from writing to the same file handler and
-    prevents worker processes from truncating the log file.
-    """
-
-    def __init__(
-        self,
-        log_file: Optional[str] = None,
-        *,
-        log_queue: Optional[mp.Queue] = None,
-        level: int = logging.INFO,
-        formatter: Optional[logging.Formatter] = Logging.simple_log_formatter,
-        datefmt: str = "",
-        truncate: bool = True,
-        start_listener: bool = True,
-    ):
-        self.log_file = log_file
-        self.level = level
-        self.is_closing = False
-
-        self.formatter = formatter or logging.Formatter(
-            "%(asctime)s [%(levelname)s] (%(processName)s) %(message)s",
-            datefmt=datefmt,
-        )
-
-        # Queue: either use provided shared queue or create a new one.
-        # (Workers should receive an existing queue from the main process.)
-        self.log_queue = log_queue if log_queue is not None else mp.Queue()
-
-        # Listener/file handler exist only in "listener mode"
-        self.file_handler: Optional[logging.Handler] = None
-        self.listener: Optional[QueueListener] = None
-
-        self._is_main_process = mp.current_process().name == "MainProcess"
-
-        if start_listener:
-            if not self._is_main_process:
-                # You *can* force a listener in a worker, but it usually breaks shared-file logging.
-                # We prevent it by default because it’s the common footgun.
-                raise RuntimeError(
-                    "start_listener=True in a non-main process. "
-                    "Create/start the listener only in the main process, "
-                    "and pass the queue to workers with start_listener=False."
-                )
-            if not log_file:
-                raise ValueError("log_file must be provided when start_listener=True")
-
-            if truncate:
-                self.reset_log_file(log_file)
-
-            self.file_handler = logging.FileHandler(log_file)
-            self.file_handler.setLevel(level)
-            self.file_handler.setFormatter(self.formatter)
-
-            # respect_handler_level=True means the handler's level is respected for records
-            self.listener = QueueListener(
-                self.log_queue, self.file_handler, respect_handler_level=True
-            )
-
-            try:
-                self.listener.start()
-            except Exception as e:
-                # Avoid using logging here (it might depend on this infrastructure)
-                print(f"LoggerQueue[{log_file}]: Error starting listener: {e}")
-                raise
-
-            atexit.register(self.stop_listener)
-
-    @staticmethod
-    def reset_log_file(log_file: str) -> None:
-        """Truncate the log file safely (main process only)."""
-        try:
-            Path(log_file).parent.mkdir(parents=True, exist_ok=True)
-            with open(log_file, "w", encoding="utf-8"):
-                pass
-            print(f"LoggerQueue[{log_file}]: Log file reset.")
-        except Exception as e:
-            print(f"LoggerQueue[{log_file}]: Error resetting log file: {e}")
-            raise
-
-    def stop_listener(self) -> None:
-        """
-        Stop the QueueListener and close the file handler.
-        Idempotent and safe to call multiple times.
-
-        Note: We do NOT force-close the multiprocessing queue here in order to avoid
-        issues if other processes are still alive and logging during shutdown.
-        """
-        if self.is_closing:
-            return
-        self.is_closing = True
-
-        proc = mp.current_process().name
-        lf = self.log_file or "<no-file>"
-        print(f"LoggerQueue[{lf}]: process: {proc}, stopping listener...")
-
-        # Stop listener first
-        if self.listener is not None:
-            try:
-                self.listener.stop()
-            except Exception as e:
-                print(f"LoggerQueue[{lf}]: Error stopping listener: {e}")
-            finally:
-                self.listener = None
-
-        # Close file handler
-        if self.file_handler is not None:
-            try:
-                self.file_handler.close()
-            except Exception as e:
-                print(f"LoggerQueue[{lf}]: Error closing file handler: {e}")
-            finally:
-                self.file_handler = None
-
-        print(f"LoggerQueue[{lf}]: process: {proc}, stopped.")
-
-    def get_logger(self, name: Optional[str] = None, *, propagate: bool = False) -> logging.Logger:
-        """
-        Return a logger configured to send records to the shared queue.
-
-        - Adds exactly one QueueHandler (won’t duplicate on repeated calls).
-        - Sets logger level and propagation policy.
-        """
-        logger = logging.getLogger(name)
-        logger.setLevel(self.level)
-        logger.propagate = propagate
-
-        # Add QueueHandler only once
-        if not any(isinstance(h, QueueHandler) for h in logger.handlers):
-            qh = QueueHandler(self.log_queue)
-            qh.setLevel(self.level)
-            logger.addHandler(qh)
 
         return logger
 

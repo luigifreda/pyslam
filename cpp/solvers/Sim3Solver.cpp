@@ -255,6 +255,15 @@ Eigen::Matrix4f Sim3Solver::iterate(const int nIterations, bool &bNoMore,
     if (mnIterations >= mRansacMaxIts)
         bNoMore = true;
 
+    // Even if convergence failed, report the best number of inliers found
+    // This helps with debugging why convergence failed
+    if (mnBestInliers > 0) {
+        nInliers = mnBestInliers;
+        for (int i = 0; i < mN; i++)
+            if (mvbBestInliers[i])
+                vbInliers[mvnIndices1[i]] = 1;
+    }
+
     return bestSim3;
 }
 

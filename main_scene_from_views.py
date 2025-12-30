@@ -75,6 +75,8 @@ def visualize_results(
     reverse_3d_colors=True,
     original_images=None,
     method=None,
+    img_table_resize_scale=0.6,
+    img_table_num_columns=3,
 ):
     """
     Visualize reconstruction results.
@@ -89,7 +91,10 @@ def visualize_results(
     if show_images:
         # Show original input images if provided
         if original_images is not None and len(original_images) > 0:
-            orig_table = ImageTable(num_columns=min(4, len(original_images)), resize_scale=0.8)
+            orig_table = ImageTable(
+                num_columns=min(img_table_num_columns, len(original_images)),
+                resize_scale=img_table_resize_scale,
+            )
             added = 0
             for img in original_images:
                 if orig_table.add(img):
@@ -101,7 +106,8 @@ def visualize_results(
         # Show processed images
         if len(result.processed_images) > 0:
             img_table = ImageTable(
-                num_columns=min(4, len(result.processed_images)), resize_scale=0.8
+                num_columns=min(img_table_num_columns, len(result.processed_images)),
+                resize_scale=img_table_resize_scale,
             )
             added = 0
             for img in result.processed_images:
@@ -115,7 +121,8 @@ def visualize_results(
         # Show depth maps if available
         if result.depth_predictions is not None and len(result.depth_predictions) > 0:
             depth_table = ImageTable(
-                num_columns=min(4, len(result.depth_predictions)), resize_scale=0.8
+                num_columns=min(img_table_num_columns, len(result.depth_predictions)),
+                resize_scale=img_table_resize_scale,
             )
             added = 0
             for depth in result.depth_predictions:
@@ -129,7 +136,10 @@ def visualize_results(
 
         # Show confidence maps if available
         if result.confidences is not None and len(result.confidences) > 0:
-            conf_table = ImageTable(num_columns=min(4, len(result.confidences)), resize_scale=0.8)
+            conf_table = ImageTable(
+                num_columns=min(img_table_num_columns, len(result.confidences)),
+                resize_scale=img_table_resize_scale,
+            )
             added = 0
             for conf in result.confidences:
                 conf_img = img_from_floats(conf)

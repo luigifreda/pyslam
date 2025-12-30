@@ -24,7 +24,10 @@ import os
 import sys
 import numpy as np
 import json
-
+import threading
+import warnings
+import multiprocessing
+import torch.multiprocessing as mp
 import platform
 
 from pyslam.config import Config  # , dump_config_to_json
@@ -42,7 +45,7 @@ from pyslam.io.dataset_types import SensorType
 from pyslam.io.trajectory_writer import TrajectoryWriter
 
 from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.logging import Printer
+from pyslam.utilities.logging import Printer, LoggerQueue
 from pyslam.utilities.system import force_kill_all_and_exit
 from pyslam.utilities.img_management import ImgWriter
 from pyslam.utilities.evaluation import eval_ate
@@ -530,13 +533,16 @@ if __name__ == "__main__":
     if viewer3D:
         viewer3D.quit()
 
-    # Give viewers time to clean up
-    time.sleep(0.5)
+    # Explicitly stop all LoggerQueue instances to prevent shutdown errors
+    LoggerQueue.stop_all_instances()
+
+    # Give viewers and logger queues time to clean up
+    time.sleep(1.0)
 
     if args.headless:
         force_kill_all_and_exit(verbose=False)  # just in case when running an evaluation
-
-    if platform.system() == "Darwin":
-        # HACK
-        time.sleep(5)
-        force_kill_all_and_exit(verbose=True)  # debug
+    else:
+        if platform.system() == "Darwin" or mp.get_start_method() == "spawn":
+            # HACK
+            time.sleep(5.0)
+            force_kill_all_and_exit(verbose=True)  # debug

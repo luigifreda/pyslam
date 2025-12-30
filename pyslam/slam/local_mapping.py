@@ -502,6 +502,8 @@ class LocalMapping:
                 self.kf_cur.img_right = self.img_cur_right
             if self.kf_cur.depth_img is None:
                 self.kf_cur.depth_img = self.depth_cur
+            # NOTE: When the keyframe is added to the volumetric integrator, the keyframe data are snapshots
+            # of the keyframe data at the time of the push, and are not updated anymore...
             self.slam.volumetric_integrator.add_keyframe(
                 self.kf_cur, self.img_cur, self.img_cur_right, self.depth_cur
             )

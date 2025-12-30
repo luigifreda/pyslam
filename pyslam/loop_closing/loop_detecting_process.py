@@ -28,7 +28,7 @@ import numpy as np
 import cv2
 from enum import Enum
 
-from pyslam.utilities.logging import Printer
+from pyslam.utilities.logging import Printer, LoggerQueue
 from pyslam.utilities.system import set_rlimit
 from pyslam.utilities.multi_processing import MultiprocessingManager
 from pyslam.utilities.data_management import empty_queue
@@ -331,6 +331,10 @@ class LoopDetectingProcess:
 
         empty_queue(q_in)  # empty the queue before exiting
         is_looping.value = 0
+
+        # Clean up LoggerQueue instances in this spawned process before exiting
+        LoggerQueue.stop_all_instances()
+
         LoopDetectorBase.print("LoopDetectingProcess: loop exit...")
 
     def loop_detecting(

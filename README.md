@@ -112,9 +112,13 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
 
 ```bash
 ├── cpp         # Pybind11 C++ bindings to slam utilities 
-├── data        # Sample input/output data
-├── docs        # Documentation files
-├── pyslam      # Core Python package
+│   ├── glutils     # OpenGL utilities for drawing points, cameras, etc.
+│   ├── solvers     # PnP and Sim3 solvers for camera pose estimation 
+│   ├── volumetric  # Volumetric mapping with parallel block-based voxel hashing, templates, carving, and semantics support.
+│   ├── trajectory  # Trajectory alignment helpers
+├── data       # Sample input/output data
+├── docs       # Documentation files
+├── pyslam     # Core Python package
 │   ├── dense
 │   ├── depth_estimation
 │   ├── evaluation

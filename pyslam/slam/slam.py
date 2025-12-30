@@ -551,6 +551,8 @@ class Slam(object):
                 print(f"SLAM: correcting after GBA...")
                 self.GBA_on_demand.correct_after_GBA()
                 print(f"SLAM: ...global bundle adjustment finished.")
+                if self.volumetric_integrator is not None:
+                    self.volumetric_integrator.rebuild(self.map)
 
     # For saving and reloading it when needed
     def set_viewer_scale(self, scale):

@@ -270,9 +270,10 @@ class Parameters:
     # Volumetric Integration
     # ================================================================
     kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
-    # kVolumetricIntegrationType: "VOXEL_GRID", "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID",
+    # kVolumetricIntegrationType: "VOXEL_GRID",
+    #                             "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID", (to be used with semantic mapping activated)
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py and cpp/volumetric/README.md)
-    kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
+    kVolumetricIntegrationType = "VOXEL_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
     kVolumetricIntegrationExtractMesh = (
         False  # Extract mesh or point cloud as output; only for TSDF
@@ -318,7 +319,7 @@ class Parameters:
     )
     # Since the depth inference time may be above 1 second, the volumetric integrator may be very slow.
     # NOTE: The depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM sparse map scale will not be consistent.
-    kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
+    kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_ANYTHING_V3", "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
     kVolumetricIntegrationDepthEstimationFilterShadowPoints = True
     # Semantic integration
     # probabilistic integration: if depth < depth_threshold, the confidence weight is 1.0, otherwise it exponentially decays with the depth decay rate
@@ -345,7 +346,8 @@ class Parameters:
     # ================================================================
     # Sparse semantic mapping and image segmentation
     # ================================================================
-    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable sparse semantic mapping  (disabled by default since it is still problematic under mac, TODO: fix it)
+    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable _sparse_ semantic mapping (TODO: may be problematic under mac, fix it)
+    # NOTE: if you want _dense_ semantic mapping, enable this and setkDoVolumetricIntegration = True and  kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
     # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE" (see semantic_segmentation_factory.py)
     kSemanticSegmentationType = ""  # Override the semantic model selected in semantic_mapping_configs.py. If kSemanticSegmentationType = "" or None, a default model will be selected based on the dataset (see semantic_mapping_configs.py)
     kSemanticMappingOnSeparateThread = (

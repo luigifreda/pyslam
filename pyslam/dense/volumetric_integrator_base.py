@@ -162,7 +162,7 @@ class VolumetricIntegrationPointCloud:
         semantics=None,
         instance_ids=None,
         semantic_colors=None,
-        instance_colors=None,
+        is_draw_object_colors=None,
     ):
         if point_cloud is not None:
             self.points = np.asarray(point_cloud.points)
@@ -197,8 +197,8 @@ class VolumetricIntegrationPointCloud:
             self.semantic_colors = (
                 np.asarray(semantic_colors) if semantic_colors is not None else None
             )
-            self.instance_colors = (
-                np.asarray(instance_colors) if instance_colors is not None else None
+            self.is_draw_object_colors = (
+                np.asarray(is_draw_object_colors) if is_draw_object_colors is not None else None
             )
 
     def to_o3d(self):
@@ -811,6 +811,10 @@ class VolumetricIntegratorBase:
 
         empty_queue(q_in)  # empty the queue before exiting
         empty_queue(q_out)  # empty the queue before exiting
+
+        # Clean up LoggerQueue instances in this spawned process before exiting
+        LoggerQueue.stop_all_instances()
+
         VolumetricIntegratorBase.print("VolumetricIntegratorBase: loop exit...")
 
     def estimate_depth_if_needed_and_rectify(

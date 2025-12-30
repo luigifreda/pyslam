@@ -395,7 +395,7 @@ class Viewer3D(object):
         self._do_step = mp.Value("i", 0)
         self._do_reset = mp.Value("i", 0)
         self._is_draw_features_with_radius = mp.Value("i", 0)
-        self._is_draw_instance_colors = mp.Value("i", 0)
+        self._is_draw_object_colors = mp.Value("i", 0)
 
         self._is_gt_set = mp.Value("i", 0)
         self.alignment_gt_data_queue = (
@@ -429,7 +429,7 @@ class Viewer3D(object):
                 self._do_step,
                 self._do_reset,
                 self._is_draw_features_with_radius,
-                self._is_draw_instance_colors,
+                self._is_draw_object_colors,
                 self._is_gt_set,
                 self.alignment_gt_data_queue,
                 self.aligner_input_queue,
@@ -545,8 +545,8 @@ class Viewer3D(object):
     def is_draw_features_with_radius(self):
         return self._is_draw_features_with_radius.value == 1
 
-    def is_draw_instance_colors(self):
-        return self._is_draw_instance_colors.value == 1
+    def is_draw_object_colors(self):
+        return self._is_draw_object_colors.value == 1
 
     def viewer_run(
         self,
@@ -563,7 +563,7 @@ class Viewer3D(object):
         do_step,
         do_reset,
         is_draw_features_with_radius,
-        is_draw_instance_colors,
+        is_draw_object_colors,
         is_gt_set,
         alignment_gt_data_queue,
         aligner_input_queue,
@@ -616,7 +616,7 @@ class Viewer3D(object):
                     do_step,
                     do_reset,
                     is_draw_features_with_radius,
-                    is_draw_instance_colors,
+                    is_draw_object_colors,
                     is_gt_set,
                     aligner_input_queue,
                     aligner_output_queue,
@@ -705,9 +705,7 @@ class Viewer3D(object):
         self.checkboxColorSemantics = pangolin.VarBool(
             "ui.Color Semantics", value=False, toggle=True
         )
-        self.checkboxInstanceColors = pangolin.VarBool(
-            "ui.Instance Colors", value=False, toggle=True
-        )
+        self.checkboxObjectColors = pangolin.VarBool("ui.Object Colors", value=False, toggle=True)
         self.checkboxGrid = pangolin.VarBool("ui.Grid", value=True, toggle=True)
         self.checkboxDrawFeaturesWithRadius = pangolin.VarBool(
             "ui.Features Radius", value=False, toggle=True
@@ -752,7 +750,7 @@ class Viewer3D(object):
         do_step,
         do_reset,
         is_draw_features_with_radius,
-        is_draw_instance_colors,
+        is_draw_object_colors,
         is_gt_set,
         aligner_input_queue,
         aligner_output_queue,
@@ -802,7 +800,7 @@ class Viewer3D(object):
         self.is_grid = self.checkboxGrid.Get()
 
         is_draw_features_with_radius.value = self.checkboxDrawFeaturesWithRadius.Get()
-        is_draw_instance_colors.value = self.checkboxInstanceColors.Get()
+        is_draw_object_colors.value = self.checkboxObjectColors.Get()
 
         self.is_draw_cameras = self.checkboxCams.Get()
         self.is_draw_covisibility = self.checkboxCovisibility.Get()
@@ -1239,11 +1237,11 @@ class Viewer3D(object):
                         if point_cloud.semantic_colors is not None
                         else None
                     )
-                instance_colors = None
-                if hasattr(point_cloud, "instance_colors"):
-                    instance_colors = (
-                        np.asarray(point_cloud.instance_colors)
-                        if point_cloud.instance_colors is not None
+                is_draw_object_colors = None
+                if hasattr(point_cloud, "is_draw_object_colors"):
+                    is_draw_object_colors = (
+                        np.asarray(point_cloud.is_draw_object_colors)
+                        if point_cloud.is_draw_object_colors is not None
                         else None
                     )
                 print(
@@ -1253,10 +1251,10 @@ class Viewer3D(object):
                     print(
                         f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
                     )
-                if self.is_draw_instance_colors() and instance_colors is not None:
-                    # overwrite the semantic colors with the instance colors
-                    # (to avoid sending both semantic and instance colors to the viewer and we only need one)
-                    semantic_colors = instance_colors
+                if self.is_draw_object_colors() and is_draw_object_colors is not None:
+                    # overwrite the semantic colors with the object colors
+                    # (to avoid sending both semantic and object colors to the viewer and we only need one)
+                    semantic_colors = is_draw_object_colors
                 dense_state.point_cloud = (points, colors, semantic_colors)
             else:
                 Printer.orange("WARNING: both point_cloud and mesh are None")
