@@ -1,13 +1,23 @@
 import sys
+import warnings
 import pyslam.config as config
 
 config.cfg.set_lib("crestereo_onnx")
 import os
 
+# Set ONNX Runtime log severity before importing to suppress warnings during import
+os.environ.setdefault("ONNXRUNTIME_LOG_SEVERITY_LEVEL", "4")
+os.environ.setdefault("ORT_LOG_SEVERITY_LEVEL", "4")
+
 import cv2
 import numpy as np
 import torch
 import re
+
+# Suppress ONNX Runtime GPU device discovery warnings
+warnings.filterwarnings("ignore", message=".*GPU device discovery failed.*")
+warnings.filterwarnings("ignore", message=".*device_discovery.*")
+warnings.filterwarnings("ignore", category=UserWarning, module="onnxruntime")
 
 import onnxruntime as onxr
 from crestereo import CREStereo, CameraConfig

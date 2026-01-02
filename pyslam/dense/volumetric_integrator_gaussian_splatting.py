@@ -181,9 +181,11 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                             f"VolumetricIntegratorGaussianSplatting: keyframe id: {keyframe_data.id}, depth_undistorted: shape: {depth_undistorted.shape}, type: {depth_undistorted.dtype}"
                         )
 
+                        # Get camera with rectified intrinsics if depth was rectified
+                        camera_for_integration = self.get_camera_for_rectified_depth()
                         self.gsm.add_keyframe(
                             keyframe_data.id,
-                            keyframe_data.camera,
+                            camera_for_integration,
                             color_undistorted,
                             depth_undistorted,
                             pose=pose,

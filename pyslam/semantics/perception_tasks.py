@@ -52,7 +52,7 @@ class PerceptionTaskType(Enum):
     SAVE = 6
 
 
-# keyframe (pickable) data that are needed for loop detection
+# keyframe (picklable) data that are needed for loop detection
 class PerceptionKeyframeData:
     def __init__(self, keyframe: KeyFrame = None, img=None):
         # keyframe data

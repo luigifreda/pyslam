@@ -57,7 +57,7 @@ class Parameters:
     )  # [s]  # Timeout for parallel LBA process to finish
 
     # Number of desired keypoints per frame
-    kNumFeatures = 2000  # Default number of keypoints (can be overridden by settings file)
+    kNumFeatures = 2000  # Default number of keypoints (can be overridden by the "settings" file)
 
     # Adaptive stats
     kUseDynamicDesDistanceTh = True  # Use dynamic descriptor distance threshold
@@ -267,6 +267,14 @@ class Parameters:
     kRelocalizationMaxReprojectionDistanceMapSearchFine = 3  # [pixels]    o:3
 
     # ================================================================
+    # Depth image undistortion
+    # ================================================================
+    kDepthImageUndistortionUseOptimalNewCameraMatrixWithAlphaScale = True  # True: use optimal new camera matrix for undistorting the depth image, False: use current K as is
+    kDepthImageUndistortionOptimalNewCameraMatrixWithAlphaScaleValue = (
+        0.7  # Alpha value for the optimal new camera matrix (0.0: no scaling, 1.0: full scaling)
+    )
+
+    # ================================================================
     # Volumetric Integration
     # ================================================================
     kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
@@ -294,7 +302,7 @@ class Parameters:
     kVolumetricIntegrationFpsThrottleBaseDelay = 0.01  # base delay [s]
     kVolumetricIntegrationFpsThrottleScale = 0.1  # delay scale per FPS over threshold
     kVolumetricIntegrationVoxelGridMinCount = (
-        1  # Minimum number of points per voxel for grid semantic integration
+        3  # Minimum number of points per voxel for grid semantic integration
     )
     kVolumetricIntegrationVoxelGridMinConfidence = (
         0.0  # Minimum confidence for grid semantic integration
@@ -309,9 +317,11 @@ class Parameters:
     kVolumetricIntegrationVoxelGridShadowPointsFilter = (
         True  # Filter shadow points in the grid semantic integration
     )
+    #
     kVolumetricIntegrationTSdfTrunc = 0.04  # [m]
     kVolumetricIntegrationTsdfDepthTruncIndoor = 4.0  # [m]
     kVolumetricIntegrationTsdfDepthTruncOutdoor = 10.0  # [m]
+    #
     kVolumetricIntegrationMinNumLBATimes = 1  # We integrate only the keyframes that have been processed by LBA at least kVolumetricIntegrationMinNumLBATimes times.
     kVolumetricIntegrationOutputTimeInterval = 1.0  # [s]
     kVolumetricIntegrationUseDepthEstimator = (
@@ -373,7 +383,7 @@ class Parameters:
     # ================================================================
     # Viewer
     # ================================================================
-    kViewerDrawSlamMapOnSeparateThread = True
+    kViewerDrawSlamMapOnSeparateThread = True  # True: draw the slam map on a separate thread, False: draw the slam map on the main thread
 
     # ================================================================
     # Other parameters
@@ -393,6 +403,12 @@ class Parameters:
     kMultithreadingThreadJoinDefaultTimeout = (
         5  # [s] Timeout for multithreading thread join operations
     )
+
+
+# ================================================================
+# Set and get parameters from/to a dictionary
+# ================================================================
+# NOTE: We put the following functions outside the class as a workaround to avoid pickling problems with multiprocessing.
 
 
 def set_from_dict(cls, config):

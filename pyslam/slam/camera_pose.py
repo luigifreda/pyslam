@@ -35,7 +35,7 @@ class CameraPose(object):
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
-        # Replace the unpickable g2o.Isometry3d with a pickable matrix
+        # Replace the unpickable g2o.Isometry3d with a picklable matrix
         if "_pose" in state:
             state["_pose"] = self._pose.matrix()
         return state

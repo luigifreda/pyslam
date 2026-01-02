@@ -108,21 +108,46 @@ if __name__ == "__main__":
         color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8,
     )
 
-    o3d_camera = o3d.camera.PinholeCameraIntrinsic(
-        width=camera.width,
-        height=camera.height,
-        fx=camera.fx,
-        fy=camera.fy,
-        cx=camera.cx,
-        cy=camera.cy,
-    )
-
     # Prepare maps to undistort color and depth images
     h, w = camera.height, camera.width
     D = camera.D
-    K = camera.K
-    new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), 1, (w, h))
-    calib_map1, calib_map2 = cv2.initUndistortRectifyMap(K, D, None, new_K, (w, h), cv2.CV_32FC1)
+    if D is None:
+        D = np.zeros((5,), dtype=float)
+    else:
+        D = np.asarray(D).astype(float)
+    K = np.asarray(camera.K).astype(float)
+    if np.linalg.norm(D) <= 1e-10:
+        new_K = K
+        calib_map1 = None
+        calib_map2 = None
+    else:
+        if Parameters.kDepthImageUndistortionUseOptimalNewCameraMatrixWithAlphaScale:
+            alpha = Parameters.kDepthImageUndistortionOptimalNewCameraMatrixWithAlphaScaleValue
+            new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), alpha, (w, h))
+        else:
+            new_K = K
+        calib_map1, calib_map2 = cv2.initUndistortRectifyMap(
+            K, D, None, new_K, (w, h), cv2.CV_32FC1
+        )
+
+    # Use rectified intrinsics if depth rectification is enabled
+    if calib_map1 is not None and calib_map2 is not None:
+        rectified_fx = float(new_K[0, 0])
+        rectified_fy = float(new_K[1, 1])
+        rectified_cx = float(new_K[0, 2])
+        rectified_cy = float(new_K[1, 2])
+        fx, fy, cx, cy = rectified_fx, rectified_fy, rectified_cx, rectified_cy
+    else:
+        fx, fy, cx, cy = camera.fx, camera.fy, camera.cx, camera.cy
+
+    o3d_camera = o3d.camera.PinholeCameraIntrinsic(
+        width=camera.width,
+        height=camera.height,
+        fx=fx,
+        fy=fy,
+        cx=cx,
+        cy=cy,
+    )
 
     # Initialize the visualizer
     vis = o3d.visualization.Visualizer()
@@ -215,18 +240,17 @@ if __name__ == "__main__":
         if img is not None:
             time_start = time.time()
 
-            color_undistorted = cv2.remap(
+            color_undistorted_bgr = cv2.remap(
                 img, calib_map1, calib_map2, interpolation=cv2.INTER_LINEAR
             )
+            color_undistorted = cv2.cvtColor(color_undistorted_bgr, cv2.COLOR_BGR2RGB)
             depth_undistorted = cv2.remap(
                 depth, calib_map1, calib_map2, interpolation=cv2.INTER_NEAREST
             )
 
-            if False:
-                cv2.imshow("color_undistorted", color_undistorted)
+            if True:
+                cv2.imshow("color_undistorted", color_undistorted_bgr)
                 cv2.imshow("depth_undistorted", depth_undistorted)
-
-            color_undistorted = cv2.cvtColor(color_undistorted, cv2.COLOR_BGR2RGB)
 
             new_gt_point = np.array([[gt_x, gt_y, gt_z]])
             if count_gt == 0:

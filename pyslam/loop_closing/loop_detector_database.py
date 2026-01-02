@@ -326,7 +326,7 @@ class FlannDatabase(Database):
         state = {
             "global_des_database": self.global_des_database,
             "recent_descriptors": self.recent_descriptors,
-            "score": self.score,  # Assumes ScoreCosine is pickable
+            "score": self.score,  # Assumes ScoreCosine is picklable
             "rebuild_threshold": self.rebuild_threshold,
             "des_dim": self.des_dim,
             "num_trees": self.num_trees,

@@ -18,6 +18,8 @@ kitti
 map.json
 config.pyc 
 
+private/
+
 thirdparty/opencv-python
 thirdparty/opencv
 thirdparty/open3d

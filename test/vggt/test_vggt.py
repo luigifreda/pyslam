@@ -152,6 +152,11 @@ def predictions_to_3D_data(
 
     # Optional sky masking
     if mask_sky and target_dir is not None:
+        import warnings
+        import os
+        # Set ONNX Runtime log severity before importing to suppress warnings during import
+        os.environ.setdefault("ONNXRUNTIME_LOG_SEVERITY_LEVEL", "4")
+        os.environ.setdefault("ORT_LOG_SEVERITY_LEVEL", "4")
         import onnxruntime
 
         image_dir = os.path.join(target_dir, "images")
@@ -164,7 +169,11 @@ def predictions_to_3D_data(
             download_file_from_url(
                 "https://huggingface.co/JianyuanWang/skyseg/resolve/main/skyseg.onnx", "skyseg.onnx"
             )
-        skyseg_session = onnxruntime.InferenceSession("skyseg.onnx")
+        # Suppress ONNX Runtime GPU device discovery warnings using SessionOptions
+        # log_severity_level: 0=verbose, 1=info, 2=warning, 3=error, 4=fatal
+        sess_options = onnxruntime.SessionOptions()
+        sess_options.log_severity_level = 4
+        skyseg_session = onnxruntime.InferenceSession("skyseg.onnx", sess_options=sess_options)
 
         for i, image_name in enumerate(image_list[:S]):
             image_path = os.path.join(image_dir, image_name)

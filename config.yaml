@@ -2,15 +2,15 @@ DATASET:
   # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
   #type: KITTI_DATASET
-  type: TUM_DATASET
+  #type: TUM_DATASET
   #type: ICL_NUIM_DATASET
   #type: REPLICA_DATASET
   #type: TARTANAIR_DATASET
   #type: SEVEN_SCENES_DATASET
   #type: NEURAL_RGBD_DATASET
   #type: BONN_RGBD_DYNAMIC_DATASET
-  #type: ROVER_DATASET
-  #type: VIDEO_DATASET
+  #type: ROVER_DATASET  # (Experimental)
+  type: VIDEO_DATASET
   #type: SCANNET_DATASET
   #type: ROS1BAG_DATASET
   #type: ROS2BAG_DATASET
@@ -39,14 +39,14 @@ TUM_DATASET:
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
   base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
   #
-  #name: rgbd_dataset_freiburg3_long_office_household
-  #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
+  name: rgbd_dataset_freiburg3_long_office_household
+  settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   #name: rgbd_dataset_freiburg1_xyz 
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
-  name: rgbd_dataset_freiburg2_desk
-  settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
+  #name: rgbd_dataset_freiburg2_desk
+  #settings: settings/TUM2.yaml # do not forget to correctly set the corresponding camera settings file
   #
   #name: rgbd_dataset_freiburg1_desk
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file  
@@ -109,6 +109,7 @@ SCANNET_DATASET:
   name: 'scene0000_00'
   settings: settings/SCANNET.yaml # do not forget to set the corresponding camera settings file 
   groundtruth_file: auto
+  label_version: nyu40 # Label version: 'nyu40' (default) or 'scannet' (requires mapping to nyu40)
 
 
 TARTANAIR_DATASET:

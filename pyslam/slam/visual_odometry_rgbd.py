@@ -29,6 +29,7 @@ from pyslam.utilities.geometry import poseRt, inv_poseRt
 from pyslam.io.ground_truth import GroundTruth
 from .visual_odometry_base import VoState, VisualOdometryBase
 from pyslam.slam import Camera
+from pyslam.config_parameters import Parameters
 
 # Type hints for IDE navigation
 from typing import TYPE_CHECKING
@@ -68,10 +69,21 @@ class VisualOdometryRgbdBase:
             self.calib_map2 = None
         else:
             # print(f'VolumetricIntegratorBase: init: D={D} => undistort-rectify maps')
-            self.new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), 1, (w, h))
+            if Parameters.kDepthImageUndistortionUseOptimalNewCameraMatrixWithAlphaScale:
+                alpha = Parameters.kDepthImageUndistortionOptimalNewCameraMatrixWithAlphaScaleValue
+                self.new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), alpha, (w, h))
+            else:
+                self.new_K = K
             self.calib_map1, self.calib_map2 = cv2.initUndistortRectifyMap(
                 K, D, None, self.new_K, (w, h), cv2.CV_32FC1
             )
+
+        # Store rectified camera intrinsics for use when depth is rectified
+        # Extract fx, fy, cx, cy from new_K
+        self.rectified_fx = float(self.new_K[0, 0])
+        self.rectified_fy = float(self.new_K[1, 1])
+        self.rectified_cx = float(self.new_K[0, 2])
+        self.rectified_cy = float(self.new_K[1, 2])
 
     def rectify_in_needed(self, color, depth):
         if self.depth_factor != 1.0:
@@ -109,8 +121,19 @@ class VisualOdometryRgbd(VisualOdometryBase, VisualOdometryRgbdBase):
         self.option = o3d.pipelines.odometry.OdometryOption()
         print(f"VisualOdometryRgbd: option: {self.option}")
 
+        # Use rectified intrinsics if depth rectification is enabled
+        if self.calib_map1 is not None and self.calib_map2 is not None:
+            fx, fy, cx, cy = (
+                self.rectified_fx,
+                self.rectified_fy,
+                self.rectified_cx,
+                self.rectified_cy,
+            )
+        else:
+            fx, fy, cx, cy = cam.fx, cam.fy, cam.cx, cam.cy
+
         self.o3d_camera = o3d.camera.PinholeCameraIntrinsic(
-            width=cam.width, height=cam.height, fx=cam.fx, fy=cam.fy, cx=cam.cx, cy=cam.cy
+            width=cam.width, height=cam.height, fx=fx, fy=fy, cx=cx, cy=cy
         )
         self.timer_pose_est = TimerFps("PoseEst", is_verbose=self.timer_verbose)
 
@@ -184,7 +207,21 @@ class VisualOdometryRgbdTensor(VisualOdometryBase, VisualOdometryRgbdBase):
         device = "CUDA:0" if device == "cuda" and o3d.core.cuda.is_available() else "CPU:0"
         print(f"VisualOdometryRgbdTensor: device: {device}")
         self.device = o3c.Device(device)
-        self.intrinsics = o3d.core.Tensor(cam.K, o3d.core.Dtype.Float64)
+
+        # Use rectified intrinsics if depth rectification is enabled
+        if self.calib_map1 is not None and self.calib_map2 is not None:
+            # Create rectified K matrix from rectified intrinsics
+            rectified_K = np.array(
+                [
+                    [self.rectified_fx, 0, self.rectified_cx],
+                    [0, self.rectified_fy, self.rectified_cy],
+                    [0, 0, 1],
+                ],
+                dtype=np.float64,
+            )
+            self.intrinsics = o3d.core.Tensor(rectified_K, o3d.core.Dtype.Float64)
+        else:
+            self.intrinsics = o3d.core.Tensor(cam.K, o3d.core.Dtype.Float64)
         self.criteria_list = [
             o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=20),
             o3d.t.pipelines.odometry.OdometryConvergenceCriteria(max_iteration=20),

@@ -392,19 +392,18 @@ class Slam(object):
             loaded_json = json.loads(f.read())
             print()
             loaded_use_cpp_core = loaded_json.get("USE_CPP_CORE", None)
-            if (
-                False
-                and loaded_use_cpp_core is not None
-                and loaded_use_cpp_core != Parameters.USE_CPP_CORE
-            ):
-                Printer.red(
-                    f"SLAM: USE_CPP_CORE mismatch on load_system_state(): {loaded_use_cpp_core} != Parameters.USE_CPP_CORE: {Parameters.USE_CPP_CORE}"
-                )
-                Printer.orange(
-                    f"SLAM: At present time, you cannot mix C++ and Python core when reloading a system state."
-                )
-                Printer.orange(f"SLAM: Exiting...")
-                sys.exit(0)
+            # if (
+            #     loaded_use_cpp_core is not None
+            #     and loaded_use_cpp_core != Parameters.USE_CPP_CORE
+            # ):
+            #     Printer.red(
+            #         f"SLAM: USE_CPP_CORE mismatch on load_system_state(): {loaded_use_cpp_core} != Parameters.USE_CPP_CORE: {Parameters.USE_CPP_CORE}"
+            #     )
+            #     Printer.orange(
+            #         f"SLAM: At present time, you cannot mix C++ and Python core when reloading a system state."
+            #     )
+            #     Printer.orange(f"SLAM: Exiting...")
+            #     sys.exit(0)
 
             loaded_sensor_type = SerializationJSON.deserialize(loaded_json["sensor_type"])
             if loaded_sensor_type != self.sensor_type and self.slam_mode == SlamMode.SLAM:

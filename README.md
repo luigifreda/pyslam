@@ -1005,6 +1005,7 @@ Moreover, you may want to have a look at the OpenCV [guide](https://docs.opencv.
 * [ODISE](https://github.com/NVlabs/ODISE.git)
 * [Detic](https://github.com/facebookresearch/Detic.git)
 * [Detectron2](https://github.com/facebookresearch/detectron2.git)
+* [Nanoflann](https://github.com/jlblancoc/nanoflann)
 * Many thanks to [Anathonic](https://github.com/anathonic) for adding the first version of the trajectory-saving feature and for the nice comparison notebook: [pySLAM vs ORB-SLAM3](https://github.com/anathonic/Trajectory-Comparison-ORB-SLAM3-pySLAM/blob/main/trajectories_comparison.ipynb).
 * Many thanks to [David Morilla Cabello](https://github.com/dvdmc) for creating the first version of [sparse semantic mapping](./docs/semantics.md) in pySLAM.
 

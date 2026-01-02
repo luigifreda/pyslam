@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from .keyframe import KeyFrame
 
 
-# A wrapper with essential data for making a KeyFrame pickable
+# A wrapper with essential data for making a KeyFrame picklable
 class KeyFrameData:
     def __init__(self, keyframe: KeyFrame):
         # replicate the main fields of KeyFrame without locks

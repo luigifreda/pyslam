@@ -160,7 +160,7 @@ class LoopDetectorDBoW2(LoopDetectorBase):
             keyframe.g_des = self.compute_global_des(keyframe.des, keyframe.img)  # get bow vector
             g_des_vec = (
                 keyframe.g_des.toVec()
-            )  # transform it to vector(numpy array) to make it pickable
+            )  # transform it to vector(numpy array) to make it picklable
         else:
             if not isinstance(keyframe.g_des, dbow2.BowVector):
                 g_des_vec = keyframe.g_des

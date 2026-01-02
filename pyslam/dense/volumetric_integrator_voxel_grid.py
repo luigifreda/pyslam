@@ -110,11 +110,13 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
             if environment_type == DatasetEnvironmentType.INDOOR
             else Parameters.kVolumetricIntegrationVoxelGridCarvingDepthMaxOutdoor
         )
+        # Get appropriate camera intrinsics (rectified if depth rectification is enabled)
+        fx, fy, cx, cy = self.get_camera_intrinsics_for_depth()
         self.camera_frustrum = CameraFrustrum(
-            self.camera.fx,
-            self.camera.fy,
-            self.camera.cx,
-            self.camera.cy,
+            fx,
+            fy,
+            cx,
+            cy,
             self.camera.width,
             self.camera.height,
             np.eye(4),
@@ -224,13 +226,15 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                         else:
                             depth_filtered = depth_undistorted
 
+                        # Get appropriate camera intrinsics (rectified if depth was rectified)
+                        fx, fy, cx, cy = self.get_camera_intrinsics_for_depth()
                         point_cloud = depth2pointcloud(
                             depth_filtered,
                             color_undistorted,
-                            self.camera.fx,
-                            self.camera.fy,
-                            self.camera.cx,
-                            self.camera.cy,
+                            fx,
+                            fy,
+                            cx,
+                            cy,
                             self.volumetric_integration_depth_trunc,
                         )
 

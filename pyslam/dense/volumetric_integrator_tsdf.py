@@ -94,13 +94,15 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8,
         )
 
+        # Get appropriate camera intrinsics (rectified if depth rectification is enabled)
+        fx, fy, cx, cy = self.get_camera_intrinsics_for_depth()
         self.o3d_camera = o3d.camera.PinholeCameraIntrinsic(
             width=camera.width,
             height=camera.height,
-            fx=camera.fx,
-            fy=camera.fy,
-            cx=camera.cx,
-            cy=camera.cy,
+            fx=fx,
+            fy=fy,
+            cx=cx,
+            cy=cy,
         )
 
     def volume_integration(

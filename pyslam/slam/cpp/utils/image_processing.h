@@ -128,7 +128,7 @@ class ImageColorExtractor {
         type_ = img.type();
 
         if (type_ != CV_8UC1 && type_ != CV_8UC3) {
-            MSG_RED_WARN("ImageColorExtractor() - image type is not CV_8U");
+            MSG_WARN("ImageColorExtractor() - image type is not CV_8U");
             is_valid_ = false;
             return;
         }

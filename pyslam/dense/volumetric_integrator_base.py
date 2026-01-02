@@ -39,6 +39,7 @@ from pyslam.utilities.data_management import empty_queue, push_to_front, static_
 from pyslam.utilities.depth import filter_shadow_points
 from pyslam.utilities.multi_threading import SimpleTaskTimer
 from pyslam.utilities.timer import TimerFps
+from pyslam.utilities.pickling import ensure_picklable, filter_unpicklable_recursive
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 
 from pyslam.config_parameters import Parameters
@@ -94,7 +95,7 @@ class VolumetricIntegrationTaskType(Enum):
     UPDATE_OUTPUT = 5
 
 
-# keyframe (pickable) data that are needed for volumetric integration
+# keyframe (picklable) data that are needed for volumetric integration
 class VolumetricIntegrationKeyframeData:
     def __init__(
         self,
@@ -152,7 +153,7 @@ class VolumetricIntegrationTask:
         self.load_save_path = load_save_path
 
 
-# pickable point cloud obtained from o3d.geometry.PointCloud
+# picklable point cloud obtained from o3d.geometry.PointCloud
 class VolumetricIntegrationPointCloud:
     def __init__(
         self,
@@ -208,7 +209,7 @@ class VolumetricIntegrationPointCloud:
         return pc
 
 
-# pickable mesh obtained from o3d.geometry.TriangleMesh
+# picklable mesh obtained from o3d.geometry.TriangleMesh
 class VolumetricIntegrationMesh:
     def __init__(self, mesh: o3d.geometry.TriangleMesh):
         self.vertices = np.asarray(mesh.vertices)
@@ -240,7 +241,14 @@ class VolumetricIntegrationOutput:
         self.timestamp = time.perf_counter()
 
 
+# ==================================================================================================
+
+
 class VolumetricIntegratorBase:
+    """
+    Base class for volumetric integrators.
+    """
+
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
     logging_manager, logger = None, None
 
@@ -397,11 +405,34 @@ class VolumetricIntegratorBase:
     def __getstate__(self):
         # Create a copy of the instance's __dict__
         state = self.__dict__.copy()
+
         # Remove from the state the things you don't want to pickle
         if "keyframe_queue_timer" in state:
             del state["keyframe_queue_timer"]
         if "keyframe_queue_lock" in state:
             del state["keyframe_queue_lock"]
+
+        # Filter out any classmethod or staticmethod objects that cannot be pickled
+        keys_to_remove = []
+        for key, value in state.items():
+            # Check if value is a classmethod or staticmethod object (these cannot be pickled)
+            if isinstance(value, (classmethod, staticmethod)):
+                keys_to_remove.append(key)
+            # For dictionaries and other structures, recursively filter them
+            elif isinstance(value, (dict, list, tuple)):
+                try:
+                    filtered = filter_unpicklable_recursive(value)
+                    if filtered is not None:
+                        state[key] = filtered
+                    else:
+                        keys_to_remove.append(key)
+                except Exception:
+                    # If filtering fails, remove the key to be safe
+                    keys_to_remove.append(key)
+
+        for key in keys_to_remove:
+            del state[key]
+
         return state
 
     def __setstate__(self, state):
@@ -640,10 +671,21 @@ class VolumetricIntegratorBase:
             self.calib_map1 = None
             self.calib_map2 = None
         else:
-            self.new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), 1, (w, h))
+            if Parameters.kDepthImageUndistortionUseOptimalNewCameraMatrixWithAlphaScale:
+                alpha = Parameters.kDepthImageUndistortionOptimalNewCameraMatrixWithAlphaScaleValue
+                self.new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), alpha, (w, h))
+            else:
+                self.new_K = K
             self.calib_map1, self.calib_map2 = cv2.initUndistortRectifyMap(
                 K, D, None, self.new_K, (w, h), cv2.CV_32FC1
             )
+
+        # Store rectified camera intrinsics for use when depth is rectified
+        # Extract fx, fy, cx, cy from new_K
+        self.rectified_fx = float(self.new_K[0, 0])
+        self.rectified_fy = float(self.new_K[1, 1])
+        self.rectified_cx = float(self.new_K[0, 2])
+        self.rectified_cy = float(self.new_K[1, 2])
 
     # main loop of the volume integration process
     def run(
@@ -902,6 +944,42 @@ class VolumetricIntegratorBase:
             semantic_undistorted,
             semantic_instances_undistorted,
         )
+
+    def get_camera_intrinsics_for_depth(self):
+        """
+        Returns the appropriate camera intrinsics (fx, fy, cx, cy) to use with the depth image.
+        If depth rectification was performed (calib_map1/calib_map2 are not None), returns rectified intrinsics.
+        Otherwise, returns original camera intrinsics.
+        """
+        if self.calib_map1 is not None and self.calib_map2 is not None:
+            # Depth was rectified, use rectified intrinsics
+            return self.rectified_fx, self.rectified_fy, self.rectified_cx, self.rectified_cy
+        else:
+            # No rectification performed, use original intrinsics
+            return self.camera.fx, self.camera.fy, self.camera.cx, self.camera.cy
+
+    def get_camera_for_rectified_depth(self):
+        """
+        Returns a camera object with rectified intrinsics if depth rectification was performed.
+        Otherwise, returns the original camera object.
+        This is useful for systems that require a Camera object (e.g., Gaussian Splatting).
+        """
+        if self.calib_map1 is not None and self.calib_map2 is not None:
+            # Depth was rectified, create a copy of camera with rectified intrinsics
+            # Create a shallow copy and modify intrinsics
+            import copy
+
+            rectified_camera = copy.copy(self.camera)
+            rectified_camera.fx = self.rectified_fx
+            rectified_camera.fy = self.rectified_fy
+            rectified_camera.cx = self.rectified_cx
+            rectified_camera.cy = self.rectified_cy
+            # Update intrinsic matrices
+            rectified_camera.set_intrinsic_matrices()
+            return rectified_camera
+        else:
+            # No rectification performed, return original camera
+            return self.camera
 
     def volume_integration(
         self,
