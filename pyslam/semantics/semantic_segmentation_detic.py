@@ -733,7 +733,8 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             is_thing = seg_info.get("isthing", False)
             if is_thing:
                 mask = panoptic_np == seg_id
-                instance_ids[mask] = seg_id
+                # Explicitly cast to int32 to prevent overflow and ensure C++ compatibility
+                instance_ids[mask] = np.int32(seg_id)
 
         return instance_ids
 
@@ -758,9 +759,10 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
         masks = instances.pred_masks.cpu().numpy()  # Shape: [N, H, W]
 
         # Assign instance IDs (1-indexed, 0 is background)
+        # Explicitly cast to int32 to ensure C++ compatibility
         for i in range(len(instances)):
             mask = masks[i]
-            instance_ids[mask] = i + 1
+            instance_ids[mask] = np.int32(i + 1)
 
         return instance_ids
 

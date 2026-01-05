@@ -88,6 +88,13 @@ $SCRIPTS_DIR/install_json_nlohmann.sh $EXTERNAL_OPTIONS
 cd "$ROOT_DIR"
 
 print_blue "=================================================================="
+print_blue "Configuring and building thirdparty/qhull ..."
+# Must be installed before building slam cpp
+$SCRIPTS_DIR/install_qhull.sh $EXTERNAL_OPTIONS
+
+cd "$ROOT_DIR"
+
+print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
 cd thirdparty/orbslam2_features
 ./build.sh $EXTERNAL_OPTIONS

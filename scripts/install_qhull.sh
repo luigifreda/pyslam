@@ -89,7 +89,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 fi
 
 # print_blue '================================================'
-print_blue "Installing json_nlohmann"
+print_blue "Installing qhull"
 # print_blue '================================================'
 
 PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")")
@@ -97,19 +97,41 @@ PYTHON_VERSION=$(python -c "import sys; print(f\"{sys.version_info.major}.{sys.v
 cd "$ROOT_DIR"
 
 cd thirdparty
-if [ ! -d json ]; then
-    git clone https://github.com/nlohmann/json.git json
+if [ ! -d qhull ]; then
+    git clone https://github.com/qhull/qhull.git qhull
     #git fetch --all --tags # to fetch tags 
-    cd json
-    git checkout bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d   # release/3.11.2' 
+    cd qhull
+    git fetch --all --tags
+    git checkout v8.0.2
     cd .. 
 fi
-cd json
+cd qhull
 make_buid_dir
 if [[ ! -d install ]]; then
 	cd build
-    JSON_OPTIONS="-DJSON_BuildTests=OFF"
-    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $JSON_OPTIONS $EXTERNAL_OPTIONS $MAC_OPTIONS
+    # Set C++17 standard for qhull build (qhull has C++ components in libqhullcpp)
+    # Since qhull's CMakeLists.txt doesn't use CMAKE_CXX_STANDARD, we need to add -std=c++17 directly to CMAKE_CXX_FLAGS
+    # This ensures the C++ compiler uses C++17 standard (works for both GCC and Clang)
+    # BUILD_STATIC_LIBS=ON is needed to build libqhullcpp (C++ interface library)
+    # Even though we want shared libraries, we need static libs for the C++ interface
+    QHULL_OPTIONS="-DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON"
+    # Add -std=c++17 to CMAKE_CXX_FLAGS to ensure it's actually used
+    # Note: This sets the initial value; qhull's CMakeLists.txt doesn't modify CMAKE_CXX_FLAGS, so this is safe
+    CXX_STD_FLAG="-DCMAKE_CXX_FLAGS=-std=c++17"
+    # Put CXX_STD_FLAG after EXTERNAL_OPTIONS so it takes precedence
+    cmake .. -DCMAKE_INSTALL_PREFIX="`pwd`/../install" -DCMAKE_BUILD_TYPE=Release $QHULL_OPTIONS $EXTERNAL_OPTIONS $MAC_OPTIONS $CXX_STD_FLAG
+    
+    # Quick verification: Check CMakeCache.txt for C++17 flag
+    print_blue "Verifying C++17 configuration..."
+    if grep -q "std=c++17" CMakeCache.txt 2>/dev/null; then
+        print_blue "✓ Found -std=c++17 in CMakeCache.txt"
+        CXX_FLAGS=$(grep "^CMAKE_CXX_FLAGS:" CMakeCache.txt 2>/dev/null | cut -d'=' -f2- | head -1)
+        print_blue "  CMAKE_CXX_FLAGS: $CXX_FLAGS"
+    else
+        print_red "✗ Warning: -std=c++17 not found in CMakeCache.txt"
+        print_red "  Run './scripts/verify_qhull_cpp17.sh' after build for detailed verification"
+    fi
+    
 	make -j 8
     make install 
 fi

@@ -19,9 +19,6 @@ This script tests:
    - Carving and filtering (carve, remove_low_count_voxels, remove_low_confidence_voxels)
    - Data retrieval (get_voxels, get_points, get_colors, get_instance_segments, get_class_segments)
 
-Usage:
-    cd <pyslam_root>/cpp
-    python test_volumetric.py
 """
 
 import sys

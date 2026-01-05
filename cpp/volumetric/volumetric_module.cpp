@@ -22,7 +22,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "bounding_boxes_module.h"
 #include "camera_frustrum_module.h"
+#include "eigen_module.h"
 #include "image_utils_module.h"
 #include "volumetric_grid_module.h"
 
@@ -41,6 +43,10 @@ PYBIND11_MODULE(volumetric, m) {
         .def_static("get_max_threads", &volumetric::TBBUtils::get_max_threads,
                     "Get the current maximum number of "
                     "threads for TBB");
+
+    bind_eigen(m);
+
+    bind_bounding_boxes(m);
 
     bind_camera_frustrum(m);
 

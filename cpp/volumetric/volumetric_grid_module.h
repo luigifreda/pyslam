@@ -968,7 +968,12 @@ void bind_volumetric_grid(py::module &m) {
                        "Returns the instance IDs")
         .def_readwrite("class_ids", &volumetric::VoxelGridData::class_ids, "Returns the class IDs")
         .def_readwrite("confidences", &volumetric::VoxelGridData::confidences,
-                       "Returns the confidences");
+                       "Returns the confidences")
+        .def_readwrite("oriented_bounding_boxes",
+                       &volumetric::VoxelGridData::oriented_bounding_boxes,
+                       "Returns the oriented bounding boxes")
+        .def_readwrite("bounding_boxes", &volumetric::VoxelGridData::bounding_boxes,
+                       "Returns the bounding boxes");
 
     // ----------------------------------------
     // VoxelGrid

@@ -21,14 +21,18 @@
 from pyslam.utilities.serialization import SerializableEnum, register_class
 
 
+# Panoptic/instance: DETIC, ODISE, EOV_SEG
+# Semantic only: DEEPLABV3, SEGFORMER, CLIP
 @register_class
 class SemanticSegmentationType(SerializableEnum):
-    DEEPLABV3 = 0  # Semantics from torchvision DeepLab's v3
-    SEGFORMER = 1  # Semantics from transformer's Segformer
-    CLIP = 2  # Semantics from CLIP's segmentation head
-    EOV_SEG = 3  # Semantics from EOV-Seg (Efficient Open Vocabulary Segmentation)
-    DETIC = 4  # Semantics from Detic (Detecting Twenty-thousand Classes)
-    ODISE = 5  # Semantics from ODISE (Open-vocabulary DIffusion-based panoptic SEgmentation)
+    DEEPLABV3 = 0  # Semantics from torchvision DeepLab's v3 [Semantic only:]
+    SEGFORMER = 1  # Semantics from transformer's Segformer [Semantic only]
+    CLIP = 2  # Semantics from CLIP's segmentation head [Semantic only]
+    EOV_SEG = (
+        3  # Semantics from EOV-Seg (Efficient Open Vocabulary Segmentation) [Panoptic/instance]
+    )
+    DETIC = 4  # Semantics from Detic (Detecting Twenty-thousand Classes) [Panoptic/instance]
+    ODISE = 5  # Semantics from ODISE (Open-vocabulary DIffusion-based panoptic SEgmentation) [Panoptic/instance]
 
     @staticmethod
     def from_string(name: str):

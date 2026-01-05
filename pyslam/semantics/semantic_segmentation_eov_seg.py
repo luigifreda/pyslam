@@ -522,7 +522,8 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             is_thing = seg_info.get("isthing", False)
             if is_thing:
                 mask = panoptic_np == seg_id
-                instance_ids[mask] = seg_id
+                # Explicitly cast to int32 to prevent overflow and ensure C++ compatibility
+                instance_ids[mask] = np.int32(seg_id)
 
         return instance_ids
 

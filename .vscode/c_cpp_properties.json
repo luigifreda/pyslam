@@ -27,7 +27,8 @@
         "${workspaceFolder}/thirdparty/gtsam_factors/include"
       ],
       "defines": [
-        "TBB_FOUND=1"
+        "TBB_FOUND=1",
+        "QHULL_FOUND=1"
       ],
       "compilerPath": "/usr/bin/g++",
       "cStandard": "c17",

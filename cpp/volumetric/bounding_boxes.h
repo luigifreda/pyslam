@@ -25,6 +25,11 @@
 
 namespace volumetric {
 
+enum class OBBComputationMethod {
+    PCA,                ///< PCA on all input points
+    CONVEX_HULL_MINIMAL ///< Scan convex-hull triangles, pick box with smallest volume
+};
+
 // ================================================
 // Bounding boxes in 3D
 // ================================================
@@ -65,6 +70,9 @@ struct BoundingBox3D {
     std::vector<bool> contains(const std::vector<Eigen::Matrix<T, 3, 1>> &points_w) const;
 
     bool intersects(const BoundingBox3D &other) const;
+
+    template <typename T>
+    static BoundingBox3D compute_from_points(const std::vector<Eigen::Matrix<T, 3, 1>> &points_w);
 };
 
 // Oriented bounding box (OBB) in 3D
@@ -99,6 +107,11 @@ struct OrientedBoundingBox3D {
     bool intersects(const OrientedBoundingBox3D &other) const;
 
     bool intersects(const BoundingBox3D &other) const;
+
+    template <typename T>
+    static OrientedBoundingBox3D
+    compute_from_points(const std::vector<Eigen::Matrix<T, 3, 1>> &points_w,
+                        const OBBComputationMethod &method = OBBComputationMethod::PCA);
 };
 
 // ================================================
@@ -134,6 +147,9 @@ struct BoundingBox2D {
     std::vector<bool> contains(const std::vector<Eigen::Matrix<T, 2, 1>> &points_w) const;
 
     bool intersects(const BoundingBox2D &other) const;
+
+    template <typename T>
+    static BoundingBox2D compute_from_points(const std::vector<Eigen::Matrix<T, 2, 1>> &points_w);
 };
 
 // Oriented bounding box (OBB) in 2D
@@ -165,6 +181,11 @@ struct OrientedBoundingBox2D {
     bool intersects(const OrientedBoundingBox2D &other) const;
 
     bool intersects(const BoundingBox2D &other) const;
+
+    template <typename T>
+    static OrientedBoundingBox2D
+    compute_from_points(const std::vector<Eigen::Matrix<T, 2, 1>> &points_w,
+                        const OBBComputationMethod &method = OBBComputationMethod::PCA);
 };
 
 } // namespace volumetric

@@ -35,6 +35,9 @@ struct VoxelGridData {
     std::vector<int> instance_ids;
     std::vector<int> class_ids;
     std::vector<float> confidences;
+
+    std::vector<OrientedBoundingBox3D> oriented_bounding_boxes;
+    std::vector<BoundingBox3D> bounding_boxes;
 };
 
 } // namespace volumetric

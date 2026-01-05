@@ -98,6 +98,65 @@ message(STATUS "OpenCV include: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "OpenCV lib dirs: ${OpenCV_INSTALL_PATH}")
 message(STATUS "OpenCV libs: ${OpenCV_LIBS}")
 
+# Find qhull - try to find it in the thirdparty directory first
+set(QHULL_ROOT "${PYSLAM_ROOT}/thirdparty/qhull/install")
+if(EXISTS "${QHULL_ROOT}/lib/cmake/Qhull")
+    set(Qhull_DIR "${QHULL_ROOT}/lib/cmake/Qhull")
+    message(STATUS "Setting Qhull_DIR to: ${Qhull_DIR}")
+endif()
+
+find_package(Qhull QUIET)
+if(Qhull_FOUND)
+    message(STATUS "Qhull found: ${Qhull_VERSION}")
+    
+    # Helper function to find and add C++ interface library (removes code duplication)
+    function(find_qhull_cpp_lib)
+        if(TARGET Qhull::qhullcpp)
+            message(STATUS "Also linking Qhull::qhullcpp for C++ interface")
+            list(APPEND QHULL_LINK_LIBS Qhull::qhullcpp PARENT_SCOPE)
+        else()
+            find_library(QHULL_CPP_LIB qhullcpp PATHS ${QHULL_ROOT}/lib NO_DEFAULT_PATH)
+            if(QHULL_CPP_LIB)
+                message(STATUS "Found Qhull C++ library: ${QHULL_CPP_LIB}")
+                list(APPEND QHULL_LINK_LIBS ${QHULL_CPP_LIB} PARENT_SCOPE)
+            else()
+                message(WARNING "Qhull C++ library (libqhullcpp) not found. C++ interface features will not work.")
+                message(WARNING "  To fix: Rebuild Qhull with C++ support enabled.")
+                message(WARNING "  Run: cd thirdparty/qhull && rm -rf build install && cd ../.. && ./scripts/install_qhull.sh")
+            endif()
+        endif()
+    endfunction()
+    
+    # Set up base library and include directory
+    if(TARGET Qhull::qhull_r)
+        message(STATUS "Using Qhull::qhull_r target")
+        get_target_property(QHULL_INCLUDE_DIR Qhull::qhull_r INTERFACE_INCLUDE_DIRECTORIES)
+        set(QHULL_LINK_LIBS Qhull::qhull_r)
+        find_qhull_cpp_lib()
+    elseif(Qhull_LIBRARIES)
+        message(STATUS "Using Qhull_LIBRARIES: ${Qhull_LIBRARIES}")
+        set(QHULL_INCLUDE_DIR ${Qhull_INCLUDE_DIRS})
+        set(QHULL_LINK_LIBS ${Qhull_LIBRARIES})
+        find_qhull_cpp_lib()
+    else()
+        # Fallback: manually find libraries
+        find_library(QHULL_LIB qhull_r PATHS ${QHULL_ROOT}/lib NO_DEFAULT_PATH)
+        if(QHULL_LIB)
+            message(STATUS "Found Qhull library manually: ${QHULL_LIB}")
+            set(QHULL_INCLUDE_DIR "${QHULL_ROOT}/include")
+            set(QHULL_LINK_LIBS ${QHULL_LIB})
+            find_qhull_cpp_lib()
+        else()
+            message(WARNING "Qhull found but libraries not located")
+            set(QHULL_LINK_LIBS "")
+        endif()
+    endif()
+else()
+    message(WARNING "Qhull not found. Some features may be disabled.")
+    set(QHULL_LINK_LIBS "")
+    set(QHULL_INCLUDE_DIR "")
+endif()
+
 if(_LINUX_)
     set(OpenGL_GL_PREFERENCE "GLVND")
 endif()
@@ -127,6 +186,7 @@ include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${OPENGL_INCLUDE_DIR}
     ${TBB_INCLUDE_DIRS}
+    ${QHULL_INCLUDE_DIR}
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -179,10 +239,14 @@ volumetric/bounding_boxes.cpp)
 if(TBB_FOUND)
     target_compile_definitions(volumetric PRIVATE TBB_FOUND)
 endif()
+if(Qhull_FOUND AND QHULL_LINK_LIBS)
+    target_compile_definitions(volumetric PRIVATE QHULL_FOUND)
+endif()
 target_link_libraries(volumetric PRIVATE
     ${Open3D_LIBRARIES}
     ${TBB_LINK_LIBS}
     ${OpenCV_LIBS}
+    ${QHULL_LINK_LIBS}
 )
 
 pybind11_add_module(color_utils 

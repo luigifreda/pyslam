@@ -470,7 +470,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
                         )
                         # Convert C++ vectors to numpy arrays with proper shape and dtype
-                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
+                        points = np.ascontiguousarray(voxel_grid_data.points, dtype=np.float64)
                         colors = np.ascontiguousarray(voxel_grid_data.colors, dtype=np.float32)
                         semantics = (
                             np.ascontiguousarray(voxel_grid_data.class_ids, dtype=np.int32)
