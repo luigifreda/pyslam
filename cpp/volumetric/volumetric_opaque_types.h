@@ -23,16 +23,15 @@
 // Note: stl.h must be included AFTER PYBIND11_MAKE_OPAQUE declarations
 #include <pybind11/stl_bind.h>
 
+#include <array>
 #include <vector>
 
-// Include smart_pointers.h to get the actual KeyFramePtr, MapPointPtr, FramePtr typedefs
-// This is safe because these are just typedefs, not full class definitions
-#include "smart_pointers.h"
+#include "bounding_boxes.h"
 
 namespace py = pybind11;
 
 // ----------------------------------------------------------------------------
-// PYBIND11_MAKE_OPAQUE declarations for SLAM containers
+// PYBIND11_MAKE_OPAQUE declarations for Volumetric containers
 // ----------------------------------------------------------------------------
 //
 // These declarations mark STL containers as "opaque" for pybind11, preventing
@@ -49,36 +48,17 @@ namespace py = pybind11;
 // Reference: https://pybind11.readthedocs.io/en/stable/advanced/cast/stl.html
 // ----------------------------------------------------------------------------
 
-#define ENABLE_OPAQUE_TYPES 0
-// NOTE: It seems enabling opaque breaks smooth interoperation between C++ and Python,
-//      especially when dealing and operating with lists/arrays of objects.
-//      At present, we keep this section disabled.
+#define ENABLE_OPAQUE_TYPES 1
 
 #if ENABLE_OPAQUE_TYPES
 
 // CRITICAL: These must be declared BEFORE including pybind11/stl.h
-// Most frequently used vector types in SLAM operations
-PYBIND11_MAKE_OPAQUE(std::vector<pyslam::KeyFramePtr>);
-PYBIND11_MAKE_OPAQUE(std::vector<pyslam::MapPointPtr>);
-PYBIND11_MAKE_OPAQUE(std::vector<pyslam::FramePtr>);
-
-// Integer vectors (commonly used for indices, matches, etc.)
-// Note: Making this opaque can improve performance for large index arrays
+PYBIND11_MAKE_OPAQUE(std::vector<std::array<double, 3>>);
+PYBIND11_MAKE_OPAQUE(std::vector<std::array<float, 3>>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::OrientedBoundingBox3D>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::BoundingBox3D>);
 PYBIND11_MAKE_OPAQUE(std::vector<int>);
-PYBIND11_MAKE_OPAQUE(std::vector<bool>); // For masks and flags
-
-// TODO?:
-// Map containers used in loop closure and optimization
-// Note: These require std::hash specialization for KeyFramePtr/MapPointPtr
-// We need to add custom hash functions
-// For now, we'll comment these out as they may need additional setup
-//
-// PYBIND11_MAKE_OPAQUE(std::unordered_map<pyslam::KeyFramePtr, pyslam::Sim3Pose>);
-// PYBIND11_MAKE_OPAQUE(std::unordered_map<pyslam::KeyFramePtr, std::vector<pyslam::KeyFramePtr>>);
-
-// Note: std::set and std::unordered_set with custom comparators (like KeyFrameIdSet)
-// are more complex to bind and may require custom type casters.
-// They are typically accessed through wrapper functions rather than direct binding.
+PYBIND11_MAKE_OPAQUE(std::vector<bool>);
 
 #endif
 

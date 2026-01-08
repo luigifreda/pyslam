@@ -58,6 +58,7 @@ pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techni
       - [Controlling the spatial distribution of keyframe FOV centers](#controlling-the-spatial-distribution-of-keyframe-fov-centers)
     - [Depth prediction](#depth-prediction)
     - [Semantic mapping and Image Segmentation](#semantic-mapping-and-image-segmentation)
+      - [Image Segmentation](#image-segmentation)
       - [Sparse Semantic Mapping](#sparse-semantic-mapping)
       - [Volumetric Semantic mapping](#volumetric-semantic-mapping)
     - [C++ Core Module](#c-core-module)
@@ -452,17 +453,41 @@ Refer to the file `depth_estimation/depth_estimator_factory.py` for further deta
   <img src="./images/semantic_mapping_from_david.jpeg" alt="Semantic Mapping" style="height: 300px; width: auto;"/>
 </p>
 
-The sparse semantic mapping pipeline can be enabled by setting the parameter `kDoSparseSemanticMappingAndSegmentation=True` in `pyslam/config_parameters.py`. You can configure the semantic mapping module by mofifying the default segmentation models assigned to each dataset in `pyslam/semantics/semantic_mapping_configs.py`. Otherwise, you can override the used segmentation model by setting `kSemanticSegmentationType` in `config_parameters.py`. 
+The sparse semantic mapping pipeline can be enabled by setting `kDoSparseSemanticMappingAndSegmentation=True` in `pyslam/config_parameters.py`. The default segmentation models assigned to each dataset are specified in `pyslam/semantics/semantic_mapping_configs.py`. You can override the currently used segmentation model by setting `kSemanticSegmentationType` in `config_parameters.py`. 
+
+#### Image Segmentation
+
+Different segmetation methods are available (see [here](./docs/semantics.md) for further details). Currently, we support semantic mapping using **dense semantic segmentation**.
+
+**Panoptic/Instance segmentation:**
+  - `DETIC`: from https://github.com/facebookresearch/Detic
+    - Object detection-based (CenterNet2 + CLIP), supports large vocabularies (LVIS/COCO/OpenImages/Objects365).
+    - Architecture: Object detector (CenterNet2) detects individual objects first, then segments each detection.
+    - Can output both *"instances"* (direct instance segmentation) and *"panoptic_seg"* formats.
+    - Instance extraction: Direct from object detections - each detected object = one instance ID.
+    - Result: Robust instance segmentation - each detected object gets a unique instance ID, even for multiple objects of the same category (e.g., two pillows = two separate instances).
+  - `ODISE`: from https://github.com/NVlabs/ODISE
+    - Diffusion-based panoptic segmentation, leverages diffusion models for segmentation.
+    - Architecture: Panoptic segmentation model that segments image into regions first, then classifies regions.
+    - Only outputs *"panoptic_seg"* format - instances extracted from panoptic segments via *"isthing"* flag.
+    - Instance extraction: Derived from panoptic segments - one segment may contain multiple objects if model groups them together (e.g., spatially connected objects of same category).
+    - Result: Instance segmentation may merge multiple objects of the same category into a single instance (e.g., two pillows may be detected as one "pillow" instance).
+  - `EOV_SEG`: from https://github.com/nhw649/EOV-Seg
+    - Dual-backbone (CNN + ViT) with CLIP, text-prompt driven open vocabulary.
+    - Architecture: Panoptic segmentation model (similar to ODISE) - segments image into regions first.
+    - Only outputs *"panoptic_seg"* format - instances extracted from panoptic segments via *"isthing"* flag.
+    - Instance extraction: Same as `ODISE` - derived from panoptic segments, may group multiple objects.
+    - Result: Similar to `ODISE`, instance segmentation may group multiple objects of the same category together (e.g., two pillows may be detected as one "pillow" instance).
+
+**Semantic segmentation only:**
+  - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
+    - Semantic segmentation model from torchvision DeepLab's v3.
+  - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
+    - Semantic segmentation model from transformer's Segformer.
+  - `CLIP`: from `f3rm` package for open-vocabulary support.
+    - Uses CLIP patch embeddings + text similarity to produce labels/probabilities (it is not a dedicated "segmentation head"). 
 
 #### Sparse Semantic Mapping
-
-Different semantic mapping methods are available (see [here](./docs/semantics.md) for further details). Currently, we support semantic mapping using **dense semantic segmentation**.
-  - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
-  - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
-  - `CLIP`: from `f3rm` package for open-vocabulary support.
-  - `DETIC`: from https://github.com/facebookresearch/Detic
-  - `EOV_SEG`: from https://github.com/nhw649/EOV-Seg
-  - `ODISE`: from https://github.com/NVlabs/ODISE 
 
 **Semantic features** are assigned to **keypoints** on the image and fused into map points. The semantic features can be:
 - *Labels*: categorical labels as numbers.
@@ -487,9 +512,9 @@ Further information about the **volumetric integration models and SW architectur
 
 ### C++ Core Module
 
-The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
+The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
 
-To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. The module is currently **under active development**.
+To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. The module is currently **under development**.
 
 To rebuild the C++ core module, run
 ```bash

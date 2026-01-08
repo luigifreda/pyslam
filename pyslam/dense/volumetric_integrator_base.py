@@ -161,9 +161,9 @@ class VolumetricIntegrationPointCloud:
         points=None,
         colors=None,
         semantics=None,
-        instance_ids=None,
+        object_ids=None,
         semantic_colors=None,
-        is_draw_object_colors=None,
+        object_colors=None,
     ):
         if point_cloud is not None:
             self.points = np.asarray(point_cloud.points)
@@ -174,14 +174,14 @@ class VolumetricIntegrationPointCloud:
                 )
             else:
                 self.semantics = None
-            if hasattr(point_cloud, "instance_ids"):
-                self.instance_ids = (
-                    np.asarray(point_cloud.instance_ids)
-                    if point_cloud.instance_ids is not None
+            if hasattr(point_cloud, "object_ids"):
+                self.object_ids = (
+                    np.asarray(point_cloud.object_ids)
+                    if point_cloud.object_ids is not None
                     else None
                 )
             else:
-                self.instance_ids = None
+                self.object_ids = None
             if hasattr(point_cloud, "semantic_colors"):
                 self.semantic_colors = (
                     np.asarray(point_cloud.semantic_colors)
@@ -194,13 +194,11 @@ class VolumetricIntegrationPointCloud:
             self.points = np.asarray(points) if points is not None else None
             self.colors = np.asarray(colors) if colors is not None else None
             self.semantics = np.asarray(semantics) if semantics is not None else None
-            self.instance_ids = np.asarray(instance_ids) if instance_ids is not None else None
+            self.object_ids = np.asarray(object_ids) if object_ids is not None else None
             self.semantic_colors = (
                 np.asarray(semantic_colors) if semantic_colors is not None else None
             )
-            self.is_draw_object_colors = (
-                np.asarray(is_draw_object_colors) if is_draw_object_colors is not None else None
-            )
+            self.object_colors = np.asarray(object_colors) if object_colors is not None else None
 
     def to_o3d(self):
         pc = o3d.geometry.PointCloud()
@@ -252,7 +250,15 @@ class VolumetricIntegratorBase:
     print = staticmethod(lambda *args, **kwargs: None)  # Default: no-op
     logging_manager, logger = None, None
 
-    def __init__(self, camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs):
+    def __init__(
+        self,
+        camera,
+        environment_type,
+        sensor_type,
+        volumetric_integrator_type,
+        viewer_queue=None,
+        **kwargs,
+    ):
         self.volumetric_integrator_type = volumetric_integrator_type
         self.constructor_kwargs = kwargs
 
@@ -275,6 +281,7 @@ class VolumetricIntegratorBase:
         self.camera = camera
         self.environment_type = environment_type
         self.sensor_type = sensor_type
+        self.viewer_queue = viewer_queue
 
         self.keyframe_queue_timer = SimpleTaskTimer(
             interval=0.5,  # NOTE: This is the interval in seconds for flushing the keyframe queue.
@@ -451,6 +458,7 @@ class VolumetricIntegratorBase:
                 self.camera,
                 self.environment_type,
                 self.sensor_type,
+                self.viewer_queue,
                 self.q_in,
                 self.q_in_condition,
                 self.q_out,
@@ -594,6 +602,13 @@ class VolumetricIntegratorBase:
                     except Exception as e:
                         VolumetricIntegratorBase.print(f"Error cleaning up logging manager: {e}")
 
+                # Shutdown the manager AFTER the process has exited
+                if hasattr(self, "mp_manager") and self.mp_manager is not None:
+                    try:
+                        self.mp_manager.shutdown()
+                    except Exception as e:
+                        print(f"Warning: Error shutting down manager: {e}")
+
                 # Use regular print instead of VolumetricIntegratorBase.print after cleanup
                 print("VolumetricIntegratorBase: done")
         except Exception as e:
@@ -693,6 +708,7 @@ class VolumetricIntegratorBase:
         camera,
         environment_type,
         sensor_type,
+        viewer_queue,
         q_in,
         q_in_condition,
         q_out,
@@ -801,6 +817,7 @@ class VolumetricIntegratorBase:
                         q_out,
                         q_out_condition,
                         q_management,
+                        viewer_queue,
                         is_running,
                         load_request_completed,
                         load_request_condition,
@@ -987,6 +1004,7 @@ class VolumetricIntegratorBase:
         q_out,
         q_out_condition,
         q_management,
+        viewer_queue,
         is_running,
         load_request_completed,
         load_request_condition,
@@ -1202,3 +1220,61 @@ class VolumetricIntegratorBase:
                 f"VolumetricIntegratorBase: pop_output: encountered exception: {e}"
             )
             return None
+
+    def draw_output(self, output: VolumetricIntegrationOutput):
+        from pyslam.viz.viewer3D import Viewer3DDenseInput
+
+        if output is None:
+            return
+        if self.viewer_queue is None:
+            Printer.orange("WARNING: viewer_queue is None")
+            return
+        point_cloud = output.point_cloud
+        mesh = output.mesh
+        dense_state = Viewer3DDenseInput()
+        if mesh is not None:
+            dense_state.mesh = (
+                np.asarray(mesh.vertices),
+                np.asarray(mesh.triangles),
+                np.asarray(mesh.vertex_colors),
+            )  # ,np.asarray(mesh.vertex_normals))
+        else:
+            if point_cloud is not None:
+                points = np.asarray(point_cloud.points)
+                colors = np.asarray(point_cloud.colors)
+                if colors.shape[1] == 4:
+                    colors = colors[:, 0:3]
+                print(
+                    f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
+                )
+                # pass_only_one_semantic_color_array = False  # self.is_draw_object_colors()
+                semantic_colors = None
+                if hasattr(point_cloud, "semantic_colors"):
+                    semantic_colors = (
+                        np.asarray(point_cloud.semantic_colors)
+                        if point_cloud.semantic_colors is not None
+                        else None
+                    )
+                object_colors = None
+                if hasattr(point_cloud, "object_colors"):
+                    object_colors = (
+                        np.asarray(point_cloud.object_colors)
+                        if point_cloud.object_colors is not None
+                        else None
+                    )
+                print(
+                    f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
+                )
+                if semantic_colors is not None and semantic_colors.shape[0] > 0:
+                    print(
+                        f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
+                    )
+                # if pass_only_one_semantic_color_array:
+                #     if self.is_draw_object_colors():
+                #         semantic_colors = None
+                #     else:
+                #         object_colors = None
+                dense_state.point_cloud = (points, colors, semantic_colors, object_colors)
+            else:
+                Printer.orange("WARNING: both point_cloud and mesh are None")
+        self.viewer_queue.put(dense_state)

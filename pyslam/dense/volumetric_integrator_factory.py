@@ -55,7 +55,11 @@ if TYPE_CHECKING:
 
 
 def volumetric_integrator_factory(
-    volumetric_integrator_type, camera, environment_type, sensor_type
+    volumetric_integrator_type,
+    camera,
+    environment_type,
+    sensor_type,
+    viewer_queue=None,
 ):
     if volumetric_integrator_type == VolumetricIntegratorType.VOXEL_GRID:
         return VolumetricIntegratorVoxelGrid(
@@ -64,6 +68,7 @@ def volumetric_integrator_factory(
             sensor_type=sensor_type,
             volumetric_integrator_type=volumetric_integrator_type,
             use_voxel_blocks=Parameters.kVolumetricIntegrationUseVoxelBlocks,  # use voxel blocks by default since it is more efficient
+            viewer_queue=viewer_queue,
         )
     elif volumetric_integrator_type == VolumetricIntegratorType.VOXEL_SEMANTIC_GRID:
         return VolumetricIntegratorVoxelSemanticGrid(
@@ -72,6 +77,7 @@ def volumetric_integrator_factory(
             sensor_type=sensor_type,
             volumetric_integrator_type=volumetric_integrator_type,
             use_voxel_blocks=Parameters.kVolumetricIntegrationUseVoxelBlocks,  # use voxel blocks by default since it is more efficient
+            viewer_queue=viewer_queue,
         )
     elif volumetric_integrator_type == VolumetricIntegratorType.VOXEL_SEMANTIC_PROBABILISTIC_GRID:
         return VolumetricIntegratorVoxelSemanticGrid(
@@ -81,6 +87,7 @@ def volumetric_integrator_factory(
             volumetric_integrator_type=volumetric_integrator_type,
             use_semantic_probabilistic=True,
             use_voxel_blocks=Parameters.kVolumetricIntegrationUseVoxelBlocks,  # use voxel blocks by default since it is more efficient
+            viewer_queue=viewer_queue,
         )
     elif volumetric_integrator_type == VolumetricIntegratorType.TSDF:
         return VolumetricIntegratorTsdf(
@@ -88,6 +95,7 @@ def volumetric_integrator_factory(
             environment_type=environment_type,
             sensor_type=sensor_type,
             volumetric_integrator_type=volumetric_integrator_type,
+            viewer_queue=viewer_queue,
         )
     elif volumetric_integrator_type == VolumetricIntegratorType.GAUSSIAN_SPLATTING:
         return VolumetricIntegratorGaussianSplatting(
@@ -95,6 +103,7 @@ def volumetric_integrator_factory(
             environment_type=environment_type,
             sensor_type=sensor_type,
             volumetric_integrator_type=volumetric_integrator_type,
+            viewer_queue=viewer_queue,
         )
     else:
         raise ValueError(f"Invalid VolumetricIntegratorType: {volumetric_integrator_type}")

@@ -37,7 +37,8 @@ namespace volumetric {
 
 class VoxelSemanticSharedData {
   public:
-    inline static std::atomic<int32_t> next_object_id{0}; // next object ID
+    inline static std::atomic<int32_t> next_object_id{
+        1}; // next object ID (starts at 1, since 0 is reserved for "no specific object")
 
     VoxelSemanticSharedData() = default;
 
@@ -101,6 +102,10 @@ class VoxelSemanticSharedData {
 // and class IDs of the voxel. It is incremented when the instance and class IDs are the same and
 // decremented when they are different. If the confidence counter is less than or equal to 0, the
 // instance and class IDs are set to the new values and the confidence counter is reset to 1.
+// NOTE:
+//      Semantics:
+//          - class_id=0 -> background, class_id>0 -> actual class
+//          - object_id=0 -> no specific object, object_id>0 -> specific object
 struct VoxelSemanticData {
     inline static float kDepthThreshold =
         10.0f; // [m] depth threshold for updating semantics with depth
@@ -213,6 +218,10 @@ struct VoxelSemanticData {
 // corresponding ID is set to the new value and its confidence counter is reset to 1.
 // **NOTE**: Read the comparison note above concerning the differences between
 // VoxelSemanticDataProbabilistic and VoxelSemanticDataProbabilistic2.
+// NOTE:
+//      Semantics:
+//          - class_id=0 -> background, class_id>0 -> actual class
+//          - object_id=0 -> no specific object, object_id>0 -> specific object
 struct VoxelSemanticData2 {
     inline static float kDepthThreshold =
         10.0f; // [m] depth threshold for updating semantics with depth
@@ -380,6 +389,10 @@ struct VoxelSemanticData2 {
 //
 // **NOTE**: Read the comparison note above concerning the differences between
 // VoxelSemanticDataProbabilistic and VoxelSemanticDataProbabilistic2.
+// NOTE:
+//      Semantics:
+//          - class_id=0 -> background, class_id>0 -> actual class
+//          - object_id=0 -> no specific object, object_id>0 -> specific object
 struct VoxelSemanticDataProbabilistic {
 
     inline static float kDepthThreshold =
@@ -789,6 +802,10 @@ struct VoxelSemanticDataProbabilistic {
 //
 // **NOTE**: Read the comparison note above concerning the differences between
 // VoxelSemanticDataProbabilistic and VoxelSemanticDataProbabilistic2.
+// NOTE:
+//      Semantics:
+//          - class_id=0 -> background, class_id>0 -> actual class
+//          - object_id=0 -> no specific object, object_id>0 -> specific object
 struct VoxelSemanticDataProbabilistic2 {
 
     inline static float kDepthThreshold =

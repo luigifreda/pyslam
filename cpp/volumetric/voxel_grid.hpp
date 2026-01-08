@@ -316,17 +316,17 @@ void VoxelGridT<VoxelDataT>::integrate_raw_semantic_impl(const Tp *pts_ptr, size
                                 v.initialize_semantics(info.object_id, info.class_id);
                             }
                         } else {
-                            // we do not have instance id => use default instance id 1
+                            // we do not have instance id => use default instance id 0
                             if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
                                 // we have depth
                                 if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
-                                    v.initialize_semantics_with_depth(1, info.class_id, info.depth);
+                                    v.initialize_semantics_with_depth(0, info.class_id, info.depth);
                                 } else {
-                                    v.initialize_semantics(1, info.class_id);
+                                    v.initialize_semantics(0, info.class_id);
                                 }
                             } else {
                                 // we do not have depth => use confidence = 1.0
-                                v.initialize_semantics(1, info.class_id);
+                                v.initialize_semantics(0, info.class_id);
                             }
                         }
                     }
@@ -358,17 +358,17 @@ void VoxelGridT<VoxelDataT>::integrate_raw_semantic_impl(const Tp *pts_ptr, size
                                 v.update_semantics(info.object_id, info.class_id);
                             }
                         } else {
-                            // we do not have instance id => use default instance id 1
+                            // we do not have instance id => use default instance id 0
                             if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
                                 // we have depth
                                 if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
-                                    v.update_semantics_with_depth(1, info.class_id, info.depth);
+                                    v.update_semantics_with_depth(0, info.class_id, info.depth);
                                 } else {
-                                    v.update_semantics(1, info.class_id);
+                                    v.update_semantics(0, info.class_id);
                                 }
                             } else {
                                 // we do not have depth => use confidence = 1.0
-                                v.update_semantics(1, info.class_id);
+                                v.update_semantics(0, info.class_id);
                             }
                         }
                     }
@@ -421,18 +421,18 @@ void VoxelGridT<VoxelDataT>::integrate_raw_semantic_impl(const Tp *pts_ptr, size
                             v.initialize_semantics(object_id, class_id);
                         }
                     } else {
-                        // we do not have instance id => use default instance id 1
+                        // we do not have instance id => use default instance id 0
                         const Tclass class_id = class_ids_ptr[i];
                         if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
                             // we have depth
                             if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
-                                v.initialize_semantics_with_depth(1, class_id, depths_ptr[i]);
+                                v.initialize_semantics_with_depth(0, class_id, depths_ptr[i]);
                             } else {
-                                v.initialize_semantics(1, class_id);
+                                v.initialize_semantics(0, class_id);
                             }
                         } else {
                             // we do not have depth => use confidence = 1.0
-                            v.initialize_semantics(1, class_id);
+                            v.initialize_semantics(0, class_id);
                         }
                     }
                 }
@@ -466,18 +466,18 @@ void VoxelGridT<VoxelDataT>::integrate_raw_semantic_impl(const Tp *pts_ptr, size
                             v.update_semantics(object_id, class_id);
                         }
                     } else {
-                        // we do not have instance id => use default instance id 1
+                        // we do not have instance id => use default instance id 0
                         const Tclass class_id = class_ids_ptr[i];
                         if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
                             // we have depth
                             if constexpr (SemanticVoxelWithDepth<VoxelDataT>) {
-                                v.update_semantics_with_depth(1, class_id, depths_ptr[i]);
+                                v.update_semantics_with_depth(0, class_id, depths_ptr[i]);
                             } else {
-                                v.update_semantics(1, class_id);
+                                v.update_semantics(0, class_id);
                             }
                         } else {
                             // we do not have depth => use confidence = 1.0
-                            v.update_semantics(1, class_id);
+                            v.update_semantics(0, class_id);
                         }
                     }
                 }
@@ -913,7 +913,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels(int min_count, float min_confid
     result.points.resize(keys.size());
     result.colors.resize(keys.size());
     if constexpr (SemanticVoxel<VoxelDataT>) {
-        result.instance_ids.resize(keys.size());
+        result.object_ids.resize(keys.size());
         result.class_ids.resize(keys.size());
         result.confidences.resize(keys.size());
     }
@@ -925,7 +925,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels(int min_count, float min_confid
                                   result.points[i] = v.get_position();
                                   result.colors[i] = v.get_color();
                                   if constexpr (SemanticVoxel<VoxelDataT>) {
-                                      result.instance_ids[i] = v.get_object_id();
+                                      result.object_ids[i] = v.get_object_id();
                                       result.class_ids[i] = v.get_class_id();
                                       result.confidences[i] = v.get_confidence();
                                   }
@@ -937,7 +937,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels(int min_count, float min_confid
     result.points.reserve(grid_.size());
     result.colors.reserve(grid_.size());
     if constexpr (SemanticVoxel<VoxelDataT>) {
-        result.instance_ids.reserve(grid_.size());
+        result.object_ids.reserve(grid_.size());
         result.class_ids.reserve(grid_.size());
         result.confidences.reserve(grid_.size());
     }
@@ -954,7 +954,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels(int min_count, float min_confid
             result.points.push_back(v.get_position());
             result.colors.push_back(v.get_color());
             if constexpr (SemanticVoxel<VoxelDataT>) {
-                result.instance_ids.push_back(v.get_object_id());
+                result.object_ids.push_back(v.get_object_id());
                 result.class_ids.push_back(v.get_class_id());
                 result.confidences.push_back(v.get_confidence());
             }
@@ -1018,7 +1018,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D &bbox
     result.points.resize(keys.size());
     result.colors.resize(keys.size());
     if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-        result.instance_ids.resize(keys.size());
+        result.object_ids.resize(keys.size());
         result.class_ids.resize(keys.size());
         result.confidences.resize(keys.size());
     }
@@ -1031,7 +1031,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D &bbox
                                   result.points[i] = v.get_position();
                                   result.colors[i] = v.get_color();
                                   if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-                                      result.instance_ids[i] = v.get_object_id();
+                                      result.object_ids[i] = v.get_object_id();
                                       result.class_ids[i] = v.get_class_id();
                                       result.confidences[i] = v.get_confidence();
                                   }
@@ -1043,7 +1043,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D &bbox
     result.points.reserve(grid_.size() / 4);
     result.colors.reserve(grid_.size() / 4);
     if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-        result.instance_ids.reserve(grid_.size() / 4);
+        result.object_ids.reserve(grid_.size() / 4);
         result.class_ids.reserve(grid_.size() / 4);
         result.confidences.reserve(grid_.size() / 4);
     }
@@ -1074,7 +1074,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D &bbox
             result.points.push_back(pos);
             result.colors.push_back(v.get_color());
             if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-                result.instance_ids.push_back(v.get_object_id());
+                result.object_ids.push_back(v.get_object_id());
                 result.class_ids.push_back(v.get_class_id());
                 result.confidences.push_back(confidence);
             }
@@ -1142,7 +1142,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_camera_frustrum(
     result.points.resize(keys.size());
     result.colors.resize(keys.size());
     if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-        result.instance_ids.resize(keys.size());
+        result.object_ids.resize(keys.size());
         result.class_ids.resize(keys.size());
         result.confidences.resize(keys.size());
     }
@@ -1155,7 +1155,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_camera_frustrum(
                                   result.points[i] = v.get_position();
                                   result.colors[i] = v.get_color();
                                   if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-                                      result.instance_ids[i] = v.get_object_id();
+                                      result.object_ids[i] = v.get_object_id();
                                       result.class_ids[i] = v.get_class_id();
                                       result.confidences[i] = v.get_confidence();
                                   }
@@ -1167,7 +1167,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_camera_frustrum(
     result.points.reserve(grid_.size() / 4);
     result.colors.reserve(grid_.size() / 4);
     if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-        result.instance_ids.reserve(grid_.size() / 4);
+        result.object_ids.reserve(grid_.size() / 4);
         result.class_ids.reserve(grid_.size() / 4);
         result.confidences.reserve(grid_.size() / 4);
     }
@@ -1199,7 +1199,7 @@ VoxelGridData VoxelGridT<VoxelDataT>::get_voxels_in_camera_frustrum(
             result.points.push_back(pos);
             result.colors.push_back(v.get_color());
             if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
-                result.instance_ids.push_back(v.get_object_id());
+                result.object_ids.push_back(v.get_object_id());
                 result.class_ids.push_back(v.get_class_id());
                 result.confidences.push_back(confidence);
             }

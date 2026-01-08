@@ -35,11 +35,11 @@ def img_from_depth(img_flt, img_max=None, img_min=None, eps=1e-9):
 
 
 class PointCloud:
-    def __init__(self, points=None, colors=None, semantics=None, instance_ids=None):
+    def __init__(self, points=None, colors=None, semantics=None, object_ids=None):
         self.points = points  # array Nx3
         self.colors = colors  # array Nx3
         self.semantics = semantics  # array Nx1 (or NxD where D is the semantic dimension)
-        self.instance_ids = instance_ids  # array Nx1    (instance or object IDs)
+        self.object_ids = object_ids  # array Nx1    (object IDs or projected instance IDs)
 
 
 def depth2pointcloud(
@@ -52,12 +52,12 @@ def depth2pointcloud(
     max_depth=np.inf,
     min_depth=0.0,
     semantic_image=None,
-    instance_image=None,
+    object_ids_image=None,  # object IDs or projected instance IDs
 ):
     """
     Convert depth image and color image to point cloud.
     If semantic_image is provided, it will be used to extract semantics.
-    If instance_image is provided, it will be used to extract instance_ids.
+    If instance_ids_image/object_ids_image is provided, it will be used to extract instance_ids/object_ids.
     Otherwise, semantics and instance_ids will be set to None.
     """
     # mask for valid depth values
@@ -78,11 +78,11 @@ def depth2pointcloud(
         semantics = semantic_image[valid]
     else:
         semantics = None
-    if instance_image is not None and instance_image.size > 0:
-        instance_ids = instance_image[valid]
+    if object_ids_image is not None and object_ids_image.size > 0:
+        object_ids = object_ids_image[valid]
     else:
-        instance_ids = None
-    return PointCloud(points, colors, semantics, instance_ids)
+        object_ids = None
+    return PointCloud(points, colors, semantics, object_ids)
 
 
 def depth2pointcloud_v2(depth, image, fx, fy, cx, cy):

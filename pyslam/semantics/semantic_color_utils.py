@@ -189,8 +189,11 @@ def instance_ids_to_rgb(instance_ids, bgr=False, unlabeled_color=(0, 0, 0)):
 
         # Create an instance of IdsColorTable
         color_table = color_utils.IdsColorTable()
-        # Convert unlabeled_color to cv::Vec3b format (BGR)
-        unlabeled_bgr = tuple(reversed(unlabeled_color))  # RGB to BGR
+        # Convert unlabeled_color to cv::Vec3b format (BGR) as numpy array
+        # unlabeled_color is in RGB format, convert to BGR and then to numpy array
+        unlabeled_bgr = np.array(
+            tuple(reversed(unlabeled_color)), dtype=np.uint8
+        )  # RGB to BGR, then to numpy array
         result = color_table.ids_to_rgb(instance_ids, bgr=bgr, unlabeled_color=unlabeled_bgr)
         return result
     except (ImportError, AttributeError):

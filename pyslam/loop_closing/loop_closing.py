@@ -1091,6 +1091,7 @@ class LoopClosing:
 
                 else:
                     LoopClosing.print(f"LoopClosing: No loop candidates detected")
+                    time.sleep(0.01)
 
             except Exception as e:
                 LoopClosing.print(f"LoopClosing: EXCEPTION: {e} !!!")

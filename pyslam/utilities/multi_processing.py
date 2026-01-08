@@ -72,3 +72,19 @@ class MultiprocessingManager:
             return self.manager.dict()
         else:
             return {}
+
+    def shutdown(self):
+        """
+        Shutdown the multiprocessing manager if it exists.
+        This is important for clean shutdown to terminate the SyncManager process.
+        """
+        if self.manager is not None:
+            try:
+                self.manager.shutdown()
+                if self.verbose:
+                    print("MultiprocessingManager: manager shut down successfully.")
+            except Exception as e:
+                if self.verbose:
+                    print(f"MultiprocessingManager: Warning: Error shutting down manager: {e}")
+            finally:
+                self.manager = None

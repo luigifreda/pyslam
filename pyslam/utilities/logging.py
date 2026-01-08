@@ -513,7 +513,7 @@ class LoggerQueue(SingletonBase):
             # 1. Wait for listener thread to finish
             # 2. Close the queue (signals no more data will be put)
             # 3. Join the feeder thread (waits for it to finish processing)
-            # 4. Only cancel if join times out
+            # 4. Cancel join if it times out to prevent blocking
             if self.log_queue:
                 try:
                     # Check if queue is already closed
@@ -536,34 +536,31 @@ class LoggerQueue(SingletonBase):
                             # timeout parameter was added in Python 3.9+
                             if hasattr(self.log_queue, "join_thread"):
                                 try:
-                                    # Wait up to 2 seconds for feeder thread to finish
-                                    self.log_queue.join_thread(timeout=2.0)
+                                    # Wait up to 1 second for feeder thread to finish
+                                    # Shorter timeout to avoid blocking shutdown
+                                    self.log_queue.join_thread(timeout=1.0)
                                 except TypeError:
                                     # Timeout parameter not supported (Python < 3.9)
                                     # Try without timeout - this may block, so we'll cancel if needed
                                     self.log_queue.join_thread()
+                                except Exception:
+                                    # If join fails, continue to cancel
+                                    pass
                         except Exception as join_error:
-                            # If join fails or times out, cancel the join
-                            # This tells the queue not to wait for the feeder thread
-                            try:
-                                if hasattr(self.log_queue, "cancel_join_thread"):
-                                    self.log_queue.cancel_join_thread()
-                                    print(
-                                        f"LoggerQueue[{self.log_file}]: Feeder thread join timed out or failed, cancelled join"
-                                    )
-                            except Exception:
-                                pass  # cancel_join_thread may not be available
-                    else:
-                        # Queue already closed, but we may still need to join or cancel
+                            pass  # Will cancel below
+
+                        # Step 3: Always cancel join_thread to prevent blocking
+                        # This is safe because we've already closed the queue
                         try:
-                            if hasattr(self.log_queue, "join_thread"):
-                                try:
-                                    # Try to join with timeout
-                                    self.log_queue.join_thread(timeout=1.0)
-                                except (TypeError, Exception):
-                                    # If join fails, cancel it
-                                    if hasattr(self.log_queue, "cancel_join_thread"):
-                                        self.log_queue.cancel_join_thread()
+                            if hasattr(self.log_queue, "cancel_join_thread"):
+                                self.log_queue.cancel_join_thread()
+                        except Exception:
+                            pass  # cancel_join_thread may not be available or may fail
+                    else:
+                        # Queue already closed, but we may still need to cancel join
+                        try:
+                            if hasattr(self.log_queue, "cancel_join_thread"):
+                                self.log_queue.cancel_join_thread()
                         except Exception:
                             pass
 

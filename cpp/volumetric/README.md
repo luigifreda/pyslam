@@ -4,7 +4,7 @@ This module provides efficient C++ implementations for volumetric data structure
 
 ## Overview
 
-The volumetric module implements sparse voxel grids using hash-based data structures, optimized for real-time SLAM applications. It supports both direct voxel hashing and block-based hashing strategies, with optional semantic information (instance IDs, class IDs) and probabilistic fusion.
+The volumetric module implements sparse voxel grids using hash-based data structures, optimized for real-time SLAM applications. It supports both direct voxel hashing and block-based hashing strategies, with optional semantic information (class IDs, instance/object IDs) and probabilistic fusion.
 
 ## Key Components
 
@@ -18,6 +18,11 @@ The volumetric module implements sparse voxel grids using hash-based data struct
 - **`voxel_data_semantic.h`**: Extended semantic voxel data types:
   - `VoxelSemanticData2`: Semantic voxel with separate confidence counters for object and class IDs
   - `VoxelSemanticDataProbabilistic2`: Probabilistic semantic voxel with independent marginal distributions (assumes independence between object and class IDs)
+
+
+**Semantic fields**
+  - `class_id=0` background, `class_id>0` actual semantic class
+  - `object_id` no specific object, `object_id>0` specific object
 
 #### Semantic Data Type Comparison
 

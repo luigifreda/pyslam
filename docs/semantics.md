@@ -3,17 +3,17 @@
 <!-- TOC -->
 
 - [Semantic Mapping and Segmentation](#semantic-mapping-and-segmentation)
-  - [Sparse Semantic Mapping and Segmentation](#sparse-semantic-mapping-and-segmentation)
-    - [Quick test](#quick-test)
-  - [Short description](#short-description)
-    - [Semantic features types](#semantic-features-types)
-    - [Dense vs Object-Based](#dense-vs-object-based)
-    - [Supported Models](#supported-models)
-    - [Dataset Type Support](#dataset-type-support)
-    - [Feature Fusion](#feature-fusion)
-    - [Visualizations](#visualizations)
-  - [Volumetric Semantic mapping](#volumetric-semantic-mapping)
-  - [TODOs](#todos)
+    - [1. Sparse Semantic Mapping and Segmentation](#1-sparse-semantic-mapping-and-segmentation)
+        - [1.1. Quick test](#11-quick-test)
+    - [2. Short description](#2-short-description)
+        - [2.1. Semantic features types](#21-semantic-features-types)
+        - [2.2. Dense vs Object-Based](#22-dense-vs-object-based)
+        - [2.3. Supported Models](#23-supported-models)
+        - [2.4. Dataset Type Support](#24-dataset-type-support)
+        - [2.5. Feature Fusion](#25-feature-fusion)
+        - [2.6. Visualizations](#26-visualizations)
+    - [3. Volumetric Semantic mapping](#3-volumetric-semantic-mapping)
+    - [4. TODOs](#4-todos)
 
 <!-- /TOC -->
 
@@ -58,22 +58,44 @@ In a few words, the semantic mapping module takes as input the extracted keyfram
 The semantic mapping module can potentially be “dense” or “object-based”. Both will maintain the same interface.
 - **Dense** version:
   - Uses per-pixel semantic segmentation.
-- **Object-based** [*NOT IMPLEMENTED YET*]:
+- **Object-based** [*WIP*]:
   - Generate, track, and maintain 3D segments as groups of points.
-  - Features are assigned at object-level: multiple KPs or MPs share descriptors.
-  - Possible approaches: project 2D masks or use DBSCAN for 3D clustering.
+  - Features are assigned at object-level: multiple KPs or MPs share "object descriptors".
+  - Possible approaches: project 2D masks and use label fusion and DBSCAN for 3D clustering (WIP).
 
 ### Supported Models
 
-- Segmentation models are implemented on the top of a base class with an `infer` method returning semantic images.
+- Segmentation models are implemented on the top of a base class `SemanticSegmentationBase` with an `infer` method returning semantic images.
 - A `to_rgb` method converts semantic outputs into color maps.
-- Implemented models:
-  - **DeepLabv3** (torchvision, pre-trained on COCO/VOC)
-  - **Segformer** (transformers, pre-trained on Cityscapes or ADE20k)
-  - **Dense CLIP** (from f3rm repo for open-vocabulary)
-  - **DETIC** (from https://github.com/facebookresearch/Detic)
-  - **EOV-SEG** (from https://github.com/nhw649/EOV-Seg)
-  - **ODISE** (from https://github.com/NVlabs/ODISE)
+
+**Panoptic/Instance segmentation:**
+  - `DETIC`: from https://github.com/facebookresearch/Detic
+    - Object detection-based (CenterNet2 + CLIP), supports large vocabularies (LVIS/COCO/OpenImages/Objects365).
+    - Architecture: Object detector (CenterNet2) detects individual objects first, then segments each detection.
+    - Can output both *"instances"* (direct instance segmentation) and *"panoptic_seg"* formats.
+    - Instance extraction: Direct from object detections - each detected object = one instance ID.
+    - Result: Robust instance segmentation - each detected object gets a unique instance ID, even for multiple objects of the same category (e.g., two pillows = two separate instances).
+  - `ODISE`: from https://github.com/NVlabs/ODISE
+    - Diffusion-based panoptic segmentation, leverages diffusion models for segmentation.
+    - Architecture: Panoptic segmentation model that segments image into regions first, then classifies regions.
+    - Only outputs *"panoptic_seg"* format - instances extracted from panoptic segments via *"isthing"* flag.
+    - Instance extraction: Derived from panoptic segments - one segment may contain multiple objects if model groups them together (e.g., spatially connected objects of same category).
+    - Result: Instance segmentation may merge multiple objects of the same category into a single instance (e.g., two pillows may be detected as one "pillow" instance).
+  - `EOV_SEG`: from https://github.com/nhw649/EOV-Seg
+    - Dual-backbone (CNN + ViT) with CLIP, text-prompt driven open vocabulary.
+    - Architecture: Panoptic segmentation model (similar to ODISE) - segments image into regions first.
+    - Only outputs *"panoptic_seg"* format - instances extracted from panoptic segments via *"isthing"* flag.
+    - Instance extraction: Same as `ODISE` - derived from panoptic segments, may group multiple objects.
+    - Result: Similar to `ODISE`, instance segmentation may group multiple objects of the same category together (e.g., two pillows may be detected as one "pillow" instance).
+
+**Semantic segmentation only:**
+  - `DEEPLABV3`: from `torchvision`, pre-trained on COCO/VOC.
+    - Semantic segmentation model from torchvision DeepLab's v3.
+  - `SEGFORMER`: from `transformers`, pre-trained on Cityscapes or ADE20k.
+    - Semantic segmentation model from transformer's Segformer.
+  - `CLIP`: from `f3rm` package for open-vocabulary support.
+    - Uses CLIP patch embeddings + text similarity to produce labels/probabilities (it is not a dedicated "segmentation head"). 
+
 
 ### Dataset Type Support
 
@@ -84,7 +106,7 @@ The semantic mapping module can potentially be “dense” or “object-based”
 
 ### Feature Fusion
 
-- Features are fused from KPs into MPs using one of the available fusion methods.
+- Features are fused from KPs into MPs using one of the fusion methods available [here](../pyslam/semantics/semantic_fusion_methods.py).
 
 ### Visualizations
 
@@ -113,5 +135,5 @@ Further information about the volumetric integration models and SW architecture 
 ## TODOs
 
 - [ ] Investigate variants in KF count for LABEL vs PROBABILITY_VECTOR
-- [ ] Implement object-level semantic mapping
+- [ ] Implement object-level semantic mapping [WIP]
 - [ ] Add interaction in 3D viewer to change query word (open-vocab)

@@ -260,6 +260,14 @@ class LoopDetectingProcess:
                     "Warning: Loop detection process did not terminate in time, forced kill."
                 )
                 self.process.terminate()
+
+            # Shutdown the manager AFTER the process has exited
+            if hasattr(self, "mp_manager") and self.mp_manager is not None:
+                try:
+                    self.mp_manager.shutdown()
+                except Exception as e:
+                    LoopDetectorBase.print(f"Warning: Error shutting down manager: {e}")
+
             LoopDetectorBase.print("LoopDetectingProcess: done")
 
     def init(self, loop_detector_config, slam_info: SlamFeatureManagerInfo):

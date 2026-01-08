@@ -557,9 +557,10 @@ class LocalMapping:
         LocalMapping.print(">>>> creating new map points")
         total_new_pts = 0
 
-        num_neighbors = 10
         if self.sensor_type == SensorType.MONOCULAR:
-            num_neighbors = 20
+            num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesMonocular
+        else:
+            num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesStereo
 
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur, N=num_neighbors)
         LocalMapping.print(
@@ -581,6 +582,7 @@ class LocalMapping:
             do_parallel=Parameters.kLocalMappingParallelKpsMatching,
             max_workers=Parameters.kLocalMappingParallelKpsMatchingNumWorkers,
             print_fun=LocalMapping.print,
+            is_monocular=(self.sensor_type == SensorType.MONOCULAR),
         )
 
         # LocalMapping.print(f'\t processing local keyframes...')
@@ -645,9 +647,10 @@ class LocalMapping:
         LocalMapping.print(">>>> creating new map points parallel")
         total_new_pts = 0
 
-        num_neighbors = 10
         if self.sensor_type == SensorType.MONOCULAR:
-            num_neighbors = 20
+            num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesMonocular
+        else:
+            num_neighbors = Parameters.kLocalMappingNumNeighborKeyFramesStereo
 
         local_keyframes = self.map.local_map.get_best_neighbors(self.kf_cur, N=num_neighbors)
         LocalMapping.print(
@@ -669,6 +672,7 @@ class LocalMapping:
             do_parallel=Parameters.kLocalMappingParallelKpsMatching,
             max_workers=Parameters.kLocalMappingParallelKpsMatchingNumWorkers,
             print_fun=LocalMapping.print,
+            is_monocular=(self.sensor_type == SensorType.MONOCULAR),
         )
 
         tasks = []

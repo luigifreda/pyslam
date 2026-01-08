@@ -81,6 +81,7 @@ if TYPE_CHECKING:
     from .map_point import MapPoint
     from .keyframe import KeyFrame
     from .map import Map
+    from pyslam.viz.viewer3D import Viewer3D
 
 
 kVerbose = True
@@ -113,6 +114,7 @@ class Slam(object):
         slam_mode=SlamMode.SLAM,
         config: "Config" = None,
         headless=False,
+        viewer3d: "Viewer3D" = None,
     ):
         self.camera = camera
         self.feature_tracker_config = feature_tracker_config
@@ -135,6 +137,8 @@ class Slam(object):
         self.GBA_on_demand = None  # used independently when pressing "Bundle Adjust" button on GUI
         self.volumetric_integrator = None
         self.reset_requested = False
+
+        self.viewer3d = viewer3d
 
         self.has_quit = False
 
@@ -293,6 +297,7 @@ class Slam(object):
                 self.camera,
                 self.environment_type,
                 self.sensor_type,
+                self.viewer3d.qdense if self.viewer3d is not None else None,
             )
             wait_for_ready(self.volumetric_integrator.is_ready, "VolumetricIntegrator")
             Printer.green(f"SLAM: VolumetricIntegrator initialized and ready.")

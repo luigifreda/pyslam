@@ -261,6 +261,7 @@ if __name__ == "__main__":
         print(f"viewer_scale: {viewer_scale}")
         slam.set_tracking_state(SlamState.INIT_RELOCALIZE)
 
+    # create viewer3D, plot drawer, image writer, and cv image viewer
     if args.headless:
         viewer3D = None
         plot_drawer = None
@@ -519,13 +520,13 @@ if __name__ == "__main__":
         print(f"traceback: {traceback.format_exc()}")
 
     # close stuff - ensure proper shutdown order
-    # First stop SLAM (which stops all processes)
+    # First stop SLAM (which stops all processes and shuts down their managers)
     slam.quit()
 
     # Give processes time to clean up before closing viewers
     time.sleep(0.5)
 
-    # Then close viewers (which may have their own processes/threads)
+    # Then close viewers (which may have their own processes/threads and managers)
     if cv_image_viewer:
         cv_image_viewer.quit()
     if plot_drawer:

@@ -53,7 +53,8 @@ if __name__ == "__main__":
 
     semantic_segmentation_type = SemanticSegmentationType.EOV_SEG
     semantic_feature_type = SemanticFeatureType.LABEL
-    semantic_dataset_type = SemanticDatasetType.ADE20K
+    # semantic_dataset_type = SemanticDatasetType.ADE20K
+    semantic_dataset_type = SemanticDatasetType.CITYSCAPES
     image_size = (512, 512)
     device = None  # autodetect
     semantic_segmentation = semantic_segmentation_factory(
@@ -94,12 +95,23 @@ if __name__ == "__main__":
 
             inference_result = semantic_segmentation.infer(img)
             curr_semantic_prediction = inference_result.semantics
+            curr_semantic_instances = inference_result.instances
             semantic_color_img = semantic_segmentation.to_rgb(curr_semantic_prediction, bgr=True)
+            if curr_semantic_instances is not None:
+                # Use instances_to_rgb method from semantic segmentation class
+                # This uses hash-based color mapping for instance IDs (which can be arbitrary integers)
+                semantic_color_instances_img = semantic_segmentation.instances_to_rgb(
+                    curr_semantic_instances, bgr=True
+                )
+            else:
+                semantic_color_instances_img = None
 
             img_writer.write(img, f"id: {img_id}", (30, 30))
             cv2.imshow("img", img)
 
             cv2.imshow("semantic prediction", semantic_color_img)
+            if semantic_color_instances_img is not None:
+                cv2.imshow("semantic instances", semantic_color_instances_img)
 
             key = cv2.waitKey(1)
         else:

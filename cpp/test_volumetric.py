@@ -680,7 +680,7 @@ def test_voxel_grid_data(volumetric):
         # Test that attributes exist
         assert hasattr(grid_data, "points"), "VoxelGridData missing 'points' attribute"
         assert hasattr(grid_data, "colors"), "VoxelGridData missing 'colors' attribute"
-        assert hasattr(grid_data, "instance_ids"), "VoxelGridData missing 'instance_ids' attribute"
+        assert hasattr(grid_data, "object_ids"), "VoxelGridData missing 'object_ids' attribute"
         assert hasattr(grid_data, "class_ids"), "VoxelGridData missing 'class_ids' attribute"
         assert hasattr(grid_data, "confidences"), "VoxelGridData missing 'confidences' attribute"
 

@@ -30,6 +30,7 @@ from pyslam.utilities.logging import Logging, LoggerQueue
 from pyslam.utilities.file_management import create_folder
 
 from .semantic_segmentation_output import SemanticSegmentationOutput
+from .semantic_color_utils import instance_ids_to_rgb
 
 kScriptPath = os.path.realpath(__file__)
 kScriptFolder = os.path.dirname(kScriptPath)
@@ -70,6 +71,23 @@ class SemanticSegmentationBase:
 
     def to_rgb(self, semantics, bgr=False):
         return NotImplementedError
+
+    def instances_to_rgb(self, instances, bgr=False):
+        """
+        Convert instance IDs to RGB visualization using hash-based color table.
+
+        This method is designed for instance IDs which can be arbitrary integers
+        (including negative values like -1 for unlabeled). Unlike semantic class IDs,
+        instance IDs don't have a fixed range and need a hash-based color mapping.
+
+        Args:
+            instances: numpy array of shape (H, W) with instance IDs, or None
+            bgr: If True, return BGR format; otherwise RGB
+
+        Returns:
+            RGB/BGR image array of shape (H, W, 3), or None if instances is None
+        """
+        return instance_ids_to_rgb(instances, bgr=bgr)
 
     def num_classes(self):
         return NotImplementedError

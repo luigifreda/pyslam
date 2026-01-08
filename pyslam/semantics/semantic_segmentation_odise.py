@@ -567,6 +567,7 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             Printer.green(f"ODISE: Moving to {cfg.train.device}...")
 
         # Move model to device with error handling
+        # Note: _move_model_to_device will handle dtype conversion if falling back to CPU
         self._move_model_to_device(model, cfg)
 
         # Ensure model stays in eval mode after moving to device
@@ -592,11 +593,25 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
                 if "out of memory" in str(e):
                     Printer.warning(f"ODISE: GPU out of memory, falling back to CPU: {e}")
                     cfg.train.device = "cpu"
+                    # Check if model is in float16 - CPU needs float32
+                    current_dtype = next(model.parameters()).dtype
+                    if current_dtype == torch.float16:
+                        Printer.green(
+                            "ODISE: Converting model from float16 to float32 for CPU inference..."
+                        )
+                        model.to(torch.float32)
                     model.to(cfg.train.device)
                     Printer.green("ODISE: Model moved to CPU (fallback)")
                 else:
                     raise
         else:
+            # If explicitly using CPU, ensure model is in float32
+            current_dtype = next(model.parameters()).dtype
+            if current_dtype == torch.float16:
+                Printer.green(
+                    "ODISE: Converting model from float16 to float32 for CPU inference..."
+                )
+                model.to(torch.float32)
             model.to(cfg.train.device)
             Printer.green("ODISE: Model moved to CPU")
 
@@ -1068,20 +1083,96 @@ class SemanticSegmentationOdise(SemanticSegmentationBase):
             instance_ids: numpy array of shape [H, W] with instance IDs (0 for background/stuff)
         """
         panoptic_np = panoptic_seg.cpu().numpy()
-        instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
 
-        # Map segment IDs to instance IDs
-        # For panoptic segmentation, each segment is a unique instance
-        # We use the segment ID as the instance ID
+        # Get metadata for fallback checking if isthing is not reliable
+        metadata = getattr(self, "_demo_metadata", None)
+        if metadata is None:
+            metadata = getattr(self.model, "metadata", None)
+        thing_category_ids = None
+        num_thing_classes = None
+        if metadata is not None:
+            if hasattr(metadata, "thing_dataset_id_to_contiguous_id"):
+                # Get the set of thing category IDs from metadata
+                thing_category_ids = set(metadata.thing_dataset_id_to_contiguous_id.values())
+            # Also get number of thing classes as additional fallback
+            if hasattr(metadata, "thing_classes"):
+                num_thing_classes = len(metadata.thing_classes)
+
+        # Map segment IDs to instance IDs (> 0 for actual instances, 0 for background/stuff)
+        # We only need instance IDs > 0, not necessarily contiguous
+        # Collect thing segment IDs that need remapping (if seg_id <= 0)
+        segment_id_to_instance_id = {}
+        next_instance_id = 1  # Start from 1 (0 is reserved for background/stuff)
+        thing_seg_ids = []  # Track all thing segment IDs
+
+        # First pass: identify all thing segments
         for seg_info in segments_info:
             seg_id = seg_info["id"]
+            category_id = seg_info.get("category_id", None)
+
+            # Determine if this is a "thing" class (instance)
+            # First try to get from segments_info
+            is_thing = seg_info.get("isthing", None)
+
+            # Handle both boolean and integer (0/1) values
+            if is_thing is None:
+                # Fallback: check metadata using category_id
+                if category_id is not None:
+                    if thing_category_ids is not None:
+                        is_thing = category_id in thing_category_ids
+                    elif num_thing_classes is not None:
+                        # Fallback: assume thing classes come first (common in detectron2)
+                        is_thing = category_id < num_thing_classes
+                    else:
+                        is_thing = False
+                else:
+                    is_thing = False
+            else:
+                # Convert to boolean if it's an integer (0/1)
+                if isinstance(is_thing, (int, np.integer)):
+                    is_thing = bool(is_thing)
+                # If it's already boolean, use as-is
+
             # Only assign instance IDs to "thing" classes (instances)
             # "stuff" classes (background regions) remain 0
-            is_thing = seg_info.get("isthing", False)
             if is_thing:
-                mask = panoptic_np == seg_id
-                # Explicitly cast to int32 to prevent overflow and ensure C++ compatibility
-                instance_ids[mask] = np.int32(seg_id)
+                thing_seg_ids.append(seg_id)
+                # Only remap if segment ID is <= 0 (shouldn't happen, but be safe)
+                if seg_id <= 0:
+                    segment_id_to_instance_id[seg_id] = next_instance_id
+                    next_instance_id += 1
+
+        # Return None if no instances were found (all segments are stuff classes)
+        if len(thing_seg_ids) == 0:
+            return None
+
+        # Optimized remapping: use segment IDs directly if they're all > 0
+        # Otherwise, remap only the problematic ones
+        if len(segment_id_to_instance_id) == 0:
+            # All segment IDs are > 0, use them directly - no remapping needed!
+            instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
+            # Use vectorized assignment for all thing segments at once
+            thing_mask = np.isin(panoptic_np, thing_seg_ids)
+            instance_ids[thing_mask] = panoptic_np[thing_mask]
+        else:
+            # Some segment IDs need remapping (seg_id <= 0)
+            # Find max segment ID to determine lookup table size
+            max_seg_id = int(panoptic_np.max()) if panoptic_np.size > 0 else 0
+            max_seg_id = max(max_seg_id, max(thing_seg_ids))
+
+            # Create lookup table: lookup[seg_id] = instance_id, default 0 (background)
+            # Use int32 to match panoptic_np dtype
+            lookup = np.zeros(max_seg_id + 1, dtype=np.int32)
+            # First, copy valid segment IDs (> 0) directly
+            for seg_id in thing_seg_ids:
+                if seg_id > 0:
+                    lookup[seg_id] = seg_id
+            # Then, remap problematic ones (<= 0)
+            for seg_id, instance_id in segment_id_to_instance_id.items():
+                lookup[seg_id] = instance_id
+
+            # Vectorized remapping: single pass through image using advanced indexing
+            instance_ids = lookup[panoptic_np]
 
         return instance_ids
 

@@ -19,6 +19,7 @@
 
 import os
 import stat
+import threading
 import numpy as np
 import cv2
 import platform
@@ -478,12 +479,49 @@ class FeatureMatcher:
         max_disparity=None,
         data=None,
     ):
-
         result = FeatureMatchingResult()
+
+        # Early validation: return empty result if descriptors are empty
+        # This avoids expensive operations for invalid inputs
+        if des1 is None or des2 is None:
+            result.des1 = des1
+            result.des2 = des2
+            result.kps1 = kps1
+            result.kps2 = kps2
+            result.idxs1 = np.array([], dtype=np.int32)
+            result.idxs2 = np.array([], dtype=np.int32)
+            return result
+
+        # Check if descriptors are empty arrays (optimized: use shape[0] for numpy arrays)
+        # This is faster than len() for numpy arrays and handles edge cases
+        try:
+            des1_len = des1.shape[0] if hasattr(des1, "shape") else len(des1)
+            des2_len = des2.shape[0] if hasattr(des2, "shape") else len(des2)
+            if des1_len == 0 or des2_len == 0:
+                result.des1 = des1
+                result.des2 = des2
+                result.kps1 = kps1
+                result.kps2 = kps2
+                result.idxs1 = np.array([], dtype=np.int32)
+                result.idxs2 = np.array([], dtype=np.int32)
+                return result
+        except (AttributeError, TypeError, IndexError):
+            # Fallback for non-standard descriptor types
+            if len(des1) == 0 or len(des2) == 0:
+                result.des1 = des1
+                result.des2 = des2
+                result.kps1 = kps1
+                result.kps2 = kps2
+                result.idxs1 = np.array([], dtype=np.int32)
+                result.idxs2 = np.array([], dtype=np.int32)
+                return result
+
         result.des1 = des1
         result.des2 = des2
         result.kps1 = kps1
         result.kps2 = kps2
+
+        # Optimize verbose checks: only do expensive operations if verbose is enabled
         if kVerbose:
             print(self.matcher_name, ", norm ", self.norm_type)
             print("matcher: ", self.matcher_type.name)
@@ -495,6 +533,7 @@ class FeatureMatcher:
                 print("kps1.shape:", kps1.shape, " kps1.dtype:", kps1.dtype)
             if kps2 is not None and isinstance(kps2, np.ndarray):
                 print("kps2.shape:", kps2.shape, " kps2.dtype:", kps2.dtype)
+
         if ratio_test is None:
             ratio_test = self.ratio_test
             # print(f'[FeatureMatcher.match]: ratio test: {ratio_test}')
@@ -707,9 +746,7 @@ class FeatureMatcher:
             return result
         # ===========================================================
         else:
-            matcher = cv2.BFMatcher(
-                self.norm_type, self.cross_check
-            )  # if self.parallel else self.matcher
+            matcher = self.matcher
             if not row_matching:
                 """
                 The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects.
@@ -719,6 +756,7 @@ class FeatureMatcher:
                     DMatch.queryIdx - Index of the descriptor in query descriptors
                     DMatch.imgIdx - Index of the train image.
                 """
+                # NOTE: cv2.BFMatcher.knnMatch() is thread-safe for concurrent calls, so sharing the instance is safe
                 matches = matcher.knnMatch(
                     des1, des2, k=2
                 )  # knnMatch(queryDescriptors,trainDescriptors)
@@ -753,8 +791,12 @@ class FeatureMatcher:
                         max_disparity=max_disparity,
                     )
 
-            idxs1 = np.asarray(idxs1, dtype=np.int32)
-            idxs2 = np.asarray(idxs2, dtype=np.int32)
+            # Optimize array conversion: only convert if not already numpy array with correct dtype
+            # This avoids unnecessary copies when idxs1/idxs2 are already numpy arrays
+            if not isinstance(idxs1, np.ndarray) or idxs1.dtype != np.int32:
+                idxs1 = np.asarray(idxs1, dtype=np.int32)
+            if not isinstance(idxs2, np.ndarray) or idxs2.dtype != np.int32:
+                idxs2 = np.asarray(idxs2, dtype=np.int32)
             result.idxs1 = idxs1
             result.idxs2 = idxs2
             return result

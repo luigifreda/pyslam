@@ -21,6 +21,7 @@ import numpy as np
 import os
 import sys
 import platform
+import copy
 
 import torch
 from PIL import Image
@@ -44,6 +45,9 @@ kRootFolder = kScriptFolder + "/../.."
 
 kEovSegPath = os.path.join(kRootFolder, "thirdparty", "eov_segmentation")
 kCacheDir = os.path.join(kRootFolder, "results", "cache")
+
+
+kVerboseInstanceSegmentation = False
 
 
 def check_open_clip_torch_version():
@@ -388,9 +392,31 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             semantic_labels = self._panoptic_to_semantic_labels(panoptic_seg, segments_info)
             instances = self._panoptic_to_instances(panoptic_seg, segments_info)
 
+            # Debug: Log when instances are not available
+            if instances is None and kVerboseInstanceSegmentation:
+                SemanticSegmentationBase.print(
+                    f"EOV-Seg: No instance IDs extracted from panoptic segmentation. "
+                    f"Total segments: {len(segments_info)}"
+                )
+                # Dump segments_info for debugging - show first few segments
+                SemanticSegmentationBase.print(
+                    "EOV-Seg: Dumping segments_info structure (first 10 segments):"
+                )
+                for i, seg_info in enumerate(segments_info[:10]):
+                    isthing_val = seg_info.get("isthing", "N/A")
+                    isthing_type = type(isthing_val).__name__ if isthing_val != "N/A" else "N/A"
+                    SemanticSegmentationBase.print(
+                        f"  Segment {i}: id={seg_info.get('id', 'N/A')}, "
+                        f"category_id={seg_info.get('category_id', 'N/A')}, "
+                        f"isthing={isthing_val} (type: {isthing_type})"
+                    )
+                if len(segments_info) > 10:
+                    SemanticSegmentationBase.print(
+                        f"  ... and {len(segments_info) - 10} more segments"
+                    )
+
             # Store segments_info and original image for color mapping
             # Make a deep copy to ensure segments_info is not modified
-            import copy
 
             self._last_segments_info = copy.deepcopy(segments_info)
             self._last_panoptic_seg = panoptic_seg
@@ -510,21 +536,160 @@ class SemanticSegmentationEovSeg(SemanticSegmentationBase):
             instance_ids: numpy array of shape [H, W] with instance IDs (0 for background/stuff)
         """
         panoptic_np = panoptic_seg.cpu().numpy()
-        instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
 
-        # Map segment IDs to instance IDs
-        # For panoptic segmentation, each segment is a unique instance
-        # We use the segment ID as the instance ID
+        # Verify segment IDs in panoptic_seg match segments_info
+        unique_segment_ids_in_image = np.unique(panoptic_np)
+        segment_ids_in_info = {seg_info["id"] for seg_info in segments_info}
+        # Note: 0 is typically background/void, so we exclude it
+        unique_segment_ids_in_image = set(unique_segment_ids_in_image) - {0}
+
+        # Debug: Check for mismatches
+        missing_in_info = unique_segment_ids_in_image - segment_ids_in_info
+        missing_in_image = segment_ids_in_info - unique_segment_ids_in_image
+        if missing_in_info or missing_in_image and kVerboseInstanceSegmentation:
+            SemanticSegmentationBase.print(
+                f"EOV-Seg: _panoptic_to_instances: Segment ID mismatch detected! "
+                f"IDs in image but not in info: {missing_in_info}, "
+                f"IDs in info but not in image: {missing_in_image}"
+            )
+
+        # Get metadata for fallback checking if isthing is not reliable
+        metadata = getattr(self.model, "metadata", None)
+        thing_category_ids = None
+        num_thing_classes = None
+        if metadata is not None:
+            if hasattr(metadata, "thing_dataset_id_to_contiguous_id"):
+                # Get the set of thing category IDs from metadata
+                thing_category_ids = set(metadata.thing_dataset_id_to_contiguous_id.values())
+            # Also get number of thing classes as additional fallback
+            if hasattr(metadata, "thing_classes"):
+                num_thing_classes = len(metadata.thing_classes)
+
+        # Initialize instance_ids as None - will be created only if instances are found
+        instance_ids = None
+
+        # Debug counters
+        num_thing_segments = 0
+        num_stuff_segments = 0
+        num_missing_isthing = 0
+
+        # Map segment IDs to instance IDs (> 0 for actual instances, 0 for background/stuff)
+        # We only need instance IDs > 0, not necessarily contiguous
+        # Collect thing segment IDs that need remapping (if seg_id <= 0)
+        segment_id_to_instance_id = {}
+        next_instance_id = 1  # Start from 1 (0 is reserved for background/stuff)
+        thing_seg_ids = []  # Track all thing segment IDs
+
+        # First pass: identify all thing segments and create mapping
         for seg_info in segments_info:
             seg_id = seg_info["id"]
+            category_id = seg_info.get("category_id", None)
+
+            # Determine if this is a "thing" class (instance)
+            # First try to get from segments_info
+            is_thing = seg_info.get("isthing", None)
+
+            # Handle both boolean and integer (0/1) values
+            if is_thing is None:
+                num_missing_isthing += 1
+                # Fallback: check metadata using category_id
+                if category_id is not None:
+                    if thing_category_ids is not None:
+                        is_thing = category_id in thing_category_ids
+                    elif num_thing_classes is not None:
+                        # Fallback: assume thing classes come first (common in detectron2)
+                        is_thing = category_id < num_thing_classes
+                    else:
+                        is_thing = False
+                else:
+                    is_thing = False
+            else:
+                # Convert to boolean if it's an integer (0/1)
+                if isinstance(is_thing, (int, np.integer)):
+                    is_thing = bool(is_thing)
+                # If it's already boolean, use as-is
+
             # Only assign instance IDs to "thing" classes (instances)
             # "stuff" classes (background regions) remain 0
-            is_thing = seg_info.get("isthing", False)
             if is_thing:
-                mask = panoptic_np == seg_id
-                # Explicitly cast to int32 to prevent overflow and ensure C++ compatibility
-                instance_ids[mask] = np.int32(seg_id)
+                num_thing_segments += 1
+                thing_seg_ids.append(seg_id)
+                # Only remap if segment ID is <= 0 (shouldn't happen, but be safe)
+                if seg_id <= 0:
+                    segment_id_to_instance_id[seg_id] = next_instance_id
+                    next_instance_id += 1
+            else:
+                num_stuff_segments += 1
 
+        # Second pass: optimized remapping using segment IDs directly if possible
+        if len(thing_seg_ids) > 0:
+            # Use segment IDs directly if they're all > 0 (most common case)
+            if len(segment_id_to_instance_id) == 0:
+                # All segment IDs are > 0, use them directly - no remapping needed!
+                instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
+                # Use vectorized assignment for all thing segments at once
+                thing_mask = np.isin(panoptic_np, thing_seg_ids)
+                instance_ids[thing_mask] = panoptic_np[thing_mask]
+            else:
+                # Some segment IDs need remapping (seg_id <= 0)
+                # Find max segment ID to determine lookup table size
+                max_seg_id = int(panoptic_np.max()) if panoptic_np.size > 0 else 0
+                max_seg_id = max(max_seg_id, max(thing_seg_ids))
+
+                # Create lookup table: lookup[seg_id] = instance_id, default 0 (background)
+                # Use int32 to match panoptic_np dtype
+                lookup = np.zeros(max_seg_id + 1, dtype=np.int32)
+                # First, copy valid segment IDs (> 0) directly
+                for seg_id in thing_seg_ids:
+                    if seg_id > 0:
+                        lookup[seg_id] = np.int32(seg_id)
+                # Then, remap problematic ones (<= 0)
+                for seg_id, instance_id in segment_id_to_instance_id.items():
+                    lookup[seg_id] = np.int32(instance_id)
+
+                # Vectorized remapping: single pass through image using advanced indexing
+                instance_ids = lookup[panoptic_np]
+
+        # Debug logging when instances are not available
+        if num_thing_segments == 0 and kVerboseInstanceSegmentation:
+            SemanticSegmentationBase.print(
+                f"EOV-Seg: _panoptic_to_instances: No instances found. "
+                f"Total segments: {len(segments_info)}, "
+                f"Thing segments: {num_thing_segments}, "
+                f"Stuff segments: {num_stuff_segments}, "
+                f"Missing 'isthing' field: {num_missing_isthing}"
+            )
+            SemanticSegmentationBase.print(
+                f"EOV-Seg: NOTE: This is expected when all segments are 'stuff' classes "
+                f"(background regions like walls, floors, sky, etc.). "
+                f"Only 'thing' classes (objects like person, car, chair) have instance IDs."
+            )
+            if metadata is not None:
+                SemanticSegmentationBase.print(
+                    f"EOV-Seg: Metadata available - "
+                    f"thing_dataset_id_to_contiguous_id: {hasattr(metadata, 'thing_dataset_id_to_contiguous_id')}, "
+                    f"thing_classes: {hasattr(metadata, 'thing_classes')}"
+                )
+                if hasattr(metadata, "thing_dataset_id_to_contiguous_id"):
+                    SemanticSegmentationBase.print(
+                        f"EOV-Seg: thing_category_ids from metadata: {thing_category_ids}"
+                    )
+                if hasattr(metadata, "thing_classes"):
+                    SemanticSegmentationBase.print(
+                        f"EOV-Seg: num_thing_classes from metadata: {num_thing_classes}"
+                    )
+            else:
+                SemanticSegmentationBase.print(
+                    "EOV-Seg: No metadata available for fallback checking"
+                )
+        elif num_thing_segments > 0 and kVerboseInstanceSegmentation:
+            SemanticSegmentationBase.print(
+                f"EOV-Seg: _panoptic_to_instances: Successfully extracted {num_thing_segments} instances "
+                f"from {len(segments_info)} total segments"
+            )
+
+        # Return None if no instances were found (all segments are stuff classes)
+        # Return array with contiguous instance IDs if instances are found
         return instance_ids
 
     def _panoptic_to_semantic(self, panoptic_seg, segments_info):

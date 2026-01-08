@@ -70,9 +70,22 @@ kDataFolder = kRootFolder + "/data"
 
 
 class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
-    def __init__(self, camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs):
+    def __init__(
+        self,
+        camera,
+        environment_type,
+        sensor_type,
+        volumetric_integrator_type,
+        viewer_queue,
+        **kwargs,
+    ):
         super().__init__(
-            camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs
+            camera,
+            environment_type,
+            sensor_type,
+            volumetric_integrator_type,
+            viewer_queue,
+            **kwargs,
         )
 
     def init(
@@ -130,6 +143,7 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
         q_out,
         q_out_condition,
         q_management,
+        viewer_queue,
         is_running,
         load_request_completed,
         load_request_condition,

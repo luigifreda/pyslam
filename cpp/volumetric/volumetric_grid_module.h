@@ -964,8 +964,8 @@ void bind_volumetric_grid(py::module &m) {
         .def(py::init<>())
         .def_readwrite("points", &volumetric::VoxelGridData::points, "Returns the points")
         .def_readwrite("colors", &volumetric::VoxelGridData::colors, "Returns the colors")
-        .def_readwrite("instance_ids", &volumetric::VoxelGridData::instance_ids,
-                       "Returns the instance IDs")
+        .def_readwrite("object_ids", &volumetric::VoxelGridData::object_ids,
+                       "Returns the object IDs")
         .def_readwrite("class_ids", &volumetric::VoxelGridData::class_ids, "Returns the class IDs")
         .def_readwrite("confidences", &volumetric::VoxelGridData::confidences,
                        "Returns the confidences")

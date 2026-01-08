@@ -3,16 +3,16 @@
 <!-- TOC -->
 
 - [System Overview](#system-overview)
-  - [SLAM Workflow and Components](#slam-workflow-and-components)
-  - [Main SLAM System Components](#main-slam-system-components)
-    - [Feature Tracker](#feature-tracker)
-    - [Feature Matcher](#feature-matcher)
-    - [Loop Detector](#loop-detector)
-    - [Depth Estimator](#depth-estimator)
-    - [Volumetric Integrator](#volumetric-integrator)
-    - [Semantic Mapping](#semantic-mapping)
-  - [C++ Core for Sparse SLAM](#c-core-for-sparse-slam)
-  - [Scene from Views](#scene-from-views)
+    - [1. SLAM Workflow and Components](#1-slam-workflow-and-components)
+    - [2. Main SLAM System Components](#2-main-slam-system-components)
+        - [2.1. Feature Tracker](#21-feature-tracker)
+        - [2.2. Feature Matcher](#22-feature-matcher)
+        - [2.3. Loop Detector](#23-loop-detector)
+        - [2.4. Depth Estimator](#24-depth-estimator)
+        - [2.5. Volumetric Integrator](#25-volumetric-integrator)
+        - [2.6. Semantic Mapping](#26-semantic-mapping)
+    - [3. C++ Core for Sparse SLAM](#3-c-core-for-sparse-slam)
+    - [4. Scene from Views](#4-scene-from-views)
 
 <!-- /TOC -->
 
@@ -160,7 +160,7 @@ This paper provides a presentation of the first version of sparse semantic mappi
 
 ## C++ Core for Sparse SLAM
 
-The system provides a modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The C++ core reimplements the sparse SLAM initially implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11.
+The system provides a modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes. The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11.
 
 The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible. To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`.
 

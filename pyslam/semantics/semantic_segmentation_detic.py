@@ -445,6 +445,7 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             pass
 
         # Last resort: probe with a dummy image
+        # Note: This can potentially hang if the model isn't ready, but we catch exceptions
         try:
             dummy_image = np.zeros((100, 100, 3), dtype=np.uint8)
             with torch.no_grad():
@@ -465,13 +466,15 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
                             else 1
                         )
         except Exception as e:
-            Printer.red(f"SemanticSegmentationDetic: Failed to get number of classes: {e}")
+            Printer.yellow(
+                f"SemanticSegmentationDetic: Failed to probe number of classes: {e}, using fallback"
+            )
 
-        # Default fallback
+        # Default fallback - use a reasonable default for LVIS (common DETIC vocabulary)
         Printer.yellow(
-            "SemanticSegmentationDetic: Could not determine number of classes, using default"
+            "SemanticSegmentationDetic: Could not determine number of classes, using default 1203 (LVIS)"
         )
-        return 1000  # Common default for LVIS-like datasets
+        return 1203  # LVIS has 1203 classes, which is a common use case for DETIC
 
     @torch.no_grad()
     def infer(self, image):
@@ -718,23 +721,62 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             segments_info: List of dicts with segment information
 
         Returns:
-            instance_ids: numpy array of shape [H, W] with instance IDs (0 for background/stuff)
+            instance_ids: numpy array of shape [H, W] with instance IDs (0 for background/stuff),
+                         or None if no instances are found
         """
         panoptic_np = panoptic_seg.cpu().numpy()
-        instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
 
-        # Map segment IDs to instance IDs
-        # For panoptic segmentation, each segment is a unique instance
-        # We use the segment ID as the instance ID
+        # Map segment IDs to instance IDs (> 0 for actual instances, 0 for background/stuff)
+        # We only need instance IDs > 0, not necessarily contiguous
+        # Collect thing segment IDs that need remapping (if seg_id <= 0)
+        segment_id_to_instance_id = {}
+        next_instance_id = 1  # Start from 1 (0 is reserved for background/stuff)
+        thing_seg_ids = []  # Track all thing segment IDs
+
+        # First pass: identify all thing segments
         for seg_info in segments_info:
             seg_id = seg_info["id"]
             # Only assign instance IDs to "thing" classes (instances)
             # "stuff" classes (background regions) remain 0
             is_thing = seg_info.get("isthing", False)
             if is_thing:
-                mask = panoptic_np == seg_id
-                # Explicitly cast to int32 to prevent overflow and ensure C++ compatibility
-                instance_ids[mask] = np.int32(seg_id)
+                thing_seg_ids.append(seg_id)
+                # Only remap if segment ID is <= 0 (shouldn't happen, but be safe)
+                if seg_id <= 0:
+                    segment_id_to_instance_id[seg_id] = next_instance_id
+                    next_instance_id += 1
+
+        # Return None if no instances were found (all segments are stuff classes)
+        if len(thing_seg_ids) == 0:
+            return None
+
+        # Optimized remapping: use segment IDs directly if they're all > 0
+        # Otherwise, remap only the problematic ones
+        if len(segment_id_to_instance_id) == 0:
+            # All segment IDs are > 0, use them directly - no remapping needed!
+            instance_ids = np.zeros_like(panoptic_np, dtype=np.int32)
+            # Use vectorized assignment for all thing segments at once
+            thing_mask = np.isin(panoptic_np, thing_seg_ids)
+            instance_ids[thing_mask] = panoptic_np[thing_mask]
+        else:
+            # Some segment IDs need remapping (seg_id <= 0)
+            # Find max segment ID to determine lookup table size
+            max_seg_id = int(panoptic_np.max()) if panoptic_np.size > 0 else 0
+            max_seg_id = max(max_seg_id, max(thing_seg_ids))
+
+            # Create lookup table: lookup[seg_id] = instance_id, default 0 (background)
+            # Use int32 to match panoptic_np dtype
+            lookup = np.zeros(max_seg_id + 1, dtype=np.int32)
+            # First, copy valid segment IDs (> 0) directly
+            for seg_id in thing_seg_ids:
+                if seg_id > 0:
+                    lookup[seg_id] = seg_id
+            # Then, remap problematic ones (<= 0)
+            for seg_id, instance_id in segment_id_to_instance_id.items():
+                lookup[seg_id] = instance_id
+
+            # Vectorized remapping: single pass through image using advanced indexing
+            instance_ids = lookup[panoptic_np]
 
         return instance_ids
 
@@ -747,13 +789,14 @@ class SemanticSegmentationDetic(SemanticSegmentationBase):
             image_shape: (height, width) of the image
 
         Returns:
-            instance_ids: numpy array of shape [H, W] with instance IDs (0 for background)
+            instance_ids: numpy array of shape [H, W] with instance IDs (0 for background),
+                         or None if no instances are found
         """
+        if not hasattr(instances, "pred_masks") or len(instances) == 0:
+            return None
+
         H, W = image_shape
         instance_ids = np.zeros((H, W), dtype=np.int32)
-
-        if not hasattr(instances, "pred_masks") or len(instances) == 0:
-            return instance_ids
 
         # Get masks
         masks = instances.pred_masks.cpu().numpy()  # Shape: [N, H, W]

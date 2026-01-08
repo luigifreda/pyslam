@@ -23,11 +23,14 @@
 #include <pybind11/functional.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+
+// CRITICAL: Include opaque types BEFORE stl.h to ensure opaque declarations take effect
+#include "casters/slam_opaque_types.h" // for SLAM container opaque types
+
 #include <pybind11/stl.h>
 
 #include "casters/dictionary_casters.h" // for Dict, List
 #include "casters/opencv_type_casters.h"
-#include "casters/slam_opaque_types.h" // for SLAM container opaque types
 
 #include "dictionary.h"
 #include "py_module/camera_module.h"
@@ -62,13 +65,17 @@ PYBIND11_MODULE(cpp_core, m) {
     // These containers can be optionally declared opaque in casters/slam_opaque_types.h
     // to avoid copying when passing between C++ and Python, and to enable
     // mutations in Python to be reflected in C++. However, it seems enabling opaque breaks smooth
-    // interoperation between C++ and Python. At present, we leave it disabled.
+    // interoperation between C++ and Python. At present, we leave it disabled
+    // (ENABLE_OPAQUE_TYPES=0).
     //
     // KeyFramePtr and MapPointPtr vectors are heavily used in:
     // - Bundle adjustment and optimization functions
     // - Loop closure operations
     // - Map point projection and matching
     // - Return values from covisibility queries
+    //
+    // Note: If enabled, opaque types would provide significant performance benefits
+    // for large vectors, but may break existing Python code that expects list-like behavior.
 
     py::bind_vector<std::vector<pyslam::KeyFramePtr>>(m, "KeyFramePtrVector");
     py::bind_vector<std::vector<pyslam::MapPointPtr>>(m, "MapPointPtrVector");

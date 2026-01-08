@@ -21,8 +21,30 @@
 from pyslam.utilities.serialization import SerializableEnum, register_class
 
 
-# Panoptic/instance: DETIC, ODISE, EOV_SEG
-# Semantic only: DEEPLABV3, SEGFORMER, CLIP
+# - Panoptic/instance: DETIC, ODISE, EOV_SEG
+#   * DETIC: Object detection-based (CenterNet2 + CLIP), supports large vocabularies (LVIS/COCO/OpenImages/Objects365).
+#            Architecture: Object detector (CenterNet2) detects individual objects first, then segments each detection.
+#            Can output both "instances" (direct instance segmentation) and "panoptic_seg" formats.
+#            Instance extraction: Direct from object detections - each detected object = one instance ID.
+#            Result: Robust instance segmentation - each detected object gets a unique instance ID, even for multiple
+#            objects of the same category (e.g., two pillows = two separate instances).
+#   * ODISE: Diffusion-based panoptic segmentation, leverages diffusion models for segmentation.
+#            Architecture: Panoptic segmentation model that segments image into regions first, then classifies regions.
+#            Only outputs "panoptic_seg" format - instances extracted from panoptic segments via "isthing" flag.
+#            Instance extraction: Derived from panoptic segments - one segment may contain multiple objects if model
+#            groups them together (e.g., spatially connected objects of same category).
+#            Result: Instance segmentation may merge multiple objects of the same category into a single instance
+#            (e.g., two pillows may be detected as one "pillow" instance).
+#   * EOV_SEG: Dual-backbone (CNN + ViT) with CLIP, text-prompt driven open vocabulary.
+#            Architecture: Panoptic segmentation model (similar to ODISE) - segments image into regions first.
+#            Only outputs "panoptic_seg" format - instances extracted from panoptic segments via "isthing" flag.
+#            Instance extraction: Same as ODISE - derived from panoptic segments, may group multiple objects.
+#            Result: Similar to ODISE, instance segmentation may group multiple objects of the same category together
+#            (e.g., two pillows may be detected as one "pillow" instance).
+# - Semantic segmentation only:
+#   * DEEPLABV3: Semantic segmentation model from torchvision DeepLab's v3.
+#   * SEGFORMER: Semantic segmentation model from transformer's Segformer.
+#   * CLIP: uses CLIP patch embeddings + text similarity to produce labels/probabilities (it is not a dedicated "segmentation head").
 @register_class
 class SemanticSegmentationType(SerializableEnum):
     DEEPLABV3 = 0  # Semantics from torchvision DeepLab's v3 [Semantic only:]

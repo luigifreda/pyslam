@@ -80,9 +80,22 @@ kDataFolder = kRootFolder + "/data"
 
 
 class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
-    def __init__(self, camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs):
+    def __init__(
+        self,
+        camera,
+        environment_type,
+        sensor_type,
+        volumetric_integrator_type,
+        viewer_queue,
+        **kwargs,
+    ):
         super().__init__(
-            camera, environment_type, sensor_type, volumetric_integrator_type, **kwargs
+            camera,
+            environment_type,
+            sensor_type,
+            volumetric_integrator_type,
+            viewer_queue,
+            **kwargs,
         )
 
     def init(
@@ -189,6 +202,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
         q_out,
         q_out_condition,
         q_management,
+        viewer_queue,
         is_running,
         load_request_completed,
         load_request_condition,
@@ -234,7 +248,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         )
 
                         if not Parameters.kVolumetricSemanticIntegrationUseInstanceIds:
-                            # NOTE: we set instance_ids to None here since we are not going to use them for volumetric integration
+                            # NOTE: we set object_ids to None here since we are not going to use them for volumetric integration
                             keyframe_data.semantic_instances_img = None
 
                         VolumetricIntegratorBase.print(
@@ -298,7 +312,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                         f"\t\tsemantic_instances_undistorted: shape: {semantic_instances_undistorted.shape}, type: {semantic_instances_undistorted.dtype}"
                                     )
 
-                            use_instance_ids = (
+                            integrate_2d_instance_ids = (
                                 Parameters.kVolumetricSemanticIntegrationUseInstanceIds
                                 and semantic_instances_undistorted is not None
                             )
@@ -317,9 +331,9 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             self.camera_frustrum.set_T_cw(pose)
 
                             object_ids_image = None
-                            if use_instance_ids:
+                            if integrate_2d_instance_ids:
                                 # Assign object IDs to instance IDs and perform carving if needed
-                                object_ids_to_instance_ids = self.volume.assign_object_ids_to_instance_ids(
+                                map_instance_ids_to_object_ids = self.volume.assign_object_ids_to_instance_ids(
                                     self.camera_frustrum,
                                     semantic_undistorted,
                                     semantic_instances_undistorted,
@@ -331,7 +345,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 )
                                 # Remap the 2D instance image according to the object IDs to instance IDs map
                                 object_ids_image = remap_instance_ids(
-                                    semantic_instances_undistorted, object_ids_to_instance_ids
+                                    semantic_instances_undistorted, map_instance_ids_to_object_ids
                                 )
                             else:
                                 # perform carving if needed
@@ -361,7 +375,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 cy,
                                 self.volumetric_integration_depth_trunc,
                                 semantic_image=semantic_undistorted,
-                                instance_image=object_ids_image,
+                                object_ids_image=object_ids_image,
                             )
 
                             if Parameters.kVolumetricSemanticProbabilisticIntegrationUseDepth:
@@ -402,20 +416,20 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 semantics = None
 
                             if (
-                                point_cloud.instance_ids is not None
-                                and point_cloud.instance_ids.size > 0
+                                point_cloud.object_ids is not None
+                                and point_cloud.object_ids.size > 0
                             ):
-                                instance_ids = np.ascontiguousarray(
-                                    point_cloud.instance_ids, dtype=np.int32
+                                object_ids = np.ascontiguousarray(
+                                    point_cloud.object_ids, dtype=np.int32
                                 )
                             else:
-                                instance_ids = None
+                                object_ids = None
 
                             self.volume.integrate(
                                 points,
                                 colors,
                                 class_ids=semantics,  # class_ids (optional, can be None)
-                                instance_ids=instance_ids,
+                                instance_ids=object_ids,
                                 depths=depths,  # used to compute confidence weights for semantics
                             )
 
@@ -442,7 +456,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         points = np.asarray(voxel_grid_data.points, dtype=np.float64)
                         colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
                         semantics = np.asarray(voxel_grid_data.class_ids, dtype=np.int32)
-                        instance_ids = np.asarray(voxel_grid_data.instance_ids, dtype=np.int32)
+                        object_ids = np.asarray(voxel_grid_data.object_ids, dtype=np.int32)
                         # check if points and colors are not empty
                         if len(points) > 0 and len(colors) > 0:
                             point_cloud_o3d = o3d.geometry.PointCloud()
@@ -477,9 +491,9 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             if len(voxel_grid_data.class_ids) > 0
                             else None
                         )
-                        instance_ids = (
-                            np.ascontiguousarray(voxel_grid_data.instance_ids, dtype=np.int32)
-                            if len(voxel_grid_data.instance_ids) > 0
+                        object_ids = (
+                            np.ascontiguousarray(voxel_grid_data.object_ids, dtype=np.int32)
+                            if len(voxel_grid_data.object_ids) > 0
                             else None
                         )
                         semantic_colors = (
@@ -492,19 +506,19 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             and SemanticMappingShared.is_semantic_mapping_enabled()
                             else None
                         )
-                        is_draw_object_colors = None
-                        if instance_ids is not None and len(instance_ids) > 0:
+                        object_colors = None
+                        if object_ids is not None and len(object_ids) > 0:
                             try:
                                 # Generate instance colors using IdsColorTable instance
                                 instance_colors_rgb = self.ids_color_table.ids_to_rgb(
-                                    instance_ids, bgr=True
+                                    object_ids, bgr=True
                                 )
                                 if instance_colors_rgb is not None and instance_colors_rgb.size > 0:
                                     # Verify shape matches points
                                     if len(
                                         instance_colors_rgb.shape
                                     ) == 2 and instance_colors_rgb.shape[0] == len(points):
-                                        is_draw_object_colors = (
+                                        object_colors = (
                                             np.ascontiguousarray(
                                                 instance_colors_rgb, dtype=np.float32
                                             )
@@ -519,7 +533,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                     VolumetricIntegratorBase.print(
                                         f"\t traceback details: {traceback_details}"
                                     )
-                                is_draw_object_colors = None
+                                object_colors = None
 
                         # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
                         # colors = np.clip(colors, 0.0, 1.0)
@@ -527,31 +541,31 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             points=points,
                             colors=colors,
                             semantics=semantics,
-                            instance_ids=instance_ids,
+                            object_ids=object_ids,
                             semantic_colors=semantic_colors,
-                            is_draw_object_colors=is_draw_object_colors,
+                            object_colors=object_colors,
                         )
                         VolumetricIntegratorBase.print(
                             f"VolumetricIntegratorVoxelSemanticGrid: id: {self.last_integrated_id} -> PointCloud: points: {pc_out.points.shape}"
                         )
-                        if semantic_colors is not None or instance_ids is not None:
+                        if semantic_colors is not None or object_ids is not None:
                             semantic_colors_string = (
                                 f"semantic_colors: {semantic_colors.shape}, type: {semantic_colors.dtype}"
                                 if semantic_colors is not None
                                 else "None"
                             )
                             instance_colors_string = (
-                                f"is_draw_object_colors: {is_draw_object_colors.shape}, type: {is_draw_object_colors.dtype}"
-                                if is_draw_object_colors is not None
+                                f"object_colors: {object_colors.shape}, type: {object_colors.dtype}"
+                                if object_colors is not None
                                 else "None"
                             )
-                            instance_ids_string = (
-                                f"instance_ids: {instance_ids.shape}, min: {instance_ids.min()}, max: {instance_ids.max()}"
-                                if instance_ids is not None and len(instance_ids) > 0
-                                else f"instance_ids: {instance_ids}"
+                            object_ids_string = (
+                                f"object_ids: {object_ids.shape}, min: {object_ids.min()}, max: {object_ids.max()}"
+                                if object_ids is not None and len(object_ids) > 0
+                                else f"object_ids: {object_ids}"
                             )
                             VolumetricIntegratorBase.print(
-                                f"VolumetricIntegratorVoxelSemanticGrid: {semantic_colors_string}, {instance_colors_string}, {instance_ids_string}"
+                                f"VolumetricIntegratorVoxelSemanticGrid: {semantic_colors_string}, {instance_colors_string}, {object_ids_string}"
                             )
 
                         last_output = VolumetricIntegrationOutput(
@@ -579,6 +593,12 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 VolumetricIntegratorBase.print(
                                     f"VolumetricIntegratorVoxelSemanticGrid: pushed new output to q_out size: {q_out.qsize()}"
                                 )
+                            # if viewer_queue is not None:
+                            #     last_output.timestamp = time.perf_counter()
+                            #     VolumetricIntegratorBase.print(
+                            #         f"VolumetricIntegratorVoxelSemanticGrid: pushed new output to q_out size: {q_out.qsize()}"
+                            #     )
+                            #     self.draw_output(last_output)
                         elif last_output.task_type == VolumetricIntegrationTaskType.SAVE:
                             with save_request_condition:
                                 save_request_completed.value = 1

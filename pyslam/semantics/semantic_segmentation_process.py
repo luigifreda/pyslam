@@ -141,9 +141,37 @@ class SemanticSegmentationProcess:
         print(
             "SemanticMappingDenseProcess: waiting for semantic segmentation process to be ready..."
         )
+        timeout = float("inf")
+        start_time = time.time()
         with self.q_shared_data_condition:
             while self.q_shared_data.empty():
-                self.q_shared_data_condition.wait()
+                elapsed = time.time() - start_time
+                if elapsed > timeout:
+                    # Check if process is still alive
+                    if hasattr(self, "process") and not self.process.is_alive():
+                        exit_code = self.process.exitcode
+                        raise RuntimeError(
+                            f"Semantic segmentation process died during initialization "
+                            f"(exit code: {exit_code}). Check logs for errors."
+                        )
+                    raise TimeoutError(
+                        f"Timeout waiting for semantic segmentation process to initialize "
+                        f"(waited {elapsed:.1f}s). The process may be stuck during model initialization. "
+                        f"Process is {'alive' if (hasattr(self, 'process') and self.process.is_alive()) else 'not alive'}."
+                    )
+                # Use timeout to periodically check and print status
+                self.q_shared_data_condition.wait(timeout=5.0)
+                if self.q_shared_data.empty():
+                    elapsed = time.time() - start_time
+                    process_status = (
+                        "alive"
+                        if (hasattr(self, "process") and self.process.is_alive())
+                        else "not alive"
+                    )
+                    print(
+                        f"Still waiting for semantic segmentation initialization... "
+                        f"({elapsed:.1f}s elapsed, process is {process_status})"
+                    )
             shared_data = self.q_shared_data.get()
             self._num_classes = shared_data["num_classes"]
             self._text_embs = shared_data["text_embs"]
@@ -570,6 +598,11 @@ class SemanticSegmentationProcess:
                 "sim_scale": 1.0,
             }
 
+        SemanticSegmentationBase.print(
+            f"SemanticSegmentationProcess.init: About to put data into q_shared_data "
+            f"(num_classes={semantic_segmentation_shared_data['num_classes']}, "
+            f"color_map is {'not ' if shared_color_map is None else ''}None)"
+        )
         with q_shared_data_condition:
             q_shared_data.put(
                 {
@@ -579,7 +612,11 @@ class SemanticSegmentationProcess:
                     "color_map_params": color_map_params,
                 }
             )
+            SemanticSegmentationBase.print(
+                "SemanticSegmentationProcess.init: Data put into q_shared_data, notifying..."
+            )
             q_shared_data_condition.notify_all()
+            SemanticSegmentationBase.print("SemanticSegmentationProcess.init: Notification sent")
 
     # main loop of the semantic segmentation process
     def run(
@@ -611,8 +648,15 @@ class SemanticSegmentationProcess:
             q_shared_data,
             q_shared_data_condition,
         )
+        # Use semantic_segmentation.num_classes() instead of self.num_classes()
+        # because self._num_classes is only set in the main process
+        num_classes_val = (
+            self.semantic_segmentation.num_classes()
+            if hasattr(self.semantic_segmentation, "num_classes")
+            else None
+        )
         SemanticSegmentationBase.print(
-            f"SemanticSegmentationProcess: initialized with num_classes: {self.num_classes()}"
+            f"SemanticSegmentationProcess: initialized with num_classes: {num_classes_val}"
         )
 
         # Set up signal handler for graceful shutdown

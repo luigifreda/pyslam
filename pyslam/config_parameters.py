@@ -281,7 +281,7 @@ class Parameters:
     # kVolumetricIntegrationType: "VOXEL_GRID",
     #                             "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID", (to be used with semantic mapping activated)
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py and cpp/volumetric/README.md)
-    kVolumetricIntegrationType = "VOXEL_GRID"
+    kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
     kVolumetricIntegrationExtractMesh = (
         False  # Extract mesh or point cloud as output; only for TSDF
@@ -348,7 +348,7 @@ class Parameters:
     )
     kVolumetricSemanticProbabilisticIntegrationDepthDecayRateOutdoor = 0.05  # [1/m] depth decay rate for updating semantics with depth (less aggressive decay rate than indoor)
     kVolumetricSemanticIntegrationUseInstanceIds = (
-        True  # Use instance IDs for semantic integration.
+        True  # Use image instance IDs for 3D semantic integration.
     )
     kVolumetricSemanticIntegrationMinVoteRatio = 0.5  # Minimum vote ratio for semantic integration.
     kVolumetricSemanticIntegrationMinVotes = 3  # Minimum votes for semantic integration.

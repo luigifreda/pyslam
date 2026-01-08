@@ -20,6 +20,10 @@
 #include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+
+// CRITICAL: Include opaque types BEFORE stl.h to ensure opaque declarations take effect
+#include "volumetric_opaque_types.h"
+
 #include <pybind11/stl.h>
 
 #include "bounding_boxes_module.h"
@@ -30,6 +34,24 @@
 
 PYBIND11_MODULE(volumetric, m) {
     m.doc() = "PYSLAM Volumetric Module - Volumetric Mapping";
+
+    // ------------------------------------------------------------
+    // Volumetric-specific opaque containers
+    //
+    // These containers are declared opaque (see volumetric_opaque_types.h)
+    // to avoid copying when passing between C++ and Python, and to enable
+    // mutations in Python to be reflected in C++. This provides significant
+    // performance benefits for large point clouds.
+
+    py::bind_vector<std::vector<std::array<double, 3>>>(m, "PointDoubleVector");
+    py::bind_vector<std::vector<std::array<float, 3>>>(m, "ColorFloatVector");
+
+    py::bind_vector<std::vector<volumetric::OrientedBoundingBox3D>>(m,
+                                                                    "OrientedBoundingBox3DVector");
+    py::bind_vector<std::vector<volumetric::BoundingBox3D>>(m, "BoundingBox3DVector");
+
+    py::bind_vector<std::vector<int>>(m, "IntVector");
+    py::bind_vector<std::vector<bool>>(m, "BoolVector");
 
     // ----------------------------------------
     // TBB Utils

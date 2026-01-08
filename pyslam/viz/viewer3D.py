@@ -375,15 +375,17 @@ class Viewer3D(object):
         self.gt_timestamps = None
         self.align_gt_with_scale = False
 
-        # TODO(dvdmc): to customize the visualization from the UI, we need to create mp variables accesible from the refresh to the viewer thread
+        # TODO(dvdmc): to customize the semantic visualization from the UI, we need to create mp variables accesible from the refresh to the viewer thread
         # We would need a query word and a heatmap scale.
 
         # NOTE: We use the MultiprocessingManager to manage queues and avoid pickling problems with multiprocessing.
         self.mp_manager = MultiprocessingManager()
-        self.qmap = self.mp_manager.Queue()
-        self.qvo = self.mp_manager.Queue()
-        self.qdense = self.mp_manager.Queue()
-        self.qcams = self.mp_manager.Queue()
+        self.qmap = self.mp_manager.Queue()  # used to pass sparse map data to the viewer thread
+        self.qvo = self.mp_manager.Queue()  # used to pass VO data to the viewer thread
+        self.qdense = self.mp_manager.Queue()  # used to pass dense map data to the viewer thread
+        self.qcams = (
+            self.mp_manager.Queue()
+        )  # used to pass cameras and their poses to the viewer thread
 
         self._is_running = mp.Value("i", 0)
         self._is_looping = mp.Value("i", 0)
@@ -499,6 +501,14 @@ class Viewer3D(object):
         #     self.trajectory_aligner.join()
         if self.trajectory_aligner:
             self.trajectory_aligner.quit()
+
+        # Shutdown the manager AFTER threads/processes have exited
+        if hasattr(self, "mp_manager") and self.mp_manager is not None:
+            try:
+                self.mp_manager.shutdown()
+            except Exception as e:
+                print(f"Warning: Error shutting down manager: {e}")
+
         # pangolin.Quit()
         print("Viewer3D: done")
 
@@ -1062,9 +1072,13 @@ class Viewer3D(object):
                     pc_points = self.dense_state.point_cloud[0]
                     pc_colors = self.dense_state.point_cloud[1]
                     pc_semantic_colors = self.dense_state.point_cloud[2]
+                    pc_object_colors = self.dense_state.point_cloud[3]
                     gl.glPointSize(self.densePointSize)
-                    if self.is_draw_semantic_colors and pc_semantic_colors is not None:
-                        glutils.DrawPoints(pc_points, pc_semantic_colors)
+                    if self.is_draw_semantic_colors:
+                        if is_draw_object_colors.value == 1 and pc_object_colors is not None:
+                            glutils.DrawPoints(pc_points, pc_object_colors)
+                        elif pc_semantic_colors is not None:
+                            glutils.DrawPoints(pc_points, pc_semantic_colors)
                     else:
                         glutils.DrawPoints(pc_points, pc_colors)
 
@@ -1215,6 +1229,7 @@ class Viewer3D(object):
         if camera_images is None:
             camera_images = []
         dense_state = Viewer3DDenseInput()
+        dense_state.camera_images = camera_images
         if mesh is not None:
             dense_state.mesh = (
                 np.asarray(mesh.vertices),
@@ -1230,6 +1245,7 @@ class Viewer3D(object):
                 print(
                     f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
                 )
+                pass_only_one_semantic_color_array = False  # self.is_draw_object_colors()
                 semantic_colors = None
                 if hasattr(point_cloud, "semantic_colors"):
                     semantic_colors = (
@@ -1237,11 +1253,11 @@ class Viewer3D(object):
                         if point_cloud.semantic_colors is not None
                         else None
                     )
-                is_draw_object_colors = None
-                if hasattr(point_cloud, "is_draw_object_colors"):
-                    is_draw_object_colors = (
-                        np.asarray(point_cloud.is_draw_object_colors)
-                        if point_cloud.is_draw_object_colors is not None
+                object_colors = None
+                if hasattr(point_cloud, "object_colors"):
+                    object_colors = (
+                        np.asarray(point_cloud.object_colors)
+                        if point_cloud.object_colors is not None
                         else None
                     )
                 print(
@@ -1251,15 +1267,14 @@ class Viewer3D(object):
                     print(
                         f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
                     )
-                if self.is_draw_object_colors() and is_draw_object_colors is not None:
-                    # overwrite the semantic colors with the object colors
-                    # (to avoid sending both semantic and object colors to the viewer and we only need one)
-                    semantic_colors = is_draw_object_colors
-                dense_state.point_cloud = (points, colors, semantic_colors)
+                if pass_only_one_semantic_color_array:
+                    if self.is_draw_object_colors():
+                        semantic_colors = None
+                    else:
+                        object_colors = None
+                dense_state.point_cloud = (points, colors, semantic_colors, object_colors)
             else:
                 Printer.orange("WARNING: both point_cloud and mesh are None")
-
-        dense_state.camera_images = camera_images
 
         self.qdense.put(dense_state)
 
@@ -1269,8 +1284,8 @@ class Viewer3D(object):
 
         if self.gt_trajectory is not None:
             if not self._is_gt_set.value:
-                map_state.gt_trajectory = np.asarray(self.gt_trajectory, dtype=np.float64)
-                map_state.gt_timestamps = np.asarray(self.gt_timestamps, dtype=np.float64)
+                map_state.gt_trajectory = np.asarray(self.gt_trajectory)  # , dtype=np.float64)
+                map_state.gt_timestamps = np.asarray(self.gt_timestamps)  # , dtype=np.float64)
                 map_state.align_gt_with_scale = self.align_gt_with_scale
 
         self.qmap.put(map_state)
@@ -1297,7 +1312,7 @@ class Viewer3D(object):
             return
         vo_state = Viewer3DVoInput()
         vo_state.poses = np.asarray(vo.poses)
-        vo_state.pose_timestamps = np.asarray(vo.pose_timestamps, dtype=np.float64)
+        vo_state.pose_timestamps = np.asarray(vo.pose_timestamps)  # , dtype=np.float64)
         vo_state.traj3d_est = np.asarray(vo.traj3d_est).reshape(-1, 3)
         vo_state.traj3d_gt = np.asarray(vo.traj3d_gt).reshape(-1, 3)
 
@@ -1308,6 +1323,7 @@ class Viewer3D(object):
 
     @staticmethod
     def drawPlane(num_divs=200, div_size=10, scale=1.0):
+        # NOTE: Not used anymore, but kept for reference
         # min_width = gl.glGetFloatv(gl.GL_ALIASED_LINE_WIDTH_RANGE)[0]
         # max_width = gl.glGetFloatv(gl.GL_ALIASED_LINE_WIDTH_RANGE)[1]
         # print(f"Line width supported range: {min_width} - {max_width}")

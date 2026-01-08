@@ -237,6 +237,12 @@ class GlobalBundleAdjustment:
                 self.process.terminate()
             if self.use_multiprocessing:
                 empty_queue(self.q_message)
+                # Shutdown the manager AFTER the process has exited
+                if hasattr(self, "mp_manager") and self.mp_manager is not None:
+                    try:
+                        self.mp_manager.shutdown()
+                    except Exception as e:
+                        GlobalBundleAdjustment.print(f"Warning: Error shutting down manager: {e}")
             else:
                 self.q_message.clear()
             self._is_running.value = 0

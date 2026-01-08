@@ -1609,6 +1609,44 @@ def match_frames(f1: Frame, f2: Frame, ratio_test=None):
     return matching_result
 
 
+def _filter_keyframes_geometrically(
+    target_frame: Frame, other_frames: list, is_monocular: bool = True
+):
+    """
+    Fast geometric pre-filtering to skip keyframes unlikely to produce good matches.
+    This avoids expensive descriptor matching for keyframes with poor viewing geometry.
+
+    Returns:
+        List of keyframes that pass geometric checks
+    """
+    from pyslam.config_parameters import Parameters
+
+    filtered_frames = []
+    O1w = target_frame.Ow()
+
+    for kf in other_frames:
+        if kf is target_frame or kf.is_bad():
+            continue
+
+        O2w = kf.Ow()
+        baseline = np.linalg.norm(O1w - O2w)
+
+        # For monocular: check baseline/depth ratio (similar to triangulation check)
+        if is_monocular:
+            median_depth = kf.compute_points_median_depth()
+            if median_depth == -1:
+                median_depth = target_frame.compute_points_median_depth()
+            if median_depth > 0:
+                ratio_baseline_depth = baseline / median_depth
+                # Skip if baseline is too small relative to depth (poor triangulation)
+                if ratio_baseline_depth < Parameters.kMinRatioBaselineDepth:
+                    continue
+
+        filtered_frames.append(kf)
+
+    return filtered_frames
+
+
 def compute_frame_matches_threading(
     target_frame: Frame,
     other_frames: list,
@@ -1616,23 +1654,75 @@ def compute_frame_matches_threading(
     max_workers=2,
     ratio_test=None,
     print_fun=None,
+    is_monocular: bool = True,
 ):
-    # do parallell computation using multithreading
-    def thread_match_function(kf_pair):
-        kf1, kf2 = kf_pair
-        matching_result = FeatureTrackerShared.feature_matcher.match(
-            kf1.img, kf2.img, kf1.des, kf2.des, kps1=kf1.kps, kps2=kf2.kps, ratio_test=ratio_test
-        )
-        idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
-        match_idxs[(kf1, kf2)] = (np.array(idxs1), np.array(idxs2))
+    from concurrent.futures import as_completed
 
-    kf_pairs = [
-        (target_frame, kf) for kf in other_frames if kf is not target_frame and not kf.is_bad()
-    ]
+    def thread_match_function(kf_pair):
+        """Match function that returns results instead of writing to shared dict"""
+        kf1, kf2 = kf_pair
+        try:
+            matching_result = FeatureTrackerShared.feature_matcher.match(
+                kf1.img,
+                kf2.img,
+                kf1.des,
+                kf2.des,
+                kps1=kf1.kps,
+                kps2=kf2.kps,
+                ratio_test=ratio_test,
+            )
+            idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
+            # Convert to numpy arrays only once, avoid unnecessary copies
+            if idxs1 is not None and len(idxs1) > 0:
+                idxs1 = np.asarray(idxs1, dtype=np.int32)
+            else:
+                idxs1 = np.array([], dtype=np.int32)
+            if idxs2 is not None and len(idxs2) > 0:
+                idxs2 = np.asarray(idxs2, dtype=np.int32)
+            else:
+                idxs2 = np.array([], dtype=np.int32)
+            return (kf1, kf2), (idxs1, idxs2)
+        except Exception as e:
+            if print_fun is not None:
+                print_fun(
+                    f"compute_frame_matches_threading: error matching {kf1.id} vs {kf2.id}: {e}"
+                )
+            return (kf1, kf2), (np.array([], dtype=np.int32), np.array([], dtype=np.int32))
+
+    # Geometric pre-filtering: skip keyframes with poor viewing geometry
+    # This is much faster than descriptor matching and can eliminate many candidates
+    geometrically_valid_frames = _filter_keyframes_geometrically(
+        target_frame, other_frames, is_monocular=is_monocular
+    )
+
+    kf_pairs = [(target_frame, kf) for kf in geometrically_valid_frames]
+
+    if len(kf_pairs) == 0:
+        return match_idxs
+
+    # Use as_completed for better parallelization - process results as they finish
+    # This allows better load balancing and reduces waiting time
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        executor.map(
-            thread_match_function, kf_pairs
-        )  # automatic join() at the end of the `width` block
+        # Submit all tasks
+        future_to_pair = {executor.submit(thread_match_function, pair): pair for pair in kf_pairs}
+
+        # Process results as they complete (better than waiting for all)
+        for future in as_completed(future_to_pair):
+            try:
+                (kf1, kf2), (idxs1, idxs2) = future.result()
+                match_idxs[(kf1, kf2)] = (idxs1, idxs2)
+            except Exception as e:
+                pair = future_to_pair[future]
+                if print_fun is not None:
+                    print_fun(
+                        f"compute_frame_matches_threading: exception for pair {pair[0].id} vs {pair[1].id}: {e}"
+                    )
+                # Store empty result on error
+                match_idxs[(pair[0], pair[1])] = (
+                    np.array([], dtype=np.int32),
+                    np.array([], dtype=np.int32),
+                )
+
     return match_idxs
 
 
@@ -1647,29 +1737,81 @@ def compute_frame_matches(
     max_workers=2,
     ratio_test=None,
     print_fun=None,
+    is_monocular: bool = True,
 ):
     timer = Timer()
-    # do_parallel = False # force disable
-    if not do_parallel:
-        # Do serial computation
-        for kf in other_frames:
-            if kf is target_frame or kf.is_bad():
-                continue
-            matching_result = FeatureTrackerShared.feature_matcher.match(
-                target_frame.img,
-                kf.img,
-                target_frame.des,
-                kf.des,
-                kps1=target_frame.kps,
-                kps2=kf.kps,
-                ratio_test=ratio_test,
+
+    # Early filtering: remove bad keyframes, self-reference, and invalid descriptors
+    valid_frames = [
+        kf
+        for kf in other_frames
+        if kf is not target_frame and not kf.is_bad() and kf.des is not None and len(kf.des) > 0
+    ]
+
+    if len(valid_frames) == 0:
+        if print_fun is not None:
+            print_fun(
+                f"compute_frame_matches: #compared pairs: 0, do_parallel: {do_parallel}, timing: {timer.elapsed()}"
             )
-            idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
-            match_idxs[(target_frame, kf)] = (idxs1, idxs2)
+        return match_idxs
+
+    # Geometric pre-filtering: skip keyframes with poor viewing geometry
+    # This is fast and can eliminate many candidates before expensive matching
+    geometrically_valid_frames = _filter_keyframes_geometrically(
+        target_frame, valid_frames, is_monocular=is_monocular
+    )
+
+    if len(geometrically_valid_frames) == 0:
+        if print_fun is not None:
+            print_fun(
+                f"compute_frame_matches: #compared pairs: 0 (all filtered by geometry), do_parallel: {do_parallel}, timing: {timer.elapsed()}"
+            )
+        return match_idxs
+
+    if not do_parallel:
+        # Do serial computation (optimized)
+        for kf in geometrically_valid_frames:
+            try:
+                matching_result = FeatureTrackerShared.feature_matcher.match(
+                    target_frame.img,
+                    kf.img,
+                    target_frame.des,
+                    kf.des,
+                    kps1=target_frame.kps,
+                    kps2=kf.kps,
+                    ratio_test=ratio_test,
+                )
+                idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2
+                # Convert to numpy arrays efficiently
+                if idxs1 is not None and len(idxs1) > 0:
+                    idxs1 = np.asarray(idxs1, dtype=np.int32)
+                else:
+                    idxs1 = np.array([], dtype=np.int32)
+                if idxs2 is not None and len(idxs2) > 0:
+                    idxs2 = np.asarray(idxs2, dtype=np.int32)
+                else:
+                    idxs2 = np.array([], dtype=np.int32)
+                match_idxs[(target_frame, kf)] = (idxs1, idxs2)
+            except Exception as e:
+                if print_fun is not None:
+                    print_fun(
+                        f"compute_frame_matches: error matching {target_frame.id} vs {kf.id}: {e}"
+                    )
+                match_idxs[(target_frame, kf)] = (
+                    np.array([], dtype=np.int32),
+                    np.array([], dtype=np.int32),
+                )
     else:
         match_idxs = compute_frame_matches_threading(
-            target_frame, other_frames, match_idxs, max_workers, ratio_test, print_fun
+            target_frame,
+            geometrically_valid_frames,
+            match_idxs,
+            max_workers,
+            ratio_test,
+            print_fun,
+            is_monocular=is_monocular,
         )
+
     if print_fun is not None:
         print_fun(
             f"compute_frame_matches: #compared pairs: {len(match_idxs)}, do_parallel: {do_parallel}, timing: {timer.elapsed()}"

@@ -181,17 +181,23 @@ MapInstanceIdToObjectId assign_object_ids_to_instance_ids(
 
         // For points without object_id, assign a new object_id based on the instance_id
         // All points from the same instance_id will get the same new object_id
+        // Special case: instance_id=0 (background) -> object_id=0 (no specific object)
         if (point_object_id < 0) {
-            // Check if we've already assigned a new object_id for this instance_id
-            auto it = instance_id_to_new_object_id.find(image_instance_id);
-            if (it == instance_id_to_new_object_id.end()) {
-                // First time seeing this instance_id without object_id - create a new object_id
-                const int new_obj_id = VoxelSemanticSharedData::get_next_object_id();
-                point_object_id = new_obj_id;
-                instance_id_to_new_object_id[image_instance_id] = new_obj_id;
+            if (image_instance_id == 0) {
+                // Background/stuff: object_id should be 0 (no specific object)
+                point_object_id = 0;
             } else {
-                // Reuse the existing new object_id for this instance_id
-                point_object_id = it->second;
+                // Check if we've already assigned a new object_id for this instance_id
+                auto it = instance_id_to_new_object_id.find(image_instance_id);
+                if (it == instance_id_to_new_object_id.end()) {
+                    // First time seeing this instance_id without object_id - create a new object_id
+                    const int new_obj_id = VoxelSemanticSharedData::get_next_object_id();
+                    point_object_id = new_obj_id;
+                    instance_id_to_new_object_id[image_instance_id] = new_obj_id;
+                } else {
+                    // Reuse the existing new object_id for this instance_id
+                    point_object_id = it->second;
+                }
             }
             v.set_object_id(point_object_id);
         }

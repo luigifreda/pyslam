@@ -32,9 +32,9 @@ struct VoxelGridData {
     std::vector<std::array<float, 3>> colors;
 
     // Semantic data (only populated if IncludeSemantics is true)
-    std::vector<int> instance_ids;
     std::vector<int> class_ids;
     std::vector<float> confidences;
+    std::vector<int> object_ids;
 
     std::vector<OrientedBoundingBox3D> oriented_bounding_boxes;
     std::vector<BoundingBox3D> bounding_boxes;
