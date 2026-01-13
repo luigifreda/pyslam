@@ -183,16 +183,6 @@ class Parameters:
     # Covisibility graph
     kMinNumOfCovisiblePointsForCreatingConnection = 15
 
-    # ===============================================================
-    # Visualization
-    # ===============================================================
-    kMaxFeatureTrailLength = 16  # Maximum length of a feature trail
-
-    # Sparse map visualization
-    kSparseImageColorPatchDelta = 1  # center +- delta
-    kMinWeightForDrawingCovisibilityEdge = 100
-    kMaxSparseMapPointsToVisualize = 1e6  # Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth and GL load
-
     # ================================================================
     # Optimization engine
     # ================================================================
@@ -283,9 +273,7 @@ class Parameters:
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py and cpp/volumetric/README.md)
     kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
-    kVolumetricIntegrationExtractMesh = (
-        False  # Extract mesh or point cloud as output; only for TSDF
-    )
+    #
     kVolumetricIntegrationVoxelLength = 0.015  # [m]
     kVolumetricIntegrationUseVoxelBlocks = True  # Use (or not) the more efficient voxel blocks (indirect hashing to blocks instead of direct voxel hashing) for volumetric integration
     kVolumetricIntegrationBlockSize = 8  # [voxels] Numer of voxels per side of the block
@@ -318,6 +306,9 @@ class Parameters:
         True  # Filter shadow points in the grid semantic integration
     )
     #
+    kVolumetricIntegrationTsdfExtractMesh = (
+        False  # Extract mesh or point cloud as output; only for TSDF
+    )
     kVolumetricIntegrationTSdfTrunc = 0.04  # [m]
     kVolumetricIntegrationTsdfDepthTruncIndoor = 4.0  # [m]
     kVolumetricIntegrationTsdfDepthTruncOutdoor = 10.0  # [m]
@@ -380,9 +371,16 @@ class Parameters:
     # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
 
-    # ================================================================
-    # Viewer
-    # ================================================================
+    # ===============================================================
+    # Visualization
+    # ===============================================================
+    kMaxFeatureTrailLength = 16  # Maximum length of a feature trail
+
+    # Sparse map visualization
+    kSparseImageColorPatchDelta = 1  # center +- delta
+    kMinWeightForDrawingCovisibilityEdge = 100
+    kMaxSparseMapPointsToVisualize = 1e6  # Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth and GL load
+
     kViewerDrawSlamMapOnSeparateThread = True  # True: draw the slam map on a separate thread, False: draw the slam map on the main thread
 
     # ================================================================

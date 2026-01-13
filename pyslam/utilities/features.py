@@ -32,7 +32,8 @@ from scipy.spatial import cKDTree
 
 from .logging import Printer
 from .system import import_from, is_opencv_version_greater_equal
-from .geometry import add_ones, s1_diff_deg, s1_dist_deg, l2_distances
+from .geometry import add_ones, s1_diff_deg, s1_dist_deg
+from .descriptor_distances import l2_distances
 
 ORBextractor = import_from("orbslam2_features", "ORBextractor")
 

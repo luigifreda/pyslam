@@ -94,7 +94,12 @@ def test_bounding_box_3d_basic():
     # Test contains with multiple points
     points = [np.array([0.5, 0.5, 0.5]), np.array([1.5, 0.5, 0.5]), np.array([0.0, 0.0, 0.0])]
     contains_mask = bbox.contains(points)
-    assert contains_mask == [True, False, True]
+    # Convert to list of Python booleans for comparison (pybind11 may return different types)
+    if isinstance(contains_mask, np.ndarray):
+        contains_mask_list = [bool(x) for x in contains_mask.tolist()]
+    else:
+        contains_mask_list = [bool(x) for x in contains_mask]
+    assert contains_mask_list == [True, False, True]
 
     # Test intersects
     bbox2 = volumetric.BoundingBox3D(np.array([0.5, 0.5, 0.5]), np.array([2.0, 2.0, 2.0]))

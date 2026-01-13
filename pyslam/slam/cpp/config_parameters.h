@@ -116,7 +116,7 @@ class Parameters {
 
     // Local mapping
     static constexpr float kKeyframeCullingRedundantObsRatio = 0.9f;
-    static constexpr float kKeyframeMaxTimeDistanceInSecForCulling = 0.5f;
+    static constexpr double kKeyframeMaxTimeDistanceInSecForCulling = 0.5;
     static constexpr int kKeyframeCullingMinNumPoints = 0;
 
     static constexpr int kLocalMappingParallelFusePointsNumWorkers = 2;

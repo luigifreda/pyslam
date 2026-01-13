@@ -78,18 +78,18 @@ inline bool check_dist_epipolar_line(const Vec2d &kp1, const Vec2d &kp2, const M
                                      double sigma2_kp2) {
 
     // Epipolar line in second image l = kp1' * F12 = [a b c]
-    Vec3d kp1_hom(kp1(0), kp1(1), 1.0);
-    Vec3d l = F12.transpose() * kp1_hom;
+    const Vec3d kp1_hom(kp1(0), kp1(1), 1.0);
+    const Vec3d l = F12.transpose() * kp1_hom;
 
     // Distance from kp2 to epipolar line
-    double num = l(0) * kp2(0) + l(1) * kp2(1) + l(2); // kp1' * F12 * kp2
-    double den = l(0) * l(0) + l(1) * l(1);            // a*a + b*b
+    const double num = l(0) * kp2(0) + l(1) * kp2(1) + l(2); // kp1' * F12 * kp2
+    const double den = l(0) * l(0) + l(1) * l(1);            // a*a + b*b
 
     if (den == 0.0) {
         return false;
     }
 
-    double dist_sqr = num * num / den; // squared distance from epipolar line
+    const double dist_sqr = num * num / den; // squared distance from epipolar line
 
     // Chi-square test for 1 DOF (Hartley Zisserman pag 567)
     return dist_sqr < 3.84 * sigma2_kp2;
@@ -146,7 +146,7 @@ estimate_pose_ess_mat(const MatNx2d &kpn_ref, const MatNx2d &kpn_cur, int method
     }
 
     // Create pose matrix
-    Mat4d Trc = poseRt(R_eigen, t_eigen);
+    const Mat4d Trc = poseRt(R_eigen, t_eigen);
 
     // Convert mask to vector
     std::vector<uchar> mask_vec;

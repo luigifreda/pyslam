@@ -196,12 +196,20 @@ add_subdirectory(pybind11)
 
 include_directories(casters)
 
+#=======================================
+# Add pyslam_utils module
+#=======================================
+
 pybind11_add_module(pyslam_utils 
 utils/utils_module.cpp 
 utils/utils.cpp)
 target_link_libraries(pyslam_utils PRIVATE
     ${OpenCV_LIBS}    
 )
+
+#=======================================
+# Add sim3solver module
+#=======================================
 
 pybind11_add_module(sim3solver 
 solvers/sim3solver_module.cpp 
@@ -212,6 +220,10 @@ target_link_libraries(sim3solver PRIVATE
     ${OpenCV_LIBS}
 )
 
+#=======================================
+# Add pnpsolver module
+#=======================================
+
 pybind11_add_module(pnpsolver 
 solvers/pnpsolver_module.cpp 
 solvers/PnPsolver.cpp 
@@ -221,21 +233,35 @@ target_link_libraries(pnpsolver PRIVATE
     ${OpenCV_LIBS}
 )
 
+#=======================================
+# Add glutils module
+#=======================================
+
 pybind11_add_module(glutils 
-glutils/glutils_module.cpp)
+glutils/glutils_module.cpp
+glutils/glutils_bindings.cpp)
 target_link_libraries(glutils PRIVATE
     ${OPENGL_LIBRARIES}    
 )
+
+#=======================================
+# Add trajectory_tools module
+#=======================================
 
 pybind11_add_module(trajectory_tools 
 trajectory/trajectory_tools_module.cpp)
 target_link_libraries(trajectory_tools PRIVATE
 )
 
+#=======================================
+# Add volumetric module
+#=======================================
+
 pybind11_add_module(volumetric 
 volumetric/volumetric_module.cpp
 volumetric/camera_frustrum.cpp
-volumetric/bounding_boxes.cpp)
+volumetric/bounding_boxes_3d.cpp
+volumetric/bounding_boxes_2d.cpp)
 if(TBB_FOUND)
     target_compile_definitions(volumetric PRIVATE TBB_FOUND)
 endif()
@@ -248,6 +274,10 @@ target_link_libraries(volumetric PRIVATE
     ${OpenCV_LIBS}
     ${QHULL_LINK_LIBS}
 )
+
+#=======================================
+# Add color_utils module
+#=======================================
 
 pybind11_add_module(color_utils 
 color_utils/color_utils_module.cpp
@@ -264,3 +294,12 @@ target_include_directories(color_utils PRIVATE
 # target_link_libraries(cv2_pyslam PRIVATE
 #     ${OpenCV_LIBS}    
 # )
+
+
+#=======================================
+# Add hamming module
+#=======================================
+
+pybind11_add_module(hamming 
+hamming/hamming_module.cpp)
+target_link_libraries(hamming PRIVATE)

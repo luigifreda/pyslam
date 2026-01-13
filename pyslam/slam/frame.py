@@ -1610,7 +1610,7 @@ def match_frames(f1: Frame, f2: Frame, ratio_test=None):
 
 
 def _filter_keyframes_geometrically(
-    target_frame: Frame, other_frames: list, is_monocular: bool = True
+    target_frame: Frame, other_frames: list[Frame], is_monocular: bool = True
 ):
     """
     Fast geometric pre-filtering to skip keyframes unlikely to produce good matches.
@@ -1619,8 +1619,11 @@ def _filter_keyframes_geometrically(
     Returns:
         List of keyframes that pass geometric checks
     """
-    from pyslam.config_parameters import Parameters
+    enable_geometric_filtering = True
+    depth_percentile = 0.75
+    min_num_frames = 10
 
+    num_frames = len(other_frames)
     filtered_frames = []
     O1w = target_frame.Ow()
 
@@ -1632,10 +1635,10 @@ def _filter_keyframes_geometrically(
         baseline = np.linalg.norm(O1w - O2w)
 
         # For monocular: check baseline/depth ratio (similar to triangulation check)
-        if is_monocular:
-            median_depth = kf.compute_points_median_depth()
+        if enable_geometric_filtering and num_frames > min_num_frames and is_monocular:
+            median_depth = kf.compute_points_median_depth(percentile=depth_percentile)
             if median_depth == -1:
-                median_depth = target_frame.compute_points_median_depth()
+                median_depth = target_frame.compute_points_median_depth(percentile=depth_percentile)
             if median_depth > 0:
                 ratio_baseline_depth = baseline / median_depth
                 # Skip if baseline is too small relative to depth (poor triangulation)

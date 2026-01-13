@@ -36,6 +36,12 @@ from collections import defaultdict, OrderedDict, Counter
 from .frame import Frame
 from .camera_pose import CameraPose
 
+import typing
+
+if typing.TYPE_CHECKING:
+    from .map_point import MapPoint
+    from .keyframe import KeyFrame
+
 
 class KeyFrameGraph(object):
     def __init__(self):
@@ -475,7 +481,7 @@ class KeyFrame(Frame, KeyFrameGraph):
     def update_connections(self):
         # for all map points of this keyframe check in which other keyframes they are seen
         # build a counter for these other keyframes
-        points = self.get_matched_good_points()
+        points: list[MapPoint] = self.get_matched_good_points()
         num_points = len(points)
         if num_points == 0:
             Printer.orange("KeyFrame: update_connections - frame without points")
@@ -498,11 +504,12 @@ class KeyFrame(Frame, KeyFrameGraph):
 
         # get keyframe that shares most points
         kf_max, w_max = covisible_keyframes[0]
+
         # if the counter is greater than threshold add connection
         # otherwise add the one with maximum counter
         with self._lock_connections:
+            self.connected_keyframes_weights = viewing_keyframes
             if w_max >= Parameters.kMinNumOfCovisiblePointsForCreatingConnection:
-                self.connected_keyframes_weights = viewing_keyframes
                 self.ordered_keyframes_weights = OrderedDict()
                 for kf, w in covisible_keyframes:
                     if w >= Parameters.kMinNumOfCovisiblePointsForCreatingConnection:
@@ -511,7 +518,7 @@ class KeyFrame(Frame, KeyFrameGraph):
                     else:
                         break
             else:
-                self.connected_keyframes_weights = Counter({kf_max: w_max})
+                # self.connected_keyframes_weights = Counter({kf_max: w_max})
                 self.ordered_keyframes_weights = OrderedDict([(kf_max, w_max)])
                 kf_max.add_connection_no_lock_(self, w_max)
 

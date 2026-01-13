@@ -59,7 +59,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
   public:
     explicit VoxelSemanticGridT(double voxel_size = 0.05);
 
-    // Assign object IDs to instance IDs using semantic instances image and depth image
+    // Assign object IDs to 2d instance IDs using semantic instances image and depth image
     // Inputs:
     // - camera_frustrum: camera frustrum
     // - semantic_instances_image: semantic instances image
@@ -67,7 +67,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     // - depth_threshold: depth threshold (optional, default is 0.1f)
     // - min_vote_ratio: minimum vote ratio (optional, default is 0.5f)
     // - min_votes: minimum votes (optional, default is 3)
-    // Returns: map of instance IDs to object IDs
+    // Returns: map of 2d instance IDs to object IDs
     MapInstanceIdToObjectId assign_object_ids_to_instance_ids(
         const CameraFrustrum &camera_frustrum, const cv::Mat &class_ids_image,
         const cv::Mat &semantic_instances_image, const cv::Mat &depth_image = cv::Mat(),
@@ -86,7 +86,7 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     void integrate_segment_raw(const Tp *pts_ptr, const size_t num_points, const Tc *cols_ptr,
                                const int class_id, const int object_id);
 
-    // Merge two segments of voxels (different instance IDs) into a single segment of voxels with
+    // Merge two segments of voxels (different object IDs) into a single segment of voxels with
     // the same object ID instance_id1
     void merge_segments(const int instance_id1, const int instance_id2);
 
@@ -102,14 +102,16 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     // Get the colors of the voxel grid
     std::vector<std::array<float, 3>> get_colors() const;
 
-    // Get the class and instance IDs of the voxel grid
+    // Get the class and object IDs of the voxel grid
     std::pair<std::vector<int>, std::vector<int>> get_ids() const;
 
-    // Get clusters of voxels based on instance IDs
-    std::unordered_map<int, std::vector<std::array<double, 3>>> get_instance_segments() const;
+    // Get clusters of voxels based on object IDs
+    std::vector<std::shared_ptr<volumetric::ObjectData>>
+    get_object_segments(const int min_count = 1, const float min_confidence = 0.0) const;
 
     // Get clusters of voxels based on class IDs
-    std::unordered_map<int, std::vector<std::array<double, 3>>> get_class_segments() const;
+    std::vector<std::shared_ptr<volumetric::ClassData>>
+    get_class_segments(const int min_count = 1, const float min_confidence = 0.0) const;
 
     // Clear the voxel grid
     void clear();

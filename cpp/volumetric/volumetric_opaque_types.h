@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "bounding_boxes.h"
+#include "voxel_grid_data.h"
 
 namespace py = pybind11;
 
@@ -55,10 +56,18 @@ namespace py = pybind11;
 // CRITICAL: These must be declared BEFORE including pybind11/stl.h
 PYBIND11_MAKE_OPAQUE(std::vector<std::array<double, 3>>);
 PYBIND11_MAKE_OPAQUE(std::vector<std::array<float, 3>>);
-PYBIND11_MAKE_OPAQUE(std::vector<volumetric::OrientedBoundingBox3D>);
-PYBIND11_MAKE_OPAQUE(std::vector<volumetric::BoundingBox3D>);
 PYBIND11_MAKE_OPAQUE(std::vector<int>);
 PYBIND11_MAKE_OPAQUE(std::vector<bool>);
+
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::OrientedBoundingBox3D>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::OrientedBoundingBox3D::Ptr>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::BoundingBox3D>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::BoundingBox3D::Ptr>);
+
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::ObjectData>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::ObjectData::Ptr>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::ClassData>);
+PYBIND11_MAKE_OPAQUE(std::vector<volumetric::ClassData::Ptr>);
 
 #endif
 

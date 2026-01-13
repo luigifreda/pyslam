@@ -189,7 +189,7 @@ Grab a coffee. It will take a while.
 <!-- After the install process, you can build the **C++ core**:
 ```
 . pyenv-activate.sh
-./build_cpp.sh 
+./build_cpp_core.sh 
 ``` -->
 
 The install scripts creates a **single python environment** `pyslam` that hosts all the [supported components and models](#supported-components-and-models). If `conda` is available, it automatically uses it, otherwise it installs and uses `venv`. An internet connection is required.
@@ -392,7 +392,7 @@ At present, the volumetric reconstruction pipeline works with:
   * in the back-end with STEREO datasets (you can't use depth prediction in the back-end with MONOCULAR datasets, further details [here](#depth-prediction))
   * in the front-end (to emulate an RGBD sensor) and a depth prediction/estimation gets available for each processed keyframe. 
 
-To obtain a mesh as output, set `kVolumetricIntegrationExtractMesh=True` in `pyslam/config_parameters.py`.
+To obtain a mesh as output, set `kVolumetricIntegrationTsdfExtractMesh=True` in `pyslam/config_parameters.py`.
 
 #### Reload a saved sparse map and perform dense reconstruction 
 
@@ -512,21 +512,22 @@ Further information about the **volumetric integration models and SW architectur
 
 ### C++ Core Module
 
-The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names. The bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++ when possible.
+The system provides a modular sparse-SLAM core, implemented in both C++ and Python, allowing users to switch between high-performance/speed and high-flexibility modes.
 
-To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. The module is currently **under development**.
+The C++ core reimplements the sparse SLAM originally implemented in Python, exposing core SLAM classes (frames, keyframes, map points, maps, cameras, optimizers, tracking, and local mapping) to Python via pybind11. The C++ implementation follows a streamlined design where all core data resides in C++, with Python serving as an interface layer. C++ classes mirror their Python counterparts, maintaining identical interfaces and data field names (see this [table](./pyslam/slam/cpp/README.md#table-of-corresponding-files)). When feasible, the bindings support zero-copy data exchange (e.g., descriptors) and safe memory ownership across the Python/C++ boundary, leveraging automatic zero-copy sharing of NumPy array memory with C++.
 
-To rebuild the C++ core module, run
-```bash
-. pyenv-activate.sh 
-./build_cpp.sh
-```
+- To enable the C++ sparse-SLAM core, set `USE_CPP_CORE = True` in `pyslam/config_parameters.py`. 
+- To rebuild the C++ core module, run
+  ```bash
+  . pyenv-activate.sh 
+  ./build_cpp_core.sh
+  ```
 
 While this may be self-evident, it is important to keep in mind that when `USE_CPP_CORE = True`:
 - The Python implementation of the sparse SLAM core is effectively bypassed, and any modifications to it will have no effect at runtime.
-- All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp.sh` (as explained above) in order to take effect.
+- All functional changes to the sparse SLAM C++ codebase must be rebuilt using `./build_cpp_core.sh` (as explained above) in order to take effect.
 
-See [here](pyslam/slam/cpp/README.md) for further details.
+See [here](./pyslam/slam/cpp/README.md) for further details.
 
 ---
 
@@ -818,23 +819,23 @@ Refer to [this section](#selecting-a-dataset-and-different-configuration-paramet
 
 The following datasets are supported:
 
-Dataset | type in `config.yaml`
---- | --- 
-[KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)  | `type: KITTI_DATASET` 
-[TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                           | `type: TUM_DATASET` 
-[ICL-NUIM dataset](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)                              | `type: ICL_NUIM_DATASET` 
-[EUROC dataset](https://projects.asl.ethz.ch/datasets/euroc-mav/)          | `type: EUROC_DATASET` 
-[REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                | `type: REPLICA_DATASET` 
-[TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                         | `type: TARTANAIR_DATASET` 
-[SEVEN_SCENES dataset](https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/)                                         | `type: SEVEN_SCENES_DATASET` 
-[NEURAL_RGBD dataset](https://github.com/dazinovic/neural-rgbd-surface-reconstruction)                                         | `type: NEURAL_RGBD_DATASET` 
-[ROVER dataset](https://iis-esslingen.github.io/rover/)                                         | `type: NEURAL_RGBD_DATASET` 
-[ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`
-[ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET` 
-[ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET` 
-[MCAP file](https://foxglove.dev/blog/introducing-the-mcap-file-format)  | `type: MCAP_DATASET` 
-Video file                                                                                                                                   | `type: VIDEO_DATASET` 
-Folder of images                                                                                                                             | `type: FOLDER_DATASET` 
+| Dataset                                                                                                                                      | type in `config.yaml`        |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| [KITTI odometry data set (grayscale, 22 GB)](http://www.cvlibs.net/datasets/kitti/eval_odometry.php)                                         | `type: KITTI_DATASET`        |
+| [TUM dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset/download)                                                                  | `type: TUM_DATASET`          |
+| [ICL-NUIM dataset](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)                                                                     | `type: ICL_NUIM_DATASET`     |
+| [EUROC dataset](https://projects.asl.ethz.ch/datasets/euroc-mav/)                                                                            | `type: EUROC_DATASET`        |
+| [REPLICA dataset](https://github.com/facebookresearch/Replica-Dataset)                                                                       | `type: REPLICA_DATASET`      |
+| [TARTANAIR dataset](https://theairlab.org/tartanair-dataset/)                                                                                | `type: TARTANAIR_DATASET`    |
+| [SEVEN_SCENES dataset](https://www.microsoft.com/en-us/research/project/rgb-d-dataset-7-scenes/)                                             | `type: SEVEN_SCENES_DATASET` |
+| [NEURAL_RGBD dataset](https://github.com/dazinovic/neural-rgbd-surface-reconstruction)                                                       | `type: NEURAL_RGBD_DATASET`  |
+| [ROVER dataset](https://iis-esslingen.github.io/rover/)                                                                                      | `type: NEURAL_RGBD_DATASET`  |
+| [ScanNet dataset](http://www.scan-net.org/)                                                                                                  | `type: SCANNET_DATASET`      |
+| [ROS1  bags](https://wiki.ros.org/Bags)                                                                                                      | `type: ROS1BAG_DATASET`      |
+| [ROS2  bags](https://docs.ros.org/en/foxy/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html) | `type: ROS2BAG_DATASET`      |
+| [MCAP file](https://foxglove.dev/blog/introducing-the-mcap-file-format)                                                                      | `type: MCAP_DATASET`         |
+| Video file                                                                                                                                   | `type: VIDEO_DATASET`        |
+| Folder of images                                                                                                                             | `type: FOLDER_DATASET`       |
 
 
 

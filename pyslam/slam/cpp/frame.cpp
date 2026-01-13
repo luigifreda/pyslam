@@ -713,7 +713,8 @@ std::vector<MapPointPtr> Frame::get_points() const {
 std::vector<MapPointPtr> Frame::get_matched_points() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     std::vector<MapPointPtr> matched_points;
-    for (auto &p : points) {
+    matched_points.reserve(points.size());
+    for (const auto &p : points) {
         if (p) {
             matched_points.push_back(p);
         }
@@ -762,6 +763,7 @@ std::pair<std::vector<MapPointPtr>, std::vector<int>> Frame::get_matched_inlier_
 std::vector<MapPointPtr> Frame::get_matched_good_points() const {
     std::lock_guard<std::mutex> lock(_lock_features);
     std::vector<MapPointPtr> good_points;
+    good_points.reserve(points.size());
     for (const auto &p : points) {
         if (p && !p->is_bad()) {
             good_points.push_back(p);
@@ -1286,7 +1288,12 @@ void Frame::compute_stereo_matches(const cv::Mat &img, const cv::Mat &img_right)
 
         if (!valid_depths.empty()) {
             std::sort(valid_depths.begin(), valid_depths.end());
-            median_depth = valid_depths[valid_depths.size() / 2];
+            size_t mid = valid_depths.size() / 2;
+            if (valid_depths.size() % 2 == 0) {
+                median_depth = (valid_depths[mid - 1] + valid_depths[mid]) / 2.0f;
+            } else {
+                median_depth = valid_depths[mid];
+            }
 
             // Compute FOV center
             fov_center_c = camera->unproject_point_3d<double>(camera->cx, camera->cy,
@@ -1483,8 +1490,9 @@ void extract_semantic_at_keypoints(const cv::Mat &semantic_img, MatNx2fRef kps, 
         {
             cv::Mat semantic_img_32f;
             semantic_img.convertTo(semantic_img_32f, CV_32F);
-            single ? extract_semantic_at_keypoints_impl<true, float>(semantic_img_32f, kps, kps_sem)
-                   : extract_semantic_at_keypoints_impl<false, float>(semantic_img_32f, kps, kps_sem);
+            single
+                ? extract_semantic_at_keypoints_impl<true, float>(semantic_img_32f, kps, kps_sem)
+                : extract_semantic_at_keypoints_impl<false, float>(semantic_img_32f, kps, kps_sem);
         }
 #else
         // Linux and other platforms: use cv::float16_t directly if available

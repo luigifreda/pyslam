@@ -160,26 +160,6 @@ def skew(w):
     return np.array([[0, -wz, wy], [wz, 0, -wx], [-wy, wx, 0]])
 
 
-@njit(cache=True)
-def hamming_distance(a, b):
-    # r = (1 << np.arange(8))[:,None]
-    # return np.count_nonzero((np.bitwise_xor(a,b) & r) != 0)
-    return np.count_nonzero(a != b)
-
-
-def hamming_distances(a, b):
-    return np.count_nonzero(a != b, axis=1)
-
-
-@njit(cache=True)
-def l2_distance(a, b):
-    return np.linalg.norm(a.ravel() - b.ravel())
-
-
-def l2_distances(a, b):
-    return np.linalg.norm(a - b, axis=-1, keepdims=True)
-
-
 # z rotation, input in radians
 @njit(cache=True)
 def yaw_matrix(yaw):

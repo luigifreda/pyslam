@@ -224,7 +224,7 @@ def main():
     parser.add_argument(
         "--method",
         type=str,
-        default="VGGT_ROBUST",
+        default="DEPTH_ANYTHING_V3",
         choices=[
             "DUST3R",
             "MAST3R",

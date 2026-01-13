@@ -48,10 +48,16 @@ PYBIND11_MODULE(volumetric, m) {
 
     py::bind_vector<std::vector<volumetric::OrientedBoundingBox3D>>(m,
                                                                     "OrientedBoundingBox3DVector");
+    py::bind_vector<std::vector<volumetric::OrientedBoundingBox3D::Ptr>>(
+        m, "OrientedBoundingBox3DPtrVector");
     py::bind_vector<std::vector<volumetric::BoundingBox3D>>(m, "BoundingBox3DVector");
+    py::bind_vector<std::vector<volumetric::BoundingBox3D::Ptr>>(m, "BoundingBox3DPtrVector");
 
     py::bind_vector<std::vector<int>>(m, "IntVector");
     py::bind_vector<std::vector<bool>>(m, "BoolVector");
+
+    py::bind_vector<std::vector<volumetric::ObjectData::Ptr>>(m, "ObjectDataPtrVector");
+    py::bind_vector<std::vector<volumetric::ClassData::Ptr>>(m, "ClassDataPtrVector");
 
     // ----------------------------------------
     // TBB Utils

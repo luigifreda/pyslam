@@ -593,6 +593,8 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 VolumetricIntegratorBase.print(
                                     f"VolumetricIntegratorVoxelSemanticGrid: pushed new output to q_out size: {q_out.qsize()}"
                                 )
+                            # NOTE: This is an experiment to connect directly the output queue to the viewer queue.
+                            #       If this is used then viewer3D.draw_dense_map(slam) should be commented in main_slam.py
                             # if viewer_queue is not None:
                             #     last_output.timestamp = time.perf_counter()
                             #     VolumetricIntegratorBase.print(

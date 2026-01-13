@@ -1150,8 +1150,6 @@ class LocalMapBase(object):
     # - the local points
     def get_frame_covisibles(self, frame: Frame):
         points = frame.get_matched_good_points()
-        # keyframes = self.get_local_keyframes()
-        # assert len(points) > 0
         if len(points) == 0:
             Printer.red("LocalMapBase: get_frame_covisibles - frame without points")
 
@@ -1165,31 +1163,52 @@ class LocalMapBase(object):
             Printer.red("LocalMapBase: get_frame_covisibles - no viewing keyframes")
             return None, None, None
 
+        # get the keyframe that sees most points
         kf_ref = viewing_keyframes.most_common(1)[0][0]
-        # local_keyframes = viewing_keyframes.keys()
 
         # include also some not-already-included keyframes that are neighbors to already-included keyframes
-        for kf in list(viewing_keyframes.keys()):
+        # Create a list that grows during iteration (like C++)
+        local_keyframes_list = list(viewing_keyframes.keys())
+
+        for kf in local_keyframes_list:
+            # Limit the number of keyframes
+            if len(local_keyframes_list) >= Parameters.kMaxNumOfKeyframesInLocalMap:
+                break
+
             second_neighbors = kf.get_best_covisible_keyframes(
                 Parameters.kNumBestCovisibilityKeyFrames
             )
-            viewing_keyframes.update(second_neighbors)
-            children = kf.get_children()
-            viewing_keyframes.update(children)
-            parent = kf.get_parent()
-            if parent:
-                viewing_keyframes.update([parent])
-            if len(viewing_keyframes) >= Parameters.kMaxNumOfKeyframesInLocalMap:
-                break
+            # viewing_keyframes.update([kf for kf in second_neighbors if not kf.is_bad()]) # more aggressive but slower
+            for kf_ in second_neighbors:
+                if not kf_.is_bad() and kf_ not in viewing_keyframes:
+                    viewing_keyframes.update([kf_])
+                    local_keyframes_list.append(kf_)  # Add to list so it gets processed
+                    break  # only one second neighbor per kf is needed
 
+            children = kf.get_children()
+            # viewing_keyframes.update([kf for kf in children if not kf.is_bad()]) # more aggressive but slower
+            for kf_ in children:
+                if not kf_.is_bad() and kf_ not in viewing_keyframes:
+                    viewing_keyframes.update([kf_])
+                    local_keyframes_list.append(kf_)  # Add to list so it gets processed
+                    break  # only one child is needed per kf is needed
+
+            parent = kf.get_parent()
+            if parent and not parent.is_bad() and parent not in viewing_keyframes:
+                viewing_keyframes.update([parent])
+                local_keyframes_list.append(parent)  # Add to list so it gets processed
+
+        # select the top N keyframes by count
         local_keyframes_counts = viewing_keyframes.most_common(
             Parameters.kMaxNumOfKeyframesInLocalMap
         )
+
         local_points = set()
         local_keyframes = []
         for kf, c in local_keyframes_counts:
             local_points.update(kf.get_matched_points())
             local_keyframes.append(kf)
+
         return kf_ref, local_keyframes, list(local_points)
 
 

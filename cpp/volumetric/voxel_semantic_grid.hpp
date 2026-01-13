@@ -363,26 +363,100 @@ std::pair<std::vector<int>, std::vector<int>> VoxelSemanticGridT<VoxelDataT>::ge
     return {class_ids, instance_ids};
 }
 
-// get_instance_segments implementation
+// get_object_segments implementation
 template <typename VoxelDataT>
-std::unordered_map<int, std::vector<std::array<double, 3>>>
-VoxelSemanticGridT<VoxelDataT>::get_instance_segments() const {
-    std::unordered_map<int, std::vector<std::array<double, 3>>> segments;
+std::vector<std::shared_ptr<volumetric::ObjectData>>
+VoxelSemanticGridT<VoxelDataT>::get_object_segments(const int min_count,
+                                                    const float min_confidence) const {
+    std::unordered_map<int, std::shared_ptr<volumetric::ObjectData>> segments;
     for (const auto &[key, v] : grid_) {
-        segments[v.get_object_id()].push_back(v.get_position());
+        const auto voxel_confidence = v.get_confidence();
+        if (v.count >= min_count && voxel_confidence >= min_confidence) {
+            const auto object_id = v.get_object_id();
+            // Filter out invalid object_ids (object_id < 0 means uninitialized)
+            // object_id=0 means "no specific object", object_id>0 means "specific object"
+            if (object_id < 0) {
+                continue;
+            }
+            auto it = segments.find(object_id);
+            if (it == segments.end()) {
+                auto object_data = std::make_shared<ObjectData>();
+                segments[object_id] = object_data;
+                object_data->points.push_back(v.get_position());
+                object_data->colors.push_back(v.get_color());
+                object_data->class_id = v.get_class_id();
+                object_data->confidence_min = voxel_confidence;
+                object_data->confidence_max = voxel_confidence;
+                object_data->object_id = object_id;
+            } else {
+                auto object_data = it->second;
+                object_data->points.push_back(v.get_position());
+                object_data->colors.push_back(v.get_color());
+                // Update min/max confidence
+                object_data->confidence_min =
+                    std::min(object_data->confidence_min, voxel_confidence);
+                object_data->confidence_max =
+                    std::max(object_data->confidence_max, voxel_confidence);
+            }
+        }
     }
-    return segments;
+
+    // Compute the oriented bounding box for each object
+    for (const auto &[object_id, object_data] : segments) {
+        object_data->oriented_bounding_box =
+            OrientedBoundingBox3D::compute_from_points(object_data->points);
+    }
+
+    // Convert the segments to a vector of shared pointers
+    std::vector<std::shared_ptr<volumetric::ObjectData>> segments_vector;
+    segments_vector.reserve(segments.size());
+    for (const auto &[object_id, object_data] : segments) {
+        segments_vector.push_back(object_data);
+    }
+    return segments_vector;
 }
 
 // get_class_segments implementation
 template <typename VoxelDataT>
-std::unordered_map<int, std::vector<std::array<double, 3>>>
-VoxelSemanticGridT<VoxelDataT>::get_class_segments() const {
-    std::unordered_map<int, std::vector<std::array<double, 3>>> segments;
+std::vector<std::shared_ptr<volumetric::ClassData>>
+VoxelSemanticGridT<VoxelDataT>::get_class_segments(const int min_count,
+                                                   const float min_confidence) const {
+    std::unordered_map<int, std::shared_ptr<volumetric::ClassData>> segments;
     for (const auto &[key, v] : grid_) {
-        segments[v.get_class_id()].push_back(v.get_position());
+        const auto voxel_confidence = v.get_confidence();
+        if (v.count >= min_count && voxel_confidence >= min_confidence) {
+            const auto class_id = v.get_class_id();
+            // Filter out invalid class_ids (class_id < 0 means uninitialized)
+            // class_id=0 means "no specific class", class_id>0 means "specific class"
+            if (class_id < 0) {
+                continue;
+            }
+            auto it = segments.find(class_id);
+            if (it == segments.end()) {
+                auto class_data = std::make_shared<ClassData>();
+                segments[class_id] = class_data;
+                class_data->points.push_back(v.get_position());
+                class_data->colors.push_back(v.get_color());
+                class_data->class_id = class_id;
+                class_data->confidence_min = voxel_confidence;
+                class_data->confidence_max = voxel_confidence;
+            } else {
+                auto class_data = it->second;
+                class_data->points.push_back(v.get_position());
+                class_data->colors.push_back(v.get_color());
+                // Update min/max confidence
+                class_data->confidence_min = std::min(class_data->confidence_min, voxel_confidence);
+                class_data->confidence_max = std::max(class_data->confidence_max, voxel_confidence);
+            }
+        }
     }
-    return segments;
+
+    std::vector<std::shared_ptr<volumetric::ClassData>> segments_vector;
+    segments_vector.reserve(segments.size());
+    for (const auto &[class_id, class_data] : segments) {
+        segments_vector.push_back(class_data);
+    }
+    return segments_vector;
 }
 
 // clear implementation

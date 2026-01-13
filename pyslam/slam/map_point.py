@@ -710,23 +710,24 @@ class MapPoint(MapPointBase):
                 observations = list(self._observations.items())
             else:
                 skip = True
+
         if skip or len(observations) == 0:
             return
         descriptors = [kf.des[idx] for kf, idx in observations if not kf.is_bad()]
 
         N = len(descriptors)
         if N >= 2:
-            # median_distances = [ np.median([FeatureTrackerShared.descriptor_distance(d, descriptors[i]) for d in descriptors]) for i in range(N) ]
-            # median_distances = [ np.median(FeatureTrackerShared.descriptor_distances(descriptors[i], descriptors)) for i in range(N)]
             D = np.array(
                 [FeatureTrackerShared.descriptor_distances(d, descriptors) for d in descriptors]
             )
             median_distances = np.median(D, axis=1)
+            best_idx = np.argmin(median_distances)
             with self._lock_features:
-                self.des = descriptors[np.argmin(median_distances)].copy()
-            # print('descriptors: ', descriptors)
-            # print('median_distances: ', median_distances)
-            # print('des: ', self.des)
+                self.des = descriptors[best_idx].copy()
+        elif N == 1:
+            # Single descriptor case - just use it
+            with self._lock_features:
+                self.des = descriptors[0].copy()
 
     def update_semantics(self, semantic_fusion_method, force=False):
         skip = False

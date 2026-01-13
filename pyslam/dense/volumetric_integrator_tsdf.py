@@ -231,7 +231,7 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
 
                     elif self.last_input_task.task_type == VolumetricIntegrationTaskType.SAVE:
                         save_path = self.last_input_task.load_save_path
-                        if Parameters.kVolumetricIntegrationExtractMesh:
+                        if Parameters.kVolumetricIntegrationTsdfExtractMesh:
                             VolumetricIntegratorBase.print(
                                 f"VolumetricIntegratorTsdf: saving mesh to: {save_path}"
                             )
@@ -255,7 +255,7 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
 
                     if do_output:
                         mesh_out, pc_out = None, None
-                        if Parameters.kVolumetricIntegrationExtractMesh:
+                        if Parameters.kVolumetricIntegrationTsdfExtractMesh:
                             mesh = self.volume.extract_triangle_mesh()
                             # mesh.compute_vertex_normals()
                             mesh_out = VolumetricIntegrationMesh(mesh)

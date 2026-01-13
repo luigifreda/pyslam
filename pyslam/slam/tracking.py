@@ -495,6 +495,7 @@ class Tracking:
         idxs_ref_map_points = np.asarray(
             f_ref.get_matched_good_points_idxs(), dtype=int
         )  # numpy array conversion for c++
+
         des_ref = f_ref.des[idxs_ref_map_points]
         kps_ref = f_ref.kps[idxs_ref_map_points]
         des_cur = f_cur.des
@@ -592,6 +593,7 @@ class Tracking:
             if not f_ref.is_keyframe
             else 0.5 * self.descriptor_distance_sigma
         )
+
         num_found_map_pts_inter_frame, idx_ref_prop, idx_cur_prop = (
             TrackingCore.propagate_map_point_matches(
                 f_ref, f_cur, idxs_ref, idxs_cur, max_descriptor_distance=max_descriptor_distance
@@ -1202,6 +1204,28 @@ class Tracking:
 
                     print(f"pushing new keyframe {kf_cur.id} to loop closing...")
                     self.slam.loop_closing.add_keyframe(kf_cur, kf_cur.img)
+
+                if self.slam.volumetric_integrator is not None:
+                    print(f"pushing new keyframe {kf_ref.id} to volumetric integrator...")
+                    self.slam.volumetric_integrator.add_keyframe(
+                        kf_ref, kf_ref.img, kf_ref.img_right, kf_ref.depth_img
+                    )
+
+                    print(f"pushing new keyframe {kf_cur.id} to volumetric integrator...")
+                    self.slam.volumetric_integrator.add_keyframe(
+                        kf_cur, kf_cur.img, kf_cur.img_right, kf_cur.depth_img
+                    )
+
+                if self.slam.semantic_mapping is not None:
+                    print(f"pushing new keyframe {kf_ref.id} to semantic mapping...")
+                    self.slam.semantic_mapping.push_keyframe(
+                        kf_ref, kf_ref.img, kf_ref.img_right, kf_ref.depth_img
+                    )
+
+                    print(f"pushing new keyframe {kf_cur.id} to semantic mapping...")
+                    self.slam.semantic_mapping.push_keyframe(
+                        kf_cur, kf_cur.img, kf_cur.img_right, kf_cur.depth_img
+                    )
 
             return  # EXIT (jump to next frame)
 

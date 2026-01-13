@@ -40,7 +40,7 @@ from pyslam.utilities.features import (
     octree_nms,
     grid_nms,
 )
-from pyslam.utilities.geometry import (
+from pyslam.utilities.descriptor_distances import (
     hamming_distance,
     hamming_distances,
     l2_distance,

@@ -37,7 +37,7 @@ from .frame import compute_frame_matches
 
 from pyslam.slam import EpipolarMatcher  # , LocalMappingCore
 
-kUseCppLocalMappingCore = True
+kUseCppLocalMappingCore = True  # True: Use the C++ local mapping core when available, False: Force the usage of the Python local mapping core
 if kUseCppLocalMappingCore:
     # use the C++ local mapping core
     from pyslam.slam import LocalMappingCore
@@ -377,6 +377,10 @@ class LocalMapping:
                             LocalMapping.print(f"LocalMapping: encountered exception: {e}")
                             LocalMapping.print(traceback.format_exc())
                         self.set_idle(True)
+                else:
+                    # pop_keyframe returned None (queue empty or stopped)
+                    # Ensure we're marked as idle when waiting for keyframes
+                    self.set_idle(True)
 
             elif self.stop_if_requested():
                 self.set_idle(True)

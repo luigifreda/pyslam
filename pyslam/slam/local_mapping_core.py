@@ -32,6 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 
 from pyslam.config_parameters import Parameters
+from pyslam.utilities.logging import Printer
 
 from .frame import compute_frame_matches
 from .map import Map
@@ -176,6 +177,7 @@ class LocalMappingCore:
         num_culled_keyframes = 0
         th_num_observations = 3
         covisible_kfs = self.kf_cur.get_covisible_keyframes()
+        LocalMappingCore.print(f"covisible keyframes: {len(covisible_kfs)}")
         for kf in covisible_kfs:
             if kf.kid == 0:
                 continue
@@ -187,10 +189,12 @@ class LocalMappingCore:
             # for i,p in enumerate(kf.get_points()):
             #     if p is not None and not p.is_bad():
             for i, p in idxs_and_kf_points:
-                if kf.depths is not None and (
-                    kf.depths[i] > kf.camera.depth_threshold or kf.depths[i] < 0.0
-                ):
-                    continue
+                # Only check depth for non-monocular sensors
+                if self.sensor_type != SensorType.MONOCULAR:
+                    if kf.depths is not None and (
+                        kf.depths[i] > kf.camera.depth_threshold or kf.depths[i] < 0.0
+                    ):
+                        continue
                 kf_num_points += 1
                 if p.num_observations() > th_num_observations:
                     scale_level = kf.octaves[i]  # scale level of observation in kf
@@ -210,21 +214,25 @@ class LocalMappingCore:
                     if p_num_observations >= th_num_observations:
                         kf_num_redundant_observations += 1
             remove_kf = (
-                (
-                    kf_num_redundant_observations
-                    > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points
+                kf_num_redundant_observations
+                > Parameters.kKeyframeCullingRedundantObsRatio * kf_num_points
+            ) and (kf_num_points > Parameters.kKeyframeCullingMinNumPoints)
+
+            if remove_kf:
+                # check if the keyframe is too close in time to its parent
+                delta_time_parent = abs(kf.timestamp - kf.parent.timestamp)
+                LocalMappingCore.print(
+                    f"kf {kf.id} to remove: delta time parent: {delta_time_parent}"
                 )
-                and (kf_num_points > Parameters.kKeyframeCullingMinNumPoints)
-                and (
-                    abs(kf.timestamp - kf.parent.timestamp)
-                    < Parameters.kKeyframeMaxTimeDistanceInSecForCulling
-                )
-            )
-            if remove_kf and use_fov_centers_based_kf_generation:
-                if not LocalMappingCore.check_remaining_fov_centers_max_distance(
-                    covisible_kfs, kf, max_fov_centers_distance
-                ):
+                if delta_time_parent < Parameters.kKeyframeMaxTimeDistanceInSecForCulling:
                     remove_kf = False
+                # check if the keyframe is too far from the FOV centers of the covisible keyframes
+                if use_fov_centers_based_kf_generation:
+                    if not LocalMappingCore.check_remaining_fov_centers_max_distance(
+                        covisible_kfs, kf, max_fov_centers_distance
+                    ):
+                        remove_kf = False
+
             if remove_kf:
                 kf.set_bad()
                 num_culled_keyframes += 1
@@ -265,8 +273,9 @@ class LocalMappingCore:
 
         # 3. Fuse current keyframe's points into all target keyframes
         for kf in target_kfs:
+            kf_cur_points = self.kf_cur.get_points()
             num_fused_pts = ProjectionMatcher.search_and_fuse(
-                self.kf_cur.get_points(),
+                kf_cur_points,
                 kf,
                 max_reproj_distance=Parameters.kMaxReprojectionDistanceFuse,
                 max_descriptor_distance=0.5 * descriptor_distance_sigma,

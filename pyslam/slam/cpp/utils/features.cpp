@@ -164,7 +164,16 @@ stereo_match_subpixel_correlation(const std::vector<int> &idxs1, const std::vect
         std::vector<Scalar> sorted_distances = distances;
         std::sort(sorted_distances.begin(), sorted_distances.end());
 
-        Scalar median_dist = sorted_distances[sorted_distances.size() / 2];
+        Scalar median_dist;
+        const size_t size = sorted_distances.size();
+        if (size % 2 == 0 && size > 0) {
+            // Even number: average of two middle values
+            median_dist = (sorted_distances[size / 2 - 1] + sorted_distances[size / 2]) /
+                          static_cast<Scalar>(2.0);
+        } else {
+            // Odd number: middle value
+            median_dist = sorted_distances[size / 2];
+        }
         Scalar threshold_dist =
             static_cast<Scalar>(1.5) * static_cast<Scalar>(1.4826) * median_dist;
 

@@ -46,6 +46,8 @@ from pyslam.config_parameters import Parameters
 
 from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
 
+from volumetric import ObjectData
+
 import traceback
 
 from collections import deque
@@ -224,6 +226,11 @@ class VolumetricIntegrationMesh:
         return mesh
 
 
+class VolumetricIntegrationObjects:
+    def __init__(self, objects: list[ObjectData]):
+        self.objects = objects
+
+
 class VolumetricIntegrationOutput:
     def __init__(
         self,
@@ -231,11 +238,13 @@ class VolumetricIntegrationOutput:
         id=-1,
         point_cloud: VolumetricIntegrationPointCloud = None,
         mesh: VolumetricIntegrationMesh = None,
+        objects: VolumetricIntegrationObjects = None,
     ):
         self.task_type = task_type
         self.id = id
         self.point_cloud: VolumetricIntegrationPointCloud = point_cloud
         self.mesh: VolumetricIntegrationMesh = mesh
+        self.objects: VolumetricIntegrationObjects = objects
         self.timestamp = time.perf_counter()
 
 
@@ -1035,7 +1044,7 @@ class VolumetricIntegratorBase:
             max_checks = len(self.keyframe_queue)
             processed_count = 0
 
-            while processed_count < max_checks and len(self.keyframe_queue) > 0:
+            while len(self.keyframe_queue) > 0:
                 try:
                     kf_to_process = self.keyframe_queue[0]
                 except IndexError:
@@ -1084,6 +1093,9 @@ class VolumetricIntegratorBase:
                         break
                     self.keyframe_queue.rotate(-1)
                     processed_count += 1
+
+                if processed_count >= max_checks:
+                    break
 
     def add_keyframe(self, keyframe: KeyFrame, img, img_right, depth, print=print):
         VolumetricIntegratorBase.print(

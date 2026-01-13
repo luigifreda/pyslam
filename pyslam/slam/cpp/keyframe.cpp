@@ -247,9 +247,11 @@ std::unordered_map<int, int> KeyFrameGraph::get_connected_keyframes_weights() co
 // KeyFrame implementation
 KeyFrame::KeyFrame(const FramePtr &frame, const cv::Mat &img, const cv::Mat &img_right,
                    const cv::Mat &depth, int kid)
-    : Frame(frame->camera), kid(kid), _is_bad(false), to_be_erased(false), lba_count(0),
-      loop_query_id(-1), num_loop_words(0), loop_score(0.0f), reloc_query_id(-1),
-      num_reloc_words(0), reloc_score(0.0f), GBA_kf_id(0), map(nullptr) {
+    : Frame(frame->camera, cv::Mat(), cv::Mat(), cv::Mat(), CameraPose(), frame ? frame->id : -1,
+            frame ? frame->timestamp : 0.0, frame ? frame->img_id : -1),
+      kid(kid), _is_bad(false), to_be_erased(false), lba_count(0), loop_query_id(-1),
+      num_loop_words(0), loop_score(0.0f), reloc_query_id(-1), num_reloc_words(0),
+      reloc_score(0.0f), GBA_kf_id(0), map(nullptr) {
 
     if (frame) {
         Frame::copy_from(*frame);
@@ -299,6 +301,9 @@ void KeyFrame::init_observations() {
 }
 
 void KeyFrame::update_connections() {
+    // for all map points of this keyframe check in which other keyframes they are seen
+    // build a counter for these other keyframes
+
     // Get all matched good points from this keyframe
     const auto points = get_matched_good_points();
     int num_points = static_cast<int>(points.size());
@@ -309,7 +314,7 @@ void KeyFrame::update_connections() {
         return;
     }
 
-    // Build a counter for viewing keyframes (equivalent to Counter in Python)
+    // Build a counter for viewing keyframes with stable (first-seen) order
     std::unordered_map<KeyFramePtr, int> viewing_keyframes;
     for (const auto &p : points) {
         const auto point_keyframes = p->keyframes();
@@ -332,34 +337,29 @@ void KeyFrame::update_connections() {
         covisible_keyframes.push_back(pair);
     }
 
-    // Sort by weight in descending order
+    // Sort the vector by weight in descending order
     std::sort(covisible_keyframes.begin(), covisible_keyframes.end(),
-              [](const std::pair<KeyFramePtr, int> &a, const std::pair<KeyFramePtr, int> &b) {
-                  return a.second > b.second;
-              });
+              [](const auto &a, const auto &b) { return a.second > b.second; }); // descending order
 
-    // Get keyframe that shares most points
-    KeyFramePtr kf_max = covisible_keyframes[0].first;
-    int w_max = covisible_keyframes[0].second;
-
-    std::lock_guard<std::mutex> lock(_lock_connections);
+    auto kf_max = covisible_keyframes[0].first;
+    auto w_max = covisible_keyframes[0].second;
 
     auto self = KeyFrameGraph::downcasted_shared_from_this<KeyFrame>();
     if (!self) {
         MSG_ERROR("KeyFrameGraph could not be downcasted to KeyFrame");
         return;
     }
+
+    std::lock_guard<std::mutex> lock(_lock_connections);
+
+    connected_keyframes_weights = std::move(viewing_keyframes);
+
     if (w_max >= Parameters::kMinNumOfCovisiblePointsForCreatingConnection) {
-        // Set connected_keyframes_weights to viewing_keyframes
-        connected_keyframes_weights = std::move(viewing_keyframes);
         ordered_keyframes_weights.clear();
         ordered_keyframes_weights.reserve(covisible_keyframes.size());
 
         // Here we keep the weight-decreasing-order of the covisible_keyframes
-        for (const auto &pair : covisible_keyframes) {
-            KeyFramePtr kf = pair.first;
-            int w = pair.second;
-
+        for (const auto &[kf, w] : covisible_keyframes) {
             if (w >= Parameters::kMinNumOfCovisiblePointsForCreatingConnection) {
                 kf->add_connection_no_lock(self, w);
                 ordered_keyframes_weights.push_back({kf, w});
@@ -368,10 +368,6 @@ void KeyFrame::update_connections() {
             }
         }
     } else {
-        // Only add the one with maximum counter
-        connected_keyframes_weights.clear();
-        connected_keyframes_weights[kf_max] = w_max;
-
         ordered_keyframes_weights.clear();
         ordered_keyframes_weights.push_back({kf_max, w_max});
 
@@ -380,7 +376,7 @@ void KeyFrame::update_connections() {
 
     // Update spanning tree
     // We need to avoid setting the parent to None or self or a bad keyframe
-    if (is_first_connection && kid != 0 && kf_max && (kf_max->id != this->id) &&
+    if (is_first_connection && (kid != 0) && (kf_max) && ((kf_max->id != this->id)) &&
         !kf_max->is_bad()) {
         set_parent_no_lock(kf_max);
         is_first_connection = false;

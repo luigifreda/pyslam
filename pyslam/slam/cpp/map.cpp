@@ -634,14 +634,15 @@ LocalMapBase::update_from_keyframes(const Container &local_keyframes) {
 // - the local points
 std::tuple<KeyFramePtr, std::vector<KeyFramePtr>, std::vector<MapPointPtr>>
 LocalMapBase::get_frame_covisibles(const FramePtr &frame) {
-    const auto frame_points = frame->get_points();
+    // Use get_matched_good_points() to match Python implementation behavior
+    const auto frame_points = frame->get_matched_good_points();
+    if (frame_points.empty()) {
+        MSG_RED_WARN("LocalMapBase: get_frame_covisibles - frame without points");
+    }
 
-    // Count keyframes viewing the points
+    // Count keyframes viewing the points, preserving first-seen order (Counter behavior)
     std::unordered_map<KeyFramePtr, int> viewing_keyframes;
     for (const auto &p : frame_points) {
-        if (!p || p->is_bad()) {
-            continue;
-        }
         const auto point_viewing_keyframes = p->keyframes();
         for (const auto &kf : point_viewing_keyframes) {
             if (!kf->is_bad()) {
@@ -651,6 +652,7 @@ LocalMapBase::get_frame_covisibles(const FramePtr &frame) {
     }
 
     if (viewing_keyframes.empty()) {
+        MSG_RED_WARN("LocalMapBase: get_frame_covisibles - no viewing keyframes");
         return std::make_tuple(nullptr, std::vector<KeyFramePtr>(), std::vector<MapPointPtr>());
     }
 
@@ -704,7 +706,7 @@ LocalMapBase::get_frame_covisibles(const FramePtr &frame) {
             if (viewing_keyframes.find(parent) == viewing_keyframes.end()) {
                 local_keyframes.push_back(parent);
                 viewing_keyframes[parent]++;
-                break;
+                // break;  // This would stop the loop after the first parent is added
             }
         }
     }

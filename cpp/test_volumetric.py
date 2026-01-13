@@ -17,7 +17,7 @@ This script tests:
    - Segment operations (integrate_segment, merge_segments, remove_segment)
    - Spatial queries (get_voxels_in_bb, get_voxels_in_camera_frustrum)
    - Carving and filtering (carve, remove_low_count_voxels, remove_low_confidence_voxels)
-   - Data retrieval (get_voxels, get_points, get_colors, get_instance_segments, get_class_segments)
+   - Data retrieval (get_voxels, get_points, get_colors, get_object_segments, get_class_segments)
 
 """
 
@@ -501,9 +501,9 @@ def test_voxel_grid_classes(volumetric):
                 grid.remove_low_confidence_segments(min_confidence=1)
                 print(f"  ✓ remove_low_confidence_segments() succeeded")
 
-                # Test get_instance_segments
-                instance_segments = grid.get_instance_segments()
-                print(f"  ✓ get_instance_segments() returned {len(instance_segments)} segments")
+                # Test get_object_segments
+                object_segments = grid.get_object_segments()
+                print(f"  ✓ get_object_segments() returned {len(object_segments)} segments")
 
                 # Test get_class_segments
                 class_segments = grid.get_class_segments()

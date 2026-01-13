@@ -648,7 +648,16 @@ void MapPoint::update_best_descriptor(const bool force) {
         for (size_t i = 0; i < num_descriptors; ++i) {
             std::vector<float> ith_row_distances = distances_matrix[i];
             std::sort(ith_row_distances.begin(), ith_row_distances.end());
-            const float median_distance = ith_row_distances[ith_row_distances.size() / 2];
+            float median_distance;
+            const size_t size = ith_row_distances.size();
+            if (size % 2 == 0 && size > 0) {
+                // Even number: average of two middle values
+                median_distance =
+                    (ith_row_distances[size / 2 - 1] + ith_row_distances[size / 2]) / 2.0f;
+            } else {
+                // Odd number: middle value
+                median_distance = ith_row_distances[size / 2];
+            }
             if (median_distance < min_median_distance) {
                 min_median_distance = median_distance;
                 best_descriptor_idx = i;
@@ -658,6 +667,12 @@ void MapPoint::update_best_descriptor(const bool force) {
         {
             std::lock_guard<std::mutex> lock(_lock_features);
             des = descriptors[best_descriptor_idx].clone();
+        }
+    } else if (descriptors.size() == 1) {
+        // Single descriptor case - just use it
+        {
+            std::lock_guard<std::mutex> lock(_lock_features);
+            des = descriptors[0].clone();
         }
     }
 }

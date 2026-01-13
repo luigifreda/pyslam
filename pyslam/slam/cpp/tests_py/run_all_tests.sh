@@ -19,7 +19,7 @@ TESTS_DIR="${SCRIPT_DIR}"
 
 # Test lists
 KDTREE_TESTS=("test_ckdtree_basic.py" "test_ckdtree_validation.py")
-SLAM_TESTS=("test_slam_cpp_module.py" "test_slam_cpp_map.py")
+SLAM_TESTS=("test_slam_cpp_module.py" "test_slam_cpp_map.py" "test_slam_cpp_feature_matching_equivalence.py" "test_slam_cpp_rotation_histogram.py")
 OPTIMIZATION_TESTS=("test_slam_cpp_optimize_pose.py" "test_slam_cpp_optimize_sim3.py" "test_slam_cpp_optimize_essential_graph.py")
 
 # Test tracking

@@ -89,15 +89,17 @@ local_map_update_from_keyframes_wrapper(std::shared_ptr<pyslam::LocalMapBase> lo
     return local_map->update_from_keyframes(local_keyframes);
 }
 
-std::tuple<pyslam::KeyFramePtr, std::vector<pyslam::KeyFramePtr>, std::vector<pyslam::MapPointPtr>>
-get_frame_covisibles_wrapper(pyslam::LocalMapBase &self, pyslam::FramePtr frame) {
-    auto [kf_ref, local_keyframes, local_points_set] = self.get_frame_covisibles(frame);
+// std::tuple<pyslam::KeyFramePtr, std::vector<pyslam::KeyFramePtr>,
+// std::vector<pyslam::MapPointPtr>> get_frame_covisibles_wrapper(pyslam::LocalMapBase &self,
+// pyslam::FramePtr frame) {
+//     auto [kf_ref, local_keyframes, local_points_set] = self.get_frame_covisibles(frame);
 
-    // Use the safer validation function to filter valid MapPoints
-    std::vector<pyslam::MapPointPtr> local_points_vector = filter_valid_mappoints(local_points_set);
+//     // Use the safer validation function to filter valid MapPoints
+//     std::vector<pyslam::MapPointPtr> local_points_vector =
+//     filter_valid_mappoints(local_points_set);
 
-    return std::make_tuple(kf_ref, local_keyframes, local_points_vector);
-}
+//     return std::make_tuple(kf_ref, local_keyframes, local_points_vector);
+// }
 
 } // namespace pyslam
 

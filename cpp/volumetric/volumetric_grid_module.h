@@ -653,29 +653,29 @@ inline void integrate_with_arrays(CLASS_TYPE &self, py::array_t<Tpos> points,
             },                                                                                     \
             "Returns the colors")                                                                  \
         .def(                                                                                      \
-            "get_instance_segments",                                                               \
-            [](CLASS_TYPE &self) {                                                                 \
-                std::unordered_map<int, std::vector<std::array<double, 3>>> segments;              \
+            "get_object_segments",                                                                 \
+            [](CLASS_TYPE &self, int min_count = 1, float min_confidence = 0.0) {                  \
+                std::vector<std::shared_ptr<volumetric::ObjectData>> segments;                     \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    segments = self.get_instance_segments();                                       \
+                    segments = self.get_object_segments();                                         \
                 }                                                                                  \
                 return segments;                                                                   \
             },                                                                                     \
-            "Returns a dictionary of segments of voxels based on "                                 \
-            "instance IDs")                                                                        \
+            "Returns a dictionary of segments of voxels based on instance IDs",                    \
+            py::arg("min_count") = 1, py::arg("min_confidence") = 0.0)                             \
         .def(                                                                                      \
             "get_class_segments",                                                                  \
-            [](CLASS_TYPE &self) {                                                                 \
-                std::unordered_map<int, std::vector<std::array<double, 3>>> segments;              \
+            [](CLASS_TYPE &self, int min_count = 1, float min_confidence = 0.0) {                  \
+                std::vector<std::shared_ptr<volumetric::ClassData>> segments;                      \
                 {                                                                                  \
                     py::gil_scoped_release release;                                                \
-                    segments = self.get_class_segments();                                          \
+                    segments = self.get_class_segments(min_count, min_confidence);                 \
                 }                                                                                  \
                 return segments;                                                                   \
             },                                                                                     \
-            "Returns a dictionary of segments of voxels based on "                                 \
-            "class IDs")                                                                           \
+            "Returns a dictionary of segments of voxels based on class IDs",                       \
+            py::arg("min_count") = 1, py::arg("min_confidence") = 0.0)                             \
         .def(                                                                                      \
             "get_ids",                                                                             \
             [](CLASS_TYPE &self) {                                                                 \
@@ -968,12 +968,36 @@ void bind_volumetric_grid(py::module &m) {
                        "Returns the object IDs")
         .def_readwrite("class_ids", &volumetric::VoxelGridData::class_ids, "Returns the class IDs")
         .def_readwrite("confidences", &volumetric::VoxelGridData::confidences,
-                       "Returns the confidences")
-        .def_readwrite("oriented_bounding_boxes",
-                       &volumetric::VoxelGridData::oriented_bounding_boxes,
-                       "Returns the oriented bounding boxes")
-        .def_readwrite("bounding_boxes", &volumetric::VoxelGridData::bounding_boxes,
-                       "Returns the bounding boxes");
+                       "Returns the confidences");
+
+    // ----------------------------------------
+    // ObjectData
+    // ----------------------------------------
+    py::class_<volumetric::ObjectData, std::shared_ptr<volumetric::ObjectData>>(m, "ObjectData")
+        .def(py::init<>())
+        .def_readwrite("points", &volumetric::ObjectData::points, "Returns the points")
+        .def_readwrite("colors", &volumetric::ObjectData::colors, "Returns the colors")
+        .def_readwrite("class_id", &volumetric::ObjectData::class_id, "Returns the class ID")
+        .def_readwrite("confidence_min", &volumetric::ObjectData::confidence_min,
+                       "Returns the minimum confidence")
+        .def_readwrite("confidence_max", &volumetric::ObjectData::confidence_max,
+                       "Returns the maximum confidence")
+        .def_readwrite("object_id", &volumetric::ObjectData::object_id, "Returns the object ID")
+        .def_readwrite("oriented_bounding_box", &volumetric::ObjectData::oriented_bounding_box,
+                       "Returns the oriented bounding box");
+
+    // ----------------------------------------
+    // ClassData
+    // ----------------------------------------
+    py::class_<volumetric::ClassData, std::shared_ptr<volumetric::ClassData>>(m, "ClassData")
+        .def(py::init<>())
+        .def_readwrite("points", &volumetric::ClassData::points, "Returns the points")
+        .def_readwrite("colors", &volumetric::ClassData::colors, "Returns the colors")
+        .def_readwrite("class_id", &volumetric::ClassData::class_id, "Returns the class ID")
+        .def_readwrite("confidence_min", &volumetric::ClassData::confidence_min,
+                       "Returns the minimum confidence")
+        .def_readwrite("confidence_max", &volumetric::ClassData::confidence_max,
+                       "Returns the maximum confidence");
 
     // ----------------------------------------
     // VoxelGrid

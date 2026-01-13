@@ -742,11 +742,15 @@ def _search_and_fuse(
         kd_idxs_j = kd_idxs[j]
         kd_idxs_j = np.array(kd_idxs_j, dtype=int)  # ensure it's an array for indexing
 
-        if len(kd_idxs_j) > 0:
+        len_kd_idxs_j = len(kd_idxs_j)
+        if len_kd_idxs_j == 0:
+            continue
+
+        if len_kd_idxs_j > 0:
             valid_stereo_mask = check_stereo_flags[
                 kd_idxs_j
             ]  # boolean mask of valid stereo matches
-            errs_ur2 = np.zeros(len(kd_idxs_j), dtype=np.float32)
+            errs_ur2 = np.zeros(len_kd_idxs_j, dtype=np.float32)
 
             if np.any(valid_stereo_mask):
                 proj_ur = proj[2]  # scalar
@@ -815,6 +819,7 @@ def _search_and_fuse(
                 p.add_observation(keyframe, best_kd_idx)
                 # p.update_info()    # done outside!
             fused_pts_count += 1
+
     return fused_pts_count
 
 
@@ -1163,8 +1168,8 @@ def _search_frame_for_triangulation(
     idxs2 = np.array(idxs2)
 
     # Vectorized filtering: check if points already have map points
-    has_map_point1 = np.array([kf1.get_point_match(i) is not None for i in idxs1])
-    has_map_point2 = np.array([kf2.get_point_match(i) is not None for i in idxs2])
+    has_map_point1 = np.array([kf1.get_point_match(i) is not None for i in idxs1], dtype=bool)
+    has_map_point2 = np.array([kf2.get_point_match(i) is not None for i in idxs2], dtype=bool)
     valid_matches = ~(has_map_point1 | has_map_point2)
 
     if not np.any(valid_matches):

@@ -25,6 +25,7 @@
 #include "map_point.h"
 
 #include <execution>
+#include <iostream>
 #include <tbb/global_control.h>
 #include <tbb/parallel_for_each.h>
 
@@ -79,12 +80,10 @@ std::vector<MapPointPtr> LocalMappingCore::get_recently_added_points() const {
 void LocalMappingCore::process_new_keyframe() {
     // associate map points to keyframe observations (only good points)
     // and update normal and descriptor
-    auto points = kf_cur_->get_points();
-    for (size_t idx = 0; idx < points.size(); ++idx) {
-        auto p = points[idx];
-        if (!p || p->is_bad()) {
-            continue;
-        }
+    // Use get_matched_good_points_and_idxs() to match Python implementation exactly
+    auto good_points_and_idxs = kf_cur_->get_matched_good_points_and_idxs();
+    for (const auto &[p, idx] : good_points_and_idxs) {
+        // Try to add observation
         const bool added = p->add_observation(kf_cur_, idx);
         if (added) {
             p->update_info();
@@ -199,7 +198,7 @@ int LocalMappingCore::cull_keyframes(bool use_fov_centers_based_kf_generation,
             }
 
             // Check depth if available
-            if (kf->depths.size() > i) {
+            if (sensor_type_ != SensorType::MONOCULAR && kf->depths.size() > i) {
                 const float &depth = kf->depths[i];
                 if (depth > kf->camera->depth_threshold || depth < 0.0f) {
                     continue;
@@ -242,14 +241,19 @@ int LocalMappingCore::cull_keyframes(bool use_fov_centers_based_kf_generation,
 
         bool remove_kf = ((kf_num_redundant_observations >
                            Parameters::kKeyframeCullingRedundantObsRatio * kf_num_points) &&
-                          (kf_num_points > Parameters::kKeyframeCullingMinNumPoints) &&
-                          (std::abs(kf->timestamp - kf->parent->timestamp) <
-                           Parameters::kKeyframeMaxTimeDistanceInSecForCulling));
-
-        if (remove_kf && use_fov_centers_based_kf_generation) {
-            if (!check_remaining_fov_centers_max_distance(covisible_kfs, kf,
-                                                          max_fov_centers_distance)) {
+                          (kf_num_points > Parameters::kKeyframeCullingMinNumPoints));
+        if (remove_kf) {
+            // check if the keyframe is too close in time to its parent
+            const double delta_time_parent = std::abs(kf->timestamp - kf->parent->timestamp);
+            if (delta_time_parent < Parameters::kKeyframeMaxTimeDistanceInSecForCulling) {
                 remove_kf = false;
+            }
+            // check if the keyframe is too far from the FOV centers of the covisible keyframes
+            if (use_fov_centers_based_kf_generation) {
+                if (!check_remaining_fov_centers_max_distance(covisible_kfs, kf,
+                                                              max_fov_centers_distance)) {
+                    remove_kf = false;
+                }
             }
         }
 
@@ -322,8 +326,9 @@ int LocalMappingCore::fuse_map_points(float descriptor_distance_sigma) {
 
     // 3. Fuse current keyframe's points into all target keyframes
     for (KeyFramePtr kf : target_kfs) {
+        const auto kf_cur_points = kf_cur_->get_points();
         int num_fused_pts = ProjectionMatcher::search_and_fuse(
-            kf_cur_->get_points(), kf, Parameters::kMaxReprojectionDistanceFuse,
+            kf_cur_points, kf, Parameters::kMaxReprojectionDistanceFuse,
             0.5f * descriptor_distance_sigma);
         total_fused_pts += num_fused_pts;
     }
@@ -340,7 +345,6 @@ int LocalMappingCore::fuse_map_points(float descriptor_distance_sigma) {
     }
 
     std::vector<MapPointPtr> candidates_list(fuse_candidates.begin(), fuse_candidates.end());
-
     int num_fused_pts = ProjectionMatcher::search_and_fuse(candidates_list, kf_cur_,
                                                            Parameters::kMaxReprojectionDistanceFuse,
                                                            0.5f * descriptor_distance_sigma);
