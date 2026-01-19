@@ -88,13 +88,13 @@ class Parameters {
     static constexpr int kMaxNumStereoPointsOnNewKeyframe = 100;
 
     // Search matches by projection
-    static constexpr float kMaxReprojectionDistanceFrame = 7.0f;      // [pixels]    o:7
-    static constexpr float kMaxReprojectionDistanceFrameRgbd = 15.0f; // [pixels]    o:15
-    static constexpr float kMaxReprojectionDistanceMap = 3.0f;        // [pixels]    o:1
-    static constexpr float kMaxReprojectionDistanceMapRgbd = 3.0f;    // [pixels]    o:3
-    static constexpr float kMaxReprojectionDistanceMapReloc = 5.0f;   // [pixels]    o:5
-    static constexpr float kMaxReprojectionDistanceFuse = 3.0f;       // [pixels]    o:3
-    static constexpr float kMaxReprojectionDistanceSim3 = 7.5f;       // [pixels]    o:7.5
+    static constexpr float kMaxReprojectionDistanceFrame = 7.0f;           // [pixels]    o:7
+    static constexpr float kMaxReprojectionDistanceFrameNonStereo = 15.0f; // [pixels]    o:15
+    static constexpr float kMaxReprojectionDistanceMap = 3.0f;             // [pixels]    o:1
+    static constexpr float kMaxReprojectionDistanceMapRgbd = 3.0f;         // [pixels]    o:3
+    static constexpr float kMaxReprojectionDistanceMapReloc = 5.0f;        // [pixels]    o:5
+    static constexpr float kMaxReprojectionDistanceFuse = 3.0f;            // [pixels]    o:3
+    static constexpr float kMaxReprojectionDistanceSim3 = 7.5f;            // [pixels]    o:7.5
     //
     static constexpr float kMatchRatioTestFrameByProjection = 0.9f;
     static constexpr float kMatchRatioTestMap = 0.8f;

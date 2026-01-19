@@ -150,6 +150,7 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
         do_output = False
         timer = TimerFps("VolumetricIntegratorGaussianSplatting", is_verbose=kTimerVerbose)
         timer.start()
+
         try:
             if is_running.value == 1:
 
@@ -224,6 +225,8 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
                         # It is not the encoded gaussian splatting representation that is saved
                         # by the GaussianSplattingManager.
                         points, colors = self.volume.extract_point_cloud()
+                        points = np.ascontiguousarray(points, dtype=self.dtype_vertices)
+                        colors = np.ascontiguousarray(colors, dtype=self.dtype_colors)
                         pc_out = VolumetricIntegrationPointCloud(points=points, colors=colors)
                         VolumetricIntegratorBase.print(
                             f"VolumetricIntegratorGaussianSplatting: saving rough point cloud to: {save_path}"
@@ -244,6 +247,8 @@ class VolumetricIntegratorGaussianSplatting(VolumetricIntegratorBase):
 
                     if do_output:
                         points, colors = self.volume.extract_point_cloud()
+                        points = np.ascontiguousarray(points, dtype=self.dtype_vertices)
+                        colors = np.ascontiguousarray(colors, dtype=self.dtype_colors)
                         if points is not None and colors is not None:
                             if points.shape[0] > 0:
 

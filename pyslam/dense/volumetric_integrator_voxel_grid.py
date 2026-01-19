@@ -156,6 +156,7 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
         do_output = False
         timer = TimerFps("VolumetricIntegratorVoxelGrid", is_verbose=kTimerVerbose)
         timer.start()
+
         try:
             if is_running.value == 1:
 
@@ -262,13 +263,17 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                         # Colors from depth2pointcloud are already in [0, 1] range as float
                         # Convert to contiguous float32 array for C++ binding
                         if point_cloud.colors is not None and point_cloud.colors.size > 0:
-                            colors = np.ascontiguousarray(point_cloud.colors, dtype=np.float32)
+                            colors = np.ascontiguousarray(
+                                point_cloud.colors, dtype=self.dtype_colors
+                            )
                             # Ensure colors are in valid [0, 1] range
                             # colors = np.clip(colors, 0.0, 1.0)
                         else:
                             # If no colors, create default black colors
-                            colors = np.zeros((point_cloud.points.shape[0], 3), dtype=np.float32)
-                        points = np.ascontiguousarray(point_cloud.points, dtype=np.float64)
+                            colors = np.zeros(
+                                (point_cloud.points.shape[0], 3), dtype=self.dtype_colors
+                            )
+                        points = np.ascontiguousarray(point_cloud.points, dtype=self.dtype_vertices)
 
                         if Parameters.kVolumetricIntegrationVoxelGridUseCarving:
                             VolumetricIntegratorBase.print(
@@ -277,7 +282,7 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                             self.camera_frustrum.set_T_cw(pose)
                             # Ensure depth is in float32 format for C++ binding
                             depth_for_carving = np.ascontiguousarray(
-                                depth_undistorted, dtype=np.float32
+                                depth_undistorted, dtype=self.dtype_depths
                             )
                             self.volume.carve(
                                 self.camera_frustrum,
@@ -304,8 +309,12 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                             min_count=Parameters.kVolumetricIntegrationVoxelGridMinCount,
                             min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
                         )
-                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
-                        colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
+                        points = np.ascontiguousarray(
+                            voxel_grid_data.points, dtype=self.dtype_vertices
+                        )
+                        colors = np.ascontiguousarray(
+                            voxel_grid_data.colors, dtype=self.dtype_colors
+                        )
                         if len(points) > 0 and len(colors) > 0:
                             point_cloud_o3d = o3d.geometry.PointCloud()
                             point_cloud_o3d.points = o3d.utility.Vector3dVector(points)
@@ -331,8 +340,12 @@ class VolumetricIntegratorVoxelGrid(VolumetricIntegratorBase):
                             min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
                         )
                         # Convert C++ vectors to numpy arrays with proper shape and dtype
-                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
-                        colors = np.ascontiguousarray(voxel_grid_data.colors, dtype=np.float32)
+                        points = np.ascontiguousarray(
+                            voxel_grid_data.points, dtype=self.dtype_vertices
+                        )
+                        colors = np.ascontiguousarray(
+                            voxel_grid_data.colors, dtype=self.dtype_colors
+                        )
                         # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
                         # colors = np.clip(colors, 0.0, 1.0)
                         pc_out = VolumetricIntegrationPointCloud(points=points, colors=colors)

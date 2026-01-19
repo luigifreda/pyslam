@@ -81,25 +81,129 @@ inline double map_locally_optimize_wrapper(MapPtr map, KeyFramePtr kf_ref, bool 
     return mean_squared_error;
 }
 
+// Wrapper for Map::add_points to release the GIL during heavy C++ work
+inline std::tuple<int, std::vector<bool>, std::vector<MapPointPtr>>
+map_add_points_wrapper(MapPtr map, const std::vector<Eigen::Vector3d> &points3d,
+                       const std::optional<std::vector<bool>> &mask_pts3d, KeyFramePtr &kf1,
+                       KeyFramePtr &kf2, const std::vector<int> &idxs1,
+                       const std::vector<int> &idxs2, const cv::Mat &img, bool do_check = true,
+                       double cos_max_parallax = Parameters::kCosMaxParallax,
+                       std::optional<double> far_points_threshold = std::nullopt) {
+    py::gil_scoped_release gil_release;
+    return map->add_points(points3d, mask_pts3d, kf1, kf2, idxs1, idxs2, img, do_check,
+                           cos_max_parallax, far_points_threshold);
+}
+
+// Wrapper for Map::add_stereo_points to release the GIL during heavy C++ work
+inline int map_add_stereo_points_wrapper(MapPtr map, const std::vector<Eigen::Vector3d> &points3d,
+                                         const std::optional<std::vector<bool>> &mask_pts3d,
+                                         FramePtr &f, KeyFramePtr &kf, const std::vector<int> &idxs,
+                                         const cv::Mat &img) {
+    py::gil_scoped_release gil_release;
+    return map->add_stereo_points(points3d, mask_pts3d, f, kf, idxs, img);
+}
+
+// Wrapper for Map::remove_points_with_big_reproj_err to release the GIL
+inline void map_remove_points_with_big_reproj_err_wrapper(MapPtr map,
+                                                          const std::vector<MapPointPtr> &points) {
+    py::gil_scoped_release gil_release;
+    map->remove_points_with_big_reproj_err(points);
+}
+
+// Wrapper for Map::compute_mean_reproj_error to release the GIL
+inline float map_compute_mean_reproj_error_wrapper(MapPtr map,
+                                                   const std::vector<MapPointPtr> &points = {}) {
+    py::gil_scoped_release gil_release;
+    return map->compute_mean_reproj_error(points);
+}
+
+// Wrapper for Map serialization/deserialization to release the GIL
+inline std::string map_to_json_wrapper(MapPtr map, const std::string &out_json = "{}") {
+    py::gil_scoped_release gil_release;
+    return map->to_json(out_json);
+}
+
+inline std::string map_serialize_wrapper(MapPtr map) {
+    py::gil_scoped_release gil_release;
+    return map->serialize();
+}
+
+inline void map_from_json_wrapper(MapPtr map, const std::string &loaded_json) {
+    py::gil_scoped_release gil_release;
+    map->from_json(loaded_json);
+}
+
+inline void map_deserialize_wrapper(MapPtr map, const std::string &s) {
+    py::gil_scoped_release gil_release;
+    map->deserialize(s);
+}
+
+inline void map_save_wrapper(MapPtr map, const std::string &filename) {
+    py::gil_scoped_release gil_release;
+    map->save(filename);
+}
+
+inline void map_load_wrapper(MapPtr map, const std::string &filename) {
+    py::gil_scoped_release gil_release;
+    map->load(filename);
+}
+
 // Wrapper for LocalMapBase::update_from_keyframes template method
 inline std::tuple<pyslam::KeyFrameIdSet, std::unordered_set<pyslam::MapPointPtr>,
                   pyslam::KeyFrameIdSet>
-local_map_update_from_keyframes_wrapper(std::shared_ptr<pyslam::LocalMapBase> local_map,
+local_map_update_from_keyframes_wrapper(pyslam::LocalMapBase &self,
                                         const pyslam::KeyFrameIdSet &local_keyframes) {
-    return local_map->update_from_keyframes(local_keyframes);
+    py::gil_scoped_release gil_release;
+    return self.update_from_keyframes(local_keyframes);
 }
 
-// std::tuple<pyslam::KeyFramePtr, std::vector<pyslam::KeyFramePtr>,
-// std::vector<pyslam::MapPointPtr>> get_frame_covisibles_wrapper(pyslam::LocalMapBase &self,
-// pyslam::FramePtr frame) {
-//     auto [kf_ref, local_keyframes, local_points_set] = self.get_frame_covisibles(frame);
+inline std::tuple<KeyFramePtr, std::vector<KeyFramePtr>, std::vector<MapPointPtr>>
+local_map_get_frame_covisibles_wrapper(pyslam::LocalMapBase &self, pyslam::FramePtr frame) {
+    py::gil_scoped_release gil_release;
+    return self.get_frame_covisibles(frame);
+}
 
-//     // Use the safer validation function to filter valid MapPoints
-//     std::vector<pyslam::MapPointPtr> local_points_vector =
-//     filter_valid_mappoints(local_points_set);
+// Wrappers for LocalWindowMap/LocalCovisibilityMap to release the GIL
+inline KeyFrameIdSet
+local_window_map_update_keyframes_wrapper(pyslam::LocalWindowMap &self,
+                                          const KeyFramePtr &kf_ref = nullptr) {
+    py::gil_scoped_release gil_release;
+    return self.update_keyframes(kf_ref);
+}
 
-//     return std::make_tuple(kf_ref, local_keyframes, local_points_vector);
-// }
+inline std::vector<KeyFramePtr>
+local_window_map_get_best_neighbors_wrapper(pyslam::LocalWindowMap &self,
+                                            const KeyFramePtr &kf_ref = nullptr, int N = 20) {
+    py::gil_scoped_release gil_release;
+    return self.get_best_neighbors(kf_ref, N);
+}
+
+inline std::tuple<KeyFrameIdSet, std::unordered_set<MapPointPtr>, KeyFrameIdSet>
+local_window_map_update_wrapper(pyslam::LocalWindowMap &self, const KeyFramePtr &kf_ref = nullptr) {
+    py::gil_scoped_release gil_release;
+    return self.update(kf_ref);
+}
+
+inline KeyFrameIdSet
+local_covisibility_map_update_keyframes_wrapper(pyslam::LocalCovisibilityMap &self,
+                                                const KeyFramePtr &kf_ref) {
+    py::gil_scoped_release gil_release;
+    return self.update_keyframes(kf_ref);
+}
+
+inline std::vector<KeyFramePtr>
+local_covisibility_map_get_best_neighbors_wrapper(pyslam::LocalCovisibilityMap &self,
+                                                  const KeyFramePtr &kf_ref, int N = 20) {
+    py::gil_scoped_release gil_release;
+    return self.get_best_neighbors(kf_ref, N);
+}
+
+inline std::tuple<KeyFrameIdSet, std::unordered_set<MapPointPtr>, KeyFrameIdSet>
+local_covisibility_map_update_wrapper(pyslam::LocalCovisibilityMap &self,
+                                      const KeyFramePtr &kf_ref) {
+    py::gil_scoped_release gil_release;
+    return self.update(kf_ref);
+}
 
 } // namespace pyslam
 
@@ -138,16 +242,13 @@ void bind_map(pybind11::module &m) {
                 // Unpickling: create a new vector from the list
                 // Note: This creates a standalone vector, not connected to MapStateData
                 // In practice, VectorProxy should be created from MapStateData properties
-                std::vector<pyslam::Mat4d> vec;
+                auto vec = std::make_shared<std::vector<pyslam::Mat4d>>();
                 py::list items = t[0].cast<py::list>();
+                vec->reserve(py::len(items));
                 for (auto item : items) {
-                    vec.push_back(py::cast<pyslam::Mat4d>(item));
+                    vec->push_back(py::cast<pyslam::Mat4d>(item));
                 }
-                // Create a static vector to hold the data (temporary solution)
-                // The unpickled VectorProxy will have its own vector
-                static thread_local std::vector<pyslam::Mat4d> temp_vec;
-                temp_vec = std::move(vec);
-                return pyslam::VectorProxy<pyslam::Mat4d>(temp_vec);
+                return pyslam::VectorProxy<pyslam::Mat4d>(std::move(vec));
             }))
         .def("__getstate__", &pyslam::VectorProxy<pyslam::Mat4d>::__getstate__);
 
@@ -169,16 +270,13 @@ void bind_map(pybind11::module &m) {
                             // Note: This creates a standalone vector, not connected to MapStateData
                             // In practice, VectorProxy should be created from MapStateData
                             // properties
-                            std::vector<double> vec;
+                            auto vec = std::make_shared<std::vector<double>>();
                             py::list items = t[0].cast<py::list>();
+                            vec->reserve(py::len(items));
                             for (auto item : items) {
-                                vec.push_back(py::cast<double>(item));
+                                vec->push_back(py::cast<double>(item));
                             }
-                            // Create a static vector to hold the data (temporary solution)
-                            // The unpickled VectorProxy will have its own vector
-                            static thread_local std::vector<double> temp_vec;
-                            temp_vec = std::move(vec);
-                            return pyslam::VectorProxy<double>(temp_vec);
+                            return pyslam::VectorProxy<double>(std::move(vec));
                         }))
         .def("__getstate__", &pyslam::VectorProxy<double>::__getstate__);
 
@@ -337,18 +435,19 @@ void bind_map(pybind11::module &m) {
                 pyslam::Parameters::kMinWeightForDrawingCovisibilityEdge)
 
         // Point management
-        .def("add_points", &pyslam::Map::add_points, py::arg("points3d"),
+        .def("add_points", &pyslam::map_add_points_wrapper, py::arg("points3d"),
              py::arg("mask_pts3d") = py::none(), py::arg("kf1"), py::arg("kf2"), py::arg("idxs1"),
              py::arg("idxs2"), py::arg("img"), py::arg("do_check") = true,
              py::arg("cos_max_parallax") = 0.9998, py::arg("far_points_threshold") = py::none())
-        .def("add_stereo_points", &pyslam::Map::add_stereo_points, py::arg("points3d"),
+        .def("add_stereo_points", &pyslam::map_add_stereo_points_wrapper, py::arg("points3d"),
              py::arg("mask_pts3d") = py::none(), py::arg("f"), py::arg("kf"), py::arg("idxs"),
              py::arg("img"))
 
         // Point filtering
-        .def("remove_points_with_big_reproj_err", &pyslam::Map::remove_points_with_big_reproj_err)
-        .def("compute_mean_reproj_error", &pyslam::Map::compute_mean_reproj_error,
-             py::arg("points") = std::vector<pyslam::MapPoint *>{})
+        .def("remove_points_with_big_reproj_err",
+             &pyslam::map_remove_points_with_big_reproj_err_wrapper)
+        .def("compute_mean_reproj_error", &pyslam::map_compute_mean_reproj_error_wrapper,
+             py::arg("points") = std::vector<pyslam::MapPointPtr>{})
 
         // Optimization
         .def(
@@ -367,12 +466,12 @@ void bind_map(pybind11::module &m) {
              py::arg("mp_abort_flag") = py::none())
 
         // Serialization
-        .def("to_json", &pyslam::Map::to_json, py::arg("out_json") = "{}")
-        .def("serialize", &pyslam::Map::serialize)
-        .def("from_json", &pyslam::Map::from_json)
-        .def("deserialize", &pyslam::Map::deserialize)
-        .def("save", &pyslam::Map::save)
-        .def("load", &pyslam::Map::load)
+        .def("to_json", &pyslam::map_to_json_wrapper, py::arg("out_json") = "{}")
+        .def("serialize", &pyslam::map_serialize_wrapper)
+        .def("from_json", &pyslam::map_from_json_wrapper)
+        .def("deserialize", &pyslam::map_deserialize_wrapper)
+        .def("save", &pyslam::map_save_wrapper)
+        .def("load", &pyslam::map_load_wrapper)
 
         // Session management
         .def("is_reloaded", &pyslam::Map::is_reloaded)
@@ -433,7 +532,8 @@ void bind_map(pybind11::module &m) {
         // Update methods
         .def("update_from_keyframes", &pyslam::local_map_update_from_keyframes_wrapper,
              py::arg("local_keyframes"))
-        .def("get_frame_covisibles", &pyslam::LocalMapBase::get_frame_covisibles, py::arg("frame"));
+        .def("get_frame_covisibles", &pyslam::local_map_get_frame_covisibles_wrapper,
+             py::arg("frame"));
 
     // LocalWindowMap class - complete interface matching Python LocalWindowMap
     py::class_<pyslam::LocalWindowMap, pyslam::LocalMapBase,
@@ -447,11 +547,11 @@ void bind_map(pybind11::module &m) {
         .def_readwrite("local_window_size", &pyslam::LocalWindowMap::local_window_size)
 
         // Update methods
-        .def("update_keyframes", &pyslam::LocalWindowMap::update_keyframes,
+        .def("update_keyframes", &pyslam::local_window_map_update_keyframes_wrapper,
              py::arg("kf_ref") = nullptr)
-        .def("get_best_neighbors", &pyslam::LocalWindowMap::get_best_neighbors,
+        .def("get_best_neighbors", &pyslam::local_window_map_get_best_neighbors_wrapper,
              py::arg("kf_ref") = nullptr, py::arg("N") = 20)
-        .def("update", &pyslam::LocalWindowMap::update, py::arg("kf_ref") = nullptr);
+        .def("update", &pyslam::local_window_map_update_wrapper, py::arg("kf_ref") = nullptr);
 
     // LocalCovisibilityMap class - complete interface matching Python
     py::class_<pyslam::LocalCovisibilityMap, pyslam::LocalMapBase,
@@ -462,8 +562,8 @@ void bind_map(pybind11::module &m) {
              py::arg("map") = nullptr)
 
         // Update methods
-        .def("update_keyframes", &pyslam::LocalCovisibilityMap::update_keyframes)
-        .def("get_best_neighbors", &pyslam::LocalCovisibilityMap::get_best_neighbors,
+        .def("update_keyframes", &pyslam::local_covisibility_map_update_keyframes_wrapper)
+        .def("get_best_neighbors", &pyslam::local_covisibility_map_get_best_neighbors_wrapper,
              py::arg("kf_ref"), py::arg("N") = 20)
-        .def("update", &pyslam::LocalCovisibilityMap::update);
+        .def("update", &pyslam::local_covisibility_map_update_wrapper);
 }

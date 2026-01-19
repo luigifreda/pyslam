@@ -148,7 +148,7 @@ class Parameters:
 
     # Search matches by projection
     kMaxReprojectionDistanceFrame = 7  # [pixels]    o:7
-    kMaxReprojectionDistanceFrameRgbd = 15  # [pixels]    o:15
+    kMaxReprojectionDistanceFrameNonStereo = 15  # [pixels]    o:15
     kMaxReprojectionDistanceMap = 3  # [pixels]    o:1
     kMaxReprojectionDistanceMapRgbd = 3  # [pixels]    o:3
     kMaxReprojectionDistanceMapReloc = 5  # [pixels]    o:5
@@ -267,9 +267,10 @@ class Parameters:
     # ================================================================
     # Volumetric Integration
     # ================================================================
-    kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
+    kDoVolumetricIntegration = True  # To enable/disable volumetric integration (dense mapping)
     # kVolumetricIntegrationType: "VOXEL_GRID",
-    #                             "VOXEL_SEMANTIC_GRID", "VOXEL_SEMANTIC_PROBABILISTIC_GRID", (to be used with semantic mapping activated)
+    #                             "VOXEL_SEMANTIC_GRID",  (to be used with semantic mapping activated)
+    #                             "VOXEL_SEMANTIC_PROBABILISTIC_GRID", (to be used with semantic mapping activated)
     #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py and cpp/volumetric/README.md)
     kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
@@ -307,7 +308,7 @@ class Parameters:
     )
     #
     kVolumetricIntegrationTsdfExtractMesh = (
-        False  # Extract mesh or point cloud as output; only for TSDF
+        True  # Extract mesh or point cloud as output; only for TSDF
     )
     kVolumetricIntegrationTSdfTrunc = 0.04  # [m]
     kVolumetricIntegrationTsdfDepthTruncIndoor = 4.0  # [m]
@@ -347,7 +348,7 @@ class Parameters:
     # ================================================================
     # Sparse semantic mapping and image segmentation
     # ================================================================
-    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable _sparse_ semantic mapping (TODO: may be problematic under mac, fix it)
+    kDoSparseSemanticMappingAndSegmentation = True  # To enable/disable _sparse_ semantic mapping (TODO: may be problematic under mac, fix it)
     # NOTE: if you want _dense_ semantic mapping, enable this and setkDoVolumetricIntegration = True and  kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
     # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE" (see semantic_segmentation_factory.py)
     kSemanticSegmentationType = ""  # Override the semantic model selected in semantic_mapping_configs.py. If kSemanticSegmentationType = "" or None, a default model will be selected based on the dataset (see semantic_mapping_configs.py)
@@ -382,6 +383,7 @@ class Parameters:
     kMaxSparseMapPointsToVisualize = 1e6  # Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth and GL load
 
     kViewerDrawSlamMapOnSeparateThread = True  # True: draw the slam map on a separate thread, False: draw the slam map on the main thread
+    kViewerUseDoubleForDense3dVertices = False  # True: use double precision for dense vertices, False: use single precision for dense vertices
 
     # ================================================================
     # Other parameters

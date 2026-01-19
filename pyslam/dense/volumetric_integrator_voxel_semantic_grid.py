@@ -215,6 +215,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
         do_output = False
         timer = TimerFps("VolumetricIntegratorVoxelSemanticGrid", is_verbose=kTimerVerbose)
         timer.start()
+
         try:
             if is_running.value == 1:
 
@@ -356,7 +357,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                     # self.camera_frustrum.set_T_cw(pose) # already updated above
                                     # Ensure depth is in float32 format for C++ binding
                                     depth_for_carving = np.ascontiguousarray(
-                                        depth_undistorted, dtype=np.float32
+                                        depth_undistorted, dtype=self.dtype_depths
                                     )
                                     self.volume.carve(
                                         self.camera_frustrum,
@@ -383,7 +384,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 # if depth is less than kDepthThreshold, the confidence is 1.0
                                 # if depth is greater than kDepthThreshold, the confidence decays exponentially with depth
                                 depths = point_cloud.points[:, 2]
-                                depths = np.ascontiguousarray(depths, dtype=np.float32)
+                                depths = np.ascontiguousarray(depths, dtype=self.dtype_depths)
                             else:
                                 depths = None  # disable the use of depths for computing semantics confidence
 
@@ -398,19 +399,23 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             # Colors from depth2pointcloud are already in [0, 1] range as float
                             # Convert to contiguous float32 array for C++ binding
                             if point_cloud.colors is not None and point_cloud.colors.size > 0:
-                                colors = np.ascontiguousarray(point_cloud.colors, dtype=np.float32)
+                                colors = np.ascontiguousarray(
+                                    point_cloud.colors, dtype=self.dtype_colors
+                                )
                                 # Ensure colors are in valid [0, 1] range
                                 # colors = np.clip(colors, 0.0, 1.0)
                             else:
                                 # If no colors, create default black colors
                                 colors = np.zeros(
-                                    (point_cloud.points.shape[0], 3), dtype=np.float32
+                                    (point_cloud.points.shape[0], 3), dtype=self.dtype_colors
                                 )
-                            points = np.ascontiguousarray(point_cloud.points, dtype=np.float64)
+                            points = np.ascontiguousarray(
+                                point_cloud.points, dtype=self.dtype_vertices
+                            )
 
                             if point_cloud.semantics is not None and point_cloud.semantics.size > 0:
                                 semantics = np.ascontiguousarray(
-                                    point_cloud.semantics, dtype=np.int32
+                                    point_cloud.semantics, dtype=self.dtype_semantics
                                 )
                             else:
                                 semantics = None
@@ -420,7 +425,7 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                                 and point_cloud.object_ids.size > 0
                             ):
                                 object_ids = np.ascontiguousarray(
-                                    point_cloud.object_ids, dtype=np.int32
+                                    point_cloud.object_ids, dtype=self.dtype_object_ids
                                 )
                             else:
                                 object_ids = None
@@ -453,10 +458,18 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             min_count=Parameters.kVolumetricIntegrationVoxelGridMinCount,
                             min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
                         )
-                        points = np.asarray(voxel_grid_data.points, dtype=np.float64)
-                        colors = np.asarray(voxel_grid_data.colors, dtype=np.float32)
-                        semantics = np.asarray(voxel_grid_data.class_ids, dtype=np.int32)
-                        object_ids = np.asarray(voxel_grid_data.object_ids, dtype=np.int32)
+                        points = np.ascontiguousarray(
+                            voxel_grid_data.points, dtype=self.dtype_vertices
+                        )
+                        colors = np.ascontiguousarray(
+                            voxel_grid_data.colors, dtype=self.dtype_colors
+                        )
+                        semantics = np.ascontiguousarray(
+                            voxel_grid_data.class_ids, dtype=self.dtype_semantics
+                        )
+                        object_ids = np.ascontiguousarray(
+                            voxel_grid_data.object_ids, dtype=self.dtype_object_ids
+                        )
                         # check if points and colors are not empty
                         if len(points) > 0 and len(colors) > 0:
                             point_cloud_o3d = o3d.geometry.PointCloud()
@@ -478,101 +491,136 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         do_output = True
 
                     if do_output:
-                        mesh_out, pc_out = None, None
-                        voxel_grid_data = self.volume.get_voxels(
-                            min_count=Parameters.kVolumetricIntegrationVoxelGridMinCount,
-                            min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
-                        )
-                        # Convert C++ vectors to numpy arrays with proper shape and dtype
-                        points = np.ascontiguousarray(voxel_grid_data.points, dtype=np.float64)
-                        colors = np.ascontiguousarray(voxel_grid_data.colors, dtype=np.float32)
-                        semantics = (
-                            np.ascontiguousarray(voxel_grid_data.class_ids, dtype=np.int32)
-                            if len(voxel_grid_data.class_ids) > 0
-                            else None
-                        )
-                        object_ids = (
-                            np.ascontiguousarray(voxel_grid_data.object_ids, dtype=np.int32)
-                            if len(voxel_grid_data.object_ids) > 0
-                            else None
-                        )
-                        semantic_colors = (
-                            np.ascontiguousarray(
-                                SemanticMappingShared.sem_img_to_rgb(semantics, bgr=True),
-                                dtype=np.float32,
-                            )
-                            / 255.0
-                            if semantics is not None
-                            and SemanticMappingShared.is_semantic_mapping_enabled()
-                            else None
-                        )
-                        object_colors = None
-                        if object_ids is not None and len(object_ids) > 0:
-                            try:
-                                # Generate instance colors using IdsColorTable instance
-                                instance_colors_rgb = self.ids_color_table.ids_to_rgb(
-                                    object_ids, bgr=True
-                                )
-                                if instance_colors_rgb is not None and instance_colors_rgb.size > 0:
-                                    # Verify shape matches points
-                                    if len(
-                                        instance_colors_rgb.shape
-                                    ) == 2 and instance_colors_rgb.shape[0] == len(points):
-                                        object_colors = (
-                                            np.ascontiguousarray(
-                                                instance_colors_rgb, dtype=np.float32
-                                            )
-                                            / 255.0
-                                        )
-                            except Exception as e:
-                                VolumetricIntegratorBase.print(
-                                    f"VolumetricIntegratorVoxelSemanticGrid: Error generating instance colors: {e}"
-                                )
-                                if kPrintTrackebackDetails:
-                                    traceback_details = traceback.format_exc()
-                                    VolumetricIntegratorBase.print(
-                                        f"\t traceback details: {traceback_details}"
-                                    )
-                                object_colors = None
 
-                        # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
-                        # colors = np.clip(colors, 0.0, 1.0)
-                        pc_out = VolumetricIntegrationPointCloud(
-                            points=points,
-                            colors=colors,
-                            semantics=semantics,
-                            object_ids=object_ids,
-                            semantic_colors=semantic_colors,
-                            object_colors=object_colors,
-                        )
-                        VolumetricIntegratorBase.print(
-                            f"VolumetricIntegratorVoxelSemanticGrid: id: {self.last_integrated_id} -> PointCloud: points: {pc_out.points.shape}"
-                        )
-                        if semantic_colors is not None or object_ids is not None:
-                            semantic_colors_string = (
-                                f"semantic_colors: {semantic_colors.shape}, type: {semantic_colors.dtype}"
-                                if semantic_colors is not None
-                                else "None"
+                        generate_objects = False
+
+                        mesh_out = None
+                        pc_out = None
+                        objects_out = None
+
+                        if generate_objects:
+                            # ================================================================
+                            # START OF GENERATE OBJECTS REPRESENTATION
+                            objects_out = self.volume.get_objects(
+                                min_count=Parameters.kVolumetricIntegrationVoxelGridMinCount,
+                                min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
                             )
-                            instance_colors_string = (
-                                f"object_colors: {object_colors.shape}, type: {object_colors.dtype}"
-                                if object_colors is not None
-                                else "None"
+                            # END OF GENERATE OBJECTS REPRESENTATION
+                            # ================================================================
+                        else:
+                            # ================================================================
+                            # START OF GENERATE A SINGLE POINT CLOUD REPRESENTATION
+
+                            # generate a single point cloud representation
+                            voxel_grid_data = self.volume.get_voxels(
+                                min_count=Parameters.kVolumetricIntegrationVoxelGridMinCount,
+                                min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
                             )
-                            object_ids_string = (
-                                f"object_ids: {object_ids.shape}, min: {object_ids.min()}, max: {object_ids.max()}"
-                                if object_ids is not None and len(object_ids) > 0
-                                else f"object_ids: {object_ids}"
+                            # Convert C++ vectors to numpy arrays with proper shape and dtype
+                            points = np.ascontiguousarray(
+                                voxel_grid_data.points, dtype=self.dtype_vertices
+                            )
+                            colors = np.ascontiguousarray(
+                                voxel_grid_data.colors, dtype=self.dtype_colors
+                            )
+                            semantics = (
+                                np.ascontiguousarray(
+                                    voxel_grid_data.class_ids, dtype=self.dtype_semantics
+                                )
+                                if len(voxel_grid_data.class_ids) > 0
+                                else None
+                            )
+                            object_ids = (
+                                np.ascontiguousarray(
+                                    voxel_grid_data.object_ids, dtype=self.dtype_object_ids
+                                )
+                                if len(voxel_grid_data.object_ids) > 0
+                                else None
+                            )
+                            semantic_colors = (
+                                np.ascontiguousarray(
+                                    SemanticMappingShared.sem_img_to_rgb(semantics, bgr=True),
+                                    dtype=self.dtype_colors,
+                                )
+                                / 255.0
+                                if semantics is not None
+                                and SemanticMappingShared.is_semantic_mapping_enabled()
+                                else None
+                            )
+                            object_colors = None
+                            if object_ids is not None and len(object_ids) > 0:
+                                try:
+                                    # Generate instance colors using IdsColorTable instance
+                                    instance_colors_rgb = self.ids_color_table.ids_to_rgb(
+                                        object_ids, bgr=True
+                                    )
+                                    if (
+                                        instance_colors_rgb is not None
+                                        and instance_colors_rgb.size > 0
+                                    ):
+                                        # Verify shape matches points
+                                        if len(
+                                            instance_colors_rgb.shape
+                                        ) == 2 and instance_colors_rgb.shape[0] == len(points):
+                                            object_colors = (
+                                                np.ascontiguousarray(
+                                                    instance_colors_rgb, dtype=self.dtype_colors
+                                                )
+                                                / 255.0
+                                            )
+                                except Exception as e:
+                                    VolumetricIntegratorBase.print(
+                                        f"VolumetricIntegratorVoxelSemanticGrid: Error generating instance colors: {e}"
+                                    )
+                                    if kPrintTrackebackDetails:
+                                        traceback_details = traceback.format_exc()
+                                        VolumetricIntegratorBase.print(
+                                            f"\t traceback details: {traceback_details}"
+                                        )
+                                    object_colors = None
+
+                            # Ensure colors are in [0, 1] range (they should already be, but clamp to be safe)
+                            # colors = np.clip(colors, 0.0, 1.0)
+                            pc_out = VolumetricIntegrationPointCloud(
+                                points=points,
+                                colors=colors,
+                                semantics=semantics,
+                                object_ids=object_ids,
+                                semantic_colors=semantic_colors,
+                                object_colors=object_colors,
                             )
                             VolumetricIntegratorBase.print(
-                                f"VolumetricIntegratorVoxelSemanticGrid: {semantic_colors_string}, {instance_colors_string}, {object_ids_string}"
+                                f"VolumetricIntegratorVoxelSemanticGrid: id: {self.last_integrated_id} -> PointCloud: points: {pc_out.points.shape}"
                             )
+                            if semantic_colors is not None or object_ids is not None:
+                                semantic_colors_string = (
+                                    f"semantic_colors: {semantic_colors.shape}, type: {semantic_colors.dtype}"
+                                    if semantic_colors is not None
+                                    else "None"
+                                )
+                                instance_colors_string = (
+                                    f"object_colors: {object_colors.shape}, type: {object_colors.dtype}"
+                                    if object_colors is not None
+                                    else "None"
+                                )
+                                object_ids_string = (
+                                    f"object_ids: {object_ids.shape}, min: {object_ids.min()}, max: {object_ids.max()}"
+                                    if object_ids is not None and len(object_ids) > 0
+                                    else f"object_ids: {object_ids}"
+                                )
+                                VolumetricIntegratorBase.print(
+                                    f"VolumetricIntegratorVoxelSemanticGrid: {semantic_colors_string}, {instance_colors_string}, {object_ids_string}"
+                                )
+
+                            # END OF GENERATE A SINGLE POINT CLOUD REPRESENTATION
+                            # ================================================================
 
                         last_output = VolumetricIntegrationOutput(
                             self.last_input_task.task_type,
                             self.last_integrated_id,
                             pc_out,
                             mesh_out,
+                            objects_out,
                         )
                         self.last_output = last_output
 

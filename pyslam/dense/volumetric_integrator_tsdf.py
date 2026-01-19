@@ -137,6 +137,7 @@ class VolumetricIntegratorTsdf(VolumetricIntegratorBase):
         do_output = False
         timer = TimerFps("VolumetricIntegratorTsdf", is_verbose=kTimerVerbose)
         timer.start()
+
         try:
             if is_running.value == 1:
 

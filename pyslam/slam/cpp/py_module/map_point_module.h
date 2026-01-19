@@ -109,7 +109,7 @@ void bind_map_point(py::module &m) {
                          int idxf, int id) {
                  return std::make_shared<pyslam::MapPoint>(position, color, frame, idxf, id);
              }),
-             py::arg("position"), py::arg("color"), py::arg("keyframe"), py::arg("idxf") = -1,
+             py::arg("position"), py::arg("color"), py::arg("frame"), py::arg("idxf") = -1,
              py::arg("id") = -1)
 
         // Safer Eigen exposure: copy out, set explicitly

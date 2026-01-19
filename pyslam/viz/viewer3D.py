@@ -70,6 +70,7 @@ kDrawReferenceCamera = True
 kMinWeightForDrawingCovisibilityEdge = Parameters.kMinWeightForDrawingCovisibilityEdge
 kMaxSparseMapPointsToVisualize = Parameters.kMaxSparseMapPointsToVisualize
 
+kUseDoubleForDenseVertices = Parameters.kViewerUseDoubleForDense3dVertices
 
 kAlignGroundTruthNumMinKeyframes = 10  # minimum number of keyframes to start aligning
 kAlignGroundTruthMaxEveryNKeyframes = 10  # maximum number of keyframes between alignments
@@ -397,7 +398,7 @@ class Viewer3D(object):
         self._do_step = mp.Value("i", 0)
         self._do_reset = mp.Value("i", 0)
         self._is_draw_features_with_radius = mp.Value("i", 0)
-        self._is_draw_object_colors = mp.Value("i", 0)
+        self._is_draw_objects = mp.Value("i", 0)
 
         self._is_gt_set = mp.Value("i", 0)
         self.alignment_gt_data_queue = (
@@ -431,7 +432,7 @@ class Viewer3D(object):
                 self._do_step,
                 self._do_reset,
                 self._is_draw_features_with_radius,
-                self._is_draw_object_colors,
+                self._is_draw_objects,
                 self._is_gt_set,
                 self.alignment_gt_data_queue,
                 self.aligner_input_queue,
@@ -555,8 +556,8 @@ class Viewer3D(object):
     def is_draw_features_with_radius(self):
         return self._is_draw_features_with_radius.value == 1
 
-    def is_draw_object_colors(self):
-        return self._is_draw_object_colors.value == 1
+    def is_draw_objects(self):
+        return self._is_draw_objects.value == 1
 
     def viewer_run(
         self,
@@ -573,7 +574,7 @@ class Viewer3D(object):
         do_step,
         do_reset,
         is_draw_features_with_radius,
-        is_draw_object_colors,
+        is_draw_objects,
         is_gt_set,
         alignment_gt_data_queue,
         aligner_input_queue,
@@ -597,6 +598,7 @@ class Viewer3D(object):
 
         self.viewer_init(kViewportWidth, kViewportHeight)
         is_running.value = 1
+
         # init local vars for the the process
         self.thread_gt_trajectory = None
         self.thread_gt_trajectory_aligned = None
@@ -610,6 +612,16 @@ class Viewer3D(object):
         self.thread_last_frame_id_gt_was_aligned = 0
         self.thread_last_time_gt_was_aligned = time.time()
         self.thread_alignment_gt_data_queue = alignment_gt_data_queue  # used by slam_plot_drawer.py
+
+        self.is_dense_state_updated = False
+        self.gl_point_cloud_direct = (
+            glutils.GlPointCloudDirectD()
+            if kUseDoubleForDenseVertices
+            else glutils.GlPointCloudDirectF()
+        )
+        self.gl_mesh_direct = (
+            glutils.GlMeshDirectD() if kUseDoubleForDenseVertices else glutils.GlMeshDirectF()
+        )
 
         is_looping.value = 1
         while not pangolin.ShouldQuit() and (is_running.value == 1):
@@ -626,7 +638,7 @@ class Viewer3D(object):
                     do_step,
                     do_reset,
                     is_draw_features_with_radius,
-                    is_draw_object_colors,
+                    is_draw_objects,
                     is_gt_set,
                     aligner_input_queue,
                     aligner_output_queue,
@@ -683,8 +695,8 @@ class Viewer3D(object):
         self.is_draw_covisibility = True
         self.is_draw_spanning_tree = True
         self.is_draw_loops = True
-        self.is_draw_dense = True
         self.is_draw_sparse = True
+        self.is_draw_dense = True
         self.is_draw_semantic_colors = False
 
         self.draw_wireframe = False
@@ -715,7 +727,7 @@ class Viewer3D(object):
         self.checkboxColorSemantics = pangolin.VarBool(
             "ui.Color Semantics", value=False, toggle=True
         )
-        self.checkboxObjectColors = pangolin.VarBool("ui.Object Colors", value=False, toggle=True)
+        self.checkboxObjects = pangolin.VarBool("ui.Objects", value=False, toggle=True)
         self.checkboxGrid = pangolin.VarBool("ui.Grid", value=True, toggle=True)
         self.checkboxDrawFeaturesWithRadius = pangolin.VarBool(
             "ui.Features Radius", value=False, toggle=True
@@ -760,7 +772,7 @@ class Viewer3D(object):
         do_step,
         do_reset,
         is_draw_features_with_radius,
-        is_draw_object_colors,
+        is_draw_objects,
         is_gt_set,
         aligner_input_queue,
         aligner_output_queue,
@@ -780,6 +792,7 @@ class Viewer3D(object):
         last_dense_state = get_last_item_from_queue(qdense)
         if last_dense_state is not None:
             self.dense_state = last_dense_state
+            self.is_dense_state_updated = True
 
             if self.dense_state is not None:
                 # Update the dense state with the last received dense state
@@ -810,7 +823,10 @@ class Viewer3D(object):
         self.is_grid = self.checkboxGrid.Get()
 
         is_draw_features_with_radius.value = self.checkboxDrawFeaturesWithRadius.Get()
-        is_draw_object_colors.value = self.checkboxObjectColors.Get()
+
+        new_is_draw_objects = self.checkboxObjects.Get()
+        self.is_draw_objects_changed = is_draw_objects.value != new_is_draw_objects
+        is_draw_objects.value = new_is_draw_objects
 
         self.is_draw_cameras = self.checkboxCams.Get()
         self.is_draw_covisibility = self.checkboxCovisibility.Get()
@@ -825,9 +841,23 @@ class Viewer3D(object):
         self.draw_predicted = self.checkboxPredicted.Get()
         self.draw_fov_centers = self.checkboxFovCenters.Get()
         self.draw_wireframe = self.checkboxWireframe.Get()
-        self.is_draw_dense = self.checkboxDrawDenseCloud.Get()
         self.is_draw_sparse = self.checkboxDrawSparseCloud.Get()
-        self.is_draw_semantic_colors = self.checkboxColorSemantics.Get()
+
+        new_is_draw_dense = self.checkboxDrawDenseCloud.Get()
+        self.is_draw_dense_changed = self.is_draw_dense != new_is_draw_dense
+        self.is_draw_dense = new_is_draw_dense
+
+        new_is_draw_semantic_colors = self.checkboxColorSemantics.Get()
+        self.is_draw_semantic_colors_changed = (
+            self.is_draw_semantic_colors != new_is_draw_semantic_colors
+        )
+        self.is_draw_semantic_colors = new_is_draw_semantic_colors
+
+        self.gui_dense_changed = (
+            self.is_draw_dense_changed
+            or self.is_draw_semantic_colors_changed
+            or self.is_draw_objects_changed
+        )
 
         # if pangolin.Pushed(self.checkboxPause):
         if self.checkboxPause.Get():
@@ -1067,20 +1097,32 @@ class Viewer3D(object):
                     vertices = self.dense_state.mesh[0]
                     triangles = self.dense_state.mesh[1]
                     colors = self.dense_state.mesh[2]
-                    glutils.DrawMesh(vertices, triangles, colors, self.draw_wireframe)
+                    if self.is_dense_state_updated or self.gui_dense_changed:
+                        self.gl_mesh_direct.update_and_draw(
+                            vertices, triangles, colors, self.draw_wireframe
+                        )
+                        self.is_dense_state_updated = False
+                    else:
+                        self.gl_mesh_direct.draw(self.draw_wireframe)
+                    # glutils.DrawMesh(vertices, triangles, colors, self.draw_wireframe)  # old method (direct upload to GPU at each frame)
                 elif self.dense_state.point_cloud is not None:
                     pc_points = self.dense_state.point_cloud[0]
                     pc_colors = self.dense_state.point_cloud[1]
                     pc_semantic_colors = self.dense_state.point_cloud[2]
                     pc_object_colors = self.dense_state.point_cloud[3]
                     gl.glPointSize(self.densePointSize)
+                    pc_draw_colors = pc_colors
                     if self.is_draw_semantic_colors:
-                        if is_draw_object_colors.value == 1 and pc_object_colors is not None:
-                            glutils.DrawPoints(pc_points, pc_object_colors)
+                        if is_draw_objects.value == 1 and pc_object_colors is not None:
+                            pc_draw_colors = pc_object_colors
                         elif pc_semantic_colors is not None:
-                            glutils.DrawPoints(pc_points, pc_semantic_colors)
+                            pc_draw_colors = pc_semantic_colors
+                    if self.is_dense_state_updated or self.gui_dense_changed:
+                        self.gl_point_cloud_direct.update_and_draw(pc_points, pc_draw_colors)
+                        self.is_dense_state_updated = False
                     else:
-                        glutils.DrawPoints(pc_points, pc_colors)
+                        self.gl_point_cloud_direct.draw()
+                    # glutils.DrawPoints(pc_points, pc_draw_colors)  # old method (direct upload to GPU at each frame)
 
         if self.camera_images.size() > 0:
             self.camera_images.draw()
@@ -1230,33 +1272,38 @@ class Viewer3D(object):
             camera_images = []
         dense_state = Viewer3DDenseInput()
         dense_state.camera_images = camera_images
+
+        dtype_vertices = np.float64 if kUseDoubleForDenseVertices else np.float32
+        dtype_colors = np.float32
+        dtype_triangles = np.uint32
+
         if mesh is not None:
             dense_state.mesh = (
-                np.asarray(mesh.vertices),
-                np.asarray(mesh.triangles),
-                np.asarray(mesh.vertex_colors),
-            )  # ,np.asarray(mesh.vertex_normals))
+                np.ascontiguousarray(mesh.vertices, dtype=dtype_vertices),
+                np.ascontiguousarray(mesh.triangles, dtype=dtype_triangles),
+                np.ascontiguousarray(mesh.vertex_colors, dtype=dtype_colors),
+            )
         else:
             if point_cloud is not None:
-                points = np.asarray(point_cloud.points)
-                colors = np.asarray(point_cloud.colors)
+                points = np.ascontiguousarray(point_cloud.points, dtype=dtype_vertices)
+                colors = np.ascontiguousarray(point_cloud.colors, dtype=dtype_colors)
                 if colors.shape[1] == 4:
                     colors = colors[:, 0:3]
                 print(
                     f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
                 )
-                pass_only_one_semantic_color_array = False  # self.is_draw_object_colors()
+                pass_only_one_semantic_color_array = False  # self.is_draw_objects()
                 semantic_colors = None
                 if hasattr(point_cloud, "semantic_colors"):
                     semantic_colors = (
-                        np.asarray(point_cloud.semantic_colors)
+                        np.ascontiguousarray(point_cloud.semantic_colors, dtype=dtype_colors)
                         if point_cloud.semantic_colors is not None
                         else None
                     )
                 object_colors = None
                 if hasattr(point_cloud, "object_colors"):
                     object_colors = (
-                        np.asarray(point_cloud.object_colors)
+                        np.ascontiguousarray(point_cloud.object_colors, dtype=dtype_colors)
                         if point_cloud.object_colors is not None
                         else None
                     )
@@ -1268,7 +1315,7 @@ class Viewer3D(object):
                         f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
                     )
                 if pass_only_one_semantic_color_array:
-                    if self.is_draw_object_colors():
+                    if self.is_draw_objects():
                         semantic_colors = None
                     else:
                         object_colors = None

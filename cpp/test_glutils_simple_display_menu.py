@@ -1,4 +1,4 @@
-# https://github.com/stevenlovegrove/Pangolin/tree/master/examples/HelloPangolin
+# https://github.com/stevenlovegrove/Pangolin/tree/master/examples/SimpleDisplay
 
 import sys
 
@@ -6,26 +6,25 @@ import pyslam.config as config
 
 import OpenGL.GL as gl
 import pypangolin as pangolin
+
 import glutils
 
 import numpy as np
 
 
-def drawPlane(ndivs=100, ndivsize=1):
-    # Plane parallel to x-z at origin with normal -y
-    minx = -ndivs * ndivsize
-    minz = -ndivs * ndivsize
-    maxx = ndivs * ndivsize
-    maxz = ndivs * ndivsize
-    gl.glLineWidth(1)
-    gl.glColor3f(0.7, 0.7, 1.0)
-    gl.glBegin(gl.GL_LINES)
-    for n in range(2 * ndivs):
-        gl.glVertex3f(minx + ndivsize * n, 0, minz)
-        gl.glVertex3f(minx + ndivsize * n, 0, maxz)
-        gl.glVertex3f(minx, 0, minz + ndivsize * n)
-        gl.glVertex3f(maxx, 0, minz + ndivsize * n)
-    gl.glEnd()
+class SetVarFunctor(object):
+    def __init__(self, var=None, value=None):
+        super().__init__()
+        self.var = var
+        self.value = value
+
+    def __call__(self):
+        self.var.SetVal(self.value)
+
+
+def reset():
+    # float_slider.SetVal(0.5)
+    print("You typed ctrl-r or pushed reset")
 
 
 def colorify_points(points):
@@ -38,31 +37,66 @@ def colorify_points(points):
 
 
 def main():
-    pangolin.CreateWindowAndBind("Main", 640, 480)
+    pangolin.ParseVarsFile("app.cfg")
+
+    window_width = 800
+    window_height = 600
+    viewpoint_f = 1000
+    ui_width = 180
+
+    pangolin.CreateWindowAndBind("Main", window_width, window_height)
     gl.glEnable(gl.GL_DEPTH_TEST)
 
-    # Define Projection and initial ModelView matrix
     scam = pangolin.OpenGlRenderState(
-        pangolin.ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.2, 200),
-        pangolin.ModelViewLookAt(-2, 2, -2, 0, 0, 0, pangolin.AxisDirection.AxisY),
+        pangolin.ProjectionMatrix(
+            window_width,
+            window_height,
+            viewpoint_f,
+            viewpoint_f,
+            window_width // 2,
+            window_height // 2,
+            0.1,
+            1000,
+        ),
+        pangolin.ModelViewLookAt(0, 0.5, -3, 0, 0, 0, pangolin.AxisDirection.AxisY),
     )
-    handler = pangolin.Handler3D(scam)
+    handler3d = pangolin.Handler3D(scam)
 
-    # Create Interactive View in window
     dcam = pangolin.CreateDisplay()
-    dcam.SetBounds(0.0, 1.0, 0.0, 1.0, -640.0 / 480.0)
-    dcam.SetHandler(handler)
+    dcam.SetBounds(0.0, 1.0, ui_width / window_width, 1.0, -window_width / window_height)
+    # dcam.SetBounds(pangolin.Attach(0.0),     pangolin.Attach(1.0),
+    # pangolin.Attach.Pix(180), pangolin.Attach(1.0), -640.0/480.0)
 
-    pc = glutils.GlPointCloudF()
+    dcam.SetHandler(pangolin.Handler3D(scam))
+
+    panel = pangolin.CreatePanel("ui")
+    panel.SetBounds(0.0, 1.0, 0.0, ui_width / window_width)
+
+    button = pangolin.VarBool("ui.Button", value=False, toggle=False)
+    checkbox = pangolin.VarBool("ui.Checkbox", value=False, toggle=True)
+    float_slider = pangolin.VarFloat("ui.Float", value=3, min=0, max=5)
+    float_log_slider = pangolin.VarFloat("ui.Log_scale var", value=3, min=1, max=1e4, logscale=True)
+    int_slider = pangolin.VarInt("ui.Int", value=2, min=0, max=5)
+    int_slave_slider = pangolin.VarInt("ui.Int_slave", value=2, toggle=False)
+
+    save_window = pangolin.VarBool("ui.Save_Window", value=False, toggle=False)
+    save_cube = pangolin.VarBool("ui.Save_Cube", value=False, toggle=False)
+    record_cube = pangolin.VarBool("ui.Record_Cube", value=False, toggle=False)
+
+    def reset():
+        # float_slider.SetVal(0.5)
+        print("You typed ctrl-r or pushed reset")
+
+    # Reset = SetVarFunctor(float_slider, 0.5)
+    # reset = pangolin.VarFunc('ui.Reset', reset)
+    # pangolin.RegisterKeyPressCallback(int(pangolin.PANGO_CTRL) + ord('r'), reset)      # segfault
+    # pangolin.RegisterKeyPressCallback(int(pangolin.PANGO_CTRL) + ord('b'), pangolin.SetVarFunctorFloat('ui.Float', 4.5))      # segfault
+    # pangolin.RegisterKeyPressCallback(int(pangolin.PANGO_CTRL) + ord('b'), SetVarFunctor(float_slider, 4.5))      # segfault
+
     pc_direct = glutils.GlPointCloudDirectF()
+    pc = glutils.GlPointCloudF()
     mesh = glutils.GlMeshF()
     mesh_direct = glutils.GlMeshDirectF()
-
-    trajectory = [[0, -6, 6]]
-    for i in range(300):
-        trajectory.append(trajectory[-1] + np.random.random(3) - 0.5)
-    trajectory = np.array(trajectory)
-    print(trajectory.shape)
 
     # Precompute grid for mesh demo
     grid_size = 40
@@ -90,39 +124,40 @@ def main():
 
     frame_idx = 0
 
+    update_interval1 = 1
+    update_interval2 = 10
+
     while not pangolin.ShouldQuit():
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
         gl.glClearColor(1.0, 1.0, 1.0, 1.0)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+
+        if pangolin.Pushed(button):
+            print("You Pushed a button!")
+
+        if checkbox.Get():
+            int_slider.SetVal(int(float_slider))
+        int_slave_slider.SetVal(int_slider)
+
+        if pangolin.Pushed(save_window):
+            pangolin.SaveWindowOnRender("window")
+
+        if pangolin.Pushed(save_cube):
+            pangolin.SaveWindowOnRender("cube")
+
+        if pangolin.Pushed(record_cube):
+            pangolin.DisplayBase().RecordOnRender(
+                "ffmpeg:[fps=50,bps=8388608,unique_filename]//screencap.avi"
+            )
+
         dcam.Activate(scam)
-
-        # drawPlane()
-        glutils.DrawPlane(num_divs=10, div_size=1, scale=1.0)
-
-        # Render OpenGL Cube
-        pangolin.glDrawColouredCube()
-
-        # Draw Point Cloud (static size, single color)
-        cloud_center = np.array([-5.0, 0.0, 0.0], dtype=np.float32)
-        size = 1.0
-        points = (np.random.random((10000, 3)) - 0.5) * size + cloud_center
-        gl.glPointSize(1)
-        gl.glColor3f(1.0, 0.0, 0.0)
-        glutils.DrawPoints(points)
-
-        # Draw Point Cloud (static size, multiple colors)
-        cloud_center = np.array([5.0, 0.0, 0.0], dtype=np.float32)
-        size = 2.0
-        points = (np.random.random((10000, 3)) - 0.5) * size + cloud_center
-        colors = colorify_points(points)
-        gl.glPointSize(1)
-        glutils.DrawPoints(points, colors)
 
         # Draw Point Cloud with GlPointCloudF (dynamic size)
         if True:
             cloud_center = np.array([0.0, 0.0, 5.0], dtype=np.float32)
             size = 3.0
-            n_points = 2000 + (frame_idx % 8000)
-            if frame_idx % 2 == 0:
+            gl.glPointSize(2)
+            if frame_idx % update_interval1 == 0:
+                n_points = 2000 + (frame_idx % 8000)
                 pc_points = np.ascontiguousarray(
                     (np.random.random((n_points, 3)) - 0.5) * size + cloud_center,
                     dtype=np.float32,
@@ -130,16 +165,15 @@ def main():
                 pc_colors = colorify_points(pc_points)
                 pc_colors = np.ascontiguousarray(pc_colors, dtype=np.float32)
                 pc.set(pc_points, pc_colors)
-            gl.glPointSize(2)
             pc.draw()
 
         # Draw Point Cloud with GlPointCloudDirectF (dynamic size)
         if True:
-            gl.glPointSize(2)
             cloud_center = np.array([0.0, 0.0, -5.0], dtype=np.float32)
-            size = 3.0
-            n_points = 2000 + (frame_idx % 8000)
-            if frame_idx % 2 == 0:
+            size = 1.0
+            gl.glPointSize(2)
+            if frame_idx % update_interval2 == 0:
+                n_points = 2000 + (frame_idx % 8000)
                 pc_points = np.ascontiguousarray(
                     (np.random.random((n_points, 3)) - 0.5) * size + cloud_center,
                     dtype=np.float32,
@@ -152,10 +186,10 @@ def main():
 
         # Draw Mesh with GlMeshF (dynamic zmap on fixed grid)
         if True:
-            mesh_center = np.array([-10.0, 0.0, 0.0], dtype=np.float32)
+            mesh_center = np.array([-5.0, 0.0, 0.0], dtype=np.float32)
             size = 0.5
             phase = frame_idx * 0.05
-            if frame_idx % 2 == 0:
+            if frame_idx % update_interval1 == 0:
                 y = size * np.sin(grid_x + phase) * np.cos(grid_z - phase)
                 vertices = (
                     np.stack([grid_x, y, grid_z], axis=1).astype(np.float32, copy=False)
@@ -164,6 +198,7 @@ def main():
                 colors = colorify_points(vertices)
                 colors = np.ascontiguousarray(colors, dtype=np.float32)
                 vertices = np.ascontiguousarray(vertices, dtype=np.float32)
+
                 mesh.set_vertices(vertices)
                 mesh.set_triangles(tri_indices)
                 mesh.set_colors(colors)
@@ -172,10 +207,10 @@ def main():
 
         # Draw Mesh with GlMeshDirectF (dynamic zmap on fixed grid)
         if True:
-            mesh_center = np.array([10.0, 0.0, 0.0], dtype=np.float32)
+            mesh_center = np.array([5.0, 0.0, 0.0], dtype=np.float32)
             size = 0.5
             phase = frame_idx * 0.05 + 1.0
-            if frame_idx % 2 == 0:
+            if frame_idx % update_interval2 == 0:
                 y = size * np.sin(grid_x + phase) * np.cos(grid_z - phase)
                 vertices = (
                     np.stack([grid_x, y, grid_z], axis=1).astype(np.float32, copy=False)
@@ -184,38 +219,16 @@ def main():
                 colors = colorify_points(vertices)
                 colors = np.ascontiguousarray(colors, dtype=np.float32)
                 vertices = np.ascontiguousarray(vertices, dtype=np.float32)
-
                 mesh_direct.update_and_draw(vertices, tri_indices, colors, False)
-            else:
-                mesh_direct.draw(False)
+            mesh_direct.draw(False)
 
-        # Draw lines
-        gl.glLineWidth(1)
-        gl.glColor3f(0.0, 0.0, 0.0)
-        # glutils.DrawLine(trajectory)   # consecutive
-        glutils.DrawTrajectory(trajectory)
-        gl.glColor3f(0.0, 1.0, 0.0)
-        glutils.DrawLines2(
-            trajectory, trajectory + np.random.randn(len(trajectory), 3), point_size=5
-        )  # separate
+        gl.glColor3f(1.0, 1.0, 1.0)
+        pangolin.glDrawColouredCube()
 
-        # Draw camera
-        pose = np.identity(4)
-        pose[:3, 3] = np.random.randn(3)
-        gl.glLineWidth(1)
-        gl.glColor3f(0.0, 0.0, 1.0)
-        glutils.DrawCamera(pose, 0.5, 0.75, 0.8)
-
-        # Draw boxes
-        poses = [np.identity(4) for i in range(10)]
-        for pose in poses:
-            pose[:3, 3] = np.random.randn(3) + np.array([5, -3, 0])
-        sizes = np.random.random((len(poses), 3))
-        gl.glLineWidth(1)
-        gl.glColor3f(1.0, 0.0, 1.0)
-        glutils.DrawBoxes(poses, sizes)
+        glutils.DrawPlane(num_divs=10, div_size=1, scale=1.0)
 
         pangolin.FinishFrame()
+
         frame_idx += 1
 
 

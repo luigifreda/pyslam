@@ -781,6 +781,15 @@ class VolumetricIntegratorBase:
         timer_fps = TimerFps("VolumetricIntegratorBase")
         timer_fps.start()
 
+        # Define dtype for the volumetric integrator
+        self.dtype_vertices = (
+            np.float64 if Parameters.kViewerUseDoubleForDense3dVertices else np.float32
+        )
+        self.dtype_colors = np.float32
+        self.dtype_depths = np.float32
+        self.dtype_semantics = np.int32
+        self.dtype_object_ids = np.int32
+
         # main loop
         while is_running.value == 1:
             try:
@@ -1259,7 +1268,6 @@ class VolumetricIntegratorBase:
                 print(
                     f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
                 )
-                # pass_only_one_semantic_color_array = False  # self.is_draw_object_colors()
                 semantic_colors = None
                 if hasattr(point_cloud, "semantic_colors"):
                     semantic_colors = (
@@ -1281,11 +1289,6 @@ class VolumetricIntegratorBase:
                     print(
                         f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
                     )
-                # if pass_only_one_semantic_color_array:
-                #     if self.is_draw_object_colors():
-                #         semantic_colors = None
-                #     else:
-                #         object_colors = None
                 dense_state.point_cloud = (points, colors, semantic_colors, object_colors)
             else:
                 Printer.orange("WARNING: both point_cloud and mesh are None")

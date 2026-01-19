@@ -360,9 +360,9 @@ class Tracking:
             print("search frame by projection")
             search_radius = Parameters.kMaxReprojectionDistanceFrame
 
-            # if self.sensor_type != SensorType.STEREO: #NOTE:  This seems to provide less stable tracking and they do not bring any clear benefits [WIP]
-            if self.sensor_type == SensorType.RGBD:
-                search_radius = Parameters.kMaxReprojectionDistanceFrameRgbd
+            if self.sensor_type != SensorType.STEREO:  # [WIP]
+                # if self.sensor_type == SensorType.RGBD:
+                search_radius = Parameters.kMaxReprojectionDistanceFrameNonStereo
 
             f_cur.reset_points()
             self.timer_seach_frame_proj.start()

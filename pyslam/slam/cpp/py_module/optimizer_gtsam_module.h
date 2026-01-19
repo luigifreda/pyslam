@@ -59,7 +59,7 @@ void bind_optimizer_gtsam(py::module &m) {
 
         .def_static("local_bundle_adjustment", &pyslam::local_bundle_adjustment_wrapper_gtsam,
                     py::arg("keyframes"), py::arg("points"),
-                    py::arg("keyframes_ref") = std::vector<pyslam::KeyFrame *>{},
+                    py::arg("keyframes_ref") = std::vector<pyslam::KeyFramePtr>{},
                     py::arg("fixed_points") = false, py::arg("verbose") = false,
                     py::arg("rounds") = 10, py::arg("abort_flag") = py::none(),
                     py::arg("map_lock") = py::none())

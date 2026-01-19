@@ -2,6 +2,28 @@
 
 OpenGL rendering utilities for 3D visualization in PYSLAM. This module provides Python bindings for drawing point clouds, meshes, camera frustums, trajectories, bounding boxes, and other 3D primitives using OpenGL.
 
+
+<!-- TOC -->
+
+- [GLUtils Module](#glutils-module)
+  - [Module Structure](#module-structure)
+  - [Available Functions](#available-functions)
+    - [Point Cloud Rendering](#point-cloud-rendering)
+    - [Mesh Rendering](#mesh-rendering)
+    - [Camera Visualization](#camera-visualization)
+    - [Line and Trajectory Rendering](#line-and-trajectory-rendering)
+    - [Bounding Boxes and Primitives](#bounding-boxes-and-primitives)
+  - [Classes](#classes)
+    - [CameraImage](#cameraimage)
+    - [CameraImages](#cameraimages)
+    - [GlMeshT / GlMeshDirectT](#glmesht--glmeshdirectt)
+    - [GlPointCloudT / GlPointCloudDirectT](#glpointcloudt--glpointclouddirectt)
+  - [Usage Example](#usage-example)
+  - [Notes](#notes)
+
+<!-- /TOC -->
+
+
 ## Module Structure
 
 The module is organized into the following files:
@@ -11,6 +33,8 @@ The module is organized into the following files:
 - **`glutils_utils.h`** - Helper utility functions (pose matrix extraction, alignment computation)
 - **`glutils_bindings.h/cpp`** - Python wrapper functions that interface between NumPy arrays and OpenGL
 - **`glutils_camera.h`** - Camera image classes for texture-based camera visualization
+- **`glmesh.h`** - GPU-backed mesh helpers (VBO/VAO-based) for fast drawing
+- **`glpoint_cloud.h`** - GPU-backed point cloud helpers (VBO-based) for fast drawing
 - **`glutils_module.cpp`** - Pybind11 module definition and bindings
 
 ## Available Functions
@@ -70,9 +94,11 @@ The module is organized into the following files:
 Represents a camera with an associated image texture that can be rendered in 3D space.
 
 **Constructor:**
+
 ```python
 CameraImage(image, pose, id, scale=1.0, h_ratio=0.75, z_ratio=0.6, color=[0.0, 1.0, 0.0])
 ```
+
 - `image`: NumPy array (H×W or H×W×3) - grayscale or RGB image
 - `pose`: 4×4 transformation matrix (float32 or float64)
 - `id`: Unique identifier for the camera
@@ -80,12 +106,14 @@ CameraImage(image, pose, id, scale=1.0, h_ratio=0.75, z_ratio=0.6, color=[0.0, 1
 - `color`: RGB color for frustum wireframe
 
 **Methods:**
+
 - **`draw()`** - Draw the camera with its stored pose
 - **`drawPose(pose)`** - Draw the camera with a new pose (4×4 matrix)
 - **`setPose(pose)`** - Update the camera's pose (float32 or float64)
 - **`setTransparent(transparent)`** - Toggle texture rendering (True = wireframe only)
 
 **Properties:**
+
 - **`id`** - Camera identifier
 
 ### CameraImages
@@ -93,6 +121,7 @@ CameraImage(image, pose, id, scale=1.0, h_ratio=0.75, z_ratio=0.6, color=[0.0, 1
 Container for managing multiple `CameraImage` objects.
 
 **Methods:**
+
 - **`add(image, pose, id, scale=1.0, h_ratio=0.75, z_ratio=0.6, color=[0.0, 1.0, 0.0])`** - Add a camera image
 - **`draw()`** - Draw all cameras with their stored poses
 - **`drawPoses(poses)`** - Draw all cameras with new poses (N×4×4 array)
@@ -103,6 +132,40 @@ Container for managing multiple `CameraImage` objects.
 - **`setAllTransparent(transparent)`** - Set transparency for all cameras
 - **`__getitem__(i)`** - Access camera by index
 - **`__len__()`** - Get number of cameras
+
+### GlMeshT / GlMeshDirectT
+
+GPU-backed mesh renderers using VBOs (and a VAO for `GlMeshT`).
+
+- **`GlMeshT<VertexT, ColorT>`** - Stores vertices/colors on CPU, uploads on `UpdateGPU()`
+  - `SetVertices(vertices_xyz, vertex_count)` - Set N vertex positions (N×3)
+  - `SetColors(colors_rgb)` - Set per-vertex colors (N×3) or clear if null
+  - `SetTriangles(tri_idx, tri_count)` - Set triangle indices (M×3)
+  - `ReserveGPU(max_vertices, max_indices)` - Pre-allocate GPU buffers
+  - `UpdateGPU()` - Upload dirty buffers
+  - `Draw(wireframe)` - Draw triangles
+- **`GlMeshDirectT<VertexT, ColorT>`** - Uploads data directly on `UpdateAndDraw()`
+  - `UpdateAndDraw(vertices_xyz, colors_rgb, tri_idx, vertex_count, tri_count, wireframe)`
+  - `Draw(wireframe)` - Draw using already-uploaded buffers
+
+**Typedefs:** `GlMeshF`, `GlMeshD`, `GlMeshDirectF`, `GlMeshDirectD`
+
+### GlPointCloudT / GlPointCloudDirectT
+
+GPU-backed point cloud renderers using VBOs.
+
+- **`GlPointCloudT<PointT, ColorT>`** - Stores points/colors on CPU, uploads on `UpdateGPU()`
+  - `Set(points, colors, point_count)` - Set points and optional colors (N×3)
+  - `SetPoints(points, point_count)` - Set points only
+  - `SetColors(colors)` - Set colors (N×3)
+  - `ClearColors()` - Remove colors
+  - `UpdateGPU()` - Upload dirty buffers
+  - `Draw()` - Draw points
+- **`GlPointCloudDirectT<PointT, ColorT>`** - Uploads data directly on `UpdateAndDraw()`
+  - `UpdateAndDraw(points, colors, point_count)`
+  - `Draw()` - Draw using already-uploaded buffers
+
+**Typedefs:** `GlPointCloudF`, `GlPointCloudD`, `GlPointCloudDirectF`, `GlPointCloudDirectD`
 
 ## Usage Example
 

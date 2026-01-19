@@ -21,27 +21,39 @@
 
 #include "glutils_common.h"
 
+#include <type_traits>
+
 namespace glutils_detail {
 
 // ================================================================
 // Draw points
 // ================================================================
 
+template <typename ScalarT> constexpr GLenum GlArrayType() {
+    static_assert(std::is_same<ScalarT, float>::value || std::is_same<ScalarT, double>::value,
+                  "glutils_detail supports float or double only");
+    return std::is_same<ScalarT, float>::value ? GL_FLOAT : GL_DOUBLE;
+}
+
 // Draw a point cloud
-inline void DrawPointCloud(const double *points, std::size_t point_count) {
+template <typename PointT>
+inline void DrawPointCloud(const PointT *points, std::size_t point_count) {
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(3, GL_DOUBLE, 0, points);
+    glVertexPointer(3, GlArrayType<PointT>(), 0, points);
     glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(point_count));
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 // Draw a colored point cloud
-inline void DrawColoredPointCloud(const double *points, const double *colors,
+template <typename PointT, typename ColorT>
+inline void DrawColoredPointCloud(const PointT *points, const ColorT *colors,
                                   std::size_t point_count) {
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
-    glVertexPointer(3, GL_DOUBLE, 0, points);
-    glColorPointer(3, GL_DOUBLE, 0, colors);
+    glVertexPointer(3, GlArrayType<PointT>(), 0, points);
+    glColorPointer(3, GlArrayType<ColorT>(), 0, colors);
     glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(point_count));
     glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_VERTEX_ARRAY);
@@ -85,16 +97,19 @@ inline void DrawPairMarkers(const double *points1, const double *points2, std::s
 // ================================================================
 
 // Draw a colored mesh
-inline void DrawMesh(const double *vertices, const double *colors, std::size_t vertex_count,
+template <typename VertexT, typename ColorT>
+inline void DrawMesh(const VertexT *vertices, const ColorT *colors, std::size_t vertex_count,
                      const unsigned int *indices, std::size_t index_count, bool wireframe) {
     (void)vertex_count;
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
 
-    glVertexPointer(3, GL_DOUBLE, 0, vertices);
-    glColorPointer(3, GL_DOUBLE, 0, colors);
+    glVertexPointer(3, GlArrayType<VertexT>(), 0, vertices);
+    glColorPointer(3, GlArrayType<ColorT>(), 0, colors);
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(index_count), GL_UNSIGNED_INT, indices);
 
@@ -105,17 +120,20 @@ inline void DrawMesh(const double *vertices, const double *colors, std::size_t v
 }
 
 // Draw a monochrome mesh
-inline void DrawMonochromeMesh(const double *vertices, std::size_t vertex_count,
+template <typename VertexT>
+inline void DrawMonochromeMesh(const VertexT *vertices, std::size_t vertex_count,
                                const unsigned int *indices, std::size_t index_count,
                                const std::array<float, 3> &color, bool wireframe) {
     (void)vertex_count; // silence unused warnings if asserts removed
 
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
 
     glColor3f(color[0], color[1], color[2]);
 
     glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(3, GL_DOUBLE, 0, vertices);
+    glVertexPointer(3, GlArrayType<VertexT>(), 0, vertices);
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(index_count), GL_UNSIGNED_INT, indices);
 
