@@ -200,49 +200,90 @@ include_directories(casters)
 # Add pyslam_utils module
 #=======================================
 
-pybind11_add_module(pyslam_utils 
-utils/utils_module.cpp 
-utils/utils.cpp)
-target_link_libraries(pyslam_utils PRIVATE
-    ${OpenCV_LIBS}    
+pybind11_add_module(pyslam_utils utils/utils_module.cpp utils/utils.cpp)
+target_link_libraries(pyslam_utils PRIVATE 
+    ${OpenCV_LIBS}
 )
 
 #=======================================
 # Add sim3solver module
 #=======================================
 
-pybind11_add_module(sim3solver 
-solvers/sim3solver_module.cpp 
-solvers/Sim3Solver.cpp 
-solvers/Sim3PointRegistrationSolver.cpp 
-solvers/Random.cpp)
-target_link_libraries(sim3solver PRIVATE
+add_library(sim3solver_lib STATIC 
+    solvers/Sim3Solver.cpp 
+    solvers/Sim3PointRegistrationSolver.cpp 
+    solvers/Random.cpp)
+target_link_libraries(sim3solver_lib PRIVATE 
     ${OpenCV_LIBS}
 )
+
+pybind11_add_module(sim3solver 
+solvers/sim3solver_module.cpp)
+target_link_libraries(sim3solver PRIVATE sim3solver_lib)
 
 #=======================================
 # Add pnpsolver module
 #=======================================
 
-pybind11_add_module(pnpsolver 
-solvers/pnpsolver_module.cpp 
-solvers/PnPsolver.cpp 
-solvers/MLPnPsolver.cpp 
-solvers/Random.cpp)
-target_link_libraries(pnpsolver PRIVATE
+add_library(pnpsolver_lib STATIC 
+    solvers/PnPsolver.cpp 
+    solvers/MLPnPsolver.cpp 
+    solvers/Random.cpp)
+target_link_libraries(pnpsolver_lib PRIVATE 
     ${OpenCV_LIBS}
 )
+
+pybind11_add_module(pnpsolver 
+solvers/pnpsolver_module.cpp)
+target_link_libraries(pnpsolver PRIVATE pnpsolver_lib)
+
+#=======================================
+# Add volumetric module
+#=======================================
+
+add_library(volumetric_lib STATIC 
+    volumetric/camera_frustrum.cpp
+    volumetric/bounding_boxes_3d.cpp
+    volumetric/bounding_boxes_2d.cpp)
+target_link_libraries(volumetric_lib PRIVATE 
+    ${Open3D_LIBRARIES}
+    ${TBB_LINK_LIBS}
+    ${OpenCV_LIBS}
+    ${QHULL_LINK_LIBS}
+)
+if(TBB_FOUND)
+    target_compile_definitions(volumetric_lib PRIVATE TBB_FOUND)
+endif()
+if(Qhull_FOUND AND QHULL_LINK_LIBS)
+    target_compile_definitions(volumetric_lib PRIVATE QHULL_FOUND)
+endif()
+
+pybind11_add_module(volumetric 
+volumetric/volumetric_module.cpp)
+if(TBB_FOUND)
+    target_compile_definitions(volumetric PRIVATE TBB_FOUND)
+endif()
+if(Qhull_FOUND AND QHULL_LINK_LIBS)
+    target_compile_definitions(volumetric PRIVATE QHULL_FOUND)
+endif()
+target_link_libraries(volumetric PRIVATE volumetric_lib)
 
 #=======================================
 # Add glutils module
 #=======================================
 
-pybind11_add_module(glutils 
-glutils/glutils_module.cpp
-glutils/glutils_bindings.cpp)
-target_link_libraries(glutils PRIVATE
-    ${OPENGL_LIBRARIES}    
+add_library(glutils_lib STATIC 
+    glutils/glutils_drawing.cpp)
+target_link_libraries(glutils_lib PRIVATE 
+    ${OPENGL_LIBRARIES}
+    volumetric_lib
 )
+
+
+pybind11_add_module(glutils 
+    glutils/glutils_module.cpp     
+    glutils/glutils_bindings.cpp)
+target_link_libraries(glutils PRIVATE glutils_lib)
 
 #=======================================
 # Add trajectory_tools module
@@ -254,37 +295,22 @@ target_link_libraries(trajectory_tools PRIVATE
 )
 
 #=======================================
-# Add volumetric module
-#=======================================
-
-pybind11_add_module(volumetric 
-volumetric/volumetric_module.cpp
-volumetric/camera_frustrum.cpp
-volumetric/bounding_boxes_3d.cpp
-volumetric/bounding_boxes_2d.cpp)
-if(TBB_FOUND)
-    target_compile_definitions(volumetric PRIVATE TBB_FOUND)
-endif()
-if(Qhull_FOUND AND QHULL_LINK_LIBS)
-    target_compile_definitions(volumetric PRIVATE QHULL_FOUND)
-endif()
-target_link_libraries(volumetric PRIVATE
-    ${Open3D_LIBRARIES}
-    ${TBB_LINK_LIBS}
-    ${OpenCV_LIBS}
-    ${QHULL_LINK_LIBS}
-)
-
-#=======================================
 # Add color_utils module
 #=======================================
 
-pybind11_add_module(color_utils 
-color_utils/color_utils_module.cpp
-color_utils/color_utils.cpp)
-target_link_libraries(color_utils PRIVATE
+add_library(color_utils_lib STATIC 
+    color_utils/color_utils.cpp)
+target_link_libraries(color_utils_lib PRIVATE 
     ${OpenCV_LIBS}
 )
+# Include directory for color_helpers.h
+target_include_directories(color_utils_lib PRIVATE
+    ${PYSLAM_SLAM_CPP_SRC}
+)
+
+pybind11_add_module(color_utils 
+color_utils/color_utils_module.cpp)
+target_link_libraries(color_utils PRIVATE color_utils_lib)
 # Include directory for color_helpers.h
 target_include_directories(color_utils PRIVATE
     ${PYSLAM_SLAM_CPP_SRC}

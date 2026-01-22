@@ -19,7 +19,8 @@
 
 #pragma once
 
-#include "glutils_common.h"
+#include "glutils_gl_includes.h"
+
 #include "glutils_drawing.h"
 #include "glutils_utils.h"
 #include <memory>

@@ -106,13 +106,15 @@ class VoxelSemanticSharedData {
 //      Semantics:
 //          - class_id=0 -> background, class_id>0 -> actual class
 //          - object_id=0 -> no specific object, object_id>0 -> specific object
-struct VoxelSemanticData {
+template <typename Tpos, typename Tcolor = float> struct VoxelSemanticDataT {
     inline static float kDepthThreshold =
         10.0f; // [m] depth threshold for updating semantics with depth
 
+    VOXEL_DATA_USING_TYPE(Tpos, Tcolor)
+
     int count = 0; // number of point data integrated into the voxel
-    VOXEL_POSITION_MEMBERS()
-    VOXEL_COLOR_MEMBERS()
+    VOXEL_POSITION_MEMBERS(Tpos)
+    VOXEL_COLOR_MEMBERS(Tcolor)
 
     int get_confidence_counter() const { return confidence_counter_; }
     float get_confidence() const {
@@ -146,8 +148,8 @@ struct VoxelSemanticData {
     int confidence_counter_ = 0; // confidence counter for the instance and class IDs
 
   public:
-    VOXEL_POSITION_METHODS()
-    VOXEL_COLOR_METHODS()
+    VOXEL_POSITION_METHODS(Tpos)
+    VOXEL_COLOR_METHODS(Tcolor)
 
     void reset() {
         count = 0;
@@ -199,6 +201,11 @@ struct VoxelSemanticData {
     }
 };
 
+// NOTE: We use float for colors since it is the most common type and it is easy and convenient to
+using VoxelSemanticData = VoxelSemanticDataT<double, float>;
+using VoxelSemanticDataD = VoxelSemanticDataT<double, float>;
+using VoxelSemanticDataF = VoxelSemanticDataT<float, float>;
+
 //=================================================================================================
 // Voxel Semantic Data Probabilistic
 //=================================================================================================
@@ -246,16 +253,18 @@ struct VoxelSemanticData {
 //      Semantics:
 //          - class_id=0 -> background, class_id>0 -> actual class
 //          - object_id=0 -> no specific object, object_id>0 -> specific object
-struct VoxelSemanticDataProbabilistic {
+template <typename Tpos, typename Tcolor = float> struct VoxelSemanticDataProbabilisticT {
 
     inline static float kDepthThreshold =
         5.0f; // [m] depth threshold for updating semantics with depth
     inline static float kDepthDecayRate =
         0.07f; // [1/m] depth decay rate for updating semantics with depth
 
+    VOXEL_DATA_USING_TYPE(Tpos, Tcolor)
+
     int count = 0; // number of point data integrated into the voxel
-    VOXEL_POSITION_MEMBERS()
-    VOXEL_COLOR_MEMBERS()
+    VOXEL_POSITION_MEMBERS(Tpos)
+    VOXEL_COLOR_MEMBERS(Tcolor)
 
     // Sparse probability distribution: (object_id, class_id) -> log_probability
     // Using log probabilities avoids numerical underflow and makes multiplication additive
@@ -284,8 +293,8 @@ struct VoxelSemanticDataProbabilistic {
     // Each observation with confidence=1.0 adds this base value to the log score
     static constexpr float BASE_LOG_PROB_PER_OBSERVATION = 0.10536051565782628f; // -log(0.9)
 
-    VOXEL_POSITION_METHODS()
-    VOXEL_COLOR_METHODS()
+    VOXEL_POSITION_METHODS(Tpos)
+    VOXEL_COLOR_METHODS(Tcolor)
 
     void reset() {
         count = 0;
@@ -669,6 +678,12 @@ struct VoxelSemanticDataProbabilistic {
     }
 };
 
+// NOTE: We use float for colors since it is the most common type and it is easy and convenient to
+// handle.
+using VoxelSemanticDataProbabilistic = VoxelSemanticDataProbabilisticT<double, float>;
+using VoxelSemanticDataProbabilisticD = VoxelSemanticDataProbabilisticT<double, float>;
+using VoxelSemanticDataProbabilisticF = VoxelSemanticDataProbabilisticT<float, float>;
+
 } // namespace volumetric
 
 #include "voxel_data_semantic2.h"
@@ -736,9 +751,9 @@ static_assert(SemanticVoxel<VoxelSemanticDataProbabilistic2>,
 static_assert(SemanticVoxelWithDepth<VoxelSemanticDataProbabilistic2>,
               "VoxelSemanticDataProbabilistic2 must satisfy the SemanticVoxelWithDepth concept");
 
-#undef VOXEL_POSITION_MEMBERS
-#undef VOXEL_POSITION_METHODS
-#undef VOXEL_COLOR_MEMBERS
-#undef VOXEL_COLOR_METHODS
+// #undef VOXEL_POSITION_MEMBERS
+// #undef VOXEL_POSITION_METHODS
+// #undef VOXEL_COLOR_MEMBERS
+// #undef VOXEL_COLOR_METHODS
 
 } // namespace volumetric

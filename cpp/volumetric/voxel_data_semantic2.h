@@ -45,13 +45,15 @@ namespace volumetric {
 //      Semantics:
 //          - class_id=0 -> background, class_id>0 -> actual class
 //          - object_id=0 -> no specific object, object_id>0 -> specific object
-struct VoxelSemanticData2 {
+template <typename Tpos, typename Tcolor = float> struct VoxelSemanticData2T {
     inline static float kDepthThreshold =
         10.0f; // [m] depth threshold for updating semantics with depth
 
+    VOXEL_DATA_USING_TYPE(Tpos, Tcolor)
+
     int count = 0; // number of point data integrated into the voxel
-    VOXEL_POSITION_MEMBERS()
-    VOXEL_COLOR_MEMBERS()
+    VOXEL_POSITION_MEMBERS(Tpos)
+    VOXEL_COLOR_MEMBERS(Tcolor)
 
     // Get combined confidence counter (for backward compatibility)
     int get_confidence_counter() const {
@@ -102,8 +104,8 @@ struct VoxelSemanticData2 {
     int class_confidence_counter_ = 0;  // confidence counter for the class ID
 
   public:
-    VOXEL_POSITION_METHODS()
-    VOXEL_COLOR_METHODS()
+    VOXEL_POSITION_METHODS(Tpos)
+    VOXEL_COLOR_METHODS(Tcolor)
 
     void reset() {
         count = 0;
@@ -169,6 +171,12 @@ struct VoxelSemanticData2 {
     }
 };
 
+// NOTE: We use float for colors since it is the most common type and it is easy and convenient to
+// handle.
+using VoxelSemanticData2 = VoxelSemanticData2T<double, float>;
+using VoxelSemanticData2D = VoxelSemanticData2T<double, float>;
+using VoxelSemanticData2F = VoxelSemanticData2T<float, float>;
+
 //=================================================================================================
 // Voxel Semantic Data Probabilistic 2
 // (Separate marginal probability distributions for object and class IDs, worse behavior than
@@ -230,16 +238,18 @@ struct VoxelSemanticData2 {
 //      Semantics:
 //          - class_id=0 -> background, class_id>0 -> actual class
 //          - object_id=0 -> no specific object, object_id>0 -> specific object
-struct VoxelSemanticDataProbabilistic2 {
+template <typename Tpos, typename Tcolor = float> struct VoxelSemanticDataProbabilistic2T {
 
     inline static float kDepthThreshold =
         5.0f; // [m] depth threshold for updating semantics with depth
     inline static float kDepthDecayRate =
         0.07f; // [1/m] depth decay rate for updating semantics with depth
 
+    VOXEL_DATA_USING_TYPE(Tpos, Tcolor)
+
     int count = 0; // number of point data integrated into the voxel
-    VOXEL_POSITION_MEMBERS()
-    VOXEL_COLOR_MEMBERS()
+    VOXEL_POSITION_MEMBERS(Tpos)
+    VOXEL_COLOR_MEMBERS(Tcolor)
 
     // Separate marginal probability distributions for object_id and class_id
     // Using log probabilities avoids numerical underflow and makes multiplication additive
@@ -271,8 +281,8 @@ struct VoxelSemanticDataProbabilistic2 {
   public:
     static constexpr float MIN_CONFIDENCE = 1e-10f;
 
-    VOXEL_POSITION_METHODS()
-    VOXEL_COLOR_METHODS()
+    VOXEL_POSITION_METHODS(Tpos)
+    VOXEL_COLOR_METHODS(Tcolor)
 
     void reset() {
         count = 0;
@@ -582,9 +592,9 @@ struct VoxelSemanticDataProbabilistic2 {
   private:
     // Helper to compute and store cached members based on current argmax
     void update_cached_members() const {
-        const_cast<VoxelSemanticDataProbabilistic2 *>(this)->object_id = most_likely_object_id;
-        const_cast<VoxelSemanticDataProbabilistic2 *>(this)->class_id = most_likely_class_id;
-        const_cast<VoxelSemanticDataProbabilistic2 *>(this)->confidence_ = compute_confidence();
+        const_cast<VoxelSemanticDataProbabilistic2T *>(this)->object_id = most_likely_object_id;
+        const_cast<VoxelSemanticDataProbabilistic2T *>(this)->class_id = most_likely_class_id;
+        const_cast<VoxelSemanticDataProbabilistic2T *>(this)->confidence_ = compute_confidence();
     }
 
     // Compute the confidence for the most likely label
@@ -782,5 +792,11 @@ struct VoxelSemanticDataProbabilistic2 {
         }
     }
 };
+
+// NOTE: We use float for colors since it is the most common type and it is easy and convenient to
+// handle.
+using VoxelSemanticDataProbabilistic2 = VoxelSemanticDataProbabilistic2T<double, float>;
+using VoxelSemanticDataProbabilistic2D = VoxelSemanticDataProbabilistic2T<double, float>;
+using VoxelSemanticDataProbabilistic2F = VoxelSemanticDataProbabilistic2T<float, float>;
 
 } // namespace volumetric

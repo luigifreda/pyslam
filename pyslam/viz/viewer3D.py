@@ -34,7 +34,7 @@ from enum import Enum
 import numpy as np
 
 
-from pyslam.config_parameters import Parameters
+from pyslam.config_parameters import Parameters, get_np_dtype
 from pyslam.slam import Map, MapStateData
 
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
@@ -55,6 +55,8 @@ if TYPE_CHECKING:
     # Only imported when type checking, not at runtime
     from pyslam.slam.slam import Slam
     from pyslam.slam.map import Map, MapStateData
+    from pyslam.dense.volumetric_integrator_base import VolumetricIntegrationOutput
+    from pyslam.dense.volumetric_integrator_base import VolumetricIntegrationObjectList
 
 
 kUiWidth = 190
@@ -69,8 +71,6 @@ kDrawReferenceCamera = True
 
 kMinWeightForDrawingCovisibilityEdge = Parameters.kMinWeightForDrawingCovisibilityEdge
 kMaxSparseMapPointsToVisualize = Parameters.kMaxSparseMapPointsToVisualize
-
-kUseDoubleForDenseVertices = Parameters.kViewerUseDoubleForDense3dVertices
 
 kAlignGroundTruthNumMinKeyframes = 10  # minimum number of keyframes to start aligning
 kAlignGroundTruthMaxEveryNKeyframes = 10  # maximum number of keyframes between alignments
@@ -153,6 +153,7 @@ class ViewerCurrentFrameData:
         self.reference_pose = None
 
 
+# Sparse map input
 class Viewer3DMapInput:
     def __init__(self):
         self.cur_frame_data = ViewerCurrentFrameData()
@@ -171,13 +172,16 @@ class Viewer3DMapInput:
         self.__dict__.update(state)
 
 
+# Dense map input
 class Viewer3DDenseInput:
     def __init__(self):
         self.point_cloud = None
         self.mesh = None
         self.camera_images = []  # list of VizCameraImage objects
+        self.objects = None  # list of objects
 
 
+# Visual odometry input
 class Viewer3DVoInput:
     def __init__(self):
         self.poses = []
@@ -375,6 +379,10 @@ class Viewer3D(object):
         self.gt_trajectory = None
         self.gt_timestamps = None
         self.align_gt_with_scale = False
+
+        self.dtype_vertices = get_np_dtype(Parameters.kDenseMappingDtypeVertices)
+        self.dtype_colors = get_np_dtype(Parameters.kDenseMappingDtypeColors)
+        self.dtype_triangles = get_np_dtype(Parameters.kDenseMappingDtypeTriangles)
 
         # TODO(dvdmc): to customize the semantic visualization from the UI, we need to create mp variables accesible from the refresh to the viewer thread
         # We would need a query word and a heatmap scale.
@@ -616,11 +624,18 @@ class Viewer3D(object):
         self.is_dense_state_updated = False
         self.gl_point_cloud_direct = (
             glutils.GlPointCloudDirectD()
-            if kUseDoubleForDenseVertices
+            if Parameters.kDenseMappingDtypeVertices == "float64"
             else glutils.GlPointCloudDirectF()
         )
         self.gl_mesh_direct = (
-            glutils.GlMeshDirectD() if kUseDoubleForDenseVertices else glutils.GlMeshDirectF()
+            glutils.GlMeshDirectD()
+            if Parameters.kDenseMappingDtypeVertices == "float64"
+            else glutils.GlMeshDirectF()
+        )
+        self.gl_object_set = (
+            glutils.GlObjectSetD()
+            if Parameters.kDenseMappingDtypeVertices == "float64"
+            else glutils.GlObjectSetF()
         )
 
         is_looping.value = 1
@@ -1098,12 +1113,9 @@ class Viewer3D(object):
                     triangles = self.dense_state.mesh[1]
                     colors = self.dense_state.mesh[2]
                     if self.is_dense_state_updated or self.gui_dense_changed:
-                        self.gl_mesh_direct.update_and_draw(
-                            vertices, triangles, colors, self.draw_wireframe
-                        )
                         self.is_dense_state_updated = False
-                    else:
-                        self.gl_mesh_direct.draw(self.draw_wireframe)
+                        self.gl_mesh_direct.update(vertices, triangles, colors)
+                    self.gl_mesh_direct.draw(self.draw_wireframe)
                     # glutils.DrawMesh(vertices, triangles, colors, self.draw_wireframe)  # old method (direct upload to GPU at each frame)
                 elif self.dense_state.point_cloud is not None:
                     pc_points = self.dense_state.point_cloud[0]
@@ -1118,11 +1130,28 @@ class Viewer3D(object):
                         elif pc_semantic_colors is not None:
                             pc_draw_colors = pc_semantic_colors
                     if self.is_dense_state_updated or self.gui_dense_changed:
-                        self.gl_point_cloud_direct.update_and_draw(pc_points, pc_draw_colors)
                         self.is_dense_state_updated = False
-                    else:
-                        self.gl_point_cloud_direct.draw()
+                        self.gl_point_cloud_direct.update(pc_points, pc_draw_colors)
+                    self.gl_point_cloud_direct.draw()
                     # glutils.DrawPoints(pc_points, pc_draw_colors)  # old method (direct upload to GPU at each frame)
+                elif self.dense_state.objects is not None:
+                    objects: VolumetricIntegrationObjectList = self.dense_state.objects
+                    # print(f"Viewer3D: viewer_refresh - dense_state #objects: {objects.num_objects}")
+                    color_draw_mode = glutils.ObjectColorDrawMode.POINTS
+                    if self.is_draw_semantic_colors:
+                        if is_draw_objects.value == 1:
+                            color_draw_mode = glutils.ObjectColorDrawMode.OBJECT_ID
+                        else:
+                            color_draw_mode = glutils.ObjectColorDrawMode.CLASS
+                    self.gl_object_set.set_color_draw_mode(color_draw_mode)
+                    if self.is_dense_state_updated or self.gui_dense_changed:
+                        self.is_dense_state_updated = False
+                        self.gl_object_set.update_from_volumetric_objects(
+                            object_list=objects.object_list,
+                            class_id_colors=objects.semantic_colors,
+                            object_id_colors=objects.object_colors,
+                        )
+                    self.gl_object_set.draw()
 
         if self.camera_images.size() > 0:
             self.camera_images.draw()
@@ -1257,15 +1286,20 @@ class Viewer3D(object):
         """Internal implementation of draw_dense_map (called by drawer thread)"""
         if self.qdense is None:
             return
-        dense_map_output = slam.get_dense_map()
+        dense_map_output: VolumetricIntegrationOutput = slam.get_dense_map()
         if dense_map_output is not None:
-            self.draw_dense_geometry(dense_map_output.point_cloud, dense_map_output.mesh)
+            self.draw_dense_geometry(
+                point_cloud=dense_map_output.point_cloud,
+                mesh=dense_map_output.mesh,
+                objects=dense_map_output.objects,
+            )
 
     # inputs:
     #   point_cloud: VolumetricIntegrationPointCloud (see the file volumetric_integrator.py)
     #   mesh: VolumetricIntegrationMesh (see the file volumetric_integrator.py)
     #   camera_images: list of VizCameraImage objects
-    def draw_dense_geometry(self, point_cloud=None, mesh=None, camera_images=None):
+    #   objects: VolumetricIntegrationObjectList (see the file volumetric_integrator.py)
+    def draw_dense_geometry(self, point_cloud=None, mesh=None, camera_images=None, objects=None):
         if self.qdense is None:
             return
         if camera_images is None:
@@ -1273,58 +1307,57 @@ class Viewer3D(object):
         dense_state = Viewer3DDenseInput()
         dense_state.camera_images = camera_images
 
-        dtype_vertices = np.float64 if kUseDoubleForDenseVertices else np.float32
-        dtype_colors = np.float32
-        dtype_triangles = np.uint32
-
         if mesh is not None:
             dense_state.mesh = (
-                np.ascontiguousarray(mesh.vertices, dtype=dtype_vertices),
-                np.ascontiguousarray(mesh.triangles, dtype=dtype_triangles),
-                np.ascontiguousarray(mesh.vertex_colors, dtype=dtype_colors),
+                np.ascontiguousarray(mesh.vertices, dtype=self.dtype_vertices),
+                np.ascontiguousarray(mesh.triangles, dtype=self.dtype_triangles),
+                np.ascontiguousarray(mesh.vertex_colors, dtype=self.dtype_colors),
             )
+        elif point_cloud is not None:
+            points = np.ascontiguousarray(point_cloud.points, dtype=self.dtype_vertices)
+            colors = np.ascontiguousarray(point_cloud.colors, dtype=self.dtype_colors)
+            if colors.shape[1] == 4:
+                colors = colors[:, 0:3]
+            print(
+                f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
+            )
+            pass_only_one_semantic_color_array = False  # self.is_draw_objects()
+            semantic_colors = None
+            if hasattr(point_cloud, "semantic_colors"):
+                semantic_colors = (
+                    np.ascontiguousarray(point_cloud.semantic_colors, dtype=self.dtype_colors)
+                    if point_cloud.semantic_colors is not None
+                    else None
+                )
+            object_colors = None
+            if hasattr(point_cloud, "object_colors"):
+                object_colors = (
+                    np.ascontiguousarray(point_cloud.object_colors, dtype=self.dtype_colors)
+                    if point_cloud.object_colors is not None
+                    else None
+                )
+            print(
+                f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
+            )
+            if semantic_colors is not None and semantic_colors.shape[0] > 0:
+                print(
+                    f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
+                )
+            if pass_only_one_semantic_color_array:
+                if self.is_draw_objects():
+                    semantic_colors = None
+                else:
+                    object_colors = None
+            dense_state.point_cloud = (points, colors, semantic_colors, object_colors)
+        elif objects is not None:
+            print(f"Viewer3D: draw_dense_geometry - objects.num_objects: {objects.num_objects}")
+            dense_state.objects = objects
         else:
-            if point_cloud is not None:
-                points = np.ascontiguousarray(point_cloud.points, dtype=dtype_vertices)
-                colors = np.ascontiguousarray(point_cloud.colors, dtype=dtype_colors)
-                if colors.shape[1] == 4:
-                    colors = colors[:, 0:3]
-                print(
-                    f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
-                )
-                pass_only_one_semantic_color_array = False  # self.is_draw_objects()
-                semantic_colors = None
-                if hasattr(point_cloud, "semantic_colors"):
-                    semantic_colors = (
-                        np.ascontiguousarray(point_cloud.semantic_colors, dtype=dtype_colors)
-                        if point_cloud.semantic_colors is not None
-                        else None
-                    )
-                object_colors = None
-                if hasattr(point_cloud, "object_colors"):
-                    object_colors = (
-                        np.ascontiguousarray(point_cloud.object_colors, dtype=dtype_colors)
-                        if point_cloud.object_colors is not None
-                        else None
-                    )
-                print(
-                    f"Viewer3D: draw_dense_geometry - points.shape: {points.shape}, colors.shape: {colors.shape}"
-                )
-                if semantic_colors is not None and semantic_colors.shape[0] > 0:
-                    print(
-                        f"Viewer3D: draw_dense_geometry - semantic_colors.shape: {semantic_colors.shape}"
-                    )
-                if pass_only_one_semantic_color_array:
-                    if self.is_draw_objects():
-                        semantic_colors = None
-                    else:
-                        object_colors = None
-                dense_state.point_cloud = (points, colors, semantic_colors, object_colors)
-            else:
-                Printer.orange("WARNING: both point_cloud and mesh are None")
+            Printer.orange("WARNING: mesh, point_cloud, and objects are all None")
 
         self.qdense.put(dense_state)
 
+    # draw sparse map
     def draw_map(self, map_state: Viewer3DMapInput):
         if self.qmap is None:
             return

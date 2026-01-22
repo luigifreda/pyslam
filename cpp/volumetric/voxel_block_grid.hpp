@@ -255,16 +255,31 @@ void VoxelBlockGridT<VoxelDataT>::integrate_raw_baseline(const Tpos *pts_ptr, si
                     }
                 } else {
                     // we do not have instance id => use default instance id 0
-                    const Tinstance object_id = 0;
-                    if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
-                        // we have depth
-                        const Tdepth depth = depths_ptr[i];
-                        update_voxel_lock<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
-                            x, y, z, color_x, color_y, color_z, class_id, object_id, depth);
+                    if constexpr (std::is_same_v<Tinstance, std::nullptr_t>) {
+                        // Tinstance is nullptr_t, so we can't create a variable, use nullptr
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            const Tdepth depth = depths_ptr[i];
+                            update_voxel_lock<Tpos, Tcolor, std::nullptr_t, Tclass, Tdepth>(
+                                x, y, z, color_x, color_y, color_z, class_id, nullptr, depth);
+                        } else {
+                            // we do not have depth => use confidence = 1.0
+                            update_voxel_lock<Tpos, Tcolor, std::nullptr_t, Tclass>(
+                                x, y, z, color_x, color_y, color_z, class_id, nullptr);
+                        }
                     } else {
-                        // we do not have depth => use confidence = 1.0
-                        update_voxel_lock<Tpos, Tcolor, Tinstance, Tclass>(
-                            x, y, z, color_x, color_y, color_z, class_id, object_id);
+                        // Tinstance is a real type, use default value 0
+                        const Tinstance object_id = 0;
+                        if constexpr (!std::is_same_v<Tdepth, std::nullptr_t>) {
+                            // we have depth
+                            const Tdepth depth = depths_ptr[i];
+                            update_voxel_lock<Tpos, Tcolor, Tinstance, Tclass, Tdepth>(
+                                x, y, z, color_x, color_y, color_z, class_id, object_id, depth);
+                        } else {
+                            // we do not have depth => use confidence = 1.0
+                            update_voxel_lock<Tpos, Tcolor, Tinstance, Tclass>(
+                                x, y, z, color_x, color_y, color_z, class_id, object_id);
+                        }
                     }
                 }
             }
@@ -662,8 +677,9 @@ void VoxelBlockGridT<VoxelDataT>::remove_low_confidence_voxels(const float min_c
 
 // get_points implementation
 template <typename VoxelDataT>
-std::vector<std::array<double, 3>> VoxelBlockGridT<VoxelDataT>::get_points() const {
-    std::vector<std::array<double, 3>> points;
+std::vector<typename VoxelBlockGridT<VoxelDataT>::Pos3>
+VoxelBlockGridT<VoxelDataT>::get_points() const {
+    std::vector<Pos3> points;
     // Conservative reserve: upper bound to avoid double traversal
     // (may slightly over-allocate, but avoids expensive get_total_voxel_count() call)
     points.reserve(num_voxels_per_block_ * blocks_.size());
@@ -680,8 +696,9 @@ std::vector<std::array<double, 3>> VoxelBlockGridT<VoxelDataT>::get_points() con
 
 // get_colors implementation
 template <typename VoxelDataT>
-std::vector<std::array<float, 3>> VoxelBlockGridT<VoxelDataT>::get_colors() const {
-    std::vector<std::array<float, 3>> colors;
+std::vector<typename VoxelBlockGridT<VoxelDataT>::Color3>
+VoxelBlockGridT<VoxelDataT>::get_colors() const {
+    std::vector<Color3> colors;
     // Conservative reserve: upper bound to avoid double traversal
     // (may slightly over-allocate, but avoids expensive get_total_voxel_count() call)
     colors.reserve(num_voxels_per_block_ * blocks_.size());
@@ -698,14 +715,15 @@ std::vector<std::array<float, 3>> VoxelBlockGridT<VoxelDataT>::get_colors() cons
 
 // get_voxels implementation
 template <typename VoxelDataT>
-VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels(int min_count, float min_confidence) const {
+typename VoxelBlockGridT<VoxelDataT>::VoxelGridDataType
+VoxelBlockGridT<VoxelDataT>::get_voxels(int min_count, float min_confidence) const {
 #ifdef TBB_FOUND
     // Parallel version: use enumerable_thread_specific to collect data without contention
     // Each thread processes distinct blocks and collects data independently
     // Use member variable for reservation size (capture by reference in lambda)
     const size_t reserve_size = num_voxels_per_block_;
-    tbb::enumerable_thread_specific<VoxelGridData> thread_local_results([reserve_size]() {
-        VoxelGridData result;
+    tbb::enumerable_thread_specific<VoxelGridDataType> thread_local_results([reserve_size]() {
+        VoxelGridDataType result;
         // Reserve space for typical block (may be overestimate, but better than reallocation)
         result.points.reserve(reserve_size);
         result.colors.reserve(reserve_size);
@@ -745,7 +763,7 @@ VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels(int min_count, float min_c
     });
 
     // Merge thread-local results sequentially (no contention)
-    VoxelGridData result;
+    VoxelGridDataType result;
     for (auto &local_result : thread_local_results) {
         if (!local_result.points.empty()) {
             result.points.insert(result.points.end(), local_result.points.begin(),
@@ -765,7 +783,7 @@ VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels(int min_count, float min_c
     }
 #else
     // Sequential version
-    VoxelGridData result;
+    VoxelGridDataType result;
     const size_t upper_bound_num_voxels = num_voxels_per_block_ * blocks_.size();
     result.points.reserve(upper_bound_num_voxels);
     result.colors.reserve(upper_bound_num_voxels);
@@ -803,9 +821,9 @@ VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels(int min_count, float min_c
 // get_voxels_in_bb implementation
 template <typename VoxelDataT>
 template <bool IncludeSemantics>
-VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D &bbox,
-                                                            const int min_count,
-                                                            float min_confidence) const {
+typename VoxelBlockGridT<VoxelDataT>::VoxelGridDataType
+VoxelBlockGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D &bbox, const int min_count,
+                                              float min_confidence) const {
     // Convert spatial bounds to voxel key bounds
     const VoxelKey min_key =
         get_voxel_key_inv<double, double>(bbox.min_x, bbox.min_y, bbox.min_z, inv_voxel_size_);
@@ -816,13 +834,13 @@ VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D 
     const BlockKey min_block_key = get_block_key(min_key, block_size_);
     const BlockKey max_block_key = get_block_key(max_key, block_size_);
 
-    VoxelGridData result;
+    VoxelGridDataType result;
 #ifdef TBB_FOUND
     // Optimized parallel version: iterate existing blocks, filter by key range, then check
     // voxels Use enumerable_thread_specific to collect data without contention
     const size_t reserve_size = num_voxels_per_block_;
-    tbb::enumerable_thread_specific<VoxelGridData> thread_local_results([reserve_size]() {
-        VoxelGridData local_result;
+    tbb::enumerable_thread_specific<VoxelGridDataType> thread_local_results([reserve_size]() {
+        VoxelGridDataType local_result;
         local_result.points.reserve(reserve_size);
         local_result.colors.reserve(reserve_size);
         if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
@@ -1000,8 +1018,10 @@ VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels_in_bb(const BoundingBox3D 
 // get_voxels_in_bb implementation
 template <typename VoxelDataT>
 template <bool IncludeSemantics>
-VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels_in_camera_frustrum(
-    const CameraFrustrum &camera_frustrum, const int min_count, float min_confidence) const {
+typename VoxelBlockGridT<VoxelDataT>::VoxelGridDataType
+VoxelBlockGridT<VoxelDataT>::get_voxels_in_camera_frustrum(const CameraFrustrum &camera_frustrum,
+                                                           const int min_count,
+                                                           float min_confidence) const {
     const BoundingBox3D bbox = camera_frustrum.get_bbox();
     // Convert spatial bounds to voxel key bounds
     const VoxelKey min_key =
@@ -1013,13 +1033,13 @@ VoxelGridData VoxelBlockGridT<VoxelDataT>::get_voxels_in_camera_frustrum(
     const BlockKey min_block_key = get_block_key(min_key, block_size_);
     const BlockKey max_block_key = get_block_key(max_key, block_size_);
 
-    VoxelGridData result;
+    VoxelGridDataType result;
 #ifdef TBB_FOUND
     // Optimized parallel version: iterate existing blocks, filter by key range, then check
     // frustum Use enumerable_thread_specific to collect data without contention
     const size_t reserve_size = num_voxels_per_block_;
-    tbb::enumerable_thread_specific<VoxelGridData> thread_local_results([reserve_size]() {
-        VoxelGridData local_result;
+    tbb::enumerable_thread_specific<VoxelGridDataType> thread_local_results([reserve_size]() {
+        VoxelGridDataType local_result;
         local_result.points.reserve(reserve_size);
         local_result.colors.reserve(reserve_size);
         if constexpr (IncludeSemantics && SemanticVoxel<VoxelDataT>) {
@@ -1385,7 +1405,41 @@ void VoxelBlockGridT<VoxelDataT>::iterate_voxels_in_camera_frustrum(
                         const auto [is_in_frustum, image_point] =
                             camera_frustrum.contains(pos[0], pos[1], pos[2]);
                         if (is_in_frustum) {
-                            callback(v, voxel_key, pos, image_point);
+                            using Pos3d = std::array<double, 3>;
+                            using Pos3f = std::array<float, 3>;
+                            using Pos3Type = typename VoxelBlockGridT<VoxelDataT>::Pos3;
+                            if constexpr (std::is_invocable_v<Callback, VoxelDataT &,
+                                                              const VoxelKey &, const Pos3Type &,
+                                                              const ImagePoint &>) {
+                                callback(v, voxel_key, pos, image_point);
+                            } else if constexpr (std::is_invocable_v<
+                                                     Callback, VoxelDataT &, const VoxelKey &,
+                                                     const Pos3d &, const ImagePoint &>) {
+                                const Pos3d pos_d = {
+                                    static_cast<double>(pos[0]),
+                                    static_cast<double>(pos[1]),
+                                    static_cast<double>(pos[2]),
+                                };
+                                callback(v, voxel_key, pos_d, image_point);
+                            } else if constexpr (std::is_invocable_v<
+                                                     Callback, VoxelDataT &, const VoxelKey &,
+                                                     const Pos3f &, const ImagePoint &>) {
+                                const Pos3f pos_f = {
+                                    static_cast<float>(pos[0]),
+                                    static_cast<float>(pos[1]),
+                                    static_cast<float>(pos[2]),
+                                };
+                                callback(v, voxel_key, pos_f, image_point);
+                            } else {
+                                struct UnsupportedCallbackSignature : std::false_type {};
+                                static_assert(UnsupportedCallbackSignature::value,
+                                              "Callback must accept one of: "
+                                              "(VoxelDataT&, VoxelKey, Pos3, ImagePoint), "
+                                              "(VoxelDataT&, VoxelKey, std::array<double,3>, "
+                                              "ImagePoint), "
+                                              "(VoxelDataT&, VoxelKey, std::array<float,3>, "
+                                              "ImagePoint).");
+                            }
                         }
                     }
                 }
@@ -1444,7 +1498,39 @@ void VoxelBlockGridT<VoxelDataT>::iterate_voxels_in_camera_frustrum(
                     const auto [is_in_frustum, image_point] =
                         camera_frustrum.contains(pos[0], pos[1], pos[2]);
                     if (is_in_frustum) {
-                        callback(v, voxel_key, pos, image_point);
+                        using Pos3d = std::array<double, 3>;
+                        using Pos3f = std::array<float, 3>;
+                        using Pos3Type = typename VoxelBlockGridT<VoxelDataT>::Pos3;
+                        if constexpr (std::is_invocable_v<Callback, VoxelDataT &, const VoxelKey &,
+                                                          const Pos3Type &, const ImagePoint &>) {
+                            callback(v, voxel_key, pos, image_point);
+                        } else if constexpr (std::is_invocable_v<Callback, VoxelDataT &,
+                                                                 const Pos3d &,
+                                                                 const ImagePoint &>) {
+                            const Pos3d pos_d = {
+                                static_cast<double>(pos[0]),
+                                static_cast<double>(pos[1]),
+                                static_cast<double>(pos[2]),
+                            };
+                            callback(v, voxel_key, pos_d, image_point);
+                        } else if constexpr (std::is_invocable_v<Callback, VoxelDataT &,
+                                                                 const VoxelKey &, const Pos3f &,
+                                                                 const ImagePoint &>) {
+                            const Pos3f pos_f = {
+                                static_cast<float>(pos[0]),
+                                static_cast<float>(pos[1]),
+                                static_cast<float>(pos[2]),
+                            };
+                            callback(v, voxel_key, pos_f, image_point);
+                        } else {
+                            struct UnsupportedCallbackSignature : std::false_type {};
+                            static_assert(
+                                UnsupportedCallbackSignature::value,
+                                "Callback must accept one of: "
+                                "(VoxelDataT&, VoxelKey, Pos3, ImagePoint), "
+                                "(VoxelDataT&, VoxelKey, std::array<double,3>, ImagePoint), "
+                                "(VoxelDataT&, VoxelKey, std::array<float,3>, ImagePoint).");
+                        }
                     }
                 }
             }

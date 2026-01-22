@@ -108,11 +108,11 @@ template <typename VoxelDataT> class VoxelBlockSemanticGridT : public VoxelBlock
     std::pair<std::vector<int>, std::vector<int>> get_ids() const;
 
     // Get clusters of voxels based on object IDs
-    std::vector<std::shared_ptr<volumetric::ObjectData>>
+    std::shared_ptr<volumetric::ObjectDataGroup>
     get_object_segments(const int min_count = 1, const float min_confidence = 0.0) const;
 
     // Get clusters of voxels based on class IDs
-    std::vector<std::shared_ptr<volumetric::ClassData>>
+    std::shared_ptr<volumetric::ClassDataGroup>
     get_class_segments(const int min_count = 1, const float min_confidence = 0.0) const;
 };
 

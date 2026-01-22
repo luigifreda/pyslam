@@ -13,11 +13,13 @@ OpenGL rendering utilities for 3D visualization in PYSLAM. This module provides 
     - [Camera Visualization](#camera-visualization)
     - [Line and Trajectory Rendering](#line-and-trajectory-rendering)
     - [Bounding Boxes and Primitives](#bounding-boxes-and-primitives)
+    - [Object Rendering](#object-rendering)
   - [Classes](#classes)
     - [CameraImage](#cameraimage)
     - [CameraImages](#cameraimages)
     - [GlMeshT / GlMeshDirectT](#glmesht--glmeshdirectt)
     - [GlPointCloudT / GlPointCloudDirectT](#glpointcloudt--glpointclouddirectt)
+    - [GlObjectT / GlObjectSetT](#globjectt--globjectsett)
   - [Usage Example](#usage-example)
   - [Notes](#notes)
 
@@ -28,13 +30,20 @@ OpenGL rendering utilities for 3D visualization in PYSLAM. This module provides 
 
 The module is organized into the following files:
 
-- **`glutils_common.h`** - Shared types, constants, and common includes
+- **`glutils_gl_includes.h`** - Shared types, constants, and common includes
 - **`glutils_drawing.h`** - Low-level OpenGL drawing functions (internal `glutils_detail` namespace)
 - **`glutils_utils.h`** - Helper utility functions (pose matrix extraction, alignment computation)
 - **`glutils_bindings.h/cpp`** - Python wrapper functions that interface between NumPy arrays and OpenGL
+- **`glutils_bindings_common.h`** - Common pybind11 array aliases
+- **`glutils_bindings_utils.h`** - Array validation helpers and packed vector accessors
+- **`glutils_opaque_types.h`** - Opaque type declarations for pybind11
 - **`glutils_camera.h`** - Camera image classes for texture-based camera visualization
 - **`glmesh.h`** - GPU-backed mesh helpers (VBO/VAO-based) for fast drawing
+- **`glmesh_bindings.h`** - Pybind11 wrappers for `GlMesh*` helpers
 - **`glpoint_cloud.h`** - GPU-backed point cloud helpers (VBO-based) for fast drawing
+- **`glpoint_cloud_bindings.h`** - Pybind11 wrappers for `GlPointCloud*` helpers
+- **`globject.h`** - GPU-backed object rendering helpers
+- **`globject_bindings.h`** - Pybind11 wrappers for `GlObject*` helpers
 - **`glutils_module.cpp`** - Pybind11 module definition and bindings
 
 ## Available Functions
@@ -86,6 +95,11 @@ The module is organized into the following files:
   - `num_divs`: Number of grid divisions
   - `div_size`: Size of each grid cell
   - `scale`: Overall scale factor
+
+### Object Rendering
+
+- **`DrawObjectData(object_data)`** - Draw a `volumetric.ObjectData` point cloud with optional colors
+  - `object_data`: `volumetric.ObjectData` instance (points and optional colors)
 
 ## Classes
 
@@ -144,8 +158,8 @@ GPU-backed mesh renderers using VBOs (and a VAO for `GlMeshT`).
   - `ReserveGPU(max_vertices, max_indices)` - Pre-allocate GPU buffers
   - `UpdateGPU()` - Upload dirty buffers
   - `Draw(wireframe)` - Draw triangles
-- **`GlMeshDirectT<VertexT, ColorT>`** - Uploads data directly on `UpdateAndDraw()`
-  - `UpdateAndDraw(vertices_xyz, colors_rgb, tri_idx, vertex_count, tri_count, wireframe)`
+- **`GlMeshDirectT<VertexT, ColorT>`** - Uploads data directly on `Update()`
+  - `Update(vertices_xyz, colors_rgb, tri_idx, vertex_count, tri_count)`
   - `Draw(wireframe)` - Draw using already-uploaded buffers
 
 **Typedefs:** `GlMeshF`, `GlMeshD`, `GlMeshDirectF`, `GlMeshDirectD`
@@ -161,11 +175,30 @@ GPU-backed point cloud renderers using VBOs.
   - `ClearColors()` - Remove colors
   - `UpdateGPU()` - Upload dirty buffers
   - `Draw()` - Draw points
-- **`GlPointCloudDirectT<PointT, ColorT>`** - Uploads data directly on `UpdateAndDraw()`
-  - `UpdateAndDraw(points, colors, point_count)`
+- **`GlPointCloudDirectT<PointT, ColorT>`** - Uploads data directly on `Update()`
+  - `Update(points, colors, point_count)`
   - `Draw()` - Draw using already-uploaded buffers
 
 **Typedefs:** `GlPointCloudF`, `GlPointCloudD`, `GlPointCloudDirectF`, `GlPointCloudDirectD`
+
+### GlObjectT / GlObjectSetT
+
+GPU-backed object renderers using VBOs. Supports drawing points, optional per-point colors,
+per-class/per-object color modes, and optional bounding boxes.
+
+- **`GlObjectT<PointT, ColorT>`** - Stores a single object on the GPU
+  - `update(points, colors, point_count)` - Upload point data directly
+  - `set_object_id_color(color)` - Set color used in OBJECT_ID mode
+  - `set_class_id_color(color)` - Set color used in CLASS mode
+  - `set_color_draw_mode(color_draw_mode)` - Select color mode (`POINTS`, `CLASS`, `OBJECT_ID`)
+  - `set_bounding_box(box_matrix, box_size)` - Set oriented bounding box for rendering
+  - `draw()` - Draw the object
+- **`GlObjectSetT<PointT, ColorT>`** - Manages a set of objects
+  - `update(object_data_list, class_id_colors, object_id_colors)` - Update all objects from
+    `volumetric.ObjectData` and color lists
+  - `draw()` - Draw all objects
+
+**Typedefs:** `GlObjectF`, `GlObjectD`, `GlObjectsF`, `GlObjectsD`
 
 ## Usage Example
 
@@ -206,3 +239,5 @@ cameras.draw()
 - Colors are RGB in range [0.0, 1.0] for float arrays, or [0, 255] for uint8 images
 - The module uses OpenGL immediate mode (legacy OpenGL)
 - GIL (Global Interpreter Lock) is released during OpenGL calls for better performance
+- For zero-copy paths, pass contiguous NumPy arrays with matching dtype; otherwise bindings may
+  perform a copy to cast input data.

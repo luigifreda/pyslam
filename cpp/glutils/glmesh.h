@@ -262,7 +262,7 @@ template <typename VertexT, typename ColorT = VertexT> class GlMeshT {
 
 // ================================================================
 // Draw mesh by using VBOs and a VAO.
-// The vertices and colors are directly uploaded to GPU memory when UpdateAndDraw() is called.
+// The vertices and colors are directly uploaded to GPU memory when Update() is called.
 // ================================================================
 template <typename VertexT, typename ColorT = float> class GlMeshDirectT {
   public:
@@ -381,9 +381,8 @@ template <typename VertexT, typename ColorT = float> class GlMeshDirectT {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    void UpdateAndDraw(const VertexT *vertices_xyz, const ColorT *colors_rgb,
-                       const unsigned int *tri_idx, std::size_t vertex_count, std::size_t tri_count,
-                       bool wireframe) {
+    void Update(const VertexT *vertices_xyz, const ColorT *colors_rgb, const unsigned int *tri_idx,
+                std::size_t vertex_count, std::size_t tri_count) {
         vertex_count_ = vertex_count;
         index_count_ = tri_count * 3;
 
@@ -441,8 +440,6 @@ template <typename VertexT, typename ColorT = float> class GlMeshDirectT {
                 has_colors_ = false;
             }
         }
-
-        Draw(wireframe);
     }
 
   private:
@@ -479,6 +476,8 @@ template <typename VertexT, typename ColorT = float> class GlMeshDirectT {
     std::size_t idx_capacity_;
     bool has_colors_;
 };
+
+// ================================================================
 
 // NOTE: We use float for colors since it is the most common type and it is easy and convenient to
 // handle.

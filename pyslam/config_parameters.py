@@ -265,13 +265,25 @@ class Parameters:
     )
 
     # ================================================================
+    # Dtype for the dense mapping
+    # ================================================================
+    kDenseMappingDtypeVertices = "float32"  # "float32" or "float64"
+    kDenseMappingDtypeColors = "float32"
+    kDenseMappingDtypeDepth = "float32"
+    kDenseMappingDtypeSemantics = "int32"  # negative values are used for unassigned voxels
+    kDenseMappingDtypeObjectIds = "int32"  # negative values are used for unassigned voxels
+    kDenseMappingDtypeTriangles = "uint32"
+
+    # ================================================================
     # Volumetric Integration
     # ================================================================
-    kDoVolumetricIntegration = True  # To enable/disable volumetric integration (dense mapping)
+    kDoVolumetricIntegration = False  # To enable/disable volumetric integration (dense mapping)
     # kVolumetricIntegrationType: "VOXEL_GRID",
     #                             "VOXEL_SEMANTIC_GRID",  (to be used with semantic mapping activated)
-    #                             "VOXEL_SEMANTIC_PROBABILISTIC_GRID", (to be used with semantic mapping activated)
-    #                             "TSDF", "GAUSSIAN_SPLATTING" (see volumetric_integrator_types.py and cpp/volumetric/README.md)
+    #                             "VOXEL_SEMANTIC_PROBABILISTIC_GRID", best for semantic mapping (to be used with semantic mapping activated)
+    #                             "TSDF", allows mesh extraction as output
+    #                             "GAUSSIAN_SPLATTING", requires CUDA
+    #                              see pyslam/dense/volumetric_integrator_types.py and cpp/volumetric/README.md
     kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID"
     kVolumetricIntegrationDebugAndPrintToFile = True
     #
@@ -296,6 +308,7 @@ class Parameters:
     kVolumetricIntegrationVoxelGridMinConfidence = (
         0.0  # Minimum confidence for grid semantic integration
     )
+    #
     kVolumetricIntegrationVoxelGridUseCarving = False  # Use carving to remove voxels that are inconsistent with the depth image (in front or behind by more than the threshold).
     kVolumetricIntegrationVoxelGridCarvingDepthMin = (
         1e-2  # Minimum depth [m] for carving. Voxels with depth less than this will not be carved.
@@ -303,6 +316,7 @@ class Parameters:
     kVolumetricIntegrationVoxelGridCarvingDepthMaxIndoor = 8.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
     kVolumetricIntegrationVoxelGridCarvingDepthMaxOutdoor = 15.0  # Maximum depth [m] for carving. Voxels with depth greater than this will not be carved.
     kVolumetricIntegrationVoxelGridCarvingDepthThreshold = 2e-2  # Depth threshold [m] for carving. Voxels that differ from the depth image by more than this threshold will be removed.
+    #
     kVolumetricIntegrationVoxelGridShadowPointsFilter = (
         True  # Filter shadow points in the grid semantic integration
     )
@@ -323,6 +337,7 @@ class Parameters:
     # NOTE: The depth estimator estimates a metric depth (with an absolute scale). You can't combine it with a MONOCULAR SLAM since the SLAM sparse map scale will not be consistent.
     kVolumetricIntegrationDepthEstimatorType = "DEPTH_RAFT_STEREO"  # "DEPTH_PRO","DEPTH_ANYTHING_V2, "DEPTH_ANYTHING_V3", "DEPTH_SGBM", "DEPTH_RAFT_STEREO", "DEPTH_CRESTEREO_PYTORCH"  (see depth_estimator_factory.py)
     kVolumetricIntegrationDepthEstimationFilterShadowPoints = True
+    #
     # Semantic integration
     # probabilistic integration: if depth < depth_threshold, the confidence weight is 1.0, otherwise it exponentially decays with the depth decay rate
     # non-probabilistic integration: the confidence counter is only updated when the depth is below the depth threshold
@@ -348,7 +363,7 @@ class Parameters:
     # ================================================================
     # Sparse semantic mapping and image segmentation
     # ================================================================
-    kDoSparseSemanticMappingAndSegmentation = True  # To enable/disable _sparse_ semantic mapping (TODO: may be problematic under mac, fix it)
+    kDoSparseSemanticMappingAndSegmentation = False  # To enable/disable _sparse_ semantic mapping (TODO: may be problematic under mac, fix it)
     # NOTE: if you want _dense_ semantic mapping, enable this and setkDoVolumetricIntegration = True and  kVolumetricIntegrationType = "VOXEL_SEMANTIC_PROBABILISTIC_GRID" or "VOXEL_SEMANTIC_GRID"
     # kSemanticSegmentationType: None/"", "DEEPLABV3", "SEGFORMER", "CLIP", "EOV_SEG", "DETIC", "ODISE" (see semantic_segmentation_factory.py)
     kSemanticSegmentationType = ""  # Override the semantic model selected in semantic_mapping_configs.py. If kSemanticSegmentationType = "" or None, a default model will be selected based on the dataset (see semantic_mapping_configs.py)
@@ -383,7 +398,6 @@ class Parameters:
     kMaxSparseMapPointsToVisualize = 1e6  # Sparse pointcloud downsampling for very large clouds to reduce queue bandwidth and GL load
 
     kViewerDrawSlamMapOnSeparateThread = True  # True: draw the slam map on a separate thread, False: draw the slam map on the main thread
-    kViewerUseDoubleForDense3dVertices = False  # True: use double precision for dense vertices, False: use single precision for dense vertices
 
     # ================================================================
     # Other parameters
@@ -421,3 +435,34 @@ def set_from_dict(cls, config):
 
 def to_dict(cls):
     return {key: getattr(cls, key) for key in dir(cls) if not key.startswith("__")}
+
+
+# ================================================================
+# Get numpy dtype from string
+# ================================================================
+
+
+def get_np_dtype(dtype_str):
+    allowed = {
+        "float32",
+        "float64",
+        "int32",
+        "int64",
+        "uint32",
+        "uint64",
+    }
+    if dtype_str not in allowed:
+        raise ValueError(f"Unsupported dense mapping dtype: {dtype_str}")
+    try:
+        import importlib
+
+        np = importlib.import_module("numpy")
+    except Exception:
+        return dtype_str
+    try:
+        np_dtype = np.dtype(dtype_str)
+    except Exception as exc:
+        raise ValueError(f"Unsupported dense mapping dtype: {dtype_str}") from exc
+    if np_dtype.name != dtype_str:
+        raise ValueError(f"Unsupported dense mapping dtype: {dtype_str}")
+    return np_dtype

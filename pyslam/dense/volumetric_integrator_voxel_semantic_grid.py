@@ -63,6 +63,7 @@ from pyslam.dense.volumetric_integrator_base import (
     VolumetricIntegrationTask,
     VolumetricIntegrationOutput,
     VolumetricIntegrationPointCloud,
+    VolumetricIntegrationObjectList,
     VolumetricIntegratorBase,
     VolumetricIntegrationKeyframeData,
 )
@@ -492,7 +493,8 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
 
                     if do_output:
 
-                        generate_objects = False
+                        generate_objects = True  # True: generate objects representation,
+                        #                          False: generate point cloud representation
 
                         mesh_out = None
                         pc_out = None
@@ -501,10 +503,62 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                         if generate_objects:
                             # ================================================================
                             # START OF GENERATE OBJECTS REPRESENTATION
-                            objects_out = self.volume.get_objects(
+                            objects_data_group = self.volume.get_object_segments(
                                 min_count=Parameters.kVolumetricIntegrationVoxelGridMinCount,
                                 min_confidence=Parameters.kVolumetricIntegrationVoxelGridMinConfidence,
                             )
+
+                            semantic_colors = (
+                                np.ascontiguousarray(
+                                    SemanticMappingShared.sem_img_to_rgb(
+                                        objects_data_group.class_ids, bgr=True
+                                    ),
+                                    dtype=self.dtype_colors,
+                                )
+                                / 255.0
+                                if objects_data_group.class_ids is not None
+                                and SemanticMappingShared.is_semantic_mapping_enabled()
+                                else None
+                            )
+                            object_colors = None
+                            object_ids_for_colors = objects_data_group.object_ids
+                            if object_ids_for_colors is not None and len(object_ids_for_colors) > 0:
+                                try:
+                                    # Generate instance colors (float32 in [0, 1]) using IdsColorTable
+                                    object_colors_rgb = self.ids_color_table.ids_to_rgb_float(
+                                        object_ids_for_colors, bgr=True
+                                    )
+                                    if object_colors_rgb is not None and object_colors_rgb.size > 0:
+                                        # Verify shape matches objects
+                                        if (
+                                            object_colors_rgb.ndim == 2
+                                            and object_colors_rgb.shape[1] == 3
+                                            and object_colors_rgb.shape[0]
+                                            == len(objects_data_group.object_vector)
+                                        ):
+                                            object_colors = np.ascontiguousarray(
+                                                object_colors_rgb, dtype=self.dtype_colors
+                                            )
+                                except Exception as e:
+                                    VolumetricIntegratorBase.print(
+                                        f"VolumetricIntegratorVoxelSemanticGrid: Error generating instance colors: {e}"
+                                    )
+                                    if kPrintTrackebackDetails:
+                                        traceback_details = traceback.format_exc()
+                                        VolumetricIntegratorBase.print(
+                                            f"\t traceback details: {traceback_details}"
+                                        )
+                                    object_colors = None
+
+                            num_objects = len(objects_data_group.object_vector)
+                            objects_out = VolumetricIntegrationObjectList(
+                                objects_data_group, semantic_colors, object_colors, num_objects
+                            )
+
+                            VolumetricIntegratorBase.print(
+                                f"VolumetricIntegratorVoxelSemanticGrid: objects_out: {num_objects}"
+                            )
+
                             # END OF GENERATE OBJECTS REPRESENTATION
                             # ================================================================
                         else:
@@ -550,23 +604,19 @@ class VolumetricIntegratorVoxelSemanticGrid(VolumetricIntegratorBase):
                             object_colors = None
                             if object_ids is not None and len(object_ids) > 0:
                                 try:
-                                    # Generate instance colors using IdsColorTable instance
-                                    instance_colors_rgb = self.ids_color_table.ids_to_rgb(
+                                    # Generate instance colors (float32 in [0, 1]) using IdsColorTable
+                                    object_colors_rgb = self.ids_color_table.ids_to_rgb_float(
                                         object_ids, bgr=True
                                     )
-                                    if (
-                                        instance_colors_rgb is not None
-                                        and instance_colors_rgb.size > 0
-                                    ):
+                                    if object_colors_rgb is not None and object_colors_rgb.size > 0:
                                         # Verify shape matches points
-                                        if len(
-                                            instance_colors_rgb.shape
-                                        ) == 2 and instance_colors_rgb.shape[0] == len(points):
-                                            object_colors = (
-                                                np.ascontiguousarray(
-                                                    instance_colors_rgb, dtype=self.dtype_colors
-                                                )
-                                                / 255.0
+                                        if (
+                                            object_colors_rgb.ndim == 2
+                                            and object_colors_rgb.shape[1] == 3
+                                            and object_colors_rgb.shape[0] == len(points)
+                                        ):
+                                            object_colors = np.ascontiguousarray(
+                                                object_colors_rgb, dtype=self.dtype_colors
                                             )
                                 except Exception as e:
                                     VolumetricIntegratorBase.print(

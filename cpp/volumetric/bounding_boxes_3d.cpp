@@ -256,6 +256,24 @@ BoundingBox3D::compute_from_points(const std::vector<Eigen::Matrix<T, 3, 1>> &po
 // OrientedBoundingBox3D implementations
 // ================================================
 
+// Transformation matrix from object-attached to world coordinates
+Eigen::Matrix4d OrientedBoundingBox3D::get_matrix() const {
+    Eigen::Matrix4d matrix = Eigen::Matrix4d::Identity();
+    matrix.block<3, 3>(0, 0) = orientation.normalized().toRotationMatrix();
+    matrix.block<3, 1>(0, 3) = center;
+    return matrix;
+}
+
+// Transformation matrix from world to object-attached coordinates
+Eigen::Matrix4d OrientedBoundingBox3D::get_inverse_matrix() const {
+    Eigen::Matrix4d matrix = Eigen::Matrix4d::Identity();
+    const Eigen::Matrix3d R_ow = orientation.normalized().toRotationMatrix().transpose();
+    const Eigen::Vector3d t_ow = -R_ow * center;
+    matrix.block<3, 3>(0, 0) = R_ow;
+    matrix.block<3, 1>(0, 3) = t_ow;
+    return matrix;
+}
+
 double OrientedBoundingBox3D::get_volume() const { return size.x() * size.y() * size.z(); }
 
 double OrientedBoundingBox3D::get_surface_area() const {
@@ -271,8 +289,8 @@ std::vector<Eigen::Vector3d> OrientedBoundingBox3D::get_corners() const {
     corners.reserve(8);
     const Eigen::Quaterniond q_norm = orientation.normalized();
     const Eigen::Matrix3d R_wo =
-        q_norm.toRotationMatrix(); // from object-attached axes to world coordinates,
-                                   // p_w = R_wo * p_o + center
+        q_norm.normalized().toRotationMatrix(); // from object-attached axes to world coordinates,
+                                                // p_w = R_wo * p_o + center
     const Eigen::Vector3d half_size = size / 2.0;
 
     // Assuming object-attached axes coordinates are x=right, y=down, z=forward

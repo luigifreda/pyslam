@@ -180,9 +180,8 @@ def main():
                 )
                 pc_colors = colorify_points(pc_points)
                 pc_colors = np.ascontiguousarray(pc_colors, dtype=np.float32)
-                pc_direct.update_and_draw(pc_points, pc_colors)
-            else:
-                pc_direct.draw()
+                pc_direct.update(pc_points, pc_colors)
+            pc_direct.draw()
 
         # Draw Mesh with GlMeshF (dynamic zmap on fixed grid)
         if True:
@@ -203,7 +202,7 @@ def main():
                 mesh.set_triangles(tri_indices)
                 mesh.set_colors(colors)
             gl.glColor3f(1.0, 1.0, 1.0)
-            mesh.draw(False)
+            mesh.draw()
 
         # Draw Mesh with GlMeshDirectF (dynamic zmap on fixed grid)
         if True:
@@ -219,8 +218,8 @@ def main():
                 colors = colorify_points(vertices)
                 colors = np.ascontiguousarray(colors, dtype=np.float32)
                 vertices = np.ascontiguousarray(vertices, dtype=np.float32)
-                mesh_direct.update_and_draw(vertices, tri_indices, colors, False)
-            mesh_direct.draw(False)
+                mesh_direct.update(vertices, tri_indices, colors)
+            mesh_direct.draw()
 
         gl.glColor3f(1.0, 1.0, 1.0)
         pangolin.glDrawColouredCube()

@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "glutils_common.h"
+#include "glutils_gl_includes.h"
 
 namespace glutils {
 

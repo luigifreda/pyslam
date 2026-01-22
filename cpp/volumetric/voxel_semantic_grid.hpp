@@ -262,69 +262,69 @@ void VoxelSemanticGridT<VoxelDataT>::remove_low_confidence_segments(const int mi
 #endif
 }
 
-// get_points implementation
-template <typename VoxelDataT>
-std::vector<std::array<double, 3>> VoxelSemanticGridT<VoxelDataT>::get_points() const {
-    std::vector<std::array<double, 3>> points;
-    points.reserve(grid_.size());
-#ifdef TBB_FOUND
-    // Parallel version: collect keys first, then process in parallel
-    // Use isolate() to prevent deadlock from nested parallelism
-    std::vector<VoxelKey> keys;
-    keys.reserve(grid_.size());
-    for (const auto &[key, v] : grid_) {
-        keys.push_back(key);
-    }
-    points.resize(keys.size());
-    tbb::this_task_arena::isolate([&]() {
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  points[i] = v.get_position();
-                              }
-                          });
-    });
-#else
-    // Sequential version
-    for (const auto &[key, v] : grid_) {
-        points.push_back(v.get_position());
-    }
-#endif
-    return points;
-}
+// // get_points implementation
+// template <typename VoxelDataT>
+// std::vector<Pos3> VoxelSemanticGridT<VoxelDataT>::get_points() const {
+//     std::vector<std::array<double, 3>> points;
+//     points.reserve(grid_.size());
+// #ifdef TBB_FOUND
+//     // Parallel version: collect keys first, then process in parallel
+//     // Use isolate() to prevent deadlock from nested parallelism
+//     std::vector<VoxelKey> keys;
+//     keys.reserve(grid_.size());
+//     for (const auto &[key, v] : grid_) {
+//         keys.push_back(key);
+//     }
+//     points.resize(keys.size());
+//     tbb::this_task_arena::isolate([&]() {
+//         tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+//                           [&](const tbb::blocked_range<size_t> &range) {
+//                               for (size_t i = range.begin(); i < range.end(); ++i) {
+//                                   const auto &v = grid_.at(keys[i]);
+//                                   points[i] = v.get_position();
+//                               }
+//                           });
+//     });
+// #else
+//     // Sequential version
+//     for (const auto &[key, v] : grid_) {
+//         points.push_back(v.get_position());
+//     }
+// #endif
+//     return points;
+// }
 
-// get_colors implementation
-template <typename VoxelDataT>
-std::vector<std::array<float, 3>> VoxelSemanticGridT<VoxelDataT>::get_colors() const {
-    std::vector<std::array<float, 3>> colors;
-    colors.reserve(grid_.size());
-#ifdef TBB_FOUND
-    // Parallel version: collect keys first, then process in parallel
-    // Use isolate() to prevent deadlock from nested parallelism
-    std::vector<VoxelKey> keys;
-    keys.reserve(grid_.size());
-    for (const auto &[key, v] : grid_) {
-        keys.push_back(key);
-    }
-    colors.resize(keys.size());
-    tbb::this_task_arena::isolate([&]() {
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
-                          [&](const tbb::blocked_range<size_t> &range) {
-                              for (size_t i = range.begin(); i < range.end(); ++i) {
-                                  const auto &v = grid_.at(keys[i]);
-                                  colors[i] = v.get_color();
-                              }
-                          });
-    });
-#else
-    // Sequential version
-    for (const auto &[key, v] : grid_) {
-        colors.push_back(v.get_color());
-    }
-#endif
-    return colors;
-}
+// // get_colors implementation
+// template <typename VoxelDataT>
+// std::vector<std::array<float, 3>> VoxelSemanticGridT<VoxelDataT>::get_colors() const {
+//     std::vector<std::array<float, 3>> colors;
+//     colors.reserve(grid_.size());
+// #ifdef TBB_FOUND
+//     // Parallel version: collect keys first, then process in parallel
+//     // Use isolate() to prevent deadlock from nested parallelism
+//     std::vector<VoxelKey> keys;
+//     keys.reserve(grid_.size());
+//     for (const auto &[key, v] : grid_) {
+//         keys.push_back(key);
+//     }
+//     colors.resize(keys.size());
+//     tbb::this_task_arena::isolate([&]() {
+//         tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
+//                           [&](const tbb::blocked_range<size_t> &range) {
+//                               for (size_t i = range.begin(); i < range.end(); ++i) {
+//                                   const auto &v = grid_.at(keys[i]);
+//                                   colors[i] = v.get_color();
+//                               }
+//                           });
+//     });
+// #else
+//     // Sequential version
+//     for (const auto &[key, v] : grid_) {
+//         colors.push_back(v.get_color());
+//     }
+// #endif
+//     return colors;
+// }
 
 // get_ids implementation
 template <typename VoxelDataT>
@@ -365,10 +365,10 @@ std::pair<std::vector<int>, std::vector<int>> VoxelSemanticGridT<VoxelDataT>::ge
 
 // get_object_segments implementation
 template <typename VoxelDataT>
-std::vector<std::shared_ptr<volumetric::ObjectData>>
+std::shared_ptr<volumetric::ObjectDataGroup>
 VoxelSemanticGridT<VoxelDataT>::get_object_segments(const int min_count,
                                                     const float min_confidence) const {
-    std::unordered_map<int, std::shared_ptr<volumetric::ObjectData>> segments;
+    std::unordered_map<int, std::shared_ptr<volumetric::ObjectData>> object_segments;
     for (const auto &[key, v] : grid_) {
         const auto voxel_confidence = v.get_confidence();
         if (v.count >= min_count && voxel_confidence >= min_confidence) {
@@ -378,10 +378,10 @@ VoxelSemanticGridT<VoxelDataT>::get_object_segments(const int min_count,
             if (object_id < 0) {
                 continue;
             }
-            auto it = segments.find(object_id);
-            if (it == segments.end()) {
+            auto it = object_segments.find(object_id);
+            if (it == object_segments.end()) {
                 auto object_data = std::make_shared<ObjectData>();
-                segments[object_id] = object_data;
+                object_segments[object_id] = object_data;
                 object_data->points.push_back(v.get_position());
                 object_data->colors.push_back(v.get_color());
                 object_data->class_id = v.get_class_id();
@@ -401,27 +401,32 @@ VoxelSemanticGridT<VoxelDataT>::get_object_segments(const int min_count,
         }
     }
 
-    // Compute the oriented bounding box for each object
-    for (const auto &[object_id, object_data] : segments) {
+    // Convert the segments to a vector of shared pointers
+    std::shared_ptr<volumetric::ObjectDataGroup> object_data_group =
+        std::make_shared<ObjectDataGroup>();
+
+    object_data_group->object_vector.reserve(object_segments.size());
+    object_data_group->class_ids.reserve(object_segments.size());
+    object_data_group->object_ids.reserve(object_segments.size());
+    for (const auto &[object_id, object_data] : object_segments) {
+
+        // Compute the oriented bounding box for the object
         object_data->oriented_bounding_box =
             OrientedBoundingBox3D::compute_from_points(object_data->points);
-    }
 
-    // Convert the segments to a vector of shared pointers
-    std::vector<std::shared_ptr<volumetric::ObjectData>> segments_vector;
-    segments_vector.reserve(segments.size());
-    for (const auto &[object_id, object_data] : segments) {
-        segments_vector.push_back(object_data);
+        object_data_group->object_vector.push_back(object_data);
+        object_data_group->class_ids.push_back(object_data->class_id);
+        object_data_group->object_ids.push_back(object_id);
     }
-    return segments_vector;
+    return object_data_group;
 }
 
 // get_class_segments implementation
 template <typename VoxelDataT>
-std::vector<std::shared_ptr<volumetric::ClassData>>
+std::shared_ptr<volumetric::ClassDataGroup>
 VoxelSemanticGridT<VoxelDataT>::get_class_segments(const int min_count,
                                                    const float min_confidence) const {
-    std::unordered_map<int, std::shared_ptr<volumetric::ClassData>> segments;
+    std::unordered_map<int, std::shared_ptr<volumetric::ClassData>> class_segments;
     for (const auto &[key, v] : grid_) {
         const auto voxel_confidence = v.get_confidence();
         if (v.count >= min_count && voxel_confidence >= min_confidence) {
@@ -431,10 +436,10 @@ VoxelSemanticGridT<VoxelDataT>::get_class_segments(const int min_count,
             if (class_id < 0) {
                 continue;
             }
-            auto it = segments.find(class_id);
-            if (it == segments.end()) {
+            auto it = class_segments.find(class_id);
+            if (it == class_segments.end()) {
                 auto class_data = std::make_shared<ClassData>();
-                segments[class_id] = class_data;
+                class_segments[class_id] = class_data;
                 class_data->points.push_back(v.get_position());
                 class_data->colors.push_back(v.get_color());
                 class_data->class_id = class_id;
@@ -451,12 +456,16 @@ VoxelSemanticGridT<VoxelDataT>::get_class_segments(const int min_count,
         }
     }
 
-    std::vector<std::shared_ptr<volumetric::ClassData>> segments_vector;
-    segments_vector.reserve(segments.size());
-    for (const auto &[class_id, class_data] : segments) {
-        segments_vector.push_back(class_data);
+    std::shared_ptr<volumetric::ClassDataGroup> class_data_group =
+        std::make_shared<ClassDataGroup>();
+
+    class_data_group->class_vector.reserve(class_segments.size());
+    class_data_group->class_ids.reserve(class_segments.size());
+    for (const auto &[class_id, class_data] : class_segments) {
+        class_data_group->class_vector.push_back(class_data);
+        class_data_group->class_ids.push_back(class_id);
     }
-    return segments_vector;
+    return class_data_group;
 }
 
 // clear implementation

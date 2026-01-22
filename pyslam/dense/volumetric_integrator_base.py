@@ -42,11 +42,11 @@ from pyslam.utilities.timer import TimerFps
 from pyslam.utilities.pickling import ensure_picklable, filter_unpicklable_recursive
 from pyslam.semantics.semantic_mapping_shared import SemanticMappingShared
 
-from pyslam.config_parameters import Parameters
+from pyslam.config_parameters import Parameters, get_np_dtype
 
 from pyslam.dense.volumetric_integrator_types import VolumetricIntegratorType
 
-from volumetric import ObjectData
+from volumetric import ObjectData, ObjectDataGroup
 
 import traceback
 
@@ -226,9 +226,83 @@ class VolumetricIntegrationMesh:
         return mesh
 
 
-class VolumetricIntegrationObjects:
-    def __init__(self, objects: list[ObjectData]):
-        self.objects = objects
+# This seems to be very slow to manage
+# class VolumetricIntegrationObjects:
+#     def __init__(
+#         self,
+#         objects_data: ObjectDataGroup,
+#         semantic_colors: np.ndarray,
+#         object_colors: np.ndarray,
+#         num_objects: int,
+#     ):
+#         self.objects_data = objects_data  # ObjectDataGroup contains N objects (ObjectData objects)
+#         self.semantic_colors = semantic_colors  # [N, 3] in [0, 1] range
+#         self.object_colors = object_colors  # [N, 3] in [0, 1] range
+#         self.num_objects = (
+#             num_objects  # number of objects (ObjectData objects) in the ObjectDataGroup
+#         )
+
+
+class VolumetricIntegratinOrientedBoundingBox3D:
+    def __init__(
+        self,
+        box_matrix: np.ndarray,
+        box_size: np.ndarray,
+    ):
+        # precision consistency with the C++ code in cpp/glutils/globject.h and cpp/volumetric/bounding_boxes_3d.h
+        matrix = np.asarray(box_matrix, dtype=np.float64)
+        if matrix.shape == (4, 4):
+            # OpenGL consumes column-major matrices; pybind/eigen expose column-major data.
+            # Update bindings expect C-contiguous buffers, so transpose once here.
+            matrix = matrix.T
+        self.box_matrix: np.ndarray = np.ascontiguousarray(matrix, dtype=np.float64)
+        self.box_size: np.ndarray = np.ascontiguousarray(box_size, dtype=np.float64)
+
+
+class VolumetricIntegrationObject:
+    def __init__(
+        self,
+        object_data: ObjectData,
+    ):
+        self.points = np.ascontiguousarray(
+            object_data.points, dtype=Parameters.kDenseMappingDtypeVertices
+        )
+        self.colors = np.ascontiguousarray(
+            object_data.colors, dtype=Parameters.kDenseMappingDtypeColors
+        )
+        self.class_id: int = object_data.class_id
+        self.object_id: int = object_data.object_id
+        self.confidence_min: float = object_data.confidence_min
+        self.confidence_max: float = object_data.confidence_max
+        self.oriented_bounding_box: VolumetricIntegratinOrientedBoundingBox3D = (
+            VolumetricIntegratinOrientedBoundingBox3D(
+                object_data.oriented_bounding_box.get_matrix(),
+                object_data.oriented_bounding_box.size,
+            )
+        )
+
+
+class VolumetricIntegrationObjectList:
+    def __init__(
+        self,
+        object_data_group: ObjectDataGroup,
+        semantic_colors: np.ndarray,
+        object_colors: np.ndarray,
+        num_objects: int,
+    ):
+        self.object_list: list[VolumetricIntegrationObject] = [
+            VolumetricIntegrationObject(object_data)
+            for object_data in object_data_group.object_vector
+        ]  # N objects
+        self.semantic_colors: np.ndarray = np.ascontiguousarray(
+            semantic_colors, dtype=Parameters.kDenseMappingDtypeColors
+        )  # [N, 3] in [0, 1] range
+        self.object_colors: np.ndarray = np.ascontiguousarray(
+            object_colors, dtype=Parameters.kDenseMappingDtypeColors
+        )  # [N, 3] in [0, 1] range
+        self.num_objects: int = (
+            num_objects  # number of objects (ObjectData objects) in the ObjectDataGroup
+        )
 
 
 class VolumetricIntegrationOutput:
@@ -238,13 +312,13 @@ class VolumetricIntegrationOutput:
         id=-1,
         point_cloud: VolumetricIntegrationPointCloud = None,
         mesh: VolumetricIntegrationMesh = None,
-        objects: VolumetricIntegrationObjects = None,
+        objects: VolumetricIntegrationObjectList = None,
     ):
         self.task_type = task_type
         self.id = id
         self.point_cloud: VolumetricIntegrationPointCloud = point_cloud
         self.mesh: VolumetricIntegrationMesh = mesh
-        self.objects: VolumetricIntegrationObjects = objects
+        self.objects: VolumetricIntegrationObjectList = objects
         self.timestamp = time.perf_counter()
 
 
@@ -782,13 +856,11 @@ class VolumetricIntegratorBase:
         timer_fps.start()
 
         # Define dtype for the volumetric integrator
-        self.dtype_vertices = (
-            np.float64 if Parameters.kViewerUseDoubleForDense3dVertices else np.float32
-        )
-        self.dtype_colors = np.float32
-        self.dtype_depths = np.float32
-        self.dtype_semantics = np.int32
-        self.dtype_object_ids = np.int32
+        self.dtype_vertices = get_np_dtype(Parameters.kDenseMappingDtypeVertices)
+        self.dtype_colors = get_np_dtype(Parameters.kDenseMappingDtypeColors)
+        self.dtype_depths = get_np_dtype(Parameters.kDenseMappingDtypeDepth)
+        self.dtype_semantics = get_np_dtype(Parameters.kDenseMappingDtypeSemantics)
+        self.dtype_object_ids = get_np_dtype(Parameters.kDenseMappingDtypeObjectIds)
 
         # main loop
         while is_running.value == 1:

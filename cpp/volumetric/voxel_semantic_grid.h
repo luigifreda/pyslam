@@ -29,6 +29,7 @@
 
 #include "voxel_data.h"
 #include "voxel_grid.h"
+#include "voxel_grid_data.h"
 #include "voxel_hashing.h"
 #include "voxel_semantic_data_association.h"
 
@@ -56,6 +57,15 @@ namespace volumetric {
 
 // VoxelSemanticGrid class with direct voxel hashing and semantic segmentation
 template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<VoxelDataT> {
+
+  public:
+    using PosScalar = typename VoxelDataT::PosScalar;
+    using ColorScalar = typename VoxelDataT::ColorScalar;
+    using Pos3 = typename VoxelDataT::Pos3;
+    using Color3 = typename VoxelDataT::Color3;
+
+    using VoxelGridDataType = VoxelGridDataT<PosScalar, ColorScalar>;
+
   public:
     explicit VoxelSemanticGridT(double voxel_size = 0.05);
 
@@ -96,21 +106,21 @@ template <typename VoxelDataT> class VoxelSemanticGridT : public VoxelGridT<Voxe
     // Remove all voxels with low confidence counter
     void remove_low_confidence_segments(const int min_confidence);
 
-    // Get the points of the voxel grid
-    std::vector<std::array<double, 3>> get_points() const;
+    // // Get the points of the voxel grid
+    // std::vector<Pos3> get_points() const;
 
-    // Get the colors of the voxel grid
-    std::vector<std::array<float, 3>> get_colors() const;
+    // // Get the colors of the voxel grid
+    // std::vector<Color3> get_colors() const;
 
     // Get the class and object IDs of the voxel grid
     std::pair<std::vector<int>, std::vector<int>> get_ids() const;
 
     // Get clusters of voxels based on object IDs
-    std::vector<std::shared_ptr<volumetric::ObjectData>>
+    std::shared_ptr<volumetric::ObjectDataGroup>
     get_object_segments(const int min_count = 1, const float min_confidence = 0.0) const;
 
     // Get clusters of voxels based on class IDs
-    std::vector<std::shared_ptr<volumetric::ClassData>>
+    std::shared_ptr<volumetric::ClassDataGroup>
     get_class_segments(const int min_count = 1, const float min_confidence = 0.0) const;
 
     // Clear the voxel grid

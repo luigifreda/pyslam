@@ -39,5 +39,12 @@ PYBIND11_MODULE(color_utils, m) {
         .def(py::init<>())
         .def("ids_to_rgb", &pyslam::IdsColorTable::ids_to_rgb, py::arg("ids"),
              py::arg("bgr") = false, py::arg("unlabeled_color") = cv::Vec3b(0, 0, 0),
-             "Convert IDs to RGB colors using hash-based color table.");
+             py::arg("use_hash") = false, "Convert IDs to RGB colors using hash-based color table.")
+        .def("ids_to_rgb_float", &pyslam::IdsColorTable::ids_to_rgb_float, py::arg("ids"),
+             py::arg("bgr") = false, py::arg("unlabeled_color") = cv::Vec3b(0, 0, 0),
+             py::arg("use_hash") = false, "Convert IDs to RGB colors as float32 in [0, 1].")
+        .def("get_color_from_id", &pyslam::IdsColorTable::get_color_from_id, py::arg("id_val"),
+             "Get the color from the color LUT using an hash ID.")
+        .def("get_color_from_id_array", &pyslam::IdsColorTable::get_color_from_id_array,
+             py::arg("id_val"), "Get the color from the color LUT using an hash ID as an array.");
 }

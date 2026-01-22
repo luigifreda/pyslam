@@ -19,11 +19,6 @@
 
 #pragma once
 
-#include <pybind11/eigen.h>
-#include <pybind11/numpy.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-
 #if defined(__APPLE__)
 #include <OpenGL/gl.h>
 #else
@@ -39,20 +34,5 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-
-namespace py = pybind11;
-using namespace pybind11::literals;
-
-using DoubleArray = py::array_t<double, py::array::c_style | py::array::forcecast>;
-using DoubleArrayNoCopy = py::array_t<double, py::array::c_style>;
-
-using FloatArray = py::array_t<float, py::array::c_style | py::array::forcecast>;
-using FloatArrayNoCopy = py::array_t<float, py::array::c_style>;
-
-using IntArray = py::array_t<int, py::array::c_style | py::array::forcecast>;
-using IntArrayNoCopy = py::array_t<int, py::array::c_style>;
-
-using UByteArray = py::array_t<unsigned char, py::array::c_style | py::array::forcecast>;
-using UByteArrayNoCopy = py::array_t<unsigned char, py::array::c_style>;
 
 constexpr std::size_t kMatrixElementCount = 16;

@@ -10,12 +10,14 @@ The volumetric module implements sparse voxel grids using hash-based data struct
 
 ### Core Data Structures
 
-- **`voxel_data.h`**: Defines voxel data types:
+The voxel data types are now defined with templates to allow compile-time customization of the stored fields (e.g., color, semantic IDs, probabilistic fusion state) while preserving the same high-level grid APIs.
+
+- **`voxel_data.h`**: Defines voxel data types (template-based):
   - `VoxelData`: Basic voxel storing position and color averages
   - `VoxelSemanticData`: Semantic voxel with instance/class IDs and confidence counter
   - `VoxelSemanticDataProbabilistic`: Probabilistic semantic voxel using Bayesian fusion in log-space
 
-- **`voxel_data_semantic.h`**: Extended semantic voxel data types:
+- **`voxel_data_semantic.h`**: Extended semantic voxel data types (template-based):
   - `VoxelSemanticData2`: Semantic voxel with separate confidence counters for object and class IDs
   - `VoxelSemanticDataProbabilistic2`: Probabilistic semantic voxel with independent marginal distributions (assumes independence between object and class IDs)
 
@@ -106,9 +108,9 @@ The module is designed to be used through Python bindings. Grid types are expose
 - `VoxelSemanticGridProbabilistic`: Probabilistic semantic grid (using `VoxelSemanticDataProbabilistic`)
 - `VoxelSemanticGridProbabilistic2`: Probabilistic semantic grid with marginal distributions (using `VoxelSemanticDataProbabilistic2`)
 - `VoxelBlockSemanticGrid`: Block-based semantic grid
-- `VoxelBlockSemanticGrid2`: Block-based semantic grid with separate confidence counters
+- `VoxelBlockSemanticGrid2`: Block-based semantic grid with separate confidence counters (just experimental)
 - `VoxelBlockSemanticProbabilisticGrid`: Block-based probabilistic semantic grid
-- `VoxelBlockSemanticProbabilistic2Grid`: Block-based probabilistic semantic grid with marginal distributions
+- `VoxelBlockSemanticProbabilistic2Grid`: Block-based probabilistic semantic grid with marginal distributions (just experimental)
 
 All grids support:
 - Point cloud integration with optional color and semantic information

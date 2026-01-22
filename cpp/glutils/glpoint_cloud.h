@@ -258,7 +258,7 @@ template <typename PointT, typename ColorT = float> class GlPointCloudT {
 
 // ================================================================
 // Draw point cloud by using VBOs.
-// The points and colors are directly uploaded to GPU memory when UpdateAndDraw() is called.
+// The points and colors are directly uploaded to GPU memory when Update() is called.
 // ================================================================
 template <typename PointT, typename ColorT = float> class GlPointCloudDirectT {
   public:
@@ -344,7 +344,7 @@ template <typename PointT, typename ColorT = float> class GlPointCloudDirectT {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    void UpdateAndDraw(const PointT *points, const ColorT *colors, std::size_t point_count) {
+    void Update(const PointT *points, const ColorT *colors, std::size_t point_count) {
         point_count_ = point_count;
         if (point_count_ == 0) {
             has_colors_ = false;
@@ -352,7 +352,7 @@ template <typename PointT, typename ColorT = float> class GlPointCloudDirectT {
         }
 
         if (!points) {
-            // assert(false && "UpdateAndDraw: points is null but point_count > 0");
+            // assert(false && "Update: points is null but point_count > 0");
             has_colors_ = false;
             point_count_ = 0;
             return;
@@ -381,8 +381,6 @@ template <typename PointT, typename ColorT = float> class GlPointCloudDirectT {
                 colors_capacity_ = col_bytes;
             }
         }
-
-        Draw();
     }
 
   private:
@@ -407,6 +405,8 @@ template <typename PointT, typename ColorT = float> class GlPointCloudDirectT {
     std::size_t colors_capacity_;
     bool has_colors_;
 };
+
+// ================================================================
 
 // NOTE: We use float for colors since it is the most common type and it is easy and convenient to
 // handle.

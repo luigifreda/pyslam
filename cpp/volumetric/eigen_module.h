@@ -78,8 +78,18 @@ void bind_eigen(py::module &m) {
                  return "Quaterniond(w=" + std::to_string(q.w()) + ", x=" + std::to_string(q.x()) +
                         ", y=" + std::to_string(q.y()) + ", z=" + std::to_string(q.z()) + ")";
              })
-        .def("__str__", [](const Eigen::Quaterniond &q) {
-            return "Quaterniond(w=" + std::to_string(q.w()) + ", x=" + std::to_string(q.x()) +
-                   ", y=" + std::to_string(q.y()) + ", z=" + std::to_string(q.z()) + ")";
-        });
+        .def("__str__",
+             [](const Eigen::Quaterniond &q) {
+                 return "Quaterniond(w=" + std::to_string(q.w()) + ", x=" + std::to_string(q.x()) +
+                        ", y=" + std::to_string(q.y()) + ", z=" + std::to_string(q.z()) + ")";
+             })
+        .def(py::pickle(
+            [](const Eigen::Quaterniond &q) { return py::make_tuple(q.w(), q.x(), q.y(), q.z()); },
+            [](py::tuple state) {
+                if (state.size() != 4) {
+                    throw py::value_error("Invalid state for Quaterniond");
+                }
+                return Eigen::Quaterniond(state[0].cast<double>(), state[1].cast<double>(),
+                                          state[2].cast<double>(), state[3].cast<double>());
+            }));
 }

@@ -158,8 +158,9 @@ ROVER_DATASET:
   base_path: /home/luigi/Work/datasets/rgbd_datasets/rover
   camera_name: realsense_D435i  # name of the camera folder in the base_path/name folder
   #
-  name: 'garden_large_2023-08-18/2023-08-18'
+  #name: 'garden_large_2023-08-18/2023-08-18'
   #name: 'garden_small_2023-08-18/2023-08-18'
+  name: 'campus_small_2023-11-23/2023-11-23'
   settings: settings/ROVER_d435i.yaml
   #
   associations: associations.txt

@@ -30,6 +30,14 @@
 
 namespace pyslam {
 
+namespace utils {
+
+template <typename T> constexpr bool is_power_of_2(const T value) {
+    return (value > 0) && ((value & (value - 1)) == 0);
+}
+
+} // namespace utils
+
 class Colors {
   public:
     static constexpr int kMyjetNumColors = 10;
@@ -105,6 +113,16 @@ class ColorTableGenerator {
         return (uint32_t(c.r) << 16) | (uint32_t(c.g) << 8) | uint32_t(c.b);
     }
 
+  public:
+    // --- mix IDs so nearby integers spread across the table ---
+    static uint64_t splitmix64(uint64_t x) {
+        // Excellent 64-bit mixer; cheap and reversible enough for our use.
+        x += 0x9E3779B97F4A7C15ull;
+        x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+        x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+        return x ^ (x >> 31);
+    }
+
   private:
     // --- Table generation: well-separated hues via golden-ratio stepping ---
     static std::array<RGB, TABLE_SIZE> generate_table() {
@@ -117,15 +135,6 @@ class ColorTableGenerator {
             t[i] = {r, g, b};
         }
         return t;
-    }
-
-    // --- mix IDs so nearby integers spread across the table ---
-    static uint64_t splitmix64(uint64_t x) {
-        // Excellent 64-bit mixer; cheap and reversible enough for our use.
-        x += 0x9E3779B97F4A7C15ull;
-        x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
-        x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
-        return x ^ (x >> 31);
     }
 
     // --- HSV -> RGB helper (returns 8-bit components) ---
@@ -174,7 +183,10 @@ class ColorTableGenerator {
     }
 
     // --- Singleton setup ---
-    ColorTableGenerator() : table_(generate_table()) {}
+    ColorTableGenerator() : table_(generate_table()) {
+        // check if the table is a power of 2
+        static_assert(utils::is_power_of_2<size_t>(TABLE_SIZE), "TABLE_SIZE must be a power of 2");
+    }
     ColorTableGenerator(const ColorTableGenerator &) = delete;
     ColorTableGenerator &operator=(const ColorTableGenerator &) = delete;
 

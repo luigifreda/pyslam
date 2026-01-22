@@ -97,6 +97,11 @@ struct OrientedBoundingBox3D {
                           const Eigen::Vector3d &size)
         : center(center), orientation(orientation), size(size) {}
 
+    Eigen::Matrix4d
+    get_matrix() const; // Transformation matrix from object-attached to world coordinates
+    Eigen::Matrix4d
+    get_inverse_matrix() const; // Transformation matrix from world to object-attached coordinates
+
     double get_volume() const;
 
     double get_surface_area() const;
@@ -136,14 +141,14 @@ namespace detail_3d {
 // use for the SAT test and drawing.
 struct OBBFrame3D {
     Eigen::Vector3d center;
-    Eigen::Matrix3d axes; // columns are unit axes
     Eigen::Vector3d half;
+    Eigen::Matrix3d axes; // columns are unit axes (from object-attached to world coordinates)
 };
 
 inline OBBFrame3D make_frame(const OrientedBoundingBox3D &obb) {
     OBBFrame3D f;
     const Eigen::Quaterniond q_norm = obb.orientation.normalized();
-    f.axes = q_norm.toRotationMatrix();
+    f.axes = q_norm.normalized().toRotationMatrix();
     f.center = obb.center;
     f.half = obb.size / 2.0;
     return f;

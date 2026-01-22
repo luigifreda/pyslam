@@ -81,6 +81,15 @@ namespace volumetric {
 
 // VoxelGrid class with direct voxel hashing
 template <typename VoxelDataT> class VoxelGridT {
+
+  public:
+    using PosScalar = typename VoxelDataT::PosScalar;
+    using ColorScalar = typename VoxelDataT::ColorScalar;
+    using Pos3 = typename VoxelDataT::Pos3;
+    using Color3 = typename VoxelDataT::Color3;
+
+    using VoxelGridDataType = VoxelGridDataT<PosScalar, ColorScalar>;
+
   public:
     explicit VoxelGridT(float voxel_size = 0.05);
 
@@ -126,26 +135,26 @@ template <typename VoxelDataT> class VoxelGridT {
     // Remove all voxels with low confidence counter
     void remove_low_confidence_voxels(const float min_confidence);
 
-    std::vector<std::array<double, 3>> get_points() const;
+    std::vector<Pos3> get_points() const;
 
-    std::vector<std::array<float, 3>> get_colors() const;
+    std::vector<Color3> get_colors() const;
 
-    VoxelGridData get_voxels(int min_count = 1, float min_confidence = 0.0) const;
+    VoxelGridDataType get_voxels(int min_count = 1, float min_confidence = 0.0) const;
 
     // Get voxels within a spatial interval (bounding box)
     // Returns points and colors for voxels whose centers fall within [min_xyz, max_xyz]
     // If IncludeSemantics is true and VoxelDataT is a SemanticVoxel, also returns semantic data
     template <bool IncludeSemantics = false>
-    VoxelGridData get_voxels_in_bb(const BoundingBox3D &bbox, const int min_count = 1,
-                                   float min_confidence = 0.0) const;
+    VoxelGridDataType get_voxels_in_bb(const BoundingBox3D &bbox, const int min_count = 1,
+                                       float min_confidence = 0.0) const;
 
     // Get voxels within a camera frustrum
     // Returns points and colors for voxels whose centers fall within the camera frustrum
     // If IncludeSemantics is true and VoxelDataT is a SemanticVoxel, also returns semantic data
     template <bool IncludeSemantics = false>
-    VoxelGridData get_voxels_in_camera_frustrum(const CameraFrustrum &camera_frustrum,
-                                                const int min_count = 1,
-                                                float min_confidence = 0.0) const;
+    VoxelGridDataType get_voxels_in_camera_frustrum(const CameraFrustrum &camera_frustrum,
+                                                    const int min_count = 1,
+                                                    float min_confidence = 0.0) const;
 
     // Iterate over voxels in a spatial interval with a callback function
     // The callback receives (voxel_key, voxel_data) for each voxel in the interval

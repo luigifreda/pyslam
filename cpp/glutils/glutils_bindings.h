@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "glutils_common.h"
+#include "glutils_bindings_common.h"
 
 namespace glutils {
 

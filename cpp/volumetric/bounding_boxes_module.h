@@ -80,7 +80,18 @@ void bind_bounding_boxes(py::module &m) {
         .def_static("compute_from_points",
                     [](const std::vector<Eigen::Matrix<float, 3, 1>> &points_w) {
                         return volumetric::BoundingBox3D::compute_from_points(points_w);
-                    });
+                    })
+        .def(py::pickle(
+            [](const volumetric::BoundingBox3D &self) {
+                return py::make_tuple(self.get_min_point(), self.get_max_point());
+            },
+            [](py::tuple state) {
+                if (state.size() != 2) {
+                    throw py::value_error("Invalid state for BoundingBox3D");
+                }
+                return volumetric::BoundingBox3D(state[0].cast<Eigen::Vector3d>(),
+                                                 state[1].cast<Eigen::Vector3d>());
+            }));
 
     // OrientedBoundingBox3D class
     py::class_<volumetric::OrientedBoundingBox3D,
@@ -103,6 +114,8 @@ void bind_bounding_boxes(py::module &m) {
         .def_readwrite("center", &volumetric::OrientedBoundingBox3D::center)
         .def_readwrite("orientation", &volumetric::OrientedBoundingBox3D::orientation)
         .def_readwrite("size", &volumetric::OrientedBoundingBox3D::size)
+        .def("get_matrix", &volumetric::OrientedBoundingBox3D::get_matrix)
+        .def("get_inverse_matrix", &volumetric::OrientedBoundingBox3D::get_inverse_matrix)
         .def("get_volume", &volumetric::OrientedBoundingBox3D::get_volume)
         .def("get_surface_area", &volumetric::OrientedBoundingBox3D::get_surface_area)
         .def("get_diagonal_length", &volumetric::OrientedBoundingBox3D::get_diagonal_length)
@@ -131,7 +144,19 @@ void bind_bounding_boxes(py::module &m) {
                const volumetric::OBBComputationMethod &method) {
                 return volumetric::OrientedBoundingBox3D::compute_from_points(points_w, method);
             },
-            py::arg("points_w"), py::arg("method") = volumetric::OBBComputationMethod::PCA);
+            py::arg("points_w"), py::arg("method") = volumetric::OBBComputationMethod::PCA)
+        .def(py::pickle(
+            [](const volumetric::OrientedBoundingBox3D &self) {
+                return py::make_tuple(self.center, self.orientation, self.size);
+            },
+            [](py::tuple state) {
+                if (state.size() != 3) {
+                    throw py::value_error("Invalid state for OrientedBoundingBox3D");
+                }
+                return volumetric::OrientedBoundingBox3D(state[0].cast<Eigen::Vector3d>(),
+                                                         state[1].cast<Eigen::Quaterniond>(),
+                                                         state[2].cast<Eigen::Vector3d>());
+            }));
 
     // ================================================================
     // Bounding Boxes 2D
@@ -169,7 +194,18 @@ void bind_bounding_boxes(py::module &m) {
         .def_static("compute_from_points",
                     [](const std::vector<Eigen::Matrix<float, 2, 1>> &points_w) {
                         return volumetric::BoundingBox2D::compute_from_points(points_w);
-                    });
+                    })
+        .def(py::pickle(
+            [](const volumetric::BoundingBox2D &self) {
+                return py::make_tuple(self.get_min_point(), self.get_max_point());
+            },
+            [](py::tuple state) {
+                if (state.size() != 2) {
+                    throw py::value_error("Invalid state for BoundingBox2D");
+                }
+                return volumetric::BoundingBox2D(state[0].cast<Eigen::Vector2d>(),
+                                                 state[1].cast<Eigen::Vector2d>());
+            }));
 
     // OrientedBoundingBox2D class
     py::class_<volumetric::OrientedBoundingBox2D,
@@ -208,5 +244,17 @@ void bind_bounding_boxes(py::module &m) {
                const volumetric::OBBComputationMethod &method) {
                 return volumetric::OrientedBoundingBox2D::compute_from_points(points_w, method);
             },
-            py::arg("points_w"), py::arg("method") = volumetric::OBBComputationMethod::PCA);
+            py::arg("points_w"), py::arg("method") = volumetric::OBBComputationMethod::PCA)
+        .def(py::pickle(
+            [](const volumetric::OrientedBoundingBox2D &self) {
+                return py::make_tuple(self.center, self.angle_rad, self.size);
+            },
+            [](py::tuple state) {
+                if (state.size() != 3) {
+                    throw py::value_error("Invalid state for OrientedBoundingBox2D");
+                }
+                return volumetric::OrientedBoundingBox2D(state[0].cast<Eigen::Vector2d>(),
+                                                         state[1].cast<double>(),
+                                                         state[2].cast<Eigen::Vector2d>());
+            }));
 }

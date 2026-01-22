@@ -203,10 +203,10 @@ std::pair<std::vector<int>, std::vector<int>> VoxelBlockSemanticGridT<VoxelDataT
 
 // get_object_segments implementation
 template <typename VoxelDataT>
-std::vector<std::shared_ptr<volumetric::ObjectData>>
+std::shared_ptr<volumetric::ObjectDataGroup>
 VoxelBlockSemanticGridT<VoxelDataT>::get_object_segments(const int min_count,
                                                          const float min_confidence) const {
-    std::unordered_map<int, std::shared_ptr<volumetric::ObjectData>> segments;
+    std::unordered_map<int, std::shared_ptr<volumetric::ObjectData>> object_segments;
     for (const auto &[block_key, block] : this->blocks_) {
         for (const auto &v : block.data) {
             const auto voxel_confidence = v.get_confidence();
@@ -217,10 +217,10 @@ VoxelBlockSemanticGridT<VoxelDataT>::get_object_segments(const int min_count,
                 if (object_id < 0) {
                     continue;
                 }
-                auto it = segments.find(object_id);
-                if (it == segments.end()) {
+                auto it = object_segments.find(object_id);
+                if (it == object_segments.end()) {
                     auto object_data = std::make_shared<ObjectData>();
-                    segments[object_id] = object_data;
+                    object_segments[object_id] = object_data;
                     object_data->points.push_back(v.get_position());
                     object_data->colors.push_back(v.get_color());
                     object_data->class_id = v.get_class_id();
@@ -242,26 +242,31 @@ VoxelBlockSemanticGridT<VoxelDataT>::get_object_segments(const int min_count,
     }
 
     // Compute the oriented bounding box for each object
-    for (const auto &[object_id, object_data] : segments) {
+    for (const auto &[object_id, object_data] : object_segments) {
         object_data->oriented_bounding_box =
             OrientedBoundingBox3D::compute_from_points(object_data->points);
     }
 
     // Convert the segments to a vector of shared pointers
-    std::vector<std::shared_ptr<volumetric::ObjectData>> segments_vector;
-    segments_vector.reserve(segments.size());
-    for (const auto &[object_id, object_data] : segments) {
-        segments_vector.push_back(object_data);
+    std::shared_ptr<volumetric::ObjectDataGroup> object_data_group =
+        std::make_shared<ObjectDataGroup>();
+    object_data_group->object_vector.reserve(object_segments.size());
+    object_data_group->class_ids.reserve(object_segments.size());
+    object_data_group->object_ids.reserve(object_segments.size());
+    for (const auto &[object_id, object_data] : object_segments) {
+        object_data_group->object_vector.push_back(object_data);
+        object_data_group->class_ids.push_back(object_data->class_id);
+        object_data_group->object_ids.push_back(object_id);
     }
-    return segments_vector;
+    return object_data_group;
 }
 
 // get_class_segments implementation
 template <typename VoxelDataT>
-std::vector<std::shared_ptr<volumetric::ClassData>>
+std::shared_ptr<volumetric::ClassDataGroup>
 VoxelBlockSemanticGridT<VoxelDataT>::get_class_segments(const int min_count,
                                                         const float min_confidence) const {
-    std::unordered_map<int, std::shared_ptr<volumetric::ClassData>> segments;
+    std::unordered_map<int, std::shared_ptr<volumetric::ClassData>> class_segments;
 
     for (const auto &[block_key, block] : this->blocks_) {
         for (const auto &v : block.data) {
@@ -273,10 +278,10 @@ VoxelBlockSemanticGridT<VoxelDataT>::get_class_segments(const int min_count,
                 if (class_id < 0) {
                     continue;
                 }
-                auto it_class = segments.find(class_id);
-                if (it_class == segments.end()) {
+                auto it_class = class_segments.find(class_id);
+                if (it_class == class_segments.end()) {
                     auto class_data = std::make_shared<ClassData>();
-                    segments[class_id] = class_data;
+                    class_segments[class_id] = class_data;
                     class_data->points.push_back(v.get_position());
                     class_data->colors.push_back(v.get_color());
                     class_data->class_id = class_id;
@@ -297,12 +302,15 @@ VoxelBlockSemanticGridT<VoxelDataT>::get_class_segments(const int min_count,
     }
 
     // Convert the segments to a vector of shared pointers
-    std::vector<std::shared_ptr<volumetric::ClassData>> segments_vector;
-    segments_vector.reserve(segments.size());
-    for (const auto &[class_id, class_data] : segments) {
-        segments_vector.push_back(class_data);
+    std::shared_ptr<volumetric::ClassDataGroup> class_data_group =
+        std::make_shared<ClassDataGroup>();
+    class_data_group->class_vector.reserve(class_segments.size());
+    class_data_group->class_ids.reserve(class_segments.size());
+    for (const auto &[class_id, class_data] : class_segments) {
+        class_data_group->class_vector.push_back(class_data);
+        class_data_group->class_ids.push_back(class_id);
     }
-    return segments_vector;
+    return class_data_group;
 }
 
 } // namespace volumetric

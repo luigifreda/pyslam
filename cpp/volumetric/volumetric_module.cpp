@@ -21,43 +21,20 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
-// CRITICAL: Include opaque types BEFORE stl.h to ensure opaque declarations take effect
-#include "volumetric_opaque_types.h"
-
-#include <pybind11/stl.h>
+// CRITICAL: Include opaque bindings BEFORE other stl bindings
+#include "volumetric_opaque_bindings.h"
 
 #include "bounding_boxes_module.h"
 #include "camera_frustrum_module.h"
 #include "eigen_module.h"
 #include "image_utils_module.h"
 #include "volumetric_grid_module.h"
+#include "voxel_grid_data_module.h"
 
 PYBIND11_MODULE(volumetric, m) {
     m.doc() = "PYSLAM Volumetric Module - Volumetric Mapping";
 
-    // ------------------------------------------------------------
-    // Volumetric-specific opaque containers
-    //
-    // These containers are declared opaque (see volumetric_opaque_types.h)
-    // to avoid copying when passing between C++ and Python, and to enable
-    // mutations in Python to be reflected in C++. This provides significant
-    // performance benefits for large point clouds.
-
-    py::bind_vector<std::vector<std::array<double, 3>>>(m, "PointDoubleVector");
-    py::bind_vector<std::vector<std::array<float, 3>>>(m, "ColorFloatVector");
-
-    py::bind_vector<std::vector<volumetric::OrientedBoundingBox3D>>(m,
-                                                                    "OrientedBoundingBox3DVector");
-    py::bind_vector<std::vector<volumetric::OrientedBoundingBox3D::Ptr>>(
-        m, "OrientedBoundingBox3DPtrVector");
-    py::bind_vector<std::vector<volumetric::BoundingBox3D>>(m, "BoundingBox3DVector");
-    py::bind_vector<std::vector<volumetric::BoundingBox3D::Ptr>>(m, "BoundingBox3DPtrVector");
-
-    py::bind_vector<std::vector<int>>(m, "IntVector");
-    py::bind_vector<std::vector<bool>>(m, "BoolVector");
-
-    py::bind_vector<std::vector<volumetric::ObjectData::Ptr>>(m, "ObjectDataPtrVector");
-    py::bind_vector<std::vector<volumetric::ClassData::Ptr>>(m, "ClassDataPtrVector");
+    bind_volumetric_opaque_containers(m);
 
     // ----------------------------------------
     // TBB Utils
@@ -77,6 +54,8 @@ PYBIND11_MODULE(volumetric, m) {
     bind_bounding_boxes(m);
 
     bind_camera_frustrum(m);
+
+    bind_voxel_grid_data(m);
 
     bind_volumetric_grid(m);
 
