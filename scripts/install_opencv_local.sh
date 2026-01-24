@@ -56,11 +56,96 @@ function get_usable_cuda_version(){
     echo $version
 }
 
+function get_cuda_arch_bin(){
+    # This function detects the CUDA compute architectures supported by the installed CUDA toolkit
+    # It uses nvcc --list-gpu-arch which is the most reliable method
+    
+    local arch_bin=""
+    
+    # Method 1: Use nvcc --list-gpu-arch (most reliable - returns what the CUDA toolkit actually supports)
+    if command -v nvcc &> /dev/null; then
+        local nvcc_output=$(nvcc --list-gpu-arch 2>/dev/null)
+        if [ $? -eq 0 ] && [ -n "$nvcc_output" ]; then
+            # Extract compute capabilities from output (format: compute_XX or sm_XX)
+            # Convert to format needed by CUDA_ARCH_BIN (e.g., "7.5 8.0 8.6")
+            while IFS= read -r line; do
+                local arch=""
+                if [[ $line =~ compute_([0-9]+) ]]; then
+                    arch="${BASH_REMATCH[1]}"
+                elif [[ $line =~ sm_([0-9]+) ]]; then
+                    arch="${BASH_REMATCH[1]}"
+                fi
+                
+                if [ -n "$arch" ]; then
+                    # Convert to decimal format (e.g., 75 -> 7.5, 86 -> 8.6)
+                    if [ ${#arch} -eq 2 ]; then
+                        local major="${arch:0:1}"
+                        local minor="${arch:1:1}"
+                        arch_bin="${arch_bin}${major}.${minor} "
+                    fi
+                fi
+            done <<< "$nvcc_output"
+            
+            # Remove trailing space and return
+            arch_bin=$(echo "$arch_bin" | xargs)
+            if [ -n "$arch_bin" ]; then
+                echo "$arch_bin"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Method 2: Fallback - detect based on CUDA version
+    local cuda_version_str=""
+    if [ -f /usr/local/cuda/version.txt ]; then
+        cuda_version_str=$(cat /usr/local/cuda/version.txt 2>/dev/null)
+    elif command -v nvcc &> /dev/null; then
+        cuda_version_str=$(nvcc --version 2>/dev/null | grep "release" | awk '{print $5}' | sed 's/,//')
+    fi
+    
+    if [ -n "$cuda_version_str" ]; then
+        # Extract major.minor version
+        local cuda_major=$(echo "$cuda_version_str" | sed 's/[^0-9]*\([0-9]*\)\.\([0-9]*\).*/\1/')
+        local cuda_minor=$(echo "$cuda_version_str" | sed 's/[^0-9]*\([0-9]*\)\.\([0-9]*\).*/\2/')
+        
+        # Set architectures based on CUDA version compatibility
+        if [ "$cuda_major" -ge 13 ]; then
+            # CUDA 13.x: supports 7.5, 8.0, 8.6, 8.9, 9.0
+            arch_bin="7.5 8.0 8.6 8.9"
+        elif [ "$cuda_major" -eq 12 ]; then
+            # CUDA 12.x: supports 5.0-9.0
+            arch_bin="6.1 7.0 7.5 8.0 8.6 8.9"
+        elif [ "$cuda_major" -eq 11 ]; then
+            # CUDA 11.x: supports 3.5-8.6
+            if [ "$cuda_minor" -ge 8 ]; then
+                arch_bin="6.1 7.0 7.5 8.0 8.6"
+            else
+                arch_bin="6.1 7.0 7.5 8.0"
+            fi
+        elif [ "$cuda_major" -eq 10 ]; then
+            # CUDA 10.x: supports 3.0-7.5
+            arch_bin="6.1 7.0 7.5"
+        else
+            # CUDA 9.x and older: supports 3.0-7.0
+            arch_bin="6.1 7.0"
+        fi
+        
+        if [ -n "$arch_bin" ]; then
+            echo "$arch_bin"
+            return 0
+        fi
+    fi
+    
+    # Method 3: Ultimate fallback - use safe defaults for modern GPUs
+    print_red "Warning: Could not detect CUDA architectures. Using default values for modern GPUs."
+    echo "7.5 8.0 8.6 8.9"
+}
+
 # ====================================================
 
 export TARGET_FOLDER=thirdparty
 
-export OPENCV_VERSION="4.11.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
+export OPENCV_VERSION="4.13.0"   # OpenCV version to download and install. See tags in https://github.com/opencv/opencv 
 
 
 SCRIPT_DIR_=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ) # get script dir
@@ -125,7 +210,15 @@ else
 fi 
 echo CUDA_ON: $CUDA_ON
 export PATH=/usr/local/$CUDA_VERSION/bin${PATH:+:${PATH}}   # this is for having the right nvcc in the path
-export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs 
+export LD_LIBRARY_PATH=/usr/local/$CUDA_VERSION/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}  # this is for libs
+
+# Detect CUDA architectures automatically
+CUDA_ARCH_BIN=""
+if [[ "$CUDA_ON" == "ON" ]]; then
+    print_blue "Detecting CUDA compute architectures..."
+    CUDA_ARCH_BIN=$(get_cuda_arch_bin)
+    echo "Detected CUDA_ARCH_BIN: $CUDA_ARCH_BIN"
+fi 
 
 WITH_DNN=ON                # this can be used to turn off the DNN module
 WITH_PROTOBUF=ON           # this can be used to turn off the protobuf module (it is required for DNN)
@@ -353,7 +446,7 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -DWITH_CUDNN=$CUDA_ON \
           -DBUILD_opencv_dnn=$WITH_DNN \
           -DOPENCV_DNN_CUDA=$CUDA_ON \
-          -DCUDA_ARCH_BIN="5.3 6.0 6.1 7.0 7.5 8.6" \
+          -DCUDA_ARCH_BIN="$CUDA_ARCH_BIN" \
           -DBUILD_opencv_cudacodec=OFF \
           -DENABLE_FAST_MATH=1 \
           -DBUILD_opencv_sfm=$BUILD_SFM_OPTION \
@@ -379,6 +472,11 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
     else
         # Nvidia Jetson aarch64
         echo "building NVIDIA Jetson config"
+        # Use detected architectures, fallback to Jetson-specific 6.2 if detection failed
+        JETSON_ARCH_BIN="${CUDA_ARCH_BIN:-6.2}"
+        if [ -z "$CUDA_ARCH_BIN" ]; then
+            echo "Using Jetson default architecture: 6.2"
+        fi
         cmake \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_CXX_STANDARD=17 \
@@ -393,7 +491,7 @@ if [ ! -f $OPENCV_CORE_LIB ]; then
           -DWITH_CUBLAS=ON \
           -DWITH_CUFFT=ON \
           -DCUDA_FAST_MATH=ON \
-          -DCUDA_ARCH_BIN="6.2" \
+          -DCUDA_ARCH_BIN="$JETSON_ARCH_BIN" \
           -DCUDA_ARCH_PTX="" \
           -DBUILD_opencv_cudacodec=OFF \
           -DENABLE_NEON=ON \
